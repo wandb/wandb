@@ -719,7 +719,6 @@ class Scheduler(ABC):
             project=self._project,
             entity=self._entity,
             queue_name=self._kwargs.get("queue"),
-            project_queue=self._project_queue,
             resource=_job_launch_config.get("resource"),
             resource_args=_job_launch_config.get("resource_args"),
             template_variables=_job_launch_config.get("template_variables"),
