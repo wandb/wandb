@@ -807,6 +807,7 @@ func (s *Sender) streamSummary() {
 			},
 		},
 	}
+	fmt.Println(">>>", update)
 
 	s.fileStream.StreamRecord(record)
 }

@@ -58,18 +58,22 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 		return nil, fmt.Errorf("runsummary: failed to flatten tree: %v", err)
 	}
 
-	summary := make([]*service.SummaryItem, len(leaves))
-	for i, leaf := range leaves {
-
-		// This should never happen, but it's better to be safe than sorry.
-		if len(leaf.Path) == 0 {
-			return nil, fmt.Errorf("runsummary: empty path in leaf %v", leaf)
-		}
-
-		summary[i] = &service.SummaryItem{
-			Key:       leaf.Path[0],
-			NestedKey: leaf.Path[1:],
-			ValueJson: leaf.Value,
+	summary := make([]*service.SummaryItem, 0, len(leaves))
+	for _, leaf := range leaves {
+		switch len(leaf.Path) {
+		case 0:
+			// This should never happen
+			return nil, fmt.Errorf("runsummary: path is empty for item %v", leaf)
+		case 1:
+			summary = append(summary, &service.SummaryItem{
+				Key:       leaf.Path[0],
+				ValueJson: leaf.Value,
+			})
+		default:
+			summary = append(summary, &service.SummaryItem{
+				NestedKey: leaf.Path,
+				ValueJson: leaf.Value,
+			})
 		}
 	}
 	return summary, nil
