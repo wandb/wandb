@@ -263,7 +263,7 @@ func (r *State) updateConfig(
 		return err
 	}
 
-	deserializedConfig := make(runconfig.RunConfigDict)
+	deserializedConfig := make(runconfig.RunConfigTree)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]interface{})
 

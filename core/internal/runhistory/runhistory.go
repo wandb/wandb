@@ -8,33 +8,41 @@ import (
 )
 
 type RunHistory struct {
-	*pathtree.PathTree[*service.HistoryItem]
+	*pathtree.PathTree
 	Step int64
 }
 
 func New() *RunHistory {
 	return &RunHistory{
-		PathTree: pathtree.New[*service.HistoryItem](),
+		PathTree: pathtree.New(),
 	}
 }
 
 func NewWithStep(step int64) *RunHistory {
 	return &RunHistory{
-		PathTree: pathtree.New[*service.HistoryItem](),
+		PathTree: pathtree.New(),
 		Step:     step,
 	}
 }
 
-func (runHistory *RunHistory) ApplyUpdate(
-	item []*service.HistoryItem,
+// Updates values in the history tree.
+//
+// Does a best-effort job to apply all changes. Errors are passed to `onError`
+// and skipped.
+func (rh *RunHistory) ApplyChangeRecord(
+	historyRecord []*service.HistoryItem,
 	onError func(error),
 ) {
-	runHistory.PathTree.ApplyUpdate(item, onError, pathtree.FormatJsonExt)
+	updates := make([]*pathtree.PathItem, len(historyRecord))
+	for i, item := range historyRecord {
+		updates[i] = pathtree.FromItem(item)
+	}
+	rh.PathTree.ApplyUpdate(updates, onError, pathtree.FormatJsonExt)
 }
 
 // Serializes the object to send to the backend.
-func (runHistory *RunHistory) Serialize(format pathtree.Format) ([]byte, error) {
-	return runHistory.PathTree.Serialize(format, func(value any) any {
+func (rh *RunHistory) Serialize(format pathtree.Format) ([]byte, error) {
+	return rh.PathTree.Serialize(format, func(value any) any {
 		return value
 	})
 }
@@ -43,26 +51,25 @@ func (runHistory *RunHistory) Serialize(format pathtree.Format) ([]byte, error) 
 //
 // The items are ordered by their path, with nested items following their parent.
 // If some item cannot be converted to a history item, an error is returned.
-func (runHistory *RunHistory) Flatten() ([]*service.HistoryItem, error) {
-	leaves := runHistory.PathTree.Flatten()
-	history := make([]*service.HistoryItem, len(leaves))
-	for i, leaf := range leaves {
+func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 
+	leaves, err := rh.PathTree.FlattenAndSerialize(pathtree.FormatJsonExt)
+	if err != nil {
+		return nil, fmt.Errorf("runhistory: failed to flatten tree: %v", err)
+	}
+
+	history := make([]*service.HistoryItem, len(leaves))
+
+	for i, leaf := range leaves {
 		// This should never happen, but it's better to be safe than sorry.
 		if len(leaf.Path) == 0 {
 			return nil, fmt.Errorf("runhistory: path is empty for item %v", leaf)
 		}
 
-		// TODO: would be great to avoid this marshalling
-		value, err := pathtree.Marshal(pathtree.FormatJsonExt, leaf.Value)
-		if err != nil {
-			return nil, err
-		}
-
 		history[i] = &service.HistoryItem{
 			Key:       leaf.Path[0],
 			NestedKey: leaf.Path[1:],
-			ValueJson: string(value),
+			ValueJson: leaf.Value,
 		}
 	}
 	return history, nil

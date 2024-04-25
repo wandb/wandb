@@ -11,8 +11,8 @@ import (
 )
 
 func TestConfigUpdate(t *testing.T) {
-	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
-		"b": runconfig.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigTree{
+		"b": runconfig.RunConfigTree{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -34,9 +34,9 @@ func TestConfigUpdate(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		runconfig.RunConfigDict{
+		runconfig.RunConfigTree{
 			"a": 1.0,
-			"b": runconfig.RunConfigDict{
+			"b": runconfig.RunConfigTree{
 				"c": "text",
 				"d": 123.0,
 			},
@@ -46,9 +46,9 @@ func TestConfigUpdate(t *testing.T) {
 }
 
 func TestConfigRemove(t *testing.T) {
-	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigTree{
 		"a": 9,
-		"b": runconfig.RunConfigDict{
+		"b": runconfig.RunConfigTree{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -64,15 +64,15 @@ func TestConfigRemove(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		runconfig.RunConfigDict{"b": runconfig.RunConfigDict{"d": 123.0}},
+		runconfig.RunConfigTree{"b": runconfig.RunConfigTree{"d": 123.0}},
 		runConfig.Tree(),
 	)
 }
 
 func TestConfigSerialize(t *testing.T) {
-	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigTree{
 		"number": 9,
-		"nested": runconfig.RunConfigDict{
+		"nested": runconfig.RunConfigTree{
 			"list": []string{"a", "b", "c"},
 			"text": "xyz",
 		},
@@ -105,8 +105,8 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		runconfig.RunConfigDict{
-			"_wandb": runconfig.RunConfigDict{
+		runconfig.RunConfigTree{
+			"_wandb": runconfig.RunConfigTree{
 				"t": corelib.ProtoEncodeToDict(telemetry),
 				"m": []map[int]interface{}{},
 			},
@@ -118,18 +118,18 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 func ignoreError(_err error) {}
 
 func TestCloneTree(t *testing.T) {
-	runConfig := runconfig.NewFrom(runconfig.RunConfigDict{
+	runConfig := runconfig.NewFrom(runconfig.RunConfigTree{
 		"number": 9,
-		"nested": runconfig.RunConfigDict{
+		"nested": runconfig.RunConfigTree{
 			"list": []string{"a", "b", "c"},
 			"text": "xyz",
 		},
 	})
 	cloned, _ := runConfig.CloneTree()
 	assert.Equal(t,
-		runconfig.RunConfigDict{
+		runconfig.RunConfigTree{
 			"number": 9,
-			"nested": runconfig.RunConfigDict{
+			"nested": runconfig.RunConfigTree{
 				"list": []string{"a", "b", "c"},
 				"text": "xyz",
 			},
@@ -139,11 +139,11 @@ func TestCloneTree(t *testing.T) {
 	assert.NotEqual(t, runConfig, cloned)
 	// Delete elements from the cloned tree and check that the original is unchanged.
 	delete(cloned, "number")
-	delete(cloned["nested"].(runconfig.RunConfigDict), "list")
+	delete(cloned["nested"].(runconfig.RunConfigTree), "list")
 	assert.Equal(t,
-		runconfig.RunConfigDict{
+		runconfig.RunConfigTree{
 			"number": 9,
-			"nested": runconfig.RunConfigDict{
+			"nested": runconfig.RunConfigTree{
 				"list": []string{"a", "b", "c"},
 				"text": "xyz",
 			},

@@ -5,7 +5,6 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -90,7 +89,7 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 
 	history := runhistory.New()
 	history.ApplyChangeRecord(
-		msg,
+		msg.GetItem(),
 		func(err error) {
 			fs.logger.CaptureError("filestream: failed to apply history update", err)
 		},

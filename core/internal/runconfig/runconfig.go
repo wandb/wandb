@@ -10,7 +10,7 @@ import (
 //
 // This is a type alias for refactoring purposes; it should be new type
 // otherwise.
-type RunConfigDict = pathtree.TreeData
+type RunConfigTree = pathtree.TreeData
 
 // The configuration of a run.
 //
@@ -28,7 +28,7 @@ func New() *RunConfig {
 	return &RunConfig{PathTree: pathtree.New()}
 }
 
-func NewFrom(tree RunConfigDict) *RunConfig {
+func NewFrom(tree RunConfigTree) *RunConfig {
 	return &RunConfig{PathTree: pathtree.NewFrom(tree)}
 }
 
@@ -42,7 +42,7 @@ func (runConfig *RunConfig) Serialize(format pathtree.Format) ([]byte, error) {
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
-func (runConfig *RunConfig) ApplyChangeRecord(
+func (rc *RunConfig) ApplyChangeRecord(
 	configRecord *service.ConfigRecord,
 	onError func(error),
 ) {
@@ -50,21 +50,21 @@ func (runConfig *RunConfig) ApplyChangeRecord(
 	for i, item := range configRecord.GetUpdate() {
 		updates[i] = pathtree.FromItem(item)
 	}
-	runConfig.ApplyUpdate(updates, onError, pathtree.FormatJson)
+	rc.ApplyUpdate(updates, onError, pathtree.FormatJson)
 
 	removes := make([]*pathtree.PathItem, len(configRecord.GetRemove()))
 	for i, item := range configRecord.GetRemove() {
 		removes[i] = pathtree.FromItem(item)
 	}
-	runConfig.ApplyRemove(removes, onError)
+	rc.ApplyRemove(removes, onError)
 }
 
 // Inserts W&B-internal values into the run's configuration.
-func (runConfig *RunConfig) AddTelemetryAndMetrics(
+func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
 	metrics []map[int]interface{},
 ) {
-	wandbInternal := runConfig.internalSubtree()
+	wandbInternal := rc.internalSubtree()
 
 	if telemetry.GetCliVersion() != "" {
 		wandbInternal["cli_version"] = telemetry.CliVersion
@@ -81,9 +81,9 @@ func (runConfig *RunConfig) AddTelemetryAndMetrics(
 }
 
 // Incorporates the config from a run that's being resumed.
-func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
+func (rc *RunConfig) MergeResumedConfig(oldConfig RunConfigTree) error {
 	// Add any top-level keys that aren't already set.
-	if err := runConfig.AddUnsetKeysFromSubtree(
+	if err := rc.AddUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{},
 	); err != nil {
@@ -93,14 +93,14 @@ func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
 	// When a user logs visualizations, we unfortunately store them in the
 	// run's config. When resuming a run, we want to avoid erasing previously
 	// logged visualizations, hence this special handling.
-	if err := runConfig.AddUnsetKeysFromSubtree(
+	if err := rc.AddUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "visualize"},
 	); err != nil {
 		return err
 	}
 
-	if err := runConfig.AddUnsetKeysFromSubtree(
+	if err := rc.AddUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "viz"},
 	); err != nil {
@@ -111,15 +111,15 @@ func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
 }
 
 // Returns the "_wandb" subtree of the config.
-func (runConfig *RunConfig) internalSubtree() RunConfigDict {
-	node, found := runConfig.Tree()["_wandb"]
+func (rc *RunConfig) internalSubtree() RunConfigTree {
+	node, found := rc.Tree()["_wandb"]
 
 	if !found {
-		wandbInternal := make(RunConfigDict)
-		runConfig.Tree()["_wandb"] = wandbInternal
+		wandbInternal := make(RunConfigTree)
+		rc.Tree()["_wandb"] = wandbInternal
 		return wandbInternal
 	}
 
 	// Panic if the type is wrong, which should never happen.
-	return node.(RunConfigDict)
+	return node.(RunConfigTree)
 }

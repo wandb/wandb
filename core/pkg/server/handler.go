@@ -78,7 +78,6 @@ type Handler struct {
 	// runHistory is the current active history entry being updated
 	runHistory *runhistory.RunHistory
 
-
 	// samplers is the map of samplers for all the history metrics that are
 	// being tracked, the result of the samplers will be used to display the
 	// the sparkline in the terminal
@@ -1064,13 +1063,29 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 	h.fwdRecord(record)
 
-	// TODO unify with handleSummary
 	// TODO add an option to disable summary (this could be quite expensive)
-	if h.summaryHandler == nil {
+	if h.runSummary == nil {
 		return
 	}
-	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
-	h.summaryHandler.updateSummaryDelta(summary)
+
+	summary := make([]*service.SummaryItem, 0, len(history.GetItem()))
+	for _, item := range history.GetItem() {
+		summaryItem := &service.SummaryItem{
+			Key:       item.Key,
+			NestedKey: item.NestedKey,
+			ValueJson: item.ValueJson,
+		}
+		summary = append(summary, summaryItem)
+	}
+
+	record = &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: summary,
+			},
+		},
+	}
+	h.handleSummary(record, record.GetSummary())
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
@@ -1103,7 +1118,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		h.runHistory = runhistory.New()
 	}
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
+	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
 		h.logger.CaptureError("Error updating run history", err)
 	})
 
@@ -1196,7 +1211,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyUpdate(request.GetItem(), func(err error) {
+	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
 		h.logger.CaptureError("Error updating run history", err)
 	})
 
@@ -1288,7 +1303,7 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 			Key:       key,
 			ValueJson: string(value),
 		}
-		h.runHistory.ApplyUpdate([]*service.HistoryItem{hi}, func(err error) {
+		h.runHistory.ApplyChangeRecord([]*service.HistoryItem{hi}, func(err error) {
 			h.logger.CaptureError("Error updating run history", err)
 		})
 		return hi
@@ -1349,7 +1364,6 @@ func (h *Handler) sampleHistory(history *service.HistoryRecord) {
 		h.samplers[item.Key].Add(value)
 	}
 }
-
 
 func (h *Handler) GetRun() *service.RunRecord {
 	return h.runRecord

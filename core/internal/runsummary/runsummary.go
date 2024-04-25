@@ -3,8 +3,6 @@ package runsummary
 import (
 	"fmt"
 
-	json "github.com/wandb/simplejsonext"
-
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -29,7 +27,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 	for i, item := range summaryRecord.GetUpdate() {
 		updates[i] = pathtree.FromItem(item)
 	}
-	rs.ApplyUpdate(updates, onError)
+	rs.ApplyUpdate(updates, onError, pathtree.FormatJsonExt)
 
 	removes := make([]*pathtree.PathItem, len(summaryRecord.GetRemove()))
 	for i, item := range summaryRecord.GetRemove() {
@@ -54,30 +52,25 @@ func (rs *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
-	leaves := rs.PathTree.Flatten()
 
-	items := make([]*service.SummaryItem, len(leaves))
+	leaves, err := rs.PathTree.FlattenAndSerialize(pathtree.FormatJsonExt)
+	if err != nil {
+		return nil, fmt.Errorf("runsummary: failed to flatten tree: %v", err)
+	}
+
+	summary := make([]*service.SummaryItem, len(leaves))
 	for i, leaf := range leaves {
-		// If value is not a TreeData, add it to the leaves slice with the current path
-		value, err := json.Marshal(leaf.Value)
-		if err != nil {
-			// TODO: continue or error out immediately?
-			err = fmt.Errorf("runsummary: failed to marshal JSON for key %v: %v", leaf.Key, err)
-			return nil, err
+
+		// This should never happen, but it's better to be safe than sorry.
+		if len(leaf.Path) == 0 {
+			return nil, fmt.Errorf("runsummary: empty path in leaf %v", leaf)
 		}
 
-		items[i] = &service.SummaryItem{
-			ValueJson: string(value),
-		}
-		pathLen := len(leaf.Key)
-		if pathLen == 0 {
-			return nil, fmt.Errorf("runsummary: empty key in leaf")
-		}
-		if pathLen == 1 {
-			items[i].Key = leaf.Key[0]
-		} else {
-			items[i].NestedKey = leaf.Key
+		summary[i] = &service.SummaryItem{
+			Key:       leaf.Path[0],
+			NestedKey: leaf.Path[1:],
+			ValueJson: leaf.Value,
 		}
 	}
-	return items, nil
+	return summary, nil
 }
