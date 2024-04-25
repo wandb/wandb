@@ -213,7 +213,12 @@ def _launch_add(
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(
-        api, queue_name, launch_spec, template_variables, LAUNCH_DEFAULT_PROJECT, priority
+        api,
+        queue_name,
+        launch_spec,
+        template_variables,
+        LAUNCH_DEFAULT_PROJECT,
+        priority,
     )
 
     if res is None or "runQueueItemId" not in res:
