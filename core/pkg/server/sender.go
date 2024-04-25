@@ -51,6 +51,7 @@ type SenderParams struct {
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
 	RunfilesUploader    runfiles.Uploader
+	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
@@ -106,7 +107,10 @@ type Sender struct {
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
-	// Keep track of summary which is being updated incrementally
+	// summaryDebouncer is the debouncer for summary updates
+	summaryDebouncer *debounce.Debouncer
+
+	// runSummary is the full summary for the run
 	runSummary *runsummary.RunSummary
 
 	// Keep track of config which is being updated incrementally
@@ -150,7 +154,6 @@ func NewSender(
 		cancel:              cancel,
 		settings:            params.Settings,
 		logger:              params.Logger,
-		runSummary:          runsummary.New(),
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
@@ -160,11 +163,17 @@ func NewSender(
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
+		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.FwdChan,
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
+			params.Logger,
+		),
+		summaryDebouncer: debounce.NewDebouncer(
+			summaryDebouncerRateLimit,
+			summaryDebouncerBurstSize,
 			params.Logger,
 		),
 	}
@@ -191,6 +200,7 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
+		s.summaryDebouncer.Debounce(s.streamSummary)
 	}
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
@@ -429,20 +439,12 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
-	// output := make(map[string]interface{})
 
-	// var out interface{}
-	// for k, v := range s.summaryMap {
-	// 	bytes := []byte(v.GetValueJson())
-	// 	err := json.Unmarshal(bytes, &out)
-	// 	if err != nil {
-	// 		s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
-	// 		return
-	// 	}
-	// 	output[k] = out
-	// }
-	// TODO: this is a temporary solution to get the output
-	output := s.runSummary.Tree()
+	output, err := s.runSummary.CloneTree()
+	if err != nil {
+		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		return
+	}
 
 	artifact, err := s.jobBuilder.Build(output)
 	if err != nil {
@@ -479,6 +481,9 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
+		s.summaryDebouncer.SetNeedsDebounce()
+		s.summaryDebouncer.Flush(s.streamSummary)
+		s.uploadSummaryFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
@@ -785,29 +790,33 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
-
-	// TODO(network): buffer summary sending for network efficiency until we
-	// can send only updates
-	// TODO(memory): avoid keeping summary for all distinct keys
-	s.runSummary.ApplyChangeRecord(summary, func(err error) {
-		s.logger.CaptureError("Error updating run summary", err)
-	})
-
+func (s *Sender) streamSummary() {
 	if s.fileStream == nil {
 		return
 	}
+  
+	update, err := s.runSummary.Flatten()
+	if err != nil {
+		s.logger.CaptureError("Error flattening run summary", err)
+		return
+	}
 
-	// build a full summary record to send
-	summaryItems := s.runSummary.Flatten()
 	record := &service.Record{
 		RecordType: &service.Record_Summary{
 			Summary: &service.SummaryRecord{
-				Update: summaryItems,
+				Update: update,
 			},
 		},
 	}
+
 	s.fileStream.StreamRecord(record)
+}
+
+func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
+
+	// TODO(network): buffer summary sending for network efficiency until we can send only updates
+
+	s.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) upsertConfig() {
@@ -855,6 +864,38 @@ func (s *Sender) upsertConfig() {
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
 	}
+}
+
+func (s *Sender) uploadSummaryFile() {
+	if s.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
+	summary, err := s.runSummary.Serialize(pathtree.FormatJson)
+	if err != nil {
+		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
+		return
+	}
+	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
+	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
+		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: SummaryFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdRecord(record)
 }
 
 func (s *Sender) uploadConfigFile() {

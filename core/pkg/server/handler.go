@@ -12,7 +12,7 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/debounce"
+
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -44,6 +44,8 @@ type HandlerParams struct {
 	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
+	RunSummary        *runsummary.RunSummary
+	MetricHandler     *MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
@@ -80,6 +82,9 @@ type Handler struct {
 
 	runMetric *runmetric.RunMetricHanlder
 
+	// runSummary keeps the complete up-to-date summary
+	runSummary *runsummary.RunSummary
+
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
@@ -92,6 +97,7 @@ type Handler struct {
 	// runfilesUploaderOrNil manages uploading a run's files
 	//
 	// It may be nil when offline.
+	// TODO: should this be moved to the sender?
 	runfilesUploaderOrNil runfiles.Uploader
 
 	// fileTransferStats reports file upload/download statistics
@@ -126,8 +132,6 @@ func NewHandler(
 		ctx:             ctx,
 		logger:          params.Logger,
 		internalPrinter: observability.NewPrinter[string](),
-		runDeltaSummary: runsummary.New(),
-		runFullSummary:  runsummary.New(),
 		summaryDebouncer: debounce.NewDebouncer(
 			summaryDebouncerRateLimit,
 			summaryDebouncerBurstSize,
@@ -138,6 +142,7 @@ func NewHandler(
 		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		settings:              params.Settings,
+		runSummary:            params.RunSummary,
 		systemMonitor:         params.SystemMonitor,
 		tbHandler:             params.TBHandler,
 		runfilesUploaderOrNil: params.RunfilesUploader,
@@ -199,7 +204,6 @@ func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ..
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryDebouncer.Debounce(h.debounceSummary)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Alert:
 		h.handleAlert(record)
@@ -408,9 +412,6 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_TB:
 		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
-		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryDebouncer.Flush(h.debounceSummary)
-		h.uploadSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -850,8 +851,15 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	h.runTimer.Pause()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	// update summary with runtime
-	h.handleSummary(nil, &service.SummaryRecord{})
+
+	if !h.settings.GetXSync().GetValue() {
+		summaryRecord := &service.Record{
+			RecordType: &service.Record_Summary{
+				Summary: &service.SummaryRecord{},
+			},
+		}
+		h.handleSummary(summaryRecord, summaryRecord.GetSummary())
+	}
 
 	// send the exit record
 	h.fwdRecordWithControl(record,
@@ -875,8 +883,12 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
-	// TODO: fix this
-	items := h.runFullSummary.Flatten()
+	items, err := h.runSummary.Flatten()
+	if err != nil {
+		h.logger.CaptureError("Error flattening run summary", err)
+		h.respond(record, response)
+		return
+	}
 	response.ResponseType = &service.Response_GetSummaryResponse{
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
@@ -949,65 +961,34 @@ func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) uploadSummaryFile() {
-	if h.settings.GetXSync().GetValue() {
+func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
+	if !h.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
-		return
+		runtime := int32(h.runTimer.Elapsed().Seconds())
+
+		// update summary with runtime
+		summary.Update = append(summary.Update, &service.SummaryItem{
+			NestedKey: []string{"_wandb", "runtime"},
+			ValueJson: fmt.Sprintf("%d", runtime),
+		})
 	}
 
-	serializedSummary, err := h.runFullSummary.Serialize(pathtree.FormatJson)
-
-	if err != nil {
-		err = fmt.Errorf("failed to marshal summary: %w", err)
-		h.logger.Error("handler: uploadSummaryFile:", "error", err)
-		return
-	}
-
-	file := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
-
-	if err := os.WriteFile(file, serializedSummary, 0644); err != nil {
-		err = fmt.Errorf("failed to write summary file: %w", err)
-		h.logger.Error("handler: uploadSummaryFile:", "error", err)
-		return
-	}
-
-	if h.runfilesUploaderOrNil != nil {
-		// TODO: mark as WANDB file
-		h.runfilesUploaderOrNil.UploadNow(SummaryFileName)
-	}
-}
-
-func (h *Handler) debounceSummary() {
-
-	update := h.runDeltaSummary.Flatten()
-
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: update,
-			},
+	h.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			h.logger.CaptureError("Error updating run summary", err)
 		},
-	}
-	h.fwdRecord(record)
+	)
 
-	// since we have sent the delta summary, we can clear it
-	h.runDeltaSummary = runsummary.New()
-}
-
-func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
-	if h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		return
-	}
-
-	runtime := int32(h.runTimer.Elapsed().Seconds())
-	// update summary with runtime
-	summary.Update = append(summary.Update, &service.SummaryItem{
-		Key:       "_wandb",
-		NestedKey: []string{"runtime"},
-		ValueJson: fmt.Sprintf("%d", runtime),
-	})
-	h.updateSummary(summary)
+	h.fwdRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+			// do not write to the transaction log when syncing an offline run
+			if h.settings.GetXSync().GetValue() {
+				control.Local = true
+			}
+		},
+	)
 }
 
 func (h *Handler) handleTBrecord(record *service.Record) {
@@ -1249,6 +1230,7 @@ func (h *Handler) checkNeedsImputation(key string) bool {
 	}
 
 	// check if step metric is already in history
+
 	// TODO: fix this (we don't want to use Tree() here)
 	if _, ok := h.runHistory.Tree()[stepKey]; ok {
 		return false

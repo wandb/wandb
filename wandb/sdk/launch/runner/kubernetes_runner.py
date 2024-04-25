@@ -29,7 +29,6 @@ from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
-from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
@@ -374,8 +373,7 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         entry_point = (
-            launch_project.override_entrypoint
-            or launch_project.get_single_entry_point()
+            launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
         if launch_project.docker_image:
             # dont specify run id if user provided image, could have multiple runs
@@ -401,8 +399,8 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
         api_key_secret = None
         for cont in containers:
@@ -511,8 +509,8 @@ class KubernetesRunner(AbstractRunner):
         api_version = resource_args.get("apiVersion", "batch/v1")
 
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            env_vars = get_env_vars_dict(
-                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+            env_vars = launch_project.get_env_vars_dict(
+                self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
             )
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(resource_args, env_vars)

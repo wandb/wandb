@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
@@ -173,6 +174,10 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	mailbox := mailbox.NewMailbox()
 
+	// runSummary is used to track the summary of the run's metrics
+	// and is shared between the handler and the sender
+	runSummary := runsummary.New()
+
 	s.handler = NewHandler(s.ctx,
 		&HandlerParams{
 			Settings: s.settings.Proto,
@@ -189,6 +194,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 				s.loopBackChan,
 			),
 			FileTransferStats: fileTransferStats,
+			RunSummary:        runSummary,
 			Mailbox:           mailbox,
 		},
 	)
@@ -212,6 +218,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Settings:            s.settings.Proto,
 			Peeker:              peeker,
+			RunSummary:          runSummary,
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

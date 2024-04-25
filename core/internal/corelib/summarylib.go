@@ -34,17 +34,3 @@ func JsonifyItems[V genericItem](items []V) (string, error) {
 	}
 	return string(jsonBytes), nil
 }
-
-// insertNested inserts a value into a map based on a slice of keys representing the path
-func insertNested(m map[string]interface{}, keys []string, value interface{}) {
-	for i, key := range keys {
-		if i == len(keys)-1 {
-			m[key] = value
-		} else {
-			if _, ok := m[key]; !ok {
-				m[key] = make(map[string]interface{})
-			}
-			m = m[key].(map[string]interface{})
-		}
-	}
-}

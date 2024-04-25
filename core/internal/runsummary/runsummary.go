@@ -1,49 +1,81 @@
 package runsummary
 
 import (
+	json "github.com/wandb/simplejsonext"
+
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-type RunSummaryDict = pathtree.TreeData
-
 type RunSummary struct {
-	*pathtree.PathTree[*service.SummaryItem]
+	*pathtree.PathTree
 }
 
 func New() *RunSummary {
-	return &RunSummary{PathTree: pathtree.New[*service.SummaryItem]()}
+	return &RunSummary{PathTree: pathtree.New()}
 }
 
-func NewFrom(tree RunSummaryDict) *RunSummary {
-	return &RunSummary{PathTree: pathtree.NewFrom[*service.SummaryItem](tree)}
-}
-
-func (runSummary *RunSummary) ApplyChangeRecord(
+// Updates and/or removes values from the configuration tree.
+//
+// Does a best-effort job to apply all changes. Errors are passed to `onError`
+// and skipped.
+func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	update := summaryRecord.GetUpdate()
-	runSummary.ApplyUpdate(update, onError)
-
-	remove := summaryRecord.GetRemove()
-	runSummary.ApplyRemove(remove, onError)
-}
-
-func (runSummary *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
-	return runSummary.PathTree.Serialize(format, nil)
-}
-
-// TODO: fix this to build nested tree and include remove
-func (runSummary *RunSummary) Flatten() []*service.SummaryItem {
-	var items []*service.SummaryItem
-	for _, item := range runSummary.PathTree.Flatten() {
-		summary := &service.SummaryItem{
-			Key:       item.Key[0],
-			NestedKey: item.Key[1:],
-			ValueJson: item.Value,
-		}
-		items = append(items, summary)
+	updates := make([]*pathtree.PathItem, len(summaryRecord.GetUpdate()))
+	for i, item := range summaryRecord.GetUpdate() {
+		updates[i] = pathtree.FromItem(item)
 	}
-	return items
+	rs.ApplyUpdate(updates, onError)
+
+	removes := make([]*pathtree.PathItem, len(summaryRecord.GetRemove()))
+	for i, item := range summaryRecord.GetRemove() {
+		removes[i] = pathtree.FromItem(item)
+	}
+	rs.ApplyRemove(removes, onError)
+}
+
+// Serialize the summary tree to a byte slice.
+//
+// The format parameter specifies the serialization format.
+func (rs *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
+	return rs.PathTree.Serialize(format, func(value any) any {
+		return value
+	})
+}
+
+// Flatten the summary tree into a slice of SummaryItems.
+//
+// There is no guarantee for the order of the items in the slice.
+// The order of the items is determined by the order of the tree traversal.
+// The tree traversal is depth-first but based on a map, so the order is not
+// guaranteed.
+func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
+	leaves := rs.PathTree.Flatten()
+
+	items := make([]*service.SummaryItem, len(leaves))
+	for i, leaf := range leaves {
+		// If value is not a TreeData, add it to the leaves slice with the current path
+		value, err := json.Marshal(leaf.Value)
+		if err != nil {
+			// TODO: continue or error out immediately?
+			err = fmt.Errorf("runsummary: failed to marshal JSON for key %v: %v", leaf.Key, err)
+			return nil, err
+		}
+
+		items[i] = &service.SummaryItem{
+			ValueJson: string(value),
+		}
+		pathLen := len(leaf.Key)
+		if pathLen == 0 {
+			return nil, fmt.Errorf("runsummary: empty key in leaf")
+		}
+		if pathLen == 1 {
+			items[i].Key = leaf.Key[0]
+		} else {
+			items[i].NestedKey = leaf.Key
+		}
+	}
+	return items, nil
 }

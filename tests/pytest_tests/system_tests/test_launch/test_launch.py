@@ -6,7 +6,6 @@ import wandb
 from wandb.errors import CommError
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch._launch import _launch
-from wandb.sdk.launch.builder.build import EntryPoint
 from wandb.sdk.launch.errors import LaunchError
 
 
@@ -25,12 +24,7 @@ class MockBuilder:
 async def test_launch_incorrect_backend(
     runner, user, monkeypatch, wandb_init, test_settings
 ):
-    launch_project = MagicMock()
-    launch_project.get_single_entry_point.return_value = EntryPoint(
-        "blah", ["python", "test.py"]
-    )
     proj = "test1"
-    uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": proj})
     api = InternalApi()
@@ -73,7 +67,7 @@ async def test_launch_incorrect_backend(
     ):
         await _launch(
             api,
-            uri=uri,
+            docker_image="testimage",
             entity=user,
             project=proj,
             entry_point=entry_point,
