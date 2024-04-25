@@ -27,12 +27,13 @@ async def vertex_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
+    scheduler_queue: asyncio.Queue,
 ) -> None:
     max_concurrency = parse_max_concurrency(config, 1000)
 
     logger.debug(f"Starting vertex controller with max concurrency {max_concurrency}")
 
-    mgr = VertexManager(config, jobset, logger, legacy, max_concurrency)
+    mgr = VertexManager(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -54,10 +55,11 @@ class VertexManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
+        scheduler_queue: asyncio.Queue,
         max_concurrency: int,
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)
-        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        super().__init__(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
         # TODO: handle orphaned jobs in resource and assign to self (can do
         # this because we will tell users they can only have one to one
         # relationships of agents and jobs to queues in a cluster)

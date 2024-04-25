@@ -16,6 +16,7 @@ async def k8s_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
+    scheduler_queue: asyncio.Queue,
 ) -> None:
     iter = 0
     max_concurrency = parse_max_concurrency(config, 1000)
@@ -24,7 +25,7 @@ async def k8s_controller(
         f"Starting kubernetes controller with max concurrency {max_concurrency}"
     )
 
-    mgr = KubernetesManager(config, jobset, logger, legacy, max_concurrency)
+    mgr = KubernetesManager(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -47,10 +48,11 @@ class KubernetesManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
+        scheduler_queue: asyncio.Queue,
         max_concurrency: int,
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)
-        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        super().__init__(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
         # TODO: handle orphaned jobs in resource and assign to self (can do
         # this because we will tell users they can only have one to one
         # relationships of agents and jobs to queues in a cluster)
