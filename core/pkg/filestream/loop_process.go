@@ -77,6 +77,12 @@ func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 }
 
 func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
+	if msg == nil {
+		fs.logger.CaptureError(
+			"filestream: history record is nil", nil)
+		return
+	}
+
 	// when logging to the same run with multiple writers, we need to
 	// add a client id to the history record
 	if fs.clientId != "" {
@@ -88,7 +94,7 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 
 	rh := runhistory.New()
 	rh.ApplyChangeRecord(
-		msg.Item,
+		msg.GetItem(),
 		func(err error) {
 			fs.logger.CaptureError(
 				"filestream: failed to apply history record", err)
@@ -96,7 +102,8 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 	)
 	line, err := rh.Serialize()
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("filestream: failed to serialize history", err)
+		fs.logger.CaptureFatalAndPanic(
+			"filestream: failed to serialize history", err)
 	}
 
 	fs.addTransmit(processedChunk{
@@ -106,6 +113,11 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 }
 
 func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
+	if msg == nil {
+		fs.logger.CaptureError(
+			"filestream: summary record is nil", nil)
+		return
+	}
 
 	rs := runsummary.New()
 	rs.ApplyChangeRecord(
