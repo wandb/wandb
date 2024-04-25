@@ -63,6 +63,8 @@ class Job:
         # only use notebook job if entrypoint not set and notebook is set
         self._notebook_job = source_info.get("notebook", False)
         self._entrypoint = source_info.get("entrypoint")
+        self._dockerfile = source_info.get("dockerfile")
+        self._build_context = source_info.get("build_context")
         self._args = source_info.get("args")
         self._partial = self._job_info.get("_partial", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
@@ -140,6 +142,11 @@ class Job:
             self._configure_launch_project_notebook(launch_project)
         else:
             launch_project.set_job_entry_point(self._entrypoint)
+
+        if self._dockerfile:
+            launch_project.set_job_dockerfile(self._dockerfile)
+        if self._build_context:
+            launch_project.set_job_build_context(self._build_context)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._job_info.get("source", {}).get("image")

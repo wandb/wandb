@@ -12,6 +12,8 @@ def mock_git_project(mocker, tmp_path):
     mock_project = MagicMock()
     mock_project.project_dir = tmp_path
     mock_project.python_version = "3.8"
+    mock_project.job_dockerfile = None
+    mock_project.job_build_context = None
     mock_project.override_dockerfile = None
     mock_project.override_entrypoint.command = ["python", "entrypoint.py"]
     mock_project.override_entrypoint.name = "entrypoint.py"
