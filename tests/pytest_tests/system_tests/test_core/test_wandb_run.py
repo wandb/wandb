@@ -316,6 +316,10 @@ def test_summary_from_history(relay_server, wandb_init):
     assert summary == {"a": 2}
 
 
+@pytest.mark.skipif(
+    not wandb.env.is_require_core(),
+    reason="This is broken in the python code",
+)
 def test_summary_remove(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()

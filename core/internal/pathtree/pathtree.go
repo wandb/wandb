@@ -109,7 +109,11 @@ func (pathTree *PathTree[I]) Serialize(format Format, postProcessFunc func(any) 
 	// A configuration dict in the format expected by the backend.
 	serialized := make(map[string]any)
 	for treeKey, treeValue := range pathTree.tree {
-		serialized[treeKey] = postProcessFunc(treeValue)
+		if postProcessFunc == nil {
+			serialized[treeKey] = treeValue
+		} else {
+			serialized[treeKey] = postProcessFunc(treeValue)
+		}
 	}
 
 	switch format {
