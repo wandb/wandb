@@ -468,7 +468,7 @@ jobs:
           name: "Run nox tests: <<parameters.session_base>>"
           no_output_timeout: 10m
           command: "\
-            nox -db uv -s '<<parameters.session_base>>-\
+            nox -s '<<parameters.session_base>>-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"

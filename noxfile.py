@@ -7,6 +7,8 @@ from typing import Callable, Iterator, List
 
 import nox
 
+nox.options.default_venv_backend = "uv"
+
 _SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 
 
@@ -537,7 +539,7 @@ def proto_check_go(session: nox.Session) -> None:
 
 @nox.session(name="codegen")
 def codegen(session: nox.Session) -> None:
-    session.install("ruff")
+    session.install("-U", "ruff")
     session.install(".")
 
     args = session.posargs
