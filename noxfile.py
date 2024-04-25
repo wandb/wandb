@@ -539,7 +539,7 @@ def proto_check_go(session: nox.Session) -> None:
 
 @nox.session(name="codegen")
 def codegen(session: nox.Session) -> None:
-    session.install("-U", "ruff")
+    session.install("ruff")
     session.install(".")
 
     args = session.posargs
