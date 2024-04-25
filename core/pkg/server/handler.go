@@ -39,7 +39,7 @@ const (
 
 type HandlerParams struct {
 	Settings          *service.Settings
-	ForwardChan       chan *service.Record
+	FwdChan           chan *service.Record
 	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
@@ -123,7 +123,7 @@ func NewHandler(
 		internalPrinter:       observability.NewPrinter[string](),
 		logger:                params.Logger,
 		settings:              params.Settings,
-		fwdChan:               params.ForwardChan,
+		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
 		runSummary:            params.RunSummary,
@@ -1044,14 +1044,14 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	// it needs to be synced, but not part of the history record.
 	// This means that there are metrics defined for this run
 	if h.metricHandler != nil {
+		items := make([]*service.HistoryItem, 0, len(history.GetItem()))
 		for _, item := range history.GetItem() {
-			step := h.imputeStepMetric(item)
-			// TODO: fix this, we update history while we are iterating over it
-			// TODO: handle nested step metrics (e.g. step defined by another step)
-			if step != nil {
-				history.Item = append(history.Item, step)
+			// TODO: handle nested metric metrics (e.g. metric defined by another metric)
+			if metric := h.imputeStepMetric(item); metric != nil {
+				items = append(items, metric)
 			}
 		}
+		history.Item = append(history.Item, items...)
 	}
 
 	h.sampleHistory(history)
@@ -1127,7 +1127,9 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		items, err := h.runHistory.Flatten()
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
-			// TODO: report error back to the client
+			msg := "Failed to process history record, skipping syncing."
+			h.internalPrinter.Write(msg)
+			return
 		}
 		h.handleHistory(&service.HistoryRecord{
 			Item: items,
@@ -1189,7 +1191,11 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			items, err := h.runHistory.Flatten()
 			if err != nil {
 				h.logger.CaptureError("Error flattening run history", err)
-				// TODO: what should we do here?
+				msg := fmt.Sprintf(
+					"Failed to process history record, for step %d, skipping...",
+					h.runHistory.Step,
+				)
+				h.internalPrinter.Write(msg)
 				return
 			}
 			history := &service.HistoryRecord{
@@ -1221,7 +1227,11 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 		items, err := h.runHistory.Flatten()
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
-			// TODO: what should we do here?
+			msg := fmt.Sprintf(
+				"Failed to process history record, for step %d, skipping...",
+				h.runHistory.Step,
+			)
+			h.internalPrinter.Write(msg)
 			return
 		}
 		history := &service.HistoryRecord{
@@ -1283,30 +1293,32 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 
 	// check if step metric is already in history
 	// TODO: avoid using the Tree method
-	// TODO: support nested keys?
 	if _, ok := h.runHistory.Tree()[key]; ok {
 		return nil
 	}
 
-	// TODO: make this work with nested keys
 	// TODO: avoid using the tree representation of the summary
 	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
 	if value, ok := h.runSummary.Tree()[key]; ok {
-		// TODO: add nested key support
-		value, err := json.Marshal(value)
+		v, err := json.Marshal(value)
 		if err != nil {
 			h.logger.CaptureError("error marshalling step metric value", err)
 			return nil
 		}
-		hi := &service.HistoryItem{
-			Key:       key,
-			ValueJson: string(value),
+		item := []*service.HistoryItem{
+			{
+				Key:       key,
+				ValueJson: string(v),
+			},
 		}
-		h.runHistory.ApplyChangeRecord([]*service.HistoryItem{hi}, func(err error) {
-			h.logger.CaptureError("Error updating run history", err)
-		})
-		return hi
+		h.runHistory.ApplyChangeRecord(
+			item,
+			func(err error) {
+				h.logger.CaptureError("Error updating run history", err)
+			},
+		)
+		return item[0]
 	}
 	return nil
 }

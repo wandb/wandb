@@ -15,10 +15,10 @@ func makeHandler(
 ) *server.Handler {
 	h := server.NewHandler(context.Background(),
 		&server.HandlerParams{
-			Logger:      observability.NewNoOpLogger(),
-			Settings:    &service.Settings{},
-			ForwardChan: fwdChan,
-			OutChan:     outChan,
+			Logger:   observability.NewNoOpLogger(),
+			Settings: &service.Settings{},
+			FwdChan:  fwdChan,
+			OutChan:  outChan,
 		},
 	)
 
