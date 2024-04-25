@@ -96,8 +96,7 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 	)
 	line, err := history.Serialize(pathtree.FormatJsonExt)
 	if err != nil {
-		fs.logger.CaptureError("filestream: failed to serialize history", err)
-		return
+		fs.logger.CaptureFatalAndPanic("filestream: failed to serialize history", err)
 	}
 
 	fs.addTransmit(processedChunk{
