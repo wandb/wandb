@@ -2,8 +2,6 @@ import asyncio
 import logging
 from typing import Any, Dict, List
 
-from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
-
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
@@ -33,7 +31,9 @@ async def vertex_controller(
 
     logger.debug(f"Starting vertex controller with max concurrency {max_concurrency}")
 
-    mgr = VertexManager(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
+    mgr = VertexManager(
+        config, jobset, logger, legacy, scheduler_queue, max_concurrency
+    )
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -59,7 +59,9 @@ class VertexManager(BaseManager):
         max_concurrency: int,
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)
-        super().__init__(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
+        super().__init__(
+            config, jobset, logger, legacy, scheduler_queue, max_concurrency
+        )
         # TODO: handle orphaned jobs in resource and assign to self (can do
         # this because we will tell users they can only have one to one
         # relationships of agents and jobs to queues in a cluster)
@@ -79,13 +81,6 @@ class VertexManager(BaseManager):
 
         # TODO convert returned CustomJobs to dicts or Jobs
         raise NotImplementedError
-
-    def _construct_jobset_discoverability_label(self) -> str:
-        return b64_to_hex_id(
-            md5_string(
-                f"{self.config['jobset_spec'].entity_name}/{self.config['jobset_spec'].name}"
-            )
-        )
 
     def label_job(self, project: LaunchProject) -> None:
         vertex_block = self._get_resource_block(project)

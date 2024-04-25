@@ -38,7 +38,9 @@ async def local_container_controller(
         f"Starting local container controller with max concurrency {max_concurrency}"
     )
 
-    mgr = LocalContainerManager(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
+    mgr = LocalContainerManager(
+        config, jobset, logger, legacy, scheduler_queue, max_concurrency
+    )
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -68,7 +70,9 @@ class LocalContainerManager(BaseManager):
             agent_id=config["agent_id"],
         )
 
-        super().__init__(config, jobset, logger, legacy,scheduler_queue, max_concurrency)
+        super().__init__(
+            config, jobset, logger, legacy, scheduler_queue, max_concurrency
+        )
         # TODO: handle orphaned runs and assign to self (blocked on accurately knowing the agent that launched these runs has been killed)
 
     async def find_orphaned_jobs(self) -> List[Any]:

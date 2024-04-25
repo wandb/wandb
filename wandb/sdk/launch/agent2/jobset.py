@@ -48,10 +48,12 @@ class Job:
     claimed_by: str
 
 
-'''
+"""
 Used with SchedulerManager to provide the queue
 on which the job is to be run.
-'''
+"""
+
+
 @dataclass
 class JobWithQueue:
     job: Job
