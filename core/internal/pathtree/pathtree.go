@@ -103,14 +103,14 @@ func (pathTree *PathTree) ApplyRemove(
 }
 
 // Serializes the object to send to the backend.
-func (pathTree *PathTree) Serialize(format Format, formatValue func(any) any) ([]byte, error) {
+func (pathTree *PathTree) Serialize(format Format, processValue func(any) any) ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
 	serialized := make(map[string]any)
 	for treeKey, treeValue := range pathTree.tree {
-		if postProcessFunc == nil {
+		if processValue == nil {
 			serialized[treeKey] = treeValue
 		} else {
-			serialized[treeKey] = postProcessFunc(treeValue)
+			serialized[treeKey] = processValue(treeValue)
 		}
 	}
 
