@@ -10,6 +10,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import Api
+from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
@@ -526,6 +527,20 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+def test_retrieve_missing_artifact(logged_artifact):
+    with pytest.raises(CommError, match="project 'bar' not found"):
+        Api().artifact(f"foo/bar/{logged_artifact.name}")
+
+    with pytest.raises(CommError, match="project 'bar' not found"):
+        Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
+
+    with pytest.raises(CommError, match="must be specified as 'collection:alias'"):
+        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
+
+    with pytest.raises(CommError, match="do not have permission"):
+        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
 def test_new_draft(wandb_init):

@@ -526,15 +526,11 @@ jobs:
       tox_args:
         type: string
         default: ""
-      with_core:
-        type: boolean
-        default: false
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     environment:
       SHARD: << parameters.shard >>
       COVERAGE_DIR: << parameters.coverage_dir >>
-      WANDB__REQUIRE_CORE: << parameters.with_core >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -1235,7 +1231,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1245,11 +1240,9 @@ workflows:
               shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
               python_version_major: [3]
               python_version_minor: [7]
-              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
@@ -1258,7 +1251,6 @@ workflows:
 
           coverage_dir: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"
@@ -1269,7 +1261,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1297,11 +1288,9 @@ workflows:
                 - lightning
               python_version_major: [3]
               python_version_minor: [9]
-              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
@@ -1310,7 +1299,6 @@ workflows:
 
           coverage_dir: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"
@@ -1436,8 +1424,8 @@ workflows:
               python_version_major: [3]
               python_version_minor: [10]
           name: "unit-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
+          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_flags: unit
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1659,7 +1647,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1668,14 +1655,12 @@ workflows:
 
           matrix:
             parameters:
-              with_core: [true, false]
               shard: ["default", "artifacts", "launch"]
               python_version_major: [3]
               python_version_minor: [9]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
@@ -1685,7 +1670,6 @@ workflows:
 
           coverage_dir: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"
@@ -1694,7 +1678,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1704,18 +1687,16 @@ workflows:
               shard: [mitm, docs]
               python_version_major: [3]
               python_version_minor: [9]
-              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
             ,cover-func-linux-circle"
 
           coverage_dir: "\
-            func-<<#matrix.with_core>>core-<</matrix.with_core>>\
+            func-\
             <<matrix.shard>>-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"

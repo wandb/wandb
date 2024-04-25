@@ -41,7 +41,6 @@ def install_wandb(session: nox.Session):
 
 def run_pytest(
     session: nox.Session,
-    require_core: bool,
     paths: List[str],
 ) -> None:
     # Session name, transformed to be usable in a file name.
@@ -49,7 +48,6 @@ def run_pytest(
 
     pytest_opts = []
     pytest_env = {
-        "WANDB__REQUIRE_CORE": str(require_core),
         "WANDB__NETWORK_BUFFER": "1000",
         "WANDB_ERROR_REPORTING": "false",
         "WANDB_CORE_ERROR_REPORTING": "false",
@@ -57,10 +55,6 @@ def run_pytest(
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
     }
-
-    # When running with core, skip tests that we know fail with it.
-    if require_core:
-        pytest_opts.extend(["-m", "not wandb_core_failure"])
 
     # Print 20 slowest tests.
     pytest_opts.append("--durations=20")
@@ -106,36 +100,17 @@ def run_pytest(
     session.log(f"Storing Go coverage in {gocovdir}")
     session.notify("coverage")
 
-    try:
-        session.run(
-            "pytest",
-            *pytest_opts,
-            *paths,
-            env=pytest_env,
-            include_outer_env=False,
-        )
-    finally:
-        if junitxml.exists():
-            # Store whether wandb-core was used as a test-suite property.
-            #
-            # NOTE: pytest's "record_testsuite_property" doesn't work
-            # with pytest-xdist! Otherwise we would just use that.
-            #
-            # * https://docs.pytest.org/en/7.2.x/how-to/output.html#record-testsuite-property
-            # * https://github.com/pytest-dev/pytest/issues/7767
-            install_timed(session, "junitparser")
-            session.run(
-                "python",
-                "tools/junit_add_property.py",
-                "--add",
-                f"used_wandb_core={require_core}",
-                junitxml,
-            )
+    session.run(
+        "pytest",
+        *pytest_opts,
+        *paths,
+        env=pytest_env,
+        include_outer_env=False,
+    )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("core", [True, False])
-def unit_tests(session: nox.Session, core: bool) -> None:
+def unit_tests(session: nox.Session) -> None:
     """Runs Python unit tests.
 
     By default this runs all unit tests, but specific tests can be selected
@@ -157,14 +132,12 @@ def unit_tests(session: nox.Session, core: bool) -> None:
 
     run_pytest(
         session,
-        require_core=core,
         paths=session.posargs or ["tests/pytest_tests/unit_tests"],
     )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("core", [True, False])
-def system_tests(session: nox.Session, core: bool) -> None:
+def system_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
@@ -178,7 +151,6 @@ def system_tests(session: nox.Session, core: bool) -> None:
 
     run_pytest(
         session,
-        require_core=core,
         paths=(
             session.posargs
             or [
@@ -191,8 +163,7 @@ def system_tests(session: nox.Session, core: bool) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("core", [True, False])
-def notebook_tests(session: nox.Session, core: bool) -> None:
+def notebook_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
@@ -219,7 +190,6 @@ def notebook_tests(session: nox.Session, core: bool) -> None:
 
     run_pytest(
         session,
-        require_core=core,
         paths=(
             session.posargs
             or [
