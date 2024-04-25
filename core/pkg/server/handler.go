@@ -1118,9 +1118,10 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		h.runHistory = runhistory.New()
 	}
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
-		h.logger.CaptureError("Error updating run history", err)
-	})
+	h.runHistory.ApplyChangeRecord(request.GetItem(),
+		func(err error) {
+			h.logger.CaptureError("Error updating run history", err)
+		})
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
@@ -1186,21 +1187,21 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
-		current := h.runHistory.Step
+		current := h.runHistory.GetStep()
 		if step > current {
 			items, err := h.runHistory.Flatten()
 			if err != nil {
 				h.logger.CaptureError("Error flattening run history", err)
 				msg := fmt.Sprintf(
 					"Failed to process history record, for step %d, skipping...",
-					h.runHistory.Step,
+					h.runHistory.GetStep(),
 				)
 				h.internalPrinter.Write(msg)
 				return
 			}
 			history := &service.HistoryRecord{
 				Step: &service.HistoryStep{
-					Num: h.runHistory.Step,
+					Num: h.runHistory.GetStep(),
 				},
 				Item: items,
 			}
@@ -1217,9 +1218,10 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
-		h.logger.CaptureError("Error updating run history", err)
-	})
+	h.runHistory.ApplyChangeRecord(request.GetItem(),
+		func(err error) {
+			h.logger.CaptureError("Error updating run history", err)
+		})
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
@@ -1229,19 +1231,19 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			h.logger.CaptureError("Error flattening run history", err)
 			msg := fmt.Sprintf(
 				"Failed to process history record, for step %d, skipping...",
-				h.runHistory.Step,
+				h.runHistory.GetStep(),
 			)
 			h.internalPrinter.Write(msg)
 			return
 		}
 		history := &service.HistoryRecord{
 			Step: &service.HistoryStep{
-				Num: h.runHistory.Step,
+				Num: h.runHistory.GetStep(),
 			},
 			Item: items,
 		}
 		h.handleHistory(history)
-		step := h.runHistory.Step + 1
+		step := h.runHistory.GetStep() + 1
 		h.runHistory = runhistory.NewWithStep(step)
 	}
 }
