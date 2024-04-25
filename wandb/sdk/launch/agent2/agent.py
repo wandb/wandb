@@ -3,7 +3,7 @@ import json
 import logging
 import sys
 import traceback
-from typing import Any, Dict, List, Optional, Set, TypedDict
+from typing import Any,Callable, Dict, List, Optional, Set, TypedDict
 
 import wandb
 from wandb.apis.internal import Api
@@ -11,8 +11,9 @@ from wandb.sdk.launch import loader
 from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
-from wandb.sdk.launch.agent2.controllers.local_process import SchedulerManager
+from wandb.sdk.launch.agent2.controllers.local_process import SchedulerManager, scheduler_process_controller
 from wandb.sdk.launch.builder.build import construct_agent_configs
+from wandb.sdk.launch.builder.noop import NoOpBuilder
 from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.utils import PROJECT_SYNCHRONOUS, event_loop_thread_exec
@@ -134,60 +135,6 @@ class LaunchAgent2:
             return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
 
         try:
-            # create sweep scheduler local process controller
-            # TODO: move into util function
-            controller_impl = self.get_controller_for_jobset("local-process")
-            _, build_config, registry_config = construct_agent_configs(
-                dict(self._config)
-            )
-            environment = LocalEnvironment()
-            registry = LocalRegistry()
-            runner = loader.runner_from_config(
-                "local-process",
-                self._api,  # todo factor out (?)
-                {},
-                environment,
-                registry,
-            )
-            legacy_resources = LegacyResources(
-                self._api,
-                builder,
-                registry,
-                runner,
-                environment,
-                job_tracker_factory,
-            )
-            controller_logger = self._logger.getChild(
-                "controller.sweep-scheduler-local-process"
-            )
-            scheduler_controller = controller_impl(
-                    {
-                        "agent_id": self._id,
-                        "jobset_spec": JobSetSpec(
-                            name="_wandb_sweep_scheduler_local_process",
-                            entity_name=self._config["entity"],
-                            project_name="_wandb_sweep-scheduler_local_process",
-                        ),
-                        "jobset_metadata": None,
-                    },
-                    JobSet(self._api, {}, self._id, controller_logger),
-                    controller_logger,
-                    self._shutdown_controllers_event,
-                    legacy_resources,
-                    self._receive_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
-                )
-            manager_logger = self._logger.getChild("scheduler_manager")
-            scheduler_manager = SchedulerManager(
-                scheduler_controller,
-                self._config["max_schedulers"],
-                self._receive_scheduler_job_queue,
-                manager_logger,
-            )
-            controller_task: asyncio.Task = asyncio.create_task(
-                
-            )
-            self._launch_controller_tasks.add(controller_task)
-
             # Start job set and controller loops
             for q in self._config["queues"]:
                 # Start a JobSet for each queue
@@ -339,3 +286,60 @@ class LaunchAgent2:
         else:
             raise RuntimeError("Tried to stop Agent but not started")
         self._logger.info("Poll loop stopped")
+
+
+    def _register_sweep_manager(self, job_tracker_factory: Callable[[str, asyncio.Queue], JobAndRunStatusTracker], ):
+        # create sweep scheduler local process controller
+        local_controller_impl = self.get_controller_for_jobset("local-process")
+        environment = LocalEnvironment()
+        registry = LocalRegistry()
+        builder = NoOpBuilder()
+        runner = loader.runner_from_config(
+            "local-process",
+            self._api,  # todo factor out (?)
+            {},
+            environment,
+            registry,
+        )
+        legacy_resources = LegacyResources(
+            self._api,
+            builder,
+            registry,
+            runner,
+            environment,
+            job_tracker_factory,
+        )
+        controller_logger = self._logger.getChild(
+            "controller.sweep-scheduler-manager"
+        )
+        sweep_local_process_manager = local_controller_impl(
+                {
+                    "agent_id": self._id,
+                    "jobset_spec": JobSetSpec(
+                        name="_wandb_sweep_scheduler_manager",
+                        entity_name=self._config["entity"],
+                        project_name=None,
+                    ),
+                    "jobset_metadata": {"@max_concurrency": self._config["max_schedulers"]}, # TODO: should this be auto, the manager controls it
+                },
+                JobSet(self._api, {}, self._id, controller_logger),
+                controller_logger,
+                self._shutdown_controllers_event,
+                legacy_resources,
+                self._receive_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
+            )
+        manager_logger = self._logger.getChild("scheduler-manager")
+        scheduler_impl = self.get_controller_for_jobset("scheduler-manager")
+        controller_task: asyncio.Task = asyncio.create_task(
+            scheduler_impl(
+            sweep_local_process_manager,
+            self._config["max_schedulers"],
+            self._receive_scheduler_job_queue,
+            manager_logger,
+            self._shutdown_controllers_event,
+        )
+            
+        )
+        self._launch_controller_tasks.add(controller_task)
+
+        

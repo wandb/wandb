@@ -162,6 +162,35 @@ class LocalProcessManager(BaseManager):
         pass
 
 
+
+async def scheduler_process_controller(
+    manager: LocalProcessManager,
+    max_schedulers: int,
+    scheduler_jobs_queue: asyncio.Queue[Tuple[JobWithQueue, asyncio.Future]],
+    logger: logging.Logger,
+    shutdown_event: asyncio.Event,
+) -> Any:
+
+    iter = 0
+
+    logger.debug(
+        f"Starting scheduler manager with max schedulers {max_schedulers}"
+    )
+
+    mgr = SchedulerManager(
+        manager, max_schedulers, scheduler_jobs_queue, logger
+    )
+
+    while not shutdown_event.is_set():
+        await mgr.poll()
+        await asyncio.sleep(
+            5
+        )  # TODO(np): Ideally waits for job set or target resource events
+        iter += 1
+    logger.debug("Shutdown complete")
+    return None
+
+
 class SchedulerManager:
     def __init__(
         self,
@@ -176,17 +205,16 @@ class SchedulerManager:
         self._max_jobs = max_jobs
 
     async def poll(self):
-        while True:
-            res = await self._scheduler_jobs_queue.get()
-            if res is None:
-                asyncio.sleep(5)  # TODO: const this
-                break
-            job, future = res
-            if len(self._controller.active_runs) >= self._max_jobs:
-                self._logger.info(f"Scheduler job queue is full, skipping job: {job}")
-                future.set_result(False)
-                continue
-            future.set_result(True)
-            asyncio.create_task(self.controller.launch_scheduler_item(job))
-            self._scheduler_jobs_queue.task_done()
-            self._logger.info(f"Launched scheduler job: {job}")
+        res = await self._scheduler_jobs_queue.get()
+        if res is None:
+            asyncio.sleep(5)  # TODO: const this
+            break
+        job, future = res
+        if len(self._controller.active_runs) >= self._max_jobs:
+            self._logger.info(f"Scheduler job queue is full, skipping job: {job}")
+            future.set_result(False)
+            continue
+        future.set_result(True)
+        asyncio.create_task(self.controller.launch_scheduler_item(job))
+        self._scheduler_jobs_queue.task_done()
+        self._logger.info(f"Launched scheduler job: {job}")
