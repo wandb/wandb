@@ -2,6 +2,7 @@ package pathtree_test
 
 import (
 	"encoding/json"
+	"math"
 	"reflect"
 	"sort"
 	"strings"
@@ -67,7 +68,7 @@ func TestApplyUpdate(t *testing.T) {
 	onError := func(err error) {
 		t.Error("onError should not be called", err)
 	}
-	pt.ApplyUpdate(items, onError)
+	pt.ApplyUpdate(items, onError, pathtree.FormatJson)
 
 	expectedTree := pathtree.TreeData{
 		"setting1": float64(69),
@@ -173,16 +174,16 @@ func TestFlatten(t *testing.T) {
 	leaves := pt.Flatten()
 
 	expectedLeaves := []pathtree.Leaf{
-		{Key: []string{"config", "setting1"}, Value: "value1"},
-		{Key: []string{"config", "nested", "setting2"}, Value: 42},
+		{Path: []string{"config", "setting1"}, Value: "value1"},
+		{Path: []string{"config", "nested", "setting2"}, Value: 42},
 	}
 	// Sort slices by joining keys into a single string
 	sort.Slice(leaves, func(i, j int) bool {
-		return strings.Join(leaves[i].Key, ".") < strings.Join(leaves[j].Key, ".")
+		return strings.Join(leaves[i].Path, ".") < strings.Join(leaves[j].Path, ".")
 	})
 
 	sort.Slice(expectedLeaves, func(i, j int) bool {
-		return strings.Join(expectedLeaves[i].Key, ".") < strings.Join(expectedLeaves[j].Key, ".")
+		return strings.Join(expectedLeaves[i].Path, ".") < strings.Join(expectedLeaves[j].Path, ".")
 	})
 
 	if !reflect.DeepEqual(leaves, expectedLeaves) {
@@ -217,5 +218,93 @@ func TestFromItem(t *testing.T) {
 
 	if !reflect.DeepEqual(pathItem, expectedPathItem) {
 		t.Errorf("Expected %v, got %v", expectedPathItem, pathItem)
+	}
+}
+
+// TestFlattenEmptyTree checks behavior with an empty tree.
+func TestFlattenEmptyTree(t *testing.T) {
+
+	pt := pathtree.New()
+
+	items, err := pt.FlattenAndSerialize(pathtree.FormatJson)
+	if err != nil {
+		t.Errorf("Error should not occur with empty tree: %v", err)
+	}
+	if len(items) != 0 {
+		t.Errorf("Expected no items, got %d", len(items))
+	}
+}
+
+// TestFlattenSpecialValuesFaluire checks behavior with NaN and Inf values.
+// These values are not supported by JSON and should return an error.
+func TestFlattenSpecialValuesFaluire(t *testing.T) {
+
+	tree := pathtree.TreeData{
+		"special": map[string]interface{}{
+			"nan":  math.NaN(),
+			"inf":  math.Inf(1),
+			"ninf": math.Inf(-1),
+		},
+	}
+	pt := pathtree.NewFrom(tree)
+
+	_, err := pt.FlattenAndSerialize(pathtree.FormatJson)
+	if err == nil {
+		t.Error("Expected error for NaN or Inf values, got none")
+	}
+}
+
+// TestFlattenSpecialValuesSuccess checks behavior with NaN and Inf values.
+// These values are supported by JSONExt and should not return an error.
+func TestFlattenSpecialValuesSuccess(t *testing.T) {
+
+	tree := pathtree.TreeData{
+		"special": map[string]interface{}{
+			"nan":  math.NaN(),
+			"inf":  math.Inf(1),
+			"ninf": math.Inf(-1),
+		},
+	}
+	pt := pathtree.NewFrom(tree)
+
+	items, err := pt.FlattenAndSerialize(pathtree.FormatJsonExt)
+	if err != nil {
+		t.Error("Expected no error for NaN or Inf values, got:", err)
+	}
+
+	expected := []pathtree.PathItem{
+		{Path: []string{"special", "nan"}, Value: "NaN"},
+		{Path: []string{"special", "inf"}, Value: "Infinity"},
+		{Path: []string{"special", "ninf"}, Value: "-Infinity"},
+	}
+
+	// Sort slices by joining keys into a single string for comparison
+	// (since order is not guaranteed)
+	sort.Slice(items, func(i, j int) bool {
+		return strings.Join(items[i].Path, ".") < strings.Join(items[j].Path, ".")
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return strings.Join(expected[i].Path, ".") < strings.Join(expected[j].Path, ".")
+	})
+
+	if !reflect.DeepEqual(items, expected) {
+		t.Errorf("Expected %v, got %v", expected, items)
+	}
+}
+
+// TestUnmarshalUnknownFormat checks behavior with an unknown format.
+func TestUnmarshalUnknownFormat(t *testing.T) {
+
+	tree := pathtree.TreeData{
+		"config": map[string]interface{}{
+			"setting1": "value1",
+		},
+	}
+	pt := pathtree.NewFrom(tree)
+
+	_, err := pt.Serialize(pathtree.Format(42), nil)
+	if err == nil {
+		t.Error("Expected error for unknown format, got none")
 	}
 }

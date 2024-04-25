@@ -4,13 +4,19 @@ import (
 	"fmt"
 
 	"github.com/segmentio/encoding/json"
+	// TODO: use simplejsonext for now until we replace the usage of json with
+	// protocol buffer and proto json marshaler
+	jsonext "github.com/wandb/simplejsonext"
 	"gopkg.in/yaml.v3"
 )
 
-// PathItem is a key-value pair with a path.
-type PathItem struct {
-	Path  []string
-	Value string
+// A type alias for any value that is passed from the client.
+//
+// It included HistoryItem, SummaryItem, ConfigItem, etc.
+type item interface {
+	GetKey() string
+	GetNestedKey() []string
+	GetValueJson() string
 }
 
 // TreeData is an internal representation for a nested key-value pair.
@@ -34,7 +40,24 @@ type Format int
 const (
 	FormatYaml Format = iota
 	FormatJson
+	FormatJsonExt
 )
+
+// PathItem is a alternative representation of the item interface.
+//
+// The Value is a JSON string, which can be unmarshaled to any type.
+type PathItem struct {
+	Path  TreePath
+	Value string
+}
+
+// Leaf is a the leaf node in the tree.
+//
+// The Value could be any primitive type, list.
+type Leaf struct {
+	Path  TreePath
+	Value any
+}
 
 func New() *PathTree {
 	return &PathTree{make(TreeData)}
@@ -48,13 +71,13 @@ func NewFrom(tree TreeData) *PathTree {
 //
 // Provided temporarily as part of a refactor. Avoid using this, especially
 // mutating it.
-func (pathTree *PathTree) Tree() TreeData {
-	return pathTree.tree
+func (pt *PathTree) Tree() TreeData {
+	return pt.tree
 }
 
 // Makes and returns a deep copy of the underlying tree.
-func (pathTree *PathTree) CloneTree() (TreeData, error) {
-	clone, err := deepCopy(pathTree.tree)
+func (pt *PathTree) CloneTree() (TreeData, error) {
+	clone, err := deepCopy(pt.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -65,16 +88,21 @@ func (pathTree *PathTree) CloneTree() (TreeData, error) {
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
-func (pathTree *PathTree) ApplyUpdate(
+//
+// TODO: ideally we would not need to pass the format here, and instead
+// receive the values as unmarshaled objects and marshal them when needed.
+func (pt *PathTree) ApplyUpdate(
 	items []*PathItem,
 	onError func(error),
+	format Format,
 ) {
 	for _, item := range items {
-
-		var value interface{}
-		if err := json.Unmarshal(
-			[]byte(item.Value),
-			&value,
+		var (
+			value interface{}
+			err   error
+		)
+		if value, err = unmarshal([]byte(item.Value),
+			format,
 		); err != nil {
 			onError(
 				fmt.Errorf(
@@ -86,85 +114,125 @@ func (pathTree *PathTree) ApplyUpdate(
 			continue
 		}
 
-		if err := updateAtPath(pathTree.tree, item.Path, value); err != nil {
+		if err := updateAtPath(pt.tree, item.Path, value); err != nil {
 			onError(err)
 			continue
 		}
 	}
 }
 
-func (pathTree *PathTree) ApplyRemove(
+// Removes values from the tree.
+func (pt *PathTree) ApplyRemove(
 	items []*PathItem,
 	onError func(error),
 ) {
 	for _, item := range items {
-		pathTree.removeAtPath(item.Path)
+		pt.removeAtPath(item.Path)
 	}
+}
+
+// Removes the value at the path in the config tree.
+func (pt *PathTree) removeAtPath(path TreePath) {
+	prefix := path[:len(path)-1]
+	key := path[len(path)-1]
+
+	subtree := getSubtree(pt.tree, prefix)
+	if subtree != nil {
+		delete(subtree, key)
+	}
+}
+
+// Uses the given subtree for keys that aren't already set.
+func (pt *PathTree) AddUnsetKeysFromSubtree(
+	tree TreeData,
+	path TreePath,
+) error {
+	oldSubtree := getSubtree(tree, path)
+	if oldSubtree == nil {
+		return nil
+	}
+
+	newSubtree, err := getOrMakeSubtree(pt.tree, path)
+	if err != nil {
+		return err
+	}
+
+	for key, value := range oldSubtree {
+		if _, exists := newSubtree[key]; !exists {
+			newSubtree[key] = value
+		}
+	}
+
+	return nil
 }
 
 // Serializes the object to send to the backend.
-func (pathTree *PathTree) Serialize(format Format, processValue func(any) any) ([]byte, error) {
+func (pt *PathTree) Serialize(
+	format Format,
+	processValue func(any) any,
+) ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
-	serialized := make(map[string]any)
-	for treeKey, treeValue := range pathTree.tree {
+	value := make(map[string]any)
+	for treeKey, treeValue := range pt.tree {
 		if processValue == nil {
-			serialized[treeKey] = treeValue
+			value[treeKey] = treeValue
 		} else {
-			serialized[treeKey] = processValue(treeValue)
+			value[treeKey] = processValue(treeValue)
 		}
 	}
+	return marshal(value, format)
+}
 
-	switch format {
-	case FormatYaml:
-		return yaml.Marshal(serialized)
-	case FormatJson:
-		return json.Marshal(serialized)
+// FlattenAndSerialize flattens the tree into a slice of leaves and marshals the values.
+//
+// Use this to get a list of all the leaves in the tree with their values
+// marshaled.
+//
+// TODO: Ideally in the future we would not need to marshal the values here.
+// and postpone marshaling when the values are beening sent to the backend.
+func (pt *PathTree) FlattenAndSerialize(format Format) ([]PathItem, error) {
+
+	if !(format == FormatYaml || format == FormatJson || format == FormatJsonExt) {
+		return nil, fmt.Errorf("pathtree: unknown format %v", format)
 	}
 
-	return nil, fmt.Errorf("config: unknown format: %v", format)
-}
+	leaves := flatten(pt.tree, nil)
 
-type Leaf struct {
-	Key   []string
-	Value string
-}
-
-func (pathTree *PathTree[I]) Flatten() []Leaf {
-	return flatten(pathTree.tree, []Leaf{}, []string{})
-}
-
-func flatten(tree TreeData, leaves []Leaf, path []string) []Leaf {
-	// Iterate over each key-value pair in the map
-	for treeKey, treeValue := range tree {
-		// Make a copy of the path slice and append the current key to the new slice
-		newPath := make([]string, len(path))
-		copy(newPath, path)
-		newPath = append(newPath, treeKey)
-
-		// Check if the value is another TreeData (map). If so, call Flatten recursively
-		if subTree, ok := treeValue.(TreeData); ok {
-			leaves = flatten(subTree, leaves, newPath) // Use the copied and updated newPath
-		} else {
-			// If value is not a TreeData, add it to the leaves slice with the current path
-			value, err := json.Marshal(treeValue)
-			if err != nil {
-				continue
-			}
-			leaves = append(leaves, Leaf{
-				Key:   newPath, // Use the copied and updated newPath
-				Value: string(value),
-			})
+	items := make([]PathItem, 0, len(leaves))
+	for _, leaf := range leaves {
+		value, err := marshal(leaf.Value, format)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"pathtree: failed to marshal value for path %v: %v",
+				leaf.Path,
+				err,
+			)
 		}
+		items = append(items, PathItem{leaf.Path, string(value)})
 	}
-
-	return leaves
+	return items, nil
 }
 
 // Flattens the tree into a slice of leaves.
 //
 // Use this to get a list of all the leaves in the tree.
-func (pathTree *PathTree) Flatten() []Leaf {
-	return flatten(pathTree.tree, nil)
+func (pt *PathTree) Flatten() []Leaf {
+	return flatten(pt.tree, nil)
+}
+
+// Converts an item to a PathItem.
+func FromItem(item item) *PathItem {
+	var key []string
+	if len(item.GetNestedKey()) > 0 {
+		key = item.GetNestedKey()
+	} else {
+		key = []string{item.GetKey()}
+	}
+
+	return &PathItem{
+		Path:  key,
+		Value: item.GetValueJson(),
+	}
 }
 
 // Recursively flattens the tree into a slice of leaves.
@@ -186,28 +254,44 @@ func flatten(tree TreeData, prefix []string) []Leaf {
 	return leaves
 }
 
-// Uses the given subtree for keys that aren't already set.
-func (runConfig *PathTree) AddUnsetKeysFromSubtree(
-	tree TreeData,
-	path TreePath,
-) error {
-	oldSubtree := getSubtree(tree, path)
-	if oldSubtree == nil {
-		return nil
+// Unmarshals the value from the given format.
+//
+// Returns an error if the format is unknown.
+// Supported formats are FormatYaml, FormatJson, and FormatJsonExt.
+// FormatJsonExt is a custom JSON format that supports Infinity and NaN.
+func unmarshal(b []byte, format Format) (interface{}, error) {
+	switch format {
+	case FormatYaml:
+		var value interface{}
+		err := yaml.Unmarshal(b, &value)
+		return value, err
+	case FormatJson:
+		var value interface{}
+		err := json.Unmarshal(b, &value)
+		return value, err
+	case FormatJsonExt:
+		return jsonext.Unmarshal(b)
+	default:
+		return nil, fmt.Errorf("pathtree: unknown format %v", format)
 	}
+}
 
-	newSubtree, err := getOrMakeSubtree(runConfig.tree, path)
-	if err != nil {
-		return err
+// Marshals the value to the given format.
+//
+// Returns an error if the format is unknown.
+// Supported formats are FormatYaml, FormatJson, and FormatJsonExt.
+// FormatJsonExt is a custom JSON format that supports Infinity and NaN.
+func marshal(v interface{}, format Format) ([]byte, error) {
+	switch format {
+	case FormatYaml:
+		return yaml.Marshal(v)
+	case FormatJson:
+		return json.Marshal(v)
+	case FormatJsonExt:
+		return jsonext.Marshal(v)
+	default:
+		return nil, fmt.Errorf("pathtree: unknown format %v", format)
 	}
-
-	for key, value := range oldSubtree {
-		if _, exists := newSubtree[key]; !exists {
-			newSubtree[key] = value
-		}
-	}
-
-	return nil
 }
 
 // Sets the value at the path in the config tree.
@@ -227,17 +311,6 @@ func updateAtPath(
 
 	subtree[key] = value
 	return nil
-}
-
-// Removes the value at the path in the config tree.
-func (pathTree *PathTree) removeAtPath(path TreePath) {
-	pathPrefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := getSubtree(pathTree.tree, pathPrefix)
-	if subtree != nil {
-		delete(subtree, key)
-	}
 }
 
 // Returns the subtree at the path, or nil if it does not exist.
@@ -309,24 +382,4 @@ func deepCopy(tree TreeData) (TreeData, error) {
 		}
 	}
 	return clone, nil
-}
-
-type item interface {
-	GetKey() string
-	GetNestedKey() []string
-	GetValueJson() string
-}
-
-func FromItem(item item) *PathItem {
-	var key []string
-	if len(item.GetNestedKey()) > 0 {
-		key = item.GetNestedKey()
-	} else {
-		key = []string{item.GetKey()}
-	}
-
-	return &PathItem{
-		Path:  key,
-		Value: item.GetValueJson(),
-	}
 }

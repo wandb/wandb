@@ -43,14 +43,14 @@ const (
 )
 
 type SenderParams struct {
-	Backend             *api.Backend
-	Settings            *service.Settings
 	Logger              *observability.CoreLogger
+	Settings            *service.Settings
+	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
+	RunfilesUploader    runfiles.Uploader
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
-	RunfilesUploader    runfiles.Uploader
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
@@ -152,11 +152,11 @@ func NewSender(
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
-		settings:            params.Settings,
-		logger:              params.Logger,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
+		logger:              params.Logger,
+		settings:            params.Settings,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
 		runfilesUploader:    params.RunfilesUploader,
@@ -794,7 +794,7 @@ func (s *Sender) streamSummary() {
 	if s.fileStream == nil {
 		return
 	}
-  
+
 	update, err := s.runSummary.Flatten()
 	if err != nil {
 		s.logger.CaptureError("Error flattening run summary", err)

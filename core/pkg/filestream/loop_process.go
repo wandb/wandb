@@ -5,8 +5,8 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -87,13 +87,21 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 		})
 	}
 
-	line, err := corelib.JsonifyItems(msg.Item)
+	history := runhistory.New()
+	history.ApplyChangeRecord(
+		msg.GetItem(),
+		func(err error) {
+			fs.logger.CaptureError("filestream: failed to apply history update", err)
+		},
+	)
+	line, err := history.Serialize(pathtree.FormatJsonExt)
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+		fs.logger.CaptureFatalAndPanic("filestream: failed to serialize history", err)
 	}
+
 	fs.addTransmit(processedChunk{
 		fileType: HistoryChunk,
-		fileLine: line,
+		fileLine: string(line),
 	})
 }
 
@@ -106,7 +114,7 @@ func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
 			fs.logger.CaptureError("filestream: failed to apply summary update", err)
 		},
 	)
-	bytes, err := summary.Serialize(pathtree.FormatJson)
+	bytes, err := summary.Serialize(pathtree.FormatJsonExt)
 	line := string(bytes)
 
 	if err != nil {
