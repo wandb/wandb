@@ -194,7 +194,7 @@ async def test_requeue_on_preemption(mocker, clean_agent):
     expected_config = {"run_id": "test-run-id", "_resume_count": 1}
 
     mocker.launch_add.assert_called_once_with(
-        config=expected_config, project_queue="test-project", queue_name="test-queue"
+        config=expected_config, queue_name="test-queue"
     )
 
 

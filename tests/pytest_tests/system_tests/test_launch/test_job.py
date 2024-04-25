@@ -30,7 +30,7 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
             entity=user, project=proj, queue_name=queue, access="PROJECT"
         )
 
-        queued_run = job.call(config={}, project=proj, queue=queue, project_queue=proj)
+        queued_run = job.call(config={}, project=proj, queue=queue)
 
         assert queued_run.state == "pending"
         assert queued_run.entity == user
