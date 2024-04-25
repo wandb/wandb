@@ -106,7 +106,7 @@ class Job:
         )
         new_entrypoint = self._entrypoint
         new_entrypoint[-1] = new_fname
-        launch_project.set_entry_point(new_entrypoint)
+        launch_project.set_job_entry_point(new_entrypoint)
 
     def _configure_launch_project_repo(self, launch_project):
         git_info = self._job_info.get("source", {}).get("git", {})
@@ -123,7 +123,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.set_entry_point(self._entrypoint)
+            launch_project.set_job_entry_point(self._entrypoint)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._job_info.get("source", {}).get("artifact")
@@ -139,7 +139,7 @@ class Job:
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
-            launch_project.set_entry_point(self._entrypoint)
+            launch_project.set_job_entry_point(self._entrypoint)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._job_info.get("source", {}).get("image")
@@ -148,7 +148,7 @@ class Job:
                 "Job had malformed source dictionary without an image key"
             )
         if self._entrypoint:
-            launch_project.set_entry_point(self._entrypoint)
+            launch_project.set_job_entry_point(self._entrypoint)
 
     def set_entrypoint(self, entrypoint: List[str]):
         self._entrypoint = entrypoint

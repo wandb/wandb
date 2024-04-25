@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
-
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -22,9 +20,11 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -50,6 +50,7 @@ type SenderParams struct {
 	RunfilesUploader    runfiles.Uploader
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
+	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
@@ -102,11 +103,14 @@ type Sender struct {
 	// metricSender is a service for managing metrics
 	metricSender *MetricSender
 
-	// debouncer for config updates
+	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
-	// Keep track of summary which is being updated incrementally
-	summaryMap map[string]*service.SummaryItem
+	// summaryDebouncer is the debouncer for summary updates
+	summaryDebouncer *debounce.Debouncer
+
+	// runSummary is the full summary for the run
+	runSummary *runsummary.RunSummary
 
 	// Keep track of config which is being updated incrementally
 	runConfig *runconfig.RunConfig
@@ -147,7 +151,6 @@ func NewSender(
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
-		summaryMap:          make(map[string]*service.SummaryItem),
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
@@ -159,11 +162,17 @@ func NewSender(
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
+		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.FwdChan,
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
+			params.Logger,
+		),
+		summaryDebouncer: debounce.NewDebouncer(
+			summaryDebouncerRateLimit,
+			summaryDebouncerBurstSize,
 			params.Logger,
 		),
 	}
@@ -190,6 +199,7 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
+		s.summaryDebouncer.Debounce(s.streamSummary)
 	}
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
@@ -428,17 +438,11 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
-	output := make(map[string]interface{})
 
-	var out interface{}
-	for k, v := range s.summaryMap {
-		bytes := []byte(v.GetValueJson())
-		err := json.Unmarshal(bytes, &out)
-		if err != nil {
-			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
-			return
-		}
-		output[k] = out
+	output, err := s.runSummary.CloneTree()
+	if err != nil {
+		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		return
 	}
 
 	artifact, err := s.jobBuilder.Build(output)
@@ -476,11 +480,15 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
+		s.summaryDebouncer.SetNeedsDebounce()
+		s.summaryDebouncer.Flush(s.streamSummary)
+		s.uploadSummaryFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
+		s.configDebouncer.SetNeedsDebounce()
 		s.configDebouncer.Flush(s.upsertConfig)
-		s.writeAndSendConfigFile()
+		s.uploadConfigFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -543,7 +551,7 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate()
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	s.sendConfig(nil, nil /*configRecord*/)
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
@@ -598,15 +606,16 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format runconfig.ConfigFormat) string {
+func (s *Sender) serializeConfig(format pathtree.Format) (string, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
-		s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+		s.logger.Error("sender: serializeConfig", "error", err)
+		return "", err
 	}
 
-	return string(serializedConfig)
+	return string(serializedConfig), nil
 }
 
 func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
@@ -676,7 +685,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 		}
 
-		config := s.serializeConfig(runconfig.FormatJson)
+		config, _ := s.serializeConfig(pathtree.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -780,46 +789,55 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
+func (s *Sender) streamSummary() {
+	if s.fileStream == nil {
+		return
+	}
+
+	update, err := s.runSummary.Flatten()
+	if err != nil {
+		s.logger.CaptureError("Error flattening run summary", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: update,
+			},
+		},
+	}
+
+	s.fileStream.StreamRecord(record)
+}
+
+func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	// TODO(compat): handle deletes, nested keys
-	// TODO(compat): write summary file
 
-	// track each key in the in memory summary store
-	// TODO(memory): avoid keeping summary for all distinct keys
-	for _, item := range summary.Update {
-		s.summaryMap[item.Key] = item
-	}
-
-	if s.fileStream != nil {
-		// build list of summary items from the map
-		var summaryItems []*service.SummaryItem
-		for _, v := range s.summaryMap {
-			summaryItems = append(summaryItems, v)
-		}
-
-		// build a full summary record to send
-		record := &service.Record{
-			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{
-					Update: summaryItems,
-				},
-			},
-		}
-
-		s.fileStream.StreamRecord(record)
-	}
+	s.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	config := s.serializeConfig(runconfig.FormatJson)
+	if s.RunRecord == nil {
+		s.logger.Error("sender: upsertConfig: RunRecord is nil")
+		return
+	}
+
+	config, err := s.serializeConfig(pathtree.FormatJson)
+	if err != nil {
+		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
+		return
+	}
+	if config == "" {
+		return
+	}
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
-	_, err := gql.UpsertBucket(
+	_, err = gql.UpsertBucket(
 		ctx,                                  // ctx
 		s.graphqlClient,                      // client
 		nil,                                  // id
@@ -847,16 +865,53 @@ func (s *Sender) upsertConfig() {
 	}
 }
 
-func (s *Sender) writeAndSendConfigFile() {
+func (s *Sender) uploadSummaryFile() {
 	if s.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
 
-	config := s.serializeConfig(runconfig.FormatYaml)
+	summary, err := s.runSummary.Serialize(pathtree.FormatJson)
+	if err != nil {
+		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
+		return
+	}
+	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
+	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
+		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: SummaryFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdRecord(record)
+}
+
+func (s *Sender) uploadConfigFile() {
+	if s.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
+	config, err := s.serializeConfig(pathtree.FormatYaml)
+	if err != nil {
+		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
+		return
+	}
 	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
 	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		return
 	}
 
 	record := &service.Record{
@@ -1030,7 +1085,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 
 	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
-	s.sendConfig(nil, nil /*configRecord*/)
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 // sendFiles uploads files according to a FilesRecord

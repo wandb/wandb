@@ -10,9 +10,12 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.git_reference import GitReference
-from wandb.sdk.launch.utils import _is_git_uri, get_entrypoint_file
+from wandb.sdk.launch.utils import (
+    _is_git_uri,
+    get_current_python_version,
+    get_entrypoint_file,
+)
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
 
