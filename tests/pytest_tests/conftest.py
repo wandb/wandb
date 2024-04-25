@@ -39,7 +39,7 @@ def toggle_wandb_core(
     monkeypatch.setenv("WANDB__REQUIRE_CORE", str(request.param))
 
 
-def pytest_generate_tests(metafunc: pytest.Metafunc):
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
 
     # Run each test both with and without wandb-core.
