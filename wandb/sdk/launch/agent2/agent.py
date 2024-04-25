@@ -11,6 +11,7 @@ from wandb.sdk.launch import loader
 from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
+from wandb.sdk.launch.agent2.controllers.local_process import SchedulerManager
 from wandb.sdk.launch.builder.build import construct_agent_configs
 from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.registry.local_registry import LocalRegistry
@@ -71,8 +72,6 @@ class LaunchAgent2:
         self._wandb_version: str = "wandb@" + wandb.__version__
         self._task: Optional[asyncio.Task[Any]] = None
         self._receive_scheduler_job_queue = asyncio.Queue()
-
-        self._scheduler_jobs_lock = asyncio.Semaphore(self._config["max_schedulers"])
 
         self._logger = logging.getLogger("wandb.launch.agent2")
         handler = logging.StreamHandler(sys.stdout)
@@ -161,8 +160,7 @@ class LaunchAgent2:
             controller_logger = self._logger.getChild(
                 "controller.sweep-scheduler-local-process"
             )
-            controller_task: asyncio.Task = asyncio.create_task(
-                controller_impl(
+            scheduler_controller = controller_impl(
                     {
                         "agent_id": self._id,
                         "jobset_spec": JobSetSpec(
@@ -178,6 +176,15 @@ class LaunchAgent2:
                     legacy_resources,
                     self._receive_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
                 )
+            manager_logger = self._logger.getChild("scheduler_manager")
+            scheduler_manager = SchedulerManager(
+                scheduler_controller,
+                self._config["max_schedulers"],
+                self._receive_scheduler_job_queue,
+                manager_logger,
+            )
+            controller_task: asyncio.Task = asyncio.create_task(
+                
             )
             self._launch_controller_tasks.add(controller_task)
 

@@ -172,7 +172,8 @@ class SchedulerManager:
     ):
         self._controller = controller
         self._scheduler_jobs_queue = scheduler_jobs_queue
-        self.logger = logger
+        self._logger = logger
+        self._max_jobs = max_jobs
 
     async def poll(self):
         while True:
@@ -181,11 +182,11 @@ class SchedulerManager:
                 asyncio.sleep(5)  # TODO: const this
                 break
             job, future = res
-            if len(self._controller.active_runs) >= self.max_jobs:
-                self.logger.info(f"Scheduler job queue is full, skipping job: {job}")
+            if len(self._controller.active_runs) >= self._max_jobs:
+                self._logger.info(f"Scheduler job queue is full, skipping job: {job}")
                 future.set_result(False)
                 continue
             future.set_result(True)
             asyncio.create_task(self.controller.launch_scheduler_item(job))
             self._scheduler_jobs_queue.task_done()
-            self.logger.info(f"Launched scheduler job: {job}")
+            self._logger.info(f"Launched scheduler job: {job}")
