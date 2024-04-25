@@ -90,6 +90,41 @@ def test_create_build_context_dockerfile_dot_wandb(mock_git_project):
     )  # This is the hash of the Dockerfile + image_source_string.
 
 
+def test_create_build_context_job_dockerfile(mock_git_project):
+    """Test that a custom Dockerfile is used when specified in the job config."""
+    (mock_git_project.project_dir / "Dockerfile").write_text("FROM custom:3.8")
+    mock_git_project.job_dockerfile = "Dockerfile"
+
+    build_context_manager = BuildContextManager(mock_git_project)
+    path, image_tag = build_context_manager.create_build_context("docker")
+
+    path = pathlib.Path(path)
+    dockerfile = (path / "Dockerfile.wandb").read_text()
+    assert dockerfile.strip() == "FROM custom:3.8"
+    assert (
+        image_tag == "6390dc92"
+    )  # This is the hash of the Dockerfile + image_source_string.
+
+
+def test_create_build_context_job_build_context(mock_git_project):
+    """Test that a custom build context is used when specified in the job config."""
+    subdir = mock_git_project.project_dir / "subdir"
+    subdir.mkdir()
+    (subdir / "Dockerfile").write_text("FROM custom:3.8")
+    mock_git_project.job_build_context = "subdir"
+    mock_git_project.job_dockerfile = "Dockerfile"
+
+    build_context_manager = BuildContextManager(mock_git_project)
+    path, image_tag = build_context_manager.create_build_context("docker")
+
+    path = pathlib.Path(path)
+    dockerfile = (path / "Dockerfile.wandb").read_text()
+    assert dockerfile.strip() == "FROM custom:3.8"
+    assert (
+        image_tag == "6390dc92"
+    )  # This is the hash of the Dockerfile + image_source_string.
+
+
 def test_create_build_context_buildx_enabled(mocker, mock_git_project):
     """Test that a Dockerfile is generated when buildx is enabled."""
     (mock_git_project.project_dir / "requirements.txt").write_text("wandb")

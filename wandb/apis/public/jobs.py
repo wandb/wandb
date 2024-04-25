@@ -127,6 +127,11 @@ class Job:
         else:
             launch_project.set_job_entry_point(self._entrypoint)
 
+        if self._dockerfile:
+            launch_project.set_job_dockerfile(self._dockerfile)
+        if self._build_context:
+            launch_project.set_job_build_context(self._build_context)
+
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._job_info.get("source", {}).get("artifact")
         if artifact_string is None:

@@ -51,11 +51,12 @@ def create_job(
         description (Optional[str]): Description of the job.
         aliases (Optional[List[str]]): Aliases for the job.
         runtime (Optional[str]): Python runtime of the job, like 3.9.
-        entrypoint (Optional[str]): Entrypoint of the job.
+        entrypoint (Optional[str]): Entrypoint of the job. If build_context is
+            provided, path is relative to build_context.
         git_hash (Optional[str]): Git hash of a specific commit, when using git type jobs.
         build_context (Optional[str]): Path to the build context, when using image type jobs.
         dockerfile (Optional[str]): Path to the Dockerfile, when using image type jobs.
-
+            If build_context is provided, path is relative to build_context.
 
     Returns:
         Optional[Artifact]: The artifact created by the job, the action (for printing), and job aliases.
