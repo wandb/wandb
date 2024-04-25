@@ -7,7 +7,7 @@ from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet
-from .base import BaseManager
+from .base import BaseManager, RunWithTracker
 
 
 async def local_process_controller(
@@ -39,7 +39,7 @@ async def local_process_controller(
         f"Starting local process controller with max concurrency {max_concurrency}"
     )
 
-    mgr = LocalProcessesManager(config, jobset, logger, legacy, max_concurrency)
+    mgr = LocalProcessManager(config, jobset, logger, legacy, max_concurrency)
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -51,7 +51,7 @@ async def local_process_controller(
     return None
 
 
-class LocalProcessesManager(BaseManager):
+class LocalProcessManager(BaseManager):
     """Maintains state for multiple local processes."""
 
     resource_type = "local-process"
@@ -88,7 +88,7 @@ class LocalProcessesManager(BaseManager):
                 asyncio.create_task(self.launch_item(item_to_run))
 
     async def launch_item(self, item: Job) -> Optional[str]:
-        self.logger.info(f"Launching item: {json.dumps(item, indent=2)}")
+        self.logger.info(f"Launching item: {item}")
 
         project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
         project.queue_name = self.config["jobset_spec"].name
@@ -111,7 +111,7 @@ class LocalProcessesManager(BaseManager):
             self.logger.error(f"Failed to start run for item {item.id}")
             raise NotImplementedError("TODO: handle this case")
 
-        self.active_runs[item.id] = run
+        self.active_runs[item.id] = RunWithTracker(run, job_tracker)
 
         run_id = project.run_id
         self.logger.info(f"Launched item got run_id: {run_id}")

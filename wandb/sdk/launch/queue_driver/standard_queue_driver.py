@@ -1,5 +1,5 @@
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent2.jobset import JobSet
@@ -18,12 +18,17 @@ class StandardQueueDriver(AbstractQueueDriver):
 
     async def pop_from_run_queue(self) -> Optional[Job]:
         self.logger.debug("Calling pop_from_run_queue")
-        if len(self.jobset.jobs) == 0:
+
+        # List of tuples in the format (job_id: str, job: Job)
+        pending_jobs: List[Tuple[str, Job]] = list(
+            filter(lambda j: j[1].state == "PENDING", self.jobset.jobs.items())
+        )
+        if len(pending_jobs) == 0:
             return None
         # get highest prio job
         if self.jobset.metadata.get(PRIORITIZATION_MODE) == "V0":
             job_id, job = sorted(
-                self.jobset.jobs.items(), key=lambda j: (j[1].priority, j[1].created_at)
+                pending_jobs, key=lambda j: (j[1].priority, j[1].created_at)
             )[0]
         else:
             job_id, job = sorted(
