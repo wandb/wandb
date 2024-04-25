@@ -278,6 +278,16 @@ func TestFlattenSpecialValuesSuccess(t *testing.T) {
 		{Path: []string{"special", "ninf"}, Value: "-Infinity"},
 	}
 
+	// Sort slices by joining keys into a single string for comparison
+	// (since order is not guaranteed)
+	sort.Slice(items, func(i, j int) bool {
+		return strings.Join(items[i].Path, ".") < strings.Join(items[j].Path, ".")
+	})
+
+	sort.Slice(expected, func(i, j int) bool {
+		return strings.Join(expected[i].Path, ".") < strings.Join(expected[j].Path, ".")
+	})
+
 	if !reflect.DeepEqual(items, expected) {
 		t.Errorf("Expected %v, got %v", expected, items)
 	}
