@@ -5,6 +5,7 @@ import pytest
 import wandb
 from wandb.apis import internal
 from wandb.errors import UnsupportedError
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
 def test_create_run_queue(monkeypatch):
@@ -18,7 +19,7 @@ def test_create_run_queue(monkeypatch):
 
     kwargs = {
         "entity": "test-entity",
-        "project": "test-project",
+        "project": LAUNCH_DEFAULT_PROJECT,
         "queue_name": "test-queue",
         "access": "test-access",
         "prioritization_mode": "test-prioritization-mode",
@@ -30,7 +31,7 @@ def test_create_run_queue(monkeypatch):
         "test-gql-resp",
         {
             "entity": "test-entity",
-            "project": "test-project",
+            "project": LAUNCH_DEFAULT_PROJECT,
             "queueName": "test-queue",
             "access": "test-access",
             "prioritizationMode": "test-prioritization-mode",
