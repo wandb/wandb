@@ -31,7 +31,7 @@ func (mi MockItem) GetValueJson() string {
 }
 
 func TestNewPathTree(t *testing.T) {
-	pt := pathtree.New[MockItem]()
+	pt := pathtree.New()
 	if pt == nil {
 		t.Error("NewPathTree() should not return nil")
 	}
@@ -46,7 +46,7 @@ func TestNewPathTreeFrom(t *testing.T) {
 			"setting1": "value1",
 		},
 	}
-	pt := pathtree.NewFrom[MockItem](treeData)
+	pt := pathtree.NewFrom(treeData)
 	if pt == nil {
 		t.Error("NewPathTreeFrom() should not return nil")
 	}
@@ -59,10 +59,10 @@ func TestNewPathTreeFrom(t *testing.T) {
 }
 
 func TestApplyUpdate(t *testing.T) {
-	pt := pathtree.New[MockItem]()
-	items := []MockItem{
-		{"setting1", nil, "69"},
-		{"", []string{"config", "setting2"}, `{"value": 42}`},
+	pt := pathtree.New()
+	items := []*pathtree.PathItem{
+		{[]string{"setting1"}, "69"},
+		{[]string{"config", "setting2"}, `{"value": 42}`},
 	}
 	onError := func(err error) {
 		t.Error("onError should not be called", err)
@@ -92,9 +92,9 @@ func TestApplyRemove(t *testing.T) {
 			"setting2": "goodbye",
 		},
 	}
-	pt := pathtree.NewFrom[MockItem](treeData)
-	items := []MockItem{
-		{"", []string{"config", "setting1"}, ""},
+	pt := pathtree.NewFrom(treeData)
+	items := []*pathtree.PathItem{
+		{[]string{"config", "setting1"}, ""},
 	}
 	onError := func(err error) {
 		t.Error("onError should not be called", err)
@@ -120,7 +120,7 @@ func TestSerialize(t *testing.T) {
 			"setting1": "value1",
 		},
 	}
-	pt := pathtree.NewFrom[MockItem](treeData)
+	pt := pathtree.NewFrom(treeData)
 
 	postProcess := func(in any) any {
 		return in
@@ -169,7 +169,7 @@ func TestFlatten(t *testing.T) {
 			},
 		},
 	}
-	pt := pathtree.NewFrom[MockItem](treeData)
+	pt := pathtree.NewFrom(treeData)
 	leaves := pt.Flatten()
 
 	expectedLeaves := []pathtree.Leaf{
@@ -187,5 +187,35 @@ func TestFlatten(t *testing.T) {
 
 	if !reflect.DeepEqual(leaves, expectedLeaves) {
 		t.Errorf("Expected %v, got %v", expectedLeaves, leaves)
+	}
+}
+
+func TestFromItem(t *testing.T) {
+	item := MockItem{
+		key:       "",
+		nestedKey: []string{"config", "setting2"},
+		valueJson: `{"value": 42}`,
+	}
+	pathItem := pathtree.FromItem(item)
+
+	expectedPathItem := &pathtree.PathItem{
+		Path:  []string{"config", "setting2"},
+		Value: `{"value": 42}`,
+	}
+
+	if !reflect.DeepEqual(pathItem, expectedPathItem) {
+		t.Errorf("Expected %v, got %v", expectedPathItem, pathItem)
+	}
+
+	item = MockItem{key: "lol", valueJson: "420"}
+	pathItem = pathtree.FromItem(item)
+
+	expectedPathItem = &pathtree.PathItem{
+		Path:  []string{"lol"},
+		Value: "420",
+	}
+
+	if !reflect.DeepEqual(pathItem, expectedPathItem) {
+		t.Errorf("Expected %v, got %v", expectedPathItem, pathItem)
 	}
 }

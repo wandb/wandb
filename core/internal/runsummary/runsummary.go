@@ -10,11 +10,11 @@ import (
 )
 
 type RunSummary struct {
-	*pathtree.PathTree[*service.SummaryItem]
+	*pathtree.PathTree
 }
 
 func New() *RunSummary {
-	return &RunSummary{PathTree: pathtree.New[*service.SummaryItem]()}
+	return &RunSummary{PathTree: pathtree.New()}
 }
 
 // Updates and/or removes values from the configuration tree.
@@ -25,11 +25,17 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	update := summaryRecord.GetUpdate()
-	rs.ApplyUpdate(update, onError)
+	updates := make([]*pathtree.PathItem, len(summaryRecord.GetUpdate()))
+	for i, item := range summaryRecord.GetUpdate() {
+		updates[i] = pathtree.FromItem(item)
+	}
+	rs.ApplyUpdate(updates, onError)
 
-	remove := summaryRecord.GetRemove()
-	rs.ApplyRemove(remove, onError)
+	removes := make([]*pathtree.PathItem, len(summaryRecord.GetRemove()))
+	for i, item := range summaryRecord.GetRemove() {
+		removes[i] = pathtree.FromItem(item)
+	}
+	rs.ApplyRemove(removes, onError)
 }
 
 // Serialize the summary tree to a byte slice.
