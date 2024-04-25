@@ -41,7 +41,9 @@ def test_sweeps_on_launch(
         wandb_init(settings=settings).finish()
 
         api = wandb.sdk.internal.internal_api.Api()
-        api.create_run_queue(entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER")
+        api.create_run_queue(
+            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+        )
 
         sweep_config = {
             "job": "fake-job:v1",
@@ -138,7 +140,9 @@ def test_launch_agent_scheduler(
     job_name = job_artifact.wait().name
 
     api = wandb.sdk.internal.internal_api.Api()
-    api.create_run_queue(entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER")
+    api.create_run_queue(
+        entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="USER"
+    )
 
     sweep_config = {
         "job": job_name,

@@ -713,7 +713,10 @@ def test_display_updated_runspec(
     with relay_server():
         run = wandb_init(settings=settings)
         api.create_run_queue(
-            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="PROJECT"
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="PROJECT",
         )
 
         _ = launch_add(

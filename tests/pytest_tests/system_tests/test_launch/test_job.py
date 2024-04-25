@@ -28,7 +28,10 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
         job = public_api.job(f"{user}/{proj}/{job_name}")
 
         internal_api.create_run_queue(
-            entity=user, project=LAUNCH_DEFAULT_PROJECT, queue_name=queue, access="PROJECT"
+            entity=user,
+            project=LAUNCH_DEFAULT_PROJECT,
+            queue_name=queue,
+            access="PROJECT",
         )
 
         queued_run = job.call(config={}, project=proj, queue=queue)
