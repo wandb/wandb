@@ -1056,15 +1056,17 @@ class Api:
             try:
                 self.artifact(name, type)
                 return True
-            except: 
+            except wandb.errors.CommError: 
                 return False
         else:
             if type is None:
-                raise ValueError('You must specify type= to check if there are any artifacts in this collection')
+                raise ValueError(
+                    "You must specify type= to check if there are any artifacts in this collection"
+                )
             try:
                 artifacts = self.artifacts(type, name, 1)
                 len(artifacts)
                 return True
-            except:
+            except wandb.errors.CommError:
                 return False
 
