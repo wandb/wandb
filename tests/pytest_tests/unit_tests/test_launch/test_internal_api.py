@@ -59,7 +59,7 @@ def test_create_run_queue(monkeypatch):
         "test-gql-resp",
         {
             "entity": "test-entity",
-            "project": "test-project",
+            "project": LAUNCH_DEFAULT_PROJECT,
             "queueName": "test-queue",
             "access": "test-access",
             "defaultResourceConfigID": "test-config-id",
