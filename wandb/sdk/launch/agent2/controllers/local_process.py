@@ -88,7 +88,7 @@ class LocalProcessManager(BaseManager):
                 item_to_run = await self.pop_next_item()
                 if item_to_run is None:
                     # no more items to run
-                    break
+                    return
                 asyncio.create_task(self.launch_item(item_to_run))
 
     async def launch_item(self, item: Job) -> Optional[str]:
@@ -201,13 +201,12 @@ class SchedulerManager:
     async def poll(self):
         res = await self._scheduler_jobs_queue.get()
         if res is None:
-            asyncio.sleep(5)  # TODO: const this
-            break
+            return
         job, future = res
         if len(self._controller.active_runs) >= self._max_jobs:
             self._logger.info(f"Scheduler job queue is full, skipping job: {job}")
             future.set_result(False)
-            continue
+            return
         future.set_result(True)
         asyncio.create_task(self.controller.launch_scheduler_item(job))
         self._scheduler_jobs_queue.task_done()
