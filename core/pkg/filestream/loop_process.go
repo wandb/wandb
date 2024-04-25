@@ -115,7 +115,7 @@ func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
 			fs.logger.CaptureError("filestream: failed to apply summary update", err)
 		},
 	)
-	bytes, err := summary.Serialize(pathtree.FormatJson)
+	bytes, err := summary.Serialize(pathtree.FormatJsonExt)
 	line := string(bytes)
 
 	if err != nil {
