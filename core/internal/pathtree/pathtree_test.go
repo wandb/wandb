@@ -143,7 +143,8 @@ func TestSerialize(t *testing.T) {
 
 	var expectedYaml any
 
-	serializedYaml, err := pt.Serialize(pathtree.FormatYaml, postProcess)
+	// also test that a nil postProcess function works
+	serializedYaml, err := pt.Serialize(pathtree.FormatYaml, nil)
 	if err != nil {
 		t.Fatal("Serialize to YAML failed:", err)
 	}
