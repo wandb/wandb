@@ -12,6 +12,8 @@ from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
 from wandb.sdk.launch.builder.build import construct_agent_configs
+from wandb.sdk.launch.environment.local_environment import LocalEnvironment
+from wandb.sdk.launch.registry.local_registry import LocalRegistry
 from wandb.sdk.launch.utils import PROJECT_SYNCHRONOUS, event_loop_thread_exec
 
 from .controller import LaunchController, LegacyResources
@@ -68,6 +70,9 @@ class LaunchAgent2:
         self._last_state = None
         self._wandb_version: str = "wandb@" + wandb.__version__
         self._task: Optional[asyncio.Task[Any]] = None
+        self._receive_scheduler_job_queue = asyncio.Queue()
+
+        self._scheduler_jobs_lock = asyncio.Semaphore(self._config["max_schedulers"])
 
         self._logger = logging.getLogger("wandb.launch.agent2")
         handler = logging.StreamHandler(sys.stdout)
@@ -123,7 +128,59 @@ class LaunchAgent2:
         # Start the main agent state poll loop
         self.start_poll_loop(event_loop)
 
+        def file_saver_factory(job_id):
+            return RunQueueItemFileSaver(self._wandb_run, job_id)
+
+        def job_tracker_factory(job_id, q):
+            return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
+
         try:
+            # create sweep scheduler local process controller
+            # TODO: move into util function
+            controller_impl = self.get_controller_for_jobset("local-process")
+            _, build_config, registry_config = construct_agent_configs(
+                dict(self._config)
+            )
+            environment = LocalEnvironment()
+            registry = LocalRegistry()
+            runner = loader.runner_from_config(
+                "local-process",
+                self._api,  # todo factor out (?)
+                {},
+                environment,
+                registry,
+            )
+            legacy_resources = LegacyResources(
+                self._api,
+                builder,
+                registry,
+                runner,
+                environment,
+                job_tracker_factory,
+            )
+            controller_logger = self._logger.getChild(
+                "controller.sweep-scheduler-local-process"
+            )
+            controller_task: asyncio.Task = asyncio.create_task(
+                controller_impl(
+                    {
+                        "agent_id": self._id,
+                        "jobset_spec": JobSetSpec(
+                            name="_wandb_sweep_scheduler_local_process",
+                            entity_name=self._config["entity"],
+                            project_name="_wandb_sweep-scheduler_local_process",
+                        ),
+                        "jobset_metadata": None,
+                    },
+                    JobSet(self._api, {}, self._id, controller_logger),
+                    controller_logger,
+                    self._shutdown_controllers_event,
+                    legacy_resources,
+                    self._receive_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
+                )
+            )
+            self._launch_controller_tasks.add(controller_task)
+
             # Start job set and controller loops
             for q in self._config["queues"]:
                 # Start a JobSet for each queue
@@ -169,12 +226,6 @@ class LaunchAgent2:
                     registry,
                 )
 
-                def file_saver_factory(job_id):
-                    return RunQueueItemFileSaver(self._wandb_run, job_id)
-
-                def job_tracker_factory(job_id, q=q):
-                    return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
-
                 legacy_resources = LegacyResources(
                     self._api,
                     builder,
@@ -197,6 +248,7 @@ class LaunchAgent2:
                         controller_logger,
                         self._shutdown_controllers_event,
                         legacy_resources,
+                        self._receive_scheduler_job_queue,
                     )
                 )
                 self._launch_controller_tasks.add(controller_task)

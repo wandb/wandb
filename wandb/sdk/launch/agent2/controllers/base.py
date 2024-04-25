@@ -14,11 +14,11 @@ from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRun, Status
 
-from ...agent.agent import RUN_INFO_GRACE_PERIOD
+from ...agent.agent import RUN_INFO_GRACE_PERIOD, _is_scheduler_job
 from ...queue_driver.abstract import AbstractQueueDriver
 from ...utils import event_loop_thread_exec
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import Job, JobSet
+from ..jobset import Job, JobSet, JobWithQueue
 
 WANDB_JOBSET_DISCOVERABILITY_LABEL = "_wandb-jobset"
 
@@ -41,6 +41,7 @@ class BaseManager(ABC):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
+        scheduler_queue: asyncio.Queue[Tuple[JobWithQueue, asyncio.Future]],
         max_concurrency: int,
     ):
         self.config = config
@@ -48,6 +49,7 @@ class BaseManager(ABC):
         self.logger = logger
         self.legacy = legacy
         self.max_concurrency = max_concurrency
+        self._scheduler_queue = scheduler_queue
 
         self.id = config["jobset_spec"].name
         self.active_runs: Dict[str, RunWithTracker] = {}
@@ -126,7 +128,7 @@ class BaseManager(ABC):
         try:
             project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
             run_id = project.run_id
-            job_tracker = self.legacy.job_tracker_factory(run_id)
+            job_tracker = self.legacy.job_tracker_factory(run_id, project.queue_name)
             job_tracker.update_run_info(project)
         except Exception as e:
             self.logger.error(
@@ -139,6 +141,16 @@ class BaseManager(ABC):
             project.queue_entity = self.config["jobset_spec"].entity_name
             project.run_queue_item_id = job.id
             project.fetch_and_validate_project()
+
+            if (
+                _is_scheduler_job(job.run_spec)
+                and job.run_spec.get("resource") == "local-process"
+            ):
+                future = asyncio.futures.Future()
+                await self._scheduler_queue.put((job, future))
+                res = await future.result()
+                if res == False:
+                    return None
 
             ack_result = await self.jobset.ack_job(job.id, run_id)
             self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")

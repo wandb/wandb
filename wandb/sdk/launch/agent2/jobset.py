@@ -48,6 +48,13 @@ class Job:
     claimed_by: str
 
 
+@dataclass
+class JobWithQueue:
+    job: Job
+    queue: str
+    entity: str
+
+
 def run_queue_item_to_job(run_queue_item: Dict[str, Any]) -> Job:
     return Job(
         id=run_queue_item["id"],
