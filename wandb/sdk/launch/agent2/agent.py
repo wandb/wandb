@@ -133,6 +133,8 @@ class LaunchAgent2:
         def job_tracker_factory(job_id, q):
             return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
 
+        self._register_sweep_manager(job_tracker_factory)
+
         try:
             # Start job set and controller loops
             for q in self._config["queues"]:
