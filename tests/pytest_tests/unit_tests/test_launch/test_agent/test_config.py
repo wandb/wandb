@@ -32,14 +32,12 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
             },
             False,
         ),
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
             },
             False,
@@ -47,7 +45,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
                 "builder": {
                     "type": "docker",
@@ -61,7 +58,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
             },
             False,
         ),
@@ -69,7 +65,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
                 "builder": {
                     "type": "docker",
