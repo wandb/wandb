@@ -162,7 +162,6 @@ class LocalProcessManager(BaseManager):
         pass
 
 
-
 async def scheduler_process_controller(
     manager: LocalProcessManager,
     max_schedulers: int,
@@ -170,16 +169,11 @@ async def scheduler_process_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
 ) -> Any:
-
     iter = 0
 
-    logger.debug(
-        f"Starting scheduler manager with max schedulers {max_schedulers}"
-    )
+    logger.debug(f"Starting scheduler manager with max schedulers {max_schedulers}")
 
-    mgr = SchedulerManager(
-        manager, max_schedulers, scheduler_jobs_queue, logger
-    )
+    mgr = SchedulerManager(manager, max_schedulers, scheduler_jobs_queue, logger)
 
     while not shutdown_event.is_set():
         await mgr.poll()
