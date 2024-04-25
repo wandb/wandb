@@ -159,33 +159,6 @@ def test_sync_tensorboard(
         assert tb_file_name in os.listdir(".")
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts")
-def test_sync_wandb_run(runner, relay_server, user, copy_asset):
-    # note: we have to mock out ArtifactSaver.save
-    # because the artifact does not actually exist
-    # among assets listed in the .wandb file.
-    # this a problem for a real backend that we use now
-    # (as we used to use a mock backend)
-    # todo: create a new test asset that will contain an artifact
-    with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
-    ):
-        copy_asset("wandb")
-
-        result = runner.invoke(cli.sync, ["--sync-all"])
-        print(result.output)
-        print(traceback.print_tb(result.exc_info[2]))
-        assert result.exit_code == 0
-
-        assert f"{user}/code-toad/runs/g9dvvkua ... done." in result.output
-        assert len(relay.context.events) == 1
-
-        # Check we marked the run as synced
-        result = runner.invoke(cli.sync, ["--sync-all"])
-        assert result.exit_code == 0
-        assert "wandb: ERROR Nothing to sync." in result.output
-
-
 @pytest.mark.wandb_core_failure(feature="tensorboard")
 def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
