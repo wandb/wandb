@@ -85,7 +85,7 @@ async def test_verify(mocker):
 
 
 @pytest.mark.asyncio
-@pytest.mark.skip(reason="This test is broken and needs to be fixed.")
+@pytest.mark.skip(reason="`assert_has_calls` vs `assert <...>.has_calls`")
 async def test_upload_directory(mocker):
     """Test that we issue the correct api calls to upload files to s3."""
     """
