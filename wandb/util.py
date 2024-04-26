@@ -579,15 +579,28 @@ def _find_all_matching_keys(
 
 
 def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
-    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
-    if not np_keys:
-        return d, False
-    for key_path, key in np_keys:
-        ptr = d
-        for k in key_path:
-            ptr = ptr[k]
-        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
-    return d, True
+    """Returns a dictionary where all NumPy keys are converted.
+
+    Args:
+        d: The dictionary to sanitize.
+
+    Returns:
+        A sanitized dictionary, and a boolean indicating whether anything was
+        changed.
+    """
+    out = dict()
+    converted = False
+
+    for key, value in d:
+        if isinstance(value, dict):
+            value, converted_value = _sanitize_numpy_keys(value)
+            converted |= converted_value
+        if isinstance(key, np.generic):
+            key = _numpy_generic_convert(key)
+            converted = True
+        out[key] = value
+
+    return out
 
 
 def json_friendly(  # noqa: C901
