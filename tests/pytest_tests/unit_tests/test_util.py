@@ -747,8 +747,11 @@ def test_sanitize_numpy_keys(dict_input, dict_output):
     output, converted = util._sanitize_numpy_keys(dict_input)
     assert converted == (dict_output is not None)
 
-    # Can't use == on recursive dictionaries.
+    # pytest assert can't handle '==' on recursive dictionaries!
     if "_" in dict_input:
+        # Check the recursive case ourselves.
+        assert output["_"] is output
+
         output = {k: v for k, v in output.items() if k != "_"}
         dict_input = {k: v for k, v in dict_input.items() if k != "_"}
         if dict_output:
