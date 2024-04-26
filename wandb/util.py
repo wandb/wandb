@@ -566,7 +566,7 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
             converted = True
         out[key] = value
 
-    return out
+    return out, converted
 
 
 def json_friendly(  # noqa: C901
