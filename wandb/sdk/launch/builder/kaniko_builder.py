@@ -480,7 +480,7 @@ class KanikoBuilder(AbstractBuilder):
                 )
             else:
                 wandb.termwarn(
-                    f"Automatic credential handling is not enabled for registry type {type(self.registry)}"
+                    f"{LOG_PREFIX}Automatic credential handling is not supported for registry type {type(self.registry)}. Build job: {self.build_job_name}"
                 )
             volumes.append(
                 {
