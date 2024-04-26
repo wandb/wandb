@@ -20,7 +20,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
@@ -586,13 +585,6 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// Applies the change record to the run configuration.
-func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	s.runConfig.ApplyChangeRecord(configRecord, func(err error) {
-		s.logger.CaptureError("Error updating run config", err)
-	})
-}
-
 // Inserts W&B-internal information into the run configuration.
 //
 // Uses the given telemetry
@@ -606,7 +598,7 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format pathtree.Format) (string, error) {
+func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
@@ -667,7 +659,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		//
 		// Logically, it would make more sense to instead start with the
 		// resumed config and apply updates on top of it.
-		s.updateConfig(run.Config)
+		s.runConfig.ApplyChangeRecord(run.Config,
+			func(err error) {
+				s.logger.CaptureError("Error updating run config", err)
+			})
+
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
 
@@ -680,12 +676,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 
 			if err := s.checkAndUpdateResumeState(record); err != nil {
-				s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+				s.logger.Error(
+					"sender: sendRun: failed to checkAndUpdateResumeState",
+					"error", err)
 				return
 			}
 		}
 
-		config, _ := s.serializeConfig(pathtree.FormatJson)
+		config, _ := s.serializeConfig(runconfig.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -775,7 +773,10 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if runResult == nil {
 			runResult = run
 		}
-		s.respond(record, &service.RunUpdateResult{Run: runResult})
+		s.respond(record,
+			&service.RunUpdateResult{
+				Run: runResult,
+			})
 	}
 }
 
@@ -827,7 +828,7 @@ func (s *Sender) upsertConfig() {
 		return
 	}
 
-	config, err := s.serializeConfig(pathtree.FormatJson)
+	config, err := s.serializeConfig(runconfig.FormatJson)
 	if err != nil {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
 		return
@@ -871,7 +872,7 @@ func (s *Sender) uploadSummaryFile() {
 		return
 	}
 
-	summary, err := s.runSummary.Serialize(pathtree.FormatJson)
+	summary, err := s.runSummary.Serialize()
 	if err != nil {
 		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
 		return
@@ -903,7 +904,7 @@ func (s *Sender) uploadConfigFile() {
 		return
 	}
 
-	config, err := s.serializeConfig(pathtree.FormatYaml)
+	config, err := s.serializeConfig(runconfig.FormatYaml)
 	if err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
 		return
@@ -933,7 +934,10 @@ func (s *Sender) uploadConfigFile() {
 // and updates the in memory config
 func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
 	if configRecord != nil {
-		s.updateConfig(configRecord)
+		s.runConfig.ApplyChangeRecord(configRecord,
+			func(err error) {
+				s.logger.CaptureError("Error updating run config", err)
+			})
 	}
 	s.configDebouncer.SetNeedsDebounce()
 }
