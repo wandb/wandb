@@ -129,6 +129,8 @@ class LaunchProject:
         self._entry_point: Optional[EntryPoint] = (
             None  # todo: keep multiple entrypoint support?
         )
+        self._job_dockerfile: Optional[str] = None
+        self._job_build_context: Optional[str] = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -197,6 +199,20 @@ class LaunchProject:
             launch_spec.get("run_id", None),
             launch_spec.get("sweep_id", {}),
         )
+
+    @property
+    def job_dockerfile(self) -> Optional[str]:
+        return self._job_dockerfile
+
+    @property
+    def job_build_context(self) -> Optional[str]:
+        return self._job_build_context
+
+    def set_job_dockerfile(self, dockerfile: str) -> None:
+        self._job_dockerfile = dockerfile
+
+    def set_job_build_context(self, build_context: str) -> None:
+        self._job_build_context = build_context
 
     @property
     def image_name(self) -> str:

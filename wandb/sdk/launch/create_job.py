@@ -58,7 +58,6 @@ def create_job(
         dockerfile (Optional[str]): Path to the Dockerfile, when using image type jobs.
             If build_context is provided, path is relative to build_context.
 
-
     Returns:
         Optional[Artifact]: The artifact created by the job, the action (for printing), and job aliases.
                             None if job creation failed.
