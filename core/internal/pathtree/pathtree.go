@@ -20,28 +20,10 @@ type PathTree struct {
 	tree TreeData
 }
 
-
 // PathItem is a alternative representation of the item interface.
 //
 // The Value is a JSON string, which can be unmarshaled to any type.
 type PathItem struct {
-	Path  TreePath
-	Value any
-}
-
-
-// PathItem is a alternative representation of the item interface.
-//
-// The Value is a JSON string, which can be unmarshaled to any type.
-type PathItem struct {
-	Path  TreePath
-	Value string
-}
-
-// Leaf is a the leaf node in the tree.
-//
-// The Value could be any primitive type, list.
-type Leaf struct {
 	Path  TreePath
 	Value any
 }
@@ -78,7 +60,6 @@ func (pt *PathTree) CloneTree() (TreeData, error) {
 func (pt *PathTree) ApplyUpdate(
 	items []*PathItem,
 	onError func(error),
-	format Format,
 ) {
 	for _, item := range items {
 		if err := updateAtPath(pt.tree, item.Path, item.Value); err != nil {
@@ -95,19 +76,6 @@ func (pt *PathTree) ApplyRemove(
 	for _, item := range items {
 		pt.removeAtPath(item.Path)
 	}
-
-	newSubtree, err := getOrMakeSubtree(pt.tree, path)
-	if err != nil {
-		return err
-	}
-
-	for key, value := range oldSubtree {
-		if _, exists := newSubtree[key]; !exists {
-			newSubtree[key] = value
-		}
-	}
-
-	return nil
 }
 
 // Removes the value at the path in the config tree.

@@ -13,8 +13,7 @@ func makeHandler(
 	inChan, fwdChan chan *service.Record,
 	outChan chan *service.Result,
 ) *server.Handler {
-	h := server.NewHandler(
-		context.Background(),
+	h := server.NewHandler(context.Background(),
 		&server.HandlerParams{
 			Logger:   observability.NewNoOpLogger(),
 			Settings: &service.Settings{},

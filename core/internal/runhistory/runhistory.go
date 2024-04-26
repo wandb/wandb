@@ -3,7 +3,6 @@ package runhistory
 import (
 	"fmt"
 
-
 	// TODO: use simplejsonext for now until we replace the usage of json with
 	// protocol buffer and proto json marshaler
 	json "github.com/wandb/simplejsonext"
@@ -11,7 +10,6 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
-
 
 // The current active history of a run.
 //

@@ -264,7 +264,6 @@ func (r *State) updateConfig(
 		return err
 	}
 
-
 	deserializedConfig := make(pathtree.TreeData)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]interface{})

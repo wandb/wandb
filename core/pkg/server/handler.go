@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
@@ -1036,7 +1035,6 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 	history.Item = append(history.Item, imputed...)
 
-
 	h.sampleHistory(history)
 
 	record := &service.Record{
@@ -1105,7 +1103,6 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		func(err error) {
 			h.logger.CaptureError("Error updating run history", err)
 		})
-
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
@@ -1263,7 +1260,7 @@ func (h *Handler) checkNeedsImputation(key string) bool {
 	// check if step metric is already in history
 	// TODO: avoid using the Tree method
 	if _, ok := h.runHistory.Tree()[key]; ok {
-		return nil
+		return false
 	}
 
 	// TODO: avoid using the tree representation of the summary
@@ -1273,7 +1270,7 @@ func (h *Handler) checkNeedsImputation(key string) bool {
 		v, err := json.Marshal(value)
 		if err != nil {
 			h.logger.CaptureError("error marshalling step metric value", err)
-			return nil
+			return false
 		}
 		item := []*service.HistoryItem{
 			{
@@ -1287,7 +1284,7 @@ func (h *Handler) checkNeedsImputation(key string) bool {
 				h.logger.CaptureError("Error updating run history", err)
 			},
 		)
-		return item[0]
+		return true
 	}
 	return true
 }

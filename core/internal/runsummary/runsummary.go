@@ -3,7 +3,6 @@ package runsummary
 import (
 	"fmt"
 
-
 	// TODO: use simplejsonext for now until we replace the usage of json with
 	// protocol buffer and proto json marshaler
 	json "github.com/wandb/simplejsonext"
@@ -62,6 +61,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
+
 	leaves := rs.pathTree.Flatten()
 
 	summary := make([]*service.SummaryItem, 0, len(leaves))
