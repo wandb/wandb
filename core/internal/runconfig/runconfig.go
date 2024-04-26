@@ -10,7 +10,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-
 type Format int
 
 const (
@@ -35,7 +34,6 @@ func New() *RunConfig {
 		pathTree: pathtree.New(),
 	}
 }
-
 
 func NewFrom(tree pathtree.TreeData) *RunConfig {
 	return &RunConfig{
@@ -171,5 +169,4 @@ func keyPath(item *service.ConfigItem) []string {
 		return item.GetNestedKey()
 	}
 	return []string{item.GetKey()}
-
 }
