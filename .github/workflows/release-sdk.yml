@@ -152,7 +152,7 @@ jobs:
 
   build-universal-wheel:
     name: Build universal wheel (no wandb-core)
-    needs: prepare-release
+    # needs: prepare-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
