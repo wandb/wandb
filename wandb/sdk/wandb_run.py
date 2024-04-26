@@ -3968,11 +3968,11 @@ class Run:
 
         # Render summary if available
         if summary:
-            final_summary = {
-                item.key: json.loads(item.value_json)
-                for item in summary.item
-                if not item.key.startswith("_")
-            }
+            final_summary = {}
+            for item in summary.item:
+                if item.key.startswith("_") or len(item.nested_key) > 0:
+                    continue
+                final_summary[item.key] = json.loads(item.value_json)
 
             logger.info("rendering summary")
             summary_rows = []
