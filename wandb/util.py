@@ -556,7 +556,7 @@ def _sanitize_numpy_keys(
         A sanitized dictionary, and a boolean indicating whether anything was
         changed.
     """
-    out = dict()
+    out: Dict[Any, Any] = dict()
     converted = False
 
     # Work with recursive dictionaries: if a dictionary has already been
