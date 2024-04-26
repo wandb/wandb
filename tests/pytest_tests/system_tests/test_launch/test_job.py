@@ -40,7 +40,7 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
         assert queued_run.entity == user
         assert queued_run.project == proj
 
-        rqi = internal_api.pop_from_run_queue(queue, user, proj)
+        rqi = internal_api.pop_from_run_queue(queue, user, LAUNCH_DEFAULT_PROJECT)
 
         assert rqi["runSpec"]["job"].split("/")[-1] == f"job-{docker_image}:v0"
         assert rqi["runSpec"]["project"] == proj
