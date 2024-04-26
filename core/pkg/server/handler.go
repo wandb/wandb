@@ -116,19 +116,19 @@ func NewHandler(
 ) *Handler {
 	return &Handler{
 		ctx:                   ctx,
-		logger:                params.Logger,
-		internalPrinter:       observability.NewPrinter[string](),
-		runMetric:             runmetric.NewMetricHandler(),
 		runTimer:              timer.New(),
+		internalPrinter:       observability.NewPrinter[string](),
+		logger:                params.Logger,
+		runMetric:             runmetric.NewMetricHandler(),
 		settings:              params.Settings,
 		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
 		runSummary:            params.RunSummary,
-		systemMonitor:         params.SystemMonitor,
-		tbHandler:             params.TBHandler,
-		runfilesUploaderOrNil: params.RunfilesUploader,
 		fileTransferStats:     params.FileTransferStats,
+		runfilesUploaderOrNil: params.RunfilesUploader,
+		tbHandler:             params.TBHandler,
+		systemMonitor:         params.SystemMonitor,
 	}
 }
 
@@ -1263,29 +1263,6 @@ func (h *Handler) checkNeedsImputation(key string) bool {
 		return false
 	}
 
-	// TODO: avoid using the tree representation of the summary
-	// TODO: avoid using json marshalling
-	// we use the summary value of the metric as the algorithm for imputing the step metric
-	if value, ok := h.runSummary.Tree()[key]; ok {
-		v, err := json.Marshal(value)
-		if err != nil {
-			h.logger.CaptureError("error marshalling step metric value", err)
-			return false
-		}
-		item := []*service.HistoryItem{
-			{
-				Key:       key,
-				ValueJson: string(v),
-			},
-		}
-		h.runHistory.ApplyChangeRecord(
-			item,
-			func(err error) {
-				h.logger.CaptureError("Error updating run history", err)
-			},
-		)
-		return true
-	}
 	return true
 }
 
