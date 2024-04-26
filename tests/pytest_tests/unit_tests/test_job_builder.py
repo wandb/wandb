@@ -46,7 +46,7 @@ def test_build_repo_job(runner):
             )
         )
         job_builder = JobBuilder(settings)
-        artifact = job_builder.build()
+        artifact = job_builder.build(dockerfile="Dockerfile", build_context="blah/")
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
             f"job-{remote_name}_blah_test.py"
@@ -54,6 +54,14 @@ def test_build_repo_job(runner):
         assert artifact.type == "job"
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
+
+        with open(artifact._manifest.entries["wandb-job.json"].local_path) as f:
+            job_json = json.load(f)
+            source_json = job_json["source"]
+            assert source_json["git"]["remote"] == remote_name
+            assert source_json["git"]["commit"] == "testtestcommit"
+            assert source_json["dockerfile"] == "Dockerfile"
+            assert source_json["build_context"] == "blah/"
 
 
 def test_build_repo_notebook_job(runner, tmp_path, mocker):
