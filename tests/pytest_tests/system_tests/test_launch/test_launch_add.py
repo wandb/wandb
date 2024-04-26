@@ -78,7 +78,7 @@ def test_launch_add_delete_queued_run(
 ):
     queue = "default"
     proj = "test2"
-    uri = "https://github.com/wandb/examples.git"
+    docker_image = "test/test:test"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
 
@@ -94,7 +94,7 @@ def test_launch_add_delete_queued_run(
         )
 
         queued_run = launch_add(
-            uri=uri,
+            docker_image=docker_image,
             entity=user,
             project=proj,
             queue_name=queue,
@@ -232,10 +232,10 @@ def test_launch_add_default_specify(
     relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
 ):
     proj = "test_project1"
-    uri = "https://github.com/FooBar/examples.git"
+    docker_image = "test/test:test"
     entry_point = ["python", "train.py"]
     args = {
-        "uri": uri,
+        "docker_image": docker_image,
         "project": proj,
         "entity": user,
         "queue_name": "default",
@@ -270,10 +270,10 @@ def test_launch_add_default_specify_project_queue(
     relay_server, user, mocked_fetchable_git_repo, wandb_init, test_settings
 ):
     proj = "test_project1"
-    uri = "https://github.com/FooBar/examples.git"
+    docker_image = "test/test:test"
     entry_point = ["python", "train.py"]
     args = {
-        "uri": uri,
+        "docker_image": docker_image,
         "project": proj,
         "entity": user,
         "queue_name": "default",
