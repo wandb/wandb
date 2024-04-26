@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
@@ -173,38 +174,51 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	mailbox := mailbox.NewMailbox()
 
-	s.handler = NewHandler(s.ctx, s.logger,
-		WithHandlerSettings(s.settings.Proto),
-		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
-		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
-		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerRunfilesUploader(runfilesUploaderOrNil),
-		WithHandlerTBHandler(NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFileTransferStats(fileTransferStats),
-		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
-		WithHandlerMetricHandler(NewMetricHandler()),
-		WithHandlerMailbox(mailbox),
+	// runSummary is used to track the summary of the run's metrics
+	// and is shared between the handler and the sender
+	runSummary := runsummary.New()
+
+	s.handler = NewHandler(s.ctx,
+		&HandlerParams{
+			Logger:            s.logger,
+			Settings:          s.settings.Proto,
+			FwdChan:           make(chan *service.Record, BufferSize),
+			OutChan:           make(chan *service.Result, BufferSize),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			RunfilesUploader:  runfilesUploaderOrNil,
+			TBHandler:         NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan),
+			FileTransferStats: fileTransferStats,
+			RunSummary:        runSummary,
+			MetricHandler:     NewMetricHandler(),
+			Mailbox:           mailbox,
+		},
 	)
 
-	s.writer = NewWriter(s.ctx, s.logger,
-		WithWriterSettings(s.settings.Proto),
-		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
+	s.writer = NewWriter(s.ctx,
+		&WriterParams{
+			Logger:   s.logger,
+			Settings: s.settings.Proto,
+			FwdChan:  make(chan *service.Record, BufferSize),
+		},
 	)
 
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
-		backendOrNil,
-		fileStreamOrNil,
-		fileTransferManagerOrNil,
-		s.logger,
-		runfilesUploaderOrNil,
-		s.settings.Proto,
-		peeker,
-		graphqlClientOrNil,
-		WithSenderFwdChannel(s.loopBackChan),
-		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
-		WithSenderMailbox(mailbox),
+		&SenderParams{
+			Logger:              s.logger,
+			Settings:            s.settings.Proto,
+			Backend:             backendOrNil,
+			FileStream:          fileStreamOrNil,
+			FileTransferManager: fileTransferManagerOrNil,
+			RunfilesUploader:    runfilesUploaderOrNil,
+			Peeker:              peeker,
+			RunSummary:          runSummary,
+			GraphqlClient:       graphqlClientOrNil,
+			FwdChan:             s.loopBackChan,
+			OutChan:             make(chan *service.Result, BufferSize),
+			Mailbox:             mailbox,
+		},
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)

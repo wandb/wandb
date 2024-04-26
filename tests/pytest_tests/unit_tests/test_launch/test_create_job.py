@@ -4,9 +4,7 @@ import sys
 import tempfile
 from unittest.mock import MagicMock
 
-import pytest
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
     _configure_job_builder_for_partial,
     _create_artifact_metadata,
@@ -14,6 +12,7 @@ from wandb.sdk.launch.create_job import (
     _dump_metadata_and_requirements,
     _make_code_artifact_name,
 )
+from wandb.sdk.launch.utils import get_current_python_version
 
 
 def test_create_artifact_metadata():
@@ -94,7 +93,7 @@ def test_dump_metadata_and_requirements():
     assert metadata == m
 
 
-def test__get_entrypoint():
+def test_get_entrypoint():
     dir = tempfile.TemporaryDirectory().name
     job_source = "artifact"
     builder = _configure_job_builder_for_partial(dir, job_source)
@@ -103,17 +102,12 @@ def test__get_entrypoint():
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3.9", "main.py"]
+    assert entrypoint == ["python", "main.py"]
 
     metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3.9", "main.py"]
-
-    with pytest.raises(AssertionError):
-        metadata = {"codePath": "main.py", "_partial": "v0"}
-        program_relpath = builder._get_program_relpath(job_source, metadata)
-        entrypoint = builder._get_entrypoint(program_relpath, metadata)
+    assert entrypoint == ["python", "main.py"]
 
     metadata = {"codePath": "main.py"}
     program_relpath = builder._get_program_relpath(job_source, metadata)

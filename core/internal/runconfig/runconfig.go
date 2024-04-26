@@ -5,18 +5,17 @@ import (
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 	"gopkg.in/yaml.v3"
 )
 
-// A RunConfig representation.
-//
-// This is a type alias for refactoring purposes; it should be new type
-// otherwise.
-type RunConfigDict = map[string]interface{}
+type Format int
 
-// A key path determining a node in the run config tree.
-type RunConfigPath []string
+const (
+	FormatYaml Format = iota
+	FormatJson
+)
 
 // The configuration of a run.
 //
@@ -27,88 +26,74 @@ type RunConfigPath []string
 //
 // The server process builds this up incrementally throughout a run's lifetime.
 type RunConfig struct {
-	// The underlying configuration tree.
-	//
-	// Nodes are strings and leaves are types supported by JSON,
-	// such as primitives and lists.
-	tree RunConfigDict
+	pathTree *pathtree.PathTree
 }
-
-type ConfigFormat int
-
-const (
-	FormatYaml ConfigFormat = iota
-	FormatJson
-)
 
 func New() *RunConfig {
-	return &RunConfig{make(RunConfigDict)}
-}
-
-func NewFrom(tree RunConfigDict) *RunConfig {
-	return &RunConfig{tree}
-}
-
-// Returns the underlying config tree.
-//
-// Provided temporarily as part of a refactor. Avoid using this, especially
-// mutating it.
-func (runConfig *RunConfig) Tree() RunConfigDict {
-	return runConfig.tree
-}
-
-// Makes and returns a deep copy of the underlying tree.
-func (runConfig *RunConfig) CloneTree() (RunConfigDict, error) {
-	clone, err := deepCopy(runConfig.tree)
-	if err != nil {
-		return nil, err
+	return &RunConfig{
+		pathTree: pathtree.New(),
 	}
-	return clone, nil
+}
+
+func NewFrom(tree pathtree.TreeData) *RunConfig {
+	return &RunConfig{
+		pathTree: pathtree.NewFrom(tree),
+	}
+}
+
+func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
+
+	value := make(map[string]any)
+	for treeKey, treeValue := range rc.pathTree.Tree() {
+		value[treeKey] = map[string]any{"value": treeValue}
+	}
+
+	switch format {
+	case FormatYaml:
+		return yaml.Marshal(value)
+	case FormatJson:
+		return json.Marshal(value)
+	default:
+		return nil, fmt.Errorf("unsupported format: %v", format)
+	}
 }
 
 // Updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
-func (runConfig *RunConfig) ApplyChangeRecord(
+func (rc *RunConfig) ApplyChangeRecord(
 	configRecord *service.ConfigRecord,
 	onError func(error),
 ) {
-	for _, configItem := range configRecord.Update {
-		path := keyPath(configItem)
-
-		var value interface{}
-		if err := json.Unmarshal(
-			[]byte(configItem.GetValueJson()),
-			&value,
-		); err != nil {
-			onError(
-				fmt.Errorf(
-					"config: failed to unmarshal JSON for config key %v: %v",
-					path,
-					err,
-				),
-			)
-			continue
-		}
-
-		if err := updateAtPath(runConfig.tree, path, value); err != nil {
+	updates := make([]*pathtree.PathItem, 0, len(configRecord.GetUpdate()))
+	for _, item := range configRecord.GetUpdate() {
+		var value any
+		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
 			onError(err)
 			continue
 		}
+		updates = append(updates, &pathtree.PathItem{
+			Path:  keyPath(item),
+			Value: value,
+		})
 	}
-
-	for _, configItem := range configRecord.Remove {
-		runConfig.removeAtPath(keyPath(configItem))
+	rc.pathTree.ApplyUpdate(updates, onError)
+	removes := make([]*pathtree.PathItem, 0, len(configRecord.GetRemove()))
+	for _, item := range configRecord.GetRemove() {
+		removes = append(removes, &pathtree.PathItem{
+			Path: keyPath(item),
+		})
 	}
+	rc.pathTree.ApplyRemove(removes)
 }
 
 // Inserts W&B-internal values into the run's configuration.
-func (runConfig *RunConfig) AddTelemetryAndMetrics(
+func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
 	metrics []map[int]interface{},
 ) {
-	wandbInternal := runConfig.internalSubtree()
+	wandbInternal := rc.internalSubtree()
 
 	if telemetry.GetCliVersion() != "" {
 		wandbInternal["cli_version"] = telemetry.CliVersion
@@ -125,11 +110,11 @@ func (runConfig *RunConfig) AddTelemetryAndMetrics(
 }
 
 // Incorporates the config from a run that's being resumed.
-func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
+func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) error {
 	// Add any top-level keys that aren't already set.
-	if err := runConfig.addUnsetKeysFromSubtree(
+	if err := rc.pathTree.AddUnsetKeysFromSubtree(
 		oldConfig,
-		RunConfigPath{},
+		pathtree.TreePath{},
 	); err != nil {
 		return err
 	}
@@ -137,187 +122,51 @@ func (runConfig *RunConfig) MergeResumedConfig(oldConfig RunConfigDict) error {
 	// When a user logs visualizations, we unfortunately store them in the
 	// run's config. When resuming a run, we want to avoid erasing previously
 	// logged visualizations, hence this special handling.
-	if err := runConfig.addUnsetKeysFromSubtree(
+	if err := rc.pathTree.AddUnsetKeysFromSubtree(
 		oldConfig,
-		RunConfigPath{"_wandb", "visualize"},
+		pathtree.TreePath{"_wandb", "visualize"},
 	); err != nil {
 		return err
 	}
 
-	if err := runConfig.addUnsetKeysFromSubtree(
+	if err := rc.pathTree.AddUnsetKeysFromSubtree(
 		oldConfig,
-		RunConfigPath{"_wandb", "viz"},
+		pathtree.TreePath{"_wandb", "viz"},
 	); err != nil {
 		return err
-	}
-
-	return nil
-}
-
-// Serializes the run configuration to send to the backend.
-func (runConfig *RunConfig) Serialize(format ConfigFormat) ([]byte, error) {
-	// A configuration dict in the format expected by the backend.
-	valueConfig := make(map[string]map[string]interface{})
-	for treeKey, treeValue := range runConfig.tree {
-		valueConfig[treeKey] = map[string]interface{}{
-			"value": treeValue,
-		}
-	}
-
-	switch format {
-	case FormatYaml:
-		return yaml.Marshal(valueConfig)
-	case FormatJson:
-		return json.Marshal(valueConfig)
-	}
-
-	return nil, fmt.Errorf("config: unknown format: %v", format)
-}
-
-// Uses the given subtree for keys that aren't already set.
-func (runConfig *RunConfig) addUnsetKeysFromSubtree(
-	tree RunConfigDict,
-	path RunConfigPath,
-) error {
-	oldSubtree := getSubtree(tree, path)
-	if oldSubtree == nil {
-		return nil
-	}
-
-	newSubtree, err := getOrMakeSubtree(runConfig.tree, path)
-	if err != nil {
-		return err
-	}
-
-	for key, value := range oldSubtree {
-		if _, exists := newSubtree[key]; !exists {
-			newSubtree[key] = value
-		}
 	}
 
 	return nil
 }
 
 // Returns the "_wandb" subtree of the config.
-func (runConfig *RunConfig) internalSubtree() RunConfigDict {
-	node, found := runConfig.tree["_wandb"]
+func (rc *RunConfig) internalSubtree() pathtree.TreeData {
+	node, found := rc.pathTree.Tree()["_wandb"]
 
 	if !found {
-		wandbInternal := make(RunConfigDict)
-		runConfig.tree["_wandb"] = wandbInternal
+		wandbInternal := make(pathtree.TreeData)
+		rc.pathTree.Tree()["_wandb"] = wandbInternal
 		return wandbInternal
 	}
 
 	// Panic if the type is wrong, which should never happen.
-	return node.(RunConfigDict)
+	return node.(pathtree.TreeData)
 }
 
-// Sets the value at the path in the config tree.
-func updateAtPath(
-	tree RunConfigDict,
-	path []string,
-	value interface{},
-) error {
-	pathPrefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree, err := getOrMakeSubtree(tree, pathPrefix)
-
-	if err != nil {
-		return err
-	}
-
-	subtree[key] = value
-	return nil
+func (rc *RunConfig) Tree() pathtree.TreeData {
+	return rc.pathTree.Tree()
 }
 
-// Removes the value at the path in the config tree.
-func (runConfig *RunConfig) removeAtPath(path RunConfigPath) {
-	pathPrefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := getSubtree(runConfig.tree, pathPrefix)
-	if subtree != nil {
-		delete(subtree, key)
-	}
+func (rc *RunConfig) CloneTree() (pathtree.TreeData, error) {
+	return rc.pathTree.CloneTree()
 }
 
-// Returns the key path referenced by the config item.
-func keyPath(configItem *service.ConfigItem) RunConfigPath {
-	if len(configItem.GetNestedKey()) > 0 {
-		return RunConfigPath(configItem.NestedKey)
-	} else {
-		return RunConfigPath{configItem.Key}
+// keyPath returns the key path for the given config item.
+// If the item has a nested key, it returns the nested key.
+// Otherwise, it returns a slice with the key.
+func keyPath(item *service.ConfigItem) []string {
+	if len(item.GetNestedKey()) > 0 {
+		return item.GetNestedKey()
 	}
-}
-
-// Returns the subtree at the path, or nil if it does not exist.
-func getSubtree(
-	tree RunConfigDict,
-	path RunConfigPath,
-) RunConfigDict {
-	for _, key := range path {
-		node, ok := tree[key]
-		if !ok {
-			return nil
-		}
-
-		subtree, ok := node.(RunConfigDict)
-		if !ok {
-			return nil
-		}
-
-		tree = subtree
-	}
-
-	return tree
-}
-
-// Returns the subtree at the path, creating it if necessary.
-//
-// Returns an error if there exists a non-map value at the path.
-func getOrMakeSubtree(
-	tree RunConfigDict,
-	path RunConfigPath,
-) (RunConfigDict, error) {
-	for _, key := range path {
-		node, exists := tree[key]
-		if !exists {
-			node = make(RunConfigDict)
-			tree[key] = node
-		}
-
-		subtree, ok := node.(RunConfigDict)
-		if !ok {
-			return nil, fmt.Errorf(
-				"config: value at path %v is type %T, not a map",
-				path,
-				node,
-			)
-		}
-
-		tree = subtree
-	}
-
-	return tree, nil
-}
-
-// Returns a deep copy of the given tree.
-//
-// Slice values are copied by reference, which is fine for our use case.
-func deepCopy(tree RunConfigDict) (RunConfigDict, error) {
-	clone := make(RunConfigDict)
-	for key, value := range tree {
-		switch value := value.(type) {
-		case RunConfigDict:
-			innerClone, err := deepCopy(value)
-			if err != nil {
-				return nil, err
-			}
-			clone[key] = innerClone
-		default:
-			clone[key] = value
-		}
-	}
-	return clone, nil
+	return []string{item.GetKey()}
 }

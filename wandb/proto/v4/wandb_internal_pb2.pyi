@@ -666,6 +666,14 @@ global___HistoryRecord = HistoryRecord
 
 @typing_extensions.final
 class HistoryItem(google.protobuf.message.Message):
+    """
+    HistoryItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -983,6 +991,14 @@ global___ConfigRecord = ConfigRecord
 
 @typing_extensions.final
 class ConfigItem(google.protobuf.message.Message):
+    """
+    ConfigItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -1044,6 +1060,14 @@ global___SummaryRecord = SummaryRecord
 
 @typing_extensions.final
 class SummaryItem(google.protobuf.message.Message):
+    """
+    SummaryItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -2950,6 +2974,14 @@ global___SampledHistoryRequest = SampledHistoryRequest
 
 @typing_extensions.final
 class SampledHistoryItem(google.protobuf.message.Message):
+    """
+    SampledHistoryItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int

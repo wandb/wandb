@@ -159,6 +159,16 @@ commands:
             - store_artifacts:
                 path: cover-results
 
+  # We only need a separate command to include this workaround to a bug:
+  # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
+  upload_codecov:
+    description: Upload code coverage to codecov.io
+    parameters:
+      flags: { type: string }
+    steps:
+      - run: mkdir -p ~/.gnupg
+      - codecov/upload: { flags: <<parameters.flags>> }
+
   install_go:
     description: "Install Go with the specified version and system"
     parameters:
@@ -430,19 +440,20 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
-  unit-tests:
+  nox-tests:
     parameters:
       executor: { type: executor }
+      parallelism: { type: integer }
       install_deps: { type: steps }
+      session_base: { type: string }
       python_version_major: { type: integer }
       python_version_minor: { type: integer }
       core: { type: string }
+      codecov_flags: { type: string }
 
     executor: <<parameters.executor>>
 
-    # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
-    # https://circleci.com/docs/parallelism-faster-jobs/
-    parallelism: 4
+    parallelism: <<parameters.parallelism>>
 
     steps:
       - checkout
@@ -450,112 +461,19 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U nox pip
+          command: pip install -U nox pip uv
           no_output_timeout: 5m
 
       - run:
-          name: Run all unit tests
+          name: "Run nox tests: <<parameters.session_base>>"
           no_output_timeout: 10m
           command: "\
-            nox -s 'unit_tests-\
+            nox -db uv -s '<<parameters.session_base>>-\
               <<parameters.python_version_major>>.\
               <<parameters.python_version_minor>>\
               (core=<<parameters.core>>)'"
 
-      - codecov/upload: { flags: unit, validate: false }
-
-      - save-test-results
-
-  system-tests:
-    parameters:
-      executor: { type: executor }
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
-      with_core: { type: boolean }
-      tests:
-        type: enum
-        enum: [sdk, notebooks, other]
-
-    executor: <<parameters.executor>>
-
-    environment:
-      WANDB__REQUIRE_CORE: <<parameters.with_core>>
-
-    parallelism: 4
-
-    steps:
-      - checkout
-      - run:
-          name: Install system deps
-          command: |
-            apt-get update
-            apt-get install -y libsndfile1 ffmpeg
-      - install_go
-      - run:
-          name: Install Python dependencies
-          command: pip install -U tox nox pip
-          no_output_timeout: 5m
-
-      - restore_cache_tox
-
-      # TODO: replace tests with pytest markers and remove the conditional
-      - when:
-          condition: { equal: [<<parameters.tests>>, sdk] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_core \
-                    tests/pytest_tests/system_tests/test_system_metrics \
-                    tests/pytest_tests/system_tests/test_functional
-      - when:
-          condition: { equal: [<<parameters.tests>>, notebooks] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>notebooks-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_notebooks
-      - when:
-          condition: { equal: [<<parameters.tests>>, other] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_reports \
-                    tests/pytest_tests/system_tests/test_launch \
-                    tests/pytest_tests/system_tests/test_sweep \
-                    tests/pytest_tests/system_tests/test_artifacts
-
-      - save_cache_tox
-
-      - codecov/upload: { flags: system, validate: false }
+      - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
       - save-test-results
 
@@ -653,8 +571,7 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload:
-                      { flags: <<parameters.codecov_flags>>, validate: false }
+                  - upload_codecov: { flags: <<parameters.codecov_flags>> }
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -710,7 +627,7 @@ jobs:
               -- $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
       - save_cache_tox
-      - codecov/upload: { flags: system, validate: false }
+      - upload_codecov: { flags: system }
       - save-test-results
 
   unit-tests-go:
@@ -723,7 +640,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - codecov/upload: { flags: unit, validate: false }
+      - upload_codecov: { flags: unit }
 
   store-local-testcontainer:
     parameters:
@@ -829,8 +746,7 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload:
-                      { flags: <<parameters.codecov_flags>>, validate: false }
+                  - upload_codecov: { flags: <<parameters.codecov_flags>> }
             - save-test-results
 
   launch:
@@ -882,8 +798,7 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - codecov/upload:
-                { flags: <<parameters.codecov_flags>>, validate: false }
+            - upload_codecov: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   slack_notify:
@@ -1586,12 +1501,14 @@ workflows:
       #
       # Unit tests with pytest on Linux
       #
-      - unit-tests:
+      - nox-tests:
           name: "\
             unit-tests-linux-\
             core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: unit_tests
+          codecov_flags: unit
 
           matrix:
             parameters:
@@ -1599,6 +1516,7 @@ workflows:
               python_version_minor: [8, 12]
               core: ["True", "False"]
 
+          parallelism: 4
           executor:
             name: linux-python
             python_version_major: <<matrix.python_version_major>>
@@ -1622,12 +1540,14 @@ workflows:
       # Unfortunately, CircleCI does not seem to provide a way to define
       # the common part separately and reuse it.
       #
-      - unit-tests:
+      - nox-tests:
           name: "\
             unit-tests-macos-\
             core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: unit_tests
+          codecov_flags: unit
 
           matrix:
             parameters:
@@ -1635,6 +1555,7 @@ workflows:
               python_version_minor: [9, 12]
               core: ["True", "False"]
 
+          parallelism: 4
           executor: macos
 
           install_deps:
@@ -1651,12 +1572,14 @@ workflows:
       #   - executor
       #   - install_deps
       #
-      - unit-tests:
+      - nox-tests:
           name: "\
             unit-tests-win-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: unit_tests
+          codecov_flags: unit
 
           filters:
             branches:
@@ -1669,16 +1592,10 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9, 12]
-              with_core: [true, false]
-            exclude:
-              - with_core: true
-                python_version_major: 3
-                python_version_minor: 9
-              - with_core: true
-                python_version_major: 3
-                python_version_minor: 12
+              core: ["True", "False"]
 
 
+          parallelism: 4
           executor:
             name: win/server-2019
             size: large
@@ -1694,12 +1611,14 @@ workflows:
       #
       # System tests on Linux
       #
-      - system-tests:
+      - nox-tests:
           name: "\
             system-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: system_tests
+          codecov_flags: system
 
           filters:
             branches:
@@ -1710,13 +1629,48 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [8, 12]
-              with_core: [true, false]
-              tests: [sdk, notebooks, other]
+              core: ["True", "False"]
 
+          parallelism: 12
           executor:
             name: local-testcontainer
             python_version_major: <<matrix.python_version_major>>
             python_version_minor: <<matrix.python_version_minor>>
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
+
+      - nox-tests:
+          name: "\
+            notebook-tests-linux-\
+            core(<<matrix.core>>)-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+          session_base: notebook_tests
+          codecov_flags: system
+
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8, 12]
+              core: ["True", "False"]
+
+          parallelism: 1
+          executor:
+            name: local-testcontainer
+            python_version_major: <<matrix.python_version_major>>
+            python_version_minor: <<matrix.python_version_minor>>
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
       #
       # W&B Importer tests on Linux, using 2 real wandb servers

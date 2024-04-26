@@ -7,6 +7,7 @@ import sys
 import numpy as np
 import pytest
 import wandb
+import wandb.env
 from wandb import wandb_sdk
 from wandb.errors import UsageError
 
@@ -292,3 +293,55 @@ def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init
         assert "wandb-summary.json" in uploaded_files
         assert "requirements.txt" in uploaded_files
         assert "config.yaml" in uploaded_files
+
+
+def test_summary_update(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.summary.update({"a": 1})
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {"a": 1}
+
+
+def test_summary_from_history(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.summary.update({"a": 1})
+        run.log({"a": 2})
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {"a": 2}
+
+
+@pytest.mark.skipif(
+    not wandb.env.is_require_core(),
+    reason="This is broken in the python code",
+)
+def test_summary_remove(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log({"a": 2})
+        del run.summary["a"]
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {}
+
+
+@pytest.mark.skipif(
+    not wandb.env.is_require_core(),
+    reason="This is broken in the python code",
+)
+def test_summary_remove_nested(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(allow_val_change=True)
+        run.log({"a": {"b": 2}})
+        run.summary["a"]["c"] = 3
+        del run.summary["a"]["b"]
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {"a": {"c": 3}}

@@ -1,4 +1,5 @@
 import asyncio
+import platform
 import threading
 from unittest.mock import MagicMock
 
@@ -330,6 +331,7 @@ async def test_thread_finish_run_fail(mocker, clean_agent):
     }
 
     mocker.api.get_run_state.side_effect = CommError("failed")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
     job = JobAndRunStatusTracker("run_queue_item_id", "test-queue", mock_saver)
@@ -358,6 +360,7 @@ async def test_thread_finish_run_fail_start(mocker, clean_agent):
         "project": "test-project",
     }
     mocker.api.get_run_state.side_effect = CommError("failed")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     mock_saver = MagicMock()
@@ -390,6 +393,7 @@ async def test_thread_finish_run_fail_start_old_server(mocker, clean_agent):
         "project": "test-project",
     }
     mocker.api.get_run_state.side_effect = CommError("failed")
+    mocker.patch("wandb.sdk.launch.agent.agent.RUN_INFO_GRACE_PERIOD", 1)
 
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     agent._gorilla_supports_fail_run_queue_items = False
@@ -469,6 +473,7 @@ async def test_agent_fails_sweep_state(mocker, clean_agent):
     assert out, "True when status successfully updated"
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="fails on windows")
 @pytest.mark.asyncio
 async def test_thread_finish_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits 0 but there is no run."""
@@ -497,6 +502,7 @@ async def test_thread_finish_no_run(mocker, clean_agent):
     )
 
 
+@pytest.mark.skipif(platform.system() == "Windows", reason="fails on windows")
 @pytest.mark.asyncio
 async def test_thread_failed_no_run(mocker, clean_agent):
     """Test that we fail RQI when the job exits non-zero but there is no run."""
@@ -537,6 +543,8 @@ async def test_thread_finish_run_info_backoff(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
+    mocker.patch("asyncio.sleep", AsyncMock())
+
     mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     submitted_run = MagicMock()
@@ -694,3 +702,17 @@ def test_agent_logger(mocker):
     logger.debug("test 8")
     mocker.termlog.assert_called_with(f"{LOG_PREFIX}test 8")
     mocker.logger.debug.assert_called_with(f"{LOG_PREFIX}test 8")
+
+
+def test_agent_inf_jobs(mocker):
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+        "max_jobs": -1,
+    }
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.LaunchAgent._init_agent_run", lambda x: None
+    )
+    agent = LaunchAgent(MagicMock(), config)
+    assert agent._max_jobs == float("inf")

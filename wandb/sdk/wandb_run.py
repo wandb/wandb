@@ -1400,6 +1400,10 @@ class Run:
         # self._printer.display(line)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
+        if self._is_finished:
+            # TODO: WB-18420: fetch summary from backend and stage it before run is finished
+            wandb.termwarn("Summary data not available in finished run")
+            return {}
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
@@ -3964,11 +3968,11 @@ class Run:
 
         # Render summary if available
         if summary:
-            final_summary = {
-                item.key: json.loads(item.value_json)
-                for item in summary.item
-                if not item.key.startswith("_")
-            }
+            final_summary = {}
+            for item in summary.item:
+                if item.key.startswith("_") or len(item.nested_key) > 0:
+                    continue
+                final_summary[item.key] = json.loads(item.value_json)
 
             logger.info("rendering summary")
             summary_rows = []
