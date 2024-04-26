@@ -667,7 +667,7 @@ jobs:
           name:
           command: |
             go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            pip install -U pip nox requests
+            pip install -U pip nox requests uv
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 
