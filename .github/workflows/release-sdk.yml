@@ -143,12 +143,7 @@ jobs:
             env
           CIBW_ENVIRONMENT_LINUX:
             PATH=$PATH:/usr/local/go/bin
-          CIBW_REPAIR_WHEEL_COMMAND_LINUX: >
-            delocate-wheel \
-              --require-archs {delocate_archs} \
-              --ignore-missing-dependencies \
-              -w {dest_dir} \
-              -v {wheel}
+          CIBW_REPAIR_WHEEL_COMMAND_LINUX: "auditwheel repair --lib-sdir . -w {dest_dir} {wheel}"
 
       - uses: actions/upload-artifact@v3
         with:
