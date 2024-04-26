@@ -70,6 +70,30 @@ class JobInputArguments:
         self.run_config = run_config
 
 
+class StagedLaunchInputs:
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = object.__new__(cls)
+        return cls._instance
+
+    def __init__(self) -> None:
+        if not hasattr(self, "_staged_inputs"):
+            self._staged_inputs: List[JobInputArguments] = []
+
+    def add_staged_input(
+        self,
+        input_arguments: JobInputArguments,
+    ):
+        self._staged_inputs.append(input_arguments)
+
+    def apply(self, run: Run):
+        """Apply the staged inputs to the given run."""
+        for input in self._staged_inputs:
+            _publish_job_input(input, run)
+
+
 def _publish_job_input(
     input: JobInputArguments,
     run: Run,
@@ -112,7 +136,8 @@ def handle_config_file_input(
     the copy is sent to the backend interface of the active run and used to
     configure the job builder.
 
-    If there is no active run, a NotImplementedError is raised.
+    If there is no active run, the configuration file is staged and sent when a
+    run is created.
     """
     config_path_is_valid(path)
     override_file(path)
@@ -128,7 +153,8 @@ def handle_config_file_input(
     if wandb.run is not None:
         _publish_job_input(arguments, wandb.run)
     else:
-        raise NotImplementedError("Staging config file inputs is not yet implemented.")
+        staged_inputs = StagedLaunchInputs()
+        staged_inputs.add_staged_input(arguments)
 
 
 def handle_run_config_input(
@@ -139,7 +165,8 @@ def handle_run_config_input(
     The include and exclude paths are sent to the backend interface of the
     active run and used to configure the job builder.
 
-    If there is no active run, a NotImplementedError is raised.
+    If there is no active run, the include and exclude paths are staged and sent
+    when a run is created.
     """
     arguments = JobInputArguments(
         include=include,
@@ -150,7 +177,8 @@ def handle_run_config_input(
     if wandb.run is not None:
         _publish_job_input(arguments, wandb.run)
     else:
-        raise NotImplementedError("Staging run config inputs is not yet implemented.")
+        stage_inputs = StagedLaunchInputs()
+        stage_inputs.add_staged_input(arguments)
 
 
 def _split_on_unesc_dot(path: str) -> List[str]:
