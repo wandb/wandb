@@ -346,12 +346,12 @@ commands:
             # Note that virtualenvs are not portable! We include the job name
             # in the key in the hopes that it encapsulates the Python version.
             # We include the architecture (OS + processor) as well to be safe.
-            - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+            - &tox-cache v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "tox-cache-date.txt" }}-{{
                 checksum "requirements_dev.txt" }}-{{
                 checksum "requirements_test.txt" }}-{{
                 checksum "tox.ini" }}
-            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+            - v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "tox-cache-date.txt" }}
   save_cache_tox:
     steps:
