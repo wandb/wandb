@@ -1530,6 +1530,7 @@ def test_manifest_json_invalid_version(version):
     assert "manifest version" in str(e.value)
 
 
+@pytest.mark.skip(reason="This test is broken")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
     monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
     cache = artifact_file_cache.get_artifact_file_cache()

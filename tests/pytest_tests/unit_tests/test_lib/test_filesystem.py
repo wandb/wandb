@@ -70,6 +70,7 @@ def test_mkdir_exists_ok_file_exists(tmp_path):
     assert file.is_file()
 
 
+@pytest.mark.skip(reason="This test is broken!!!")
 def test_mkdir_exists_ok_not_writable(tmp_path):
     # Reference test: only works when run manually.
     new_dir = tmp_path / "new"
@@ -139,6 +140,7 @@ def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
     assert dest_path.stat().st_mode & umask == 0
 
 
+@pytest.mark.skip(reason="This test is broken!!!")
 def test_copy_or_overwrite_changed_unfixable(tmp_path):
     # Reference test: only works when run manually.
     source_path = tmp_path / "new_file.txt"
