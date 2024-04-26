@@ -2,22 +2,7 @@ package pathtree
 
 import (
 	"fmt"
-
-	"github.com/segmentio/encoding/json"
-	// TODO: use simplejsonext for now until we replace the usage of json with
-	// protocol buffer and proto json marshaler
-	jsonext "github.com/wandb/simplejsonext"
-	"gopkg.in/yaml.v3"
 )
-
-// A type alias for any value that is passed from the client.
-//
-// It included HistoryItem, SummaryItem, ConfigItem, etc.
-type item interface {
-	GetKey() string
-	GetNestedKey() []string
-	GetValueJson() string
-}
 
 // TreeData is an internal representation for a nested key-value pair.
 type TreeData = map[string]interface{}
@@ -35,13 +20,15 @@ type PathTree struct {
 	tree TreeData
 }
 
-type Format int
 
-const (
-	FormatYaml Format = iota
-	FormatJson
-	FormatJsonExt
-)
+// PathItem is a alternative representation of the item interface.
+//
+// The Value is a JSON string, which can be unmarshaled to any type.
+type PathItem struct {
+	Path  TreePath
+	Value any
+}
+
 
 // PathItem is a alternative representation of the item interface.
 //
@@ -88,33 +75,13 @@ func (pt *PathTree) CloneTree() (TreeData, error) {
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
-//
-// TODO: ideally we would not need to pass the format here, and instead
-// receive the values as unmarshaled objects and marshal them when needed.
 func (pt *PathTree) ApplyUpdate(
 	items []*PathItem,
 	onError func(error),
 	format Format,
 ) {
 	for _, item := range items {
-		var (
-			value interface{}
-			err   error
-		)
-		if value, err = unmarshal([]byte(item.Value),
-			format,
-		); err != nil {
-			onError(
-				fmt.Errorf(
-					"pathtree: failed to unmarshal JSON for config key %v: %v",
-					item.Path,
-					err,
-				),
-			)
-			continue
-		}
-
-		if err := updateAtPath(pt.tree, item.Path, value); err != nil {
+		if err := updateAtPath(pt.tree, item.Path, item.Value); err != nil {
 			onError(err)
 			continue
 		}
@@ -124,11 +91,23 @@ func (pt *PathTree) ApplyUpdate(
 // Removes values from the tree.
 func (pt *PathTree) ApplyRemove(
 	items []*PathItem,
-	onError func(error),
 ) {
 	for _, item := range items {
 		pt.removeAtPath(item.Path)
 	}
+
+	newSubtree, err := getOrMakeSubtree(pt.tree, path)
+	if err != nil {
+		return err
+	}
+
+	for key, value := range oldSubtree {
+		if _, exists := newSubtree[key]; !exists {
+			newSubtree[key] = value
+		}
+	}
+
+	return nil
 }
 
 // Removes the value at the path in the config tree.
@@ -166,73 +145,11 @@ func (pt *PathTree) AddUnsetKeysFromSubtree(
 	return nil
 }
 
-// Serializes the object to send to the backend.
-func (pt *PathTree) Serialize(
-	format Format,
-	processValue func(any) any,
-) ([]byte, error) {
-	// A configuration dict in the format expected by the backend.
-	value := make(map[string]any)
-	for treeKey, treeValue := range pt.tree {
-		if processValue == nil {
-			value[treeKey] = treeValue
-		} else {
-			value[treeKey] = processValue(treeValue)
-		}
-	}
-	return marshal(value, format)
-}
-
-// FlattenAndSerialize flattens the tree into a slice of leaves and marshals the values.
-//
-// Use this to get a list of all the leaves in the tree with their values
-// marshaled.
-//
-// TODO: Ideally in the future we would not need to marshal the values here.
-// and postpone marshaling when the values are beening sent to the backend.
-func (pt *PathTree) FlattenAndSerialize(format Format) ([]PathItem, error) {
-
-	if !(format == FormatYaml || format == FormatJson || format == FormatJsonExt) {
-		return nil, fmt.Errorf("pathtree: unknown format %v", format)
-	}
-
-	leaves := flatten(pt.tree, nil)
-
-	items := make([]PathItem, 0, len(leaves))
-	for _, leaf := range leaves {
-		value, err := marshal(leaf.Value, format)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"pathtree: failed to marshal value for path %v: %v",
-				leaf.Path,
-				err,
-			)
-		}
-		items = append(items, PathItem{leaf.Path, string(value)})
-	}
-	return items, nil
-}
-
 // Flattens the tree into a slice of leaves.
 //
 // Use this to get a list of all the leaves in the tree.
-func (pt *PathTree) Flatten() []Leaf {
+func (pt *PathTree) Flatten() []PathItem {
 	return flatten(pt.tree, nil)
-}
-
-// Converts an item to a PathItem.
-func FromItem(item item) *PathItem {
-	var key []string
-	if len(item.GetNestedKey()) > 0 {
-		key = item.GetNestedKey()
-	} else {
-		key = []string{item.GetKey()}
-	}
-
-	return &PathItem{
-		Path:  key,
-		Value: item.GetValueJson(),
-	}
 }
 
 // Recursively flattens the tree into a slice of leaves.
@@ -241,57 +158,17 @@ func FromItem(item item) *PathItem {
 // The order of the leaves is determined by the order of the tree traversal.
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
-func flatten(tree TreeData, prefix []string) []Leaf {
-	var leaves []Leaf
+func flatten(tree TreeData, prefix []string) []PathItem {
+	var leaves []PathItem
 	for key, value := range tree {
 		switch value := value.(type) {
 		case TreeData:
 			leaves = append(leaves, flatten(value, append(prefix, key))...)
 		default:
-			leaves = append(leaves, Leaf{append(prefix, key), value})
+			leaves = append(leaves, PathItem{append(prefix, key), value})
 		}
 	}
 	return leaves
-}
-
-// Unmarshals the value from the given format.
-//
-// Returns an error if the format is unknown.
-// Supported formats are FormatYaml, FormatJson, and FormatJsonExt.
-// FormatJsonExt is a custom JSON format that supports Infinity and NaN.
-func unmarshal(b []byte, format Format) (interface{}, error) {
-	switch format {
-	case FormatYaml:
-		var value interface{}
-		err := yaml.Unmarshal(b, &value)
-		return value, err
-	case FormatJson:
-		var value interface{}
-		err := json.Unmarshal(b, &value)
-		return value, err
-	case FormatJsonExt:
-		return jsonext.Unmarshal(b)
-	default:
-		return nil, fmt.Errorf("pathtree: unknown format %v", format)
-	}
-}
-
-// Marshals the value to the given format.
-//
-// Returns an error if the format is unknown.
-// Supported formats are FormatYaml, FormatJson, and FormatJsonExt.
-// FormatJsonExt is a custom JSON format that supports Infinity and NaN.
-func marshal(v interface{}, format Format) ([]byte, error) {
-	switch format {
-	case FormatYaml:
-		return yaml.Marshal(v)
-	case FormatJson:
-		return json.Marshal(v)
-	case FormatJsonExt:
-		return jsonext.Marshal(v)
-	default:
-		return nil, fmt.Errorf("pathtree: unknown format %v", format)
-	}
 }
 
 // Sets the value at the path in the config tree.

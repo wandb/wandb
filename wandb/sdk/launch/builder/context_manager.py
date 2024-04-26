@@ -4,7 +4,6 @@ import shutil
 import tempfile
 from typing import Tuple
 
-import wandb
 from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.builder.build import image_tag_from_dockerfile_and_source
 from wandb.sdk.launch.errors import LaunchError
@@ -66,14 +65,6 @@ class BuildContextManager:
         entry_point = (
             launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
-        dockerfile = launch_project.override_dockerfile
-        if launch_project.project_dir is not None and dockerfile:
-            path = os.path.join(launch_project.project_dir, dockerfile)
-            if not os.path.exists(path):
-                raise LaunchError(f"Dockerfile does not exist at {path}")
-            launch_project.project_dir = os.path.dirname(path)
-            wandb.termlog(f"Using dockerfile: {dockerfile}")
-            return open(path).read()
 
         # get python versions truncated to major.minor to ensure image availability
         if launch_project.python_version:
@@ -125,19 +116,73 @@ class BuildContextManager:
         assert entrypoint.name is not None
         assert self._launch_project.project_dir is not None
 
+        # This is the case where the user specifies a Dockerfile to use.
+        # We use the directory containing the Dockerfile as the build context.
+        override_dockerfile = self._launch_project.override_dockerfile
+        if override_dockerfile:
+            full_path = os.path.join(
+                self._launch_project.project_dir,
+                override_dockerfile,
+            )
+            if not os.path.exists(full_path):
+                raise LaunchError(f"Dockerfile does not exist at {full_path}")
+            build_context_root_dir = os.path.dirname(full_path)
+            shutil.copytree(
+                build_context_root_dir,
+                self._directory,
+                symlinks=True,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
+            )
+            shutil.copy(
+                full_path,
+                os.path.join(self._directory, _WANDB_DOCKERFILE_NAME),
+            )
+            return self._directory, image_tag_from_dockerfile_and_source(
+                self._launch_project, open(full_path).read()
+            )
+
+        # we use that as the build context.
+        build_context_root_dir = self._launch_project.project_dir
+        job_build_context = self._launch_project.job_build_context
+        if job_build_context:
+            full_path = os.path.join(build_context_root_dir, job_build_context)
+            if not os.path.exists(full_path):
+                raise LaunchError(f"Build context does not exist at {full_path}")
+            build_context_root_dir = full_path
+
+        # If the job specifies a Dockerfile, we use that as the Dockerfile.
+        job_dockerfile = self._launch_project.job_dockerfile
+        if job_dockerfile:
+            dockerfile_path = os.path.join(build_context_root_dir, job_dockerfile)
+            if not os.path.exists(dockerfile_path):
+                raise LaunchError(f"Dockerfile does not exist at {dockerfile_path}")
+            shutil.copytree(
+                build_context_root_dir,
+                self._directory,
+                symlinks=True,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc"),
+            )
+            shutil.copy(
+                dockerfile_path,
+                os.path.join(self._directory, _WANDB_DOCKERFILE_NAME),
+            )
+            return self._directory, image_tag_from_dockerfile_and_source(
+                self._launch_project, open(dockerfile_path).read()
+            )
+
         # This is the case where we find Dockerfile.wandb adjacent to the
         # entrypoint. We use the entrypoint directory as the build context.
         entrypoint_dir = os.path.dirname(entrypoint.name)
         if entrypoint_dir:
             path = os.path.join(
-                self._launch_project.project_dir,
+                build_context_root_dir,
                 entrypoint_dir,
                 _WANDB_DOCKERFILE_NAME,
             )
         else:
-            path = os.path.join(
-                self._launch_project.project_dir, _WANDB_DOCKERFILE_NAME
-            )
+            path = os.path.join(build_context_root_dir, _WANDB_DOCKERFILE_NAME)
         if os.path.exists(
             path
         ):  # We found a Dockerfile.wandb adjacent to the entrypoint.

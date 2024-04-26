@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
@@ -1035,6 +1036,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 	history.Item = append(history.Item, imputed...)
 
+
 	h.sampleHistory(history)
 
 	record := &service.Record{
@@ -1099,16 +1101,20 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		h.runHistory = runhistory.New()
 	}
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
-		h.logger.CaptureError("Error updating run history", err)
-	})
+	h.runHistory.ApplyChangeRecord(request.GetItem(),
+		func(err error) {
+			h.logger.CaptureError("Error updating run history", err)
+		})
+
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
 		items, err := h.runHistory.Flatten()
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
-			// TODO: report error back to the client
+			msg := "Failed to process history record, skipping syncing."
+			h.internalPrinter.Write(msg)
+			return
 		}
 		h.handleHistory(&service.HistoryRecord{
 			Item: items,
@@ -1165,17 +1171,21 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
-		current := h.runHistory.Step
+		current := h.runHistory.GetStep()
 		if step > current {
 			items, err := h.runHistory.Flatten()
 			if err != nil {
 				h.logger.CaptureError("Error flattening run history", err)
-				// TODO: what should we do here?
+				msg := fmt.Sprintf(
+					"Failed to process history record, for step %d, skipping...",
+					h.runHistory.GetStep(),
+				)
+				h.internalPrinter.Write(msg)
 				return
 			}
 			history := &service.HistoryRecord{
 				Step: &service.HistoryStep{
-					Num: h.runHistory.Step,
+					Num: h.runHistory.GetStep(),
 				},
 				Item: items,
 			}
@@ -1192,9 +1202,10 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 
 	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(), func(err error) {
-		h.logger.CaptureError("Error updating run history", err)
-	})
+	h.runHistory.ApplyChangeRecord(request.GetItem(),
+		func(err error) {
+			h.logger.CaptureError("Error updating run history", err)
+		})
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
@@ -1202,16 +1213,21 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 		items, err := h.runHistory.Flatten()
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
+			msg := fmt.Sprintf(
+				"Failed to process history record, for step %d, skipping...",
+				h.runHistory.GetStep(),
+			)
+			h.internalPrinter.Write(msg)
 			return
 		}
 		history := &service.HistoryRecord{
 			Step: &service.HistoryStep{
-				Num: h.runHistory.Step,
+				Num: h.runHistory.GetStep(),
 			},
 			Item: items,
 		}
 		h.handleHistory(history)
-		step := h.runHistory.Step + 1
+		step := h.runHistory.GetStep() + 1
 		h.runHistory = runhistory.NewWithStep(step)
 	}
 }
@@ -1245,10 +1261,33 @@ func (h *Handler) checkNeedsImputation(key string) bool {
 	}
 
 	// check if step metric is already in history
+	// TODO: avoid using the Tree method
+	if _, ok := h.runHistory.Tree()[key]; ok {
+		return nil
+	}
 
-	// TODO: fix this (we don't want to use Tree() here)
-	if _, ok := h.runHistory.Tree()[stepKey]; ok {
-		return false
+	// TODO: avoid using the tree representation of the summary
+	// TODO: avoid using json marshalling
+	// we use the summary value of the metric as the algorithm for imputing the step metric
+	if value, ok := h.runSummary.Tree()[key]; ok {
+		v, err := json.Marshal(value)
+		if err != nil {
+			h.logger.CaptureError("error marshalling step metric value", err)
+			return nil
+		}
+		item := []*service.HistoryItem{
+			{
+				Key:       key,
+				ValueJson: string(v),
+			},
+		}
+		h.runHistory.ApplyChangeRecord(
+			item,
+			func(err error) {
+				h.logger.CaptureError("Error updating run history", err)
+			},
+		)
+		return item[0]
 	}
 	return true
 }
