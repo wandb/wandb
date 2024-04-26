@@ -1071,7 +1071,7 @@ class Api:
                     "You must specify type= to check if there are any artifacts in this collection"
                 )
             try:
-                artifacts = self.artifacts(type, name, 1)
-                return len(artifacts) > 0
+                self.artifact_collection(type, name)
+                return True
             except wandb.errors.CommError:
                 return False
