@@ -6,7 +6,6 @@ import yaml
 from wandb.sdk.launch._launch import create_and_run_agent, resolve_agent_config
 from wandb.sdk.launch.agent.config import validate_registry_uri
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
 class MockAgent:

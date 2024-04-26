@@ -18,7 +18,6 @@ from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
-    LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
     validate_launch_spec_source,
