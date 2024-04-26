@@ -82,7 +82,7 @@ def test_watch_parameters_torch_jit(mock_run, log_type, mock_wandb_log):
     assert mock_wandb_log.warned("skipping parameter tracking")
 
 
-def test_watch_graph_torch_jit(mock_run, capsys):
+def test_watch_graph_torch_jit(mock_run, mock_wandb_log):
     run = mock_run(use_magic_mock=True)
 
     class Net(nn.Module):
@@ -96,8 +96,7 @@ def test_watch_graph_torch_jit(mock_run, capsys):
     net = torch.jit.script(Net())
     run.watch(net, log_graph=True)
 
-    outerr = capsys.readouterr()
-    assert "skipping graph tracking" in outerr.err
+    assert mock_wandb_log.warned("skipping graph tracking")
 
 
 def test_watch_bad_argument(mock_run):
