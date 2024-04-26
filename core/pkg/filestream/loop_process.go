@@ -5,8 +5,7 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -78,6 +77,12 @@ func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 }
 
 func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
+	if msg == nil {
+		fs.logger.CaptureError(
+			"filestream: history record is nil", nil)
+		return
+	}
+
 	// when logging to the same run with multiple writers, we need to
 	// add a client id to the history record
 	if fs.clientId != "" {
@@ -87,34 +92,50 @@ func (fs *fileStream) streamHistory(msg *service.HistoryRecord) {
 		})
 	}
 
-	line, err := corelib.JsonifyItems(msg.Item)
+	rh := runhistory.New()
+	rh.ApplyChangeRecord(
+		msg.GetItem(),
+		func(err error) {
+			fs.logger.CaptureError(
+				"filestream: failed to apply history record", err)
+		},
+	)
+	line, err := rh.Serialize()
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+		fs.logger.CaptureFatalAndPanic(
+			"filestream: failed to serialize history", err)
 	}
+
 	fs.addTransmit(processedChunk{
 		fileType: HistoryChunk,
-		fileLine: line,
+		fileLine: string(line),
 	})
 }
 
 func (fs *fileStream) streamSummary(msg *service.SummaryRecord) {
-	summary := runsummary.New()
+	if msg == nil {
+		fs.logger.CaptureError(
+			"filestream: summary record is nil", nil)
+		return
+	}
 
-	summary.ApplyChangeRecord(
+	rs := runsummary.New()
+	rs.ApplyChangeRecord(
 		msg,
 		func(err error) {
-			fs.logger.CaptureError("filestream: failed to apply summary update", err)
+			fs.logger.CaptureError(
+				"filestream: failed to apply summary record", err)
 		},
 	)
-	bytes, err := summary.Serialize(pathtree.FormatJson)
-	line := string(bytes)
 
+	line, err := rs.Serialize()
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
 	}
+
 	fs.addTransmit(processedChunk{
 		fileType: SummaryChunk,
-		fileLine: line,
+		fileLine: string(line),
 	})
 }
 

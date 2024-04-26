@@ -1458,7 +1458,6 @@ def test_partitioned_table():
 ################################################################################
 
 
-@pytest.mark.wandb_core_failure()
 @pytest.mark.parametrize(
     "media",
     [

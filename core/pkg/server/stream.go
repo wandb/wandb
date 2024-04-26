@@ -182,7 +182,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		&HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
-			ForwardChan:       make(chan *service.Record, BufferSize),
+			FwdChan:           make(chan *service.Record, BufferSize),
 			OutChan:           make(chan *service.Result, BufferSize),
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
 			RunfilesUploader:  runfilesUploaderOrNil,
