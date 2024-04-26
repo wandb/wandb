@@ -1051,7 +1051,14 @@ class Api:
 
     @normalize_exceptions
     def exists(self, name, type=None):
-        _, _, artifact_name = self._parse_artifact_path(name)
+        try:
+            _, _, artifact_name = self._parse_artifact_path(name)
+        except ValueError:
+            raise NotImplementedError("Api.exists only checks for artifact existence")
+        
+        if not artifact_name:
+            raise NotImplementedError("Api.exists only checks for artifact existence")
+
         if ":" in artifact_name:
             try:
                 self.artifact(name, type)
@@ -1065,7 +1072,6 @@ class Api:
                 )
             try:
                 artifacts = self.artifacts(type, name, 1)
-                len(artifacts)
-                return True
+                return len(artifacts) > 0
             except wandb.errors.CommError:
                 return False
