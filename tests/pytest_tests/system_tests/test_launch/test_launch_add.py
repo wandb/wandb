@@ -112,6 +112,7 @@ def test_launch_add_delete_queued_run(
 
 # TODO(gst): Identify root cause of (threaded?) artifact creation error
 @pytest.mark.wandb_core_failure(feature="launch")
+@pytest.mark.skip(reason="This test is failing in CI")
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",

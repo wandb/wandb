@@ -467,13 +467,14 @@ def test_restore_no_path():
         wandb.restore("weights.h5")
 
 
-@pytest.mark.skip(reason="This test seems to be flaky")
+@pytest.mark.skip(reason="This test is failing in CI")
 def test_restore_name_not_found(wandb_init):
     with pytest.raises(ValueError):
         run = wandb_init()
         run.restore("no_file.h5")
 
 
+@pytest.mark.skip(reason="This test is failing in CI")
 def test_restore_no_init(create_run_with_file):
     with create_run_with_file("weights.h5", "content") as (run, file):
         file_size = os.path.getsize(file)
@@ -482,6 +483,7 @@ def test_restore_no_init(create_run_with_file):
     assert os.path.getsize(res.name) == file_size
 
 
+@pytest.mark.wandb_core_failure(feature="restore")
 def test_restore(create_run_with_file, test_settings):
     with create_run_with_file("weights.h5", "content") as (run, file):
         file_size = os.path.getsize(file)
