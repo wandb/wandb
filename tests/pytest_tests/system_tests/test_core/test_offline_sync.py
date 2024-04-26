@@ -7,8 +7,6 @@ from wandb.cli import cli
 from wandb.sdk.lib.runid import generate_id
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky test")
 def test_sync_with_tensorboard(relay_server, runner, copy_asset, user):
     with unittest.mock.patch.dict("os.environ", {"WANDB_MODE": "offline"}):
         tf_event = copy_asset("events.out.tfevents.1585769947.cvp")

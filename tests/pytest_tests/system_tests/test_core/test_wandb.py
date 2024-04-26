@@ -155,7 +155,6 @@ def test_custom_dir_env(wandb_init):
     assert len(glob.glob(os.path.join(tempfile.gettempdir(), "wandb", "offline-*"))) > 0
 
 
-@pytest.mark.xfail(reason="Backend race condition")
 def test_anonymous_mode(wandb_init, capsys, local_settings):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")
@@ -429,7 +428,6 @@ def test_log_empty_string(relay_server, wandb_init):
 # ----------------------------------
 
 
-@pytest.mark.xfail(reason="This test is flaky")
 def test_save_invalid_path(wandb_init):
     run = wandb_init()
     root = tempfile.gettempdir()
@@ -476,7 +474,6 @@ def test_restore_name_not_found(wandb_init):
         run.restore("no_file.h5")
 
 
-@pytest.mark.xfail(reason="Public API might not return the correct value")
 def test_restore_no_init(create_run_with_file):
     with create_run_with_file("weights.h5", "content") as (run, file):
         file_size = os.path.getsize(file)
@@ -485,7 +482,6 @@ def test_restore_no_init(create_run_with_file):
     assert os.path.getsize(res.name) == file_size
 
 
-@pytest.mark.xfail(reason="Public API might not return the correct value")
 def test_restore(create_run_with_file, test_settings):
     with create_run_with_file("weights.h5", "content") as (run, file):
         file_size = os.path.getsize(file)

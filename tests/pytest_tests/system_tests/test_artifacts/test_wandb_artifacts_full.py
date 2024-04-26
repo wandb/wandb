@@ -181,8 +181,6 @@ def test_artifact_finish_distributed_id(wandb_init):
 #         assert manifests_created[0]["type"] == "INCREMENTAL"
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky on CI")
 def test_edit_after_add(wandb_init):
     artifact = wandb.Artifact(name="hi-art", type="dataset")
     filename = "file1.txt"

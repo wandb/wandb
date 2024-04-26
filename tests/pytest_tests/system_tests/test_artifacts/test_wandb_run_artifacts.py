@@ -357,7 +357,6 @@ def test_log_code_env(
                     wandb.Api().artifact(f"{artifact_name}:v0")
 
 
-@pytest.mark.xfail(reason="Backend race condition")
 def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
     copied_env = os.environ.copy()
     copied_env.pop("WANDB_API_KEY")

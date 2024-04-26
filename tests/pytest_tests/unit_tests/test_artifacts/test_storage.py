@@ -159,7 +159,6 @@ def _cache_writer(artifact_file_cache):
 
 
 @pytest.mark.flaky
-@pytest.mark.xfail(reason="flaky")
 def test_check_write_parallel(artifact_file_cache):
     num_parallel = 5
 

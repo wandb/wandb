@@ -468,7 +468,7 @@ class TestReports:
         report.blocks = [b]
         assert report.blocks[0].text == b.text
 
-    @pytest.mark.xfail
+    @pytest.mark.skip
     def test_blocks_cannot_be_mutated(self, report):
         b = wr.H1(text=["Hello world!"])
         report.blocks = [b]
@@ -542,7 +542,7 @@ class TestBlocks:
         b = wr.CalloutBlock(text)
         vars(b)
 
-    @pytest.mark.xfail
+    @pytest.mark.skip
     @pytest.mark.parametrize("text", [""])
     def test_callout_block_edge_cases(self, text):
         b = wr.CalloutBlock(text)
@@ -1139,12 +1139,12 @@ class TestNameMappings:
             pytest.param(
                 "metric",
                 "config:metric",
-                marks=pytest.mark.xfail(reason="Unable to disambiguate"),
+                marks=pytest.mark.skip(reason="Unable to disambiguate"),
             ),
             pytest.param(
                 "metric.with.dots",
                 "config:metric.value.with.dots",
-                marks=pytest.mark.xfail(reason="Unable to disambiguate"),
+                marks=pytest.mark.skip(reason="Unable to disambiguate"),
             ),
             ["s::metric", "summary:metric"],
             ["s::metric.with.dots", "summary:metric.with.dots"],
@@ -1242,7 +1242,7 @@ class TestTemplates:
             pytest.param(
                 wr.create_customer_landing_page,
                 {},
-                marks=pytest.mark.xfail(
+                marks=pytest.mark.skip(
                     reason="This func only works on the public cloud"
                 ),
             ),

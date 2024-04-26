@@ -107,8 +107,6 @@ def test_network_fault_files(live_mock_server, test_settings):
     )
 
 
-@pytest.mark.flaky
-@pytest.mark.xfail(platform.system() == "Windows", reason="flaky test")
 @pytest.mark.wandb_core_failure(feature="file_upload")
 def test_live_policy_file_upload(live_mock_server, test_settings):
     test_settings.update(

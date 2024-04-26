@@ -154,7 +154,6 @@ def conv3x3(in_channels, out_channels, **kwargs):
 
 
 # TODO(jhr): does not work with --flake-finder
-@pytest.mark.xfail(reason="TODO: fix this test")
 def test_all_logging(relay_server, wandb_init):
     pytest.importorskip("torch")
     n = 3

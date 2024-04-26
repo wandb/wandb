@@ -70,7 +70,6 @@ def test_mkdir_exists_ok_file_exists(tmp_path):
     assert file.is_file()
 
 
-@pytest.mark.xfail(reason="Not possible to chown a file to root under test runner.")
 def test_mkdir_exists_ok_not_writable(tmp_path):
     # Reference test: only works when run manually.
     new_dir = tmp_path / "new"
@@ -140,7 +139,6 @@ def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
     assert dest_path.stat().st_mode & umask == 0
 
 
-@pytest.mark.xfail(reason="Not possible to chown a file to root under test runner.")
 def test_copy_or_overwrite_changed_unfixable(tmp_path):
     # Reference test: only works when run manually.
     source_path = tmp_path / "new_file.txt"
@@ -402,7 +400,6 @@ def test_safe_copy_with_links(tmp_path: Path, src_link, dest_link):
     assert target_path.read_text("utf-8") == source_content
 
 
-@pytest.mark.xfail(reason="Fails on file systems that don't support reflinks")
 def test_reflink_success(tmp_path):
     target_path = tmp_path / "target.txt"
     link_path = tmp_path / "link.txt"
