@@ -2,16 +2,7 @@ package pathtree
 
 import (
 	"fmt"
-
-	"github.com/segmentio/encoding/json"
-	"gopkg.in/yaml.v3"
 )
-
-// PathItem is a key-value pair with a path.
-type PathItem struct {
-	Path  []string
-	Value string
-}
 
 // TreeData is an internal representation for a nested key-value pair.
 type TreeData = map[string]interface{}
@@ -29,12 +20,13 @@ type PathTree struct {
 	tree TreeData
 }
 
-type Format int
-
-const (
-	FormatYaml Format = iota
-	FormatJson
-)
+// PathItem is a alternative representation of the item interface.
+//
+// The Value is a JSON string, which can be unmarshaled to any type.
+type PathItem struct {
+	Path  TreePath
+	Value any
+}
 
 func New() *PathTree {
 	return &PathTree{make(TreeData)}
@@ -48,13 +40,13 @@ func NewFrom(tree TreeData) *PathTree {
 //
 // Provided temporarily as part of a refactor. Avoid using this, especially
 // mutating it.
-func (pathTree *PathTree) Tree() TreeData {
-	return pathTree.tree
+func (pt *PathTree) Tree() TreeData {
+	return pt.tree
 }
 
 // Makes and returns a deep copy of the underlying tree.
-func (pathTree *PathTree) CloneTree() (TreeData, error) {
-	clone, err := deepCopy(pathTree.tree)
+func (pt *PathTree) CloneTree() (TreeData, error) {
+	clone, err := deepCopy(pt.tree)
 	if err != nil {
 		return nil, err
 	}
@@ -65,98 +57,40 @@ func (pathTree *PathTree) CloneTree() (TreeData, error) {
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
-func (pathTree *PathTree) ApplyUpdate(
+func (pt *PathTree) ApplyUpdate(
 	items []*PathItem,
 	onError func(error),
 ) {
 	for _, item := range items {
-
-		var value interface{}
-		if err := json.Unmarshal(
-			[]byte(item.Value),
-			&value,
-		); err != nil {
-			onError(
-				fmt.Errorf(
-					"pathtree: failed to unmarshal JSON for config key %v: %v",
-					item.Path,
-					err,
-				),
-			)
-			continue
-		}
-
-		if err := updateAtPath(pathTree.tree, item.Path, value); err != nil {
+		if err := updateAtPath(pt.tree, item.Path, item.Value); err != nil {
 			onError(err)
 			continue
 		}
 	}
 }
 
-func (pathTree *PathTree) ApplyRemove(
+// Removes values from the tree.
+func (pt *PathTree) ApplyRemove(
 	items []*PathItem,
-	onError func(error),
 ) {
 	for _, item := range items {
-		pathTree.removeAtPath(item.Path)
+		pt.removeAtPath(item.Path)
 	}
 }
 
-// Serializes the object to send to the backend.
-func (pathTree *PathTree) Serialize(format Format, processValue func(any) any) ([]byte, error) {
-	// A configuration dict in the format expected by the backend.
-	serialized := make(map[string]any)
-	for treeKey, treeValue := range pathTree.tree {
-		if processValue == nil {
-			serialized[treeKey] = treeValue
-		} else {
-			serialized[treeKey] = processValue(treeValue)
-		}
+// Removes the value at the path in the config tree.
+func (pt *PathTree) removeAtPath(path TreePath) {
+	prefix := path[:len(path)-1]
+	key := path[len(path)-1]
+
+	subtree := getSubtree(pt.tree, prefix)
+	if subtree != nil {
+		delete(subtree, key)
 	}
-
-	switch format {
-	case FormatYaml:
-		return yaml.Marshal(serialized)
-	case FormatJson:
-		return json.Marshal(serialized)
-	}
-
-	return nil, fmt.Errorf("config: unknown format: %v", format)
-}
-
-type Leaf struct {
-	Key   []string
-	Value any
-}
-
-// Flattens the tree into a slice of leaves.
-//
-// Use this to get a list of all the leaves in the tree.
-func (pathTree *PathTree) Flatten() []Leaf {
-	return flatten(pathTree.tree, nil)
-}
-
-// Recursively flattens the tree into a slice of leaves.
-//
-// The order of the leaves is not guaranteed.
-// The order of the leaves is determined by the order of the tree traversal.
-// The tree traversal is depth-first but based on a map, so the order is not
-// guaranteed.
-func flatten(tree TreeData, prefix []string) []Leaf {
-	var leaves []Leaf
-	for key, value := range tree {
-		switch value := value.(type) {
-		case TreeData:
-			leaves = append(leaves, flatten(value, append(prefix, key))...)
-		default:
-			leaves = append(leaves, Leaf{append(prefix, key), value})
-		}
-	}
-	return leaves
 }
 
 // Uses the given subtree for keys that aren't already set.
-func (runConfig *PathTree) AddUnsetKeysFromSubtree(
+func (pt *PathTree) AddUnsetKeysFromSubtree(
 	tree TreeData,
 	path TreePath,
 ) error {
@@ -165,7 +99,7 @@ func (runConfig *PathTree) AddUnsetKeysFromSubtree(
 		return nil
 	}
 
-	newSubtree, err := getOrMakeSubtree(runConfig.tree, path)
+	newSubtree, err := getOrMakeSubtree(pt.tree, path)
 	if err != nil {
 		return err
 	}
@@ -177,6 +111,32 @@ func (runConfig *PathTree) AddUnsetKeysFromSubtree(
 	}
 
 	return nil
+}
+
+// Flattens the tree into a slice of leaves.
+//
+// Use this to get a list of all the leaves in the tree.
+func (pt *PathTree) Flatten() []PathItem {
+	return flatten(pt.tree, nil)
+}
+
+// Recursively flattens the tree into a slice of leaves.
+//
+// The order of the leaves is not guaranteed.
+// The order of the leaves is determined by the order of the tree traversal.
+// The tree traversal is depth-first but based on a map, so the order is not
+// guaranteed.
+func flatten(tree TreeData, prefix []string) []PathItem {
+	var leaves []PathItem
+	for key, value := range tree {
+		switch value := value.(type) {
+		case TreeData:
+			leaves = append(leaves, flatten(value, append(prefix, key))...)
+		default:
+			leaves = append(leaves, PathItem{append(prefix, key), value})
+		}
+	}
+	return leaves
 }
 
 // Sets the value at the path in the config tree.
@@ -196,17 +156,6 @@ func updateAtPath(
 
 	subtree[key] = value
 	return nil
-}
-
-// Removes the value at the path in the config tree.
-func (pathTree *PathTree) removeAtPath(path TreePath) {
-	pathPrefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := getSubtree(pathTree.tree, pathPrefix)
-	if subtree != nil {
-		delete(subtree, key)
-	}
 }
 
 // Returns the subtree at the path, or nil if it does not exist.
@@ -278,24 +227,4 @@ func deepCopy(tree TreeData) (TreeData, error) {
 		}
 	}
 	return clone, nil
-}
-
-type item interface {
-	GetKey() string
-	GetNestedKey() []string
-	GetValueJson() string
-}
-
-func FromItem(item item) *PathItem {
-	var key []string
-	if len(item.GetNestedKey()) > 0 {
-		key = item.GetNestedKey()
-	} else {
-		key = []string{item.GetKey()}
-	}
-
-	return &PathItem{
-		Path:  key,
-		Value: item.GetValueJson(),
-	}
 }

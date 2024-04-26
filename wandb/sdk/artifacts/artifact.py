@@ -263,11 +263,12 @@ class Artifact:
                 "name": name,
             },
         )
-        attrs = response.get("project", {}).get("artifact")
-        if attrs is None:
-            raise ValueError(
-                f"Unable to fetch artifact with name {entity}/{project}/{name}"
-            )
+        project_attrs = response.get("project")
+        if not project_attrs:
+            raise ValueError(f"project '{project}' not found under entity '{entity}'")
+        attrs = project_attrs.get("artifact")
+        if not attrs:
+            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
         return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod

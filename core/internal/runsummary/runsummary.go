@@ -3,6 +3,8 @@ package runsummary
 import (
 	"fmt"
 
+	// TODO: use simplejsonext for now until we replace the usage of json with
+	// protocol buffer and proto json marshaler
 	json "github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -10,11 +12,15 @@ import (
 )
 
 type RunSummary struct {
-	*pathtree.PathTree
+	pathTree *pathtree.PathTree
 }
 
 func New() *RunSummary {
-	return &RunSummary{PathTree: pathtree.New()}
+	return &RunSummary{pathTree: pathtree.New()}
+}
+
+func NewFrom(tree pathtree.TreeData) *RunSummary {
+	return &RunSummary{pathTree: pathtree.NewFrom(tree)}
 }
 
 // Updates and/or removes values from the configuration tree.
@@ -25,26 +31,27 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	updates := make([]*pathtree.PathItem, len(summaryRecord.GetUpdate()))
-	for i, item := range summaryRecord.GetUpdate() {
-		updates[i] = pathtree.FromItem(item)
+	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
+	for _, item := range summaryRecord.GetUpdate() {
+		update, err := json.Unmarshal([]byte(item.GetValueJson()))
+		if err != nil {
+			onError(err)
+			continue
+		}
+		updates = append(updates, &pathtree.PathItem{
+			Path:  keyPath(item),
+			Value: update,
+		})
 	}
-	rs.ApplyUpdate(updates, onError)
+	rs.pathTree.ApplyUpdate(updates, onError)
 
-	removes := make([]*pathtree.PathItem, len(summaryRecord.GetRemove()))
-	for i, item := range summaryRecord.GetRemove() {
-		removes[i] = pathtree.FromItem(item)
+	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
+	for _, item := range summaryRecord.GetRemove() {
+		removes = append(removes, &pathtree.PathItem{
+			Path: keyPath(item),
+		})
 	}
-	rs.ApplyRemove(removes, onError)
-}
-
-// Serialize the summary tree to a byte slice.
-//
-// The format parameter specifies the serialization format.
-func (rs *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
-	return rs.PathTree.Serialize(format, func(value any) any {
-		return value
-	})
+	rs.pathTree.ApplyRemove(removes)
 }
 
 // Flatten the summary tree into a slice of SummaryItems.
@@ -54,30 +61,63 @@ func (rs *RunSummary) Serialize(format pathtree.Format) ([]byte, error) {
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
-	leaves := rs.PathTree.Flatten()
 
-	items := make([]*service.SummaryItem, len(leaves))
-	for i, leaf := range leaves {
-		// If value is not a TreeData, add it to the leaves slice with the current path
+	leaves := rs.pathTree.Flatten()
+
+	summary := make([]*service.SummaryItem, 0, len(leaves))
+	for _, leaf := range leaves {
+		pathLen := len(leaf.Path)
+		if pathLen == 0 {
+			return nil, fmt.Errorf(
+				"runsummary: empty path for item %v",
+				leaf,
+			)
+		}
+
 		value, err := json.Marshal(leaf.Value)
 		if err != nil {
-			// TODO: continue or error out immediately?
-			err = fmt.Errorf("runsummary: failed to marshal JSON for key %v: %v", leaf.Key, err)
-			return nil, err
+			return nil, fmt.Errorf(
+				"runhistory: failed to marshal value for item %v: %v",
+				leaf, err,
+			)
 		}
 
-		items[i] = &service.SummaryItem{
-			ValueJson: string(value),
-		}
-		pathLen := len(leaf.Key)
-		if pathLen == 0 {
-			return nil, fmt.Errorf("runsummary: empty key in leaf")
-		}
 		if pathLen == 1 {
-			items[i].Key = leaf.Key[0]
+			summary = append(summary, &service.SummaryItem{
+				Key:       leaf.Path[0],
+				ValueJson: string(value),
+			})
 		} else {
-			items[i].NestedKey = leaf.Key
+			summary = append(summary, &service.SummaryItem{
+				NestedKey: leaf.Path,
+				ValueJson: string(value),
+			})
 		}
 	}
-	return items, nil
+	return summary, nil
+}
+
+// Clones the tree. This is useful for creating a snapshot of the tree.
+func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
+	return rs.pathTree.CloneTree()
+}
+
+// Tree returns the tree data.
+func (rs *RunSummary) Tree() pathtree.TreeData {
+	return rs.pathTree.Tree()
+}
+
+// Serializes the object to send to the backend.
+func (rs *RunSummary) Serialize() ([]byte, error) {
+	return json.Marshal(rs.pathTree.Tree())
+}
+
+// keyPath returns the key path for the given config item.
+// If the item has a nested key, it returns the nested key.
+// Otherwise, it returns a slice with the key.
+func keyPath(item *service.SummaryItem) []string {
+	if len(item.GetNestedKey()) > 0 {
+		return item.GetNestedKey()
+	}
+	return []string{item.GetKey()}
 }
