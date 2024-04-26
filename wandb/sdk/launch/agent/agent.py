@@ -200,7 +200,7 @@ class LaunchAgent:
             config: Config dictionary for the agent.
         """
         self._entity = config["entity"]
-        self._project = config.get("project", LAUNCH_DEFAULT_PROJECT)
+        self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
@@ -366,10 +366,7 @@ class LaunchAgent:
         if self._name:
             output_str += f"{self._name} "
         if self.num_running_jobs < self._max_jobs:
-            output_str += "polling on "
-            if self._project != LAUNCH_DEFAULT_PROJECT:
-                output_str += f"project {self._project}, "
-            output_str += f"queues {','.join(self._queues)}, "
+            output_str += f"polling on queues {','.join(self._queues)}, "
         output_str += (
             f"running {self.num_running_jobs} out of a maximum of {self._max_jobs} jobs"
         )

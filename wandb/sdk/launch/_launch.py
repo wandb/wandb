@@ -77,7 +77,6 @@ def resolve_agent_config(  # noqa: C901
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
     defaults = {
-        "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
         "max_schedulers": 1,
         "queues": [],
@@ -127,7 +126,7 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    keys = ["project", "entity"]
+    keys = ["entity"]
     settings = {
         k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
     }
