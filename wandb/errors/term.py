@@ -27,7 +27,10 @@ def termsetup(settings, logger) -> None:
 
 
 def termlog(
-    string: str = "", newline: bool = True, repeat: bool = True, prefix: bool = True
+    string: str = "",
+    newline: bool = True,
+    repeat: bool = True,
+    prefix: bool = True,
 ) -> None:
     """Log to standard error with formatting.
 
@@ -68,7 +71,12 @@ def termerror(string: str, **kwargs: Any) -> None:
 
 
 def _log(
-    string="", newline=True, repeat=True, prefix=True, silent=False, level=logging.INFO
+    string="",
+    newline=True,
+    repeat=True,
+    prefix=True,
+    silent=False,
+    level=logging.INFO,
 ):
     global _logger
     silent = silent or _silent
