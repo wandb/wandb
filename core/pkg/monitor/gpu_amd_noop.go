@@ -1,6 +1,6 @@
 //go:build !linux || libwandb_core
 
-package monitori
+package monitor
 
 import (
 	"github.com/wandb/wandb/core/pkg/service"
