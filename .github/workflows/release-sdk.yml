@@ -112,10 +112,8 @@ jobs:
           # In cp36-*, the wheel name sometimes includes additional dashes that
           # make it invalid, breaking the job.
           #
-          # Not sure why we skip PyPy and musllinux builds.
-          #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* pp*
+          CIBW_SKIP: pp* *manylinux*
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 

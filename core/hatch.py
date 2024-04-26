@@ -25,7 +25,10 @@ def build_wandb_core(
             is the https://github.com/wandb/wandb repository. Otherwise, an
             empty string.
     """
+    print(os.environ)
     coverage_flags = ["-cover"] if with_code_coverage else []
+    # TODO: fixme
+    musl_tag = ["-tags", "musl"]
     output_flags = ["-o", str(".." / output_path)]
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
 
@@ -36,6 +39,7 @@ def build_wandb_core(
             str(go_binary),
             "build",
             *coverage_flags,
+            *musl_tag,
             *ld_flags,
             *output_flags,
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
