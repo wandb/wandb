@@ -14,56 +14,56 @@ on:
         default: false
 
 jobs:
-  # prepare-release:
-  #   name: Prepare Release
-  #   runs-on: ubuntu-20.04
-  #   steps:
-  #     - uses: actions/checkout@v4
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
 
-  #     - name: Set up Python
-  #       uses: actions/setup-python@v5
-  #       with:
-  #         python-version: '3.10'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-  #     # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
-  #     - name: Setup git config
-  #       run: |
-  #         git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-  #         git config --local user.name "github-actions[bot]"
-  #         git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
+      # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
+      - name: Setup git config
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
 
-  #     - name: Install bump2version
-  #       run: pip install bump2version
+      - name: Install bump2version
+        run: pip install bump2version
 
-  #     - name: Create and Switch to Release Branch
-  #       run: |
-  #         git checkout -b release-${{ github.event.inputs.version }}
+      - name: Create and Switch to Release Branch
+        run: |
+          git checkout -b release-${{ github.event.inputs.version }}
 
-  #     - name: Bump Version
-  #       run: |
-  #         bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+      - name: Bump Version
+        run: |
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
 
-  #     - name: Update CHANGELOG.md
-  #       if: ${{ inputs.update-changelog }}
-  #       run: |
-  #         DATE=$(date +'%Y-%m-%d')
-  #         sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
+      - name: Update CHANGELOG.md
+        if: ${{ inputs.update-changelog }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
 
-  #     - name: Lint changes
-  #       run: |
-  #         pip install pre-commit
-  #         pre-commit install
-  #         # if there are linting errors, this will fix them and proceed
-  #         sh -c 'pre-commit run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
+      - name: Lint changes
+        run: |
+          pip install pre-commit
+          pre-commit install
+          # if there are linting errors, this will fix them and proceed
+          sh -c 'pre-commit run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
 
-  #     - name: Commit and push changes
-  #       run: |
-  #         git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
-  #         git push --no-verify -f origin release-${{ github.event.inputs.version }}
+      - name: Commit and push changes
+        run: |
+          git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
+          git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
   build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
-    # needs: prepare-release
+    needs: prepare-release
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -152,7 +152,7 @@ jobs:
 
   build-universal-wheel:
     name: Build universal wheel (no wandb-core)
-    # needs: prepare-release
+    needs: prepare-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
