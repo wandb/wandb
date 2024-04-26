@@ -1055,7 +1055,7 @@ class Api:
             _, _, artifact_name = self._parse_artifact_path(name)
         except ValueError:
             raise NotImplementedError("Api.exists only checks for artifact existence")
-        
+
         if not artifact_name:
             raise NotImplementedError("Api.exists only checks for artifact existence")
 
