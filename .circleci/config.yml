@@ -639,7 +639,7 @@ jobs:
           name: Run wandb core's Go tests and collect coverage
           command: |
             cd core
-            go test -race -coverprofile=coverage.txt -covermode=atomic ./...
+            go test -tags=nomusl -race -coverprofile=coverage.txt -covermode=atomic ./...
       - upload_codecov: { flags: unit }
 
   store-local-testcontainer:
