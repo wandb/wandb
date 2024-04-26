@@ -44,7 +44,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     TextIO,
     Tuple,
     TypeVar,
@@ -544,7 +543,10 @@ def _numpy_generic_convert(obj: Any) -> Any:
     return obj
 
 
-def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
+def _sanitize_numpy_keys(
+    d: Dict,
+    visited: Optional[Dict[int, Dict]] = None,
+) -> Tuple[Dict, bool]:
     """Returns a dictionary where all NumPy keys are converted.
 
     Args:
@@ -557,9 +559,18 @@ def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
     out = dict()
     converted = False
 
-    for key, value in d:
+    # Work with recursive dictionaries: if a dictionary has already been
+    # converted, reuse its converted value to retain the recursive structure
+    # of the input.
+    if visited is None:
+        visited = {id(d): out}
+    elif id(d) in visited:
+        return visited[id(d)], False
+    visited[id(d)] = out
+
+    for key, value in d.items():
         if isinstance(value, dict):
-            value, converted_value = _sanitize_numpy_keys(value)
+            value, converted_value = _sanitize_numpy_keys(value, visited)
             converted |= converted_value
         if isinstance(key, np.generic):
             key = _numpy_generic_convert(key)
