@@ -139,7 +139,7 @@ jobs:
             esac &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz
+            tar -C /usr/local/ -xzf go.tar.gz &&
             env
           CIBW_ENVIRONMENT_LINUX:
             PATH=$PATH:/usr/local/go/bin
