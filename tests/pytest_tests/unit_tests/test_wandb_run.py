@@ -1,7 +1,6 @@
 import copy
 import os
 import platform
-import unittest.mock as mock
 
 import numpy as np
 import pytest
