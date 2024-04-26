@@ -27,8 +27,13 @@ def build_wandb_core(
     """
     print(os.environ)
     coverage_flags = ["-cover"] if with_code_coverage else []
-    # TODO: fixme
-    musl_tag = ["-tags", "musl"]
+    # TODO: the musl tag is used to skip building nvidia gpu monitoring on musl-based systems
+    musl_tag = [
+        "-tags",
+        "musl"
+        if os.environ.get("AUDITWHEEL_PLAT", "").startswith("musl")
+        else "nomusl",
+    ]
     output_flags = ["-o", str(".." / output_path)]
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
 
@@ -38,8 +43,8 @@ def build_wandb_core(
         [
             str(go_binary),
             "build",
-            *coverage_flags,
             *musl_tag,
+            *coverage_flags,
             *ld_flags,
             *output_flags,
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
