@@ -18,6 +18,7 @@ from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
+    LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
     validate_launch_spec_source,
@@ -76,6 +77,7 @@ def resolve_agent_config(  # noqa: C901
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
     defaults = {
+        "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
         "max_schedulers": 1,
         "queues": [],
@@ -125,7 +127,7 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    keys = ["entity"]
+    keys = ["project", "entity"]
     settings = {
         k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
     }

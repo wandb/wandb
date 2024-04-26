@@ -1432,6 +1432,14 @@ def launch_sweep(
     hidden=True,
     help="Name of a remote repository. Will be used to push a built image to.",
 )
+# TODO: this is only included for back compat. But we should remove this in the future
+@click.option(
+    "--project-queue",
+    "-pq",
+    default=None,
+    hidden=True,
+    help="Name of the project containing the queue to push to. If none, defaults to entity level queues.",
+)
 @click.option(
     "--dockerfile",
     "-D",
@@ -1464,6 +1472,7 @@ def launch(
     resource_args,
     build,
     repository,
+    project_queue,
     dockerfile,
     priority,
 ):
@@ -1609,6 +1618,7 @@ def launch(
                 name,
                 git_version,
                 docker_image,
+                project_queue,
                 resource_args,
                 build=build,
                 run_id=run_id,

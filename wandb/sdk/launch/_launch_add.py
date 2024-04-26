@@ -44,6 +44,7 @@ def launch_add(
     name: Optional[str] = None,
     version: Optional[str] = None,
     docker_image: Optional[str] = None,
+    project_queue: Optional[str] = None,
     resource_args: Optional[Dict[str, Any]] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
@@ -79,6 +80,8 @@ def launch_add(
                 to that job artifact to queue
         repository: optional string to control the name of the remote repository, used when
             pushing images to a registry
+        project_queue: optional string to control the name of the project for the queue. Primarily used
+            for back compatibility with project scoped queues
 
 
     Example:
@@ -118,6 +121,7 @@ def launch_add(
         name,
         version,
         docker_image,
+        project_queue,
         resource_args,
         run_id=run_id,
         build=build,
@@ -142,6 +146,7 @@ def _launch_add(
     name: Optional[str],
     version: Optional[str],
     docker_image: Optional[str],
+    project_queue: Optional[str],
     resource_args: Optional[Dict[str, Any]] = None,
     run_id: Optional[str] = None,
     build: Optional[bool] = False,
@@ -200,6 +205,8 @@ def _launch_add(
 
     if queue_name is None:
         queue_name = "default"
+    if project_queue is None:
+        project_queue = LAUNCH_DEFAULT_PROJECT
     spec_template_vars = launch_spec.get("template_variables")
     if isinstance(spec_template_vars, dict):
         launch_spec.pop("template_variables")
@@ -213,12 +220,7 @@ def _launch_add(
 
     validate_launch_spec_source(launch_spec)
     res = push_to_queue(
-        api,
-        queue_name,
-        launch_spec,
-        template_variables,
-        LAUNCH_DEFAULT_PROJECT,
-        priority,
+        api, queue_name, launch_spec, template_variables, project_queue, priority
     )
 
     if res is None or "runQueueItemId" not in res:
@@ -231,7 +233,10 @@ def _launch_add(
         if updated_spec.get("resource"):
             launch_spec["resource"] = updated_spec.get("resource")
 
-    wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    if project_queue == LAUNCH_DEFAULT_PROJECT:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {queue_name}.")
+    else:
+        wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
 
     public_api = public.Api()
@@ -246,7 +251,7 @@ def _launch_add(
         launch_spec["project"],
         queue_name,
         res["runQueueItemId"],
-        LAUNCH_DEFAULT_PROJECT,
+        project_queue,
         priority,
     )
     return queued_run  # type: ignore
