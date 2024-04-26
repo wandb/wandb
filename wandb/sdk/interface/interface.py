@@ -775,6 +775,7 @@ class InterfaceBase:
             source.file.CopyFrom(
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
+        request.input_source.CopyFrom(source)
 
         return self._publish_job_input(request)
 
