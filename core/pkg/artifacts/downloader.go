@@ -182,8 +182,9 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				numDone++
+				digest := manifest.Contents[result.Name].Digest
 				go func() {
-					err := ad.FileCache.AddFileAndCheckDigest(result.Task.Path, manifest.Contents[result.Name].Digest)
+					err := ad.FileCache.AddFileAndCheckDigest(result.Task.Path, digest)
 					if err != nil {
 						slog.Error("Error adding file to cache", "err", err)
 					}
