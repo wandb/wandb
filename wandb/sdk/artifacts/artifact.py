@@ -70,6 +70,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
@@ -262,11 +263,12 @@ class Artifact:
                 "name": name,
             },
         )
-        attrs = response.get("project", {}).get("artifact")
-        if attrs is None:
-            raise ValueError(
-                f"Unable to fetch artifact with name {entity}/{project}/{name}"
-            )
+        project_attrs = response.get("project")
+        if not project_attrs:
+            raise ValueError(f"project '{project}' not found under entity '{entity}'")
+        attrs = project_attrs.get("artifact")
+        if not attrs:
+            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
         return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
@@ -1503,8 +1505,9 @@ class Artifact:
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         """Deprecated. Use `get_entry(name)`."""
-        termwarn(
-            "Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead."
+        deprecate(
+            field_name=Deprecated.artifact__get_path,
+            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 
@@ -1721,7 +1724,7 @@ class Artifact:
             root,
             allow_missing_references,
             skip_cache,
-            path_prefix,
+            path_prefix,  # type: ignore
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(

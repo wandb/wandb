@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
+import importlib.metadata
 import os
 import pathlib
 
 import grpc_tools  # type: ignore
 from grpc_tools import protoc  # type: ignore
-import importlib.metadata
 from packaging import version
 
 
 def generate_deprecated_class_definition() -> None:
-    """
-    Generate a class definition listing the deprecated features.
+    """Generate a class definition listing the deprecated features.
     This is to allow static checks to ensure that proper field names are used.
     """
     from wandb.proto.wandb_telemetry_pb2 import Deprecated  # type: ignore[import]
@@ -27,7 +26,7 @@ def generate_deprecated_class_definition() -> None:
         "    from typing_extensions import Literal\n\n\n"
         "DEPRECATED_FEATURES = Literal[\n"
         + ",\n".join(f'    "{feature}"' for feature in deprecated_features)
-        + "\n"
+        + ",\n"
         + "]\n\n\n"
         "class Deprecated:\n"
         + "".join(
@@ -46,31 +45,6 @@ def get_pip_package_version(package_name: str) -> str:
         return importlib.metadata.version(package_name)
     except importlib.metadata.PackageNotFoundError:
         raise ValueError(f"Package `{package_name}` not found")
-
-
-def get_min_required_version(requirements_file_name: str, package_name: str) -> str:
-    with open(requirements_file_name) as f:
-        lines = f.readlines()
-        for line in lines:
-            tokens = line.strip().split(">=")
-            if tokens[0] == package_name:
-                if len(tokens) == 2:
-                    return tokens[1]
-                else:
-                    raise ValueError(
-                        f"Minimum version not specified for package `{package_name}`"
-                    )
-    raise ValueError(f"Package `{package_name}` not found in requirements file")
-
-
-package: str = "grpcio-tools"
-package_version = get_pip_package_version(package)
-requirements_file: str = "../../requirements_build.txt"
-requirements_min_version = get_min_required_version(requirements_file, package)
-# check that the installed version of the package is at least the required version
-assert version.Version(package_version) >= version.Version(
-    requirements_min_version
-), f"Package {package} found={package_version} required>={requirements_min_version}"
 
 protobuf_version = version.Version(get_pip_package_version("protobuf"))
 

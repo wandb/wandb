@@ -18,7 +18,7 @@ from wandb import _sentry, termlog
 from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
-from wandb.util import get_core_path, get_module, is_core_dev
+from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
 from .service_base import ServiceInterface
@@ -110,7 +110,8 @@ class _Service:
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable.",
+                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    f"\n{context}",
                     context=context,
                 )
             if not os.path.isfile(fname):
@@ -170,22 +171,21 @@ class _Service:
                     _sentry.reraise(e)
 
                 service_args.extend([core_path])
-                # if core in dev mode we disable error reporting, unless it's explicitly set
-                report_errors = "False" if is_core_dev() else "True"
-                if not core_error_reporting_enabled(default=report_errors):
+
+                if not core_error_reporting_enabled(default="True"):
                     service_args.append("--no-observability")
+
                 if core_debug(default="False"):
                     service_args.append("--debug")
+
                 trace_filename = os.environ.get("_WANDB_TRACE")
                 if trace_filename is not None:
                     service_args.extend(["--trace", trace_filename])
 
                 exec_cmd_list = []
-                # TODO: remove this after the wandb-core GA release
-                wandb_core = get_module("wandb_core")
                 termlog(
-                    f"Using wandb-core version {wandb_core.__version__} as the SDK backend. "
-                    f"Please refer to {wburls.get('wandb_core')} for more information.",
+                    "Using wandb-core as the SDK backend."
+                    f" Please refer to {wburls.get('wandb_core')} for more information.",
                     repeat=False,
                 )
             else:
