@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -65,19 +64,8 @@ func newUploader(params UploaderParams) *uploader {
 		watcher: params.FileWatcher,
 	}
 
-	if params.BatchWindow != 0 {
-		params.BatchDelayFunc = func() <-chan struct{} {
-			ch := make(chan struct{})
-			go func() {
-				<-time.After(params.BatchWindow)
-				ch <- struct{}{}
-			}()
-			return ch
-		}
-	}
-
 	uploader.uploadBatcher = newUploadBatcher(
-		params.BatchDelayFunc,
+		params.BatchDelay,
 		uploader.upload,
 	)
 
