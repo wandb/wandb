@@ -18,7 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
   * The binary can be activated using `wandb.require("core")` at the start of a script
   * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
   * Please report any issues with `pip install wandb`!
-* `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364
+* `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
 
 ### Fixed
 

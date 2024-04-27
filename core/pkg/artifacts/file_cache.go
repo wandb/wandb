@@ -46,8 +46,8 @@ func UserCacheDir() string {
 	if !found {
 		userCacheDir, err := os.UserCacheDir()
 		if err != nil {
-			slog.Error("Unable to find cache directory, using .wandb-cache", "err", err)
-			return "./.wandb-cache/wandb"
+			slog.Error("Unable to find cache directory, using .wandb_cache", "err", err)
+			return ".wandb_cache/wandb"
 		}
 		dir = filepath.Join(userCacheDir, "wandb")
 	}
