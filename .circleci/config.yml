@@ -1581,12 +1581,12 @@ workflows:
           session_base: unit_tests
           codecov_flags: unit
 
-          filters:
-            branches:
-              only:
-                # - main
-                - /^release-.*/
-                - /^.*-ci-win$/
+          # filters:
+          #   branches:
+          #     only:
+          #       # - main
+          #       - /^release-.*/
+          #       - /^.*-ci-win$/
 
           matrix:
             parameters:

@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
@@ -99,8 +100,8 @@ type Sender struct {
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
-	// metricSender is a service for managing metrics
-	metricSender *MetricSender
+	// runMetric is the run metric handler
+	runMetric *runmetric.RunMetricSender
 
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -586,8 +587,8 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 // Uses the given telemetry
 func (s *Sender) updateConfigPrivate() {
 	metrics := []map[int]interface{}(nil)
-	if s.metricSender != nil {
-		metrics = s.metricSender.configMetrics
+	if s.runMetric != nil {
+		metrics = s.runMetric.Config
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -1073,17 +1074,15 @@ func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
 
 // sendMetric sends a metrics record to the file stream,
 // which will then send it to the server
-func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
-	if s.metricSender == nil {
-		s.metricSender = NewMetricSender()
+func (s *Sender) sendMetric(_ *service.Record, metric *service.MetricRecord) {
+	if s.runMetric == nil {
+		s.runMetric = runmetric.NewRunMetricSender()
 	}
 
-	if metric.GetGlobName() != "" {
-		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+	if err := s.runMetric.EncodeConfigHints(metric); err != nil {
+		s.logger.Error("sender: sendMetric: failed to encode config hints", "error", err)
 		return
 	}
-
-	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
 }

@@ -2,11 +2,9 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
@@ -18,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/timer"
@@ -44,7 +43,6 @@ type HandlerParams struct {
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
 	RunSummary        *runsummary.RunSummary
-	MetricHandler     *MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
@@ -85,8 +83,7 @@ type Handler struct {
 	// TODO: currently only values that can be cast to float32 are supported
 	samplers map[string]*sampler.ReservoirSampler[float32]
 
-	// metricHandler is the metric handler for the stream
-	metricHandler *MetricHandler
+	runMetric *runmetric.RunMetricHanlder
 
 	// runSummary keeps the complete up-to-date summary
 	runSummary *runsummary.RunSummary
@@ -122,12 +119,12 @@ func NewHandler(
 		runTimer:              timer.New(),
 		internalPrinter:       observability.NewPrinter[string](),
 		logger:                params.Logger,
+		runMetric:             runmetric.NewMetricHandler(),
 		settings:              params.Settings,
 		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
 		runSummary:            params.RunSummary,
-		metricHandler:         params.MetricHandler,
 		fileTransferStats:     params.FileTransferStats,
 		runfilesUploaderOrNil: params.RunfilesUploader,
 		tbHandler:             params.TBHandler,
@@ -354,56 +351,30 @@ func (h *Handler) handleRequestShutdown(record *service.Record) {
 	h.respond(record, &service.Response{})
 }
 
-// handleStepMetric handles the step metric for a given metric key. If the step metric is not
-// defined, it will be added to the defined metrics map.
-func (h *Handler) handleStepMetric(key string) {
-	if key == "" {
-		return
-	}
-
-	// already exists no need to add
-	if _, defined := h.metricHandler.definedMetrics[key]; defined {
-		return
-	}
-
-	metric, err := addMetric(key, key, &h.metricHandler.definedMetrics)
-
-	if err != nil {
-		h.logger.CaptureError("error adding metric to map", err)
-		return
-	}
-
-	stepRecord := &service.Record{
-		RecordType: &service.Record_Metric{
-			Metric: metric,
-		},
-		Control: &service.Control{
-			Local: true,
-		},
-	}
-	h.fwdRecord(stepRecord)
-}
-
+// handleMetric handles a metric record and adds it to the run metric
+// if the metric has a step field, it will also add a step metric
+// and send it to the sender
 func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
-	// metric can have a glob name or a name
-	// TODO: replace glob-name/name with one-of field
-	switch {
-	case metric.GetGlobName() != "":
-		if _, err := addMetric(metric, metric.GetGlobName(), &h.metricHandler.globMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
-			return
+
+	if stepMetric := h.runMetric.AddStepMetric(metric); stepMetric != nil {
+		stepRecord := &service.Record{
+			RecordType: &service.Record_Metric{
+				Metric: stepMetric,
+			},
 		}
-		h.fwdRecord(record)
-	case metric.GetName() != "":
-		if _, err := addMetric(metric, metric.GetName(), &h.metricHandler.definedMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
-			return
-		}
-		h.handleStepMetric(metric.GetStepMetric())
-		h.fwdRecord(record)
-	default:
-		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
+		h.fwdRecordWithControl(stepRecord,
+			func(control *service.Control) {
+				control.Local = true
+			},
+		)
 	}
+
+	err := h.runMetric.AddMetric(metric)
+	if err != nil {
+		h.logger.CaptureError("error adding metric", err)
+		return
+	}
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestDefer(record *service.Record, request *service.DeferRequest) {
@@ -1039,20 +1010,30 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		})
 	}
 
-	// handles all history items. It is responsible for matching current history
-	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-	// it needs to be synced, but not part of the history record.
-	// This means that there are metrics defined for this run
-	if h.metricHandler != nil {
-		items := make([]*service.HistoryItem, 0, len(history.GetItem()))
-		for _, item := range history.GetItem() {
-			// TODO: handle nested metric metrics (e.g. metric defined by another metric)
-			if metric := h.imputeStepMetric(item); metric != nil {
-				items = append(items, metric)
+	// impute missing step metrics if needed
+	imputed := []*service.HistoryItem{}
+	for _, item := range history.GetItem() {
+		key := item.GetKey()
+		needs := h.checkNeedsImputation(key)
+		if needs {
+			// we use the summary value of the metric as the algorithm
+			// for imputing the step metric
+			// TODO: fix this (we don't want to use Tree() here)
+			if val, ok := h.runSummary.Tree()[key]; ok {
+				// TODO: add nested key support
+				value, err := json.Marshal(val)
+				if err != nil {
+					h.logger.CaptureError("error marshalling step metric value", err)
+					continue
+				}
+				imputed = append(imputed, &service.HistoryItem{
+					Key:       item.GetKey(),
+					ValueJson: string(value),
+				})
 			}
 		}
-		history.Item = append(history.Item, items...)
 	}
+	history.Item = append(history.Item, imputed...)
 
 	h.sampleHistory(history)
 
@@ -1248,22 +1229,16 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	}
 }
 
-// matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
-func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.MetricRecord {
+// sync history item with step metric if needed
 
-	// ignore internal history items
-	if strings.HasPrefix(item.Key, "_") {
-		return nil
-	}
+// This function checks if a history item matches a defined metric or a glob
+// metric. If the step metric is not part of the history record, and it needs to
+// be synced, the function imputes the step metric and returns it.
+func (h *Handler) checkNeedsImputation(key string) bool {
 
-	// check if history item matches a defined metric exactly, if it does return the metric
-	if metric, ok := h.metricHandler.definedMetrics[item.Key]; ok {
-		return metric
-	}
-
-	// if a new metric was created, we need to handle it
-	metric := h.metricHandler.createMatchingGlobMetric(item.Key)
-	if metric != nil {
+	// check if history item matches a defined metric or a glob metric
+	metric, ok := h.runMetric.MatchMetric(key)
+	if metric != nil && !ok {
 		record := &service.Record{
 			RecordType: &service.Record_Metric{
 				Metric: metric,
@@ -1274,55 +1249,21 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 		}
 		h.handleMetric(record, metric)
 	}
-	return metric
-}
 
-// sync history item with step metric if needed
-//
-// This function checks if a history item matches a defined metric or a glob
-// metric. If the step metric is not part of the history record, and it needs to
-// be synced, the function imputes the step metric and returns it.
-func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
+	stepKey := metric.GetStepMetric()
 
-	// check if history item matches a defined metric or a glob metric
-	metric := h.matchHistoryItemMetric(item)
-
-	key := metric.GetStepMetric()
 	// check if step metric is defined and if it needs to be synced
-	if !(metric.GetOptions().GetStepSync() && key != "") {
-		return nil
+	if stepKey == "" || !metric.GetOptions().GetStepSync() {
+		return false
 	}
 
 	// check if step metric is already in history
 	// TODO: avoid using the Tree method
 	if _, ok := h.runHistory.Tree()[key]; ok {
-		return nil
+		return false
 	}
 
-	// TODO: avoid using the tree representation of the summary
-	// TODO: avoid using json marshalling
-	// we use the summary value of the metric as the algorithm for imputing the step metric
-	if value, ok := h.runSummary.Tree()[key]; ok {
-		v, err := json.Marshal(value)
-		if err != nil {
-			h.logger.CaptureError("error marshalling step metric value", err)
-			return nil
-		}
-		item := []*service.HistoryItem{
-			{
-				Key:       key,
-				ValueJson: string(v),
-			},
-		}
-		h.runHistory.ApplyChangeRecord(
-			item,
-			func(err error) {
-				h.logger.CaptureError("Error updating run history", err)
-			},
-		)
-		return item[0]
-	}
-	return nil
+	return true
 }
 
 // samples history items and updates the history record with the sampled values
