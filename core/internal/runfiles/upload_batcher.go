@@ -2,6 +2,8 @@ package runfiles
 
 import (
 	"sync"
+
+	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 // uploadBatcher helps batch many simultaneous upload operations.
@@ -17,30 +19,33 @@ type uploadBatcher struct {
 	// Whether an upload is queued to happen soon.
 	isQueued bool
 
-	// A function that returns a stream that is signalled when the next
-	// batch upload should happen.
-	delayFunc func() <-chan struct{}
+	// How long to wait to collect a batch before sending it.
+	delay waiting.Delay
 
 	// Callback to upload a list of files.
 	upload func([]string)
 }
 
 func newUploadBatcher(
-	delayFunc func() <-chan struct{},
+	delay waiting.Delay,
 	upload func([]string),
 ) *uploadBatcher {
+	if delay == nil {
+		delay = waiting.NoDelay()
+	}
+
 	return &uploadBatcher{
 		addWG: &sync.WaitGroup{},
 		files: make(map[string]struct{}),
 
-		delayFunc: delayFunc,
-		upload:    upload,
+		delay:  delay,
+		upload: upload,
 	}
 }
 
 // Add adds files to the next upload batch, scheduling one if necessary.
 func (b *uploadBatcher) Add(files []string) {
-	if b.delayFunc == nil {
+	if b.delay.IsZero() {
 		b.upload(files)
 		return
 	}
@@ -56,7 +61,10 @@ func (b *uploadBatcher) Add(files []string) {
 		b.addWG.Add(1)
 		b.isQueued = true
 
-		go b.uploadAfterDelay()
+		go func() {
+			<-b.delay.Wait()
+			b.uploadBatch()
+		}()
 	}
 }
 
@@ -65,9 +73,7 @@ func (b *uploadBatcher) Wait() {
 	b.addWG.Wait()
 }
 
-func (b *uploadBatcher) uploadAfterDelay() {
-	<-b.delayFunc()
-
+func (b *uploadBatcher) uploadBatch() {
 	b.Lock()
 	b.isQueued = false
 	files := b.files
