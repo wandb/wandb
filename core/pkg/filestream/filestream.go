@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -122,8 +123,8 @@ type fileStream struct {
 	apiClient api.Client
 
 	maxItemsPerPush int
-	delayProcess    time.Duration
-	pollInterval    time.Duration
+	delayProcess    waiting.Delay
+	pollInterval    waiting.Delay
 
 	// lastTransmitTime is the last time we sent data to the server
 	// used to determine if we should send a heartbeat, so the server
@@ -142,8 +143,8 @@ type FileStreamParams struct {
 	ApiClient         api.Client
 	MaxItemsPerPush   int
 	ClientId          string
-	DelayProcess      time.Duration
-	PollInterval      time.Duration
+	DelayProcess      waiting.Delay
+	PollInterval      waiting.Delay
 	LastTransmitTime  time.Time
 	HeartbeatInterval time.Duration
 }
@@ -161,20 +162,22 @@ func NewFileStream(params FileStreamParams) FileStream {
 		feedbackChan:      make(chan map[string]interface{}, BufferSize),
 		offsetMap:         make(FileStreamOffsetMap),
 		maxItemsPerPush:   defaultMaxItemsPerPush,
-		delayProcess:      defaultDelayProcess,
-		pollInterval:      defaultPollInterval,
 		lastTransmitTime:  time.Now(),
 		heartbeatInterval: defaultHeartbeatInterval,
 	}
 
+	fs.delayProcess = params.DelayProcess
+	if fs.delayProcess == nil {
+		fs.delayProcess = waiting.NewDelay(defaultDelayProcess)
+	}
+
+	fs.pollInterval = params.PollInterval
+	if fs.pollInterval == nil {
+		fs.pollInterval = waiting.NewDelay(defaultPollInterval)
+	}
+
 	if params.MaxItemsPerPush > 0 {
 		fs.maxItemsPerPush = params.MaxItemsPerPush
-	}
-	if params.DelayProcess > 0 {
-		fs.delayProcess = params.DelayProcess
-	}
-	if params.PollInterval > 0 {
-		fs.pollInterval = params.PollInterval
 	}
 	if params.HeartbeatInterval > 0 {
 		fs.heartbeatInterval = params.HeartbeatInterval
