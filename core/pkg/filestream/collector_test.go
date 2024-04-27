@@ -5,16 +5,20 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/waiting"
+	"github.com/wandb/wandb/core/internal/waitingtest"
 )
 
 func TestCollectNothing(t *testing.T) {
 	input := make(chan processedChunk, 32)
+
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   2 * time.Second,
-		delayProcess:    1 * time.Second,
+		heartbeatDelay:  waiting.NoDelay(),
+		processDelay:    waiting.NoDelay(),
 		maxItemsPerPush: 100,
 	}
+
 	assert.False(t, collector.read())
 }
 
@@ -35,15 +39,17 @@ func TestCollectSomething(t *testing.T) {
 		fileType: HistoryChunk,
 		fileLine: "line2",
 	}
+
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
+		heartbeatDelay:  waitingtest.NewFakeDelay(),
+		processDelay:    waiting.NewDelay(time.Nanosecond),
 		maxItemsPerPush: 100,
 	}
 	assert.True(t, collector.read())
+
 	collector.readMore()
-	offset := FileStreamOffsetMap{}
+
 	assert.Equal(t,
 		&FsTransmitData{
 			Files: map[string]fsTransmitFileData{
@@ -58,7 +64,7 @@ func TestCollectSomething(t *testing.T) {
 			},
 			Preempting: true,
 		},
-		collector.dump(offset),
+		collector.dump(FileStreamOffsetMap{}),
 	)
 }
 
@@ -82,8 +88,8 @@ func TestCollectFinal(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    30 * time.Second,
+		heartbeatDelay:  waitingtest.NewFakeDelay(),
+		processDelay:    waiting.NewDelay(time.Nanosecond),
 		maxItemsPerPush: 100,
 	}
 	close(input)
@@ -116,8 +122,8 @@ func TestIsDirtyAfterAddingChunk(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
+		heartbeatDelay:  waitingtest.NewFakeDelay(),
+		processDelay:    waitingtest.NewFakeDelay(),
 		maxItemsPerPush: 100,
 	}
 	collector.read()
@@ -131,8 +137,8 @@ func TestIsDirtyAfterProcessedChunkUpdate(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
+		heartbeatDelay:  waitingtest.NewFakeDelay(),
+		processDelay:    waitingtest.NewFakeDelay(),
 		maxItemsPerPush: 100,
 	}
 	collector.read()
@@ -147,8 +153,8 @@ func TestIsDirtyResetAfterDump(t *testing.T) {
 	}
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
+		heartbeatDelay:  waitingtest.NewFakeDelay(),
+		processDelay:    waitingtest.NewFakeDelay(),
 		maxItemsPerPush: 100,
 	}
 	collector.read()
