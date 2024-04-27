@@ -83,17 +83,6 @@ func (h apiHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fmt.Println("ERROR", err)
 	}
 
-	/*
-		tm := time.Now()
-		tmOld, ok := h.get("time").(time.Time)
-		diff := time.Duration(0)
-		if ok {
-			diff = tm.Sub(tmOld)
-		}
-		fmt.Printf("GOT %v %v %v\n", tm, diff, msg)
-		h.set("time", tm)
-	*/
-
 	f := msg.Files[filestream.HistoryFileName]
 	total := f.Offset
 	total += len(f.Content)
@@ -145,12 +134,16 @@ func NewFilestreamTest(
 ) *filestreamTest {
 	m := make(map[string]interface{})
 	capture := captureState{m: m}
-	fstreamPath := "/test/" + tName
+	fstreamPath := "/files/test-entity/test-project/" + tName + "/file_stream"
 	tServer.mux.Handle(fstreamPath, apiHandler{&capture})
 
 	fs := filestream.NewFileStream(params)
-	fs.SetPath(fstreamPath)
-	fs.Start()
+	fs.Start(
+		"test-entity",
+		"test-project",
+		tName,
+		make(filestream.FileStreamOffsetMap),
+	)
 
 	fsTest := filestreamTest{capture: &capture, path: fstreamPath, mux: tServer.mux, fs: fs, tserver: tServer}
 	defer fsTest.finish()

@@ -391,17 +391,13 @@ func (s *Sender) updateSettings() {
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	s.updateSettings()
 
-	fsPath := fmt.Sprintf(
-		"files/%s/%s/%s/file_stream",
-		s.RunRecord.Entity,
-		s.RunRecord.Project,
-		s.RunRecord.RunId,
-	)
-
 	if s.fileStream != nil {
-		s.fileStream.SetPath(fsPath)
-		s.fileStream.SetOffsets(s.resumeState.GetFileStreamOffset())
-		s.fileStream.Start()
+		s.fileStream.Start(
+			s.RunRecord.GetEntity(),
+			s.RunRecord.GetProject(),
+			s.RunRecord.GetRunId(),
+			s.resumeState.GetFileStreamOffset(),
+		)
 	}
 
 	if s.fileTransferManager != nil {
