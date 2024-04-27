@@ -317,7 +317,7 @@ func TestUploader(t *testing.T) {
 			uploader.UploadNow("test1.txt")
 			uploader.UploadNow("test2.txt")
 			uploader.UploadNow("test2.txt")
-			batchDelay.Tick()
+			batchDelay.SetZero()
 			uploader.Finish()
 
 			assert.True(t, mockGQLClient.AllStubsUsed())

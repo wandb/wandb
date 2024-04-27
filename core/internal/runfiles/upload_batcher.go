@@ -45,8 +45,7 @@ func newUploadBatcher(
 
 // Add adds files to the next upload batch, scheduling one if necessary.
 func (b *uploadBatcher) Add(files []string) {
-	delay, ok := b.delay.Wait()
-	if !ok {
+	if b.delay.IsZero() {
 		b.upload(files)
 		return
 	}
@@ -63,7 +62,7 @@ func (b *uploadBatcher) Add(files []string) {
 		b.isQueued = true
 
 		go func() {
-			<-delay
+			<-b.delay.Wait()
 			b.uploadBatch()
 		}()
 	}
