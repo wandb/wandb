@@ -15,18 +15,16 @@ type FakeDelay struct {
 	cond *sync.Cond
 
 	// If false, panic on the next Wait().
-	//
-	// Used to
 	allowsWait bool
 
-	// If true, this b
+	// If true, this behaves like a zero delay.
 	isZero bool
 }
 
 func NewFakeDelay() *FakeDelay {
 	return &FakeDelay{
 		cond:       sync.NewCond(&sync.Mutex{}),
-		allowsWait: false,
+		allowsWait: true,
 		isZero:     false,
 	}
 }
