@@ -5,11 +5,12 @@ import logging
 import os
 import queue
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Mapping, MutableMapping, MutableSet, Optional
 
 from wandb import util
 from wandb.sdk.interface.interface import GlobStr
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import LogicalPath, StrPath
 
 if TYPE_CHECKING:
     import wandb.vendor.watchdog_0_9_0.observers.api as wd_api
@@ -22,8 +23,6 @@ else:
     wd_polling = util.vendor_import("wandb_watchdog.observers.polling")
     wd_events = util.vendor_import("wandb_watchdog.events")
 
-PathStr = str  # TODO(spencerpearson): would be nice to use Path here
-
 
 logger = logging.getLogger(__name__)
 
@@ -31,13 +30,14 @@ logger = logging.getLogger(__name__)
 class FileEventHandler(abc.ABC):
     def __init__(
         self,
-        file_path: PathStr,
-        save_name: LogicalPath,
+        file_path: StrPath,
+        save_name: StrPath,
         file_pusher: "FilePusher",
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        self.file_path = file_path
+        # pathlib.Path would be nice, but isn't compatible with watchdog.
+        self.file_path = str(file_path)
         # Convert windows paths to unix paths
         self.save_name = LogicalPath(save_name)
         self._file_pusher = file_pusher
@@ -56,9 +56,9 @@ class FileEventHandler(abc.ABC):
     def finish(self) -> None:
         raise NotImplementedError
 
-    def on_renamed(self, new_path: PathStr, new_name: LogicalPath) -> None:
-        self.file_path = new_path
-        self.save_name = new_name
+    def on_renamed(self, new_path: StrPath, new_name: StrPath) -> None:
+        self.file_path = str(new_path)
+        self.save_name = LogicalPath(new_name)
         self.on_modified()
 
 
@@ -111,7 +111,7 @@ class PolicyLive(FileEventHandler):
 
     def __init__(
         self,
-        file_path: PathStr,
+        file_path: StrPath,
         save_name: LogicalPath,
         file_pusher: "FilePusher",
         settings: Optional["SettingsStatic"] = None,
@@ -190,10 +190,10 @@ class DirWatcher:
         self,
         settings: "SettingsStatic",
         file_pusher: "FilePusher",
-        file_dir: Optional[PathStr] = None,
+        file_dir: Optional[StrPath] = None,
     ) -> None:
         self._file_count = 0
-        self._dir = file_dir or settings.files_dir
+        self._dir = str(file_dir or settings.files_dir)
         self._settings = settings
         self._savename_file_policies: MutableMapping[LogicalPath, PolicyName] = {}
         self._user_file_policies: Mapping[PolicyName, MutableSet[GlobStr]] = {
@@ -281,7 +281,7 @@ class DirWatcher:
         self._get_file_event_handler(event.src_path, save_name).on_modified()
 
     # TODO(spencerpearson): this pattern repeats so many times we should have a method/function for it
-    # def _save_name(self, path: PathStr) -> LogicalPath:
+    # def _save_name(self, path: StrPath) -> LogicalPath:
     #     return LogicalPath(os.path.relpath(path, self._dir))
 
     def _on_file_modified(self, event: "wd_events.FileModifiedEvent") -> None:
@@ -307,7 +307,7 @@ class DirWatcher:
         handler.on_renamed(event.dest_path, new_save_name)
 
     def _get_file_event_handler(
-        self, file_path: PathStr, save_name: LogicalPath
+        self, file_path: StrPath, save_name: LogicalPath
     ) -> FileEventHandler:
         """Get or create an event handler for a particular file.
 
@@ -315,6 +315,7 @@ class DirWatcher:
         save_name: its path relative to the run directory (aka the watch directory)
         """
         # Always return PolicyNow for any of our media files.
+        file_path = str(file_path)
         if save_name.startswith("media/"):
             return PolicyNow(file_path, save_name, self._file_pusher, self._settings)
         if save_name not in self._file_event_handlers:

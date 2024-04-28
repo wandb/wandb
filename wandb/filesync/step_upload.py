@@ -6,6 +6,7 @@ import logging
 import queue
 import sys
 import threading
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Awaitable,
@@ -49,7 +50,7 @@ logger = logging.getLogger(__name__)
 
 
 class RequestUpload(NamedTuple):
-    path: str
+    path: Path
     save_name: LogicalPath
     artifact_id: Optional[str]
     md5: Optional[str]
