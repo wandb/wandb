@@ -11,10 +11,6 @@ if TYPE_CHECKING:  # pragma: no cover
     from wandb.proto import wandb_telemetry_pb2 as tpb
 
 
-# def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
-#     return {item.key: json.loads(item.value_json) for item in obj_list}
-
-
 def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[str, Any]:
     result: Dict[str, Any] = {}
 
@@ -22,12 +18,11 @@ def dict_from_proto_list(obj_list: "RepeatedCompositeFieldContainer") -> Dict[st
         # Start from the root of the result dict
         current_level = result
 
-        # Gather all keys (primary key and nested keys if available)
-        keys = [item.key] + list(
-            item.nested_key
-        )  # Assume nested_key is a repeated field
+        if len(item.nested_key) > 0:
+            keys = list(item.nested_key)
+        else:
+            keys = [item.key]
 
-        # Traverse through all but the last key, creating nested dictionaries as needed
         for key in keys[:-1]:
             if key not in current_level:
                 current_level[key] = {}

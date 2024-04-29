@@ -23,6 +23,7 @@ DEPRECATED_FEATURES = Literal[
     "langchain_tracer",
     "artifact__get_path",
     "artifactmanifestentry__name",
+    "api__artifact_versions",
 ]
 
 
@@ -39,3 +40,4 @@ class Deprecated:
     langchain_tracer: DEPRECATED_FEATURES = "langchain_tracer"
     artifact__get_path: DEPRECATED_FEATURES = "artifact__get_path"
     artifactmanifestentry__name: DEPRECATED_FEATURES = "artifactmanifestentry__name"
+    api__artifact_versions: DEPRECATED_FEATURES = "api__artifact_versions"

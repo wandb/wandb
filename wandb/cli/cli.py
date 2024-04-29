@@ -1903,20 +1903,36 @@ def describe(job):
     "--entry-point",
     "-E",
     "entrypoint",
-    help="Entrypoint to the script, including an executable and an entrypoint file. Required for code or repo jobs",
+    help="Entrypoint to the script, including an executable and an entrypoint "
+    "file. Required for code or repo jobs. If --build-context is provided, "
+    "paths in the entrypoint command will be relative to the build context.",
 )
 @click.option(
     "--git-hash",
     "-g",
     "git_hash",
     type=str,
-    help="Hash to a specific git commit.",
+    help="Commit reference to use as the source for git jobs",
 )
 @click.option(
     "--runtime",
     "-r",
     type=str,
     help="Python runtime to execute the job",
+)
+@click.option(
+    "--build-context",
+    "-b",
+    type=str,
+    help="Path to the build context from the root of the job source code. If "
+    "provided, this is used as the base path for the Dockerfile and entrypoint.",
+)
+@click.option(
+    "--dockerfile",
+    "-D",
+    type=str,
+    help="Path to the Dockerfile for the job. If --build-context is provided, "
+    "the Dockerfile path will be relative to the build context.",
 )
 @click.argument(
     "job_type",
@@ -1934,6 +1950,8 @@ def create(
     entrypoint,
     git_hash,
     runtime,
+    build_context,
+    dockerfile,
 ):
     """Create a job from a source, without a wandb run.
 
@@ -1976,6 +1994,8 @@ def create(
         entrypoint=entrypoint,
         git_hash=git_hash,
         runtime=runtime,
+        build_context=build_context,
+        dockerfile=dockerfile,
     )
     if not artifact:
         wandb.termerror("Job creation failed")

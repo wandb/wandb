@@ -10,8 +10,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
-
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -22,10 +20,10 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
@@ -51,6 +49,7 @@ type SenderParams struct {
 	RunfilesUploader    runfiles.Uploader
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
+	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
@@ -106,8 +105,11 @@ type Sender struct {
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
 
-	// Keep track of summary which is being updated incrementally
-	summaryMap map[string]*service.SummaryItem
+	// summaryDebouncer is the debouncer for summary updates
+	summaryDebouncer *debounce.Debouncer
+
+	// runSummary is the full summary for the run
+	runSummary *runsummary.RunSummary
 
 	// Keep track of config which is being updated incrementally
 	runConfig *runconfig.RunConfig
@@ -148,7 +150,6 @@ func NewSender(
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
-		summaryMap:          make(map[string]*service.SummaryItem),
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
@@ -160,11 +161,17 @@ func NewSender(
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
+		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.FwdChan,
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
+			params.Logger,
+		),
+		summaryDebouncer: debounce.NewDebouncer(
+			summaryDebouncerRateLimit,
+			summaryDebouncerBurstSize,
 			params.Logger,
 		),
 	}
@@ -191,6 +198,7 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
+		s.summaryDebouncer.Debounce(s.streamSummary)
 	}
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
@@ -383,17 +391,13 @@ func (s *Sender) updateSettings() {
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	s.updateSettings()
 
-	fsPath := fmt.Sprintf(
-		"files/%s/%s/%s/file_stream",
-		s.RunRecord.Entity,
-		s.RunRecord.Project,
-		s.RunRecord.RunId,
-	)
-
 	if s.fileStream != nil {
-		s.fileStream.SetPath(fsPath)
-		s.fileStream.SetOffsets(s.resumeState.GetFileStreamOffset())
-		s.fileStream.Start()
+		s.fileStream.Start(
+			s.RunRecord.GetEntity(),
+			s.RunRecord.GetProject(),
+			s.RunRecord.GetRunId(),
+			s.resumeState.GetFileStreamOffset(),
+		)
 	}
 
 	if s.fileTransferManager != nil {
@@ -429,17 +433,11 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
-	output := make(map[string]interface{})
 
-	var out interface{}
-	for k, v := range s.summaryMap {
-		bytes := []byte(v.GetValueJson())
-		err := json.Unmarshal(bytes, &out)
-		if err != nil {
-			s.logger.Error("sender: sendDefer: failed to unmarshal summary", "error", err)
-			return
-		}
-		output[k] = out
+	output, err := s.runSummary.CloneTree()
+	if err != nil {
+		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		return
 	}
 
 	artifact, err := s.jobBuilder.Build(output)
@@ -477,6 +475,9 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
+		s.summaryDebouncer.SetNeedsDebounce()
+		s.summaryDebouncer.Flush(s.streamSummary)
+		s.uploadSummaryFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
@@ -580,13 +581,6 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 	s.jobBuilder.HandleUseArtifactRecord(record)
 }
 
-// Applies the change record to the run configuration.
-func (s *Sender) updateConfig(configRecord *service.ConfigRecord) {
-	s.runConfig.ApplyChangeRecord(configRecord, func(err error) {
-		s.logger.CaptureError("Error updating run config", err)
-	})
-}
-
 // Inserts W&B-internal information into the run configuration.
 //
 // Uses the given telemetry
@@ -600,7 +594,7 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format pathtree.Format) (string, error) {
+func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
@@ -661,7 +655,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		//
 		// Logically, it would make more sense to instead start with the
 		// resumed config and apply updates on top of it.
-		s.updateConfig(run.Config)
+		s.runConfig.ApplyChangeRecord(run.Config,
+			func(err error) {
+				s.logger.CaptureError("Error updating run config", err)
+			})
+
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
 
@@ -674,12 +672,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 
 			if err := s.checkAndUpdateResumeState(record); err != nil {
-				s.logger.Error("sender: sendRun: failed to checkAndUpdateResumeState", "error", err)
+				s.logger.Error(
+					"sender: sendRun: failed to checkAndUpdateResumeState",
+					"error", err)
 				return
 			}
 		}
 
-		config, _ := s.serializeConfig(pathtree.FormatJson)
+		config, _ := s.serializeConfig(runconfig.FormatJson)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
@@ -769,7 +769,10 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		if runResult == nil {
 			runResult = run
 		}
-		s.respond(record, &service.RunUpdateResult{Run: runResult})
+		s.respond(record,
+			&service.RunUpdateResult{
+				Run: runResult,
+			})
 	}
 }
 
@@ -783,36 +786,33 @@ func (s *Sender) sendHistory(record *service.Record, _ *service.HistoryRecord) {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
+func (s *Sender) streamSummary() {
+	if s.fileStream == nil {
+		return
+	}
+
+	update, err := s.runSummary.Flatten()
+	if err != nil {
+		s.logger.CaptureError("Error flattening run summary", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: update,
+			},
+		},
+	}
+
+	s.fileStream.StreamRecord(record)
+}
+
+func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	// TODO(compat): handle deletes, nested keys
-	// TODO(compat): write summary file
 
-	// track each key in the in memory summary store
-	// TODO(memory): avoid keeping summary for all distinct keys
-	for _, item := range summary.Update {
-		s.summaryMap[item.Key] = item
-	}
-
-	if s.fileStream != nil {
-		// build list of summary items from the map
-		var summaryItems []*service.SummaryItem
-		for _, v := range s.summaryMap {
-			summaryItems = append(summaryItems, v)
-		}
-
-		// build a full summary record to send
-		record := &service.Record{
-			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{
-					Update: summaryItems,
-				},
-			},
-		}
-
-		s.fileStream.StreamRecord(record)
-	}
+	s.summaryDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) upsertConfig() {
@@ -824,7 +824,7 @@ func (s *Sender) upsertConfig() {
 		return
 	}
 
-	config, err := s.serializeConfig(pathtree.FormatJson)
+	config, err := s.serializeConfig(runconfig.FormatJson)
 	if err != nil {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
 		return
@@ -862,13 +862,45 @@ func (s *Sender) upsertConfig() {
 	}
 }
 
+func (s *Sender) uploadSummaryFile() {
+	if s.settings.GetXSync().GetValue() {
+		// if sync is enabled, we don't need to do all this
+		return
+	}
+
+	summary, err := s.runSummary.Serialize()
+	if err != nil {
+		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
+		return
+	}
+	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
+	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
+		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
+		return
+	}
+
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: SummaryFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdRecord(record)
+}
+
 func (s *Sender) uploadConfigFile() {
 	if s.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
 
-	config, err := s.serializeConfig(pathtree.FormatYaml)
+	config, err := s.serializeConfig(runconfig.FormatYaml)
 	if err != nil {
 		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
 		return
@@ -898,7 +930,10 @@ func (s *Sender) uploadConfigFile() {
 // and updates the in memory config
 func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecord) {
 	if configRecord != nil {
-		s.updateConfig(configRecord)
+		s.runConfig.ApplyChangeRecord(configRecord,
+			func(err error) {
+				s.logger.CaptureError("Error updating run config", err)
+			})
 	}
 	s.configDebouncer.SetNeedsDebounce()
 }

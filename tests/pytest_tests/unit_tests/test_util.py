@@ -744,14 +744,18 @@ d_recursive2o["_"] = d_recursive2o
     ],
 )
 def test_sanitize_numpy_keys(dict_input, dict_output):
-    dict_output = dict_output.copy() if dict_output is not None else None
     output, converted = util._sanitize_numpy_keys(dict_input)
     assert converted == (dict_output is not None)
 
-    # pytest assert cant handle recursive dicts
-    if dict_output and "_" in dict_output:
-        output.pop("_")
-        dict_output.pop("_")
+    # pytest assert can't handle '==' on recursive dictionaries!
+    if "_" in dict_input:
+        # Check the recursive case ourselves.
+        assert output["_"] is output
+
+        output = {k: v for k, v in output.items() if k != "_"}
+        dict_input = {k: v for k, v in dict_input.items() if k != "_"}
+        if dict_output:
+            dict_output = {k: v for k, v in dict_output.items() if k != "_"}
 
     assert output == (dict_output or dict_input)
 
