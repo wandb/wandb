@@ -1050,8 +1050,8 @@ class Api:
             return False
 
     @normalize_exceptions
-    def artifact_exists(self, name, type=None):
-        """Return a boolean indicating whether an artifact exists by parsing a path in the form `entity/project/name`.
+    def artifact_exists(self, name: str, type: Optional[str]=None):
+        """Return whether an artifact exists.
 
         Arguments:
             name: (str) An artifact name. May be prefixed with entity/project. Valid names
@@ -1059,9 +1059,6 @@ class Api:
                     name:version
                     name:alias
             type: (str, optional) The type of artifact
-
-        Returns:
-            A boolean
         """
         try:
             self.artifact(name, type)
@@ -1070,15 +1067,12 @@ class Api:
             return False
 
     @normalize_exceptions
-    def artifact_collection_exists(self, name, type):
-        """Return a boolean indicating whether an artifact collection exists by parsing a path in the form `entity/project/name`.
+    def artifact_collection_exists(self, name: str, type: str):
+        """Return whether an artifact collection exists.
 
         Arguments:
             name: (str) An artifact collection name. May be prefixed with entity/project
             type: (str) The type of artifact collection
-
-        Returns:
-            A boolean
         """
         try:
             self.artifact_collection(type, name)
