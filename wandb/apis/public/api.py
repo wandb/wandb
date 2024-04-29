@@ -1052,7 +1052,7 @@ class Api:
     @normalize_exceptions
     def artifact_exists(self, name, type=None):
         """Return a boolean indicating whether an artifact exists by parsing a path in the form `entity/project/name
-        
+
         Arguments:
             name: (str) An artifact name. May be prefixed with entity/project. Valid names
                 can be in the following forms:
@@ -1062,24 +1062,24 @@ class Api:
 
         Returns:
             A boolean
-        """        
+        """
         try:
             self.artifact(name, type)
             return True
         except wandb.errors.CommError:
             return False
-            
+
     @normalize_exceptions
     def artifact_collection_exists(self, name, type):
         """Return a boolean indicating whether an artifact collection exists by parsing a path in the form `entity/project/name
-        
+
         Arguments:
             name: (str) An artifact collection name. May be prefixed with entity/project
             type: (str) The type of artifact collection
 
         Returns:
             A boolean
-        """        
+        """
         try:
             self.artifact_collection(type, name)
             return True

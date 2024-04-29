@@ -117,6 +117,7 @@ def test_artifact_exists(user, api, sample_data):
     assert not api.artifact_exists("mnist:v2")
     assert not api.artifact_exists("mnist-fake:v0")
 
+
 def test_artifact_collection_exists(user, api, sample_data):
     assert api.artifact_collection_exists("mnist", "dataset")
     assert not api.artifact_collection_exists("mnist-fake", "dataset")
