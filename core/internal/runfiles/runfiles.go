@@ -7,11 +7,11 @@ package runfiles
 
 import (
 	"context"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -70,8 +70,5 @@ type UploaderParams struct {
 	// This helps if multiple uploads are scheduled around the same time by
 	// grouping those that fall within this duration of each other and reducing
 	// the number of GraphQL invocations.
-	BatchWindow time.Duration
-
-	// Alternative to BatchWindow that specifies a waiting function.
-	BatchDelayFunc func() <-chan struct{}
+	BatchDelay waiting.Delay
 }

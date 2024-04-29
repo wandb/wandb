@@ -1,7 +1,7 @@
 package filestream
 
 import (
-	"time"
+	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 type chunkMap map[ChunkTypeEnum][]string
@@ -16,8 +16,8 @@ var chunkFilename = map[ChunkTypeEnum]string{
 type chunkCollector struct {
 	input             <-chan processedChunk
 	isDone            bool
-	heartbeatTime     time.Duration
-	delayProcess      time.Duration
+	heartbeatDelay    waiting.Delay
+	processDelay      waiting.Delay
 	fileChunks        chunkMap
 	maxItemsPerPush   int
 	itemsCollected    int
@@ -38,6 +38,7 @@ func (cr *chunkCollector) reset() {
 
 func (cr *chunkCollector) read() bool {
 	cr.reset()
+
 	select {
 	case chunk, ok := <-cr.input:
 		if !ok {
@@ -46,24 +47,27 @@ func (cr *chunkCollector) read() bool {
 		}
 		cr.addFileChunk(chunk)
 		return true
-	case <-time.After(cr.heartbeatTime):
+	case <-cr.heartbeatDelay.Wait():
 	}
 	return false
 }
 
-func (cr *chunkCollector) delayTime() time.Duration {
-	delayTime := cr.delayProcess
+func (cr *chunkCollector) delayTime() waiting.Delay {
+	delay := cr.processDelay
+
 	// do not delay for more chunks if we overflowed on last iteration
 	if cr.isOverflow {
-		delayTime = 0
+		delay = waiting.NoDelay()
 	}
 	cr.isOverflow = false
-	return delayTime
+
+	return delay
 }
 
 func (cr *chunkCollector) readMore() {
 	// TODO(core:beta): add rate limiting
-	delayChan := time.After(cr.delayTime())
+	delayChan := cr.delayTime().Wait()
+
 	for {
 		select {
 		case chunk, ok := <-cr.input:
