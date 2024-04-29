@@ -1050,28 +1050,38 @@ class Api:
             return False
 
     @normalize_exceptions
-    def exists(self, name, type=None):
+    def artifact_exists(self, name, type=None):
+        """Return a boolean indicating whether an artifact exists by parsing a path in the form `entity/project/name
+        
+        Arguments:
+            name: (str) An artifact name. May be prefixed with entity/project. Valid names
+                can be in the following forms:
+                    name:version
+                    name:alias
+            type: (str, optional) The type of artifact
+
+        Returns:
+            A boolean
+        """        
         try:
-            _, _, artifact_name = self._parse_artifact_path(name)
-        except ValueError:
-            raise NotImplementedError("Api.exists only checks for artifact existence")
+            self.artifact(name, type)
+            return True
+        except wandb.errors.CommError:
+            return False
+            
+    @normalize_exceptions
+    def artifact_collection_exists(self, name, type):
+        """Return a boolean indicating whether an artifact collection exists by parsing a path in the form `entity/project/name
+        
+        Arguments:
+            name: (str) An artifact collection name. May be prefixed with entity/project
+            type: (str) The type of artifact collection
 
-        if not artifact_name:
-            raise NotImplementedError("Api.exists only checks for artifact existence")
-
-        if ":" in artifact_name:
-            try:
-                self.artifact(name, type)
-                return True
-            except wandb.errors.CommError:
-                return False
-        else:
-            if type is None:
-                raise ValueError(
-                    "You must specify type= to check if there are any artifacts in this collection"
-                )
-            try:
-                self.artifact_collection(type, name)
-                return True
-            except wandb.errors.CommError:
-                return False
+        Returns:
+            A boolean
+        """        
+        try:
+            self.artifact_collection(type, name)
+            return True
+        except wandb.errors.CommError:
+            return False

@@ -113,13 +113,13 @@ def test_artifact_download(user, api, sample_data):
 
 
 def test_artifact_exists(user, api, sample_data):
-    assert api.exists("mnist:v0")
-    assert not api.exists("mnist:v2")
-    assert not api.exists("mnist-fake:v0")
-    assert api.exists("mnist", type="dataset")
-    assert not api.exists("mnist-fake", type="dataset")
-    with pytest.raises(wandb.errors.CommError):
-        api.exists("mnist")
+    assert api.artifact_exists("mnist:v0")
+    assert not api.artifact_exists("mnist:v2")
+    assert not api.artifact_exists("mnist-fake:v0")
+
+def test_artifact_collection_exists(user, api, sample_data):
+    assert api.artifact_collection_exists("mnist", "dataset")
+    assert not api.artifact_collection_exists("mnist-fake", "dataset")
 
 
 def test_artifact_delete(user, api, sample_data):
