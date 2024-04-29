@@ -43,11 +43,6 @@ type chunkCollector struct {
 	// Number of chunks collected for the next batch.
 	itemsCollected int
 
-	// Whether itemsCollected >= maxItemsPerPush in the last batch.
-	//
-	// When this is true, we skip waiting in the next batch.
-	isOverflow bool
-
 	// Whether we finished reading the entire input stream.
 	isDone bool
 
@@ -99,21 +94,9 @@ func (cr *chunkCollector) read() bool {
 	return false
 }
 
-func (cr *chunkCollector) delayTime() waiting.Delay {
-	delay := cr.processDelay
-
-	// do not delay for more chunks if we overflowed on last iteration
-	if cr.isOverflow {
-		delay = waiting.NoDelay()
-	}
-	cr.isOverflow = false
-
-	return delay
-}
-
 func (cr *chunkCollector) readMore() {
 	// TODO(core:beta): add rate limiting
-	delayChan := cr.delayTime().Wait()
+	delayChan := cr.processDelay.Wait()
 
 	for {
 		select {
@@ -124,7 +107,6 @@ func (cr *chunkCollector) readMore() {
 			}
 			cr.addFileChunk(chunk)
 			if cr.itemsCollected >= cr.maxItemsPerPush {
-				cr.isOverflow = true
 				return
 			}
 		case <-delayChan:
