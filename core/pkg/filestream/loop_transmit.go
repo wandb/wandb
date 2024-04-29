@@ -36,11 +36,9 @@ func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}
 	for !collector.isDone {
-		if readMore := collector.read(); readMore {
-			collector.readMore()
-		}
-		data := collector.dump(fs.offsetMap)
-		if data != nil {
+		data, ok := collector.CollectAndDump(fs.offsetMap)
+
+		if ok {
 			fs.send(data)
 			fs.heartbeatStopwatch.Reset()
 		} else if fs.heartbeatStopwatch.IsDone() {
