@@ -1050,7 +1050,7 @@ class Api:
             return False
 
     @normalize_exceptions
-    def artifact_exists(self, name: str, type: Optional[str]=None):
+    def artifact_exists(self, name: str, type: Optional[str] = None):
         """Return whether an artifact exists.
 
         Arguments:
