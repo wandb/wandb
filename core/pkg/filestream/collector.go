@@ -26,9 +26,9 @@ type chunkCollector struct {
 	// Maximum number of chunks to include in a push.
 	maxItemsPerPush int
 
-	//**************************************************
+	// **************************************************
 	// Internal state
-	//**************************************************
+	// **************************************************
 
 	// The next batch of updates to send.
 	transmitData *FsTransmitData
