@@ -83,7 +83,6 @@ message Settings {
 
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
-  google.protobuf.Int32Value _async_upload_concurrency_limit = 3;
   google.protobuf.BoolValue _cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
   google.protobuf.StringValue _cuda = 6;

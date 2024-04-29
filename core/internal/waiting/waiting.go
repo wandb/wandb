@@ -1,7 +1,10 @@
 // Package waiting helps write testable code that sleeps.
 package waiting
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+)
 
 // Delay is a duration that some code waits for.
 type Delay interface {
@@ -21,6 +24,21 @@ func NewDelay(duration time.Duration) Delay {
 // NoDelay returns a zero delay.
 func NoDelay() Delay {
 	return NewDelay(0)
+}
+
+// Stopwatch is a countdown that can be reset.
+type Stopwatch interface {
+	// IsDone returns whether the stopwatch hit zero.
+	IsDone() bool
+
+	// Reset puts the stopwatch back at its starting time.
+	Reset()
+}
+
+func NewStopwatch(duration time.Duration) Stopwatch {
+	s := &realStopwatch{duration, &atomic.Int64{}}
+	s.Reset()
+	return s
 }
 
 type realDelay struct {
@@ -50,4 +68,18 @@ func completedDelay() <-chan struct{} {
 	ch <- struct{}{}
 	close(ch)
 	return ch
+}
+
+type realStopwatch struct {
+	duration        time.Duration
+	startTimeMicros *atomic.Int64
+}
+
+func (s *realStopwatch) IsDone() bool {
+	startTime := time.UnixMicro(s.startTimeMicros.Load())
+	return time.Now().After(startTime.Add(s.duration))
+}
+
+func (s *realStopwatch) Reset() {
+	s.startTimeMicros.Store(time.Now().UnixMicro())
 }

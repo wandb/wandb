@@ -2,10 +2,11 @@ package filestream_test
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/waiting"
+	"github.com/wandb/wandb/core/internal/waitingtest"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -168,10 +169,8 @@ func NewHistoryRecord() *service.Record {
 	return msg
 }
 
-func TestSendHistory(t *testing.T) {
+func TestStreamRecord_SendsHistory(t *testing.T) {
 	num := 10
-	delay := 5 * time.Millisecond
-
 	tServer := NewTestServer()
 	fsParams := filestream.FileStreamParams{
 		Settings: tServer.settings,
@@ -180,6 +179,8 @@ func TestSendHistory(t *testing.T) {
 			tServer.hserver.URL,
 			api.ClientOptions{},
 		),
+		// Prevent chunking.
+		DelayProcess: waitingtest.NewFakeDelay(),
 	}
 
 	tst := NewFilestreamTest(
@@ -189,18 +190,16 @@ func TestSendHistory(t *testing.T) {
 		func(fs filestream.FileStream) {
 			msg := NewHistoryRecord()
 			for i := 0; i < num; i++ {
-				time.Sleep(delay)
 				fs.StreamRecord(msg)
 			}
 		},
 	)
+
 	assert.Equal(t, num, tst.capture.m["total"].(int))
 }
 
-func TestHeartbeat(t *testing.T) {
-	lastTransmitTime := time.Now()
-	heartbeatInterval := 1 * time.Millisecond
-
+func TestSendsHeartbeat(t *testing.T) {
+	fakeHeartbeat := waitingtest.NewFakeStopwatch()
 	tServer := NewTestServer()
 	fsParams := filestream.FileStreamParams{
 		Settings: tServer.settings,
@@ -209,19 +208,19 @@ func TestHeartbeat(t *testing.T) {
 			tServer.hserver.URL,
 			api.ClientOptions{},
 		),
-		LastTransmitTime:  lastTransmitTime,
-		HeartbeatInterval: heartbeatInterval,
+		HeartbeatStopwatch: fakeHeartbeat,
+		PollInterval:       waiting.NoDelay(),
 	}
 
+	fakeHeartbeat.SetDone()
 	tst := NewFilestreamTest(
 		t.Name(),
 		tServer,
 		fsParams,
-		func(fs filestream.FileStream) {
-			time.Sleep(10 * time.Millisecond)
-		},
+		func(fs filestream.FileStream) {},
 	)
-	assert.NotEqual(t, lastTransmitTime, tst.fs.GetLastTransmitTime())
+
+	assert.Equal(t, 1, tst.capture.m["records"].(int))
 }
 
 func BenchmarkHistory(b *testing.B) {
