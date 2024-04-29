@@ -323,7 +323,6 @@ def _make_settings(
         "_sync": True,
         "_live_policy_rate_limit": 15,  # matches dir_watcher
         "_live_policy_wait_time": 600,  # matches dir_watcher
-        "_async_upload_concurrency_limit": None,
         "_file_stream_timeout_seconds": 60,
     }
 

@@ -13,7 +13,6 @@ else:
 _Setting = Literal[
     "_args",
     "_aws_lambda",
-    "_async_upload_concurrency_limit",
     "_cli_only_mode",
     "_code_path_local",
     "_colab",
@@ -179,7 +178,6 @@ _Setting = Literal[
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
-    "_async_upload_concurrency_limit",
     "_service_wait",
     "_stats_sample_rate_seconds",
     "_stats_samples_to_average",

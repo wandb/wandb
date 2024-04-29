@@ -216,7 +216,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 ### Linting the code
 
-We are using [pre-commit hooks](https://pre-commit.com/#install) to manage oure linters and other auto-generated code.
+We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our linters and other auto-generated code.
 
 To install `pre-commit` run the following:
 ```shell

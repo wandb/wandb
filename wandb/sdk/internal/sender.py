@@ -327,7 +327,6 @@ class SendManager:
             # ignore_globs=(),
             _sync=True,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()

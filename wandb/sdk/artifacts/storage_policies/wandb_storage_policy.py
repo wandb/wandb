@@ -263,7 +263,7 @@ class WandbStoragePolicy(StoragePolicy):
             return math.ceil(file_size / S3_MAX_PART_NUMBERS)
         return default_chunk_size
 
-    def store_file_sync(
+    def store_file(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -301,7 +301,7 @@ class WandbStoragePolicy(StoragePolicy):
                     hex_digests[part_number] = hex_digest
                     part_number += 1
 
-        resp = preparer.prepare_sync(
+        resp = preparer.prepare(
             {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
@@ -343,46 +343,6 @@ class WandbStoragePolicy(StoragePolicy):
             self._api.complete_multipart_upload_artifact(
                 artifact_id, resp.storage_path, etags, resp.upload_id
             )
-        self._write_cache(entry)
-
-        return False
-
-    async def store_file_async(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: "ArtifactManifestEntry",
-        preparer: "StepPrepare",
-        progress_callback: Optional["progress.ProgressFn"] = None,
-    ) -> bool:
-        """Async equivalent to `store_file_sync`."""
-        resp = await preparer.prepare_async(
-            {
-                "artifactID": artifact_id,
-                "artifactManifestID": artifact_manifest_id,
-                "name": entry.path,
-                "md5": entry.digest,
-            }
-        )
-
-        entry.birth_artifact_id = resp.birth_artifact_id
-        if resp.upload_url is None:
-            return True
-        if entry.local_path is None:
-            return False
-
-        with open(entry.local_path, "rb") as file:
-            # This fails if we don't send the first byte before the signed URL expires.
-            await self._api.upload_file_retry_async(
-                resp.upload_url,
-                file,
-                progress_callback,
-                extra_headers={
-                    header.split(":", 1)[0]: header.split(":", 1)[1]
-                    for header in (resp.upload_headers or {})
-                },
-            )
-
         self._write_cache(entry)
 
         return False
