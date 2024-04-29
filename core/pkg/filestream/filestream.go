@@ -50,7 +50,6 @@ const (
 	OutputFileName           = "output.log"
 	defaultMaxItemsPerPush   = 5_000
 	defaultDelayProcess      = 20 * time.Millisecond
-	defaultPollInterval      = 2 * time.Second
 	defaultHeartbeatInterval = 30 * time.Second
 )
 
@@ -121,7 +120,6 @@ type fileStream struct {
 
 	maxItemsPerPush int
 	delayProcess    waiting.Delay
-	pollInterval    waiting.Delay
 
 	// A schedule on which to send heartbeats to the backend
 	// to prove the run is still alive.
@@ -137,7 +135,6 @@ type FileStreamParams struct {
 	MaxItemsPerPush    int
 	ClientId           string
 	DelayProcess       waiting.Delay
-	PollInterval       waiting.Delay
 	HeartbeatStopwatch waiting.Stopwatch
 }
 
@@ -159,11 +156,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 	fs.delayProcess = params.DelayProcess
 	if fs.delayProcess == nil {
 		fs.delayProcess = waiting.NewDelay(defaultDelayProcess)
-	}
-
-	fs.pollInterval = params.PollInterval
-	if fs.pollInterval == nil {
-		fs.pollInterval = waiting.NewDelay(defaultPollInterval)
 	}
 
 	fs.heartbeatStopwatch = params.HeartbeatStopwatch
