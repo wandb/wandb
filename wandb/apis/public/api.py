@@ -1051,7 +1051,7 @@ class Api:
 
     @normalize_exceptions
     def artifact_exists(self, name, type=None):
-        """Return a boolean indicating whether an artifact exists by parsing a path in the form `entity/project/name
+        """Return a boolean indicating whether an artifact exists by parsing a path in the form `entity/project/name`.
 
         Arguments:
             name: (str) An artifact name. May be prefixed with entity/project. Valid names
@@ -1071,7 +1071,7 @@ class Api:
 
     @normalize_exceptions
     def artifact_collection_exists(self, name, type):
-        """Return a boolean indicating whether an artifact collection exists by parsing a path in the form `entity/project/name
+        """Return a boolean indicating whether an artifact collection exists by parsing a path in the form `entity/project/name`.
 
         Arguments:
             name: (str) An artifact collection name. May be prefixed with entity/project
