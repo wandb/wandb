@@ -14,24 +14,66 @@ var chunkFilename = map[ChunkTypeEnum]string{
 }
 
 type chunkCollector struct {
-	input             <-chan processedChunk
-	isDone            bool
-	heartbeatDelay    waiting.Delay
-	processDelay      waiting.Delay
-	fileChunks        chunkMap
-	maxItemsPerPush   int
-	itemsCollected    int
-	isOverflow        bool
-	isTransmitReady   bool
-	isDirty           bool
-	transmitData      *FsTransmitData
+	// A stream of updates which get batched together.
+	input <-chan processedChunk
+
+	// Maximum time to wait for an input.
+	heartbeatDelay waiting.Delay
+
+	// Maximum time to wait before finalizing a batch.
+	processDelay waiting.Delay
+
+	// Maximum number of chunks to include in a push.
+	maxItemsPerPush int
+
+	//**************************************************
+	// Internal state
+	//**************************************************
+
+	// The next batch of updates to send.
+	transmitData *FsTransmitData
+	fileChunks   chunkMap
+
+	// Whether we have something for the next batch.
+	isTransmitReady bool
+
+	// Whether we gathered at least one chunk.
+	isDirty bool
+
+	// Number of chunks collected for the next batch.
+	itemsCollected int
+
+	// Whether we finished reading the entire input stream.
+	isDone bool
+
+	// The Complete and ExitCode status for the final transmission.
 	finalTransmitData *FsTransmitData
 }
 
+// CollectAndDump returns the next batch of updates to send to the backend.
+//
+// Returns nil and false if there are no updates. Otherwise, returns
+// the updates and true.
+func (cr *chunkCollector) CollectAndDump(
+	offsetMap FileStreamOffsetMap,
+) (*FsTransmitData, bool) {
+	shouldReadMore := cr.read()
+	if shouldReadMore {
+		cr.readMore()
+	}
+	data := cr.dump(offsetMap)
+
+	if data == nil {
+		return nil, false
+	} else {
+		return data, true
+	}
+}
+
 func (cr *chunkCollector) reset() {
+	cr.transmitData = &FsTransmitData{}
 	cr.fileChunks = make(chunkMap)
 	cr.itemsCollected = 0
-	cr.transmitData = &FsTransmitData{}
 	cr.isTransmitReady = false
 	cr.isDirty = false
 }
@@ -52,21 +94,9 @@ func (cr *chunkCollector) read() bool {
 	return false
 }
 
-func (cr *chunkCollector) delayTime() waiting.Delay {
-	delay := cr.processDelay
-
-	// do not delay for more chunks if we overflowed on last iteration
-	if cr.isOverflow {
-		delay = waiting.NoDelay()
-	}
-	cr.isOverflow = false
-
-	return delay
-}
-
 func (cr *chunkCollector) readMore() {
 	// TODO(core:beta): add rate limiting
-	delayChan := cr.delayTime().Wait()
+	delayChan := cr.processDelay.Wait()
 
 	for {
 		select {
@@ -77,7 +107,6 @@ func (cr *chunkCollector) readMore() {
 			}
 			cr.addFileChunk(chunk)
 			if cr.itemsCollected >= cr.maxItemsPerPush {
-				cr.isOverflow = true
 				return
 			}
 		case <-delayChan:
