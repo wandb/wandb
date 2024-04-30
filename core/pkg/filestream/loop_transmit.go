@@ -31,7 +31,6 @@ func (fs *fileStream) addTransmit(chunk processedChunk) {
 func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 	collector := chunkCollector{
 		input:           inChan,
-		heartbeatDelay:  fs.pollInterval,
 		processDelay:    fs.delayProcess,
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}

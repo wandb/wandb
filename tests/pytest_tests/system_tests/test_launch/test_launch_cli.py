@@ -1,5 +1,5 @@
 import json
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 import wandb
@@ -356,3 +356,45 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
         assert result.exit_code == 1
     else:
         assert result.exit_code == 0
+
+
+def test_launch_from_uri_creates_job(
+    runner,
+    mocker,
+    test_settings,
+    user,
+):
+    mock_job_artifact = MagicMock()
+    mock_job_artifact.name = "test:latest"
+    mock_create_job_function = MagicMock(return_value=(mock_job_artifact, None, None))
+    mock_launch_function = AsyncMock()
+    mocker.patch("wandb.sdk.launch._launch._launch", mock_launch_function)
+    mocker.patch("wandb.sdk.launch.create_job._create_job", mock_create_job_function)
+
+    result = "none"
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "--project",
+                "test",
+                "--uri",
+                "https://github.com/test/test.git",
+                "--entry-point",
+                "python test.py",
+                "--job-name",
+                "test-job",
+            ],
+        )
+
+    assert result.exit_code == 0
+    mock_create_job_function.assert_called_once()
+    mock_launch_function.assert_called_once()
+    create_job_args = mock_create_job_function.call_args[0]
+    launch_args = mock_launch_function.call_args[0]
+
+    assert create_job_args[1] == "git"
+    assert create_job_args[2] == "https://github.com/test/test.git"
+
+    assert launch_args[1] == "https://github.com/test/test.git"
+    assert launch_args[2].endswith("/test/test:latest")
