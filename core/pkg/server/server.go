@@ -46,13 +46,13 @@ func NewServer(ctx context.Context, addr string, portFile string, ppid *int) (*S
 	}
 
 	s := &Server{
-		ctx:          ctx,
-		listener:     listener,
-		wg:           sync.WaitGroup{},
-		ppid:         ppid,
+		ctx:                  ctx,
+		listener:             listener,
+		wg:                   sync.WaitGroup{},
+		ppid:                 ppid,
 		internalTeardownChan: make(chan struct{}),
-		teardownChan: make(chan struct{}),
-		shutdownChan: make(chan struct{}),
+		teardownChan:         make(chan struct{}),
+		shutdownChan:         make(chan struct{}),
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
