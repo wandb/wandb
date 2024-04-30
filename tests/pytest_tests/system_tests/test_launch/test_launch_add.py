@@ -413,69 +413,6 @@ def test_push_to_runqueue_old_server(
         assert result["runQueueItemId"]
 
 
-def test_push_with_repository(
-    relay_server, user, mocked_fetchable_git_repo, test_settings, wandb_init
-):
-    api = wandb.sdk.internal.internal_api.Api()
-    proj = "test_project99"
-    uri = "https://github.com/FooBar/examples.git"
-    entry_point = ["python", "train.py"]
-
-    launch_spec = {
-        "uri": uri,
-        "entity": user,
-        "project": proj,
-        "entry_point": entry_point,
-        "registry": {"url": "repo123"},
-        "resource": "sagemaker",
-    }
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
-
-    with relay_server():
-        run = wandb_init(settings=settings)
-        res = api.push_to_run_queue(
-            "nonexistent-queue", launch_spec, None, LAUNCH_DEFAULT_PROJECT
-        )
-        run.finish()
-
-        assert not res
-
-
-def test_launch_add_repository(
-    relay_server, runner, user, monkeypatch, wandb_init, test_settings
-):
-    queue = "default"
-    proj = "test1"
-    uri = "https://github.com/wandb/examples.git"
-    entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
-    settings = test_settings({"project": LAUNCH_DEFAULT_PROJECT})
-    api = InternalApi()
-
-    with relay_server():
-        run = wandb_init(settings=settings)
-        api.create_run_queue(
-            entity=user,
-            project=LAUNCH_DEFAULT_PROJECT,
-            queue_name=queue,
-            access="PROJECT",
-        )
-
-        queued_run = launch_add(
-            uri=uri,
-            entity=user,
-            project=proj,
-            entry_point=entry_point,
-            repository="testing123",
-            config={"resource": "sagemaker"},
-            project_queue=LAUNCH_DEFAULT_PROJECT,
-        )
-
-        assert queued_run.state == "pending"
-
-        queued_run.delete()
-        run.finish()
-
-
 def test_launch_add_with_priority(runner, relay_server, user, monkeypatch):
     def patched_push_to_run_queue_introspection(*args, **kwargs):
         args[0].server_supports_template_variables = True
@@ -730,7 +667,6 @@ def test_display_updated_runspec(
 ):
     queue = "default"
     proj = "test1"
-    uri = "https://github.com/wandb/examples.git"
     entry_point = ["python", "/examples/examples/launch/launch-quickstart/train.py"]
     settings = test_settings({"project": proj})
     api = InternalApi()
@@ -759,7 +695,7 @@ def test_display_updated_runspec(
         )
 
         _ = launch_add(
-            uri=uri,
+            docker_image="test/test:test",
             entity=user,
             project=proj,
             entry_point=entry_point,

@@ -932,7 +932,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		runconfig.RunConfigDict{
+		map[string]interface{}{
 			"key1": "value1",
 			"key2": "value2",
 			"key3": map[string]interface{}{
