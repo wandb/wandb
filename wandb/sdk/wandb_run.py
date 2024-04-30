@@ -210,7 +210,7 @@ class RunStatusChecker:
     @staticmethod
     def _stop_check(
         lock: threading.Lock,
-        handle: MailboxHandle,
+        handle: Optional[MailboxHandle],
     ):
         with lock:
             if handle:
