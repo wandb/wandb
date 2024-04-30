@@ -68,16 +68,20 @@ func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
 
+		var err error
+
 		switch {
 		case message.Record != nil:
-			if err := fs.processRecord(message.Record); err != nil {
-				fs.logFatalAndStopWorking(err)
-				return
-			}
+			err = fs.processRecord(message.Record)
 		case message.UploadedFile != "":
-			fs.streamFilesUploaded(message.UploadedFile)
+			err = fs.streamFilesUploaded(message.UploadedFile)
 		default:
 			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
+		}
+
+		if err != nil {
+			fs.logFatalAndStopWorking(err)
+			return
 		}
 	}
 }
