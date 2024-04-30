@@ -207,6 +207,15 @@ class RunStatusChecker:
         self._network_status_thread.start()
         self._internal_messages_thread.start()
 
+    @staticmethod
+    def _stop_check(
+        lock: threading.Lock,
+        handle: MailboxHandle,
+    ):
+        with lock:
+            if handle:
+                handle.abandon()
+
     def _loop_check_status(
         self,
         *,
@@ -265,13 +274,19 @@ class RunStatusChecker:
                         )
                     )
 
-        self._loop_check_status(
-            lock=self._network_status_lock,
-            set_handle=lambda x: setattr(self, "_network_status_handle", x),
-            timeout=self._retry_polling_interval,
-            request=self._interface.deliver_network_status,
-            process=_process_network_status,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._network_status_lock,
+                set_handle=lambda x: setattr(self, "_network_status_handle", x),
+                timeout=self._retry_polling_interval,
+                request=self._interface.deliver_network_status,
+                process=_process_network_status,
+            )
+        except BrokenPipeError:
+            self._stop_check(
+                self._network_status_lock,
+                self._network_status_handle,
+            )
 
     def check_stop_status(self) -> None:
         def _process_stop_status(result: Result) -> None:
@@ -283,13 +298,19 @@ class RunStatusChecker:
                     thread.interrupt_main()
                     return
 
-        self._loop_check_status(
-            lock=self._stop_status_lock,
-            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-            timeout=self._stop_polling_interval,
-            request=self._interface.deliver_stop_status,
-            process=_process_stop_status,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._stop_status_lock,
+                set_handle=lambda x: setattr(self, "_stop_status_handle", x),
+                timeout=self._stop_polling_interval,
+                request=self._interface.deliver_stop_status,
+                process=_process_stop_status,
+            )
+        except BrokenPipeError:
+            self._stop_check(
+                self._stop_status_lock,
+                self._stop_status_handle,
+            )
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
@@ -297,25 +318,34 @@ class RunStatusChecker:
             for msg in internal_messages.messages.warning:
                 wandb.termwarn(msg)
 
-        self._loop_check_status(
-            lock=self._internal_messages_lock,
-            set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-            timeout=1,
-            request=self._interface.deliver_internal_messages,
-            process=_process_internal_messages,
-        )
+            try:
+                self._loop_check_status(
+                    lock=self._internal_messages_lock,
+                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+                    timeout=1,
+                    request=self._interface.deliver_internal_messages,
+                    process=_process_internal_messages,
+                )
+            except BrokenPipeError:
+                self._stop_check(
+                    self._internal_messages_lock,
+                    self._internal_messages_handle,
+                )
 
     def stop(self) -> None:
         self._join_event.set()
-        with self._stop_status_lock:
-            if self._stop_status_handle:
-                self._stop_status_handle.abandon()
-        with self._network_status_lock:
-            if self._network_status_handle:
-                self._network_status_handle.abandon()
-        with self._internal_messages_lock:
-            if self._internal_messages_handle:
-                self._internal_messages_handle.abandon()
+        self._stop_check(
+            self._stop_status_lock,
+            self._stop_status_handle,
+        )
+        self._stop_check(
+            self._network_status_lock,
+            self._network_status_handle,
+        )
+        self._stop_check(
+            self._internal_messages_lock,
+            self._internal_messages_handle,
+        )
 
     def join(self) -> None:
         self.stop()
