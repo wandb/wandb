@@ -188,7 +188,6 @@ def create_and_run_agent(
 
 async def _launch(
     api: Api,
-    uri: Optional[str] = None,
     job: Optional[str] = None,
     name: Optional[str] = None,
     project: Optional[str] = None,
@@ -209,7 +208,7 @@ async def _launch(
     if resource is None:
         resource = "local-container"
     launch_spec = construct_launch_spec(
-        uri,
+        None,
         job,
         api,
         name,
@@ -326,8 +325,6 @@ def launch(
     """
     submitted_run_obj = asyncio.run(
         _launch(
-            # TODO: fully deprecate URI path
-            uri=None,
             job=job,
             name=name,
             project=project,

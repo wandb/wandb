@@ -319,7 +319,7 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
 
     def patched_launch_add(*args, **kwargs):
         # Assert template variables are as expected
-        if not isinstance(args[4], dict) or args[4] != expected_template_variables:
+        if not isinstance(args[3], dict) or args[3] != expected_template_variables:
             raise Exception(args)
 
     monkeypatch.setattr(
@@ -395,6 +395,4 @@ def test_launch_from_uri_creates_job(
 
     assert create_job_args[1] == "git"
     assert create_job_args[2] == "https://github.com/test/test.git"
-
-    assert launch_args[1] == "https://github.com/test/test.git"
-    assert launch_args[2].endswith("/test/test:latest")
+    assert launch_args[1].endswith("/test/test:latest")

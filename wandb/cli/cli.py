@@ -1626,7 +1626,6 @@ def launch(
             run = asyncio.run(
                 _launch(
                     api,
-                    uri,
                     job,
                     project=project,
                     entity=entity,
@@ -1663,7 +1662,6 @@ def launch(
         try:
             _launch_add(
                 api,
-                uri,
                 job,
                 config,
                 template_variables,
