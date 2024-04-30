@@ -1,7 +1,6 @@
 package filestream
 
 import (
-	"fmt"
 	"io"
 	"net/http"
 
@@ -51,7 +50,6 @@ func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 
 func (fs *fileStream) send(data *FsTransmitData) {
 	jsonData, err := json.Marshal(data)
-	fmt.Println(string(jsonData))
 	if err != nil {
 		fs.logger.CaptureFatalAndPanic("filestream: json marshal error", err)
 	}

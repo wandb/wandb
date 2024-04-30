@@ -199,7 +199,7 @@ func (s *Sender) Do(inChan <-chan *service.Record) {
 		)
 		s.sendRecord(record)
 		// TODO: reevaluate the logic here
-		// s.configDebouncer.Debounce(s.upsertConfig)
+		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
 	}
 	s.Close()
@@ -482,8 +482,8 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_DEBOUNCER:
-		// s.configDebouncer.SetNeedsDebounce()
-		// s.configDebouncer.Flush(s.upsertConfig)
+		s.configDebouncer.SetNeedsDebounce()
+		s.configDebouncer.Flush(s.upsertConfig)
 		s.uploadConfigFile()
 		request.State++
 		s.fwdRequestDefer(request)
@@ -547,7 +547,7 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 	proto.Merge(s.telemetry, telemetry)
 	s.updateConfigPrivate()
 	// TODO(perf): improve when debounce config is added, for now this sends all the time
-	// s.configDebouncer.SetNeedsDebounce()
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 func (s *Sender) sendPreempting(record *service.Record) {
@@ -793,7 +793,6 @@ func (s *Sender) streamSummary() {
 	}
 
 	update, err := s.runSummary.Flatten()
-	fmt.Println("update", update)
 	if err != nil {
 		s.logger.CaptureError("Error flattening run summary", err)
 		return
@@ -810,10 +809,10 @@ func (s *Sender) streamSummary() {
 	s.fileStream.StreamRecord(record)
 }
 
-func (s *Sender) sendSummary(record *service.Record, _ *service.SummaryRecord) {
+func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	fmt.Println("sendSummary", record)
+
 	s.summaryDebouncer.SetNeedsDebounce()
 }
 
@@ -937,7 +936,7 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 				s.logger.CaptureError("Error updating run config", err)
 			})
 	}
-	// s.configDebouncer.SetNeedsDebounce()
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream
@@ -1087,7 +1086,7 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 
 	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
-	// s.configDebouncer.SetNeedsDebounce()
+	s.configDebouncer.SetNeedsDebounce()
 }
 
 // sendFiles uploads files according to a FilesRecord
