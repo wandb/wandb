@@ -164,7 +164,7 @@ func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
 		cr.update(chunk)
 	case SummaryChunk:
 		// TODO: convert this to append when the backend support for incremental summary updates
-		// is implemented
+		// is implemented. Currently, we always send the full summary.
 		cr.fileChunks[chunk.fileType] = []string{chunk.fileLine}
 		cr.isDirty = true
 	case HistoryChunk, OutputChunk, EventsChunk:
