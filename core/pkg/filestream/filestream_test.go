@@ -60,6 +60,7 @@ func TestSendsHeartbeat(t *testing.T) {
 		HeartbeatStopwatch: fakeHeartbeat,
 	})
 
+	fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
 	fakeHeartbeat.SetDone()
 	fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
 	// We're relying on a single loop happening in-between. Technically
