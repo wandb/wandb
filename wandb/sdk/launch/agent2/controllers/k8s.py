@@ -56,7 +56,9 @@ class KubernetesManager(BaseManager):
         # relationships of agents and jobs to queues in a cluster)
 
     async def find_orphaned_jobs(self) -> List[Dict[str, Any]]:
-        raise NotImplementedError
+        raise NotImplementedError(
+            "KubernetesManager.find_orphaned_jobs not implemented"
+        )
 
     def label_job(self, project: LaunchProject) -> None:
         k8s_block = self._get_resource_block(project)

@@ -70,7 +70,9 @@ class LocalContainerManager(BaseManager):
         # TODO: handle orphaned runs and assign to self (blocked on accurately knowing the agent that launched these runs has been killed)
 
     async def find_orphaned_jobs(self) -> List[Any]:
-        raise NotImplementedError
+        raise NotImplementedError(
+            "LocalContainerManager.find_orphaned_jobs not implemented"
+        )
 
     def label_job(self, project: LaunchProject) -> None:
         resource_block = self._get_resource_block(project)
