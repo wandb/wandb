@@ -48,17 +48,13 @@ func (fs *fileStream) processRecord(record *service.Record) error {
 	case *service.Record_Summary:
 		return fs.streamSummary(x.Summary)
 	case *service.Record_Stats:
-		fs.streamSystemMetrics(x.Stats)
-		return nil
+		return fs.streamSystemMetrics(x.Stats)
 	case *service.Record_OutputRaw:
-		fs.streamOutputRaw(x.OutputRaw)
-		return nil
+		return fs.streamOutputRaw(x.OutputRaw)
 	case *service.Record_Exit:
-		fs.streamFinish(x.Exit)
-		return nil
+		return fs.streamFinish(x.Exit)
 	case *service.Record_Preempting:
-		fs.streamPreempting()
-		return nil
+		return fs.streamPreempting()
 	case nil:
 		return fmt.Errorf("filestream: field not set")
 	default:
@@ -153,14 +149,16 @@ func (fs *fileStream) streamSummary(msg *service.SummaryRecord) error {
 	return nil
 }
 
-func (fs *fileStream) streamOutputRaw(msg *service.OutputRawRecord) {
+func (fs *fileStream) streamOutputRaw(msg *service.OutputRawRecord) error {
 	fs.addTransmit(processedChunk{
 		fileType: OutputChunk,
 		fileLine: msg.Line,
 	})
+
+	return nil
 }
 
-func (fs *fileStream) streamSystemMetrics(msg *service.StatsRecord) {
+func (fs *fileStream) streamSystemMetrics(msg *service.StatsRecord) error {
 	// todo: there is a lot of unnecessary overhead here,
 	//  we should prepare all the data in the system monitor
 	//  and then send it in one record
@@ -185,31 +183,39 @@ func (fs *fileStream) streamSystemMetrics(msg *service.StatsRecord) {
 	// marshal the row
 	line, err := json.Marshal(row)
 	if err != nil {
+		// This is a non-blocking failure, so we don't return an error.
 		fs.logger.CaptureError("sender: sendSystemMetrics: failed to marshal system metrics", err)
-		return
+	} else {
+		fs.addTransmit(processedChunk{
+			fileType: EventsChunk,
+			fileLine: string(line),
+		})
 	}
 
-	fs.addTransmit(processedChunk{
-		fileType: EventsChunk,
-		fileLine: string(line),
-	})
+	return nil
 }
 
-func (fs *fileStream) streamFilesUploaded(path string) {
+func (fs *fileStream) streamFilesUploaded(path string) error {
 	fs.addTransmit(processedChunk{
 		Uploaded: []string{path},
 	})
+
+	return nil
 }
 
-func (fs *fileStream) streamPreempting() {
+func (fs *fileStream) streamPreempting() error {
 	fs.addTransmit(processedChunk{
 		Preempting: true,
 	})
+
+	return nil
 }
 
-func (fs *fileStream) streamFinish(exitRecord *service.RunExitRecord) {
+func (fs *fileStream) streamFinish(exitRecord *service.RunExitRecord) error {
 	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
 		Exitcode: &exitRecord.ExitCode,
 	})
+
+	return nil
 }
