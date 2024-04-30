@@ -192,9 +192,6 @@ class AgentConfig(BaseModel):
         default=[],
         description="The queues to use for this agent.",
     )
-    project: Optional[str] = Field(
-        description="The W&B project to use for this agent.",
-    )
     entity: Optional[str] = Field(
         description="The W&B entity to use for this agent.",
     )

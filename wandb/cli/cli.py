@@ -1701,13 +1701,6 @@ def launch(
     help="The name of a queue for the agent to watch. Multiple -q flags supported.",
 )
 @click.option(
-    "--project",
-    "-p",
-    default=None,
-    help="""Name of the project which the agent will watch.
-    If passed in, will override the project value passed in using a config file.""",
-)
-@click.option(
     "--entity",
     "-e",
     default=None,
@@ -1743,7 +1736,6 @@ def launch(
 @display_error
 def launch_agent(
     ctx,
-    project=None,
     entity=None,
     queues=None,
     max_jobs=None,
@@ -1768,7 +1760,7 @@ def launch_agent(
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_agent")
     agent_config, api = _launch.resolve_agent_config(
-        entity, project, max_jobs, queues, config, verbose
+        entity, max_jobs, queues, config, verbose
     )
 
     if len(agent_config.get("queues")) == 0:
