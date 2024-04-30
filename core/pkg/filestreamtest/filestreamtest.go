@@ -3,7 +3,6 @@ package filestreamtest
 import (
 	"slices"
 	"sync"
-	"time"
 
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -36,10 +35,6 @@ func (fs *FakeFileStream) GetFilesUploaded() []string {
 	fs.Lock()
 	defer fs.Unlock()
 	return slices.Clone(fs.filesUploaded)
-}
-
-func (fs *FakeFileStream) GetLastTransmitTime() time.Time {
-	return time.Now()
 }
 
 // Prove that we implement the interface.

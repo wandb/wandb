@@ -385,10 +385,10 @@ class JobBuilder:
         ] = None
 
         if source_type == "repo":
-            assert program_relpath
+            assert program_relpath is not None
             source, name = self._build_repo_job_source(program_relpath, metadata)
         elif source_type == "artifact":
-            assert program_relpath
+            assert program_relpath is not None
             source, name = self._build_artifact_job_source(program_relpath, metadata)
         elif source_type == "image" and self._has_image_job_ingredients(metadata):
             source, name = self._build_image_job_source(metadata)
@@ -486,7 +486,11 @@ class JobBuilder:
                 return None
 
             program_relpath = self._get_program_relpath(source_type, metadata)
-            if source_type != "image" and not program_relpath:
+            if (
+                not metadata.get("_partial")
+                and source_type != "image"
+                and not program_relpath
+            ):
                 self._log_if_verbose(
                     "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
                     "warn",
