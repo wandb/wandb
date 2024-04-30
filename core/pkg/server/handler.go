@@ -33,8 +33,6 @@ const (
 	DiffFileName              = "diff.patch"
 	RequirementsFileName      = "requirements.txt"
 	ConfigFileName            = "config.yaml"
-	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
-	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 type HandlerParams struct {
