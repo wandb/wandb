@@ -25,6 +25,12 @@ type Server struct {
 	// wg is the WaitGroup for the server
 	wg sync.WaitGroup
 
+	// ppid is the parent process id
+	ppid *int
+
+	// internalTeardownChan is used to signal teardown if the parent process is gone
+	internalTeardownChan chan struct{}
+
 	// teardownChan is the channel for signaling and waiting for teardown
 	teardownChan chan struct{}
 
@@ -33,7 +39,7 @@ type Server struct {
 }
 
 // NewServer creates a new server
-func NewServer(ctx context.Context, addr string, portFile string) (*Server, error) {
+func NewServer(ctx context.Context, addr string, portFile string, ppid *int) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -43,6 +49,8 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 		ctx:          ctx,
 		listener:     listener,
 		wg:           sync.WaitGroup{},
+		ppid:         ppid,
+		internalTeardownChan: make(chan struct{}),
 		teardownChan: make(chan struct{}),
 		shutdownChan: make(chan struct{}),
 	}
@@ -83,8 +91,10 @@ func (s *Server) Serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
+				fmt.Println("handling connection")
 				nc := NewConnection(s.ctx, conn, s.teardownChan)
 				nc.HandleConnection()
+				fmt.Println("connection closed")
 				s.wg.Done()
 			}()
 		}
@@ -93,12 +103,38 @@ func (s *Server) Serve() {
 
 // Close closes the server
 func (s *Server) Close() {
-	<-s.teardownChan
+	fmt.Println("waiting to close the server")
+	// if there is a parent process, start a goroutine to wait for it to go away,
+	// (if it's e.g. killed), in which case we will close the server
+	if s.ppid != nil {
+		go func() {
+			for {
+				if os.Getppid() != *s.ppid {
+					fmt.Println("parent process is gone, closing the server")
+					close(s.internalTeardownChan)
+					return
+				}
+			}
+		}()
+	}
+	// <-s.teardownChan
+	// fmt.Println("teardownChan received")
+
+	select {
+	case <-s.teardownChan:
+		fmt.Println("teardownChan received")
+	case <-s.internalTeardownChan:
+		fmt.Println("internalTeardownChan received")
+	}
+
 	close(s.shutdownChan)
+	fmt.Println("shutdownChan closed")
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)
 	}
+	fmt.Println("listener closed")
 	s.wg.Wait()
+	fmt.Println("wg.Wait() done")
 	slog.Info("server is closed")
 }
 
