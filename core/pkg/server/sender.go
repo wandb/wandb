@@ -846,7 +846,7 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
                                         hItem.ValueJson = fmt.Sprintf(`"%s"`, value.ValueString)
                                 case *service.DataValue_ValueTensor:
                                         // fmt.Printf("GOT TENSOR %+v\n", value.ValueTensor)
-                                        imageBase := fmt.Sprintf("%s_%d", item.Key, hrecord.Step)
+                                        imageBase := fmt.Sprintf("%s_%d", item.Key, hrecord.Step.Num)
 	                                imagePath := filepath.Join("media", "images", imageBase)
                                         shape := value.ValueTensor.Shape
                                         height := int(shape[0])
@@ -871,7 +871,7 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
                                         if err != nil {
                                                 fmt.Printf("GOT err %+v\n", err)
                                         }
-                                        // fmt.Printf("GOT::: %+v %+v %+v %+v\n", jsonString, fname, hash, size)
+                                        // fmt.Printf("GOT::: %+v %+v %+v %+v\n", string(jsonString), fname, hash, size)
                                         hItem.ValueJson = string(jsonString)
                         }
 		        hrecordNew.Item = append(hrecordNew.Item, hItem)

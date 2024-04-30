@@ -24,4 +24,4 @@ with ThreadPoolExecutor(max_workers=args.num_workers) as executor:
 
 for job in jobs:
     _ = job.result()
-print("done?")
+print("done")
