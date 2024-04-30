@@ -52,6 +52,8 @@ type Backend struct {
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
+	//
+	// It is guaranteed that the response is non-nil unless there is an error.
 	Send(*Request) (*http.Response, error)
 
 	// Sends an arbitrary HTTP request.
@@ -60,6 +62,8 @@ type Client interface {
 	// then use to make requests to the backend, like GraphQL. If the request
 	// URL matches the backend's base URL, there's special handling as in
 	// Send().
+	//
+	// It is guaranteed that the response is non-nil unless there is an error.
 	Do(*http.Request) (*http.Response, error)
 }
 
