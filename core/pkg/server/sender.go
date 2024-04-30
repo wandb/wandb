@@ -475,7 +475,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
-		s.summaryDebouncer.SetNeedsDebounce()
 		s.summaryDebouncer.Flush(s.streamSummary)
 		s.uploadSummaryFile()
 		request.State++
