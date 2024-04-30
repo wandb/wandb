@@ -89,6 +89,12 @@ type FileStream interface {
 	// This is used in some deployments where the backend is not notified when
 	// files finish uploading.
 	SignalFileUploaded(path string)
+
+	// FatalErrorChan is a channel that emits if there is a fatal error.
+	//
+	// If this channel emits, all filestream operations afterward become
+	// no-ops. This channel emits at most once, and it is never closed.
+	FatalErrorChan() <-chan error
 }
 
 // fileStream is a stream of data to the server
@@ -128,8 +134,9 @@ type fileStream struct {
 	clientId string
 
 	// A channel that is closed if there is a fatal error.
-	deadChan     chan struct{}
-	deadChanOnce *sync.Once
+	deadChan       chan struct{}
+	deadChanOnce   *sync.Once
+	fatalErrorChan chan error
 }
 
 type FileStreamParams struct {
@@ -157,6 +164,7 @@ func NewFileStream(params FileStreamParams) FileStream {
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
+		fatalErrorChan:  make(chan error, 1),
 	}
 
 	fs.delayProcess = params.DelayProcess
@@ -240,6 +248,10 @@ func (fs *fileStream) SignalFileUploaded(path string) {
 	fs.addProcess(processTask{UploadedFile: path})
 }
 
+func (fs *fileStream) FatalErrorChan() <-chan error {
+	return fs.fatalErrorChan
+}
+
 func (fs *fileStream) Close() {
 	close(fs.processChan)
 	fs.processWait.Wait()
@@ -259,6 +271,7 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal("filestream: fatal error", err)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
+		fs.fatalErrorChan <- err
 	})
 }
 

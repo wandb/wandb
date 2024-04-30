@@ -150,6 +150,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
+	terminalPrinter := observability.NewPrinter[string]()
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -170,6 +171,18 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
+
+		go func() {
+			err := <-fileStreamOrNil.FatalErrorChan()
+			s.logger.CaptureFatal("stream: fatal error in filestream", err)
+			terminalPrinter.Write(
+				"Fatal error while uploading data. Some run data will" +
+					" not be synced, but it will still be written to disk. Use" +
+					" `wandb sync` at the end of the run to try uploading." +
+					" See wandb.me/sdk-bug for help debugging or reporting" +
+					" an issue.",
+			)
+		}()
 	}
 
 	mailbox := mailbox.NewMailbox()
@@ -191,6 +204,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			RunSummary:        runSummary,
 			MetricHandler:     NewMetricHandler(),
 			Mailbox:           mailbox,
+			TerminalPrinter:   terminalPrinter,
 		},
 	)
 
