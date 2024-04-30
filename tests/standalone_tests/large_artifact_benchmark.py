@@ -50,6 +50,7 @@ from secrets import token_hex, token_urlsafe
 from subprocess import CalledProcessError, check_output
 from tempfile import TemporaryDirectory
 from time import perf_counter
+from typing import Optional
 
 import click
 import wandb
@@ -74,6 +75,7 @@ def duration(end: float, start: float = 0) -> str:
 @click.option("--stage/--no-stage", default=False, help="copy files to staging area")
 @click.option("--project", default="artifact-benchmark")
 @click.option("--entity", default="wandb-artifacts-dev")
+@click.option("--core/--no-core", default=True, help="use the Go core")
 def cli(
     ctx: click.Context,
     *,
@@ -84,6 +86,7 @@ def cli(
     stage: bool,
     project: str,
     entity: str,
+    core: bool,
 ) -> None:
     ctx.ensure_object(dict)
 
@@ -94,10 +97,11 @@ def cli(
     print(f"python version: {sys.version}")
     print(f"wandb version: {version}{f'@{git_sha}' if git_sha else ''}")
 
-    with contextlib.suppress(ImportError):
-        import wandb_core
-
-        print(f"using wandb_core version: {wandb_core.__version__}")
+    if core:
+        wandb.require("core")
+        print("using Go core")
+    else:
+        print("using Python core")
 
     ctx.obj["count"] = count
     ctx.obj["size"] = size
@@ -184,7 +188,11 @@ def upload(ctx) -> None:
 @click.option("--modify", default=0, help="number of files to modify")
 @click.option("--qualified-name", help="fully qualified artifact name")
 def incremental(
-    ctx: click.Context, add: int, remove: int, modify: int, qualified_name: str | None
+    ctx: click.Context,
+    add: int,
+    remove: int,
+    modify: int,
+    qualified_name: Optional[str],
 ) -> None:
     """Benchmark incremental changes to a large artifact."""
     if not qualified_name:
@@ -250,7 +258,7 @@ def incremental(
 @cli.command("download")
 @click.pass_context
 @click.option("--qualified-name", help="fully qualified artifact name")
-def download(ctx: click.Context, qualified_name: str | None) -> None:
+def download(ctx: click.Context, qualified_name: Optional[str]) -> None:
     """Benchmark downloading a large artifact."""
     if not qualified_name:
         qualified_name = ctx.obj["qualified_name"]
