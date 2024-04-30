@@ -5,6 +5,7 @@ import (
 
 	"github.com/segmentio/encoding/json"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -33,7 +34,7 @@ func testSendAndReceive(t *testing.T, chunks []processedChunk, fsd FsTransmitDat
 	assert.Len(t, requests, 1)
 
 	var actualFSD FsTransmitData
-	json.Unmarshal(requests[0].Body, &actualFSD)
+	require.NoError(t, json.Unmarshal(requests[0].Body, &actualFSD))
 	assert.Equal(t, fsd, actualFSD)
 }
 
