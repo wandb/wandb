@@ -317,7 +317,7 @@ class LaunchAgent2:
             {
                 "agent_id": self._id,
                 "jobset_spec": JobSetSpec(
-                    name="_wandb_sweep_scheduler_manager",
+                    name="_wandb_sweep_scheduler_controller",
                     entity_name=self._config["entity"],
                     project_name=None,
                 ),
