@@ -96,7 +96,7 @@ func (f *savedFile) Upload(
 
 // doUpload sends an upload Task to the FileTransferManager.
 //
-// It must be called while a lock is held.
+// It must be called while a lock is held. It temporarily releases the lock.
 func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	task := &filetransfer.Task{
 		FileKind: f.category,
