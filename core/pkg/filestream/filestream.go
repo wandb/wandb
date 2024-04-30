@@ -126,6 +126,10 @@ type fileStream struct {
 	heartbeatStopwatch waiting.Stopwatch
 
 	clientId string
+
+	// A channel that is closed if there is a fatal error.
+	deadChan     chan struct{}
+	deadChanOnce *sync.Once
 }
 
 type FileStreamParams struct {
@@ -151,6 +155,8 @@ func NewFileStream(params FileStreamParams) FileStream {
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
+		deadChanOnce:    &sync.Once{},
+		deadChan:        make(chan struct{}),
 	}
 
 	fs.delayProcess = params.DelayProcess
@@ -196,20 +202,32 @@ func (fs *fileStream) Start(
 
 	fs.processWait.Add(1)
 	go func() {
+		defer func() {
+			fs.processWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopProcess(fs.processChan)
-		fs.processWait.Done()
 	}()
 
 	fs.transmitWait.Add(1)
 	go func() {
+		defer func() {
+			fs.transmitWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopTransmit(fs.transmitChan)
-		fs.transmitWait.Done()
 	}()
 
 	fs.feedbackWait.Add(1)
 	go func() {
+		defer func() {
+			fs.feedbackWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopFeedback(fs.feedbackChan)
-		fs.feedbackWait.Done()
 	}()
 }
 
@@ -230,4 +248,39 @@ func (fs *fileStream) Close() {
 	close(fs.feedbackChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
+}
+
+// logFatalAndStopWorking logs a fatal error and kills the filestream.
+//
+// After this, most filestream operations are no-ops. This is meant for
+// when we can't guarantee correctness, in which case we stop uploading
+// data but continue to save it to disk to avoid data loss.
+func (fs *fileStream) logFatalAndStopWorking(err error) {
+	fs.logger.CaptureFatal("filestream: fatal error", err)
+	fs.deadChanOnce.Do(func() {
+		close(fs.deadChan)
+	})
+}
+
+// isDead reports whether the filestream has been killed.
+func (fs *fileStream) isDead() bool {
+	select {
+	case <-fs.deadChan:
+		return true
+	default:
+		return false
+	}
+}
+
+// recoverUnexpectedPanic redirects panics to FatalErrorChan.
+//
+// This should be used in a `defer` statement at the top of a function. This
+// is intended for truly *unexpected* panics to completely panic-proof critical
+// goroutines. All other errors should directly use `pushFatalError`.
+func (fs *fileStream) recoverUnexpectedPanic() {
+	if e := recover(); e != nil {
+		fs.logFatalAndStopWorking(
+			fmt.Errorf("filestream: unexpected panic: %v", e),
+		)
+	}
 }
