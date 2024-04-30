@@ -2,6 +2,7 @@ package filestream_test
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/apitest"
 	"github.com/wandb/wandb/core/internal/waitingtest"
@@ -66,6 +67,28 @@ func TestSendsHeartbeat(t *testing.T) {
 	// We're relying on a single loop happening in-between. Technically
 	// this test is brittle: the code would still be correct if Close()
 	// pre-empted Start().
+	fs.Close()
+
+	assert.Len(t, fakeClient.GetRequests(), 1)
+}
+
+func TestShutsDownOnHTTPFailure(t *testing.T) {
+	fakeClient := apitest.NewFakeClient("test-url")
+	fakeBatchDelay := waitingtest.NewFakeDelay()
+	fs := filestream.NewFileStream(filestream.FileStreamParams{
+		Settings:           &service.Settings{},
+		Logger:             observability.NewNoOpLogger(),
+		ApiClient:          fakeClient,
+		HeartbeatStopwatch: waitingtest.NewFakeStopwatch(),
+		DelayProcess:       fakeBatchDelay,
+	})
+
+	fakeClient.SetResponse(nil, fmt.Errorf("nope!"))
+	fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
+	fs.StreamRecord(NewHistoryRecord())           // should go through
+	fakeBatchDelay.WaitAndTick(true, time.Second) // picks up the chunk
+	fs.StreamRecord(NewHistoryRecord())           // should be ignored
+	fs.StreamRecord(NewHistoryRecord())           // should be ignored
 	fs.Close()
 
 	assert.Len(t, fakeClient.GetRequests(), 1)

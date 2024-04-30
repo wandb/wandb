@@ -21,7 +21,7 @@ type FileTransferStats interface {
 	// SetDone marks all uploads as finished.
 	SetDone()
 
-	// UpdateUploadStats updates the tr
+	// UpdateUploadStats updates the upload stats for a file.
 	UpdateUploadStats(newInfo FileUploadInfo)
 }
 
@@ -115,7 +115,7 @@ func (fts *fileTransferStats) UpdateUploadStats(newInfo FileUploadInfo) {
 
 func (fts *fileTransferStats) addStats(info FileUploadInfo, mult int64) {
 	fts.uploadedBytes.Add(info.UploadedBytes * mult)
-	fts.uploadedBytes.Add(info.TotalBytes * mult)
+	fts.totalBytes.Add(info.TotalBytes * mult)
 
 	switch info.FileKind {
 	default:
