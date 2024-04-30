@@ -208,7 +208,7 @@ class RunStatusChecker:
         self._internal_messages_thread.start()
 
     @staticmethod
-    def _stop_check(
+    def _abandon_status_check(
         lock: threading.Lock,
         handle: Optional[MailboxHandle],
     ):
@@ -283,7 +283,7 @@ class RunStatusChecker:
                 process=_process_network_status,
             )
         except BrokenPipeError:
-            self._stop_check(
+            self._abandon_status_check(
                 self._network_status_lock,
                 self._network_status_handle,
             )
@@ -307,7 +307,7 @@ class RunStatusChecker:
                 process=_process_stop_status,
             )
         except BrokenPipeError:
-            self._stop_check(
+            self._abandon_status_check(
                 self._stop_status_lock,
                 self._stop_status_handle,
             )
@@ -327,22 +327,22 @@ class RunStatusChecker:
                     process=_process_internal_messages,
                 )
             except BrokenPipeError:
-                self._stop_check(
+                self._abandon_status_check(
                     self._internal_messages_lock,
                     self._internal_messages_handle,
                 )
 
     def stop(self) -> None:
         self._join_event.set()
-        self._stop_check(
+        self._abandon_status_check(
             self._stop_status_lock,
             self._stop_status_handle,
         )
-        self._stop_check(
+        self._abandon_status_check(
             self._network_status_lock,
             self._network_status_handle,
         )
-        self._stop_check(
+        self._abandon_status_check(
             self._internal_messages_lock,
             self._internal_messages_handle,
         )
