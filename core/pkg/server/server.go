@@ -80,7 +80,11 @@ outer:
 		if parentpid != pid {
                         // If the parent went away, lets shutdown immediately
                         // gocritic is warning about uncalled defer for waitgroup
-                        os.Exit(2)  //nolint:gocritic
+                        // os.Exit(2)  //nolint:go-critic:exitAfterDefer // warning about uncalled defer
+                        //go-critic:disable:exitAfterDefer
+                        //nolint:go-critic // disable this for now
+                        os.Exit(2)  //nolint:all
+                        //go-critic:enable:exitAfterDefer
 		}
 	}
 }
