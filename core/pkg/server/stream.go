@@ -302,6 +302,7 @@ func (s *Stream) HandleRecord(rec *service.Record) {
 	select {
 	case <-s.ctx.Done():
 		s.logger.Debug("context done, not handling record", "record", rec)
+		return
 	default:
 		s.inChan <- rec
 	}
