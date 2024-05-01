@@ -67,27 +67,26 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 	return s, nil
 }
 
-func (s *Server) WatchParentPid(pid int) {
-	defer s.wg.Done()
-outer:
+func (s *Server) loopCheckingIfParentGone(pid int) bool {
 	for {
 		select {
 		case <-s.pidwatchChan:
-			break outer
+                        return false
 		case <-time.After(100 * time.Millisecond):
 		}
 		parentpid := os.Getppid()
 		if parentpid != pid {
-                        // If the parent went away, lets shutdown immediately
-                        // gocritic is warning about uncalled defer for waitgroup
-                        // os.Exit(2)  //nolint:go-critic:exitAfterDefer // warning about uncalled defer
-                        //go-critic:disable:exitAfterDefer
-                        //nolint:go-critic // disable this for now
-                        //nolint:gocritic // disable this for now
-                        os.Exit(2)  //nolint:all
-                        //go-critic:enable:exitAfterDefer
+                        return true
 		}
 	}
+}
+
+func (s *Server) WatchParentPid(pid int) {
+        shouldExit := s.loopCheckIfParentGone(pid)
+        if shouldExit {
+                os.Exit(2)
+        }
+	s.wg.Done()
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {
