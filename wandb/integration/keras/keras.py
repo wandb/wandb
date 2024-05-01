@@ -576,7 +576,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
                     self._model_trained_since_last_eval = False
             except Exception as e:
-                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
+                wandb.termwarn("Error during prediction logging for epoch: " + str(e))
 
     def on_epoch_end(self, epoch, logs=None):
         if logs is None:
@@ -616,9 +616,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
-                wandb.run.summary[
-                    f"{self.log_best_prefix}{self.monitor}"
-                ] = self.current
+                wandb.run.summary[f"{self.log_best_prefix}{self.monitor}"] = (
+                    self.current
+                )
                 wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
@@ -937,9 +937,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         grads = self._grad_accumulator_callback.grads
         metrics = {}
         for weight, grad in zip(weights, grads):
-            metrics[
-                "gradients/" + weight.name.split(":")[0] + ".gradient"
-            ] = wandb.Histogram(grad)
+            metrics["gradients/" + weight.name.split(":")[0] + ".gradient"] = (
+                wandb.Histogram(grad)
+            )
         return metrics
 
     def _log_dataframe(self):

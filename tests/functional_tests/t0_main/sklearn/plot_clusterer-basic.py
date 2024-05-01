@@ -20,6 +20,7 @@ assert:
     - :wandb:runs[0][summary][silhouette_plot][ncols]: 10
     - :yea:exit: 0
 """
+
 import numpy as np
 import wandb
 from sklearn import datasets

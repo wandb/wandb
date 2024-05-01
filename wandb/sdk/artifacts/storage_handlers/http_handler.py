@@ -1,4 +1,5 @@
 """HTTP storage handler."""
+
 import os
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
 from urllib.parse import ParseResult

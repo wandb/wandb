@@ -586,11 +586,11 @@ class InjectedResponse:
 
 
 class RelayControlProtocol(Protocol):
-    def process(self, request: "flask.Request") -> None:
-        ...  # pragma: no cover
+    def process(self, request: "flask.Request") -> None: ...  # pragma: no cover
 
-    def control(self, request: "flask.Request") -> Mapping[str, str]:
-        ...  # pragma: no cover
+    def control(
+        self, request: "flask.Request"
+    ) -> Mapping[str, str]: ...  # pragma: no cover
 
 
 class RelayServer:

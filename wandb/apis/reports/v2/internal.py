@@ -1,18 +1,20 @@
 """JSONSchema for internal types.  Hopefully this is auto-generated one day!"""
+
 import json
 import random
-import re
 from copy import deepcopy
 from datetime import datetime
 from typing import Any, Dict, Optional, Tuple, Union
 from typing import List as LList
+
+from annotated_types import Annotated, Ge, Le
 
 try:
     from typing import Literal
 except ImportError:
     from typing_extensions import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, validator
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, validator
 from pydantic.alias_generators import to_camel
 
 
@@ -47,6 +49,13 @@ def _generate_name(length: int = 12) -> str:
     rand36 = base_repr(rand, 36)
     return rand36.lower()[:length]
 
+
+hex_pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
+rgb_pattern = r"^rgb\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*\)$"
+rgba_pattern = r"^rgba\(\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\s*,\s*(1|0|0?\.\d+)\s*\)$"
+ColorStrConstraints = StringConstraints(
+    pattern=f"{hex_pattern}|{rgb_pattern}|{rgba_pattern}"
+)
 
 LinePlotStyle = Literal["line", "stacked-area", "pct-area"]
 BarPlotStyle = Literal["bar", "boxplot", "violin"]
@@ -94,16 +103,13 @@ class TextLikeMixin:
         return obj
 
 
-class Sentinel(BaseModel):
-    ...
+class Sentinel(BaseModel): ...
 
 
-class ReportEntity(Sentinel):
-    ...
+class ReportEntity(Sentinel): ...
 
 
-class ReportProject(Sentinel):
-    ...
+class ReportProject(Sentinel): ...
 
 
 class ReportAPIBaseModel(BaseModel):
@@ -263,8 +269,7 @@ class PanelGridMetadata(ReportAPIBaseModel):
     # )
 
 
-class Block(ReportAPIBaseModel):
-    ...
+class Block(ReportAPIBaseModel): ...
 
 
 class PanelGrid(Block):
@@ -609,14 +614,8 @@ class LinePlot(Panel):
 
 
 class GradientPoint(ReportAPIBaseModel):
-    color: str
-    offset: float = Field(0, ge=0, le=100)
-
-    @validator("color")
-    def validate_color(cls, v):  # noqa: N805
-        if not is_valid_color(v):
-            raise ValueError("invalid color, value should be hex, rgb, or rgba")
-        return v
+    color: Annotated[str, ColorStrConstraints]
+    offset: Annotated[float, Ge(0), Le(100)] = 0
 
 
 class ScatterPlotConfig(ReportAPIBaseModel):
@@ -866,38 +865,3 @@ block_type_mapping = {
     "table-of-contents": TableOfContents,
     "block-quote": BlockQuote,
 }
-
-
-def is_valid_color(color_str: str) -> bool:
-    # Regular expression for hex color validation
-    hex_color_pattern = r"^#(?:[0-9a-fA-F]{3}){1,2}$"
-
-    # Check if it's a valid hex color
-    if re.match(hex_color_pattern, color_str):
-        return True
-
-    # Try parsing it as an RGB or RGBA tuple
-    try:
-        # Strip 'rgb(' or 'rgba(' and the closing ')'
-        if color_str.startswith("rgb(") and color_str.endswith(")"):
-            parts = color_str[4:-1].split(",")
-        elif color_str.startswith("rgba(") and color_str.endswith(")"):
-            parts = color_str[5:-1].split(",")
-        else:
-            return False
-
-        # Convert parts to integers and validate ranges
-        parts = [int(p.strip()) for p in parts]
-        if len(parts) == 3 and all(0 <= p <= 255 for p in parts):
-            return True  # Valid RGB
-        if (
-            len(parts) == 4
-            and all(0 <= p <= 255 for p in parts[:-1])
-            and 0 <= parts[-1] <= 1
-        ):
-            return True  # Valid RGBA
-
-    except ValueError:
-        pass
-
-    return False

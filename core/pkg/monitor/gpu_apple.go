@@ -17,7 +17,7 @@ func getExecPath() (string, error) {
 		return "", err
 	}
 	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "AppleStats")
+	exPath := filepath.Join(exDirPath, "apple_gpu_stats")
 
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err
@@ -64,6 +64,7 @@ func (g *GPUApple) parseStats() (map[string]interface{}, error) {
 
 func (g *GPUApple) Name() string { return g.name }
 
+//gocyclo:ignore
 func (g *GPUApple) SampleMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
@@ -132,42 +133,33 @@ func (g *GPUApple) SampleMetrics() {
 	// temperature (C)
 	var nMeasurements int
 	var temperature float64
-	if m1Gpu1, ok := stats["m1Gpu1"]; ok {
-		if m1Gpu1.(float64) > 0 {
-			temperature += m1Gpu1.(float64)
-			nMeasurements++
+
+	tempKeys := []string{
+		"m1Gpu1",
+		"m1Gpu2",
+		"m1Gpu3",
+		"m1Gpu4",
+		"m2Gpu1",
+		"m2Gpu2",
+		"m3Gpu1",
+		"m3Gpu2",
+		"m3Gpu3",
+		"m3Gpu4",
+		"m3Gpu5",
+		"m3Gpu6",
+		"m3Gpu7",
+		"m3Gpu8",
+	}
+
+	for _, mXGpuN := range tempKeys {
+		if temp, ok := stats[mXGpuN]; ok {
+			if temp.(float64) > 0 {
+				temperature += temp.(float64)
+				nMeasurements++
+			}
 		}
 	}
-	if m1Gpu2, ok := stats["m1Gpu2"]; ok {
-		if m1Gpu2.(float64) > 0 {
-			temperature += m1Gpu2.(float64)
-			nMeasurements++
-		}
-	}
-	if m1Gpu3, ok := stats["m1Gpu3"]; ok {
-		if m1Gpu3.(float64) > 0 {
-			temperature += m1Gpu3.(float64)
-			nMeasurements++
-		}
-	}
-	if m1Gpu4, ok := stats["m1Gpu4"]; ok {
-		if m1Gpu4.(float64) > 0 {
-			temperature += m1Gpu4.(float64)
-			nMeasurements++
-		}
-	}
-	if m2Gpu1, ok := stats["m2Gpu1"]; ok {
-		if m2Gpu1.(float64) > 0 {
-			temperature += m2Gpu1.(float64)
-			nMeasurements++
-		}
-	}
-	if m2Gpu2, ok := stats["m2Gpu2"]; ok {
-		if m2Gpu2.(float64) > 0 {
-			temperature += m2Gpu2.(float64)
-			nMeasurements++
-		}
-	}
+
 	if nMeasurements > 0 {
 		key := fmt.Sprintf("gpu.%d.temp", 0)
 		g.metrics[key] = append(

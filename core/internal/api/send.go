@@ -65,7 +65,15 @@ func (client *clientImpl) sendToWandbBackend(
 ) (*http.Response, error) {
 	client.setClientHeaders(req)
 	client.setAuthHeaders(req)
-	return client.send(req)
+
+	resp, err := client.send(req)
+
+	// This is a bug that happens with retryablehttp sometimes.
+	if err == nil && resp == nil {
+		return nil, fmt.Errorf("api: nil error and nil response")
+	}
+
+	return resp, err
 }
 
 // Sends any HTTP request.
@@ -76,6 +84,9 @@ func (client *clientImpl) send(
 
 	if err != nil {
 		return nil, fmt.Errorf("api: failed sending: %v", err)
+	}
+	if resp == nil {
+		return nil, fmt.Errorf("api: no response")
 	}
 
 	client.backend.logFinalResponseOnError(req, resp)

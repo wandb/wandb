@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F  # noqa
 import wandb
+from wandb.errors import CommError
 
 
 class Net(nn.Module):
@@ -37,11 +38,14 @@ def main():
     run = wandb.init()
     with open("my-dataset.txt", "w") as fp:
         fp.write("this-is-data")
-    art = wandb.Artifact("my-art-name", "my-art-type")
-    art.add_file("my-dataset.txt")
-    art = run.log_artifact(art)
-    art.wait()
-    art.link("entity/project/test_portfolio", aliases="best")
+    try:
+        artifact = run.use_artifact("my-art-name:latest", "my-art-type")
+    except CommError:
+        artifact = wandb.Artifact("my-art-name", "my-art-type")
+        artifact.add_file("my-dataset.txt")
+        artifact = run.log_artifact(artifact)
+        artifact.wait()
+    artifact.link("project/test_portfolio_public_link_test", aliases="best")
     run.finish()
 
 

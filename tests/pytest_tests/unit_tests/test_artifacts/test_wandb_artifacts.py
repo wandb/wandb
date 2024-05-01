@@ -1,4 +1,3 @@
-import asyncio
 import functools
 import queue
 import shutil
@@ -14,6 +13,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.storage_policies.wandb_storage_policy import WandbStoragePolicy
 
@@ -41,16 +41,6 @@ if TYPE_CHECKING:
             pass
 
 
-def asyncify(f):
-    """Convert a sync function to an async function. Useful for building mock async wrappers."""
-
-    @functools.wraps(f)
-    async def async_f(*args, **kwargs):
-        return f(*args, **kwargs)
-
-    return async_f
-
-
 def is_cache_hit(cache: ArtifactFileCache, digest: str, size: int) -> bool:
     _, hit, _ = cache.check_md5_obj_path(digest, size)
     return hit
@@ -74,25 +64,12 @@ def dummy_response_prepare(spec):
     )
 
 
-def mock_prepare_sync_to_async(sync):
-    def mock_prepare_async(*args, **kwargs):
-        q = sync(*args, **kwargs)
-        return asyncio.get_event_loop().run_in_executor(None, q.get)
-
-    return mock_prepare_async
-
-
-def mock_prepare_sync(
-    spec: "CreateArtifactFileSpecInput",
-) -> ResponsePrepare:
+def mock_prepare(spec: "CreateArtifactFileSpecInput") -> ResponsePrepare:
     return singleton_queue(dummy_response_prepare(spec))
 
 
 def mock_preparer(**kwargs):
-    kwargs.setdefault("prepare_sync", Mock(wraps=mock_prepare_sync))
-    kwargs.setdefault(
-        "prepare_async", Mock(wraps=mock_prepare_sync_to_async(kwargs["prepare_sync"]))
-    )
+    kwargs.setdefault("prepare", Mock(wraps=mock_prepare))
     return Mock(**kwargs)
 
 
@@ -197,93 +174,48 @@ class TestStoreFile:
         )
 
     @staticmethod
-    def _store_file_sync(policy: WandbStoragePolicy, **kwargs) -> bool:
-        """Runs store_file_sync to completion.
-
-        Don't call this directly; use the `store_file` fixture instead, to ensure that
-        whatever logic you're testing works with both sync and async impls.
-
-        If you're writing a test that only cares about the sync impl, you should
-        probably just call `policy.store_file_sync` directly.
-        """
-        return policy.store_file_sync(
-            **TestStoreFile._fixture_kwargs_to_kwargs(**kwargs)
-        )
-
-    @staticmethod
-    def _store_file_async(policy: WandbStoragePolicy, **kwargs) -> bool:
-        """Runs store_file_async to completion.
-
-        Don't call this directly; use the `store_file` fixture instead, to ensure that
-        whatever logic you're testing works with both sync and async impls.
-
-        If you're writing a test that only cares about the async impl, you should
-        probably just call `policy.store_file_async` directly.
-        """
-        return asyncio.new_event_loop().run_until_complete(
-            policy.store_file_async(**TestStoreFile._fixture_kwargs_to_kwargs(**kwargs))
-        )
+    def _store_file(policy: WandbStoragePolicy, **kwargs) -> bool:
+        """Runs store_file to completion."""
+        return policy.store_file(**TestStoreFile._fixture_kwargs_to_kwargs(**kwargs))
 
     @pytest.fixture(params=["sync", "async"])
     def store_file_mode(self, request) -> str:
         return request.param
 
     @pytest.fixture
-    def store_file(self, store_file_mode: str) -> "StoreFileFixture":
-        """Fixture to run either prepare_sync or prepare_async and return the result.
-
-        Tests that use this fixture will run twice: once where it uses the sync impl,
-        and once where it uses the async impl. This ensures that whatever logic you're
-        testing works with both sync and async impls.
+    def store_file(self) -> "StoreFileFixture":
+        """Fixture to run prepare and return the result.
 
         Example usage:
 
             def test_smoke(store_file: "StoreFileFixture", api):
                 store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
-                api.upload_method.assert_called_once()
+                api.upload_file_retry.assert_called_once()
         """
-        if store_file_mode == "sync":
-            return TestStoreFile._store_file_sync
-        elif store_file_mode == "async":
-            return TestStoreFile._store_file_async
-        else:
-            raise ValueError(f"Unknown store_file mode: {store_file_mode}")
+        return TestStoreFile._store_file
 
     @pytest.fixture
-    def api(self, store_file_mode):
-        """Fixture to give a mock `internal_api.Api` object, with properly-functioning sync/async upload methods.
-
-        Also adds an `upload_method` field, which points to either `upload_file_retry`
-        or `upload_file_retry_async`, depending on which `store_file_mode` is being used.
-        This is useful for making assertions about what files `store_file` uploaded,
-        without needing to know whether it used the sync or async impl.
-        """
+    def api(self):
+        """Fixture to give a mock `internal_api.Api` object, with properly-functioning upload methods."""
         upload_file_retry = Mock()
-        upload_file_retry_async = Mock(wraps=asyncify(Mock()))
         upload_multipart_file_chunk_retry = Mock()
         complete_multipart_upload_artifact = Mock()
-        upload_method = {
-            "sync": upload_file_retry,
-            "async": upload_file_retry_async,
-        }[store_file_mode]
 
         return Mock(
             upload_file_retry=upload_file_retry,
-            upload_file_retry_async=upload_file_retry_async,
-            upload_method=upload_method,
             upload_multipart_file_chunk_retry=upload_multipart_file_chunk_retry,
             complete_multipart_upload_artifact=complete_multipart_upload_artifact,
         )
 
     def test_smoke(self, store_file: "StoreFileFixture", api, example_file: Path):
         store_file(WandbStoragePolicy(api=api), entry_local_path=example_file)
-        api.upload_method.assert_called_once()
+        api.upload_file_retry.assert_called_once()
 
     def test_uploads_to_prepared_url(
         self, store_file: "StoreFileFixture", api, example_file: Path
     ):
         preparer = mock_preparer(
-            prepare_sync=lambda spec: singleton_queue(
+            prepare=lambda spec: singleton_queue(
                 dummy_response_prepare(spec)._replace(
                     upload_url="https://wandb-test/dst"
                 )
@@ -294,13 +226,13 @@ class TestStoreFile:
             entry_local_path=example_file,
             preparer=preparer,
         )
-        assert api.upload_method.call_args[0][0] == "https://wandb-test/dst"
+        assert api.upload_file_retry.call_args[0][0] == "https://wandb-test/dst"
 
     def test_passes_prepared_headers_to_upload(
         self, store_file: "StoreFileFixture", api, example_file: Path
     ):
         preparer = mock_preparer(
-            prepare_sync=lambda spec: singleton_queue(
+            prepare=lambda spec: singleton_queue(
                 dummy_response_prepare(spec)._replace(
                     upload_headers=["x-my-header:my-header-val"]
                 )
@@ -311,7 +243,7 @@ class TestStoreFile:
             entry_local_path=example_file,
             preparer=preparer,
         )
-        assert api.upload_method.call_args[1]["extra_headers"] == {
+        assert api.upload_file_retry.call_args[1]["extra_headers"] == {
             "x-my-header": "my-header-val"
         }
 
@@ -332,7 +264,7 @@ class TestStoreFile:
         expect_deduped: bool,
     ):
         preparer = mock_preparer(
-            prepare_sync=lambda spec: singleton_queue(
+            prepare=lambda spec: singleton_queue(
                 dummy_response_prepare(spec)._replace(upload_url=upload_url)
             )
         )
@@ -342,9 +274,9 @@ class TestStoreFile:
         assert deduped == expect_deduped
 
         if expect_upload:
-            api.upload_method.assert_called_once()
+            api.upload_file_retry.assert_called_once()
         else:
-            api.upload_method.assert_not_called()
+            api.upload_file_retry.assert_not_called()
 
     @pytest.mark.parametrize(
         ["has_local_path", "expect_upload"],
@@ -370,9 +302,9 @@ class TestStoreFile:
         assert not deduped
 
         if expect_upload:
-            api.upload_method.assert_called_once()
+            api.upload_file_retry.assert_called_once()
         else:
-            api.upload_method.assert_not_called()
+            api.upload_file_retry.assert_not_called()
 
     @pytest.mark.parametrize("err", [None, Exception("some error")])
     def test_caches_result_on_success(
@@ -386,7 +318,6 @@ class TestStoreFile:
         size = example_file.stat().st_size
 
         api.upload_file_retry = Mock(side_effect=err)
-        api.upload_file_retry_async = asyncify(Mock(side_effect=err))
         policy = WandbStoragePolicy(api=api, cache=artifact_file_cache)
 
         assert not is_cache_hit(artifact_file_cache, "my-digest", size)
@@ -453,7 +384,7 @@ class TestStoreFile:
     ):
         # Tests if we handle uploading correctly depending on what response we get from CreateArtifactFile.
         preparer = mock_preparer(
-            prepare_sync=lambda spec: singleton_queue(
+            prepare=lambda spec: singleton_queue(
                 dummy_response_prepare(spec)._replace(
                     upload_url=upload_url, multipart_upload_urls=multipart_upload_urls
                 )
@@ -466,8 +397,7 @@ class TestStoreFile:
             "S3_MIN_MULTI_UPLOAD_SIZE",
             example_file.stat().st_size,
         ):
-            # We don't use the store_file fixture since multipart is not available in async
-            deduped = self._store_file_sync(
+            deduped = self._store_file(
                 policy, entry_local_path=example_file, preparer=preparer
             )
             assert deduped == expect_deduped
@@ -609,3 +539,16 @@ def test_artifact_manifest_length():
     testpath.write_text("also a test")
     artifact.add_reference(testpath.resolve().as_uri(), "test2.txt")
     assert len(artifact.manifest) == 2
+
+
+def test_download_with_pathlib_root(monkeypatch):
+    artifact = Artifact("test-artifact", "test-type")
+    artifact._state = ArtifactState.COMMITTED
+    monkeypatch.setattr(artifact, "_download", lambda *args, **kwargs: "")
+    monkeypatch.setattr(artifact, "_download_using_core", lambda *args, **kwargs: "")
+    custom_path = Path("some/relative/path")
+    artifact.download(custom_path)
+    assert len(artifact._download_roots) == 1
+    root = list(artifact._download_roots)[0]
+    path_parts = custom_path.parts
+    assert Path(root).parts[-len(path_parts) :] == path_parts

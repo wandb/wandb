@@ -151,7 +151,7 @@ def test_jupyter_path(meta, test_settings, mocked_ipython, git_repo):
     platform.system() == "Windows",
     reason="backend sometimes crashes on Windows in CI",
 )
-def test_commmit_hash_sent_correctly(wandb_init, git_repo):
+def test_commit_hash_sent_correctly(wandb_init, git_repo):
     # disable_git is False is by default
     # so run object should have git info
     run = wandb_init()

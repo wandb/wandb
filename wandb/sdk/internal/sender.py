@@ -115,6 +115,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
                 "ref": content.ref if content.ref else None,
                 "size": content.size if content.size is not None else None,
                 "local_path": content.local_path if content.local_path else None,
+                "skip_cache": content.skip_cache,
                 "extra": {
                     extra.key: json.loads(extra.value_json) for extra in content.extra
                 },
@@ -326,7 +327,6 @@ class SendManager:
             # ignore_globs=(),
             _sync=True,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
@@ -733,18 +733,7 @@ class SendManager:
             )
         self._respond_result(result)
 
-    def send_request_job_info(self, record: "Record") -> None:
-        """Respond to a request for a job link."""
-        result = proto_util._result_from_record(record)
-        result.response.job_info_response.sequenceId = (
-            self._job_builder._job_seq_id or ""
-        )
-        result.response.job_info_response.version = (
-            self._job_builder._job_version_alias or ""
-        )
-        self._respond_result(result)
-
-    def _maybe_setup_resume(
+    def _setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """Queries the backend for a run; fail if the settings are incompatible."""
@@ -890,13 +879,37 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
+    def _setup_fork(self, server_run: dict):
+        assert self._settings.fork_from
+        assert self._settings.fork_from.metric == "_step"
+        assert self._run
+        first_step = int(self._settings.fork_from.value) + 1
+        self._resume_state.step = first_step
+        self._resume_state.history = server_run.get("historyLineCount", 0)
+        self._run.forked = True
+        self._run.starting_step = first_step
+
+    def _handle_error(
+        self,
+        record: "Record",
+        error: "wandb_internal_pb2.ErrorInfo",
+        run: "RunRecord",
+    ) -> None:
+        if record.control.req_resp or record.control.mailbox_slot:
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(run)
+            result.run_result.error.CopyFrom(error)
+            self._respond_result(result)
+        else:
+            logger.error("Got error in async mode: %s", error.message)
+
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.ToMicroseconds() // 1e6
+        self._start_time = int(run.start_time.ToMicroseconds() // 1e6)
 
         # update telemetry
         if run.telemetry:
@@ -911,21 +924,28 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
+        do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_resume = bool(self._settings.resume)
+
+        if do_fork and do_resume:
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "You cannot use `resume` and `fork_from` together. Please choose one."
+            )
+            self._handle_error(record, error, run)
+
         if is_wandb_init:
             # Ensure we have a project to query for status
             if run.project == "":
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
-            error = self._maybe_setup_resume(run)
+
+            if do_resume:
+                error = self._setup_resume(run)
 
         if error is not None:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
+            self._handle_error(record, error, run)
             return
 
         # Save the resumed config
@@ -945,18 +965,21 @@ class SendManager:
             self._config_save(config_value_dict)
 
         try:
-            self._init_run(run, config_value_dict)
+            server_run = self._init_run(run, config_value_dict)
         except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                error = ProtobufErrorHandler.from_exception(e)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
+            error = ProtobufErrorHandler.from_exception(e)
+            self._handle_error(record, error, run)
             return
 
         assert self._run  # self._run is configured in _init_run()
+
+        if do_fork:
+            error = self._setup_fork(server_run)
+
+        if error is not None:
+            self._handle_error(record, error, run)
+            return
 
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
@@ -976,7 +999,7 @@ class SendManager:
         self,
         run: "RunRecord",
         config_dict: Optional[sender_config.BackendConfigDict],
-    ) -> None:
+    ) -> dict:
         # We subtract the previous runs runtime when resuming
         start_time = (
             run.start_time.ToMicroseconds() / 1e6
@@ -1061,6 +1084,7 @@ class SendManager:
             self._run.sweep_id = sweep_id
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
+        return server_run
 
     def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller

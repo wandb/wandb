@@ -321,7 +321,6 @@ class WandBUltralyticsCallback:
                     )
             if self.enable_model_checkpointing:
                 self._save_model(trainer)
-            self.model.to("cpu")
             trainer.model.to(self.device)
 
     def on_train_end(self, trainer: TRAINER_TYPE):

@@ -20,7 +20,7 @@ Example:
     tuner = wandb.controller()
     tuner.configure(sweep_config)
     tuner.create()
-    # (3) create by constructing progamatic sweep configuration
+    # (3) create by constructing programmatic sweep configuration
     tuner = wandb.controller()
     tuner.configure_search('random')
     tuner.configure_program('train-dummy.py')
@@ -46,7 +46,6 @@ Example:
         if runs:
             tuner.stop_runs(runs)
 """
-
 
 import json
 import os
@@ -128,7 +127,7 @@ class _WandbController:
     """
 
     def __init__(self, sweep_id_or_config=None, entity=None, project=None):
-        # sweep id configured in constuctor
+        # sweep id configured in constructor
         self._sweep_id: Optional[str] = None
 
         # configured parameters

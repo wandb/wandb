@@ -5,12 +5,23 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/core/internal/corelib"
+	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-var boolTrue bool = true
+var boolTrue = true
+
+// processTask is an input for the filestream.
+type processTask struct {
+	// A record type supported by filestream.
+	Record *service.Record
+
+	// A path to one of a run's files that has been uploaded.
+	//
+	// The path is relative to the run's files directory.
+	UploadedFile string
+}
 
 type processedChunk struct {
 	fileType   ChunkTypeEnum
@@ -21,54 +32,65 @@ type processedChunk struct {
 	Uploaded   []string
 }
 
-func (fs *FileStream) addProcess(rec *service.Record) {
-	fs.processChan <- rec
-}
+func (fs *fileStream) addProcess(task processTask) {
+	select {
+	case fs.processChan <- task:
 
-func (fs *FileStream) processRecord(record *service.Record) {
-	switch x := record.RecordType.(type) {
-	case *service.Record_History:
-		fs.streamHistory(x.History)
-	case *service.Record_Summary:
-		fs.streamSummary(x.Summary)
-	case *service.Record_Stats:
-		fs.streamSystemMetrics(x.Stats)
-	case *service.Record_OutputRaw:
-		fs.streamOutputRaw(x.OutputRaw)
-	case *service.Record_Exit:
-		fs.streamFinish(x.Exit)
-	case *service.Record_Preempting:
-		fs.streamPreempting(x.Preempting)
-	case nil:
-		err := fmt.Errorf("filestream: field not set")
-		fs.logger.CaptureFatalAndPanic("filestream error:", err)
-	default:
-		err := fmt.Errorf("filestream: Unknown type %T", x)
-		fs.logger.CaptureFatalAndPanic("filestream error:", err)
+	// If the filestream dies, this prevents us from blocking forever.
+	case <-fs.deadChan:
 	}
 }
 
-func (fs *FileStream) loopProcess(inChan <-chan protoreflect.ProtoMessage) {
+func (fs *fileStream) processRecord(record *service.Record) error {
+	switch x := record.RecordType.(type) {
+	case *service.Record_History:
+		return fs.streamHistory(x.History)
+	case *service.Record_Summary:
+		return fs.streamSummary(x.Summary)
+	case *service.Record_Stats:
+		return fs.streamSystemMetrics(x.Stats)
+	case *service.Record_OutputRaw:
+		return fs.streamOutputRaw(x.OutputRaw)
+	case *service.Record_Exit:
+		return fs.streamFinish(x.Exit)
+	case *service.Record_Preempting:
+		return fs.streamPreempting()
+	case nil:
+		return fmt.Errorf("filestream: field not set")
+	default:
+		return fmt.Errorf("filestream: unknown type %T", x)
+	}
+}
+
+func (fs *fileStream) loopProcess(inChan <-chan processTask) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
 	for message := range inChan {
 		fs.logger.Debug("filestream: record", "message", message)
-		switch x := message.(type) {
-		case *service.Record:
-			fs.processRecord(x)
-		case *service.FilesUploaded:
-			fs.streamFilesUploaded(x)
-		case nil:
-			err := fmt.Errorf("filestream: field not set")
-			fs.logger.CaptureFatalAndPanic("filestream error:", err)
+
+		var err error
+
+		switch {
+		case message.Record != nil:
+			err = fs.processRecord(message.Record)
+		case message.UploadedFile != "":
+			err = fs.streamFilesUploaded(message.UploadedFile)
 		default:
-			err := fmt.Errorf("filestream: Unknown type %T", x)
-			fs.logger.CaptureFatalAndPanic("filestream error:", err)
+			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
+		}
+
+		if err != nil {
+			fs.logFatalAndStopWorking(err)
+			return
 		}
 	}
 }
 
-func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
+func (fs *fileStream) streamHistory(msg *service.HistoryRecord) error {
+	if msg == nil {
+		return fmt.Errorf("filestream: history record is nil")
+	}
+
 	// when logging to the same run with multiple writers, we need to
 	// add a client id to the history record
 	if fs.clientId != "" {
@@ -78,35 +100,69 @@ func (fs *FileStream) streamHistory(msg *service.HistoryRecord) {
 		})
 	}
 
-	line, err := corelib.JsonifyItems(msg.Item)
+	rh := runhistory.New()
+	rh.ApplyChangeRecord(
+		msg.GetItem(),
+		func(err error) {
+			// TODO: maybe we should shut down filestream if this fails?
+			fs.logger.CaptureError(
+				"filestream: failed to apply history record", err)
+		},
+	)
+	line, err := rh.Serialize()
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+		return fmt.Errorf("filestream: failed to serialize history: %v", err)
 	}
+
 	fs.addTransmit(processedChunk{
 		fileType: HistoryChunk,
-		fileLine: line,
+		fileLine: string(line),
 	})
+
+	return nil
 }
 
-func (fs *FileStream) streamSummary(msg *service.SummaryRecord) {
-	line, err := corelib.JsonifyItems(msg.Update)
-	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json unmarshal error", err)
+func (fs *fileStream) streamSummary(msg *service.SummaryRecord) error {
+	if msg == nil {
+		return fmt.Errorf("filestream: summary record is nil")
 	}
+
+	rs := runsummary.New()
+	rs.ApplyChangeRecord(
+		msg,
+		func(err error) {
+			// TODO: maybe we should shut down filestream if this fails?
+			fs.logger.CaptureError(
+				"filestream: failed to apply summary record", err)
+		},
+	)
+
+	line, err := rs.Serialize()
+	if err != nil {
+		return fmt.Errorf(
+			"filestream: json unmarshal error in streamSummary: %v",
+			err,
+		)
+	}
+
 	fs.addTransmit(processedChunk{
 		fileType: SummaryChunk,
-		fileLine: line,
+		fileLine: string(line),
 	})
+
+	return nil
 }
 
-func (fs *FileStream) streamOutputRaw(msg *service.OutputRawRecord) {
+func (fs *fileStream) streamOutputRaw(msg *service.OutputRawRecord) error {
 	fs.addTransmit(processedChunk{
 		fileType: OutputChunk,
 		fileLine: msg.Line,
 	})
+
+	return nil
 }
 
-func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
+func (fs *fileStream) streamSystemMetrics(msg *service.StatsRecord) error {
 	// todo: there is a lot of unnecessary overhead here,
 	//  we should prepare all the data in the system monitor
 	//  and then send it in one record
@@ -131,31 +187,39 @@ func (fs *FileStream) streamSystemMetrics(msg *service.StatsRecord) {
 	// marshal the row
 	line, err := json.Marshal(row)
 	if err != nil {
+		// This is a non-blocking failure, so we don't return an error.
 		fs.logger.CaptureError("sender: sendSystemMetrics: failed to marshal system metrics", err)
-		return
+	} else {
+		fs.addTransmit(processedChunk{
+			fileType: EventsChunk,
+			fileLine: string(line),
+		})
 	}
 
-	fs.addTransmit(processedChunk{
-		fileType: EventsChunk,
-		fileLine: string(line),
-	})
+	return nil
 }
 
-func (fs *FileStream) streamPreempting(exitRecord *service.RunPreemptingRecord) {
+func (fs *fileStream) streamFilesUploaded(path string) error {
+	fs.addTransmit(processedChunk{
+		Uploaded: []string{path},
+	})
+
+	return nil
+}
+
+func (fs *fileStream) streamPreempting() error {
 	fs.addTransmit(processedChunk{
 		Preempting: true,
 	})
+
+	return nil
 }
 
-func (fs *FileStream) streamFilesUploaded(msg *service.FilesUploaded) {
-	fs.addTransmit(processedChunk{
-		Uploaded: msg.Files,
-	})
-}
-
-func (fs *FileStream) streamFinish(exitRecord *service.RunExitRecord) {
+func (fs *fileStream) streamFinish(exitRecord *service.RunExitRecord) error {
 	fs.addTransmit(processedChunk{
 		Complete: &boolTrue,
 		Exitcode: &exitRecord.ExitCode,
 	})
+
+	return nil
 }

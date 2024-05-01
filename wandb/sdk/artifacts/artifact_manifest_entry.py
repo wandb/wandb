@@ -1,12 +1,13 @@
 """Artifact manifest entry."""
+
 import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
-from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -25,6 +26,7 @@ class ArtifactManifestEntry:
 
     path: LogicalPath
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
+    skip_cache: bool
     ref: Optional[Union[FilePathStr, URIStr]]
     birth_artifact_id: Optional[str]
     size: Optional[int]
@@ -38,6 +40,7 @@ class ArtifactManifestEntry:
         self,
         path: StrPath,
         digest: Union[B64MD5, URIStr, FilePathStr, ETag],
+        skip_cache: Optional[bool] = False,
         ref: Optional[Union[FilePathStr, URIStr]] = None,
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
@@ -53,6 +56,7 @@ class ArtifactManifestEntry:
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
+        self.skip_cache = skip_cache or False
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
@@ -65,7 +69,8 @@ class ArtifactManifestEntry:
         size = f", size={self.size}" if self.size is not None else ""
         extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
         local_path = f", local_path={self.local_path!r}" if self.local_path else ""
-        others = ref + birth_artifact_id + size + extra + local_path
+        skip_cache = f", skip_cache={self.skip_cache}"
+        others = ref + birth_artifact_id + size + extra + local_path + skip_cache
         return f"{cls}(path={self.path!r}, digest={self.digest!r}{others})"
 
     def __eq__(self, other: object) -> bool:
@@ -84,12 +89,16 @@ class ArtifactManifestEntry:
             and self.size == other.size
             and self.extra == other.extra
             and self.local_path == other.local_path
+            and self.skip_cache == other.skip_cache
         )
 
     @property
     def name(self) -> LogicalPath:
-        # TODO(hugh): add telemetry to see if anyone is still using this.
-        termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        """Deprecated; use `path` instead."""
+        deprecate(
+            field_name=Deprecated.artifactmanifestentry__name,
+            warning_message="ArtifactManifestEntry.name is deprecated, use .path instead.",
+        )
         return self.path
 
     def parent_artifact(self) -> "Artifact":

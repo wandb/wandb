@@ -27,15 +27,15 @@ type SyncService struct {
 type SyncServiceOption func(*SyncService)
 
 func NewSyncService(ctx context.Context, opts ...SyncServiceOption) *SyncService {
-	sync := &SyncService{
+	syncService := &SyncService{
 		ctx:    ctx,
 		wg:     sync.WaitGroup{},
 		inChan: make(chan *service.Record),
 	}
 	for _, opt := range opts {
-		opt(sync)
+		opt(syncService)
 	}
-	return sync
+	return syncService
 }
 
 func WithSyncServiceOverwrite(overwrite *service.SyncOverwrite) SyncServiceOption {

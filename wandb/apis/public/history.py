@@ -1,4 +1,5 @@
 """Public API: history."""
+
 import json
 
 import requests

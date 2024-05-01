@@ -16,9 +16,7 @@ def test_init(test_settings):
             "wandb.sdk.wandb_init.getcaller", autospec=True
         ), patch("os._exit", side_effect=MyExitError("")), patch(
             "wandb._sentry.exception", autospec=True
-        ), patch(
-            "wandb._assert_is_user_process", side_effect=lambda: None
-        ):
+        ), patch("wandb._assert_is_user_process", side_effect=lambda: None):
             instance = mocked_wandbinit.return_value
             instance.settings = test_settings(
                 {"_except_exit": True, "problem": "fatal"}

@@ -28,7 +28,7 @@ func NewRateLimitedTransport(
 		delegate:    delegate,
 		rateLimiter: rate.NewLimiter(maxRequestsPerSecond, maxBurst),
 		rlTracker: NewRateLimitTracker(RateLimitTrackerParams{
-			MinPerSecond: minRateLimit,
+			MinPerSecond: minRequestsPerSecond,
 			MaxPerSecond: maxRequestsPerSecond,
 
 			// TODO: Allow changing these through settings.

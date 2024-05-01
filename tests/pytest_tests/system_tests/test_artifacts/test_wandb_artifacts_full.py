@@ -4,16 +4,15 @@ import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Optional
 
 import numpy as np
 import pytest
 import wandb
 from wandb import Api
-from wandb.sdk.artifacts.artifact import Artifact
+from wandb.errors import CommError
+from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -213,6 +212,34 @@ def test_remove_after_log(wandb_init):
             retrieved.remove("file1.txt")
 
 
+def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
+    # Setup cache dir
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    artifact = wandb.Artifact(name="cache-test", type="dataset")
+    file_path = Path(tmp_path / "text.txt")
+    with open(file_path, "w") as f:
+        f.write("test123")
+    entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Ensure the uploaded file is in the cache.
+    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    assert not hit
+
+    # Manually write a file into the cache path to ensure that it's the one that is used.
+    # This is kind of evil and might break if we later force cache validity.
+    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "w") as f:
+        f.write("corrupt")
+    download_root = Path(artifact.download(tmp_path / "download_root"))
+    assert (download_root / "text.txt").read_text() == "corrupt"
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
@@ -234,6 +261,120 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
     # The staging directory should be empty again.
     assert dir_size() == 0
+
+
+def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
+    staging_dir = Path(get_staging_dir())
+
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path)
+
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert found
+
+    # The staged files are deleted after caching
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+
+def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
+    staging_dir = Path(get_staging_dir())
+
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, skip_cache=True)
+
+    # The file is staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 1
+    assert staging_files[0].read_text() == "test 123"
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is not cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert not found
+
+    # The staged files are deleted even if caching is disabled
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+
+def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
+    staging_dir = Path(get_staging_dir())
+
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, policy="immutable")
+
+    # The file is not staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert found
+
+
+def test_immutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
+    # Use a separate staging directory for the duration of this test.
+    monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
+    staging_dir = Path(get_staging_dir())
+
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    data_path = Path(tmp_path / "random.txt")
+    artifact = wandb.Artifact(name="stage-test", type="dataset")
+    with open(data_path, "w") as f:
+        f.write("test 123")
+    manifest_entry = artifact.add_file(data_path, skip_cache=True, policy="immutable")
+
+    # The file is not staged
+    staging_files = list(staging_dir.iterdir())
+    assert len(staging_files) == 0
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    # The file is cached
+    _, found, _ = cache.check_md5_obj_path(manifest_entry.digest, manifest_entry.size)
+    assert not found
 
 
 def test_local_references(wandb_init):
@@ -277,30 +418,6 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
-
-
-@pytest.mark.skip(
-    reason="often makes tests time out on CI (despite only taking 3x10 seconds locally)"
-)
-@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 1, 10])
-def test_artifact_upload_succeeds_with_async(
-    wandb_init: Callable[..., Run],
-    _async_upload_concurrency_limit: Optional[int],
-    tmp_path: Path,
-):
-    with wandb_init(
-        settings=dict(_async_upload_concurrency_limit=_async_upload_concurrency_limit)
-    ) as run:
-        artifact = wandb.Artifact("art", type="dataset")
-        (tmp_path / "my-file.txt").write_text("my contents")
-        artifact.add_dir(str(tmp_path))
-        run.log_artifact(artifact).wait(timeout=5)
-
-    # re-download the artifact
-    with wandb.init() as using_run:
-        using_artifact: Artifact = using_run.use_artifact("art:latest")
-        using_artifact.download(root=str(tmp_path / "downloaded"))
-        assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
 
 
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
@@ -409,6 +526,20 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+def test_retrieve_missing_artifact(logged_artifact):
+    with pytest.raises(CommError, match="project 'bar' not found"):
+        Api().artifact(f"foo/bar/{logged_artifact.name}")
+
+    with pytest.raises(CommError, match="project 'bar' not found"):
+        Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
+
+    with pytest.raises(CommError, match="must be specified as 'collection:alias'"):
+        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
+
+    with pytest.raises(CommError, match="do not have permission"):
+        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
 
 
 def test_new_draft(wandb_init):

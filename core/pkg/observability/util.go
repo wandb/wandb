@@ -31,10 +31,20 @@ func (OsFs) OpenFile(name string, flag int, perm os.FileMode) (fs.File, error) {
 func GetLoggerPath() (*os.File, error) {
 	osFs := OsFs{}
 	file, err := GetLoggerPathFS(osFs)
-	return file.(*os.File), err
+
+	if err != nil {
+		return nil, err
+	}
+
+	osfile, ok := file.(*os.File)
+	if !ok {
+		return nil, fmt.Errorf("file is not an *os.File")
+	}
+
+	return osfile, nil
 }
 
-// GetLoggerPath function with FileSystem parameter
+// GetLoggerPathFS function with FileSystem parameter
 func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
 	// TODO: replace with a setting during client rewrite
 	dir := os.Getenv("WANDB_CACHE_DIR")

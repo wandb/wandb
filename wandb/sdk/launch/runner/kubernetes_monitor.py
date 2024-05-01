@@ -1,4 +1,5 @@
 """Monitors kubernetes resources managed by the launch agent."""
+
 import asyncio
 import logging
 import sys
@@ -433,6 +434,8 @@ class SafeWatch:
                     del kwargs["resource_version"]
                     self._last_seen_resource_version = None
             except Exception as E:
+                exc_type = type(E).__name__
+                stack_trace = traceback.format_exc()
                 wandb.termerror(
-                    f"Unknown exception in event stream: {E}, attempting to recover"
+                    f"Unknown exception in event stream of type {exc_type}: {E}, attempting to recover. Stack trace: {stack_trace}"
                 )

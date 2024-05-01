@@ -1,4 +1,5 @@
 """Public API: sweeps."""
+
 import urllib
 from typing import Optional
 

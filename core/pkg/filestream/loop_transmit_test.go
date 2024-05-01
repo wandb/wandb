@@ -1,74 +1,41 @@
 package filestream
 
 import (
-	"io"
-	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/segmentio/encoding/json"
-
-	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/apitest"
-	"github.com/wandb/wandb/core/internal/clienttest"
+	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func requestMatch(t *testing.T, fsd FsTransmitData) func(*http.Request) (*http.Response, error) {
-	resp := http.Response{
-		StatusCode:    200,
-		Body:          io.NopCloser(strings.NewReader("{}")),
-		ContentLength: 0,
-	}
-	return func(req *http.Request) (*http.Response, error) {
-		p := FsTransmitData{}
-		err := json.NewDecoder(req.Body).Decode(&p)
-		assert.Nil(t, err)
-		assert.Equal(t, fsd.Files, p.Files)
-		return &resp, nil
-	}
-}
-
-type testObj struct {
-	logger *observability.CoreLogger
-	client *retryablehttp.Client
-	m      *clienttest.MockRoundTripper
-}
-
-func newFsTest(t *testing.T) *testObj {
-	ctrl := gomock.NewController(t)
-
-	logger := observability.NewNoOpLogger()
-	m := clienttest.NewMockRoundTripper(ctrl)
-	client := clienttest.NewMockRetryClient(m)
-	client.Logger = logger
-
-	return &testObj{
-		logger: logger,
-		client: client,
-		m:      m,
-	}
-}
-
 func testSendAndReceive(t *testing.T, chunks []processedChunk, fsd FsTransmitData) {
-	fsTest := newFsTest(t)
+	fakeClient := apitest.NewFakeClient("test-url")
+	fs := NewFileStream(FileStreamParams{
+		Settings:  &service.Settings{},
+		Logger:    observability.NewNoOpLogger(),
+		ApiClient: fakeClient,
+		// Chunk everything and prevent heartbeats.
+		DelayProcess:       waitingtest.NewFakeDelay(),
+		HeartbeatStopwatch: waitingtest.NewFakeStopwatch(),
+	}).(*fileStream)
 
-	fsTest.m.EXPECT().
-		RoundTrip(gomock.Any()).
-		DoAndReturn(requestMatch(t, fsd)).
-		AnyTimes()
-
-	fs := NewFileStream(
-		WithLogger(fsTest.logger),
-		WithAPIClient(apitest.ForwardingClient(fsTest.client)),
-	)
+	fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
+	fs.Start("entity", "project", "run", FileStreamOffsetMap{})
 	for _, d := range chunks {
 		fs.transmitChan <- d
 	}
 	fs.Close()
+
+	requests := fakeClient.GetRequests()
+	assert.Len(t, requests, 1)
+
+	var actualFSD FsTransmitData
+	require.NoError(t, json.Unmarshal(requests[0].Body, &actualFSD))
+	assert.Equal(t, fsd, actualFSD)
 }
 
 func TestSendChunks(t *testing.T) {
