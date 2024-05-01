@@ -1055,7 +1055,8 @@ class Api:
 
         Arguments:
             name: (str) An artifact name. May be prefixed with entity/project.
-                If not specified, entity and project will be inferred from the default project settings.
+                If entity or project is not specified, it will be inferred from the override params if populated.
+                Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
                 Valid names can be in the following forms:
                     name:version
                     name:alias
@@ -1073,7 +1074,8 @@ class Api:
 
         Arguments:
             name: (str) An artifact collection name. May be prefixed with entity/project.
-                If not specified, entity and project will be inferred from the default project settings.
+                If entity or project is not specified, it will be inferred from the override params if populated.
+                Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
             type: (str) The type of artifact collection
         """
         try:
