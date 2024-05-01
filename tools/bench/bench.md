@@ -36,15 +36,16 @@ The SDK has the ability to track multiple experiments in parallel for example us
 
 ### Methodology
 
-The wandb SDK supports online and offline modes of operation.
+The wandb SDK supports online and offline modes of operation.  Offline logging allows the customer
+to decouple running experiments from syncing the data to the backend server.
 
 ### Improvements seen enabling wandb core
 
 | Metric | Mode | Improvement with wandb core |
 | Startup/Shutdown Time | Offline | 36% improvement |
 | Startup/Shutdown Time | Online | 23% improvement |
-| Parallel performance logging scalers | Offline | 83% improvement |
-| Parallel performance logging scalers | Online | 88% improvement |
+| Parallel performance logging scalars | Offline | 83% improvement |
+| Parallel performance logging scales | Online | 88% improvement |
 | Table logging performance | Offline | 18% improvement |
 | Table logging performance | Online | 40% improvement |
 
