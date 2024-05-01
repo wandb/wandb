@@ -10,13 +10,15 @@ const (
 	PR_SET_PDEATHSIG = 1
 )
 
-func ShutdownOnParentDeath(parentPid int) {
-	_, _, errno := syscall.Syscall(uintptr(PRCTL_SYSCALL), uintptr(PR_SET_PDEATHSIG), uintptr(syscall.SIGKILL), 0)
+func ShutdownOnParentExit(parentPid int) bool {
+	_, _, errno := syscall.Syscall(
+		uintptr(PRCTL_SYSCALL), uintptr(PR_SET_PDEATHSIG), uintptr(syscall.SIGKILL), 0)
 	if errno != 0 {
 		os.Exit(127 + int(errno))
 	}
-	// One last check... there is a possibility that the parent died right before the syscall was sent
+	// Check again because the process could have exited right before the syscall was made
 	if os.Getppid() != parentPid {
 		os.Exit(1)
 	}
+	return true
 }

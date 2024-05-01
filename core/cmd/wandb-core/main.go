@@ -34,9 +34,10 @@ func main() {
 
 	flag.Parse()
 
+	var shutdownOnParentExitEnabled bool
 	if *pid != 0 {
-		// Make sure this process is killed by the OS (if supported)
-		processlib.ShutdownOnParentDeath(*pid)
+		// Shutdown this process if the parent pid exits (if supported by the OS)
+		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
 	// set up sentry reporting
@@ -68,6 +69,9 @@ func main() {
 			slog.Bool("debug", *enableDebugLogging),
 			slog.Bool("disable-analytics", *disableAnalytics),
 		)
+		if shutdownOnParentExitEnabled {
+			slog.Debug("shutdownOnParentExitEnabled")
+		}
 		loggerPath = file.Name()
 		defer file.Close()
 	}
