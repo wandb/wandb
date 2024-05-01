@@ -78,7 +78,9 @@ outer:
 		}
 		parentpid := os.Getppid()
 		if parentpid != pid {
-			os.Exit(2)
+                        // If the parent went away, lets shutdown immediately
+                        // gocritic is warning about uncalled defer for waitgroup
+                        os.Exit(2)  //nolint:gocritic
 		}
 	}
 }
