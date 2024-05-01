@@ -19,6 +19,9 @@ type Server struct {
 	// ctx is the context for the server
 	ctx context.Context
 
+	// cancel is the cancel function for the server
+	cancel context.CancelFunc
+
 	// listener is the underlying listener
 	listener net.Listener
 
@@ -27,13 +30,12 @@ type Server struct {
 
 	// teardownChan is the channel for signaling and waiting for teardown
 	teardownChan chan struct{}
-
-	// shutdownChan is the channel for signaling shutdown
-	shutdownChan chan struct{}
 }
 
 // NewServer creates a new server
 func NewServer(ctx context.Context, addr string, portFile string) (*Server, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
@@ -41,10 +43,10 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 
 	s := &Server{
 		ctx:          ctx,
+		cancel:       cancel,
 		listener:     listener,
 		wg:           sync.WaitGroup{},
 		teardownChan: make(chan struct{}),
-		shutdownChan: make(chan struct{}),
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -74,7 +76,7 @@ func (s *Server) Serve() {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			select {
-			case <-s.shutdownChan:
+			case <-s.ctx.Done():
 				slog.Debug("server shutting down...")
 				return
 			default:
@@ -83,7 +85,7 @@ func (s *Server) Serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				nc := NewConnection(s.ctx, conn, s.teardownChan)
+				nc := NewConnection(s.ctx, s.cancel, conn)
 				nc.HandleConnection()
 				s.wg.Done()
 			}()
@@ -93,8 +95,7 @@ func (s *Server) Serve() {
 
 // Close closes the server
 func (s *Server) Close() {
-	<-s.teardownChan
-	close(s.shutdownChan)
+	<-s.ctx.Done()
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)
 	}

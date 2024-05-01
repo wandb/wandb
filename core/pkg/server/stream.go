@@ -127,8 +127,8 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stream {
-	ctx, cancel := context.WithCancel(ctx)
+func NewStream(settings *settings.Settings, _ string) *Stream {
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -299,7 +299,12 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
-	s.inChan <- rec
+	select {
+	case <-s.ctx.Done():
+		s.logger.Debug("context done, not handling record", "record", rec)
+	default:
+		s.inChan <- rec
+	}
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
