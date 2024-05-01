@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
-import time
 import csv
+import time
 
 
 def timeit(lst):

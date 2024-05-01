@@ -1,15 +1,13 @@
 #!/usr/bin/env python
 
 import argparse
-import os
-import sys
-import itertools
 import multiprocessing
+import os
 from typing import List, Tuple
 
-import wandb
-import _timing
 import _load_profiles
+import _timing
+import wandb
 
 VERSION: str = "v1-2024-04-11-0"
 BENCH_OUTFILE: str = "bench.csv"

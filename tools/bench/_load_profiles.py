@@ -1,13 +1,6 @@
 #!/usr/bin/env python
 
-import argparse
-import sys
 import itertools
-import multiprocessing
-from typing import List, Tuple
-
-import wandb
-import _timing
 
 VARIANTS = {
     "mode=online": {},
