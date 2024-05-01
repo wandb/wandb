@@ -17,7 +17,6 @@ import (
 	"image"
 	"image/color"
 	"image/png"
-	"io/ioutil"
 
 	"github.com/segmentio/encoding/json"
 
@@ -830,7 +829,7 @@ func createPNG(data []byte, width, height int, filesPath string, imagePath strin
 	}
 
 	// Write the buffer to a file
-	if err := ioutil.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
 		return "", "", 0, err
 	}
 
