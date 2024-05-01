@@ -25,12 +25,6 @@ type Server struct {
 	// wg is the WaitGroup for the server
 	wg sync.WaitGroup
 
-	// ppid is the parent process id
-	ppid *int
-
-	// internalTeardownChan is used to signal teardown if the parent process is gone
-	internalTeardownChan chan struct{}
-
 	// teardownChan is the channel for signaling and waiting for teardown
 	teardownChan chan struct{}
 
@@ -39,20 +33,18 @@ type Server struct {
 }
 
 // NewServer creates a new server
-func NewServer(ctx context.Context, addr string, portFile string, ppid *int) (*Server, error) {
+func NewServer(ctx context.Context, addr string, portFile string) (*Server, error) {
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &Server{
-		ctx:                  ctx,
-		listener:             listener,
-		wg:                   sync.WaitGroup{},
-		ppid:                 ppid,
-		internalTeardownChan: make(chan struct{}),
-		teardownChan:         make(chan struct{}),
-		shutdownChan:         make(chan struct{}),
+		ctx:          ctx,
+		listener:     listener,
+		wg:           sync.WaitGroup{},
+		teardownChan: make(chan struct{}),
+		shutdownChan: make(chan struct{}),
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -61,6 +53,8 @@ func NewServer(ctx context.Context, addr string, portFile string, ppid *int) (*S
 		return nil, err
 	}
 
+	s.wg.Add(1)
+	go s.Serve()
 	return s, nil
 }
 
@@ -73,13 +67,9 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 
 // Serve serves the server
 func (s *Server) Serve() {
-	s.wg.Add(1)
-	go s.serve()
-}
-
-func (s *Server) serve() {
 	defer s.wg.Done()
 	slog.Info("server is running", "addr", s.listener.Addr())
+	// Run a separate goroutine to handle incoming connections
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -103,29 +93,7 @@ func (s *Server) serve() {
 
 // Close closes the server
 func (s *Server) Close() {
-	// TODO: this should be unnecessary the connection will get dropped.
-	// TODO: if there is a parent process, start a goroutine to wait for it to go away,
-	// (if it's e.g. killed), in which case we will close the server
-	if s.ppid != nil {
-		go func() {
-			for {
-				if os.Getppid() != *s.ppid {
-					close(s.internalTeardownChan)
-					return
-				}
-			}
-		}()
-	}
-	// <-s.teardownChan
-	// fmt.Println("teardownChan received")
-
-	select {
-	case <-s.teardownChan:
-		fmt.Println("teardownChan received")
-	case <-s.internalTeardownChan:
-		fmt.Println("internalTeardownChan received")
-	}
-
+	<-s.teardownChan
 	close(s.shutdownChan)
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)

@@ -84,17 +84,11 @@ func main() {
 		}
 		defer trace.Stop()
 	}
-
-	ppid := os.Getppid()
-
-	srv, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename, &ppid)
+	serve, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
-
-	srv.Serve()
-
-	srv.SetDefaultLoggerPath(loggerPath)
-	srv.Close()
+	serve.SetDefaultLoggerPath(loggerPath)
+	serve.Close()
 }
