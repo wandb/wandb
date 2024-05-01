@@ -8,7 +8,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-        "time"
+	"time"
 )
 
 const BufferSize = 32
@@ -60,27 +60,27 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 
 	s.wg.Add(1)
 	go s.Serve()
-        if pid != 0 {
-                s.wg.Add(1)
-                go s.WatchParentPid(pid)
-        }
+	if pid != 0 {
+		s.wg.Add(1)
+		go s.WatchParentPid(pid)
+	}
 	return s, nil
 }
 
 func (s *Server) WatchParentPid(pid int) {
 	defer s.wg.Done()
-        outer:
-        for {
-                select {
-                case <-s.pidwatchChan:
-                    break outer
-                case <-time.After(100 * time.Millisecond):
-                }
-                parentpid := os.Getppid()
-                if parentpid != pid {
-                        os.Exit(2)
-                }
-        }
+outer:
+	for {
+		select {
+		case <-s.pidwatchChan:
+			break outer
+		case <-time.After(100 * time.Millisecond):
+		}
+		parentpid := os.Getppid()
+		if parentpid != pid {
+			os.Exit(2)
+		}
+	}
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {

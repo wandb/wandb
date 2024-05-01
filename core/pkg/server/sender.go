@@ -6,17 +6,17 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
-        "strconv"
 	"sync"
 	"time"
 
-        "crypto/sha256"
-        "encoding/hex"
-        "bytes"
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"image"
-	"image/png"
 	"image/color"
+	"image/png"
 	"io/ioutil"
 
 	"github.com/segmentio/encoding/json"
@@ -812,22 +812,22 @@ func createPNG(data []byte, width, height int, filesPath string, imagePath strin
 		return "", "", 0, err
 	}
 
-        // Compute SHA256 of the buffer
-        hasher := sha256.New()
-        hasher.Write(buf.Bytes())
-        hash := hex.EncodeToString(hasher.Sum(nil))
+	// Compute SHA256 of the buffer
+	hasher := sha256.New()
+	hasher.Write(buf.Bytes())
+	hash := hex.EncodeToString(hasher.Sum(nil))
 
-        // Compute file size
-        size := buf.Len()
+	// Compute file size
+	size := buf.Len()
 
-        imagePath = fmt.Sprintf("%s_%s.png", imagePath, hash[:20])
+	imagePath = fmt.Sprintf("%s_%s.png", imagePath, hash[:20])
 	outputPath := filepath.Join(filesPath, imagePath)
 
-        // Ensure all directories exist
-        dirPath := filepath.Dir(outputPath)
-        if err := os.MkdirAll(dirPath, 0755); err != nil {
-                return "", "", 0, err
-        }
+	// Ensure all directories exist
+	dirPath := filepath.Dir(outputPath)
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		return "", "", 0, err
+	}
 
 	// Write the buffer to a file
 	if err := ioutil.WriteFile(outputPath, buf.Bytes(), 0644); err != nil {
@@ -847,70 +847,71 @@ size:268
 width:8
 */
 type Media struct {
-        Type string `json:"_type"`
-        Format string `json:"format"`
-        Height int `json:"height"`
-        Width int `json:"width"`
-        Path string `json:"path"`
-        Sha256 string `json:"sha256"`
-        Size int `json:"size"`
+	Type   string `json:"_type"`
+	Format string `json:"format"`
+	Height int    `json:"height"`
+	Width  int    `json:"width"`
+	Path   string `json:"path"`
+	Sha256 string `json:"sha256"`
+	Size   int    `json:"size"`
 }
 
 // might want to move this info filestream... ideally we should do something like this:
-//   process during sendHistory,  schedule work to be done for the history data especially the media
-//   then at filestream process time / or fs transmit time, do final step coallescing data, for example
-//   it might be cool to sprite multiple steps of the same image key. kinda tricky to do
+//
+//	process during sendHistory,  schedule work to be done for the history data especially the media
+//	then at filestream process time / or fs transmit time, do final step coallescing data, for example
+//	it might be cool to sprite multiple steps of the same image key. kinda tricky to do
 func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*service.HistoryRecord, []string) {
-        hrecordNew := &service.HistoryRecord{
-                Step: hrecord.Step,
-        }
-        hFiles := []string{}
+	hrecordNew := &service.HistoryRecord{
+		Step: hrecord.Step,
+	}
+	hFiles := []string{}
 	for _, item := range hrecord.Item {
-                if item.ValueData != nil {
-                        hItem := &service.HistoryItem{Key: item.Key}
-                        switch value := item.ValueData.DataType.(type) {
-                                case *service.DataValue_ValueInt:
-                                        hItem.ValueJson = strconv.FormatInt(value.ValueInt, 10)
-                                case *service.DataValue_ValueDouble:
-                                        hItem.ValueJson = strconv.FormatFloat(value.ValueDouble, 'E', -1, 64)
-                                case *service.DataValue_ValueString:
-                                        hItem.ValueJson = fmt.Sprintf(`"%s"`, value.ValueString)
-                                case *service.DataValue_ValueTensor:
-                                        // fmt.Printf("GOT TENSOR %+v\n", value.ValueTensor)
-                                        imageBase := fmt.Sprintf("%s_%d", item.Key, hrecord.Step.Num)
-	                                imagePath := filepath.Join("media", "images", imageBase)
-                                        shape := value.ValueTensor.Shape
-                                        height := int(shape[0])
-                                        width := int(shape[1])
-                                        // FIXME: make sure channels is 3 for now
-                                        // FIXME: we only handle dtype uint8 also
-                                        fname, hash, size, err := createPNG(value.ValueTensor.TensorContent, height, width, filesPath, imagePath)
-                                        if err != nil {
-                                                fmt.Printf("GOT err %+v\n", err)
-                                        }
-                                        hFiles = append(hFiles, fname)
-                                        media := Media{
-                                                Type: "image-file",
-                                                Format: "png",
-                                                Height: height,
-                                                Width: width,
-                                                Size: size,
-                                                Sha256: hash,
-                                                Path: fname,
-                                        }
-                                        jsonString, err := json.Marshal(media)
-                                        if err != nil {
-                                                fmt.Printf("GOT err %+v\n", err)
-                                        }
-                                        // fmt.Printf("GOT::: %+v %+v %+v %+v\n", string(jsonString), fname, hash, size)
-                                        hItem.ValueJson = string(jsonString)
-                        }
-		        hrecordNew.Item = append(hrecordNew.Item, hItem)
-                } else {
-		        hrecordNew.Item = append(hrecordNew.Item, item)
-                }
-        }
-        return hrecordNew, hFiles
+		if item.ValueData != nil {
+			hItem := &service.HistoryItem{Key: item.Key}
+			switch value := item.ValueData.DataType.(type) {
+			case *service.DataValue_ValueInt:
+				hItem.ValueJson = strconv.FormatInt(value.ValueInt, 10)
+			case *service.DataValue_ValueDouble:
+				hItem.ValueJson = strconv.FormatFloat(value.ValueDouble, 'E', -1, 64)
+			case *service.DataValue_ValueString:
+				hItem.ValueJson = fmt.Sprintf(`"%s"`, value.ValueString)
+			case *service.DataValue_ValueTensor:
+				// fmt.Printf("GOT TENSOR %+v\n", value.ValueTensor)
+				imageBase := fmt.Sprintf("%s_%d", item.Key, hrecord.Step.Num)
+				imagePath := filepath.Join("media", "images", imageBase)
+				shape := value.ValueTensor.Shape
+				height := int(shape[0])
+				width := int(shape[1])
+				// FIXME: make sure channels is 3 for now
+				// FIXME: we only handle dtype uint8 also
+				fname, hash, size, err := createPNG(value.ValueTensor.TensorContent, height, width, filesPath, imagePath)
+				if err != nil {
+					fmt.Printf("GOT err %+v\n", err)
+				}
+				hFiles = append(hFiles, fname)
+				media := Media{
+					Type:   "image-file",
+					Format: "png",
+					Height: height,
+					Width:  width,
+					Size:   size,
+					Sha256: hash,
+					Path:   fname,
+				}
+				jsonString, err := json.Marshal(media)
+				if err != nil {
+					fmt.Printf("GOT err %+v\n", err)
+				}
+				// fmt.Printf("GOT::: %+v %+v %+v %+v\n", string(jsonString), fname, hash, size)
+				hItem.ValueJson = string(jsonString)
+			}
+			hrecordNew.Item = append(hrecordNew.Item, hItem)
+		} else {
+			hrecordNew.Item = append(hrecordNew.Item, item)
+		}
+	}
+	return hrecordNew, hFiles
 }
 
 // sendHistory sends a history record to the file stream,
@@ -919,31 +920,31 @@ func (s *Sender) sendHistory(record *service.Record, hrecord *service.HistoryRec
 	if s.fileStream == nil {
 		return
 	}
-        filesPath := s.settings.GetFilesDir().GetValue()
-        hrecordNew, hFileNames := historyMediaProcess(hrecord, filesPath)
-        if s.runfilesUploader == nil {
-                return
-        }
-        for _, hfile := range hFileNames{
-            // fmt.Printf("hfile: %+v\n", hfile)
-            filesRecord := &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: hfile,
-						Type: service.FilesItem_MEDIA,
-					},
+	filesPath := s.settings.GetFilesDir().GetValue()
+	hrecordNew, hFileNames := historyMediaProcess(hrecord, filesPath)
+	if s.runfilesUploader == nil {
+		return
+	}
+	for _, hfile := range hFileNames {
+		// fmt.Printf("hfile: %+v\n", hfile)
+		filesRecord := &service.FilesRecord{
+			Files: []*service.FilesItem{
+				{
+					Path: hfile,
+					Type: service.FilesItem_MEDIA,
 				},
-                        }
-	    s.runfilesUploader.Process(filesRecord)
-        }
-        // TODO: do this better?
-        recordNew := &service.Record{
-                RecordType: &service.Record_History{
-                        History: hrecordNew,
-                },
-                Control: record.Control,
-                Uuid: record.Uuid,
-        }
+			},
+		}
+		s.runfilesUploader.Process(filesRecord)
+	}
+	// TODO: do this better?
+	recordNew := &service.Record{
+		RecordType: &service.Record_History{
+			History: hrecordNew,
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
 
 	s.fileStream.StreamRecord(recordNew)
 }
@@ -977,11 +978,11 @@ func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 	// track each key in the in memory summary store
 	// TODO(memory): avoid keeping summary for all distinct keys
 	for _, item := range summary.Update {
-                // TODO: this isnt really right.. could be an empty string, want to deal with Data values
-                if item.ValueJson == "" {
-                        continue
-                }
-	 	s.summaryMap[item.Key] = item
+		// TODO: this isnt really right.. could be an empty string, want to deal with Data values
+		if item.ValueJson == "" {
+			continue
+		}
+		s.summaryMap[item.Key] = item
 	}
 
 	if s.fileStream != nil {
