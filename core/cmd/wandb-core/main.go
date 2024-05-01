@@ -69,9 +69,8 @@ func main() {
 			slog.Bool("debug", *enableDebugLogging),
 			slog.Bool("disable-analytics", *disableAnalytics),
 		)
-		if shutdownOnParentExitEnabled {
-			slog.Debug("shutdownOnParentExitEnabled")
-		}
+		fmt.Printf("debug %+v\n", shutdownOnParentExitEnabled)
+		slog.Info("Feature Setting", "shutdownOnParentExitEnabled", shutdownOnParentExitEnabled)
 		loggerPath = file.Name()
 		defer file.Close()
 	}
