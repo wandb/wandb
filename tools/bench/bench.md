@@ -2,9 +2,14 @@
 
 ## Overview
 
-The wandb SDK is designed to be an intuitive, efficient and rubust library which can be integrated into data projects with limited overhead.  The design presents some trade-offs which can appear as unexpected performance characteristics.   This benchmark test suite will cover some common usage profiles and capture the user perceived characteristics.
+The wandb SDK is designed to be a flexible, performant and robust library which can be integrated into data projects with limited overhead.  The design presents some trade-offs which can appear as unexpected performance characteristics.   This benchmark test suite will cover some common usage profiles and capture the user perceived characteristics.
 
-The wandb SDK is undergoing an overhaul of it's core engine.... Background of internal process...
+The wandb SDK architecture consists of 
+1) a user-process frontend library
+2) an internally managed process which is responsible for processing and syncing data 
+
+The SDK is in the middle of a transition to a new internally managed process (core) which provides improved performance as well as laying the groundwork for many more improvements to come.   This is described here:
+[wandb core](https://github.com/wandb/wandb/blob/main/core/README.md)
 
 ## Tests
 
