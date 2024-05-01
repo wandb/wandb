@@ -39,7 +39,7 @@ class Version:
         self._patch = patch
 
     def __repr__(self) -> str:
-        return f"{self._major}.{self._minor}.{self._patch})"
+        return f"{self._major}.{self._minor}.{self._patch}"
 
     def __lt__(self, other: "Version") -> bool:
         if self._major < other._major:
