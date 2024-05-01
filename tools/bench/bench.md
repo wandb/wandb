@@ -33,7 +33,7 @@ run.finish()
 The SDK has the ability to track multiple experiments in parallel for example using python multiprocessing
 
 ```python
-def do_work():
+def run_experiment():
   # do work
 
 p = multiprocessing.Process(target=run_experiment)
