@@ -1,5 +1,7 @@
 ## Concepts
 
+lol, this old
+
 ### Processes/Threads
 
 Ref | Identifier | File | Description
