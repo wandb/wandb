@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -70,6 +71,9 @@ type Stream struct {
 
 	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
+
+	// closed indicates if the inChan and loopBackChan are closed
+	closed *atomic.Bool
 }
 
 func streamLogger(settings *settings.Settings) *observability.CoreLogger {
@@ -138,6 +142,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		inChan:       make(chan *service.Record, BufferSize),
 		loopBackChan: make(chan *service.Record, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
+		closed:       &atomic.Bool{},
 	}
 
 	w := watcher.New(watcher.Params{
@@ -299,13 +304,12 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
-	select {
-	case <-s.ctx.Done():
+	if s.closed.Load() {
+		// this is to prevent trying to process messages after the stream is closed
 		s.logger.Error("context done, not handling record", "record", rec)
 		return
-	default:
-		s.inChan <- rec
 	}
+	s.inChan <- rec
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
@@ -317,8 +321,10 @@ func (s *Stream) GetRun() *service.RunRecord {
 func (s *Stream) Close() {
 	// wait for the context to be canceled in the defer state machine in the sender
 	<-s.ctx.Done()
-	close(s.loopBackChan)
-	close(s.inChan)
+	if !s.closed.Swap(true) {
+		close(s.loopBackChan)
+		close(s.inChan)
+	}
 	s.wg.Wait()
 }
 
