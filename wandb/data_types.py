@@ -191,7 +191,7 @@ class Table(Media):
     ):
         """Initializes a Table object.
 
-        The rows is availble for legacy reasons and should not be used.
+        The rows is available for legacy reasons and should not be used.
         The Table class uses data to mimic the Pandas API.
         """
         super().__init__()
@@ -280,7 +280,10 @@ class Table(Media):
             self.cast(col_name, dt, opt)
 
     def cast(self, col_name, dtype, optional=False):
-        """Casts a column to a specific data type. This can be one of the normal python classes, an internal W&B type, or an example objec, like an instance of wandb.Image or wandb.Classes.
+        """Casts a column to a specific data type.
+
+        This can be one of the normal python classes, an internal W&B type, or an
+        example object, like an instance of wandb.Image or wandb.Classes.
 
         Arguments:
             col_name: (str) - The name of the column to cast.
@@ -763,7 +766,7 @@ class Table(Media):
 
         Arguments:
             name: (str) - the unique name of the column
-            data: (list | np.array) - a column of homogenous data
+            data: (list | np.array) - a column of homogeneous data
             optional: (bool) - if null-like values are permitted
         """
         assert isinstance(name, str) and name not in self.columns

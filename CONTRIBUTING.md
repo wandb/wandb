@@ -27,7 +27,7 @@ Please make sure to update the ToC when you update this page!
     + [Adding URLs](#adding-urls)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-    + [Editable mode](#editable-mode)
+  * [Editable mode](#editable-mode)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
 
@@ -216,7 +216,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 ### Linting the code
 
-We are using [pre-commit hooks](https://pre-commit.com/#install) to manage oure linters and other auto-generated code.
+We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our linters and other auto-generated code.
 
 To install `pre-commit` run the following:
 ```shell
@@ -228,17 +228,16 @@ To install all of our pre-commit hooks run:
 pre-commit install
 ```
 
-If you just want to run a specific hook, like formating your code, you could run the following:
+If you just want to run a specific hook, for example formating your code, you could run the following:
 ```shell
-pre-commit run ruff --all-files --hook-stage pre-push
+pre-commit run ruff-format --all-files --hook-stage pre-push
 ```
 
 ### Auto-Generating Code
 
-For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation)
-and [`tox`](https://tox.wiki/en/latest/installation.html). You could just run:
+For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv). You could just run:
 ```shell
-pip install nox tox
+pip install -U nox uv
 ```
 
 #### Building protocol buffers
@@ -271,7 +270,7 @@ Note: you only need to do that if you change any of our protocol buffer files.
 - Add tests for the new setting to `tests/wandb_settings_test.py`.
 - Note that individual settings may depend on other settings through validator methods and runtime hooks,
   but the resulting directed dependency graph must be acyclic. You should re-generate the topologically-sorted
-  modification order list with `tox -e auto-codegen` -- it will also automatically
+  modification order list with `nox -s codegen` -- it will also automatically
   detect cyclic dependencies and throw an exception.
 
 #### Adding URLs
@@ -281,7 +280,7 @@ ensure that URLs do not lead to broken links.
 
 Once you add the URL to that file you will need to run:
 ```shell
-tox -e auto-codegen
+nox -s codegen
 ```
 
 #### Deprecating features
@@ -303,7 +302,7 @@ To mark a feature as deprecated (and to be removed in the next major release), p
 
 - Add a new field to the `Deprecated` message definition in `wandb/proto/wandb_telemetry.proto`,
   which will be used to track the to-be-deprecated feature usage.
-- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `nox -s proto`.
+- Rebuild protocol buffers and re-generate `wandb/proto/wandb_deprecated.py` by running `nox -t proto`.
 - Finally, to mark a feature as deprecated, call `wand.sdk.lib.deprecate` in your code:
 
 ```python
@@ -315,7 +314,7 @@ deprecate.deprecate(
 )
 ```
 
-#### Editable mode
+### Editable mode
 
 When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
 

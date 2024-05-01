@@ -732,7 +732,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	}
 }
 
-// Makes job input schema into a json string to be stored as artifact metdata.
+// Makes job input schema into a json string to be stored as artifact metadata.
 func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	input_types := make(map[string]interface{})

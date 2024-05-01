@@ -1,9 +1,9 @@
 package filestream
 
 import (
+	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
@@ -32,30 +32,39 @@ func (fs *fileStream) addTransmit(chunk processedChunk) {
 func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
 	collector := chunkCollector{
 		input:           inChan,
-		heartbeatTime:   fs.pollInterval,
-		delayProcess:    fs.delayProcess,
+		processDelay:    fs.delayProcess,
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}
 	for !collector.isDone {
-		if readMore := collector.read(); readMore {
-			collector.readMore()
-		}
-		data := collector.dump(fs.offsetMap)
-		timeNow := time.Now()
-		if data != nil {
-			fs.send(data)
-			fs.lastTransmitTime = time.Now()
-		} else if timeNow.Sub(fs.lastTransmitTime) > fs.heartbeatInterval {
-			fs.send(&FsTransmitData{})
-			fs.lastTransmitTime = timeNow
+		data, ok := collector.CollectAndDump(fs.offsetMap)
+
+		if ok {
+			if err := fs.send(data); err != nil {
+				fs.logFatalAndStopWorking(err)
+				return
+			}
+
+			fs.heartbeatStopwatch.Reset()
+		} else if fs.heartbeatStopwatch.IsDone() {
+			if err := fs.send(&FsTransmitData{}); err != nil {
+				fs.logFatalAndStopWorking(err)
+				return
+			}
+
+			fs.heartbeatStopwatch.Reset()
 		}
 	}
 }
 
-func (fs *fileStream) send(data interface{}) {
+func (fs *fileStream) send(data *FsTransmitData) error {
+	// Stop working after death to avoid data corruption.
+	if fs.isDead() {
+		return fmt.Errorf("filestream: can't send because I am dead")
+	}
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("filestream: json marshal error", err)
+		return fmt.Errorf("filestream: json marshall error in send(): %v", err)
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
@@ -69,9 +78,19 @@ func (fs *fileStream) send(data interface{}) {
 	}
 
 	resp, err := fs.apiClient.Send(req)
-	if err != nil {
-		fs.logger.CaptureFatalAndPanic("filestream: error making HTTP request", err)
+
+	switch {
+	case err != nil:
+		return fmt.Errorf("filestream: error making HTTP request: %v", err)
+	case resp == nil:
+		// Sometimes resp and err can both be nil in retryablehttp's Client.
+		return fmt.Errorf("filestream: nil response and nil error")
+	case resp.StatusCode < 200 || resp.StatusCode > 300:
+		// If we reach here, that means all retries were exhausted. This could
+		// mean, for instance, that the user's internet connection broke.
+		return fmt.Errorf("filestream: failed to upload: %v", resp.Status)
 	}
+
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
 			fs.logger.CaptureError("filestream: error closing response body", err)
@@ -85,4 +104,5 @@ func (fs *fileStream) send(data interface{}) {
 	}
 	fs.addFeedback(res)
 	fs.logger.Debug("filestream: post response", "response", res)
+	return nil
 }

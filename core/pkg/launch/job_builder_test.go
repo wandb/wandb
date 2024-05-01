@@ -601,7 +601,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
 	})
 
-	t.Run("HandleUseArtifactRecord disabeld when use non partial artifact job", func(t *testing.T) {
+	t.Run("HandleUseArtifactRecord disabled when use non partial artifact job", func(t *testing.T) {
 		settings := &service.Settings{}
 		artifactRecord := &service.Record{
 			RecordType: &service.Record_UseArtifact{
@@ -722,7 +722,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("GetSourceType job type specified repo", func(t *testing.T) {
 		sourceType := RepoSourceType
-		noRepoIngrediantsError := "no repo job ingredients found, but source type set to repo"
+		noRepoIngredientsError := "no repo job ingredients found, but source type set to repo"
 		commit := "1234567890"
 		remote := "example.com"
 		settings := &service.Settings{
@@ -749,7 +749,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 			{
 				metadata:           RunMetadata{},
 				expectedSourceType: nil,
-				expectedError:      &noRepoIngrediantsError,
+				expectedError:      &noRepoIngredientsError,
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -771,7 +771,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 
 	t.Run("GetSourceType job type specified artifact", func(t *testing.T) {
 		sourceType := ArtifactSourceType
-		noArtifactIngrediantsError := "no artifact job ingredients found, but source type set to artifact"
+		noArtifactIngredientsError := "no artifact job ingredients found, but source type set to artifact"
 		settings := &service.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
@@ -791,7 +791,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 			{
 				metadata:           RunMetadata{},
 				expectedSourceType: nil,
-				expectedError:      &noArtifactIngrediantsError,
+				expectedError:      &noArtifactIngredientsError,
 			},
 		}
 
@@ -821,7 +821,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("getSourceType job type specified image", func(t *testing.T) {
 		sourceType := ImageSourceType
 		imageName := "testImage"
-		noImageIngrediantsError := "no image job ingredients found, but source type set to image"
+		noImageIngredientsError := "no image job ingredients found, but source type set to image"
 		settings := &service.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
@@ -843,7 +843,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 			{
 				metadata:           RunMetadata{},
 				expectedSourceType: nil,
-				expectedError:      &noImageIngrediantsError,
+				expectedError:      &noImageIngredientsError,
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -932,7 +932,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		runconfig.RunConfigDict{
+		map[string]interface{}{
 			"key1": "value1",
 			"key2": "value2",
 			"key3": map[string]interface{}{

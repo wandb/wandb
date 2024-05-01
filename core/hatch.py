@@ -33,12 +33,12 @@ def build_wandb_core(
     # paths relative to ./core
     subprocess.check_call(
         [
-            go_binary,
+            str(go_binary),
             "build",
             *coverage_flags,
             *ld_flags,
             *output_flags,
-            pathlib.Path("cmd", "wandb-core", "main.go"),
+            str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
         cwd="./core",
         env=_go_env(),

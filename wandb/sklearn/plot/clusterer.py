@@ -25,7 +25,7 @@ def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer
         X_train: (arr) Training set features.
         cluster_labels: (list) Names for cluster labels. Makes plots easier to read
                             by replacing cluster indexes with corresponding names.
-        labels: (list) Named labels for target varible (y). Makes plots easier to
+        labels: (list) Named labels for target variable (y). Makes plots easier to
                         read by replacing target values with corresponding index.
                         For example if `labels=['dog', 'cat', 'owl']` all 0s are
                         replaced by dog, 1s by cat.

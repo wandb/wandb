@@ -387,7 +387,7 @@ class InterfaceBase:
     def _make_partial_source_str(
         source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
     ) -> str:
-        """Construct use_artifact.partial.source_info.sourc as str."""
+        """Construct use_artifact.partial.source_info.source as str."""
         source_type = job_info.get("source_type", "").strip()
         if source_type == "artifact":
             info_source = job_info.get("source", {})
@@ -424,7 +424,7 @@ class InterfaceBase:
             job_info=job_info,
             metadata=metadata,
         )
-        use_artifact.partial.source_info.source.ParseFromString(src_str)
+        use_artifact.partial.source_info.source.ParseFromString(src_str)  # type: ignore[arg-type]
 
         return use_artifact
 
@@ -775,6 +775,7 @@ class InterfaceBase:
             source.file.CopyFrom(
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
+        request.input_source.CopyFrom(source)
 
         return self._publish_job_input(request)
 

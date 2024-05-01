@@ -576,7 +576,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
                     self._model_trained_since_last_eval = False
             except Exception as e:
-                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
+                wandb.termwarn("Error during prediction logging for epoch: " + str(e))
 
     def on_epoch_end(self, epoch, logs=None):
         if logs is None:

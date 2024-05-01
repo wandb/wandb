@@ -13,8 +13,7 @@ from typing import Any, Dict, Optional
 
 import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
-from wandb.sdk.launch.builder.build import registry_from_uri
+from wandb.sdk.launch.builder.abstract import AbstractBuilder, registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -32,12 +31,8 @@ from ..utils import (
     get_kube_context_and_api_client,
     warn_failed_packages_from_build_logs,
 )
-from .build import (
-    _WANDB_DOCKERFILE_NAME,
-    _create_docker_build_ctx,
-    generate_dockerfile,
-    image_tag_from_dockerfile_and_source,
-)
+from .build import _WANDB_DOCKERFILE_NAME
+from .context_manager import BuildContextManager
 
 get_module(
     "kubernetes_asyncio",
@@ -261,17 +256,13 @@ class KanikoBuilder(AbstractBuilder):
         job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         await self.verify()
-        # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        dockerfile_str = generate_dockerfile(
-            launch_project=launch_project,
-            entry_point=entrypoint,
-            runner_type=launch_project.resource,
-            builder_type="kaniko",
-            dockerfile=launch_project.override_dockerfile,
-        )
-        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
+
+        build_contex_manager = BuildContextManager(launch_project=launch_project)
+        context_path, image_tag = build_contex_manager.create_build_context("kaniko")
+        run_id = launch_project.run_id
         repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
+
         if (
             not launch_project.build_required()
             and await self.registry.check_image_exists(image_uri)
@@ -279,14 +270,10 @@ class KanikoBuilder(AbstractBuilder):
             return image_uri
 
         _logger.info(f"Building image {image_uri}...")
-
-        context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-        run_id = launch_project.run_id
-
         _, api_client = await get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
-        # TODO: use same client as kuberentes_runner.py
+        # TODO: use same client as kubernetes_runner.py
         batch_v1 = client.BatchV1Api(api_client)
         core_v1 = client.CoreV1Api(api_client)
 
@@ -492,8 +479,8 @@ class KanikoBuilder(AbstractBuilder):
                     }
                 )
             else:
-                raise LaunchError(
-                    f"Registry type {type(self.registry)} not supported by kaniko"
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Automatic credential handling is not supported for registry type {type(self.registry)}. Build job: {self.build_job_name}"
                 )
             volumes.append(
                 {
@@ -522,7 +509,7 @@ class KanikoBuilder(AbstractBuilder):
             volume_mounts.append(
                 {"name": "docker-config", "mountPath": "/kaniko/.docker/"}
             )
-        # Kaniko doesn't want https:// at the begining of the image tag.
+        # Kaniko doesn't want https:// at the beginning of the image tag.
         destination = image_tag
         if destination.startswith("https://"):
             destination = destination.replace("https://", "")

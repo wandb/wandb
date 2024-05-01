@@ -3,15 +3,67 @@ name: Build and Release W&B SDK
 on:
   workflow_dispatch:
     inputs:
-      use_pre:
+      version:
+        type: string
+        description: "version to assign to the release"
+        required: true
+      update-changelog:
         type: boolean
-        description: "pre-release"
+        description: "update the changelog and release notes"
         required: false
         default: false
 
 jobs:
+  prepare-release:
+    name: Prepare Release
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
+      - name: Setup git config
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/wandb/wandb.git
+
+      - name: Install bump2version
+        run: pip install bump2version
+
+      - name: Create and Switch to Release Branch
+        run: |
+          git checkout -b release-${{ github.event.inputs.version }}
+
+      - name: Bump Version
+        run: |
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+
+      - name: Update CHANGELOG.md
+        if: ${{ inputs.update-changelog }}
+        run: |
+          DATE=$(date +'%Y-%m-%d')
+          sed -i "s/## Unreleased/## Unreleased\n\n## [${{ github.event.inputs.version }}] - $DATE/" CHANGELOG.md
+
+      - name: Lint changes
+        run: |
+          pip install pre-commit
+          pre-commit install
+          # if there are linting errors, this will fix them and proceed
+          sh -c 'pre-commit run trailing-whitespace --all-files --hook-stage pre-push' || exit 0
+
+      - name: Commit and push changes
+        run: |
+          git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
+          git push --no-verify -f origin release-${{ github.event.inputs.version }}
+
   build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
+    needs: prepare-release
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     strategy:
@@ -24,6 +76,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
 
       ##################################################
       # Linux only: get QEMU, required by cibuildwheel
@@ -98,9 +152,12 @@ jobs:
 
   build-universal-wheel:
     name: Build universal wheel (no wandb-core)
+    needs: prepare-release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -146,26 +203,33 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   verify-test-pypi:
-    name: Verify TestPyPI upload
     needs: test-pypi-publish
-    runs-on: ubuntu-latest
+    name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-20.04
+          - windows-2019
+          - macos-14
+        use_core: [false, true]
     steps:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.9"
+          python-version: "3.10"
       - name: Install wandb from TestPyPI
         run: |
-          sleep 5
+          sleep 60
           python -m pip install --upgrade pip
-          if [ "${{ inputs.use_pre }}" == "true" ]; then
-            python -m pip install --extra-index-url https://test.pypi.org/simple/ --pre wandb
-          else
-            python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb
-          fi
+          python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb==${{ github.event.inputs.version }}
       - name: Smoke-test wandb TestPyPI install
         run: |
-          python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
+          WANDB__REQUIRE_CORE=${{ matrix.use_core }} python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
+        shell: bash
 
   pypi-publish:
     name: Publish to PyPI
@@ -187,9 +251,40 @@ jobs:
         with:
           password: ${{ secrets.PYPI_TOKEN }}
 
+  publish-release-notes:
+    name: Publish Release Notes
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    if: ${{ inputs.update-changelog }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+      - name: Create Source Archives
+        run: |
+          git archive --format=zip --output=wandb-${{ github.event.inputs.version }}.zip HEAD
+          git archive --format=tar.gz --output=wandb-${{ github.event.inputs.version }}.tar.gz HEAD
+      - name: Extract release notes and set output
+        id: release_notes
+        run: |
+          echo "## What's Changed" > release_notes.md
+          awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
+      - name: Draft Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ github.event.inputs.version }}
+          tag_name: v${{ github.event.inputs.version }}
+          body_path: release_notes.md
+          files: |
+            wandb-${{ github.event.inputs.version }}.zip
+            wandb-${{ github.event.inputs.version }}.tar.gz
+          draft: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
   slack:
     name: Post to Slack
-    needs: pypi-publish
+    needs: publish-release-notes
     runs-on: ubuntu-latest
     steps:
       - name: Install from PyPI and get version
@@ -197,12 +292,7 @@ jobs:
         run: |
           sleep 60
           python -m pip install --upgrade pip
-          if [ "${{ inputs.use_pre }}" == "true" ]; then
-            python -m pip install --pre wandb
-          else
-            python -m pip install wandb
-          fi
-          echo "WANDB_VERSION=$(python -c 'import wandb; print(wandb.__version__)')" >> "$GITHUB_ENV"
+          python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
         uses: slackapi/slack-github-action@v1.24.0
@@ -212,6 +302,6 @@ jobs:
           # You can pass in multiple channels to post to by providing a comma-delimited list of channel IDs.
           channel-id: ${{ secrets.SLACK_SDK_RELEASE_CHANNEL_ID }}
           # For posting a simple plain text message
-          slack-message: "W&B SDK ${{ env.WANDB_VERSION }} released :tada:: https://pypi.org/project/wandb/${{ env.WANDB_VERSION }}/"
+          slack-message: "W&B SDK ${{ github.event.inputs.version }} released :tada:: https://pypi.org/project/wandb/${{ github.event.inputs.version }}/"
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

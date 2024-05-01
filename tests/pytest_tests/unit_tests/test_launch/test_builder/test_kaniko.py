@@ -477,7 +477,7 @@ async def test_build_image_success(
         mock_artifact.version = job_version
         project._job_artifact = mock_artifact
         entry_point = EntryPoint("main.py", ["python", "main.py"])
-        project.set_entry_point(entry_point.command)
+        project.set_job_entry_point(entry_point.command)
         image_uri = await builder.build_image(project, entry_point)
         assert (
             "Created kaniko job wandb-launch-container-build-"

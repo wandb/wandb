@@ -159,6 +159,16 @@ commands:
             - store_artifacts:
                 path: cover-results
 
+  # We only need a separate command to include this workaround to a bug:
+  # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
+  upload_codecov:
+    description: Upload code coverage to codecov.io
+    parameters:
+      flags: { type: string }
+    steps:
+      - run: mkdir -p ~/.gnupg
+      - codecov/upload: { flags: <<parameters.flags>> }
+
   install_go:
     description: "Install Go with the specified version and system"
     parameters:
@@ -218,6 +228,7 @@ commands:
             echo 'export PATH="$HOME/go/bin:$PATH"' >> "$BASH_ENV"
 
             $HOME/go/bin/go version
+            $HOME/go/bin/go env -w GOCACHE=$HOME/.cache/go-build
           no_output_timeout: 1m
 
   setup_docker_buildx:
@@ -326,6 +337,32 @@ commands:
           environment:
             GKE_CLUSTER_NAME: << parameters.cluster >>
 
+  restore_cache_tox:
+    steps:
+      - run:
+          name: Store current date
+          command: date "+%F" > tox-cache-date.txt
+      - restore_cache:
+          name: Restore .tox cache
+          keys:
+            # Note that virtualenvs are not portable! We include the job name
+            # in the key in the hopes that it encapsulates the Python version.
+            # We include the architecture (OS + processor) as well to be safe.
+            - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+                checksum "tox-cache-date.txt" }}-{{
+                checksum "requirements_dev.txt" }}-{{
+                checksum "requirements_test.txt" }}-{{
+                checksum "tox.ini" }}
+            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+                checksum "tox-cache-date.txt" }}
+  save_cache_tox:
+    steps:
+      - save_cache:
+          name: Upload .tox cache
+          key: *tox-cache
+          paths: [.tox]
+
+
 jobs:
   regression:
     parameters:
@@ -403,169 +440,40 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
-  unit-tests:
+  nox-tests:
     parameters:
       executor: { type: executor }
+      parallelism: { type: integer }
       install_deps: { type: steps }
+      session_base: { type: string }
       python_version_major: { type: integer }
       python_version_minor: { type: integer }
-      with_core: { type: boolean }
-      tests:
-        type: enum
-        enum: [sdk, other]
+      core: { type: string }
+      codecov_flags: { type: string }
 
     executor: <<parameters.executor>>
 
-    environment:
-      WANDB__REQUIRE_CORE: <<parameters.with_core>>
-
-    # Shards the job, setting $CIRCLE_NODE_TOTAL and $CIRCLE_NODE_INDEX.
-    # https://circleci.com/docs/parallelism-faster-jobs/
-    parallelism: 2
+    parallelism: <<parameters.parallelism>>
 
     steps:
       - checkout
       - <<parameters.install_deps>>
       - install_go
-
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U nox pip uv
           no_output_timeout: 5m
 
-      # For now, this step needs to be duplicated because there's no way
-      # in YAML or CircleCI's config to change just the final argument to
-      # tox run. Ideally, we would just pass "sdk" or "other" directly to
-      # the test command, and have it decide on the paths to run.
-      - when:
-          condition: { equal: [<<parameters.tests>>, sdk] }
-          steps:
-            - run:
-                name: Run tests owned by SDK
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    tests/pytest_tests/unit_tests/ \
-                    --ignore tests/pytest_tests/unit_tests/test_artifacts/ \
-                    --ignore tests/pytest_tests/unit_tests/test_launch/ \
-                    --ignore tests/pytest_tests/unit_tests/test_reports/ \
-                    --ignore tests/pytest_tests/unit_tests/test_importers/
-
-      - when:
-          condition: { equal: [<<parameters.tests>>, other] }
-          steps:
-            - run:
-                name: Run tests not owned by SDK
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    tests/pytest_tests/unit_tests/test_artifacts/ \
-                    tests/pytest_tests/unit_tests/test_launch/ \
-                    tests/pytest_tests/unit_tests/test_reports/ \
-                    tests/pytest_tests/unit_tests/test_importers/
-
-      - codecov/upload: { flags: unit, validate: false }
-
-      - save-test-results
-
-  system-tests:
-    parameters:
-      executor: { type: executor }
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
-      with_core: { type: boolean }
-      tests:
-        type: enum
-        enum: [sdk, notebooks, other]
-
-    executor: <<parameters.executor>>
-
-    environment:
-      WANDB__REQUIRE_CORE: <<parameters.with_core>>
-
-    parallelism: 4
-
-    steps:
-      - checkout
       - run:
-          name: Install system deps
-          command: |
-            apt-get update
-            apt-get install -y libsndfile1 ffmpeg
-      - install_go
-      - run:
-          name: Install Python dependencies
-          command: pip install -U tox nox pip
-          no_output_timeout: 5m
+          name: "Run nox tests: <<parameters.session_base>>"
+          no_output_timeout: 10m
+          command: "\
+            nox -s '<<parameters.session_base>>-\
+              <<parameters.python_version_major>>.\
+              <<parameters.python_version_minor>>\
+              (core=<<parameters.core>>)'"
 
-      # TODO: replace tests with pytest markers and remove the conditional
-      - when:
-          condition: { equal: [<<parameters.tests>>, sdk] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_core \
-                    tests/pytest_tests/system_tests/test_system_metrics \
-                    tests/pytest_tests/system_tests/test_functional
-      - when:
-          condition: { equal: [<<parameters.tests>>, notebooks] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>notebooks-py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_notebooks
-      - when:
-          condition: { equal: [<<parameters.tests>>, other] }
-          steps:
-            - run:
-                name: Run tests for <<parameters.tests>>
-                no_output_timeout: 10m
-                command: |
-                  CI_PYTEST_SPLIT_ARGS=" \
-                    --splits $CIRCLE_NODE_TOTAL \
-                    --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-                  tox run -v \
-                    -e <<#parameters.with_core>>core-<</parameters.with_core
-                      >>py<<parameters.python_version_major>><<parameters.python_version_minor>> \
-                    -- \
-                    <<#parameters.with_core>>-m 'not wandb_core_failure' <</parameters.with_core>> \
-                    tests/pytest_tests/system_tests/test_reports \
-                    tests/pytest_tests/system_tests/test_launch \
-                    tests/pytest_tests/system_tests/test_sweep \
-                    tests/pytest_tests/system_tests/test_artifacts
-
-      - codecov/upload: { flags: system, validate: false }
+      - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
       - save-test-results
 
@@ -577,14 +485,17 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox nox pip uv
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
-          command: nox -t proto-check
+          command: nox -vt proto-check
       - run:
-          name: Lint
-          command: tox run -v -e auto-codegen-check
+          name: Automatically generate code and check for changes
+          command: nox -vs codegen -- --check
+      - run:
+          name: Run mypy and report results
+          command: nox -vs mypy-report
       - save-test-results
 
   tox-base:
@@ -642,25 +553,25 @@ jobs:
                 name: Install system deps
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
-            - run:
-                name: Install python dependencies
-                command: |
-                  pip install -U tox nox pip
-                no_output_timeout: 5m
             - install_go
+            - run:
+                name: Install Python dependencies
+                command: pip install -U tox nox pip uv
+                no_output_timeout: 5m
+            - restore_cache_tox
             - run:
                 name: Run tests
                 no_output_timeout: 15m
                 command: |
                   CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
                   tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
+            - save_cache_tox
             - when:
                 condition:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload:
-                      { flags: <<parameters.codecov_flags>>, validate: false }
+                  - upload_codecov: { flags: <<parameters.codecov_flags>> }
             - save-test-results
             # conditionally post a notification to slack if the job failed
             - when:
@@ -703,8 +614,9 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox nox pip uv
           no_output_timeout: 5m
+      - restore_cache_tox
       - run:
           name: Run tests
           no_output_timeout: 10m
@@ -714,12 +626,13 @@ jobs:
               -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
               -- $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
-      - codecov/upload: { flags: system, validate: false }
+      - save_cache_tox
+      - upload_codecov: { flags: system }
       - save-test-results
 
   unit-tests-go:
     docker:
-      - image: cimg/go:1.21
+      - image: cimg/go:<<pipeline.parameters.go_version>>
     steps:
       - checkout
       - run:
@@ -727,7 +640,7 @@ jobs:
           command: |
             cd core
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
-      - codecov/upload: { flags: unit, validate: false }
+      - upload_codecov: { flags: unit }
 
   store-local-testcontainer:
     parameters:
@@ -754,7 +667,7 @@ jobs:
           name:
           command: |
             go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            pip install -U pip nox requests
+            pip install -U pip nox requests uv
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 
@@ -807,7 +720,7 @@ jobs:
             - run:
                 name: Install python dependencies
                 command: |
-                  python -m pip install -U tox nox pip
+                  python -m pip install -U tox nox pip uv
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -833,65 +746,8 @@ jobs:
                   not:
                     equal: ["", << parameters.codecov_flags >>]
                 steps:
-                  - codecov/upload:
-                      { flags: <<parameters.codecov_flags>>, validate: false }
+                  - upload_codecov: { flags: <<parameters.codecov_flags>> }
             - save-test-results
-
-  mac:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 7
-      toxenv:
-        type: string
-      coverage_dir:
-        type: string
-        default: ""
-      parallelism:
-        type: integer
-        default: 4
-      xdist:
-        type: integer
-        default: 3
-      tox_args:
-        type: string
-        default: ""
-      codecov_flags:
-        type: string
-        default: ""
-    macos:
-      xcode: 15.0.1
-    resource_class: macos.m1.medium.gen1
-    parallelism: << parameters.parallelism >>
-    environment:
-      COVERAGE_DIR: << parameters.coverage_dir >>
-    steps:
-      - checkout
-      - run:
-          name: Install python dependencies
-          command: |
-            pip3 install -U tox nox pip
-            brew install ffmpeg
-      - install_go
-      - run:
-          name: Run tests
-          # Tests failed with Too many open files, so added ulimit
-          command: |
-            ulimit -n 4096
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> CI_PYTEST_SPLIT_ARGS="--splits $CIRCLE_NODE_TOTAL --group $(( $CIRCLE_NODE_INDEX + 1 ))" \
-            python3 -m tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
-          no_output_timeout: 10m
-      - when:
-          condition:
-            not:
-              equal: ["", << parameters.codecov_flags >>]
-          steps:
-            - codecov/upload:
-                { flags: <<parameters.codecov_flags>>, validate: false }
-      - save-test-results
 
   launch:
     parameters:
@@ -927,7 +783,7 @@ jobs:
       - run:
           name: Install python dependencies, build r2d
           command: |
-            pip3 install tox nox chardet iso8601
+            pip3 install tox nox uv chardet iso8601
       - run:
           name: pull base docker images
           command: |
@@ -942,8 +798,7 @@ jobs:
             not:
               equal: ["", << parameters.codecov_flags >>]
           steps:
-            - codecov/upload:
-                { flags: <<parameters.codecov_flags>>, validate: false }
+            - upload_codecov: { flags: <<parameters.codecov_flags>> }
       - save-test-results
 
   slack_notify:
@@ -1554,6 +1409,15 @@ workflows:
       - code-check
 
       #
+      # Store latest local-testcontainer
+      #
+      - store-local-testcontainer:
+          filters:
+            branches:
+              only:
+                - main
+
+      #
       # Prep jobs
       #
       # TODO: pre-create toxenvs for all python versions,
@@ -1637,21 +1501,22 @@ workflows:
       #
       # Unit tests with pytest on Linux
       #
-      - unit-tests:
+      - nox-tests:
           name: "\
             unit-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
-            <<matrix.tests>>-\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: unit_tests
+          codecov_flags: unit
 
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [8, 12]
-              with_core: [true, false]
-              tests: [sdk, other]
+              core: ["True", "False"]
 
+          parallelism: 4
           executor:
             name: linux-python
             python_version_major: <<matrix.python_version_major>>
@@ -1675,21 +1540,22 @@ workflows:
       # Unfortunately, CircleCI does not seem to provide a way to define
       # the common part separately and reuse it.
       #
-      - unit-tests:
+      - nox-tests:
           name: "\
             unit-tests-macos-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
-            <<matrix.tests>>-\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: unit_tests
+          codecov_flags: unit
 
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9, 12]
-              with_core: [true, false]
-              tests: [sdk, other]
+              core: ["True", "False"]
 
+          parallelism: 4
           executor: macos
 
           install_deps:
@@ -1699,32 +1565,60 @@ workflows:
                   brew install ffmpeg \
                     python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
 
-      - win:
+      #
+      # Unit tests with pytest on Windows
+      #
+      # This differs from the Linux tests above only in:
+      #   - executor
+      #   - install_deps
+      #
+      - nox-tests:
+          name: "\
+            unit-tests-win-\
+            core(<<matrix.core>>)-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+          session_base: unit_tests
+          codecov_flags: unit
+
           filters:
             branches:
               only:
                 # - main
                 - /^release-.*/
                 - /^.*-ci-win$/
+
           matrix:
             parameters:
               python_version_major: [3]
-              python_version_minor: [9]
-          name: "unit(service)-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          codecov_flags: unit
-          tox_args: "tests/pytest_tests/unit_tests --ignore=tests/pytest_tests/unit_tests/test_launch --ignore=tests/pytest_tests/unit_tests/test_reports"
+              python_version_minor: [9, 12]
+              core: ["True", "False"]
+
+
+          parallelism: 4
+          executor:
+            name: win/server-2019
+            size: large
+            shell: bash.exe
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  choco install -y ffmpeg \
+                    python<<matrix.python_version_major>><<matrix.python_version_minor>>
 
       #
       # System tests on Linux
       #
-      - system-tests:
+      - nox-tests:
           name: "\
             system-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
-            <<matrix.tests>>-\
+            core(<<matrix.core>>)-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
+          session_base: system_tests
+          codecov_flags: system
 
           filters:
             branches:
@@ -1735,13 +1629,48 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [8, 12]
-              with_core: [true, false]
-              tests: [sdk, notebooks, other]
+              core: ["True", "False"]
 
+          parallelism: 12
           executor:
             name: local-testcontainer
             python_version_major: <<matrix.python_version_major>>
             python_version_minor: <<matrix.python_version_minor>>
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
+
+      - nox-tests:
+          name: "\
+            notebook-tests-linux-\
+            core(<<matrix.core>>)-\
+            <<matrix.python_version_major>>-\
+            <<matrix.python_version_minor>>"
+          session_base: notebook_tests
+          codecov_flags: system
+
+          matrix:
+            parameters:
+              python_version_major: [3]
+              python_version_minor: [8, 12]
+              core: ["True", "False"]
+
+          parallelism: 1
+          executor:
+            name: local-testcontainer
+            python_version_major: <<matrix.python_version_major>>
+            python_version_minor: <<matrix.python_version_minor>>
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
       #
       # W&B Importer tests on Linux, using 2 real wandb servers

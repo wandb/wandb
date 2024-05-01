@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
-import appdirs  # type: ignore
+import platformdirs  # type: ignore
 
 Env = Optional[MutableMapping]
 
@@ -141,11 +141,12 @@ def _env_as_bool(
     if env is None:
         env = os.environ
     val = env.get(var, default)
+    if not isinstance(val, str):
+        return False
     try:
-        val = strtobool(val)
-    except (AttributeError, ValueError):
-        pass
-    return val if isinstance(val, bool) else False
+        return strtobool(val)
+    except ValueError:
+        return False
 
 
 def is_require_core(env: Optional[Env] = None) -> bool:
@@ -384,7 +385,7 @@ def get_magic(
 
 
 def get_data_dir(env: Optional[Env] = None) -> str:
-    default_dir = appdirs.user_data_dir("wandb")
+    default_dir = platformdirs.user_data_dir("wandb")
     if env is None:
         env = os.environ
     val = env.get(DATA_DIR, default_dir)
@@ -409,7 +410,7 @@ def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
 
 def get_cache_dir(env: Optional[Env] = None) -> Path:
     env = env or os.environ
-    return Path(env.get(CACHE_DIR, appdirs.user_cache_dir("wandb")))
+    return Path(env.get(CACHE_DIR, platformdirs.user_cache_dir("wandb")))
 
 
 def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:

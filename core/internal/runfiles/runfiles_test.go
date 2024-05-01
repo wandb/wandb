@@ -17,6 +17,7 @@ import (
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watcher2test"
 	"github.com/wandb/wandb/core/pkg/filestreamtest"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -63,8 +64,8 @@ func TestUploader(t *testing.T) {
 	var fakeFileWatcher *watcher2test.FakeWatcher
 	var uploader Uploader
 
-	// Optional channel that's returned by the uploader's BatchDelayFunc.
-	var batchChan chan struct{}
+	// Optional batch delay to use in the uploader.
+	var batchDelay *waitingtest.FakeDelay
 
 	// The files_dir to set on Settings.
 	var filesDir string
@@ -85,7 +86,7 @@ func TestUploader(t *testing.T) {
 		test func(t *testing.T),
 	) {
 		// Set a default and allow tests to override it.
-		batchChan = nil
+		batchDelay = nil
 		filesDir = t.TempDir()
 		ignoreGlobs = []string{}
 		isOffline = false
@@ -101,20 +102,13 @@ func TestUploader(t *testing.T) {
 
 		fakeFileWatcher = watcher2test.NewFakeWatcher()
 
-		var batchDelayFunc func() <-chan struct{}
-		if batchChan != nil {
-			batchDelayFunc = func() <-chan struct{} {
-				return batchChan
-			}
-		}
-
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
-			Ctx:            context.Background(),
-			GraphQL:        mockGQLClient,
-			FileStream:     fakeFileStream,
-			FileTransfer:   fakeFileTransfer,
-			FileWatcher:    fakeFileWatcher,
-			BatchDelayFunc: batchDelayFunc,
+			Ctx:          context.Background(),
+			GraphQL:      mockGQLClient,
+			FileStream:   fakeFileStream,
+			FileTransfer: fakeFileTransfer,
+			FileWatcher:  fakeFileWatcher,
+			BatchDelay:   batchDelay,
 			Settings: settings.From(&service.Settings{
 				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
 				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
@@ -291,7 +285,7 @@ func TestUploader(t *testing.T) {
 		})
 
 	runTest("upload batches and deduplicates CreateRunFiles calls",
-		func() { batchChan = make(chan struct{}) },
+		func() { batchDelay = waitingtest.NewFakeDelay() },
 		func(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test1.txt"))
 			writeEmptyFile(t, filepath.Join(filesDir, "test2.txt"))
@@ -323,7 +317,7 @@ func TestUploader(t *testing.T) {
 			uploader.UploadNow("test1.txt")
 			uploader.UploadNow("test2.txt")
 			uploader.UploadNow("test2.txt")
-			batchChan <- struct{}{}
+			batchDelay.SetZero()
 			uploader.Finish()
 
 			assert.True(t, mockGQLClient.AllStubsUsed())

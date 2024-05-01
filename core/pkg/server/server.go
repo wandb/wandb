@@ -2,9 +2,10 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net"
-        "os"
+	"os"
 	"sync"
 	"sync/atomic"
         "time"
@@ -52,7 +53,11 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
-	writePortFile(portFile, port)
+	if err := writePortFile(portFile, port); err != nil {
+		slog.Error("failed to write port file", "error", err)
+		return nil, err
+	}
+
 	s.wg.Add(1)
 	go s.Serve()
         if pid != 0 {
@@ -121,4 +126,39 @@ func (s *Server) Close() {
 	}
 	s.wg.Wait()
 	slog.Info("server is closed")
+}
+
+func writePortFile(portFile string, port int) error {
+	tempFile := fmt.Sprintf("%s.tmp", portFile)
+	f, err := os.Create(tempFile)
+	if err != nil {
+		err = fmt.Errorf("fail create temp file: %w", err)
+		return err
+	}
+
+	if _, err = f.WriteString(fmt.Sprintf("sock=%d\n", port)); err != nil {
+		err = fmt.Errorf("fail write port: %w", err)
+		return err
+	}
+
+	if _, err = f.WriteString("EOF"); err != nil {
+		err = fmt.Errorf("fail write EOF: %w", err)
+		return err
+	}
+
+	if err = f.Sync(); err != nil {
+		err = fmt.Errorf("fail sync: %w", err)
+		return err
+	}
+
+	if err := f.Close(); err != nil {
+		err = fmt.Errorf("fail close: %w", err)
+		return err
+	}
+
+	if err = os.Rename(tempFile, portFile); err != nil {
+		err = fmt.Errorf("fail rename: %w", err)
+		return err
+	}
+	return nil
 }

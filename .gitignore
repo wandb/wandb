@@ -5,6 +5,7 @@ __pycache__/
 htmlcov/
 .coverage
 coverage.xml
+coverage.txt
 .tox/
 .mypy_cache/
 .pytest_cache/

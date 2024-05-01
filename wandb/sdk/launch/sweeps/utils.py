@@ -217,7 +217,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
     flags: List[str] = []
     # (2) flags without hyphens (e.g. foo=bar)
     flags_no_hyphens: List[str] = []
-    # (3) flags with false booleans ommited  (e.g. --foo)
+    # (3) flags with false booleans omitted  (e.g. --foo)
     flags_no_booleans: List[str] = []
     # (4) flags as a dictionary (used for constructing a json)
     flags_dict: Dict[str, Any] = {}
@@ -257,7 +257,7 @@ def make_launch_sweep_entrypoint(
     """Use args dict from create_sweep_command_args to construct entrypoint.
 
     If replace is True, remove macros from entrypoint, fill them in with args
-    and then return the args in seperate return value.
+    and then return the args in separate return value.
     """
     if not command:
         return None, None

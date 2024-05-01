@@ -1060,7 +1060,7 @@ class WeaveBlockArtifact(Block):
 
 
 class WeaveBlockArtifactVersionedFile(Block):
-    """This is a hacky solution to support the most common way of getting Weave artifact verions for now..."""
+    """This is a hacky solution to support the most common way of getting Weave artifact versions for now..."""
 
     entity: str = Attr()
     project: str = Attr()

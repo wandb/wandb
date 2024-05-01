@@ -1,17 +1,16 @@
 #!/usr/bin/env python
 
+import importlib.metadata
 import os
 import pathlib
 
 import grpc_tools  # type: ignore
 from grpc_tools import protoc  # type: ignore
-import importlib.metadata
 from packaging import version
 
 
 def generate_deprecated_class_definition() -> None:
-    """
-    Generate a class definition listing the deprecated features.
+    """Generate a class definition listing the deprecated features.
     This is to allow static checks to ensure that proper field names are used.
     """
     from wandb.proto.wandb_telemetry_pb2 import Deprecated  # type: ignore[import]
@@ -27,7 +26,7 @@ def generate_deprecated_class_definition() -> None:
         "    from typing_extensions import Literal\n\n\n"
         "DEPRECATED_FEATURES = Literal[\n"
         + ",\n".join(f'    "{feature}"' for feature in deprecated_features)
-        + "\n"
+        + ",\n"
         + "]\n\n\n"
         "class Deprecated:\n"
         + "".join(
