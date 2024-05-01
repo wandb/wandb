@@ -1,8 +1,6 @@
 import asyncio
 import logging
-from typing import Any, Dict, List
-
-from wandb.sdk.launch.runner.abstract import AbstractRun
+from typing import Any, List
 
 from ..._project_spec import LaunchProject
 from ...queue_driver.standard_queue_driver import StandardQueueDriver
@@ -29,7 +27,9 @@ async def sagemaker_controller(
         f"Starting SageMaker controller with max_concurrency={max_concurrency}"
     )
 
-    mgr = SageMakerManager(config, jobset, logger, legacy, scheduler_queue, max_concurrency)
+    mgr = SageMakerManager(
+        config, jobset, logger, legacy, scheduler_queue, max_concurrency
+    )
 
     while not shutdown_event.is_set():
         await mgr.reconcile()

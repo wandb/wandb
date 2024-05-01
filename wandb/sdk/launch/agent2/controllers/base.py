@@ -156,7 +156,9 @@ class BaseManager(ABC):
             run_id = project.run_id
             project.queue_name = self.config["jobset_spec"].name
             project.queue_entity = self.config["jobset_spec"].entity_name
-            job_tracker = self.legacy.job_tracker_factory(run_id, self.config["jobset_spec"].name)
+            job_tracker = self.legacy.job_tracker_factory(
+                run_id, self.config["jobset_spec"].name
+            )
             job_tracker.update_run_info(project)
         except Exception as e:
             self.logger.error(

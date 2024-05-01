@@ -17,7 +17,9 @@ def scheduler_controller(controller_config, jobset):
 
     mock_queue = AsyncMock()
     mock_queue.get.return_value = MagicMock()
-    scheduler_manager = SchedulerController(mock_scheduler_manager, 1, mock_queue, MagicMock())
+    scheduler_manager = SchedulerController(
+        mock_scheduler_manager, 1, mock_queue, MagicMock()
+    )
     return scheduler_manager
 
 

@@ -1,7 +1,7 @@
 import asyncio
 import json
 import logging
-from typing import Any, List, Optional, Union
+from typing import Any, List, Optional
 
 from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
@@ -102,8 +102,6 @@ class LocalProcessManager(BaseManager):
         self.logger.info(f"Launched item got run_id: {run_id}")
         return run_id
 
-    
-
     def _populate_project(self, job: Job | JobWithQueue) -> LaunchProject:
         assert isinstance(job, Job)
         project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
@@ -114,7 +112,7 @@ class LocalProcessManager(BaseManager):
         project.queue_entity = queue_entity
         project.run_queue_item_id = job_id
         return project
-    
+
     async def ack_run_queue_item(self, queue_item_id: str, run_id: str) -> bool:
         return await self.queue_driver.ack_run_queue_item(queue_item_id, run_id)
 

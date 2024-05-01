@@ -1,16 +1,14 @@
 import asyncio
-import json
 import logging
 from typing import Any, Optional
 
-from ..controller import LegacyResources
 import wandb
 from wandb.sdk.launch._project_spec import LaunchProject
 
 from ...utils import LOG_PREFIX
+from ..controller import LegacyResources
 from ..jobset import Job, JobWithQueue
 from .local_process import LocalProcessManager
-from .base import BaseManager, RunWithTracker
 
 
 async def scheduler_process_controller(
@@ -68,7 +66,7 @@ class SchedulerController:
     @property
     def active_runs(self):
         return self._controller.active_runs
-    
+
 
 class SchedulerManager(LocalProcessManager):
     def __init__(
@@ -97,7 +95,6 @@ class SchedulerManager(LocalProcessManager):
         run_id = await self._launch_job(item.job, project)
         self.logger.info(f"Launched item got run_id: {run_id}")
         return run_id
-
 
     def _populate_project(self, job: Job | JobWithQueue) -> LaunchProject:
         assert isinstance(job, JobWithQueue)

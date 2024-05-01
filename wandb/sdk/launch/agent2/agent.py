@@ -5,9 +5,10 @@ import sys
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Set
 
-from wandb.sdk.launch.agent2.controllers.local_process import LocalProcessManager
-from wandb.sdk.launch.agent2.controllers.scheduler_controller import SchedulerManager, scheduler_process_controller
-from wandb.sdk.launch.sweeps.scheduler import Scheduler
+from wandb.sdk.launch.agent2.controllers.scheduler_controller import (
+    SchedulerManager,
+    scheduler_process_controller,
+)
 
 if sys.version_info >= (3, 8):
     from typing import TypedDict
@@ -301,7 +302,6 @@ class LaunchAgent2:
         job_tracker_factory: Callable[[str, str], JobAndRunStatusTracker],
     ):
         # create sweep scheduler local process controller
-        local_controller_impl = self.get_controller_for_jobset("local-process")
         environment = LocalEnvironment()
         registry = LocalRegistry()
         builder = NoOpBuilder({}, LocalEnvironment(), LocalRegistry())
