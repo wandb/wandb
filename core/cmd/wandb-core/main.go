@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	_ "net/http/pprof"
 	"os"
@@ -86,16 +85,16 @@ func main() {
 		defer trace.Stop()
 	}
 
-	myPid := os.Getpid()
-	myPPid := os.Getppid()
 	ppid := os.Getppid()
-	fmt.Println("wandb-core started with pid", myPid, "and parent pid", myPPid, "*pid", *pid)
 
-	serve, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename, &ppid)
+	srv, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename, &ppid)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
-	serve.SetDefaultLoggerPath(loggerPath)
-	serve.Close()
+
+	srv.Serve()
+
+	srv.SetDefaultLoggerPath(loggerPath)
+	srv.Close()
 }

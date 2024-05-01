@@ -61,8 +61,6 @@ func NewServer(ctx context.Context, addr string, portFile string, ppid *int) (*S
 		return nil, err
 	}
 
-	s.wg.Add(1)
-	go s.Serve()
 	return s, nil
 }
 
@@ -75,9 +73,13 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 
 // Serve serves the server
 func (s *Server) Serve() {
+	s.wg.Add(1)
+	go s.serve()
+}
+
+func (s *Server) serve() {
 	defer s.wg.Done()
 	slog.Info("server is running", "addr", s.listener.Addr())
-	// Run a separate goroutine to handle incoming connections
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
@@ -91,10 +93,8 @@ func (s *Server) Serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				fmt.Println("handling connection")
 				nc := NewConnection(s.ctx, conn, s.teardownChan)
 				nc.HandleConnection()
-				fmt.Println("connection closed")
 				s.wg.Done()
 			}()
 		}
@@ -103,14 +103,13 @@ func (s *Server) Serve() {
 
 // Close closes the server
 func (s *Server) Close() {
-	fmt.Println("waiting to close the server")
-	// if there is a parent process, start a goroutine to wait for it to go away,
+	// TODO: this should be unnecessary the connection will get dropped.
+	// TODO: if there is a parent process, start a goroutine to wait for it to go away,
 	// (if it's e.g. killed), in which case we will close the server
 	if s.ppid != nil {
 		go func() {
 			for {
 				if os.Getppid() != *s.ppid {
-					fmt.Println("parent process is gone, closing the server")
 					close(s.internalTeardownChan)
 					return
 				}
