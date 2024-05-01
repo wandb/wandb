@@ -11,6 +11,7 @@ from wandb.sdk.launch.utils import (
     parse_wandb_uri,
     pull_docker_image,
     recursive_macro_sub,
+    validate_launch_spec_source,
 )
 
 
@@ -174,3 +175,29 @@ def test_fail_pull_docker_image(mocker):
         pull_docker_image("not an image")
     except LaunchError as e:
         assert "Docker server returned error" in str(e)
+
+
+@pytest.mark.parametrize(
+    "spec,valid",
+    [
+        # Case 1: Valid source
+        ({"job": "entity/project/job:latest"}, True),
+        # Case 2: Invalid source, job and docker image specified
+        (
+            {"job": "entity/project/job", "docker": {"docker_image": "hello-world"}},
+            False,
+        ),
+        # Case 3: Invalid source, empty
+        (
+            {},
+            False,
+        ),
+    ],
+)
+def test_validate_launch_spec_source(spec, valid):
+    """Test that the source is validated correctly."""
+    if valid:
+        validate_launch_spec_source(spec)
+    else:
+        with pytest.raises(LaunchError):
+            validate_launch_spec_source(spec)
