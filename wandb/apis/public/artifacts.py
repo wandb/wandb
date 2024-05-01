@@ -324,6 +324,8 @@ class ArtifactCollection:
         if self._attrs is None:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
+        self.description = self._attrs["description"]
+        self.tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
 
     @property
     def id(self):
@@ -364,6 +366,14 @@ class ArtifactCollection:
                         name
                         description
                         createdAt
+                        tags {
+                            edges {
+                                node {
+                                    id
+                                    name
+                                }
+                            }
+                        }
                         aliases(after: $cursor, first: $perPage){
                             edges {
                                 node {
