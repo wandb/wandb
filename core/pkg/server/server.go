@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
+	"time"
 )
 
 const BufferSize = 32
@@ -30,6 +31,9 @@ type Server struct {
 
 	// shutdownChan is the channel for signaling shutdown
 	shutdownChan chan struct{}
+
+	// pidwatchChan is the channel for signaling shutdown of pid watcher
+	pidwatchChan chan struct{}
 }
 
 // NewServer creates a new server
@@ -62,7 +66,6 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 	}
 	return s, nil
 }
-
 
 func (s *Server) loopCheckIfParentGone(pid int) bool {
 	for {
