@@ -1,4 +1,3 @@
-# heavily inspired by https://github.com/mlflow/mlflow/blob/master/mlflow/projects/utils.py
 import asyncio
 import json
 import logging
@@ -16,7 +15,6 @@ import wandb
 import wandb.docker as docker
 from wandb import util
 from wandb.apis.internal import Api
-from wandb.errors import CommError
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.git_reference import GitReference
 from wandb.sdk.launch.wandb_reference import WandbReference
@@ -32,7 +30,6 @@ FAILED_PACKAGES_REGEX = re.compile(
 )
 
 if TYPE_CHECKING:  # pragma: no cover
-    from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 
 
@@ -57,15 +54,15 @@ API_KEY_REGEX = r"WANDB_API_KEY=\w+(-\w+)?"
 MACRO_REGEX = re.compile(r"\$\{(\w+)\}")
 
 AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"(?:https://)?([\w]+)\.azurecr\.io/([\w\-]+):?(.*)"
+    r"^(?:https://)?([\w]+)\.azurecr\.io/(?P<repository>[\w\-]+):?(?P<tag>.*)"
 )
 
 ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$"
+    r"^(?:https://)?(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\w-]+):?(?P<tag>.*)$"
 )
 
 GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
-    r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
+    r"^(?:https://)?(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/?(?P<image_name>[\w-]+)?(?P<tag>:.*)?$",
     re.IGNORECASE,
 )
 
@@ -227,14 +224,14 @@ def get_default_entity(api: Api, launch_config: Optional[Dict[str, Any]]):
 
 
 def strip_resource_args_and_template_vars(launch_spec: Dict[str, Any]) -> None:
-    wandb.termwarn(
-        "Launch spec contains both resource_args and template_variables, "
-        "only one can be set. Using template_variables."
-    )
     if launch_spec.get("resource_args", None) and launch_spec.get(
         "template_variables", None
     ):
-        launch_spec["resource_args"] = None
+        wandb.termwarn(
+            "Launch spec contains both resource_args and template_variables, "
+            "only one can be set. Using template_variables."
+        )
+        launch_spec.pop("resource_args")
 
 
 def construct_launch_spec(
@@ -341,77 +338,6 @@ def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
     return (ref.entity, ref.project, ref.run_id)
 
 
-def is_bare_wandb_uri(uri: str) -> bool:
-    """Check that a wandb uri is valid.
-
-    URI must be in the format
-    `/<entity>/<project>/runs/<run_name>[other stuff]`
-    or
-    `/<entity>/<project>/artifacts/job/<job_name>[other stuff]`.
-    """
-    _logger.info(f"Checking if uri {uri} is bare...")
-    return uri.startswith("/") and WandbReference.is_uri_job_or_run(uri)
-
-
-def fetch_wandb_project_run_info(
-    entity: str, project: str, run_name: str, api: Api
-) -> Any:
-    _logger.info("Fetching run info...")
-    try:
-        result = api.get_run_info(entity, project, run_name)
-    except CommError:
-        result = None
-    if result is None:
-        raise LaunchError(
-            f"Run info is invalid or doesn't exist for {api.settings('base_url')}/{entity}/{project}/runs/{run_name}"
-        )
-    if result.get("codePath") is None:
-        # TODO: we don't currently expose codePath in the runInfo endpoint, this downloads
-        # it from wandb-metadata.json if we can.
-        metadata = api.download_url(
-            project, "wandb-metadata.json", run=run_name, entity=entity
-        )
-        if metadata is not None:
-            _, response = api.download_file(metadata["url"])
-            data = response.json()
-            result["codePath"] = data.get("codePath")
-            result["cudaVersion"] = data.get("cuda", None)
-
-    return result
-
-
-def download_entry_point(
-    entity: str, project: str, run_name: str, api: Api, entry_point: str, dir: str
-) -> bool:
-    metadata = api.download_url(
-        project, f"code/{entry_point}", run=run_name, entity=entity
-    )
-    if metadata is not None:
-        _, response = api.download_file(metadata["url"])
-        with util.fsync_open(os.path.join(dir, entry_point), "wb") as file:
-            for data in response.iter_content(chunk_size=1024):
-                file.write(data)
-        return True
-    return False
-
-
-def download_wandb_python_deps(
-    entity: str, project: str, run_name: str, api: Api, dir: str
-) -> Optional[str]:
-    reqs = api.download_url(project, "requirements.txt", run=run_name, entity=entity)
-    if reqs is not None:
-        _logger.info("Downloading python dependencies")
-        _, response = api.download_file(reqs["url"])
-
-        with util.fsync_open(
-            os.path.join(dir, "requirements.frozen.txt"), "wb"
-        ) as file:
-            for data in response.iter_content(chunk_size=1024):
-                file.write(data)
-        return "requirements.frozen.txt"
-    return None
-
-
 def get_local_python_deps(
     dir: str, filename: str = "requirements.local.txt"
 ) -> Optional[str]:
@@ -503,19 +429,6 @@ def validate_wandb_python_deps(
     _logger.warning("Unable to validate local python dependencies")
 
 
-def fetch_project_diff(
-    entity: str, project: str, run_name: str, api: Api
-) -> Optional[str]:
-    """Fetches project diff from wandb servers."""
-    _logger.info("Searching for diff.patch")
-    patch = None
-    try:
-        (_, _, patch, _) = api.run_config(project, run_name, entity)
-    except CommError:
-        pass
-    return patch
-
-
 def apply_patch(patch_string: str, dst_dir: str) -> None:
     """Applies a patch file to a directory."""
     _logger.info("Applying diff.patch")
@@ -536,17 +449,6 @@ def apply_patch(patch_string: str, dst_dir: str) -> None:
         raise wandb.Error("Failed to apply diff.patch associated with run.")
 
 
-def _make_refspec_from_version(version: Optional[str]) -> List[str]:
-    """Create a refspec that checks for the existence of origin/main and the version."""
-    if version:
-        return [f"+{version}"]
-
-    return [
-        "+refs/heads/main*:refs/remotes/origin/main*",
-        "+refs/heads/master*:refs/remotes/origin/master*",
-    ]
-
-
 def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[str]:
     """Clones the git repo at ``uri`` into ``dst_dir``.
 
@@ -564,13 +466,6 @@ def _fetch_git_repo(dst_dir: str, uri: str, version: Optional[str]) -> Optional[
     if version is None:
         version = ref.ref
     return version
-
-
-def merge_parameters(
-    higher_priority_params: Dict[str, Any], lower_priority_params: Dict[str, Any]
-) -> Dict[str, Any]:
-    """Merge the contents of two dicts, keeping values from higher_priority_params if there are conflicts."""
-    return {**lower_priority_params, **higher_priority_params}
 
 
 def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
@@ -602,35 +497,11 @@ def convert_jupyter_notebook_to_script(fname: str, project_dir: str) -> str:
     return new_name
 
 
-def check_and_download_code_artifacts(
-    entity: str, project: str, run_name: str, internal_api: Api, project_dir: str
-) -> Optional["Artifact"]:
-    _logger.info("Checking for code artifacts")
-    public_api = wandb.PublicApi(
-        overrides={"base_url": internal_api.settings("base_url")}
-    )
-
-    run = public_api.run(f"{entity}/{project}/{run_name}")
-    run_artifacts = run.logged_artifacts()
-
-    for artifact in run_artifacts:
-        if hasattr(artifact, "type") and artifact.type == "code":
-            artifact.download(project_dir)
-            return artifact  # type: ignore
-
-    return None
-
-
 def to_camel_case(maybe_snake_str: str) -> str:
     if "_" not in maybe_snake_str:
         return maybe_snake_str
     components = maybe_snake_str.split("_")
     return "".join(x.title() if x else "_" for x in components)
-
-
-def run_shell(args: List[str]) -> Tuple[str, str]:
-    out = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    return out.stdout.decode("utf-8").strip(), out.stderr.decode("utf-8").strip()
 
 
 def validate_build_and_registry_configs(
@@ -851,3 +722,28 @@ def fetch_and_validate_template_variables(
             raise LaunchError(f"Value for {key} must be of type {field_type}.")
         template_variables[key] = val
     return template_variables
+
+
+def get_entrypoint_file(entrypoint: List[str]) -> Optional[str]:
+    """Get the entrypoint file from the given command.
+
+    Args:
+        entrypoint (List[str]): List of command and arguments.
+
+    Returns:
+        Optional[str]: The entrypoint file if found, otherwise None.
+    """
+    if not entrypoint:
+        return None
+    if entrypoint[0].endswith(".py") or entrypoint[0].endswith(".sh"):
+        return entrypoint[0]
+    if len(entrypoint) < 2:
+        return None
+    return entrypoint[1]
+
+
+def get_current_python_version() -> Tuple[str, str]:
+    full_version = sys.version.split()[0].split(".")
+    major = full_version[0]
+    version = ".".join(full_version[:2]) if len(full_version) >= 2 else major + ".0"
+    return version, major

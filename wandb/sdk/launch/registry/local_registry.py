@@ -1,4 +1,5 @@
 """Local registry implementation."""
+
 import logging
 from typing import Tuple
 

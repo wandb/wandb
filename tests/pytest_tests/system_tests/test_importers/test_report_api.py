@@ -632,10 +632,6 @@ class TestBlocks:
         b = wr.P(text)
         vars(b)
 
-    @pytest.mark.skip(reason="See TestPanelGrids")
-    def test_panel_grid(self):
-        raise
-
     @pytest.mark.parametrize("url", ["https://api.soundcloud.com/tracks/1076901103"])
     def test_soundcloud(self, url):
         b = wr.SoundCloud(url)
@@ -1185,10 +1181,6 @@ class TestPanels:
         assert p.orientation == "h"
         vars(p)
 
-    @pytest.mark.skip(reason="Nothing special to test")
-    def test_code_comparer(self):
-        raise
-
     def test_custom_chart(self):
         p = wr.CustomChart()
         vars(p)
@@ -1198,14 +1190,6 @@ class TestPanels:
         vars(p)
         assert p.x == "x"
         assert p.y == ["y1", "y2"]
-
-    @pytest.mark.skip(reason="Nothing special to test")
-    def test_markdown_panel(self):
-        raise
-
-    @pytest.mark.skip(reason="Nothing special to test")
-    def test_media_browser(self):
-        raise
 
     def test_parallel_coordinates_plot(self):
         p = wr.ParallelCoordinatesPlot(
@@ -1220,10 +1204,6 @@ class TestPanels:
         assert p.with_respect_to == "metric"
         vars(p)
 
-    @pytest.mark.skip(reason="Nothing special to test")
-    def test_run_comparer(self):
-        raise
-
     def test_scalar_chart(self):
         p = wr.ScalarChart(metric="metric")
         assert p.metric == "metric"
@@ -1235,10 +1215,6 @@ class TestPanels:
         assert p.y == "s::y"
         assert p.z == "s::z"
         vars(p)
-
-    @pytest.mark.skip(reason="Nothing special to test")
-    def test_weave_table_panel(self):
-        raise
 
 
 @pytest.mark.usefixtures("user")

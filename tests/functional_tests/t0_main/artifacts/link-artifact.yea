@@ -4,7 +4,6 @@ plugin:
 tag:
     shards:
       - artifacts
-      - wandb_core_failure
 
 assert:
   - :wandb:runs_len: 1
@@ -12,5 +11,5 @@ assert:
   - :wandb:runs[0][summary]:
       metric: 5
   - :wandb:runs[0][exitcode]: 0
-  - :wandb:artifacts[test-artifact][type]: model
+  - :wandb:artifacts[test-link-artifact][type]: model
   - :wandb:portfolio_links[test_portfolio][num]: 1

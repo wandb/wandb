@@ -231,8 +231,10 @@ class BoundingBoxes2D(JSONMetadata):
 
         for box in boxes:
             # Required arguments
-            error_str = "Each box must contain a position with: middle, width, and height or \
+            error_str = (
+                "Each box must contain a position with: middle, width, and height or \
                     \nminX, maxX, minY, maxY."
+            )
             if "position" not in box:
                 raise TypeError(error_str)
             else:

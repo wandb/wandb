@@ -79,8 +79,11 @@ func (g *GPUAMD) IsAvailable() bool {
 	}
 
 	canReadRocmSmi := false
-	if _, err := getROCMSMIStats(); err == nil {
-		canReadRocmSmi = true
+	if stats, err := getROCMSMIStats(); err == nil {
+		// check if stats is not nil or empty
+		if len(stats) > 0 {
+			canReadRocmSmi = true
+		}
 	}
 
 	return isDriverInitialized && canReadRocmSmi

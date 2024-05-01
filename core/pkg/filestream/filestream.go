@@ -32,25 +32,25 @@
 package filestream
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/reflect/protoreflect"
-
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 const (
-	BufferSize             = 32
-	EventsFileName         = "wandb-events.jsonl"
-	HistoryFileName        = "wandb-history.jsonl"
-	SummaryFileName        = "wandb-summary.json"
-	OutputFileName         = "output.log"
-	defaultMaxItemsPerPush = 5_000
-	defaultDelayProcess    = 20 * time.Millisecond
-	defaultHeartbeatTime   = 2 * time.Second
+	BufferSize               = 32
+	EventsFileName           = "wandb-events.jsonl"
+	HistoryFileName          = "wandb-history.jsonl"
+	SummaryFileName          = "wandb-summary.json"
+	OutputFileName           = "output.log"
+	defaultMaxItemsPerPush   = 5_000
+	defaultDelayProcess      = 20 * time.Millisecond
+	defaultHeartbeatInterval = 30 * time.Second
 )
 
 type ChunkTypeEnum int8
@@ -64,14 +64,41 @@ const (
 	SummaryChunk
 )
 
-// FileStream is a stream of data to the server
-type FileStream struct {
+type FileStream interface {
+	// Start asynchronously begins to upload to the backend.
+	//
+	// All operations are associated with the specified run (defined by
+	// `entity`, `project` and `runID`). In case we are resuming a run,
+	// the `offsetMap` specifies the initial file offsets for each file
+	// type (history, output logs, events, summary).
+	Start(
+		entity string,
+		project string,
+		runID string,
+		offsetMap FileStreamOffsetMap,
+	)
+
+	// Close waits for all work to be completed.
+	Close()
+
+	// StreamRecord adds data to be sent to the filestream API.
+	StreamRecord(rec *service.Record)
+
+	// SignalFileUploaded tells the backend that a run file has been uploaded.
+	//
+	// This is used in some deployments where the backend is not notified when
+	// files finish uploading.
+	SignalFileUploaded(path string)
+}
+
+// fileStream is a stream of data to the server
+type fileStream struct {
 	// The relative path on the server to which to make requests.
 	//
 	// This must not include the schema and hostname prefix.
 	path string
 
-	processChan  chan protoreflect.ProtoMessage
+	processChan  chan processTask
 	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
@@ -92,140 +119,128 @@ type FileStream struct {
 	apiClient api.Client
 
 	maxItemsPerPush int
-	delayProcess    time.Duration
-	heartbeatTime   time.Duration
+	delayProcess    waiting.Delay
+
+	// A schedule on which to send heartbeats to the backend
+	// to prove the run is still alive.
+	heartbeatStopwatch waiting.Stopwatch
 
 	clientId string
+
+	// A channel that is closed if there is a fatal error.
+	deadChan     chan struct{}
+	deadChanOnce *sync.Once
 }
 
-type FileStreamOption func(fs *FileStream)
-
-func WithSettings(settings *service.Settings) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.settings = settings
-	}
+type FileStreamParams struct {
+	Settings           *service.Settings
+	Logger             *observability.CoreLogger
+	ApiClient          api.Client
+	MaxItemsPerPush    int
+	ClientId           string
+	DelayProcess       waiting.Delay
+	HeartbeatStopwatch waiting.Stopwatch
 }
 
-func WithLogger(logger *observability.CoreLogger) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.logger = logger
-	}
-}
-
-func WithPath(path string) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.path = path
-	}
-}
-
-func WithAPIClient(client api.Client) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.apiClient = client
-	}
-}
-
-func WithMaxItemsPerPush(maxItemsPerPush int) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.maxItemsPerPush = maxItemsPerPush
-	}
-}
-
-func WithClientId(clientId string) FileStreamOption {
-	// TODO: this should be the default behavior in the future
-	return func(fs *FileStream) {
-		if fs.settings.GetXShared().GetValue() {
-			fs.clientId = clientId
-		}
-	}
-}
-
-func WithDelayProcess(delayProcess time.Duration) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.delayProcess = delayProcess
-	}
-}
-
-func WithHeartbeatTime(heartbeatTime time.Duration) FileStreamOption {
-	return func(fs *FileStream) {
-		fs.heartbeatTime = heartbeatTime
-	}
-}
-
-func WithOffsets(offsetMap FileStreamOffsetMap) FileStreamOption {
-	return func(fs *FileStream) {
-		for k, v := range offsetMap {
-			fs.offsetMap[k] = v
-		}
-	}
-}
-
-// func GetCheckRetryFunc() func(context.Context, *http.Response, error) (bool, error) {
-// 	return func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-//      // Implement a custom retry function here
-// 		return false, nil
-//	}
-// }
-
-func NewFileStream(opts ...FileStreamOption) *FileStream {
-	fs := &FileStream{
+func NewFileStream(params FileStreamParams) FileStream {
+	fs := &fileStream{
+		settings:        params.Settings,
+		logger:          params.Logger,
+		apiClient:       params.ApiClient,
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan protoreflect.ProtoMessage, BufferSize),
+		processChan:     make(chan processTask, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
-		delayProcess:    defaultDelayProcess,
-		heartbeatTime:   defaultHeartbeatTime,
+		deadChanOnce:    &sync.Once{},
+		deadChan:        make(chan struct{}),
 	}
-	for _, opt := range opts {
-		opt(fs)
+
+	fs.delayProcess = params.DelayProcess
+	if fs.delayProcess == nil {
+		fs.delayProcess = waiting.NewDelay(defaultDelayProcess)
 	}
+
+	fs.heartbeatStopwatch = params.HeartbeatStopwatch
+	if fs.heartbeatStopwatch == nil {
+		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
+	}
+
+	if params.MaxItemsPerPush > 0 {
+		fs.maxItemsPerPush = params.MaxItemsPerPush
+	}
+
+	// TODO: this should become the default
+	if fs.settings.GetXShared().GetValue() && params.ClientId != "" {
+		fs.clientId = params.ClientId
+	}
+
 	return fs
 }
 
-// Start creates process, transmit, and feedback goroutines
-func (fs *FileStream) Start() {
+func (fs *fileStream) Start(
+	entity string,
+	project string,
+	runID string,
+	offsetMap FileStreamOffsetMap,
+) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
+
+	fs.path = fmt.Sprintf(
+		"files/%s/%s/%s/file_stream",
+		entity,
+		project,
+		runID,
+	)
+
+	for k, v := range offsetMap {
+		fs.offsetMap[k] = v
+	}
 
 	fs.processWait.Add(1)
 	go func() {
+		defer func() {
+			fs.processWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopProcess(fs.processChan)
-		fs.processWait.Done()
 	}()
 
 	fs.transmitWait.Add(1)
 	go func() {
+		defer func() {
+			fs.transmitWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopTransmit(fs.transmitChan)
-		fs.transmitWait.Done()
 	}()
 
 	fs.feedbackWait.Add(1)
 	go func() {
+		defer func() {
+			fs.feedbackWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopFeedback(fs.feedbackChan)
-		fs.feedbackWait.Done()
 	}()
 }
 
-// StreamRecord is the main entry point for callers to add data to be sent
-func (fs *FileStream) StreamRecord(rec *service.Record) {
-	if fs == nil {
-		return
-	}
+func (fs *fileStream) StreamRecord(rec *service.Record) {
 	fs.logger.Debug("filestream: stream record", "record", rec)
-	fs.addProcess(rec)
+	fs.addProcess(processTask{Record: rec})
 }
 
-func (fs *FileStream) GetInputChan() chan protoreflect.ProtoMessage {
-	return fs.processChan
+func (fs *fileStream) SignalFileUploaded(path string) {
+	fs.addProcess(processTask{UploadedFile: path})
 }
 
-// Close gracefully shuts down the goroutines created by Start
-func (fs *FileStream) Close() {
-	if fs == nil {
-		return
-	}
+func (fs *fileStream) Close() {
 	close(fs.processChan)
 	fs.processWait.Wait()
 	close(fs.transmitChan)
@@ -233,4 +248,39 @@ func (fs *FileStream) Close() {
 	close(fs.feedbackChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
+}
+
+// logFatalAndStopWorking logs a fatal error and kills the filestream.
+//
+// After this, most filestream operations are no-ops. This is meant for
+// when we can't guarantee correctness, in which case we stop uploading
+// data but continue to save it to disk to avoid data loss.
+func (fs *fileStream) logFatalAndStopWorking(err error) {
+	fs.logger.CaptureFatal("filestream: fatal error", err)
+	fs.deadChanOnce.Do(func() {
+		close(fs.deadChan)
+	})
+}
+
+// isDead reports whether the filestream has been killed.
+func (fs *fileStream) isDead() bool {
+	select {
+	case <-fs.deadChan:
+		return true
+	default:
+		return false
+	}
+}
+
+// recoverUnexpectedPanic redirects panics to FatalErrorChan.
+//
+// This should be used in a `defer` statement at the top of a function. This
+// is intended for truly *unexpected* panics to completely panic-proof critical
+// goroutines. All other errors should directly use `pushFatalError`.
+func (fs *fileStream) recoverUnexpectedPanic() {
+	if e := recover(); e != nil {
+		fs.logFatalAndStopWorking(
+			fmt.Errorf("filestream: unexpected panic: %v", e),
+		)
+	}
 }

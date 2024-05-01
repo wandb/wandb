@@ -17,8 +17,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-const BufferSize = 32
-
 func Average(nums []float64) float64 {
 	if len(nums) == 0 {
 		return 0.0

@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
@@ -9,14 +10,20 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.git_reference import GitReference
-from wandb.sdk.launch.utils import _is_git_uri
+from wandb.sdk.launch.utils import (
+    _is_git_uri,
+    get_current_python_version,
+    get_entrypoint_file,
+)
 from wandb.sdk.lib import filesystem
 from wandb.util import make_artifact_name_safe
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 _logger = logging.getLogger("wandb")
+
+
+CODE_ARTIFACT_EXCLUDE_PATHS = ["wandb", ".git"]
 
 
 def create_job(
@@ -30,6 +37,8 @@ def create_job(
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
+    build_context: Optional[str] = None,
+    dockerfile: Optional[str] = None,
 ) -> Optional[Artifact]:
     """Create a job from a path, not as the output of a run.
 
@@ -42,9 +51,12 @@ def create_job(
         description (Optional[str]): Description of the job.
         aliases (Optional[List[str]]): Aliases for the job.
         runtime (Optional[str]): Python runtime of the job, like 3.9.
-        entrypoint (Optional[str]): Entrypoint of the job.
+        entrypoint (Optional[str]): Entrypoint of the job. If build_context is
+            provided, path is relative to build_context.
         git_hash (Optional[str]): Git hash of a specific commit, when using git type jobs.
-
+        build_context (Optional[str]): Path to the build context, when using image type jobs.
+        dockerfile (Optional[str]): Path to the Dockerfile, when using image type jobs.
+            If build_context is provided, path is relative to build_context.
 
     Returns:
         Optional[Artifact]: The artifact created by the job, the action (for printing), and job aliases.
@@ -81,6 +93,8 @@ def create_job(
         runtime,
         entrypoint,
         git_hash,
+        build_context,
+        dockerfile,
     )
 
     return artifact_job
@@ -98,6 +112,8 @@ def _create_job(
     runtime: Optional[str] = None,
     entrypoint: Optional[str] = None,
     git_hash: Optional[str] = None,
+    build_context: Optional[str] = None,
+    dockerfile: Optional[str] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
@@ -107,6 +123,13 @@ def _create_job(
         )
         return None, "", []
 
+    if runtime is not None:
+        if not re.match(r"^3\.\d+$", runtime):
+            wandb.termerror(
+                f"Runtime (-r, --runtime) must be a minor version of Python 3, "
+                f"e.g. 3.9 or 3.10, received {runtime}"
+            )
+            return None, "", []
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
     try:
@@ -145,6 +168,7 @@ def _create_job(
 
     job_builder = _configure_job_builder_for_partial(tempdir.name, job_source=job_type)
     if job_type == "code":
+        assert entrypoint is not None
         job_name = _make_code_artifact(
             api=api,
             job_builder=job_builder,
@@ -160,7 +184,10 @@ def _create_job(
         name = job_name
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
-    artifact = job_builder.build()
+    artifact = job_builder.build(
+        dockerfile=dockerfile,
+        build_context=build_context,
+    )
     if not artifact:
         wandb.termerror("JobBuilder failed to build a job")
         _logger.debug("Failed to build job, check job source and metadata")
@@ -219,6 +246,7 @@ def _make_metadata_for_partial_job(
     """Create metadata for partial jobs, return metadata and requirements."""
     metadata = {"_partial": "v0"}
     if job_type == "git":
+        assert entrypoint is not None
         repo_metadata = _create_repo_metadata(
             path=path,
             tempdir=tempdir.name,
@@ -233,13 +261,7 @@ def _make_metadata_for_partial_job(
         return metadata, None
 
     if job_type == "code":
-        path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
-        if not entrypoint:
-            wandb.termerror(
-                "Artifact jobs must have an entrypoint, either included in the path or specified with -E"
-            )
-            return None, None
-
+        assert entrypoint is not None
         artifact_metadata, requirements = _create_artifact_metadata(
             path=path, entrypoint=entrypoint, runtime=runtime
         )
@@ -268,7 +290,7 @@ def _make_metadata_for_partial_job(
 def _create_repo_metadata(
     path: str,
     tempdir: str,
-    entrypoint: Optional[str] = None,
+    entrypoint: str,
     git_hash: Optional[str] = None,
     runtime: Optional[str] = None,
 ) -> Optional[Dict[str, Any]]:
@@ -304,25 +326,16 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            major, minor = get_current_python_version()
-            python_version = f"{major}.{minor}"
+            _, python_version = get_current_python_version()
 
     python_version = _clean_python_version(python_version)
-
-    # check if entrypoint is valid
-    assert entrypoint is not None
-    if not os.path.exists(os.path.join(local_dir, entrypoint)):
-        wandb.termerror(f"Entrypoint {entrypoint} not found in git repo")
-        return None
 
     metadata = {
         "git": {
             "commit": commit,
             "remote": ref.url,
         },
-        "codePathLocal": entrypoint,  # not in git context, optionally also set local
-        "codePath": entrypoint,
-        "entrypoint": [f"python{python_version}", entrypoint],
+        "entrypoint": entrypoint.split(" "),
         "python": python_version,  # used to build container
         "notebook": False,  # partial jobs from notebooks not supported
     }
@@ -332,10 +345,17 @@ def _create_repo_metadata(
 
 def _create_artifact_metadata(
     path: str, entrypoint: str, runtime: Optional[str] = None
-) -> Tuple[Dict[str, Any], List[str]]:
+) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
+    entrypoint_list = entrypoint.split(" ")
+    entrypoint_file = get_entrypoint_file(entrypoint_list)
+    if not entrypoint_file:
+        wandb.termerror(
+            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
+        )
+        return None, None
 
     # read local requirements.txt and dump to temp dir for builder
     requirements = []
@@ -347,39 +367,15 @@ def _create_artifact_metadata(
     if runtime:
         python_version = _clean_python_version(runtime)
     else:
-        python_version = ".".join(get_current_python_version())
+        python_version, _ = get_current_python_version()
+        python_version = _clean_python_version(python_version)
 
-    metadata = {"python": python_version, "codePath": entrypoint}
+    metadata = {
+        "python": python_version,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
     return metadata, requirements
-
-
-def _handle_artifact_entrypoint(
-    path: str, entrypoint: Optional[str] = None
-) -> Tuple[str, Optional[str]]:
-    if os.path.isfile(path):
-        if entrypoint and path.endswith(entrypoint):
-            path = path.replace(entrypoint, "")
-            wandb.termwarn(
-                f"Both entrypoint provided and path contains file. Using provided entrypoint: {entrypoint}, path is now: {path}"
-            )
-        elif entrypoint:
-            wandb.termwarn(
-                f"Ignoring passed in entrypoint as it does not match file path found in 'path'. Path entrypoint: {path.split('/')[-1]}"
-            )
-        entrypoint = path.split("/")[-1]
-        path = "/".join(path.split("/")[:-1])
-    elif not entrypoint:
-        wandb.termerror("Entrypoint not valid")
-        return "", None
-    path = path or "."  # when path is just an entrypoint, use cdw
-
-    if not os.path.exists(os.path.join(path, entrypoint)):
-        wandb.termerror(
-            f"Could not find execution point: {os.path.join(path, entrypoint)}"
-        )
-        return "", None
-
-    return path, entrypoint
 
 
 def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuilder:
@@ -396,6 +392,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
     settings.update({"files_dir": tmpdir, "job_source": job_source})
     job_builder = JobBuilder(
         settings=settings,  # type: ignore
+        verbose=True,
     )
     # never allow notebook runs
     job_builder._is_notebook_run = False
@@ -410,7 +407,7 @@ def _make_code_artifact(
     job_builder: JobBuilder,
     run: "wandb.sdk.wandb_run.Run",
     path: str,
-    entrypoint: Optional[str],
+    entrypoint: str,
     entity: Optional[str],
     project: Optional[str],
     name: Optional[str],
@@ -419,16 +416,18 @@ def _make_code_artifact(
 
     Returns the name of the eventual job.
     """
-    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint or ""), name)
+    entrypoint_list = entrypoint.split(" ")
+    # We no longer require the entrypoint to end in an existing file. But we
+    # need something to use as the default job artifact name. In the future we
+    # may require the user to provide a job name explicitly when calling
+    # wandb job create.
+    entrypoint_file = entrypoint_list[-1]
+    artifact_name = _make_code_artifact_name(os.path.join(path, entrypoint_file), name)
     code_artifact = wandb.Artifact(
         name=artifact_name,
         type="code",
         description="Code artifact for job",
     )
-
-    # Update path and entrypoint vars to match metadata
-    # TODO(gst): consolidate into one place
-    path, entrypoint = _handle_artifact_entrypoint(path, entrypoint)
 
     try:
         code_artifact.add_dir(path)
@@ -440,6 +439,13 @@ def _make_code_artifact(
         wandb.termerror(f"Error adding to code artifact: {e}")
         return None
 
+    # Remove paths we don't want to include, if present
+    for item in CODE_ARTIFACT_EXCLUDE_PATHS:
+        try:
+            code_artifact.remove(item)
+        except FileNotFoundError:
+            pass
+
     res, _ = api.create_artifact(
         artifact_type_name="code",
         artifact_collection_name=artifact_name,
@@ -450,7 +456,7 @@ def _make_code_artifact(
         project_name=project,
         run_name=run.id,  # run will be deleted after creation
         description="Code artifact for job",
-        metadata={"codePath": path, "entrypoint": entrypoint},
+        metadata={"codePath": path, "entrypoint": entrypoint_file},
         is_user_created=True,
         aliases=[
             {"artifactCollectionName": artifact_name, "alias": a} for a in ["latest"]

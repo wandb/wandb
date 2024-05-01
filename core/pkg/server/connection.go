@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -48,6 +49,9 @@ type Connection struct {
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
 	stream *Stream
+
+	// closed indicates if the outChan is closed
+	closed *atomic.Bool
 }
 
 // NewConnection creates a new connection
@@ -64,6 +68,7 @@ func NewConnection(
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		teardownChan: teardown, // TODO: should we trigger teardown from a connection?
+		closed:       &atomic.Bool{},
 	}
 	return nc
 }
@@ -132,6 +137,12 @@ func (nc *Connection) Close() {
 }
 
 func (nc *Connection) Respond(resp *service.ServerResponse) {
+	if nc.closed.Load() {
+		// TODO: this is a bit of a hack, we should probably handle this better
+		//       and not send responses to closed connections
+		slog.Error("connection is closed", "id", nc.id)
+		return
+	}
 	nc.outChan <- resp
 }
 
@@ -222,14 +233,16 @@ func (nc *Connection) handleServerRequest() {
 			panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
 		}
 	}
-	close(nc.outChan)
+	if !nc.closed.Swap(true) {
+		close(nc.outChan)
+	}
 	slog.Debug("finished handleServerRequest", "id", nc.id)
 }
 
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
-	settings := settings.Parse(msg.GetSettings())
+	settings := settings.From(msg.GetSettings())
 
 	err := settings.EnsureAPIKey()
 	if err != nil {
@@ -248,6 +261,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	nc.stream = NewStream(nc.ctx, settings, streamId)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
+	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
 	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
@@ -262,13 +276,13 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
-	nc.stream.settings = settings.Parse(msg.GetSettings())
+	nc.stream.settings = settings.From(msg.GetSettings())
 
 	// update sentry tags
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
-		"run_url": nc.stream.settings.RunURL,
-		"entity":  nc.stream.settings.Entity,
+		"run_url": nc.stream.settings.GetRunURL(),
+		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("core", nil)

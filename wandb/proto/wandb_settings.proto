@@ -23,6 +23,15 @@ message OpenMetricsFilters {
   }
 }
 
+// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
+// Used to communicate the moment in a run at which forking or resuming should
+// take place.
+message RunMoment {
+  string run = 1;     // The name of the run to fork from.
+  double value = 2;   // The value of the metric to fork at.
+  string metric = 3;  // The name of the metric to use to find a fork point.
+}
+
 // Settings for the SDK.
 //
 // There is a hierarchy of settings, with at least the following levels:
@@ -31,11 +40,16 @@ message OpenMetricsFilters {
 // 2. Run settings
 //
 // Some fields such as `run_id` only make sense at the run level.
+//
+// Next ID: 166
 message Settings {
   // The W&B API key.
   //
   // This can be empty if we're in offline mode.
   google.protobuf.StringValue api_key = 55;
+
+  // Whether we are in offline mode.
+  google.protobuf.BoolValue _offline = 30;
 
   // The ID of the run.
   google.protobuf.StringValue run_id = 107;
@@ -55,9 +69,20 @@ message Settings {
   // Filename to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
 
+  // Absolute path to the local directory where this run's files are stored.
+  google.protobuf.StringValue files_dir = 70;
+
+  // Unix glob patterns relative to `files_dir` to not upload.
+  ListStringValue ignore_globs = 78;
+
+  // Disable check for latest version of wandb, from pypi.
+  google.protobuf.BoolValue _disable_update_check = 165;
+  // Indicate whether wandb-core is required, to use wandb-core the package
+  // must be installed.
+  google.protobuf.BoolValue _require_core = 36;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
-  google.protobuf.Int32Value _async_upload_concurrency_limit = 3;
   google.protobuf.BoolValue _cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
   google.protobuf.StringValue _cuda = 6;
@@ -84,13 +109,11 @@ message Settings {
   google.protobuf.Int32Value _network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
-  google.protobuf.BoolValue _offline = 30;
   google.protobuf.BoolValue _sync = 31;
   google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
   google.protobuf.StringValue _runqueue_item_id = 35;
-  google.protobuf.BoolValue _require_core = 36;
   google.protobuf.BoolValue _save_requirements = 37;
   google.protobuf.StringValue _service_transport = 38;
   google.protobuf.DoubleValue _service_wait = 39;
@@ -122,7 +145,6 @@ message Settings {
   google.protobuf.BoolValue disabled = 66;
   google.protobuf.StringValue docker = 67;
   google.protobuf.StringValue email = 68;
-  google.protobuf.StringValue files_dir = 70;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
   google.protobuf.StringValue git_remote = 73;
@@ -130,7 +152,6 @@ message Settings {
   google.protobuf.StringValue git_root = 75;
   google.protobuf.Int32Value heartbeat_seconds = 76;
   google.protobuf.StringValue host = 77;
-  ListStringValue ignore_globs = 78;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
   google.protobuf.StringValue job_source = 81;
@@ -153,6 +174,7 @@ message Settings {
   google.protobuf.StringValue resume = 102;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
+  RunMoment fork_from = 164;
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;

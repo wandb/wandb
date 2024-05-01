@@ -80,17 +80,7 @@ class RegistryConfig(BaseModel):
     @validator("uri")  # type: ignore
     @classmethod
     def validate_uri(cls, uri: str) -> str:
-        for regex in [
-            GCP_ARTIFACT_REGISTRY_URI_REGEX,
-            AZURE_CONTAINER_REGISTRY_URI_REGEX,
-            ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
-        ]:
-            if regex.match(uri):
-                return uri
-        raise ValueError(
-            "Invalid uri. URI must be a repository URI for an "
-            "ECR, ACR, or GCP Artifact Registry."
-        )
+        return validate_registry_uri(uri)
 
 
 class EnvironmentConfig(BaseModel):
@@ -186,6 +176,14 @@ class BuilderConfig(BaseModel):
         """Right now there are no required fields for docker builds."""
         return values
 
+    @validator("destination")  # type: ignore
+    @classmethod
+    def validate_destination(cls, destination: Optional[str]) -> Optional[str]:
+        """Validate that the destination is a valid container registry URI."""
+        if destination is None:
+            return None
+        return validate_registry_uri(destination)
+
 
 class AgentConfig(BaseModel):
     """Configuration for the Launch agent."""
@@ -193,9 +191,6 @@ class AgentConfig(BaseModel):
     queues: List[str] = Field(
         default=[],
         description="The queues to use for this agent.",
-    )
-    project: Optional[str] = Field(
-        description="The W&B project to use for this agent.",
     )
     entity: Optional[str] = Field(
         description="The W&B entity to use for this agent.",
@@ -225,6 +220,77 @@ class AgentConfig(BaseModel):
         None,
         description="The builder to use.",
     )
+    verbosity: Optional[int] = Field(
+        0,
+        description="How verbose to print, 0 = default, 1 = verbose, 2 = very verbose",
+    )
+    stopped_run_timeout: Optional[int] = Field(
+        60,
+        description="How many seconds to wait after receiving the stop command before forcibly cancelling a run.",
+    )
 
     class Config:
         extra = "forbid"
+
+
+def validate_registry_uri(uri: str) -> str:
+    """Validate that the registry URI is a valid container registry URI.
+
+    The URI should resolve to an image name in a container registry. The recognized
+    formats are for ECR, ACR, and GCP Artifact Registry. If the URI does not match
+    any of these formats, a warning is printed indicating the registry type is not
+    recognized and the agent can't guarantee that images can be pushed.
+
+    If the format is recognized but does not resolve to an image name, an
+    error is raised. For example, if the URI is an ECR URI but does not include
+    an image name or includes a tag as well as an image name, an error is raised.
+    """
+    tag_msg = (
+        "Destination for built images may not include a tag, but the URI provided "
+        "includes the suffix '{tag}'. Please remove the tag and try again. The agent "
+        "will automatically tag each image with a unique hash of the source code."
+    )
+    if uri.startswith("https://"):
+        uri = uri[8:]
+
+    match = GCP_ARTIFACT_REGISTRY_URI_REGEX.match(uri)
+    if match:
+        if match.group("tag"):
+            raise ValueError(tag_msg.format(tag=match.group("tag")))
+        if not match.group("image_name"):
+            raise ValueError(
+                "An image name must be specified in the URI for a GCP Artifact Registry. "
+                "Please provide a uri with the format "
+                "'https://<region>-docker.pkg.dev/<project>/<repository>/<image>'."
+            )
+        return uri
+
+    match = AZURE_CONTAINER_REGISTRY_URI_REGEX.match(uri)
+    if match:
+        if match.group("tag"):
+            raise ValueError(tag_msg.format(tag=match.group("tag")))
+        if not match.group("repository"):
+            raise ValueError(
+                "A repository name must be specified in the URI for an "
+                "Azure Container Registry. Please provide a uri with the format "
+                "'https://<registry-name>.azurecr.io/<repository>'."
+            )
+        return uri
+
+    match = ELASTIC_CONTAINER_REGISTRY_URI_REGEX.match(uri)
+    if match:
+        if match.group("tag"):
+            raise ValueError(tag_msg.format(tag=match.group("tag")))
+        if not match.group("repository"):
+            raise ValueError(
+                "A repository name must be specified in the URI for an "
+                "Elastic Container Registry. Please provide a uri with the format "
+                "'https://<account-id>.dkr.ecr.<region>.amazonaws.com/<repository>'."
+            )
+        return uri
+
+    wandb.termwarn(
+        f"Unable to recognize registry type in URI {uri}. You are responsible "
+        "for ensuring the agent can push images to this registry."
+    )
+    return uri

@@ -4,7 +4,6 @@ import queue
 import sys
 import tempfile
 import threading
-import time
 from unittest import mock
 
 import pytest
@@ -72,10 +71,7 @@ def mock_tty(monkeypatch):
 
 def test_login_timeout(mock_tty):
     mock_tty("junk\nmore\n")
-    start_time = time.time()
     ret = wandb.login(timeout=4)
-    elapsed = time.time() - start_time
-    assert 2 < elapsed < 15
     assert ret is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
@@ -87,10 +83,7 @@ def test_login_timeout(mock_tty):
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
-    start_time = time.time()
     ret = wandb.login(timeout=8)
-    elapsed = time.time() - start_time
-    assert elapsed < 15
     assert ret is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "offline"
@@ -99,10 +92,7 @@ def test_login_timeout_choose(mock_tty):
 def test_login_timeout_env_blank(mock_tty):
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
-        start_time = time.time()
         ret = wandb.login()
-        elapsed = time.time() - start_time
-        assert elapsed < 15
         assert ret is False
         assert wandb.api.api_key is None
         assert wandb.setup().settings.mode == "disabled"

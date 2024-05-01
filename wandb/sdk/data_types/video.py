@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # https://github.com/wandb/wandb/issues/3472
 #
 # Essentially, the issue is that moviepy's write_gif function fails to close
-# the open write / file descripter returned from `imageio.save`. The following
+# the open write / file descriptor returned from `imageio.save`. The following
 # function is a simplified copy of the function in the moviepy source code.
 # See https://github.com/Zulko/moviepy/blob/7e3e8bb1b739eb6d1c0784b0cb2594b587b93b39/moviepy/video/io/gif_writers.py#L428
 #

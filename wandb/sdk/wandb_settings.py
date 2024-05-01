@@ -45,6 +45,7 @@ from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
+from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
@@ -158,6 +159,14 @@ def _get_program() -> Optional[str]:
         return f"-m {__main__.__spec__.name}"
     except (ImportError, AttributeError):
         return None
+
+
+def _runmoment_preprocessor(val: Any) -> Optional[RunMoment]:
+    if isinstance(val, RunMoment) or val is None:
+        return val
+    elif isinstance(val, str):
+        return RunMoment.from_uri(val)
+    raise UsageError(f"Could not parse value {val} as a RunMoment.")
 
 
 def _get_program_relpath(
@@ -289,7 +298,6 @@ class SettingsData:
 
     _args: Sequence[str]
     _aws_lambda: bool
-    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _code_path_local: str
     _colab: bool
@@ -301,6 +309,7 @@ class SettingsData:
     )
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
+    _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
     _except_exit: bool
@@ -391,6 +400,7 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
+    fork_from: Optional[RunMoment]
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -610,10 +620,6 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
-            _async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate__async_upload_concurrency_limit,
-            },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
                 "auto_hook": True,
@@ -646,6 +652,7 @@ class Settings(SettingsData):
                 "preprocessor": _str_as_bool,
                 "hook": lambda x: self._disable_machine_info or x,
             },
+            _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
             # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
@@ -803,6 +810,10 @@ class Settings(SettingsData):
                 ),
             },
             force={"preprocessor": _str_as_bool},
+            fork_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             ignore_globs={
@@ -1161,35 +1172,6 @@ class Settings(SettingsData):
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
-        return True
-
-    @staticmethod
-    def _validate__async_upload_concurrency_limit(value: int) -> bool:
-        if value <= 0:
-            raise UsageError("_async_upload_concurrency_limit must be positive")
-
-        try:
-            import resource  # not always available on Windows
-
-            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        except Exception:
-            # Couldn't get the open-file-limit for some reason,
-            # probably very platform-specific. Not a problem,
-            # we just won't use it to cap the concurrency.
-            pass
-        else:
-            if value > file_limit:
-                wandb.termwarn(
-                    (
-                        "_async_upload_concurrency_limit setting of"
-                        f" {value} exceeds this process's limit"
-                        f" on open files ({file_limit}); may cause file-upload failures."
-                        " Try decreasing _async_upload_concurrency_limit,"
-                        " or increasing your file limit with `ulimit -n`."
-                    ),
-                    repeat=False,
-                )
-
         return True
 
     @staticmethod
@@ -1573,6 +1555,14 @@ class Settings(SettingsData):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
+            elif isinstance(v, RunMoment):
+                getattr(settings, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=v.run,
+                        value=v.value,
+                        metric=v.metric,
+                    )
+                )
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.
@@ -1651,7 +1641,6 @@ class Settings(SettingsData):
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
-            "WANDB_REQUIRE_CORE": "_require_core",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",

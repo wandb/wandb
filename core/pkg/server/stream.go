@@ -9,10 +9,16 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -68,7 +74,7 @@ type Stream struct {
 
 func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
-	targetPath := filepath.Join(settings.LogDir, "debug-core.log")
+	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
 		path := path.(string)
 		// check path exists
@@ -81,7 +87,7 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	}
 
 	var writers []io.Writer
-	name := settings.InternalLogFile
+	name := settings.GetInternalLogFile()
 	file, err := os.OpenFile(name, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0666)
 	if err != nil {
 		slog.Error(fmt.Sprintf("error opening log file: %s", err))
@@ -110,10 +116,10 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
 	tags := observability.Tags{
-		"run_id":  settings.RunID,
-		"run_url": settings.RunURL,
-		"project": settings.Project,
-		"entity":  settings.Entity,
+		"run_id":  settings.GetRunID(),
+		"run_url": settings.GetRunURL(),
+		"project": settings.GetProject(),
+		"entity":  settings.GetEntity(),
 	}
 	logger.SetTags(tags)
 
@@ -121,7 +127,7 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *settings.Settings, streamId string) *Stream {
+func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stream {
 	ctx, cancel := context.WithCancel(ctx)
 	s := &Stream{
 		ctx:          ctx,
@@ -134,33 +140,90 @@ func NewStream(ctx context.Context, settings *settings.Settings, streamId string
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 	}
 
-	watcher := watcher.New(watcher.WithLogger(s.logger))
-	s.handler = NewHandler(s.ctx, s.logger,
-		WithHandlerSettings(s.settings.Proto),
-		WithHandlerFwdChannel(make(chan *service.Record, BufferSize)),
-		WithHandlerOutChannel(make(chan *service.Result, BufferSize)),
-		WithHandlerSystemMonitor(monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFileHandler(NewFilesHandler(watcher, s.logger, s.settings.Proto)),
-		WithHandlerTBHandler(NewTBHandler(watcher, s.logger, s.settings.Proto, s.loopBackChan)),
-		WithHandlerFilesInfoHandler(NewFilesInfoHandler()),
-		WithHandlerSummaryHandler(NewSummaryHandler(s.logger)),
-		WithHandlerMetricHandler(NewMetricHandler()),
-		WithHandlerWatcher(watcher),
+	w := watcher.New(watcher.Params{
+		Logger:   s.logger,
+		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
+	})
+
+	// TODO: replace this with a logger that can be read by the user
+	peeker := observability.NewPeeker()
+
+	backendOrNil := NewBackend(s.logger, settings)
+	fileTransferStats := filetransfer.NewFileTransferStats()
+	var graphqlClientOrNil graphql.Client
+	var fileStreamOrNil filestream.FileStream
+	var fileTransferManagerOrNil filetransfer.FileTransferManager
+	var runfilesUploaderOrNil runfiles.Uploader
+	if backendOrNil != nil {
+		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
+		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileTransferManagerOrNil = NewFileTransferManager(
+			fileTransferStats,
+			s.logger,
+			settings,
+		)
+		runfilesUploaderOrNil = NewRunfilesUploader(
+			s.ctx,
+			s.logger,
+			settings,
+			fileStreamOrNil,
+			fileTransferManagerOrNil,
+			graphqlClientOrNil,
+		)
+	}
+
+	mailbox := mailbox.NewMailbox()
+
+	// runSummary is used to track the summary of the run's metrics
+	// and is shared between the handler and the sender
+	runSummary := runsummary.New()
+
+	s.handler = NewHandler(s.ctx,
+		&HandlerParams{
+			Logger:            s.logger,
+			Settings:          s.settings.Proto,
+			FwdChan:           make(chan *service.Record, BufferSize),
+			OutChan:           make(chan *service.Result, BufferSize),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			RunfilesUploader:  runfilesUploaderOrNil,
+			TBHandler:         NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan),
+			FileTransferStats: fileTransferStats,
+			RunSummary:        runSummary,
+			MetricHandler:     NewMetricHandler(),
+			Mailbox:           mailbox,
+		},
 	)
 
-	s.writer = NewWriter(s.ctx, s.logger,
-		WithWriterSettings(s.settings.Proto),
-		WithWriterFwdChannel(make(chan *service.Record, BufferSize)),
+	s.writer = NewWriter(s.ctx,
+		&WriterParams{
+			Logger:   s.logger,
+			Settings: s.settings.Proto,
+			FwdChan:  make(chan *service.Record, BufferSize),
+		},
 	)
 
-	s.sender = NewSender(s.ctx, s.cancel, s.logger, s.settings.Proto,
-		WithSenderFwdChannel(s.loopBackChan),
-		WithSenderOutChannel(make(chan *service.Result, BufferSize)),
+	s.sender = NewSender(
+		s.ctx,
+		s.cancel,
+		&SenderParams{
+			Logger:              s.logger,
+			Settings:            s.settings.Proto,
+			Backend:             backendOrNil,
+			FileStream:          fileStreamOrNil,
+			FileTransferManager: fileTransferManagerOrNil,
+			RunfilesUploader:    runfilesUploaderOrNil,
+			Peeker:              peeker,
+			RunSummary:          runSummary,
+			GraphqlClient:       graphqlClientOrNil,
+			FwdChan:             s.loopBackChan,
+			OutChan:             make(chan *service.Result, BufferSize),
+			Mailbox:             mailbox,
+		},
 	)
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.Proto.RunId)
+	s.logger.Info("created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
@@ -173,7 +236,6 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-
 	// forward records from the inChan and loopBackChan to the handler
 	fwdChan := make(chan *service.Record, BufferSize)
 	s.wg.Add(1)
@@ -231,7 +293,7 @@ func (s *Stream) Start() {
 		close(s.outChan)
 		s.wg.Done()
 	}()
-	s.logger.Debug("starting stream", "id", s.settings.Proto.RunId)
+	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
@@ -280,7 +342,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.Proto.RunId)
+	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }
 
 func (s *Stream) PrintFooter() {

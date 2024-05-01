@@ -7,7 +7,7 @@ def main():
     with tempfile.TemporaryDirectory() as tmpdir:
         with wandb.init() as run:
             wandb.log({"metric": 5})
-            artifact = wandb.Artifact("test-artifact", "test-type")
+            artifact = wandb.Artifact("test-log-artifact", "test-type")
             with open(tmpdir + "/boom.txt", "w") as f:
                 f.write("testing")
 

@@ -401,9 +401,7 @@ class WandbLogger(Logger):
                         "*", step_metric="trainer/global_step", step_sync=True
                     )
 
-        self._experiment._label(
-            repo="lightning_fabric_logger"
-        )  # pylint: disable=protected-access
+        self._experiment._label(repo="lightning_fabric_logger")  # pylint: disable=protected-access
         with telemetry.context(run=self._experiment) as tel:
             tel.feature.lightning_fabric_logger = True
         return self._experiment
