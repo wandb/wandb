@@ -975,34 +975,6 @@ func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
 
-	// track each key in the in memory summary store
-	// TODO(memory): avoid keeping summary for all distinct keys
-	for _, item := range summary.Update {
-		// TODO: this isnt really right.. could be an empty string, want to deal with Data values
-		if item.ValueJson == "" {
-			continue
-		}
-		s.summaryMap[item.Key] = item
-	}
-
-	if s.fileStream != nil {
-		// build list of summary items from the map
-		var summaryItems []*service.SummaryItem
-		for _, v := range s.summaryMap {
-			summaryItems = append(summaryItems, v)
-		}
-
-		// build a full summary record to send
-		record := &service.Record{
-			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{
-					Update: summaryItems,
-				},
-			},
-		}
-
-		s.fileStream.StreamRecord(record)
-	}
 	s.summaryDebouncer.SetNeedsDebounce()
 }
 

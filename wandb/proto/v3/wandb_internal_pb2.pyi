@@ -658,19 +658,24 @@ class HistoryItem(google.protobuf.message.Message):
 
     KEY_FIELD_NUMBER: builtins.int
     NESTED_KEY_FIELD_NUMBER: builtins.int
+    VALUE_DATA_FIELD_NUMBER: builtins.int
     VALUE_JSON_FIELD_NUMBER: builtins.int
     key: builtins.str
     @property
     def nested_key(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def value_data(self) -> global___DataValue: ...
     value_json: builtins.str
     def __init__(
         self,
         *,
         key: builtins.str = ...,
         nested_key: collections.abc.Iterable[builtins.str] | None = ...,
+        value_data: global___DataValue | None = ...,
         value_json: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "nested_key", b"nested_key", "value_json", b"value_json"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["value_data", b"value_data"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "nested_key", b"nested_key", "value_data", b"value_data", "value_json", b"value_json"]) -> None: ...
 
 global___HistoryItem = HistoryItem
 
@@ -683,61 +688,28 @@ class HistoryResult(google.protobuf.message.Message):
 
 global___HistoryResult = HistoryResult
 
-class DataRecord(google.protobuf.message.Message):
-    """
-    DataRecord:
-    """
-
-    DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-    class ItemEntry(google.protobuf.message.Message):
-        DESCRIPTOR: google.protobuf.descriptor.Descriptor
-
-        KEY_FIELD_NUMBER: builtins.int
-        VALUE_FIELD_NUMBER: builtins.int
-        key: builtins.str
-        @property
-        def value(self) -> global___DataValue: ...
-        def __init__(
-            self,
-            *,
-            key: builtins.str = ...,
-            value: global___DataValue | None = ...,
-        ) -> None: ...
-        def HasField(self, field_name: typing_extensions.Literal["value", b"value"]) -> builtins.bool: ...
-        def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "value", b"value"]) -> None: ...
-
-    ITEM_FIELD_NUMBER: builtins.int
-    _INFO_FIELD_NUMBER: builtins.int
-    @property
-    def item(self) -> google.protobuf.internal.containers.MessageMap[builtins.str, global___DataValue]: ...
-    @property
-    def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
-    def __init__(
-        self,
-        *,
-        item: collections.abc.Mapping[builtins.str, global___DataValue] | None = ...,
-        _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
-    ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "item", b"item"]) -> None: ...
-
-global___DataRecord = DataRecord
-
 class TensorData(google.protobuf.message.Message):
+    """
+    DataValue:
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    TENSOR_FIELD_NUMBER: builtins.int
+    TENSOR_CONTENT_FIELD_NUMBER: builtins.int
     META_STRING_FIELD_NUMBER: builtins.int
-    tensor: builtins.bytes
+    SHAPE_FIELD_NUMBER: builtins.int
+    tensor_content: builtins.bytes
     meta_string: builtins.str
+    @property
+    def shape(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.int]: ...
     def __init__(
         self,
         *,
-        tensor: builtins.bytes = ...,
+        tensor_content: builtins.bytes = ...,
         meta_string: builtins.str = ...,
+        shape: collections.abc.Iterable[builtins.int] | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["meta_string", b"meta_string", "tensor", b"tensor"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["meta_string", b"meta_string", "shape", b"shape", "tensor_content", b"tensor_content"]) -> None: ...
 
 global___TensorData = TensorData
 
