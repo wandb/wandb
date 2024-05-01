@@ -62,13 +62,13 @@ func NewConnection(
 ) *Connection {
 
 	nc := &Connection{
-		ctx:          ctx,
-		cancel:       cancel,
-		conn:         conn,
-		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:       make(chan *service.ServerRequest, BufferSize),
-		outChan:      make(chan *service.ServerResponse, BufferSize),
-		closed:       &atomic.Bool{},
+		ctx:     ctx,
+		cancel:  cancel,
+		conn:    conn,
+		id:      conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:  make(chan *service.ServerRequest, BufferSize),
+		outChan: make(chan *service.ServerResponse, BufferSize),
+		closed:  &atomic.Bool{},
 	}
 	return nc
 }

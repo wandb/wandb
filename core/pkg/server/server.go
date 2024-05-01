@@ -38,6 +38,7 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
