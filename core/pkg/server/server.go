@@ -83,6 +83,7 @@ outer:
                         // os.Exit(2)  //nolint:go-critic:exitAfterDefer // warning about uncalled defer
                         //go-critic:disable:exitAfterDefer
                         //nolint:go-critic // disable this for now
+                        //nolint:gocritic // disable this for now
                         os.Exit(2)  //nolint:all
                         //go-critic:enable:exitAfterDefer
 		}
