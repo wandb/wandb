@@ -154,7 +154,9 @@ class BaseManager(ABC):
         try:
             project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
             run_id = project.run_id
-            job_tracker = self.legacy.job_tracker_factory(run_id, project.queue_name)
+            project.queue_name = self.config["jobset_spec"].name
+            project.queue_entity = self.config["jobset_spec"].entity_name
+            job_tracker = self.legacy.job_tracker_factory(run_id, self.config["jobset_spec"].name)
             job_tracker.update_run_info(project)
         except Exception as e:
             self.logger.error(
@@ -163,8 +165,6 @@ class BaseManager(ABC):
             await self.fail_run_with_exception(job.id, e)
             return None
         try:
-            project.queue_name = self.config["jobset_spec"].name
-            project.queue_entity = self.config["jobset_spec"].entity_name
             project.run_queue_item_id = job.id
             project.fetch_and_validate_project()
 
@@ -189,7 +189,7 @@ class BaseManager(ABC):
                 return None
             image_uri = None
             if not project.docker_image:
-                entrypoint = project.get_single_entry_point()
+                entrypoint = project.get_job_entry_point()
                 assert entrypoint is not None
                 image_uri = await self.legacy.builder.build_image(
                     project, entrypoint, job_tracker

@@ -37,7 +37,7 @@ class LegacyResources:
     registry: AbstractRegistry
     runner: AbstractRunner
     environment: AbstractEnvironment
-    job_tracker_factory: Callable[[str], JobAndRunStatusTracker]
+    job_tracker_factory: Callable[[str, str], JobAndRunStatusTracker]
 
 
 class LaunchController(Protocol):
@@ -71,4 +71,5 @@ class LaunchController(Protocol):
         logger: logging.Logger,
         shutdown_event: asyncio.Event,
         legacy: LegacyResources,
+        scheduler_queue: asyncio.Queue,
     ) -> Coroutine[Any, Any, Any]: ...

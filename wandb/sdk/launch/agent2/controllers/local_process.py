@@ -16,7 +16,7 @@ async def local_process_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-    agent_queue: "asyncio.Queue[JobWithQueue]",
+    scheduler_queue: "asyncio.Queue[JobWithQueue]",
 ) -> Any:
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
@@ -41,7 +41,7 @@ async def local_process_controller(
     )
 
     mgr = LocalProcessManager(
-        config, jobset, logger, legacy, agent_queue, max_concurrency
+        config, jobset, logger, legacy, scheduler_queue, max_concurrency
     )
 
     while not shutdown_event.is_set():
@@ -102,46 +102,31 @@ class LocalProcessManager(BaseManager):
         self.logger.info(f"Launched item got run_id: {run_id}")
         return run_id
 
-    async def launch_scheduler_item(self, item: JobWithQueue) -> Optional[str]:
-        self.logger.info(f"Launching item: {item}")
+    
 
-        project = self._populate_project(item)
-        project.fetch_and_validate_project()
-
-        run_id = await self._launch_job(item.job, project)
-        self.logger.info(f"Launched item got run_id: {run_id}")
-        return run_id
-
-    def _populate_project(self, job: Union[Job, JobWithQueue]) -> LaunchProject:
-        project = None
-        if isinstance(job, JobWithQueue):
-            project = LaunchProject.from_spec(job.job.run_spec, self.legacy.api)
-            queue_name = job.queue
-            queue_entity = job.entity
-            job_id = job.job.id
-        else:
-            project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
-            queue_name = self.config["jobset_spec"].name
-            queue_entity = self.config["jobset_spec"].entity_name
-            job_id = job.id
+    def _populate_project(self, job: Job | JobWithQueue) -> LaunchProject:
+        assert isinstance(job, Job)
+        project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
+        queue_name = self.config["jobset_spec"].name
+        queue_entity = self.config["jobset_spec"].entity_name
+        job_id = job.id
         project.queue_name = queue_name
         project.queue_entity = queue_entity
         project.run_queue_item_id = job_id
         return project
-
-    def _get_job(self, item: Union[Job, JobWithQueue]) -> Job:
-        if isinstance(item, JobWithQueue):
-            return item.job
-        return item
+    
+    async def ack_run_queue_item(self, queue_item_id: str, run_id: str) -> bool:
+        return await self.queue_driver.ack_run_queue_item(queue_item_id, run_id)
 
     async def _launch_job(self, job: Job, project: LaunchProject) -> Optional[str]:
+        assert project.queue_name is not None
         run_id = project.run_id
         job_tracker = self.legacy.job_tracker_factory(run_id, project.queue_name)
         job_tracker.update_run_info(project)
 
         # note since we ack on rqi id the queue driver will handle acking the run queue item
         # even if its not for the specified queue
-        ack_result = await self.queue_driver.ack_run_queue_item(job.id, run_id)
+        ack_result = await self.ack_run_queue_item(job.id, run_id)
         if ack_result is None:
             self.logger.error(f"Failed to ack item {job.id}")
             return None

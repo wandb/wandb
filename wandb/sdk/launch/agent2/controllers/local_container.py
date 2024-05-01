@@ -15,8 +15,8 @@ async def local_container_controller(
     jobset: JobSet,
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
-    scheduler_queue: "asyncio.Queue[JobWithQueue]",
     legacy: LegacyResources,
+    scheduler_queue: "asyncio.Queue[JobWithQueue]",
 ):
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here

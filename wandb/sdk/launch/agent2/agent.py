@@ -5,6 +5,10 @@ import sys
 import traceback
 from typing import Any, Callable, Dict, List, Optional, Set
 
+from wandb.sdk.launch.agent2.controllers.local_process import LocalProcessManager
+from wandb.sdk.launch.agent2.controllers.scheduler_controller import SchedulerManager, scheduler_process_controller
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
+
 if sys.version_info >= (3, 8):
     from typing import TypedDict
 else:
@@ -300,7 +304,7 @@ class LaunchAgent2:
         local_controller_impl = self.get_controller_for_jobset("local-process")
         environment = LocalEnvironment()
         registry = LocalRegistry()
-        builder = NoOpBuilder()
+        builder = NoOpBuilder({}, LocalEnvironment(), LocalRegistry())
         runner = loader.runner_from_config(
             "local-process",
             self._api,  # todo factor out (?)
@@ -317,33 +321,21 @@ class LaunchAgent2:
             job_tracker_factory,
         )
         controller_logger = self._logger.getChild("controller.sweep-scheduler-manager")
-        sweep_local_process_manager = local_controller_impl(
-            {
-                "agent_id": self._id,
-                "jobset_spec": JobSetSpec(
-                    name="_wandb_sweep_scheduler_controller",
-                    entity_name=self._config["entity"],
-                    project_name=None,
-                ),
-                "jobset_metadata": {
-                    "@max_concurrency": self._config["max_schedulers"]
-                },  # TODO: should this be auto, the manager controls it
-            },
-            JobSet(self._api, {}, self._id, controller_logger),
-            controller_logger,
-            self._shutdown_controllers_event,
+        sweep_local_process_manager = SchedulerManager(
+            self._api,
+            self._config["max_schedulers"],
             legacy_resources,
-            self._sweep_scheduler_job_queue,  # TODO: not necessary for sweep scheduler
+            self._sweep_scheduler_job_queue,
+            controller_logger,
         )
         manager_logger = self._logger.getChild("scheduler-manager")
-        scheduler_impl = self.get_controller_for_jobset("scheduler-manager")
         controller_task: asyncio.Task = asyncio.create_task(
-            scheduler_impl(
+            scheduler_process_controller(
                 sweep_local_process_manager,
                 self._config["max_schedulers"],
-                self._sweep_scheduler_job_queue,
                 manager_logger,
                 self._shutdown_controllers_event,
+                self._sweep_scheduler_job_queue,
             )
         )
         self._launch_controller_tasks.add(controller_task)
