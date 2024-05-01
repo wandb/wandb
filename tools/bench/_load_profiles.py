@@ -31,7 +31,7 @@ PROFILES = {
         "v1-empty": {
             "variants": ALL_VARIANTS,
         },
-        "v1-scalers": {
+        "v1-scalars": {
             "all": {
                 "history_floats": 100,
                 "num_parallel": 10,

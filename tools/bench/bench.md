@@ -32,6 +32,23 @@ run.finish()
 
 The SDK has the ability to track multiple experiments in parallel for example using python multiprocessing
 
+```python
+def do_work():
+  # do work
+
+p = multiprocessing.Process(target=run_experiment)
+```
+
+### Logging tables
+
+Wandb tables are an important datatype that allows detailed analysis in the wandb UI.
+
+Example of table usage:
+
+```python
+run.log({"table1": wandb.Table(columns=..., data=...)})
+```
+
 ## Results
 
 ### Methodology
@@ -39,15 +56,26 @@ The SDK has the ability to track multiple experiments in parallel for example us
 The wandb SDK supports online and offline modes of operation.  Offline logging allows the customer
 to decouple running experiments from syncing the data to the backend server.
 
-### Improvements seen enabling wandb core
+Each test is defined as a profile is parameterized with a load specification.  See `_load_profiles.py` for more details.
+
+### Improvements enabling wandb core
+
+#### Benchmark results
 
 | Metric | Mode | Improvement with wandb core |
+| --- | --- | --- |
 | Startup/Shutdown Time | Offline | 36% improvement |
 | Startup/Shutdown Time | Online | 23% improvement |
 | Parallel performance logging scalars | Offline | 83% improvement |
 | Parallel performance logging scales | Online | 88% improvement |
 | Table logging performance | Offline | 18% improvement |
 | Table logging performance | Online | 40% improvement |
+
+### System robustness
+
+The wandb core project replaces a python process with a process that was written in golang.  The golang
+process is staticly linked and provides better isolation from the customers python environment.  This will
+be most evedent in customer environments where the python environment either bespoke in some ways (using alternate python packaging mechanisms - PEX etc), or if it is served from lower shared filesystems that could have less predictable performance characteristics.
 
 <details>
 <summary>Raw Results</summary>
@@ -57,10 +85,10 @@ v1-2024-04-11-0,,v1-empty,"mode=offline,core=false",,,,,time_load,1.979246854782
 v1-2024-04-11-0,,v1-empty,"mode=offline,core=true",,,,,time_load,1.5073113441467285
 v1-2024-04-11-0,,v1-empty,"mode=online,core=false",,,,,time_load,2.9091131687164307
 v1-2024-04-11-0,,v1-empty,"mode=online,core=true",,,,,time_load,1.8496718406677246
-v1-2024-04-11-0,,v1-scalers,"mode=offline,core=false",,,,,time_load,10.043172836303711
-v1-2024-04-11-0,,v1-scalers,"mode=offline,core=true",,,,,time_load,1.6653656959533691
-v1-2024-04-11-0,,v1-scalers,"mode=online,core=false",,,,,time_load,16.66104531288147
-v1-2024-04-11-0,,v1-scalers,"mode=online,core=true",,,,,time_load,1.9638187885284424
+v1-2024-04-11-0,,v1-scalars,"mode=offline,core=false",,,,,time_load,10.043172836303711
+v1-2024-04-11-0,,v1-scalars,"mode=offline,core=true",,,,,time_load,1.6653656959533691
+v1-2024-04-11-0,,v1-scalars,"mode=online,core=false",,,,,time_load,16.66104531288147
+v1-2024-04-11-0,,v1-scalars,"mode=online,core=true",,,,,time_load,1.9638187885284424
 v1-2024-04-11-0,,v1-tables,"mode=offline,core=false",,,,,time_load,4.849104166030884
 v1-2024-04-11-0,,v1-tables,"mode=offline,core=true",,,,,time_load,3.985367774963379
 v1-2024-04-11-0,,v1-tables,"mode=online,core=false",,,,,time_load,26.990600109100342
