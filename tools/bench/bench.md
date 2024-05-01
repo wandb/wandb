@@ -6,18 +6,24 @@ The wandb SDK is designed to be a flexible, performant and robust library which 
 
 The wandb SDK architecture consists of 
 1) a user-process frontend library
-2) an internally managed process which is responsible for processing and syncing data 
+2) an internally managed backend process which is responsible for processing and syncing data 
 
-The SDK is in the middle of a transition to a new internally managed process (core) which provides improved performance as well as laying the groundwork for many more improvements to come.   This is described here:
-[wandb core](https://github.com/wandb/wandb/blob/main/core/README.md)
+The SDK is in the middle of a transition to a new internally managed backend process (also called "core") which provides improved performance as well as laying the groundwork for many more improvements to come.   This is project is described here:
+[wandb core](https://github.com/wandb/wandb/blob/main/core/README.md).
 
 ## Tests
 
-### 
+### Startup/Shutdown Performance
+
+### Parallel Run Performance
 
 ## Results
 
-### Raw results
+### Improvements seen enabling wandb core
+
+<details>
+<summary>Raw Results</summary>
+
 ```
 v1-2024-04-11-0,,v1-empty,"mode=offline,core=false",,,,,time_load,1.9792468547821045
 v1-2024-04-11-0,,v1-empty,"mode=offline,core=true",,,,,time_load,1.5073113441467285
@@ -32,3 +38,4 @@ v1-2024-04-11-0,,v1-tables,"mode=offline,core=true",,,,,time_load,3.985367774963
 v1-2024-04-11-0,,v1-tables,"mode=online,core=false",,,,,time_load,26.990600109100342
 v1-2024-04-11-0,,v1-tables,"mode=online,core=true",,,,,time_load,16.211838960647583
 ```
+</details>
