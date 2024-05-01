@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 	_ "net/http/pprof"
 	"os"
@@ -70,8 +69,7 @@ func main() {
 			slog.Bool("debug", *enableDebugLogging),
 			slog.Bool("disable-analytics", *disableAnalytics),
 		)
-		fmt.Printf("debug %+v\n", shutdownOnParentExitEnabled)
-		slog.Info("Feature Setting", "shutdownOnParentExitEnabled", shutdownOnParentExitEnabled)
+		slog.Info("FeatureState", "shutdownOnParentExitEnabled", shutdownOnParentExitEnabled)
 		loggerPath = file.Name()
 		defer file.Close()
 	}

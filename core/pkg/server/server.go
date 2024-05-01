@@ -72,7 +72,7 @@ func (s *Server) loopCheckIfParentGone(pid int) bool {
 		select {
 		case <-s.pidwatchChan:
 			return false
-		case <-time.After(50 * time.Millisecond):
+		case <-time.After(100 * time.Millisecond):
 		}
 		parentpid := os.Getppid()
 		if parentpid != pid {
@@ -125,6 +125,7 @@ func (s *Server) Serve() {
 // Close closes the server
 func (s *Server) Close() {
 	<-s.teardownChan
+	close(s.pidwatchChan)
 	close(s.shutdownChan)
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)
