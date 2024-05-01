@@ -80,6 +80,13 @@ be most evedent in customer environments where the python environment either bes
 <details>
 <summary>Raw Results</summary>
 
+```bash
+for p in v1-empty v1-scalars v1-tables; do
+  ./bench.py --test_profile "$p"
+done
+```
+
+results.csv:
 ```
 v1-2024-04-11-0,,v1-empty,"mode=offline,core=false",,,,,time_load,1.9792468547821045
 v1-2024-04-11-0,,v1-empty,"mode=offline,core=true",,,,,time_load,1.5073113441467285
