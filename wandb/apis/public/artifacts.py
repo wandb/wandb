@@ -1,7 +1,7 @@
 """Public API: artifacts."""
 
 import json
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
 
 from wandb_gql import Client, gql
 
@@ -324,8 +324,8 @@ class ArtifactCollection:
         if self._attrs is None:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
-        self.description = self._attrs["description"]
-        self.tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
+        self._description = self._attrs["description"]
+        self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
 
     @property
     def id(self):
@@ -510,6 +510,38 @@ class ArtifactCollection:
                 """
             )
         self.client.execute(mutation, variable_values={"id": self.id})
+
+    @property
+    def description(self):
+        """A description of the artifact collection."""
+        return self._description
+
+    @description.setter
+    def description(self, description: Optional[str]) -> None:
+        """Set the description of the artifact collection.
+
+        Arguments:
+            description: (str) Free text that offers a description of the artifact collection.
+        """
+        self._description = description
+
+    @property
+    def tags(self):
+        """The tags associated with the artifact collection."""
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags: List[str]) -> None:
+        """Set the tags associated with the artifact collection.
+
+        Arguments:
+            tags: (List[str]) List of tag names to set the collection's tags to.
+        """
+        if any(char in tag for tag in tags for char in ["/", ":"]):
+            raise ValueError(
+                "Tags must not contain any of the following characters: /, :"
+            )
+        self._tags = tags
 
     def __repr__(self):
         return f"<ArtifactCollection {self.name} ({self.type})>"
