@@ -69,9 +69,11 @@ type GitInfo struct {
 
 // Define the GitSource struct that implements the Source interface.
 type GitSource struct {
-	Git        GitInfo  `json:"git"`
-	Entrypoint []string `json:"entrypoint"`
-	Notebook   bool     `json:"notebook"`
+	Git          GitInfo  `json:"git"`
+	Entrypoint   []string `json:"entrypoint"`
+	Notebook     bool     `json:"notebook"`
+	BuildContext *string  `json:"build_context,omitempty"`
+	Dockerfile   *string  `json:"dockerfile,omitempty"`
 }
 
 func (g GitSource) GetSourceType() SourceType {
@@ -92,9 +94,11 @@ func (g GitSource) GetSourceImage() *string {
 
 // Define the ArtifactSource struct that implements the Source interface.
 type ArtifactSource struct {
-	Artifact   string   `json:"artifact"`
-	Entrypoint []string `json:"entrypoint"`
-	Notebook   bool     `json:"notebook"`
+	Artifact     string   `json:"artifact"`
+	Entrypoint   []string `json:"entrypoint"`
+	Notebook     bool     `json:"notebook"`
+	BuildContext *string  `json:"build_context,omitempty"`
+	Dockerfile   *string  `json:"dockerfile,omitempty"`
 }
 
 func (a ArtifactSource) GetSourceType() SourceType {
@@ -683,7 +687,7 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 
 	sourceInfo := useArtifact.Partial.SourceInfo
 	jobSourceMetadata := JobSourceMetadata{
-		Version:    "v0",
+		Version:    sourceInfo.XVersion,
 		SourceType: SourceType(sourceInfo.SourceType),
 		Runtime:    &sourceInfo.Runtime,
 	}
@@ -704,6 +708,12 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 			Notebook:   sourceInfo.Source.Git.Notebook,
 			Entrypoint: entrypoint,
 		}
+		if sourceInfo.Source.Git.Dockerfile != "" {
+			gitSource.Dockerfile = &sourceInfo.Source.Git.Dockerfile
+		}
+		if sourceInfo.Source.Git.BuildContext != "" {
+			gitSource.BuildContext = &sourceInfo.Source.Git.BuildContext
+		}
 		jobSourceMetadata.Source = gitSource
 	case "artifact":
 		if sourceInfo.Source.Artifact == nil {
@@ -716,6 +726,12 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 			Artifact:   sourceInfo.Source.Artifact.Artifact,
 			Notebook:   sourceInfo.Source.Artifact.Notebook,
 			Entrypoint: entrypoint,
+		}
+		if sourceInfo.Source.Artifact.Dockerfile != "" {
+			artifactSource.Dockerfile = &sourceInfo.Source.Artifact.Dockerfile
+		}
+		if sourceInfo.Source.Artifact.BuildContext != "" {
+			artifactSource.BuildContext = &sourceInfo.Source.Artifact.BuildContext
 		}
 		jobSourceMetadata.Source = artifactSource
 	case "image":
