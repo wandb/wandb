@@ -127,13 +127,10 @@ func (s *Server) Close() {
 	}
 
 	close(s.shutdownChan)
-	fmt.Println("shutdownChan closed")
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)
 	}
-	fmt.Println("listener closed")
 	s.wg.Wait()
-	fmt.Println("wg.Wait() done")
 	slog.Info("server is closed")
 }
 
