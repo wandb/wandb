@@ -124,6 +124,7 @@ func (cl *CoreLogger) FatalAndPanic(msg string, err error, args ...any) {
 // CaptureFatal logs an error at the fatal level and sends it to sentry.
 func (cl *CoreLogger) CaptureFatal(msg string, err error, args ...any) {
 	// TODO: make sure this level is printed nicely
+	args = append(args, "error", err)
 	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 	if err != nil {
 		// send error to sentry:
