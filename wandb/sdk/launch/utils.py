@@ -313,16 +313,13 @@ def construct_launch_spec(
 
 
 def validate_launch_spec_source(launch_spec: Dict[str, Any]) -> None:
-    uri = launch_spec.get("uri")
     job = launch_spec.get("job")
     docker_image = launch_spec.get("docker", {}).get("docker_image")
-
-    if not bool(uri) and not bool(job) and not bool(docker_image):
-        raise LaunchError("Must specify a uri, job or docker image")
-    elif bool(uri) and bool(docker_image):
-        raise LaunchError("Found both uri and docker-image, only one can be set")
-    elif sum(map(bool, [uri, job, docker_image])) > 1:
-        raise LaunchError("Must specify exactly one of uri, job or image")
+    if bool(job) == bool(docker_image):
+        raise LaunchError(
+            "Exactly one of job or docker_image must be specified in the launch "
+            "spec."
+        )
 
 
 def parse_wandb_uri(uri: str) -> Tuple[str, str, str]:
