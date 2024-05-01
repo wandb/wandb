@@ -10,6 +10,7 @@ import (
 	"runtime/trace"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -32,6 +33,11 @@ func main() {
 	_ = flag.Bool("serve-sock", false, "use sockets")
 
 	flag.Parse()
+
+	if *pid != 0 {
+		// Make sure this process is killed by the OS (if supported)
+		processlib.ShutdownOnParentDeath(*pid)
+	}
 
 	// set up sentry reporting
 	observability.InitSentry(*disableAnalytics, commit)
@@ -84,7 +90,7 @@ func main() {
 		}
 		defer trace.Stop()
 	}
-	serve, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+	serve, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename, *pid)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
