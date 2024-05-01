@@ -1,8 +1,13 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch.agent2.controller import LaunchControllerConfig
 from wandb.sdk.launch.agent2.jobset import JobSetSpec, create_jobset
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
 
 
 @pytest.fixture

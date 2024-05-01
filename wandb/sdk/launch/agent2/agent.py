@@ -3,15 +3,19 @@ import json
 import logging
 import sys
 import traceback
-from typing import Any, Callable, Dict, List, Optional, Set, TypedDict
+from typing import Any, Callable, Dict, List, Optional, Set
+
+if sys.version_info >= (3, 8):
+    from typing import TypedDict
+else:
+    from typing_extensions import TypedDict
 
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE
+from wandb.sdk.launch.agent.agent import HIDDEN_AGENT_RUN_TYPE, construct_agent_configs
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.agent.run_queue_item_file_saver import RunQueueItemFileSaver
-from wandb.sdk.launch.builder.build import construct_agent_configs
 from wandb.sdk.launch.builder.noop import NoOpBuilder
 from wandb.sdk.launch.environment.local_environment import LocalEnvironment
 from wandb.sdk.launch.registry.local_registry import LocalRegistry

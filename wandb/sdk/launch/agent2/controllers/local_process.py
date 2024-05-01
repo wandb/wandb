@@ -16,7 +16,7 @@ async def local_process_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-    agent_queue: asyncio.Queue[JobWithQueue],
+    agent_queue: "asyncio.Queue[JobWithQueue]",
 ) -> Any:
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
@@ -65,7 +65,7 @@ class LocalProcessManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
-        agent_queue: asyncio.Queue,
+        scheduler_queue: asyncio.Queue,
         max_concurrency: int,
     ):
         self.queue_driver: passthrough.PassthroughQueueDriver = (
@@ -77,7 +77,9 @@ class LocalProcessManager(BaseManager):
                 agent_id=config["agent_id"],
             )
         )
-        super().__init__(config, jobset, logger, legacy, agent_queue, max_concurrency)
+        super().__init__(
+            config, jobset, logger, legacy, scheduler_queue, max_concurrency
+        )
 
     async def reconcile(self) -> None:
         num_runs_needed = self.max_concurrency - len(self.active_runs)

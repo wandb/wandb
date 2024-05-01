@@ -21,6 +21,7 @@ def test_label_job(monkeypatch):
         jobset=MagicMock(),
         logger=MagicMock(),
         legacy=MagicMock(),
+        scheduler_queue=MagicMock(),
         max_concurrency=1,
     )
     project_spec = {
@@ -36,9 +37,7 @@ def test_label_job(monkeypatch):
             "spec": {
                 "labels": {
                     "wandb-jobset": b64_to_hex_id(
-                        md5_string(
-                            "test-entity/test-jobsetspec"
-                        )
+                        md5_string("test-entity/test-jobsetspec")
                     ),
                     "test-label": "test-value",
                 }

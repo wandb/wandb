@@ -13,11 +13,14 @@ def sagemaker_container_manager(controller_config, jobset):
     "resource_args, expected",
     [
         ({}, None),
-        ({"sagemaker": {}}, [{"Key": "_wandb-jobset", "Value": "test-entity/test"}]),
+        (
+            {"sagemaker": {}},
+            [{"Key": "_wandb-jobset", "Value": "ba4d5192668fbae393dc7415dbb83129"}],
+        ),
         (
             {"sagemaker": {"Tags": [{"Key": "BLAH", "Value": "test-label"}]}},
             [
-                {"Key": "_wandb-jobset", "Value": "test-entity/test"},
+                {"Key": "_wandb-jobset", "Value": "ba4d5192668fbae393dc7415dbb83129"},
                 {"Key": "BLAH", "Value": "test-label"},
             ],
         ),

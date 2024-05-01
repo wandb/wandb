@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch.agent2.controllers.local_process import LocalProcessManager
@@ -6,15 +6,22 @@ from wandb.sdk.launch.agent2.jobset import Job
 from wandb.sdk.launch.queue_driver.abstract import AbstractQueueDriver
 
 
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 @pytest.fixture
 def local_process_manager(controller_config, jobset):
-    return LocalProcessManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
+    return LocalProcessManager(
+        controller_config, jobset, MagicMock(), MagicMock(), AsyncMock(), 1
+    )
 
 
 class TestLocalProcessManager(LocalProcessManager):
-    def __init__(self, config, jobset, logger, legacy, max_concurrency):
+    def __init__(self, config, jobset, logger, legacy, queue, max_concurrency):
         self.queue_driver = AsyncMock(spec=AbstractQueueDriver)
-        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        super().__init__(config, jobset, logger, legacy, queue, max_concurrency)
 
 
 @pytest.fixture
@@ -22,7 +29,7 @@ def mocked_test_manager_reconile(
     controller_config, jobset
 ) -> "TestLocalProcessManager":
     mgr = TestLocalProcessManager(
-        controller_config, jobset, MagicMock(), MagicMock(), 1
+        controller_config, jobset, MagicMock(), MagicMock(), AsyncMock(), 1
     )
     mgr.launch_item = AsyncMock()
     mgr.pop_next_item = AsyncMock()
@@ -38,7 +45,8 @@ async def test_reconcile_launch_item(mocked_test_manager_reconile):
     assert mocked_test_manager_reconile.cancel_job.call_count == 0
     assert mocked_test_manager_reconile.release_item.call_count == 0
     assert mocked_test_manager_reconile.jobset.api.get_jobset_by_spec.call_count == 1
-    assert mocked_test_manager_reconile.launch_item.call_count == 1
+    # because using fake AsyncMock can't assert call count, when local tests off of py37 can use call_count
+    assert mocked_test_manager_reconile.launch_item.mock_call_count == 1
 
 
 @pytest.mark.asyncio
@@ -65,7 +73,10 @@ async def test_reconcile_clear_unowned_item(mocked_test_manager_reconile):
 def mocked_test_manager(controller_config, jobset) -> "TestLocalProcessManager":
     legacy = MagicMock()
     legacy.runner.run = AsyncMock()
-    mgr = LocalProcessManager(controller_config, jobset, MagicMock(), legacy, 1)
+    legacy.runner.run.return_value = "test-run-id"
+    mgr = LocalProcessManager(
+        controller_config, jobset, MagicMock(), legacy, AsyncMock(), 1
+    )
     return mgr
 
 

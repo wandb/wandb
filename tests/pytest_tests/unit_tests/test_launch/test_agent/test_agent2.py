@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import suppress
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
@@ -12,6 +12,11 @@ from wandb.sdk.launch.builder.abstract import AbstractBuilder
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.runner.abstract import AbstractRunner
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
 
 
 @pytest.fixture

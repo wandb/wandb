@@ -13,15 +13,39 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRun, Status
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
 
-from ...agent.agent import RUN_INFO_GRACE_PERIOD, _is_scheduler_job
+from ...agent.agent import RUN_INFO_GRACE_PERIOD
 from ...queue_driver.abstract import AbstractQueueDriver
 from ...utils import event_loop_thread_exec
 from ..controller import LaunchControllerConfig, LegacyResources
 from ..jobset import Job, JobSet, JobWithQueue
 
 WANDB_JOBSET_DISCOVERABILITY_LABEL = "_wandb-jobset"
+
+
+def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
+    """Determine whether a job/runSpec is a sweep scheduler."""
+    if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
+        return False
+
+    if run_spec.get("resource") == "local-process":
+        # Any job pushed to a run queue that has a scheduler uri is
+        # allowed to use local-process
+        if run_spec.get("job"):
+            return True
+
+        # If a scheduler is local-process and run through CLI, also
+        #    confirm command is in format: [wandb scheduler <sweep>]
+        cmd = run_spec.get("overrides", {}).get("entry_point", [])
+        if len(cmd) < 3:
+            return False
+
+        if cmd[:2] != ["wandb", "scheduler"]:
+            return False
+
+    return True
 
 
 @dataclass
@@ -42,7 +66,7 @@ class BaseManager(ABC):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
-        scheduler_queue: asyncio.Queue[JobWithQueue],
+        scheduler_queue: "asyncio.Queue[JobWithQueue]",
         max_concurrency: int,
     ):
         self.config = config
@@ -102,6 +126,7 @@ class BaseManager(ABC):
         for item in list(self.active_runs):
             if item not in owned_items:
                 # we don't own this item anymore
+                print("ITEM", item)
                 await self.cancel_item(item)
                 await self.release_item(item)
 

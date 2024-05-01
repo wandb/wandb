@@ -1,4 +1,4 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.errors import CommError
@@ -10,15 +10,30 @@ from wandb.sdk.launch.agent2.controllers.base import (
     check_run_exists_and_inited,
 )
 from wandb.sdk.launch.agent2.jobset import Job
-from wandb.sdk.launch.queue_driver.abstract import AbstractQueueDriver
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
 
 
 class TestBaseManager(BaseManager):
     resource_type = "test"
 
     def __init__(self, config, jobset, logger, legacy, max_concurrency):
-        self.queue_driver = AsyncMock(spec=AbstractQueueDriver)
-        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        self.queue_driver = AsyncMock()
+        self.queue_driver.pop_from_run_queue = AsyncMock()
+        self.queue_driver.pop_from_run_queue.return_value = Job(
+            id="test-id",
+            run_spec={},
+            state="PENDING",
+            priority=2,
+            preemptible=False,
+            can_preempt=True,
+            created_at="2024-04-09T16:33:45",
+            claimed_by=None,
+        )
+        super().__init__(config, jobset, logger, legacy, AsyncMock(), max_concurrency)
 
     def label_job(self, project):
         project.mock_label_job()
@@ -51,6 +66,16 @@ def mocked_test_manager_reconile(controller_config, jobset) -> "TestBaseManager"
     mgr = TestBaseManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
     mgr.launch_item = AsyncMock()
     mgr.pop_next_item = AsyncMock()
+    mgr.pop_next_item.return_value = Job(
+        id="test-id",
+        run_spec={},
+        state="PENDING",
+        priority=2,
+        preemptible=False,
+        can_preempt=True,
+        created_at="2024-04-09T16:33:45",
+        claimed_by=None,
+    )
     mgr.cancel_item = AsyncMock()
     mgr.release_item = AsyncMock()
     return mgr
@@ -60,7 +85,7 @@ def mocked_test_manager_reconile(controller_config, jobset) -> "TestBaseManager"
 async def test_reconcile_launch_item(mocked_test_manager_reconile):
     await mocked_test_manager_reconile.reconcile()
     assert mocked_test_manager_reconile.pop_next_item.call_count == 1
-    assert mocked_test_manager_reconile.cancel_job.call_count == 0
+    assert mocked_test_manager_reconile.cancel_item.call_count == 0
     assert mocked_test_manager_reconile.release_item.call_count == 0
     assert mocked_test_manager_reconile.jobset.api.get_jobset_by_spec.call_count == 1
     assert mocked_test_manager_reconile.launch_item.call_count == 1
@@ -72,7 +97,7 @@ async def test_reconcile_max_concurrency(mocked_test_manager_reconile):
     mocked_test_manager_reconile.max_concurrency = max_concurrency
     await mocked_test_manager_reconile.reconcile()
     assert mocked_test_manager_reconile.pop_next_item.call_count == 0
-    assert mocked_test_manager_reconile.cancel_job.call_count == 0
+    assert mocked_test_manager_reconile.cancel_item.call_count == 0
     assert mocked_test_manager_reconile.release_item.call_count == 0
     assert mocked_test_manager_reconile.jobset.api.get_jobset_by_spec.call_count == 1
 
@@ -85,28 +110,25 @@ async def test_reconcile_clear_unowned_item(
     mock_run_with_tracker.run.get_status.return_value = "running"
     mocked_test_manager_reconile.active_runs = {"not-test-id": mock_run_with_tracker}
     await mocked_test_manager_reconile.reconcile()
-    assert mocked_test_manager_reconile.cancel_job.assert_called_once_with(
-        "not-test-id"
-    )
-    assert mocked_test_manager_reconile.release_item.assert_called_once_with(
-        "not-test-id"
-    )
+    mocked_test_manager_reconile.cancel_item.assert_called_once_with("not-test-id")
+    mocked_test_manager_reconile.release_item.assert_called_once_with("not-test-id")
 
 
 @pytest.fixture
 def mocked_test_manager(controller_config, jobset) -> "TestBaseManager":
     legacy = MagicMock()
     legacy.runner.run = AsyncMock()
+    legacy.runner.run.return_value = "test-run-id"
     legacy.builder = AsyncMock()
     mgr = TestBaseManager(controller_config, jobset, MagicMock(), legacy, 1)
     return mgr
 
 
 @pytest.mark.asyncio
-async def test_cancel_job(mocked_test_manager, mock_run_with_tracker):
+async def test_cancel_item(mocked_test_manager, mock_run_with_tracker):
     mock_run_with_tracker.run.get_status.return_value = "running"
     mocked_test_manager.active_runs = {"test-id": mock_run_with_tracker}
-    await mocked_test_manager.cancel_job("test-id")
+    await mocked_test_manager.cancel_item("test-id")
     assert mock_run_with_tracker.run.get_status.call_count == 1
     assert mock_run_with_tracker.run.cancel.call_count == 1
 
@@ -177,7 +199,7 @@ async def test_launch_item(mocked_test_manager, mocker):
             1,
             (
                 "test-rqi-id",
-                "The submitted job failed to call wandb.init exited with status: stopped",
+                "The submitted job failed to call wandb.init, exited with status: stopped",
                 "run",
                 None,
             ),
@@ -207,7 +229,9 @@ async def test_finish_launched_run(
     failed_args,
 ):
     mock_api = AsyncMock()
-    mock_fail_run_queue_item = AsyncMock()
+    mock_fail_run_queue_item = (
+        MagicMock()
+    )  # TODO: when updating to use built-in AyncMock, switch to AsyncMock
     mock_api.fail_run_queue_item = mock_fail_run_queue_item
     mocked_test_manager.jobset.api = mock_api
 
@@ -226,9 +250,9 @@ async def test_finish_launched_run(
     if failed_args is None:
         assert mock_api.fail_run_queue_item.call_count == 0
     else:
-        assert mock_api.fail_run_queue_item.call_count == 1
+        assert mock_fail_run_queue_item.call_count == 1
         # index 0 because args
-        assert mock_api.fail_run_queue_item.call_args[0] == failed_args
+        assert mock_fail_run_queue_item.call_args[0] == failed_args
 
 
 @pytest.mark.parametrize("use_tracker, phase", [(False, "agent"), (True, "run")])

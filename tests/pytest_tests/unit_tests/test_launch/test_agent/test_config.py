@@ -155,4 +155,3 @@ def test_resolve_agent_config(monkeypatch, runner):
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
->>>>>>> main

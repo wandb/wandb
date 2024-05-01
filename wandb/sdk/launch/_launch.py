@@ -12,8 +12,8 @@ from wandb.apis.internal import Api
 from . import loader
 from ._project_spec import LaunchProject
 from .agent import LaunchAgent
-from .agent2 import LaunchAgent2
 from .agent.agent import construct_agent_configs
+from .agent2 import LaunchAgent2
 from .environment.local_environment import LocalEnvironment
 from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun

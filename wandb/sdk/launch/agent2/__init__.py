@@ -1,12 +1,9 @@
-from wandb.sdk.launch.agent2.controllers.local_process import (
-    scheduler_process_controller,
-)
-
 from .agent import LaunchAgent2
 from .controllers import (
     k8s_controller,
     local_container_controller,
     local_process_controller,
+    scheduler_process_controller,
     vertex_controller,
 )
 

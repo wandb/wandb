@@ -25,7 +25,7 @@ async def vertex_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
-    scheduler_queue: asyncio.Queue[JobWithQueue],
+    scheduler_queue: "asyncio.Queue[JobWithQueue]",
 ) -> None:
     max_concurrency = parse_max_concurrency(config, 1000)
 
@@ -55,7 +55,7 @@ class VertexManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
-        scheduler_queue: asyncio.Queue[JobWithQueue],
+        scheduler_queue: "asyncio.Queue[JobWithQueue]",
         max_concurrency: int,
     ):
         self.queue_driver = StandardQueueDriver(jobset.api, jobset, logger)

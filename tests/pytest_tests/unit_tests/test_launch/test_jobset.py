@@ -1,8 +1,13 @@
 import asyncio
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.launch.agent2.jobset import JobSet, JobSetSpec, create_jobset
+
+
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
 
 
 def test_create_jobset(mocker):
@@ -41,7 +46,8 @@ def test_jobset_init():
 
 @pytest.mark.asyncio
 async def test_jobset_loop_start_stop(event_loop, mocker):
-    mocker.patch("asyncio.sleep", AsyncMock())
+    async_mock = AsyncMock()
+    mocker.patch("asyncio.sleep", async_mock)
 
     api = MagicMock()
     get_jobset_response = {
