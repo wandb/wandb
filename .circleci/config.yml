@@ -1631,7 +1631,7 @@ workflows:
               python_version_minor: [8, 12]
               core: ["True", "False"]
 
-          parallelism: 12
+          parallelism: 8
           executor:
             name: local-testcontainer
             python_version_major: <<matrix.python_version_major>>
