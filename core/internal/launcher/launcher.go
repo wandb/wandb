@@ -4,6 +4,7 @@ package launcher
 import (
 	"bufio"
 	"errors"
+        "fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -81,7 +82,7 @@ func (l *Launcher) prepTempfile() {
 
 func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
 	l.prepTempfile()
-	args := []string{"--port-filename", l.portFilename, "--pid", string(l.pidParent)}
+	args := []string{"--port-filename", l.portFilename, "--pid", fmt.Sprint(l.pidParent)}
 	cmd, err := execbin.ForkExecCommand(command, args)
 	if err != nil {
 		panic(err)
