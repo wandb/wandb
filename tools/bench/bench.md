@@ -73,9 +73,9 @@ Each test is defined as a profile is parameterized with a load specification.  S
 
 ### System robustness
 
-The wandb core project replaces a python process with a process that was written in golang.  The golang
-process is staticly linked and provides better isolation from the customers python environment.  This will
-be most evedent in customer environments where the python environment either bespoke in some ways (using alternate python packaging mechanisms - PEX etc), or if it is served from lower shared filesystems that could have less predictable performance characteristics.
+The wandb core project replaces a python process with a process that is written in golang.  The golang
+process is statically linked and provides better isolation from the customers python environment.  This will
+be most evident in customer environments where the python environment either bespoke in some ways (using alternate python packaging mechanisms - PEX etc), or if it is served from lower shared filesystems that could have less predictable performance characteristics.
 
 <details>
 <summary>Raw Results</summary>
