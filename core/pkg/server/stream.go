@@ -299,13 +299,7 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
-	select {
-	case <-s.ctx.Done():
-		s.logger.Debug("context done, not handling record", "record", rec)
-		return
-	default:
-		s.inChan <- rec
-	}
+	s.inChan <- rec
 }
 
 func (s *Stream) GetRun() *service.RunRecord {
