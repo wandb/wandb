@@ -4,7 +4,7 @@ package launcher
 import (
 	"bufio"
 	"errors"
-        "fmt"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -32,7 +32,7 @@ func readLines(path string) ([]string, error) {
 
 type Launcher struct {
 	portFilename string
-        pidParent int
+	pidParent    int
 }
 
 func (l *Launcher) tryport() (int, error) {
@@ -102,5 +102,5 @@ func (l *Launcher) LaunchBinary(filePayload []byte) (*execbin.ForkExecCmd, error
 }
 
 func NewLauncher(pidParent int) *Launcher {
-        return &Launcher{pidParent: pidParent}
+	return &Launcher{pidParent: pidParent}
 }
