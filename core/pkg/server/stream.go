@@ -178,9 +178,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			terminalPrinter.Write(
 				"Fatal error while uploading data. Some run data will" +
 					" not be synced, but it will still be written to disk. Use" +
-					" `wandb sync` at the end of the run to try uploading." +
-					" See wandb.me/sdk-bug for help debugging or reporting" +
-					" an issue.",
+					" `wandb sync` at the end of the run to try uploading.",
 			)
 		}()
 	}
