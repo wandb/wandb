@@ -10,43 +10,41 @@ import wandb
 import _timing
 
 VARIANTS = {
-        "mode=online": {
-        },
-        "mode=offline": {
-            "mode": "offline",
-        },
-        "core=false": {
-        },
-        "core=true": {
-            "core": "true",
-        },
-    }
+    "mode=online": {},
+    "mode=offline": {
+        "mode": "offline",
+    },
+    "core=false": {},
+    "core=true": {
+        "core": "true",
+    },
+}
 
 ALL_VARIANTS = {
-        "mode": ("offline", "online"),
-        "core": ("false", "true"),
-    }
+    "mode": ("offline", "online"),
+    "core": ("false", "true"),
+}
 
 PROFILES = {
-        "v1-empty": {
-            "variants": ALL_VARIANTS,
+    "v1-empty": {
+        "variants": ALL_VARIANTS,
+    },
+    "v1-scalars": {
+        "all": {
+            "history_floats": 100,
+            "num_parallel": 10,
+            "num_history": 100,
         },
-        "v1-scalars": {
-            "all": {
-                "history_floats": 100,
-                "num_parallel": 10,
-                "num_history": 100,
-            },
-            "variants": ALL_VARIANTS,
+        "variants": ALL_VARIANTS,
+    },
+    "v1-tables": {
+        "all": {
+            "history_tables": 20,
+            "num_history": 10,
         },
-        "v1-tables": {
-            "all": {
-                "history_tables": 20,
-                "num_history": 10,
-            },
-            "variants": ALL_VARIANTS,
-        },
-    }
+        "variants": ALL_VARIANTS,
+    },
+}
 
 
 def parse_profile(parser, old_args, copy_fields):

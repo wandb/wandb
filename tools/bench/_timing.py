@@ -10,9 +10,11 @@ def timeit(lst):
             t1 = time.time()
             result = func(*args, **kwargs)
             t2 = time.time()
-            lst.append((func.__name__, (t2-t1)))
+            lst.append((func.__name__, (t2 - t1)))
             return result
+
         return wrapper
+
     return timing_val
 
 

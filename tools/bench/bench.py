@@ -13,8 +13,15 @@ import _load_profiles
 
 VERSION: str = "v1-2024-04-11-0"
 BENCH_OUTFILE: str = "bench.csv"
-BENCH_FIELDS: Tuple[str] = ("test_name", "test_profile", "test_variant",
-        "client_version", "client_type", "server_version", "server_type")
+BENCH_FIELDS: Tuple[str] = (
+    "test_name",
+    "test_profile",
+    "test_variant",
+    "client_version",
+    "client_type",
+    "server_version",
+    "server_type",
+)
 TIMING_DATA: List = []
 
 
@@ -26,13 +33,15 @@ def run_one(args, n=0, m=0):
         for e in range(args.num_history):
             d = {}
             for i in range(args.history_floats):
-                d[f"f_{i}"] = float(n+m+e+i)
+                d[f"f_{i}"] = float(n + m + e + i)
             for i in range(args.history_ints):
-                d[f"i_{i}"] = n+m+e+i
+                d[f"i_{i}"] = n + m + e + i
             for i in range(args.history_strings):
-                d[f"s_{i}"] = str(n+m+e+i)
+                d[f"s_{i}"] = str(n + m + e + i)
             for i in range(args.history_tables):
-                d[f"t_{i}"] = wandb.Table(columns=["a", "b", "c", "d"], data=[[n + m, e, i, i+1]])
+                d[f"t_{i}"] = wandb.Table(
+                    columns=["a", "b", "c", "d"], data=[[n + m, e, i, i + 1]]
+                )
             run.log(d)
 
 
@@ -45,7 +54,9 @@ def run_parallel(args):
     procs = []
     wandb.setup()
     for n in range(args.num_parallel):
-        p = multiprocessing.Process(target=run_sequential, args=(args, n*args.num_parallel))
+        p = multiprocessing.Process(
+            target=run_sequential, args=(args, n * args.num_parallel)
+        )
         procs.append(p)
     for p in procs:
         p.start()
@@ -83,7 +94,9 @@ def run_load(args):
 def main():
     parser = argparse.ArgumentParser(description="benchmark wandb performance")
     parser.add_argument("--test_name", type=str, default="")
-    parser.add_argument("--test_profile", type=str, default="", choices=list(_load_profiles.PROFILES))
+    parser.add_argument(
+        "--test_profile", type=str, default="", choices=list(_load_profiles.PROFILES)
+    )
     parser.add_argument("--test_variant", type=str, default="")
     parser.add_argument("--server_version", type=str, default="")
     parser.add_argument("--server_type", type=str, default="")
