@@ -1051,11 +1051,12 @@ class Api:
 
     @normalize_exceptions
     def artifact_exists(self, name: str, type: Optional[str] = None):
-        """Return whether an artifact exists.
+        """Return whether an artifact version exists within a specified project and entity.
 
         Arguments:
-            name: (str) An artifact name. May be prefixed with entity/project. Valid names
-                can be in the following forms:
+            name: (str) An artifact name. May be prefixed with entity/project.
+                If not specified, entity and project will be inferred from the default project settings.
+                Valid names can be in the following forms:
                     name:version
                     name:alias
             type: (str, optional) The type of artifact
@@ -1068,10 +1069,11 @@ class Api:
 
     @normalize_exceptions
     def artifact_collection_exists(self, name: str, type: str):
-        """Return whether an artifact collection exists.
+        """Return whether an artifact collection exists within a specified project and entity.
 
         Arguments:
-            name: (str) An artifact collection name. May be prefixed with entity/project
+            name: (str) An artifact collection name. May be prefixed with entity/project.
+                If not specified, entity and project will be inferred from the default project settings.
             type: (str) The type of artifact collection
         """
         try:
