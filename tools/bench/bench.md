@@ -8,6 +8,10 @@ The wandb SDK architecture consists of
 1) a user-process frontend library
 2) an internally managed backend process which is responsible for processing and syncing data 
 
+This suite of benchmarks can serve as a mechanism to:
+- Track ongoing performance of high level SDK features to help spot regressions
+- Demonstrate performance improvements and trade-offs when enabling SDK features
+
 The SDK is in the middle of a transition to a new internally managed backend process (also called "core") which provides improved performance as well as laying the groundwork for many more improvements to come.   This is project is described here:
 [wandb core](https://github.com/wandb/wandb/blob/main/core/README.md).
 
@@ -15,11 +19,34 @@ The SDK is in the middle of a transition to a new internally managed backend pro
 
 ### Startup/Shutdown Performance
 
+When initiating an experiment there is a setup cost to make sure the experiment is reliably tracked.  The delays in starting and stopping an experiment is SDK overhead which takes away from compute resources which could be used for model training.  This overhead is mostly noticed with very short experiments (measured in seconds).
+
+This is best understood with a simple script:
+```python
+run = wandb.init()
+# ... perform model training
+run.finish()
+```
+
 ### Parallel Run Performance
+
+The SDK has the ability to track multiple experiments in parallel for example using python multiprocessing
 
 ## Results
 
+### Methodology
+
+The wandb SDK supports online and offline modes of operation.
+
 ### Improvements seen enabling wandb core
+
+| Metric | Mode | Improvement with wandb core |
+| Startup/Shutdown Time | Offline | 36% improvement |
+| Startup/Shutdown Time | Online | 23% improvement |
+| Parallel performance logging scalers | Offline | 83% improvement |
+| Parallel performance logging scalers | Online | 88% improvement |
+| Table logging performance | Offline | 18% improvement |
+| Table logging performance | Online | 40% improvement |
 
 <details>
 <summary>Raw Results</summary>
