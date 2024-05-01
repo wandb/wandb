@@ -14,13 +14,15 @@ import (
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
+// this is set by the build script and used by the observability package
+var commit string
+
 func init() {
 	runtime.SetBlockProfileRate(1)
 }
 
 func main() {
-	// commit is set by the build script and used by the observability package
-	var commit string
+	// Flags to control the server
 	portFilename := flag.String("port-filename", "port_file.txt", "filename for port to communicate with client")
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 	enableDebugLogging := flag.Bool("debug", false, "enable debug logging")
