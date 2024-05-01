@@ -4,9 +4,9 @@
 
 The wandb SDK is designed to be a flexible, performant and robust library which can be integrated into data projects with limited overhead.  The design presents some trade-offs which can appear as unexpected performance characteristics.   This benchmark test suite will cover some common usage profiles and capture the user perceived characteristics.
 
-The wandb SDK architecture consists of 
+The wandb SDK architecture consists of
 1) a user-process frontend library
-2) an internally managed backend process which is responsible for processing and syncing data 
+2) an internally managed backend process which is responsible for processing and syncing data
 
 This suite of benchmarks can serve as a mechanism to:
 - Track ongoing performance of high level SDK features to help spot regressions
@@ -33,8 +33,13 @@ run.finish()
 The SDK has the ability to track multiple experiments in parallel for example using python multiprocessing
 
 ```python
+import multiprocessing
+
+
 def run_experiment():
-  # do work
+    # do work
+    pass
+
 
 p = multiprocessing.Process(target=run_experiment)
 ```
