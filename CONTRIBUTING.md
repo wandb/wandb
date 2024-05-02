@@ -216,7 +216,7 @@ Note: to switch the default python version, edit the `.python-version` file in t
 
 ### Linting the code
 
-We are using [pre-commit hooks](https://pre-commit.com/#install) to manage oure linters and other auto-generated code.
+We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our linters and other auto-generated code.
 
 To install `pre-commit` run the following:
 ```shell
@@ -235,9 +235,9 @@ pre-commit run ruff-format --all-files --hook-stage pre-push
 
 ### Auto-Generating Code
 
-For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation). You could just run:
+For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv). You could just run:
 ```shell
-pip install nox
+pip install -U nox uv
 ```
 
 #### Building protocol buffers

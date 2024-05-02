@@ -1,4 +1,3 @@
-import asyncio
 import concurrent.futures
 import dataclasses
 import queue
@@ -17,25 +16,10 @@ from wandb.filesync.step_prepare import (
 )
 
 if TYPE_CHECKING:
-    import sys
-
     from wandb.sdk.internal.internal_api import (
         CreateArtifactFileSpecInput,
         CreateArtifactFilesResponseFile,
     )
-
-    if sys.version_info >= (3, 8):
-        from typing import Protocol
-    else:
-        from typing_extensions import Protocol
-
-    class PrepareFixture(Protocol):
-        def __call__(
-            self,
-            step_prepare: StepPrepare,
-            file_spec: "CreateArtifactFileSpecInput",
-        ) -> "concurrent.futures.Future[ResponsePrepare]":
-            pass
 
 
 def simple_file_spec(name: str) -> "CreateArtifactFileSpecInput":
@@ -265,22 +249,15 @@ class TestGatherBatch:
 
 class TestStepPrepare:
     @staticmethod
-    def _bg_prepare_sync(
+    def _bg_prepare(
         step_prepare: StepPrepare, *args, **kwargs
     ) -> "concurrent.futures.Future[ResponsePrepare]":
-        """Starts prepare_sync running in the background.
-
-        Don't call this directly; use the `prepare` fixture instead, to ensure that
-        whatever logic you're testing works with both sync and async impls.
-
-        If you're writing a test that only cares about the sync impl, you should
-        probably just call `step_prepare.prepare_sync` directly.
-        """
+        """Starts prepare running in the background."""
         enqueued = threading.Event()
         future = concurrent.futures.Future()
 
         def prepare_and_resolve():
-            q = step_prepare.prepare_sync(*args, **kwargs)
+            q = step_prepare.prepare(*args, **kwargs)
             enqueued.set()
             future.set_result(q.get())
 
@@ -293,60 +270,7 @@ class TestStepPrepare:
         enqueued.wait()
         return future
 
-    @staticmethod
-    def _bg_prepare_async(
-        step_prepare: StepPrepare, *args, **kwargs
-    ) -> "concurrent.futures.Future[ResponsePrepare]":
-        """Starts prepare_async running in the background.
-
-        Don't call this directly; use the `prepare` fixture instead, to ensure that
-        whatever logic you're testing works with both sync and async impls.
-
-        If you're writing a test that only cares about the async impl, you should
-        probably just call `step_prepare.prepare_async` directly.
-        """
-        enqueued = threading.Event()
-        future = concurrent.futures.Future()
-
-        async def prepare_and_resolve():
-            prepare_async_future = step_prepare.prepare_async(*args, **kwargs)
-            # Note: ^that's an asyncio.Future, not a concurrent.futures.Future
-            enqueued.set()
-            future.set_result(await prepare_async_future)
-
-        threading.Thread(
-            name="prepare_and_resolve",
-            target=asyncio.new_event_loop().run_until_complete,
-            args=[prepare_and_resolve()],
-            daemon=True,
-        ).start()
-
-        enqueued.wait()
-        return future
-
-    @pytest.fixture(params=["sync", "async"])
-    def prepare(self, request) -> "PrepareFixture":
-        """Fixture to kick off prepare_sync or prepare_async in the background.
-
-        Tests that use this fixture will be run twice: once using prepare_sync,
-        once using prepare_async.
-
-        Example usage:
-
-            def test_smoke(prepare: "PrepareFixture"):
-                step_prepare = StepPrepare(...)
-                step_prepare.start()
-                res = prepare(step_prepare, simple_file_spec(name="foo")).result()
-                assert res.birth_artifact_id == ...
-        """
-        if request.param == "sync":
-            return self._bg_prepare_sync
-        elif request.param == "async":
-            return self._bg_prepare_async
-        else:
-            raise ValueError(f"Unknown prepare mode: {request.param}")
-
-    def test_smoke(self, prepare: "PrepareFixture"):
+    def test_smoke(self):
         caf_result = mock_create_artifact_files_result(["foo"])
         api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
@@ -355,7 +279,7 @@ class TestStepPrepare:
         )
         step_prepare.start()
 
-        res = prepare(step_prepare, simple_file_spec(name="foo")).result()
+        res = self._bg_prepare(step_prepare, simple_file_spec(name="foo")).result()
         step_prepare.finish()
 
         upload_id = (
@@ -373,7 +297,7 @@ class TestStepPrepare:
             multipart_upload_urls=caf_result["foo"]["uploadMultipartUrls"],
         )
 
-    def test_batches_requests(self, prepare: "PrepareFixture"):
+    def test_batches_requests(self):
         caf_result = mock_create_artifact_files_result(["a", "b"])
         api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
@@ -382,8 +306,8 @@ class TestStepPrepare:
         )
         step_prepare.start()
 
-        future_a = prepare(step_prepare, simple_file_spec(name="a"))
-        future_b = prepare(step_prepare, simple_file_spec(name="b"))
+        future_a = self._bg_prepare(step_prepare, simple_file_spec(name="a"))
+        future_b = self._bg_prepare(step_prepare, simple_file_spec(name="b"))
         step_prepare.finish()
 
         res_a = future_a.result()
@@ -397,7 +321,7 @@ class TestStepPrepare:
 
         api.create_artifact_files.assert_called_once()
 
-    def test_finish_waits_for_pending_requests(self, prepare: "PrepareFixture"):
+    def test_finish_waits_for_pending_requests(self):
         caf_result = mock_create_artifact_files_result(["a", "b"])
         api = Mock(create_artifact_files=Mock(return_value=caf_result))
 
@@ -406,7 +330,7 @@ class TestStepPrepare:
         )
         step_prepare.start()
 
-        res_future = prepare(step_prepare, simple_file_spec(name="a"))
+        res_future = self._bg_prepare(step_prepare, simple_file_spec(name="a"))
 
         with pytest.raises(concurrent.futures.TimeoutError):
             res_future.result(timeout=0.2)

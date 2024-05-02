@@ -18,6 +18,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
   * The binary can be activated using `wandb.require("core")` at the start of a script
   * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
   * Please report any issues with `pip install wandb`!
+* `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
+* Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
+* `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
 
 ### Fixed
 
@@ -25,11 +28,16 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 * Correctly report file upload errors when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7196
 * Implemented a stricter check for AMD GPU availability by @dmitryduev in https://github.com/wandb/wandb/pull/7322
 * Fixed `run.save()` on Windows by @timoffex in https://github.com/wandb/wandb/pull/7412
+* Show a warning instead of failing when using registries other than ECR and GAR with the Kaniko builder by @TimH98 in https://github.com/wandb/wandb/pull/7461
 
 ### Changed
 
 * When using `wandb-core` need to specify a required flag (`wandb.require("core")`) to enable it, before it was picked up automatically by @kptkin in  https://github.com/wandb/wandb/pull/7228
 * Use ETags instead of MD5 hashes for GCS reference artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7337
+
+### Removed
+
+* Removed the `[async]` extra and the `_async_upload_concurrency_limit` setting by @moredatarequired in https://github.com/wandb/wandb/pull/7416
 
 ## [0.16.6] - 2024-04-03
 

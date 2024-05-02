@@ -7,6 +7,8 @@ from typing import Callable, Iterator, List
 
 import nox
 
+nox.options.default_venv_backend = "uv"
+
 _SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
 
 
@@ -556,10 +558,20 @@ def mypy_report(session: nox.Session) -> None:
     session.install(
         # https://github.com/python/mypy/issues/17166
         "mypy != 1.10.0",
-        "httpx",
-        "types-click",
         "pycobertura",
         "lxml",
+        "pandas-stubs",
+        "types-click",
+        "types-openpyxl",
+        "types-Pillow",
+        "types-PyYAML",
+        "types-Pygments",
+        "types-protobuf",
+        "types-pytz",
+        "types-requests",
+        "types-setuptools",
+        "types-six",
+        "types-tqdm",
     )
 
     path = "mypy-results"

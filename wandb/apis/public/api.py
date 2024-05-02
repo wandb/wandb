@@ -1048,3 +1048,38 @@ class Api:
             return [x["node"]["artifacts"] for x in artifacts]
         except requests.exceptions.HTTPError:
             return False
+
+    @normalize_exceptions
+    def artifact_exists(self, name: str, type: Optional[str] = None):
+        """Return whether an artifact version exists within a specified project and entity.
+
+        Arguments:
+            name: (str) An artifact name. May be prefixed with entity/project.
+                If entity or project is not specified, it will be inferred from the override params if populated.
+                Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
+                Valid names can be in the following forms:
+                    name:version
+                    name:alias
+            type: (str, optional) The type of artifact
+        """
+        try:
+            self.artifact(name, type)
+            return True
+        except wandb.errors.CommError:
+            return False
+
+    @normalize_exceptions
+    def artifact_collection_exists(self, name: str, type: str):
+        """Return whether an artifact collection exists within a specified project and entity.
+
+        Arguments:
+            name: (str) An artifact collection name. May be prefixed with entity/project.
+                If entity or project is not specified, it will be inferred from the override params if populated.
+                Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
+            type: (str) The type of artifact collection
+        """
+        try:
+            self.artifact_collection(type, name)
+            return True
+        except wandb.errors.CommError:
+            return False
