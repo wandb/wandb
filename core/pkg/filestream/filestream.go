@@ -238,12 +238,6 @@ func (fs *fileStream) StreamUpdate(update *Update) {
 	fs.addProcess(update)
 }
 
-func (fs *fileStream) SignalFileUploaded(path string) {
-	fs.addProcess(&Update{
-		UploadedFile: path,
-	})
-}
-
 func (fs *fileStream) FatalErrorChan() <-chan error {
 	return fs.fatalErrorChan
 }
