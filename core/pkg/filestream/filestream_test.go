@@ -20,15 +20,15 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func NewHistoryRecord() *service.Record {
-	msg := &service.Record{
-		RecordType: &service.Record_History{
-			History: &service.HistoryRecord{
-				Step: &service.HistoryStep{Num: 0},
-				Item: []*service.HistoryItem{
-					{Key: "test_key", ValueJson: fmt.Sprintf("%f", 0.0)},
-				}}}}
-	return msg
+func NewHistoryRecord() filestream.Update {
+	return &filestream.HistoryUpdate{
+		Record: &service.HistoryRecord{
+			Step: &service.HistoryStep{Num: 0},
+			Item: []*service.HistoryItem{
+				{Key: "test_key", ValueJson: fmt.Sprintf("%f", 0.0)},
+			},
+		},
+	}
 }
 
 func TestFileStream(t *testing.T) {
@@ -59,8 +59,8 @@ func TestFileStream(t *testing.T) {
 
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
 		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
-		fs.StreamRecord(NewHistoryRecord())
-		fs.SignalFileUploaded("file.txt")
+		fs.StreamUpdate(NewHistoryRecord())
+		fs.StreamUpdate(&filestream.FilesUploadedUpdate{RelativePath: "file.txt"})
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
@@ -116,10 +116,10 @@ func TestFileStream(t *testing.T) {
 
 		fakeClient.SetResponse(nil, fmt.Errorf("nope!"))
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
-		fs.StreamRecord(NewHistoryRecord())           // should go through
+		fs.StreamUpdate(NewHistoryRecord())           // should go through
 		fakeBatchDelay.WaitAndTick(true, time.Second) // picks up the chunk
-		fs.StreamRecord(NewHistoryRecord())           // should be ignored
-		fs.StreamRecord(NewHistoryRecord())           // should be ignored
+		fs.StreamUpdate(NewHistoryRecord())           // should be ignored
+		fs.StreamUpdate(NewHistoryRecord())           // should be ignored
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
