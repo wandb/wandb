@@ -147,7 +147,7 @@ class BaseManager(ABC):
         self.logger.info(f"Leased item: {next_item}")
         return next_item
 
-    async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> bool:
+    async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> None:
         """Check the state of a sweep before launching a run for the sweep."""
         if launch_spec.get("sweep_id"):
             try:
@@ -158,7 +158,7 @@ class BaseManager(ABC):
                     project=launch_spec["project"],
                 )
             except Exception as e:
-                self._internal_logger.debug(f"Fetch sweep state error: {e}")
+                self.logger.debug(f"Fetch sweep state error: {e}")
                 state = None
 
             if state != "RUNNING" and state != "PAUSED":
