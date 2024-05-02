@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -15,13 +16,13 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const (
@@ -70,6 +71,9 @@ type Stream struct {
 
 	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
+
+	// closed indicates if the inChan and loopBackChan are closed
+	closed *atomic.Bool
 }
 
 func streamLogger(settings *settings.Settings) *observability.CoreLogger {
@@ -127,8 +131,8 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stream {
-	ctx, cancel := context.WithCancel(ctx)
+func NewStream(settings *settings.Settings, _ string) *Stream {
+	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -138,6 +142,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 		inChan:       make(chan *service.Record, BufferSize),
 		loopBackChan: make(chan *service.Record, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
+		closed:       &atomic.Bool{},
 	}
 
 	w := watcher.New(watcher.Params{
@@ -150,6 +155,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
+	terminalPrinter := observability.NewPrinter[string]()
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -170,6 +176,16 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
+
+		go func() {
+			err := <-fileStreamOrNil.FatalErrorChan()
+			s.logger.CaptureFatal("stream: fatal error in filestream", err)
+			terminalPrinter.Write(
+				"Fatal error while uploading data. Some run data will" +
+					" not be synced, but it will still be written to disk. Use" +
+					" `wandb sync` at the end of the run to try uploading.",
+			)
+		}()
 	}
 
 	mailbox := mailbox.NewMailbox()
@@ -191,6 +207,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string) *Stre
 			RunSummary:        runSummary,
 			MetricHandler:     NewMetricHandler(),
 			Mailbox:           mailbox,
+			TerminalPrinter:   terminalPrinter,
 		},
 	)
 
@@ -299,6 +316,11 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
+	if s.closed.Load() {
+		// this is to prevent trying to process messages after the stream is closed
+		s.logger.Error("context done, not handling record", "record", rec)
+		return
+	}
 	s.inChan <- rec
 }
 
@@ -311,8 +333,10 @@ func (s *Stream) GetRun() *service.RunRecord {
 func (s *Stream) Close() {
 	// wait for the context to be canceled in the defer state machine in the sender
 	<-s.ctx.Done()
-	close(s.loopBackChan)
-	close(s.inChan)
+	if !s.closed.Swap(true) {
+		close(s.loopBackChan)
+		close(s.inChan)
+	}
 	s.wg.Wait()
 }
 
@@ -347,5 +371,5 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 func (s *Stream) PrintFooter() {
 	run := s.GetRun()
-	shared.PrintHeadFoot(run, s.settings.Proto, true)
+	utils.PrintHeadFoot(run, s.settings.Proto, true)
 }

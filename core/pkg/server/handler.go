@@ -47,6 +47,7 @@ type HandlerParams struct {
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
 	SystemMonitor     *monitor.SystemMonitor
+	TerminalPrinter   *observability.Printer[string]
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -104,8 +105,8 @@ type Handler struct {
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
 
-	// internalPrinter is the internal messages handler for the stream
-	internalPrinter *observability.Printer[string]
+	// terminalPrinter gathers terminal messages to send back to the user process
+	terminalPrinter *observability.Printer[string]
 
 	mailbox *mailbox.Mailbox
 }
@@ -118,7 +119,7 @@ func NewHandler(
 	return &Handler{
 		ctx:                   ctx,
 		runTimer:              timer.New(),
-		internalPrinter:       observability.NewPrinter[string](),
+		terminalPrinter:       params.TerminalPrinter,
 		logger:                params.Logger,
 		settings:              params.Settings,
 		fwdChan:               params.FwdChan,
@@ -937,7 +938,7 @@ func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
 }
 
 func (h *Handler) handleRequestInternalMessages(record *service.Record) {
-	messages := h.internalPrinter.Read()
+	messages := h.terminalPrinter.Read()
 	response := &service.Response{
 		ResponseType: &service.Response_InternalMessagesResponse{
 			InternalMessagesResponse: &service.InternalMessagesResponse{
@@ -1127,7 +1128,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
 			msg := "Failed to process history record, skipping syncing."
-			h.internalPrinter.Write(msg)
+			h.terminalPrinter.Write(msg)
 			return
 		}
 		h.handleHistory(&service.HistoryRecord{
@@ -1194,7 +1195,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 					"Failed to process history record, for step %d, skipping...",
 					h.runHistory.GetStep(),
 				)
-				h.internalPrinter.Write(msg)
+				h.terminalPrinter.Write(msg)
 				return
 			}
 			history := &service.HistoryRecord{
@@ -1210,7 +1211,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
 				"that is less than the current step (%d) this data will be ignored. if you need to log data out of order, "+
 				"please see: https://wandb.me/define-metric", step, current)
-			h.internalPrinter.Write(msg)
+			h.terminalPrinter.Write(msg)
 			return
 		}
 	}
@@ -1231,7 +1232,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 				"Failed to process history record, for step %d, skipping...",
 				h.runHistory.GetStep(),
 			)
-			h.internalPrinter.Write(msg)
+			h.terminalPrinter.Write(msg)
 			return
 		}
 		history := &service.HistoryRecord{

@@ -525,7 +525,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 			// since exit is already stored in the transaction log
 			s.respond(s.exitRecord, &service.RunExitResult{})
 		}
-		// cancel tells the stream to close the loopback channel
+		// cancel tells the stream to close the loopback and input channels
 		s.cancel()
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)

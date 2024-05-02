@@ -50,7 +50,6 @@ const (
 	OutputFileName           = "output.log"
 	defaultMaxItemsPerPush   = 5_000
 	defaultDelayProcess      = 20 * time.Millisecond
-	defaultPollInterval      = 2 * time.Second
 	defaultHeartbeatInterval = 30 * time.Second
 )
 
@@ -90,6 +89,12 @@ type FileStream interface {
 	// This is used in some deployments where the backend is not notified when
 	// files finish uploading.
 	SignalFileUploaded(path string)
+
+	// FatalErrorChan is a channel that emits if there is a fatal error.
+	//
+	// If this channel emits, all filestream operations afterward become
+	// no-ops. This channel emits at most once, and it is never closed.
+	FatalErrorChan() <-chan error
 }
 
 // fileStream is a stream of data to the server
@@ -121,13 +126,17 @@ type fileStream struct {
 
 	maxItemsPerPush int
 	delayProcess    waiting.Delay
-	pollInterval    waiting.Delay
 
 	// A schedule on which to send heartbeats to the backend
 	// to prove the run is still alive.
 	heartbeatStopwatch waiting.Stopwatch
 
 	clientId string
+
+	// A channel that is closed if there is a fatal error.
+	deadChan       chan struct{}
+	deadChanOnce   *sync.Once
+	fatalErrorChan chan error
 }
 
 type FileStreamParams struct {
@@ -137,7 +146,6 @@ type FileStreamParams struct {
 	MaxItemsPerPush    int
 	ClientId           string
 	DelayProcess       waiting.Delay
-	PollInterval       waiting.Delay
 	HeartbeatStopwatch waiting.Stopwatch
 }
 
@@ -154,16 +162,14 @@ func NewFileStream(params FileStreamParams) FileStream {
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
+		deadChanOnce:    &sync.Once{},
+		deadChan:        make(chan struct{}),
+		fatalErrorChan:  make(chan error, 1),
 	}
 
 	fs.delayProcess = params.DelayProcess
 	if fs.delayProcess == nil {
 		fs.delayProcess = waiting.NewDelay(defaultDelayProcess)
-	}
-
-	fs.pollInterval = params.PollInterval
-	if fs.pollInterval == nil {
-		fs.pollInterval = waiting.NewDelay(defaultPollInterval)
 	}
 
 	fs.heartbeatStopwatch = params.HeartbeatStopwatch
@@ -204,20 +210,32 @@ func (fs *fileStream) Start(
 
 	fs.processWait.Add(1)
 	go func() {
+		defer func() {
+			fs.processWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopProcess(fs.processChan)
-		fs.processWait.Done()
 	}()
 
 	fs.transmitWait.Add(1)
 	go func() {
+		defer func() {
+			fs.transmitWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopTransmit(fs.transmitChan)
-		fs.transmitWait.Done()
 	}()
 
 	fs.feedbackWait.Add(1)
 	go func() {
+		defer func() {
+			fs.feedbackWait.Done()
+			fs.recoverUnexpectedPanic()
+		}()
+
 		fs.loopFeedback(fs.feedbackChan)
-		fs.feedbackWait.Done()
 	}()
 }
 
@@ -230,6 +248,10 @@ func (fs *fileStream) SignalFileUploaded(path string) {
 	fs.addProcess(processTask{UploadedFile: path})
 }
 
+func (fs *fileStream) FatalErrorChan() <-chan error {
+	return fs.fatalErrorChan
+}
+
 func (fs *fileStream) Close() {
 	close(fs.processChan)
 	fs.processWait.Wait()
@@ -238,4 +260,40 @@ func (fs *fileStream) Close() {
 	close(fs.feedbackChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
+}
+
+// logFatalAndStopWorking logs a fatal error and kills the filestream.
+//
+// After this, most filestream operations are no-ops. This is meant for
+// when we can't guarantee correctness, in which case we stop uploading
+// data but continue to save it to disk to avoid data loss.
+func (fs *fileStream) logFatalAndStopWorking(err error) {
+	fs.logger.CaptureFatal("filestream: fatal error", err)
+	fs.deadChanOnce.Do(func() {
+		close(fs.deadChan)
+		fs.fatalErrorChan <- err
+	})
+}
+
+// isDead reports whether the filestream has been killed.
+func (fs *fileStream) isDead() bool {
+	select {
+	case <-fs.deadChan:
+		return true
+	default:
+		return false
+	}
+}
+
+// recoverUnexpectedPanic redirects panics to FatalErrorChan.
+//
+// This should be used in a `defer` statement at the top of a function. This
+// is intended for truly *unexpected* panics to completely panic-proof critical
+// goroutines. All other errors should directly use `pushFatalError`.
+func (fs *fileStream) recoverUnexpectedPanic() {
+	if e := recover(); e != nil {
+		fs.logFatalAndStopWorking(
+			fmt.Errorf("filestream: unexpected panic: %v", e),
+		)
+	}
 }

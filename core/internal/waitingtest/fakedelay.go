@@ -2,6 +2,7 @@ package waitingtest
 
 import (
 	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/waiting"
 )
@@ -11,7 +12,12 @@ import (
 // This allows controlling time in a test without resorting to `time.Sleep()`
 // and hope.
 type FakeDelay struct {
+	mu   *sync.Mutex
 	cond *sync.Cond
+
+	// Number of goroutines blocked in Wait().
+	numWaiting     int
+	numWaitingCond *sync.Cond
 
 	// If false, panic on the next Wait().
 	allowsWait bool
@@ -21,18 +27,21 @@ type FakeDelay struct {
 }
 
 func NewFakeDelay() *FakeDelay {
+	mu := &sync.Mutex{}
 	return &FakeDelay{
-		cond:       sync.NewCond(&sync.Mutex{}),
-		allowsWait: true,
-		isZero:     false,
+		mu:             mu,
+		cond:           sync.NewCond(mu),
+		numWaitingCond: sync.NewCond(mu),
+		allowsWait:     true,
+		isZero:         false,
 	}
 }
 
 // Tick unblocks any goroutine that called Wait.
 func (d *FakeDelay) Tick(allowMoreWait bool) {
 	// While we hold the lock, new goroutines are blocked from calling Wait().
-	d.cond.L.Lock()
-	defer d.cond.L.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	d.allowsWait = allowMoreWait
 
@@ -40,10 +49,35 @@ func (d *FakeDelay) Tick(allowMoreWait bool) {
 	d.cond.Broadcast()
 }
 
+// WaitAndTick invokes Tick after at least one goroutine invokes Wait.
+//
+// If there are already goroutines blocked in Wait, this unblocks them
+// immediately. This panics after a timeout.
+func (d *FakeDelay) WaitAndTick(allowMoreWait bool, timeout time.Duration) {
+	d.mu.Lock()
+
+	success := make(chan struct{})
+
+	go func() {
+		for d.numWaiting == 0 {
+			d.numWaitingCond.Wait()
+		}
+		close(success)
+		d.mu.Unlock()
+		d.Tick(allowMoreWait)
+	}()
+
+	select {
+	case <-success:
+	case <-time.After(timeout):
+		panic("no Wait() after one second in WaitAndTick()")
+	}
+}
+
 // SetZero unblocks all current and future waiting goroutines.
 func (d *FakeDelay) SetZero() {
-	d.cond.L.Lock()
-	defer d.cond.L.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 
 	d.isZero = true
 	d.cond.Broadcast()
@@ -57,8 +91,8 @@ func (d *FakeDelay) IsZero() bool {
 		return true
 	}
 
-	d.cond.L.Lock()
-	defer d.cond.L.Unlock()
+	d.mu.Lock()
+	defer d.mu.Unlock()
 	return d.isZero
 }
 
@@ -67,7 +101,7 @@ func (d *FakeDelay) Wait() <-chan struct{} {
 		return completedDelay()
 	}
 
-	d.cond.L.Lock()
+	d.mu.Lock()
 
 	if !d.allowsWait {
 		panic("tried to Wait() on a FakeDelay after the final Tick()")
@@ -75,9 +109,13 @@ func (d *FakeDelay) Wait() <-chan struct{} {
 
 	waitChan := make(chan struct{}, 1)
 
+	d.numWaiting++
+	d.numWaitingCond.Signal()
 	go func() {
-		defer d.cond.L.Unlock()
+		defer d.mu.Unlock()
 		d.cond.Wait()
+
+		d.numWaiting--
 
 		waitChan <- struct{}{}
 		close(waitChan)

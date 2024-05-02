@@ -17,9 +17,6 @@ type chunkCollector struct {
 	// A stream of updates which get batched together.
 	input <-chan processedChunk
 
-	// Maximum time to wait for an input.
-	heartbeatDelay waiting.Delay
-
 	// Maximum time to wait before finalizing a batch.
 	processDelay waiting.Delay
 
@@ -37,16 +34,8 @@ type chunkCollector struct {
 	// Whether we have something for the next batch.
 	isTransmitReady bool
 
-	// Whether we gathered at least one chunk.
-	isDirty bool
-
 	// Number of chunks collected for the next batch.
 	itemsCollected int
-
-	// Whether itemsCollected >= maxItemsPerPush in the last batch.
-	//
-	// When this is true, we skip waiting in the next batch.
-	isOverflow bool
 
 	// Whether we finished reading the entire input stream.
 	isDone bool
@@ -62,12 +51,29 @@ type chunkCollector struct {
 func (cr *chunkCollector) CollectAndDump(
 	offsetMap FileStreamOffsetMap,
 ) (*FsTransmitData, bool) {
-	shouldReadMore := cr.read()
-	if shouldReadMore {
-		cr.readMore()
-	}
-	data := cr.dump(offsetMap)
+	cr.reset()
 
+	maxChunkWait := cr.processDelay.Wait()
+	for readMore := true; readMore; {
+		select {
+		case chunk, ok := <-cr.input:
+			if !ok {
+				cr.isDone = true
+				readMore = false
+				break // out of the select
+			}
+
+			cr.addFileChunk(chunk)
+			if cr.itemsCollected >= cr.maxItemsPerPush {
+				readMore = false
+			}
+
+		case <-maxChunkWait:
+			readMore = false
+		}
+	}
+
+	data := cr.dump(offsetMap)
 	if data == nil {
 		return nil, false
 	} else {
@@ -80,57 +86,6 @@ func (cr *chunkCollector) reset() {
 	cr.fileChunks = make(chunkMap)
 	cr.itemsCollected = 0
 	cr.isTransmitReady = false
-	cr.isDirty = false
-}
-
-func (cr *chunkCollector) read() bool {
-	cr.reset()
-
-	select {
-	case chunk, ok := <-cr.input:
-		if !ok {
-			cr.isDone = true
-			break
-		}
-		cr.addFileChunk(chunk)
-		return true
-	case <-cr.heartbeatDelay.Wait():
-	}
-	return false
-}
-
-func (cr *chunkCollector) delayTime() waiting.Delay {
-	delay := cr.processDelay
-
-	// do not delay for more chunks if we overflowed on last iteration
-	if cr.isOverflow {
-		delay = waiting.NoDelay()
-	}
-	cr.isOverflow = false
-
-	return delay
-}
-
-func (cr *chunkCollector) readMore() {
-	// TODO(core:beta): add rate limiting
-	delayChan := cr.delayTime().Wait()
-
-	for {
-		select {
-		case chunk, ok := <-cr.input:
-			if !ok {
-				cr.isDone = true
-				return
-			}
-			cr.addFileChunk(chunk)
-			if cr.itemsCollected >= cr.maxItemsPerPush {
-				cr.isOverflow = true
-				return
-			}
-		case <-delayChan:
-			return
-		}
-	}
 }
 
 func (cr *chunkCollector) update(chunk processedChunk) {
@@ -150,11 +105,11 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 
 	case chunk.Preempting:
 		cr.transmitData.Preempting = chunk.Preempting
-		cr.isDirty = true
+		cr.isTransmitReady = true
 
 	case chunk.Uploaded != nil:
 		cr.transmitData.Uploaded = chunk.Uploaded
-		cr.isDirty = true
+		cr.isTransmitReady = true
 	}
 }
 
@@ -166,10 +121,10 @@ func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
 		// TODO: convert this to append when the backend support for incremental summary updates
 		// is implemented. Currently, we always send the full summary.
 		cr.fileChunks[chunk.fileType] = []string{chunk.fileLine}
-		cr.isDirty = true
+		cr.isTransmitReady = true
 	case HistoryChunk, OutputChunk, EventsChunk:
 		cr.fileChunks[chunk.fileType] = append(cr.fileChunks[chunk.fileType], chunk.fileLine)
-		cr.isDirty = true
+		cr.isTransmitReady = true
 	default:
 		panic("unknown chunk type")
 	}
@@ -190,7 +145,7 @@ func (cr *chunkCollector) dumpFinalTransmit() {
 }
 
 func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
-	if cr.isDirty {
+	if len(cr.fileChunks) > 0 {
 		files := make(map[string]fsTransmitFileData)
 		for fileType, lines := range cr.fileChunks {
 			fname := chunkFilename[fileType]
@@ -201,13 +156,15 @@ func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
 		}
 		cr.transmitData.Files = files
 		cr.isTransmitReady = true
-		cr.isDirty = false
 	}
+
 	if cr.isDone {
 		cr.dumpFinalTransmit()
 	}
+
 	if cr.isTransmitReady {
 		return cr.transmitData
 	}
+
 	return nil
 }

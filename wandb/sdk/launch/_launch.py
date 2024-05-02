@@ -18,7 +18,6 @@ from .errors import ExecutionError, LaunchError
 from .runner.abstract import AbstractRun
 from .utils import (
     LAUNCH_CONFIG_FILE,
-    LAUNCH_DEFAULT_PROJECT,
     PROJECT_SYNCHRONOUS,
     construct_launch_spec,
     validate_launch_spec_source,
@@ -58,7 +57,6 @@ def set_launch_logfile(logfile: str) -> None:
 
 def resolve_agent_config(  # noqa: C901
     entity: Optional[str],
-    project: Optional[str],
     max_jobs: Optional[int],
     queues: Optional[Tuple[str]],
     config: Optional[str],
@@ -69,7 +67,6 @@ def resolve_agent_config(  # noqa: C901
     Arguments:
         api (Api): The api.
         entity (str): The entity.
-        project (str): The project.
         max_jobs (int): The max number of jobs.
         queues (Tuple[str]): The queues.
         config (str): The config.
@@ -79,7 +76,6 @@ def resolve_agent_config(  # noqa: C901
         Tuple[Dict[str, Any], Api]: The resolved config and api.
     """
     defaults = {
-        "project": LAUNCH_DEFAULT_PROJECT,
         "max_jobs": 1,
         "max_schedulers": 1,
         "queues": [],
@@ -87,7 +83,6 @@ def resolve_agent_config(  # noqa: C901
         "builder": {},
         "verbosity": 0,
     }
-    user_set_project = False
     resolved_config: Dict[str, Any] = defaults
     config_path = config or os.path.expanduser(LAUNCH_CONFIG_FILE)
     if os.path.isfile(config_path):
@@ -100,16 +95,11 @@ def resolve_agent_config(  # noqa: C901
                     launch_config = {}  # type: ignore
             except yaml.YAMLError as e:
                 raise LaunchError(f"Invalid launch agent config: {e}")
-        if launch_config.get("project") is not None:
-            user_set_project = True
         resolved_config.update(launch_config.items())
     elif config is not None:
         raise LaunchError(
             f"Could not find use specified launch config file: {config_path}"
         )
-    if os.environ.get("WANDB_PROJECT") is not None:
-        resolved_config.update({"project": os.environ.get("WANDB_PROJECT")})
-        user_set_project = True
     if os.environ.get("WANDB_ENTITY") is not None:
         resolved_config.update({"entity": os.environ.get("WANDB_ENTITY")})
     if os.environ.get("WANDB_LAUNCH_MAX_JOBS") is not None:
@@ -117,9 +107,6 @@ def resolve_agent_config(  # noqa: C901
             {"max_jobs": int(os.environ.get("WANDB_LAUNCH_MAX_JOBS", 1))}
         )
 
-    if project is not None:
-        resolved_config.update({"project": project})
-        user_set_project = True
     if entity is not None:
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
@@ -138,7 +125,7 @@ def resolve_agent_config(  # noqa: C901
                 + " (expected str). Specify multiple queues with the 'queues' key"
             )
 
-    keys = ["project", "entity"]
+    keys = ["entity"]
     settings = {
         k: resolved_config.get(k) for k in keys if resolved_config.get(k) is not None
     }
@@ -147,10 +134,6 @@ def resolve_agent_config(  # noqa: C901
 
     if resolved_config.get("entity") is None:
         resolved_config.update({"entity": api.default_entity})
-    if user_set_project:
-        wandb.termwarn(
-            "Specifying a project for the launch agent is deprecated. Please use queues found in the Launch application at https://wandb.ai/launch."
-        )
 
     return resolved_config, api
 
@@ -188,7 +171,6 @@ def create_and_run_agent(
 
 async def _launch(
     api: Api,
-    uri: Optional[str] = None,
     job: Optional[str] = None,
     name: Optional[str] = None,
     project: Optional[str] = None,
@@ -209,7 +191,7 @@ async def _launch(
     if resource is None:
         resource = "local-container"
     launch_spec = construct_launch_spec(
-        uri,
+        None,
         job,
         api,
         name,
@@ -326,8 +308,6 @@ def launch(
     """
     submitted_run_obj = asyncio.run(
         _launch(
-            # TODO: fully deprecate URI path
-            uri=None,
             job=job,
             name=name,
             project=project,

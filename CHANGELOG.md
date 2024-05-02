@@ -19,6 +19,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
   * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
   * Please report any issues with `pip install wandb`!
 * `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
+* Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
+* `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
 
 ### Fixed
 
