@@ -10,6 +10,7 @@ fail() {
 
 for f in $(echo $@| xargs -n1 dirname | sort -u); do
     # Temporary hack
+    echo "Running go test on $f"
     if [ "$f" == "core" ]; then
         continue
     fi
