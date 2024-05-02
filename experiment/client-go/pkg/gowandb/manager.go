@@ -3,10 +3,10 @@ package gowandb
 import (
 	"context"
 
-	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/core/pkg/gowandb/settings"
 	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // Manager is a collection of components that work together to handle incoming
@@ -38,7 +38,7 @@ func (m *Manager) NewRun(runParams *runopts.RunParams) *Run {
 	if runParams.RunID != nil {
 		runSettings.SetRunID(*runParams.RunID)
 	} else if runSettings.RunId == nil {
-		runSettings.SetRunID(shared.ShortID(8))
+		runSettings.SetRunID(utils.ShortID(8))
 	}
 	run := NewRun(m.ctx, runSettings.Settings, conn, runParams)
 	return run

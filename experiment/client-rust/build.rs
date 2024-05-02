@@ -7,11 +7,11 @@ fn main() -> Result<()> {
     pyo3_build_config::add_extension_module_link_args();
     // proto magic
     let protos = [
-        "../wandb/proto/wandb_base.proto",
-        "../wandb/proto/wandb_settings.proto",
-        "../wandb/proto/wandb_telemetry.proto",
-        "../wandb/proto/wandb_internal.proto",
-        "../wandb/proto/wandb_server.proto",
+        "../../wandb/proto/wandb_base.proto",
+        "../../wandb/proto/wandb_settings.proto",
+        "../../wandb/proto/wandb_telemetry.proto",
+        "../../wandb/proto/wandb_internal.proto",
+        "../../wandb/proto/wandb_server.proto",
     ];
     let temp_dir = tempdir().expect("Could not create temp dir");
     let mut temp_files = Vec::new();

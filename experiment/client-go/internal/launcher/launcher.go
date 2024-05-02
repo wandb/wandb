@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/execbin"
+	"github.com/wandb/wandb/gowandb/internal/execbin"
 )
 
 // readLines reads a whole file into memory
