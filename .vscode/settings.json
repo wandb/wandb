@@ -33,7 +33,7 @@
     "editor.formatOnSave": true
   },
   "rust-analyzer.linkedProjects": [
-    "./experiment/client-rust/Cargo.toml"
+    "./experimental/client-rust/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": true,
   "python.analysis.typeCheckingMode": "off",

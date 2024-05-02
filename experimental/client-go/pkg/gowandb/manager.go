@@ -3,10 +3,10 @@ package gowandb
 import (
 	"context"
 
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
-	"github.com/wandb/wandb/core/pkg/gowandb/settings"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
 // Manager is a collection of components that work together to handle incoming

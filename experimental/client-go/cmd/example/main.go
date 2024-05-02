@@ -3,8 +3,8 @@ package main
 import (
 	_ "embed"
 
-	"github.com/wandb/wandb/core/pkg/gowandb"
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
 )
 
 // Generate the core SDK library.  This is useful if you want to create self-contained binaries.

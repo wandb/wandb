@@ -6,9 +6,9 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/gowandb"
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/sessionopts"
-	"github.com/wandb/wandb/core/pkg/gowandb/settings"
+	"github.com/wandb/wandb/experimental/client-go/pkg/gowandb"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
 type BenchOpts struct {

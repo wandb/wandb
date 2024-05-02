@@ -2,7 +2,7 @@
 package gowandb
 
 import (
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/sessionopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
 )
 
 type History map[string]interface{}
