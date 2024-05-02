@@ -12,17 +12,6 @@ import (
 
 var boolTrue = true
 
-// processTask is an input for the filestream.
-type processTask struct {
-	// A record type supported by filestream.
-	Record *service.Record
-
-	// A path to one of a run's files that has been uploaded.
-	//
-	// The path is relative to the run's files directory.
-	UploadedFile string
-}
-
 type processedChunk struct {
 	fileType   ChunkTypeEnum
 	fileLine   string
@@ -32,51 +21,39 @@ type processedChunk struct {
 	Uploaded   []string
 }
 
-func (fs *fileStream) addProcess(task processTask) {
+func (fs *fileStream) addProcess(input *Update) {
 	select {
-	case fs.processChan <- task:
+	case fs.processChan <- input:
 
 	// If the filestream dies, this prevents us from blocking forever.
 	case <-fs.deadChan:
 	}
 }
 
-func (fs *fileStream) processRecord(record *service.Record) error {
-	switch x := record.RecordType.(type) {
-	case *service.Record_History:
-		return fs.streamHistory(x.History)
-	case *service.Record_Summary:
-		return fs.streamSummary(x.Summary)
-	case *service.Record_Stats:
-		return fs.streamSystemMetrics(x.Stats)
-	case *service.Record_OutputRaw:
-		return fs.streamOutputRaw(x.OutputRaw)
-	case *service.Record_Exit:
-		return fs.streamFinish(x.Exit)
-	case *service.Record_Preempting:
-		return fs.streamPreempting()
-	case nil:
-		return fmt.Errorf("filestream: field not set")
-	default:
-		return fmt.Errorf("filestream: unknown type %T", x)
-	}
-}
-
-func (fs *fileStream) loopProcess(inChan <-chan processTask) {
+func (fs *fileStream) loopProcess(inChan <-chan *Update) {
 	fs.logger.Debug("filestream: open", "path", fs.path)
 
-	for message := range inChan {
-		fs.logger.Debug("filestream: record", "message", message)
-
+	for input := range inChan {
 		var err error
 
 		switch {
-		case message.Record != nil:
-			err = fs.processRecord(message.Record)
-		case message.UploadedFile != "":
-			err = fs.streamFilesUploaded(message.UploadedFile)
+		case input.HistoryRecord != nil:
+			err = fs.streamHistory(input.HistoryRecord)
+		case input.SummaryRecord != nil:
+			err = fs.streamSummary(input.SummaryRecord)
+		case input.StatsRecord != nil:
+			err = fs.streamSystemMetrics(input.StatsRecord)
+		case input.LogsRecord != nil:
+			err = fs.streamOutputRaw(input.LogsRecord)
+		case input.ExitRecord != nil:
+			err = fs.streamFinish(input.ExitRecord)
+		case input.PreemptRecord != nil:
+			err = fs.streamPreempting()
+		case input.UploadedFile != "":
+			err = fs.streamFilesUploaded(input.UploadedFile)
 		default:
-			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
+			fs.logFatalAndStopWorking(fmt.Errorf("filestream: empty fileStreamInput"))
+			return
 		}
 
 		if err != nil {

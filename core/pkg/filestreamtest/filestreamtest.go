@@ -5,36 +5,25 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/filestream"
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // A fake implementation of FileStream.
 type FakeFileStream struct {
 	sync.Mutex
-
-	records       []*service.Record
-	filesUploaded []string
+	updates []*filestream.Update
 }
 
 func NewFakeFileStream() *FakeFileStream {
 	return &FakeFileStream{
-		records:       make([]*service.Record, 0),
-		filesUploaded: make([]string, 0),
+		updates: make([]*filestream.Update, 0),
 	}
 }
 
-// Returns all records passed to `StreamRecord`.
-func (fs *FakeFileStream) GetRecords() []*service.Record {
+// GetUpdates returns all updates passed to `StreamUpdate`.
+func (fs *FakeFileStream) GetUpdates() []*filestream.Update {
 	fs.Lock()
 	defer fs.Unlock()
-	return slices.Clone(fs.records)
-}
-
-// GetFilesUploaded returns all invocations of `SignalFileUploaded`.
-func (fs *FakeFileStream) GetFilesUploaded() []string {
-	fs.Lock()
-	defer fs.Unlock()
-	return slices.Clone(fs.filesUploaded)
+	return slices.Clone(fs.updates)
 }
 
 // Prove that we implement the interface.
@@ -50,18 +39,11 @@ func (fs *FakeFileStream) Start(
 
 func (fs *FakeFileStream) Close() {}
 
-func (fs *FakeFileStream) StreamRecord(rec *service.Record) {
+func (fs *FakeFileStream) StreamUpdate(update *filestream.Update) {
 	fs.Lock()
 	defer fs.Unlock()
 
-	fs.records = append(fs.records, rec)
-}
-
-func (fs *FakeFileStream) SignalFileUploaded(path string) {
-	fs.Lock()
-	defer fs.Unlock()
-
-	fs.filesUploaded = append(fs.filesUploaded, path)
+	fs.updates = append(fs.updates, update)
 }
 
 func (fs *FakeFileStream) FatalErrorChan() <-chan error {
