@@ -592,9 +592,12 @@ func (j *JobBuilder) Build(
 		if err != nil {
 			return nil, err
 		}
+		sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
 	} else {
 		metadataString = ""
-		if j.runConfig != nil {
+		if j.runConfig == nil {
+			sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
+		} else {
 			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
 		}
 	}

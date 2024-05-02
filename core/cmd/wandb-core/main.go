@@ -84,11 +84,14 @@ func main() {
 		}
 		defer trace.Stop()
 	}
-	serve, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+
+	srv, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
-	serve.SetDefaultLoggerPath(loggerPath)
-	serve.Close()
+	srv.SetDefaultLoggerPath(loggerPath)
+	srv.Start()
+	srv.Wait()
+	srv.Close()
 }

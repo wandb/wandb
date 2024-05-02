@@ -237,7 +237,10 @@ def get_requirements_section(
                 )
 
     # Else use frozen requirements from wandb run.
-    if not deps_install_line and (base_path / "requirements.frozen.txt").exists():
+    if (
+        not deps_install_line
+        and (base_path / "src" / "requirements.frozen.txt").exists()
+    ):
         requirements_files += [
             "src/requirements.frozen.txt",
             "_wandb_bootstrap.py",
