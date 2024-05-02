@@ -1,12 +1,10 @@
 module github.com/wandb/wandb/experimental/client-go
 
-replace github.com/wandb/wandb/core => ../../core
-
 go 1.22.2
 
 require (
 	github.com/segmentio/encoding v0.4.0
-	github.com/wandb/wandb/core v0.0.0-00010101000000-000000000000
+	github.com/wandb/wandb/core v0.0.0-20240502211842-3579a7c6fe44
 	google.golang.org/protobuf v1.34.0
 )
 
