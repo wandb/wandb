@@ -64,9 +64,9 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
                 # Use https://en.wikipedia.org/wiki/Gold_(linker)
                 "-fuse-ld=gold",
                 # Set the --weak-unresolved-symbols option in gold, converting
-                # unresolved symbols to weak references.
-                #
-                # TODO: why?
+                # unresolved symbols to weak references. This is necessary to
+                # build a Go binary with cgo on Linux, where the NVML libraries
+                # needed for Nvidia GPU monitoring may not be available at build time.
                 "-Wl,--weak-unresolved-symbols",
             ]
         )
