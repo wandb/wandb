@@ -81,14 +81,8 @@ type FileStream interface {
 	// Close waits for all work to be completed.
 	Close()
 
-	// StreamRecord adds data to be sent to the filestream API.
-	StreamRecord(rec *service.Record)
-
-	// SignalFileUploaded tells the backend that a run file has been uploaded.
-	//
-	// This is used in some deployments where the backend is not notified when
-	// files finish uploading.
-	SignalFileUploaded(path string)
+	// StreamUpdate uploads information through the filestream API.
+	StreamUpdate(update *Update)
 
 	// FatalErrorChan is a channel that emits if there is a fatal error.
 	//
@@ -104,7 +98,7 @@ type fileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
-	processChan  chan processTask
+	processChan  chan *Update
 	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
@@ -157,7 +151,7 @@ func NewFileStream(params FileStreamParams) FileStream {
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan processTask, BufferSize),
+		processChan:     make(chan *Update, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
@@ -239,13 +233,9 @@ func (fs *fileStream) Start(
 	}()
 }
 
-func (fs *fileStream) StreamRecord(rec *service.Record) {
-	fs.logger.Debug("filestream: stream record", "record", rec)
-	fs.addProcess(processTask{Record: rec})
-}
-
-func (fs *fileStream) SignalFileUploaded(path string) {
-	fs.addProcess(processTask{UploadedFile: path})
+func (fs *fileStream) StreamUpdate(update *Update) {
+	fs.logger.Debug("filestream: stream update", "update", update)
+	fs.addProcess(update)
 }
 
 func (fs *fileStream) FatalErrorChan() <-chan error {
