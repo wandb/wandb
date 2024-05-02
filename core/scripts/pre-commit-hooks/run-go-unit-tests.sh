@@ -10,6 +10,10 @@ fail() {
 
 for f in $(echo $@| xargs -n1 dirname | sort -u); do
     # Temporary hack
+    if [[ $f == "experiment"* ]]; then
+        continue
+    fi
+
     if [ "$f" == "core" ]; then
         continue
     fi
