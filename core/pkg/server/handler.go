@@ -27,14 +27,12 @@ import (
 )
 
 const (
-	MetaFileName              = "wandb-metadata.json"
-	SummaryFileName           = "wandb-summary.json"
-	OutputFileName            = "output.log"
-	DiffFileName              = "diff.patch"
-	RequirementsFileName      = "requirements.txt"
-	ConfigFileName            = "config.yaml"
-	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
-	summaryDebouncerBurstSize = 1        // todo: audit burst size
+	MetaFileName         = "wandb-metadata.json"
+	SummaryFileName      = "wandb-summary.json"
+	OutputFileName       = "output.log"
+	DiffFileName         = "diff.patch"
+	RequirementsFileName = "requirements.txt"
+	ConfigFileName       = "config.yaml"
 )
 
 type HandlerParams struct {

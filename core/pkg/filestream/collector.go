@@ -114,11 +114,19 @@ func (cr *chunkCollector) update(chunk processedChunk) {
 }
 
 func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
-	if chunk.fileType != NoneChunk {
+	switch chunk.fileType {
+	case NoneChunk:
+		cr.update(chunk)
+	case SummaryChunk:
+		// TODO: convert this to append when the backend support for incremental summary updates
+		// is implemented. Currently, we always send the full summary.
+		cr.fileChunks[chunk.fileType] = []string{chunk.fileLine}
+		cr.isTransmitReady = true
+	case HistoryChunk, OutputChunk, EventsChunk:
 		cr.fileChunks[chunk.fileType] = append(cr.fileChunks[chunk.fileType], chunk.fileLine)
 		cr.isTransmitReady = true
-	} else {
-		cr.update(chunk)
+	default:
+		panic("unknown chunk type")
 	}
 	cr.itemsCollected += 1
 }
