@@ -28,6 +28,7 @@ def test_label_job(monkeypatch):
         "resource_args": {"vertex": {"spec": {"labels": {"test-label": "test-value"}}}},
         "entity": "test-entity",
         "project": "test-project",
+        "image_uri": "test-image:latest",
     }
     project = LaunchProject.from_spec(project_spec, MagicMock())
 

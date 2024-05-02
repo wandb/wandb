@@ -87,7 +87,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
             },
             True,

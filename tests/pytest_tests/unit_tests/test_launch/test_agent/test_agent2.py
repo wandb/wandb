@@ -1,6 +1,6 @@
 import asyncio
 from contextlib import suppress
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
@@ -158,9 +158,13 @@ async def test_agent_loop(
         "entity": "test-entity",
         "project": "test-project",
         "queues": ["test-queue"],
+        "max_schedulers": 1,
     }
 
     agent = LaunchAgent2(api=mocker.api, config=config)
+    patch.object(agent, "_sweep_scheduler_job_queue", MagicMock())
+    agent._sweep_scheduler_job_queue = MagicMock(return_value=None)
+    agent._sweep_scheduler_job_queue.get = AsyncMock(return_value=None)
     loop_task = event_loop.create_task(agent.loop())
     await asyncio.sleep(2)
     loop_task.cancel()
@@ -173,6 +177,11 @@ async def test_agent_loop(
 async def test_agent_loop_sigint_clean_exit(
     mocker, common_setup, setup_for_agent_loop, event_loop, fresh_agent
 ):
+    async def sleep_then_raise(seconds):
+        raise asyncio.CancelledError
+
+    mocker.patch("asyncio.sleep", sleep_then_raise)
+
     mock_controller = AsyncMock(return_value=None)
     LaunchAgent2.register_controller_impl("test-resource", mock_controller)
 
@@ -180,18 +189,13 @@ async def test_agent_loop_sigint_clean_exit(
         "entity": "test-entity",
         "project": "test-project",
         "queues": ["test-queue"],
+        "max_schedulers": 1,
     }
 
     agent = LaunchAgent2(api=mocker.api, config=config)
+    agent._sweep_scheduler_job_queue = MagicMock(return_value=None)
+    agent._sweep_scheduler_job_queue.get = AsyncMock(return_value=None)
     loop_task = event_loop.create_task(agent.loop())
-
-    asyncio_sleep = asyncio.sleep
-
-    async def sleep_then_raise(seconds):
-        await asyncio_sleep(seconds)
-        raise asyncio.CancelledError
-
-    mocker.patch("asyncio.sleep", sleep_then_raise)
 
     with suppress(asyncio.CancelledError, KeyboardInterrupt):
         await loop_task
@@ -208,9 +212,12 @@ async def test_agent_main_loop_tolerates_controller_error(
         "entity": "test-entity",
         "project": "test-project",
         "queues": ["test-queue"],
+        "max_schedulers": 1,
     }
 
     agent = LaunchAgent2(api=mocker.api, config=config)
+    agent._sweep_scheduler_job_queue = MagicMock(return_value=None)
+    agent._sweep_scheduler_job_queue.get = AsyncMock(return_value=None)
     loop_task = event_loop.create_task(agent.loop())
     await asyncio.sleep(2)
     loop_task.cancel()
@@ -226,12 +233,15 @@ async def test_agent_main_loop_fails_cleanly(mocker, common_setup, fresh_agent):
         "entity": "test-entity",
         "project": "test-project",
         "queues": ["test-queue"],
+        "max_schedulers": 1,
     }
 
     mocker.patch.object(
         LaunchAgent2, "get_controller_for_jobset", side_effect=ValueError
     )
     agent = LaunchAgent2(api=mocker.api, config=config)
+    agent._sweep_scheduler_job_queue = MagicMock(return_value=None)
+    agent._sweep_scheduler_job_queue.get = AsyncMock(return_value=None)
     loop_task = loop.create_task(agent.loop())
 
     with pytest.raises(ValueError):

@@ -6,7 +6,9 @@ from wandb.sdk.launch.agent2.controllers.sagemaker import SageMakerManager
 
 @pytest.fixture
 def sagemaker_container_manager(controller_config, jobset):
-    return SageMakerManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
+    return SageMakerManager(
+        controller_config, jobset, MagicMock(), MagicMock(), MagicMock(), 1
+    )
 
 
 @pytest.mark.parametrize(

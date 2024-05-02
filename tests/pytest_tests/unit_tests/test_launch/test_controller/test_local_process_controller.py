@@ -64,8 +64,8 @@ async def test_reconcile_max_concurrency(mocked_test_manager_reconile):
 async def test_reconcile_clear_unowned_item(mocked_test_manager_reconile):
     mocked_test_manager_reconile.max_concurrency = 0
     mocked_test_manager_reconile.active_runs = {"not-test-id": MagicMock()}
+    mocked_test_manager_reconile.release_item = MagicMock()
     await mocked_test_manager_reconile.reconcile()
-    assert mocked_test_manager_reconile.release_item.called_once_with("not-test-id")
     assert mocked_test_manager_reconile.release_item.called_once_with("not-test-id")
 
 
