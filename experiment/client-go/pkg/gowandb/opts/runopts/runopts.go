@@ -2,8 +2,8 @@
 package runopts
 
 import (
-	"github.com/wandb/wandb/core/pkg/gowandb/runconfig"
 	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/gowandb/runconfig"
 )
 
 type RunParams struct {

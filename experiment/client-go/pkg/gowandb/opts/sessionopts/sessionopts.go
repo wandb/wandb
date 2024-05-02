@@ -2,7 +2,7 @@
 package sessionopts
 
 import (
-	"github.com/wandb/wandb/core/pkg/gowandb/settings"
+	"github.com/wandb/wandb/gowandb/settings"
 )
 
 type SessionParams struct {
