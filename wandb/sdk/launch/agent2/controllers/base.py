@@ -147,6 +147,25 @@ class BaseManager(ABC):
         self.logger.info(f"Leased item: {next_item}")
         return next_item
 
+    async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> bool:
+        """Check the state of a sweep before launching a run for the sweep."""
+        if launch_spec.get("sweep_id"):
+            try:
+                get_sweep_state = event_loop_thread_exec(api.get_sweep_state)
+                state = await get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                self._internal_logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state != "RUNNING" and state != "PAUSED":
+                raise LaunchError(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
+
     async def launch_item(self, job: Job) -> Optional[str]:
         """Launch a new job on the resource."""
         self.logger.info(f"Launching item: {job}")
@@ -189,6 +208,10 @@ class BaseManager(ABC):
             if not ack_result:
                 self.logger.error(f"Failed to ack item: {job.id}")
                 return None
+
+            # check sweep runs for terminal state
+            await self.check_sweep_state(job.run_spec, self.legacy.api)
+
             image_uri = None
             if not project.docker_image:
                 entrypoint = project.get_job_entry_point()

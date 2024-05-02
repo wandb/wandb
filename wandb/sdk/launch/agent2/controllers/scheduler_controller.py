@@ -1,13 +1,15 @@
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any, Dict, Optional, Union
 
 import wandb
+from wandb.apis.internal import Api
 from wandb.sdk.launch._project_spec import LaunchProject
 
-from ...utils import LOG_PREFIX
+from ...utils import LOG_PREFIX, event_loop_thread_exec
 from ..controller import LegacyResources
 from ..jobset import Job, JobWithQueue
+from .base import RunWithTracker
 from .local_process import LocalProcessManager
 
 
@@ -71,7 +73,7 @@ class SchedulerController:
 class SchedulerManager(LocalProcessManager):
     def __init__(
         self,
-        api: wandb.InternalApi,
+        api: Api,
         max_schedulers: int,
         legacy: LegacyResources,
         scheduler_jobs_queue: "asyncio.Queue[JobWithQueue]",
@@ -79,16 +81,17 @@ class SchedulerManager(LocalProcessManager):
     ):
         self._api = api
         self.legacy = legacy
-        self._scheduler_jobs_queue = scheduler_jobs_queue
-        self._logger = logger
         self._max_schedulers = max_schedulers
+        self._scheduler_jobs_queue = scheduler_jobs_queue
+        self.logger = logger
+        self.active_runs: Dict[str, RunWithTracker] = {}
 
     async def ack_run_queue_item(self, queue_item: str, run_id: str):
-        return await self._api.ack_run_queue_item(queue_item, run_id)
+        ack_func = event_loop_thread_exec(self._api.ack_run_queue_item)
+        return await ack_func(queue_item, run_id)
 
     async def launch_scheduler_item(self, item: JobWithQueue) -> Optional[str]:
         self.logger.info(f"Launching item: {item}")
-
         project = self._populate_project(item)
         project.fetch_and_validate_project()
 
@@ -96,7 +99,7 @@ class SchedulerManager(LocalProcessManager):
         self.logger.info(f"Launched item got run_id: {run_id}")
         return run_id
 
-    def _populate_project(self, job: Job | JobWithQueue) -> LaunchProject:
+    def _populate_project(self, job: Union[Job, JobWithQueue]) -> LaunchProject:
         assert isinstance(job, JobWithQueue)
         project = LaunchProject.from_spec(job.job.run_spec, self.legacy.api)
         queue_name = job.queue

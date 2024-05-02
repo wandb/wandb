@@ -105,7 +105,7 @@ class LaunchAgent2:
         self._logger.info("Registering with backend...")
         create_agent_result = self._api.create_launch_agent(
             self._config["entity"],
-            self._config["project"],
+            "model-registry",
             self._config.get("queues", []),
             self._config,
             self._wandb_version,
@@ -123,7 +123,7 @@ class LaunchAgent2:
             )
 
         self._wandb_run = wandb.init(
-            project=self._config["project"],
+            project="model-registry",
             entity=self._config["entity"],
             settings=wandb.Settings(silent=True, disable_git=True),
             id=self._name,
@@ -132,7 +132,6 @@ class LaunchAgent2:
 
     async def loop(self) -> None:
         event_loop = asyncio.get_event_loop()
-
         # Start the main agent state poll loop
         self.start_poll_loop(event_loop)
 
@@ -143,7 +142,6 @@ class LaunchAgent2:
             return JobAndRunStatusTracker(job_id, q, file_saver_factory(job_id))
 
         self._register_sweep_manager(job_tracker_factory)
-
         try:
             # Start job set and controller loops
             for q in self._config["queues"]:
@@ -151,7 +149,7 @@ class LaunchAgent2:
                 spec = JobSetSpec(
                     name=q,
                     entity_name=self._config["entity"],
-                    project_name=self._config["project"],
+                    project_name="model-registry",
                 )
                 jobset_logger = self._logger.getChild("jobset." + q)
                 jobset = create_jobset(
@@ -277,6 +275,7 @@ class LaunchAgent2:
 
     async def _fetch_agent_state(self):
         get_launch_agent = event_loop_thread_exec(self._api.get_launch_agent)
+
         return await get_launch_agent(self._id)
 
     def start_poll_loop(self, loop: asyncio.AbstractEventLoop):
@@ -308,7 +307,9 @@ class LaunchAgent2:
         runner = loader.runner_from_config(
             "local-process",
             self._api,  # todo factor out (?)
-            {},
+            {
+                PROJECT_SYNCHRONOUS: False,  # agent always runs async
+            },
             environment,
             registry,
         )

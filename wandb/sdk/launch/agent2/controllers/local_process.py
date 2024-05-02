@@ -1,7 +1,6 @@
 import asyncio
-import json
 import logging
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
@@ -102,7 +101,7 @@ class LocalProcessManager(BaseManager):
         self.logger.info(f"Launched item got run_id: {run_id}")
         return run_id
 
-    def _populate_project(self, job: Job | JobWithQueue) -> LaunchProject:
+    def _populate_project(self, job: Union[Job, JobWithQueue]) -> LaunchProject:
         assert isinstance(job, Job)
         project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
         queue_name = self.config["jobset_spec"].name
@@ -122,13 +121,12 @@ class LocalProcessManager(BaseManager):
         job_tracker = self.legacy.job_tracker_factory(run_id, project.queue_name)
         job_tracker.update_run_info(project)
 
-        # note since we ack on rqi id the queue driver will handle acking the run queue item
-        # even if its not for the specified queue
         ack_result = await self.ack_run_queue_item(job.id, run_id)
-        if ack_result is None:
+        if not ack_result:
             self.logger.error(f"Failed to ack item {job.id}")
             return None
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+
+        self.logger.info(f"Acked item: {job.id}")
         run = await self.legacy.runner.run(project, "")  # image is unused
         if not run:
             job_tracker.failed_to_start = True

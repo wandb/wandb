@@ -49,7 +49,7 @@ class Job:
 
 
 """
-Used with SchedulerManager to provide the queue
+Used with SchedulerController to provide the queue
 on which the job is to be run.
 """
 
