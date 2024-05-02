@@ -5,7 +5,6 @@
 //
 //	process:  process records into an appropriate format to transmit
 //	transmit: collect and transmit messages to the filestream service
-//	feedback: process feedback from the filestream service
 //
 // Below demonstrates a common execution flow through this package:
 //
@@ -24,9 +23,6 @@
 //	 - collector.go:     chunkCollector.readMore - keep reading until we have enough or hit timeout
 //	 - collector.go:     chunkCollector.dump     - create a blob to be used to serialize into json to send
 //	 - loop_transmit.go: Filestream.send         - send json to backend filestream service
-//	 - loop_feedback.go: Filestream.add_feedback - add to feedback channel
-//	{goroutine feedback}
-//	 - loop_feedback.go: Filestream.loopFeedback - loop acting on feedback channel
 //	{caller}
 //	 - filestream.go:    FileStream.Close        - graceful shutdown of worker goroutines
 package filestream
@@ -106,11 +102,9 @@ type fileStream struct {
 
 	processChan  chan processTask
 	transmitChan chan processedChunk
-	feedbackChan chan map[string]interface{}
 
 	processWait  *sync.WaitGroup
 	transmitWait *sync.WaitGroup
-	feedbackWait *sync.WaitGroup
 
 	// keep track of where we are streaming each file chunk
 	offsetMap FileStreamOffsetMap
@@ -156,10 +150,8 @@ func NewFileStream(params FileStreamParams) FileStream {
 		apiClient:       params.ApiClient,
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
-		feedbackWait:    &sync.WaitGroup{},
 		processChan:     make(chan processTask, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
-		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
@@ -227,16 +219,6 @@ func (fs *fileStream) Start(
 
 		fs.loopTransmit(fs.transmitChan)
 	}()
-
-	fs.feedbackWait.Add(1)
-	go func() {
-		defer func() {
-			fs.feedbackWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
-		fs.loopFeedback(fs.feedbackChan)
-	}()
 }
 
 func (fs *fileStream) StreamRecord(rec *service.Record) {
@@ -257,8 +239,6 @@ func (fs *fileStream) Close() {
 	fs.processWait.Wait()
 	close(fs.transmitChan)
 	fs.transmitWait.Wait()
-	close(fs.feedbackChan)
-	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
 }
 
