@@ -91,7 +91,6 @@ class SchedulerManager(LocalProcessManager):
 
     async def launch_scheduler_item(self, item: JobWithQueue) -> Optional[str]:
         self.logger.info(f"Launching item: {item}")
-        print("LAUNCHING SCHEDULER")
         project = self._populate_project(item)
         project.fetch_and_validate_project()
 

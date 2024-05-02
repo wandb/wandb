@@ -44,8 +44,9 @@ def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
 
         if cmd[:2] != ["wandb", "scheduler"]:
             return False
-
-    return True
+        return True
+    else:
+        return False
 
 
 @dataclass

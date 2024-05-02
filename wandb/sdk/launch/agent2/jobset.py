@@ -44,7 +44,7 @@ class Job:
     priority: int
     preemptible: bool
     can_preempt: bool
-    created_at: bool
+    created_at: str
     claimed_by: str
 
 

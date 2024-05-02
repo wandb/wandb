@@ -6,10 +6,12 @@ from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.agent2.controllers.base import (
     BaseManager,
     RunWithTracker,
+    _is_scheduler_job,
     check_run_called_init,
     check_run_exists_and_inited,
 )
 from wandb.sdk.launch.agent2.jobset import Job
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 
 
 class AsyncMock(MagicMock):
@@ -339,3 +341,37 @@ async def test_check_run_exists_and_inited_exception():
         api, "test-entity", "test-proj", "test-id", "test-rqi-id"
     )
     assert res is False
+
+
+@pytest.mark.parametrize(
+    "runspec, expected",
+    [
+        (
+            {
+                "resource": "local-process",
+                "uri": Scheduler.PLACEHOLDER_URI,
+                "overrides": {"entry_point": ["wandb", "scheduler", "arg1"]},
+            },
+            True,
+        ),
+        (
+            {
+                "resource": "local-process",
+                "uri": Scheduler.PLACEHOLDER_URI,
+                "job": "blah",
+                "overrides": {"entry_point": ["python", "blah.py", "arg1"]},
+            },
+            True,
+        ),
+        (
+            {
+                "resource": "local-process",
+                "uri": Scheduler.PLACEHOLDER_URI,
+                "overrides": {"entry_point": ["python", "blah.py", "arg1"]},
+            },
+            False,
+        ),
+    ],
+)
+def test_is_scheduler_job(runspec, expected):
+    assert _is_scheduler_job(runspec) == expected
