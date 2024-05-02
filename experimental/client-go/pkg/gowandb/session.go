@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/wandb/wandb/experimental/client-go/gowandb/internal/execbin"
-	"github.com/wandb/wandb/experimental/client-go/gowandb/internal/launcher"
-	"github.com/wandb/wandb/experimental/client-go/gowandb/opts/runopts"
-	"github.com/wandb/wandb/experimental/client-go/gowandb/opts/sessionopts"
-	"github.com/wandb/wandb/experimental/client-go/gowandb/settings"
+	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
+	"github.com/wandb/wandb/experimental/client-go/internal/launcher"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/sessionopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/settings"
 )
 
 type Session struct {

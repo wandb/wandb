@@ -8,9 +8,10 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
 	"github.com/wandb/wandb/core/pkg/service"
-	"github.com/wandb/wandb/experimental/client-go/gowandb/runconfig"
+	"github.com/wandb/wandb/core/pkg/utils"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/runconfig"
 )
 
 type Settings map[string]interface{}
@@ -112,7 +113,7 @@ func (r *Run) init() {
 	}
 	result := handle.wait()
 	r.run = result.GetRunResult().GetRun()
-	shared.PrintHeadFoot(r.run, r.settings, false)
+	utils.PrintHeadFoot(r.run, r.settings, false)
 }
 
 func (r *Run) start() {
@@ -261,5 +262,5 @@ func (r *Run) Finish() {
 
 	r.conn.Close()
 	r.wg.Wait()
-	shared.PrintHeadFoot(r.run, r.settings, true)
+	utils.PrintHeadFoot(r.run, r.settings, true)
 }
