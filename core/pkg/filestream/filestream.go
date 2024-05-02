@@ -5,7 +5,6 @@
 //
 //	process:  process records into an appropriate format to transmit
 //	transmit: collect and transmit messages to the filestream service
-//	feedback: process feedback from the filestream service
 //
 // Below demonstrates a common execution flow through this package:
 //
@@ -24,9 +23,6 @@
 //	 - collector.go:     chunkCollector.readMore - keep reading until we have enough or hit timeout
 //	 - collector.go:     chunkCollector.dump     - create a blob to be used to serialize into json to send
 //	 - loop_transmit.go: Filestream.send         - send json to backend filestream service
-//	 - loop_feedback.go: Filestream.add_feedback - add to feedback channel
-//	{goroutine feedback}
-//	 - loop_feedback.go: Filestream.loopFeedback - loop acting on feedback channel
 //	{caller}
 //	 - filestream.go:    FileStream.Close        - graceful shutdown of worker goroutines
 package filestream
@@ -89,6 +85,12 @@ type FileStream interface {
 	// This is used in some deployments where the backend is not notified when
 	// files finish uploading.
 	SignalFileUploaded(path string)
+
+	// FatalErrorChan is a channel that emits if there is a fatal error.
+	//
+	// If this channel emits, all filestream operations afterward become
+	// no-ops. This channel emits at most once, and it is never closed.
+	FatalErrorChan() <-chan error
 }
 
 // fileStream is a stream of data to the server
@@ -100,11 +102,9 @@ type fileStream struct {
 
 	processChan  chan processTask
 	transmitChan chan processedChunk
-	feedbackChan chan map[string]interface{}
 
 	processWait  *sync.WaitGroup
 	transmitWait *sync.WaitGroup
-	feedbackWait *sync.WaitGroup
 
 	// keep track of where we are streaming each file chunk
 	offsetMap FileStreamOffsetMap
@@ -128,8 +128,9 @@ type fileStream struct {
 	clientId string
 
 	// A channel that is closed if there is a fatal error.
-	deadChan     chan struct{}
-	deadChanOnce *sync.Once
+	deadChan       chan struct{}
+	deadChanOnce   *sync.Once
+	fatalErrorChan chan error
 }
 
 type FileStreamParams struct {
@@ -149,14 +150,13 @@ func NewFileStream(params FileStreamParams) FileStream {
 		apiClient:       params.ApiClient,
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
-		feedbackWait:    &sync.WaitGroup{},
 		processChan:     make(chan processTask, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
-		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
+		fatalErrorChan:  make(chan error, 1),
 	}
 
 	fs.delayProcess = params.DelayProcess
@@ -219,16 +219,6 @@ func (fs *fileStream) Start(
 
 		fs.loopTransmit(fs.transmitChan)
 	}()
-
-	fs.feedbackWait.Add(1)
-	go func() {
-		defer func() {
-			fs.feedbackWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
-		fs.loopFeedback(fs.feedbackChan)
-	}()
 }
 
 func (fs *fileStream) StreamRecord(rec *service.Record) {
@@ -240,13 +230,15 @@ func (fs *fileStream) SignalFileUploaded(path string) {
 	fs.addProcess(processTask{UploadedFile: path})
 }
 
+func (fs *fileStream) FatalErrorChan() <-chan error {
+	return fs.fatalErrorChan
+}
+
 func (fs *fileStream) Close() {
 	close(fs.processChan)
 	fs.processWait.Wait()
 	close(fs.transmitChan)
 	fs.transmitWait.Wait()
-	close(fs.feedbackChan)
-	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
 }
 
@@ -259,6 +251,7 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal("filestream: fatal error", err)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
+		fs.fatalErrorChan <- err
 	})
 }
 

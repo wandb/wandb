@@ -63,3 +63,9 @@ func (fs *FakeFileStream) SignalFileUploaded(path string) {
 
 	fs.filesUploaded = append(fs.filesUploaded, path)
 }
+
+func (fs *FakeFileStream) FatalErrorChan() <-chan error {
+	ch := make(chan error)
+	close(ch)
+	return ch
+}

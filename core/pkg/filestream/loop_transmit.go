@@ -102,7 +102,9 @@ func (fs *fileStream) send(data *FsTransmitData) error {
 	if err != nil {
 		fs.logger.CaptureError("json decode error", err)
 	}
-	fs.addFeedback(res)
+
+	// TODO: Process response.
+
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
 }
