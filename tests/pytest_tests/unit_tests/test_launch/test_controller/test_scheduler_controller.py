@@ -24,7 +24,7 @@ def scheduler_controller(controller_config, jobset):
 
 
 @pytest.mark.asyncio
-async def test_scheduler_controller_poll(scheduler_manager):
+async def test_scheduler_controller_poll(scheduler_controller):
     await scheduler_controller.poll()
     assert scheduler_controller._scheduler_jobs_queue.get.called_once()
     assert scheduler_controller._controller.launch_scheduler_item.called_once()
