@@ -123,5 +123,12 @@ func TestFileStream(t *testing.T) {
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
+		select {
+		case err := <-fs.FatalErrorChan():
+			assert.ErrorContains(t, err, "error making HTTP request")
+			assert.ErrorContains(t, err, "nope!")
+		case <-time.After(time.Second):
+			t.Error("Didn't push to FatalErrorChan()")
+		}
 	})
 }
