@@ -2477,12 +2477,20 @@ class Run:
         self._telemetry_obj_active = True
         self._telemetry_flush()
 
+        self._detect_and_apply_job_inputs()
+
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
         if not self._settings.resume:
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
+
+    def _detect_and_apply_job_inputs(self) -> None:
+        """If the user has staged launch inputs, apply them to the run."""
+        from wandb.sdk.launch.inputs.internal import StagedLaunchInputs
+
+        StagedLaunchInputs().apply(self)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         from wandb.util import working_set
