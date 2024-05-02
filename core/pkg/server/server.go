@@ -16,7 +16,8 @@ var defaultLoggerPath atomic.Value
 
 // Server is the core server
 type Server struct {
-	// ctx is the context for the server
+	// ctx is the context for the server. It is used to signal
+	// the server to shutdown
 	ctx context.Context
 
 	// cancel is the cancel function for the server
@@ -25,11 +26,9 @@ type Server struct {
 	// listener is the underlying listener
 	listener net.Listener
 
-	// wg is the WaitGroup for the server
+	// wg is the WaitGroup to wait for all connections to finish
+	// and for the serve goroutine to finish
 	wg sync.WaitGroup
-
-	// teardownChan is the channel for signaling and waiting for teardown
-	teardownChan chan struct{}
 }
 
 // NewServer creates a new server
@@ -43,11 +42,10 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 	}
 
 	s := &Server{
-		ctx:          ctx,
-		cancel:       cancel,
-		listener:     listener,
-		wg:           sync.WaitGroup{},
-		teardownChan: make(chan struct{}),
+		ctx:      ctx,
+		cancel:   cancel,
+		listener: listener,
+		wg:       sync.WaitGroup{},
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -56,8 +54,6 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 		return nil, err
 	}
 
-	s.wg.Add(1)
-	go s.Serve()
 	return s, nil
 }
 
@@ -68,9 +64,16 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 	defaultLoggerPath.Store(path)
 }
 
-// Serve serves the server
-func (s *Server) Serve() {
-	defer s.wg.Done()
+// Serve starts the server
+func (s *Server) Start() {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.serve()
+	}()
+}
+
+func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
 	// Run a separate goroutine to handle incoming connections
 	for {
@@ -94,9 +97,14 @@ func (s *Server) Serve() {
 	}
 }
 
+// Wait waits for a signal to shutdown the server
+func (s *Server) Wait() {
+	<-s.ctx.Done()
+	slog.Info("server is shutting down")
+}
+
 // Close closes the server
 func (s *Server) Close() {
-	<-s.ctx.Done()
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)
 	}
