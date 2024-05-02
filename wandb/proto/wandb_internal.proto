@@ -225,10 +225,29 @@ message HistoryRecord {
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
+  DataValue value_data = 3;
   string value_json = 16;
 }
 
 message HistoryResult {}
+
+/*
+ * DataValue:
+ */
+message TensorData {
+  bytes tensor_content = 1;
+  string meta_string = 2;
+  repeated int32 shape = 3;
+}
+
+message DataValue {
+  oneof data_type {
+    int64 value_int = 1;
+    double value_double = 2;
+    string value_string = 3;
+    TensorData value_tensor = 4;
+  }
+}
 
 /*
  * OutputRecord: console output
