@@ -32,12 +32,23 @@ type processedChunk struct {
 	Uploaded   []string
 }
 
-func (fs *fileStream) addProcess(task processTask) {
-	select {
-	case fs.processChan <- task:
+func (fs *fileStream) addProcess(message processTask) {
+	fs.logger.Debug("filestream: record", "message", message)
 
-	// If the filestream dies, this prevents us from blocking forever.
-	case <-fs.deadChan:
+	var err error
+
+	switch {
+	case message.Record != nil:
+		err = fs.processRecord(message.Record)
+	case message.UploadedFile != "":
+		err = fs.streamFilesUploaded(message.UploadedFile)
+	default:
+		fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
+	}
+
+	if err != nil {
+		fs.logFatalAndStopWorking(err)
+		return
 	}
 }
 
@@ -59,30 +70,6 @@ func (fs *fileStream) processRecord(record *service.Record) error {
 		return fmt.Errorf("filestream: field not set")
 	default:
 		return fmt.Errorf("filestream: unknown type %T", x)
-	}
-}
-
-func (fs *fileStream) loopProcess(inChan <-chan processTask) {
-	fs.logger.Debug("filestream: open", "path", fs.path)
-
-	for message := range inChan {
-		fs.logger.Debug("filestream: record", "message", message)
-
-		var err error
-
-		switch {
-		case message.Record != nil:
-			err = fs.processRecord(message.Record)
-		case message.UploadedFile != "":
-			err = fs.streamFilesUploaded(message.UploadedFile)
-		default:
-			fs.logger.CaptureWarn("filestream: empty ProcessTask, doing nothing")
-		}
-
-		if err != nil {
-			fs.logFatalAndStopWorking(err)
-			return
-		}
 	}
 }
 

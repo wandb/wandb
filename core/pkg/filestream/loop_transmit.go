@@ -26,7 +26,11 @@ type fsTransmitFileData struct {
 }
 
 func (fs *fileStream) addTransmit(chunk processedChunk) {
-	fs.transmitChan <- chunk
+	select {
+	case fs.transmitChan <- chunk:
+	case <-fs.deadChan:
+		// Avoid blocking forever if filestream died.
+	}
 }
 
 func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
@@ -102,7 +106,9 @@ func (fs *fileStream) send(data *FsTransmitData) error {
 	if err != nil {
 		fs.logger.CaptureError("json decode error", err)
 	}
-	fs.addFeedback(res)
+
+	// TODO: Process response.
+
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
 }
