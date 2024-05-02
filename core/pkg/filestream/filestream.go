@@ -12,12 +12,8 @@
 //	 - filestream.go:    NewFileStream           - create service
 //	 - filestream.go:    FileStream.Start        - spin up worker goroutines
 //	 - filestream.go:    FileStream.StreamRecord - add a record to be processed and sent
-//	 - loop_process.go:  Filestream.addProcess   - add to process channel
-//	{goroutine process}:
-//	 - loop_process.go:  Filestream.loopProcess  - loop acting on process channel
-//	 - loop_transmit.go: Filestream.addTransmit  - add to transmit channel
 //	{goroutine transmit}:
-//	 - loop_transmit.go: Filestream.loopTransmit - loop acting on transmit channel
+//	 - loop_transmit.go: Filestream.loopTransmit - loop acting on input channel
 //	 - collector.go:     chunkCollector          - class to coordinate collecting work from transmit channel
 //	 - collector.go:     chunkCollector.read     - read the first transmit work from transmit channel
 //	 - collector.go:     chunkCollector.readMore - keep reading until we have enough or hit timeout
