@@ -44,8 +44,21 @@ class Job:
     priority: int
     preemptible: bool
     can_preempt: bool
-    created_at: bool
+    created_at: str
     claimed_by: str
+
+
+"""
+Used with SchedulerController to provide the queue
+on which the job is to be run.
+"""
+
+
+@dataclass
+class JobWithQueue:
+    job: Job
+    queue: str
+    entity: str
 
 
 def run_queue_item_to_job(run_queue_item: Dict[str, Any]) -> Job:

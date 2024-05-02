@@ -1,12 +1,11 @@
 import asyncio
-import json
 import logging
-from typing import Any, List, Optional
+from typing import Any, List, Optional, Union
 
 from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import Job, JobSet
+from ..jobset import Job, JobSet, JobWithQueue
 from .base import BaseManager, RunWithTracker
 
 
@@ -16,6 +15,7 @@ async def local_process_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
+    scheduler_queue: "asyncio.Queue[JobWithQueue]",
 ) -> Any:
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
@@ -39,7 +39,9 @@ async def local_process_controller(
         f"Starting local process controller with max concurrency {max_concurrency}"
     )
 
-    mgr = LocalProcessManager(config, jobset, logger, legacy, max_concurrency)
+    mgr = LocalProcessManager(
+        config, jobset, logger, legacy, scheduler_queue, max_concurrency
+    )
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -62,6 +64,7 @@ class LocalProcessManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
+        scheduler_queue: asyncio.Queue,
         max_concurrency: int,
     ):
         self.queue_driver: passthrough.PassthroughQueueDriver = (
@@ -73,7 +76,9 @@ class LocalProcessManager(BaseManager):
                 agent_id=config["agent_id"],
             )
         )
-        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        super().__init__(
+            config, jobset, logger, legacy, scheduler_queue, max_concurrency
+        )
 
     async def reconcile(self) -> None:
         num_runs_needed = self.max_concurrency - len(self.active_runs)
@@ -84,37 +89,53 @@ class LocalProcessManager(BaseManager):
                 item_to_run = await self.pop_next_item()
                 if item_to_run is None:
                     # no more items to run
-                    break
+                    return
                 asyncio.create_task(self.launch_item(item_to_run))
 
     async def launch_item(self, item: Job) -> Optional[str]:
         self.logger.info(f"Launching item: {item}")
 
-        project = LaunchProject.from_spec(item.run_spec, self.legacy.api)
-        project.queue_name = self.config["jobset_spec"].name
-        project.queue_entity = self.config["jobset_spec"].entity_name
-        project.run_queue_item_id = item.id
+        project = self._populate_project(item)
         project.fetch_and_validate_project()
+        run_id = await self._launch_job(item, project)
+        self.logger.info(f"Launched item got run_id: {run_id}")
+        return run_id
 
+    def _populate_project(self, job: Union[Job, JobWithQueue]) -> LaunchProject:
+        assert isinstance(job, Job)
+        project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
+        queue_name = self.config["jobset_spec"].name
+        queue_entity = self.config["jobset_spec"].entity_name
+        job_id = job.id
+        project.queue_name = queue_name
+        project.queue_entity = queue_entity
+        project.run_queue_item_id = job_id
+        return project
+
+    async def ack_run_queue_item(self, queue_item_id: str, run_id: str) -> bool:
+        return await self.queue_driver.ack_run_queue_item(queue_item_id, run_id)
+
+    async def _launch_job(self, job: Job, project: LaunchProject) -> Optional[str]:
+        assert project.queue_name is not None
         run_id = project.run_id
-        job_tracker = self.legacy.job_tracker_factory(run_id)
+        job_tracker = self.legacy.job_tracker_factory(run_id, project.queue_name)
         job_tracker.update_run_info(project)
 
-        ack_result = await self.queue_driver.ack_run_queue_item(item.id, run_id)
-        if ack_result is None:
-            self.logger.error(f"Failed to ack item {item.id}")
+        ack_result = await self.ack_run_queue_item(job.id, run_id)
+        if not ack_result:
+            self.logger.error(f"Failed to ack item {job.id}")
             return None
-        self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
+
+        self.logger.info(f"Acked item: {job.id}")
         run = await self.legacy.runner.run(project, "")  # image is unused
         if not run:
             job_tracker.failed_to_start = True
-            self.logger.error(f"Failed to start run for item {item.id}")
+            self.logger.error(f"Failed to start run for item {job.id}")
             raise NotImplementedError("TODO: handle this case")
 
-        self.active_runs[item.id] = RunWithTracker(run, job_tracker)
+        self.active_runs[job.id] = RunWithTracker(run, job_tracker)
 
         run_id = project.run_id
-        self.logger.info(f"Launched item got run_id: {run_id}")
         return run_id
 
     async def find_orphaned_jobs(self) -> List[Any]:

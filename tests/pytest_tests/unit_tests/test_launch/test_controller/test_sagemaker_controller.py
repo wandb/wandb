@@ -6,18 +6,23 @@ from wandb.sdk.launch.agent2.controllers.sagemaker import SageMakerManager
 
 @pytest.fixture
 def sagemaker_container_manager(controller_config, jobset):
-    return SageMakerManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
+    return SageMakerManager(
+        controller_config, jobset, MagicMock(), MagicMock(), MagicMock(), 1
+    )
 
 
 @pytest.mark.parametrize(
     "resource_args, expected",
     [
         ({}, None),
-        ({"sagemaker": {}}, [{"Key": "_wandb-jobset", "Value": "test-entity/test"}]),
+        (
+            {"sagemaker": {}},
+            [{"Key": "_wandb-jobset", "Value": "ba4d5192668fbae393dc7415dbb83129"}],
+        ),
         (
             {"sagemaker": {"Tags": [{"Key": "BLAH", "Value": "test-label"}]}},
             [
-                {"Key": "_wandb-jobset", "Value": "test-entity/test"},
+                {"Key": "_wandb-jobset", "Value": "ba4d5192668fbae393dc7415dbb83129"},
                 {"Key": "BLAH", "Value": "test-label"},
             ],
         ),

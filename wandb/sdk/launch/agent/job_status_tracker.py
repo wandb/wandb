@@ -23,9 +23,9 @@ class JobAndRunStatusTracker:
     entity: Optional[str] = None
     run: Optional[AbstractRun] = None  # TODO: once agentv1 is deprceated remove this
     failed_to_start: bool = False  # TODO: once agent v1 is deprecated remove this
-    completed_status: Optional[
-        str
-    ] = None  # TODO: once agent v1 is deprecated remove this
+    completed_status: Optional[str] = (
+        None  # TODO: once agent v1 is deprecated remove this
+    )
     is_scheduler: bool = False
     err_stage: str = "agent"
 

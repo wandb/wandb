@@ -1,7 +1,13 @@
 import asyncio
 import logging
+import sys
 from dataclasses import dataclass
-from typing import Any, Callable, Coroutine, Dict, Protocol, TypedDict
+from typing import Any, Callable, Coroutine, Dict
+
+if sys.version_info >= (3, 8):
+    from typing import Protocol, TypedDict
+else:
+    from typing_extensions import Protocol, TypedDict
 
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
@@ -31,7 +37,7 @@ class LegacyResources:
     registry: AbstractRegistry
     runner: AbstractRunner
     environment: AbstractEnvironment
-    job_tracker_factory: Callable[[str], JobAndRunStatusTracker]
+    job_tracker_factory: Callable[[str, str], JobAndRunStatusTracker]
 
 
 class LaunchController(Protocol):
@@ -65,5 +71,5 @@ class LaunchController(Protocol):
         logger: logging.Logger,
         shutdown_event: asyncio.Event,
         legacy: LegacyResources,
-    ) -> Coroutine[Any, Any, Any]:
-        ...
+        scheduler_queue: asyncio.Queue,
+    ) -> Coroutine[Any, Any, Any]: ...

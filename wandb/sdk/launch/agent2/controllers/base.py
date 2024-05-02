@@ -13,15 +13,40 @@ from wandb.sdk.launch._project_spec import LaunchProject
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.runner.abstract import AbstractRun, Status
+from wandb.sdk.launch.sweeps.scheduler import Scheduler
 from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
 
 from ...agent.agent import RUN_INFO_GRACE_PERIOD
 from ...queue_driver.abstract import AbstractQueueDriver
 from ...utils import event_loop_thread_exec
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import Job, JobSet
+from ..jobset import Job, JobSet, JobWithQueue
 
 WANDB_JOBSET_DISCOVERABILITY_LABEL = "_wandb-jobset"
+
+
+def _is_scheduler_job(run_spec: Dict[str, Any]) -> bool:
+    """Determine whether a job/runSpec is a sweep scheduler."""
+    if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
+        return False
+
+    if run_spec.get("resource") == "local-process":
+        # Any job pushed to a run queue that has a scheduler uri is
+        # allowed to use local-process
+        if run_spec.get("job"):
+            return True
+
+        # If a scheduler is local-process and run through CLI, also
+        #    confirm command is in format: [wandb scheduler <sweep>]
+        cmd = run_spec.get("overrides", {}).get("entry_point", [])
+        if len(cmd) < 3:
+            return False
+
+        if cmd[:2] != ["wandb", "scheduler"]:
+            return False
+        return True
+    else:
+        return False
 
 
 @dataclass
@@ -42,6 +67,7 @@ class BaseManager(ABC):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
+        scheduler_queue: "asyncio.Queue[JobWithQueue]",
         max_concurrency: int,
     ):
         self.config = config
@@ -49,6 +75,7 @@ class BaseManager(ABC):
         self.logger = logger
         self.legacy = legacy
         self.max_concurrency = max_concurrency
+        self._scheduler_queue = scheduler_queue
 
         self.id = config["jobset_spec"].name
         self.active_runs: Dict[str, RunWithTracker] = {}
@@ -100,6 +127,7 @@ class BaseManager(ABC):
         for item in list(self.active_runs):
             if item not in owned_items:
                 # we don't own this item anymore
+                print("ITEM", item)
                 await self.cancel_item(item)
                 await self.release_item(item)
 
@@ -120,6 +148,25 @@ class BaseManager(ABC):
         self.logger.info(f"Leased item: {next_item}")
         return next_item
 
+    async def check_sweep_state(self, launch_spec: Dict[str, Any], api: Api) -> None:
+        """Check the state of a sweep before launching a run for the sweep."""
+        if launch_spec.get("sweep_id"):
+            try:
+                get_sweep_state = event_loop_thread_exec(api.get_sweep_state)
+                state = await get_sweep_state(
+                    sweep=launch_spec["sweep_id"],
+                    entity=launch_spec["entity"],
+                    project=launch_spec["project"],
+                )
+            except Exception as e:
+                self.logger.debug(f"Fetch sweep state error: {e}")
+                state = None
+
+            if state != "RUNNING" and state != "PAUSED":
+                raise LaunchError(
+                    f"Launch agent picked up sweep job, but sweep ({launch_spec['sweep_id']}) was in a terminal state ({state})"
+                )
+
     async def launch_item(self, job: Job) -> Optional[str]:
         """Launch a new job on the resource."""
         self.logger.info(f"Launching item: {job}")
@@ -127,7 +174,11 @@ class BaseManager(ABC):
         try:
             project = LaunchProject.from_spec(job.run_spec, self.legacy.api)
             run_id = project.run_id
-            job_tracker = self.legacy.job_tracker_factory(run_id)
+            project.queue_name = self.config["jobset_spec"].name
+            project.queue_entity = self.config["jobset_spec"].entity_name
+            job_tracker = self.legacy.job_tracker_factory(
+                run_id, self.config["jobset_spec"].name
+            )
             job_tracker.update_run_info(project)
         except Exception as e:
             self.logger.error(
@@ -136,19 +187,35 @@ class BaseManager(ABC):
             await self.fail_run_with_exception(job.id, e)
             return None
         try:
-            project.queue_name = self.config["jobset_spec"].name
-            project.queue_entity = self.config["jobset_spec"].entity_name
             project.run_queue_item_id = job.id
             project.fetch_and_validate_project()
+
+            if (
+                _is_scheduler_job(job.run_spec)
+                and job.run_spec.get("resource") == "local-process"
+            ):
+                self.logger.info(
+                    f"Received scheduler job sending to sweep scheduler manager: {job.id}"
+                )
+                job_with_queue = JobWithQueue(
+                    job, project.queue_name, project.queue_entity
+                )
+                await self._scheduler_queue.put(job_with_queue)
+                # no need to handle anymore, sent to another controller
+                return None
 
             ack_result = await self.jobset.ack_job(job.id, run_id)
             self.logger.info(f"Acked item: {json.dumps(ack_result, indent=2)}")
             if not ack_result:
                 self.logger.error(f"Failed to ack item: {job.id}")
                 return None
+
+            # check sweep runs for terminal state
+            await self.check_sweep_state(job.run_spec, self.legacy.api)
+
             image_uri = None
             if not project.docker_image:
-                entrypoint = project.get_single_entry_point()
+                entrypoint = project.get_job_entry_point()
                 assert entrypoint is not None
                 image_uri = await self.legacy.builder.build_image(
                     project, entrypoint, job_tracker

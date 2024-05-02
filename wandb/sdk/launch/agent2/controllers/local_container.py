@@ -6,7 +6,7 @@ from ..._project_spec import LaunchProject
 from ...queue_driver import passthrough
 from ...utils import MAX_CONCURRENCY
 from ..controller import LaunchControllerConfig, LegacyResources
-from ..jobset import JobSet
+from ..jobset import JobSet, JobWithQueue
 from .base import WANDB_JOBSET_DISCOVERABILITY_LABEL, BaseManager
 
 
@@ -16,6 +16,7 @@ async def local_container_controller(
     logger: logging.Logger,
     shutdown_event: asyncio.Event,
     legacy: LegacyResources,
+    scheduler_queue: "asyncio.Queue[JobWithQueue]",
 ):
     # disable job set loop because we are going to use the passthrough queue driver
     # to drive the launch controller here
@@ -37,7 +38,9 @@ async def local_container_controller(
         f"Starting local container controller with max concurrency {max_concurrency}"
     )
 
-    mgr = LocalContainerManager(config, jobset, logger, legacy, max_concurrency)
+    mgr = LocalContainerManager(
+        config, jobset, logger, legacy, scheduler_queue, max_concurrency
+    )
 
     while not shutdown_event.is_set():
         await mgr.reconcile()
@@ -56,6 +59,7 @@ class LocalContainerManager(BaseManager):
         jobset: JobSet,
         logger: logging.Logger,
         legacy: LegacyResources,
+        scheduler_queue: "asyncio.Queue[JobWithQueue]",
         max_concurrency: int,
     ):
         self.queue_driver = passthrough.PassthroughQueueDriver(
@@ -66,7 +70,9 @@ class LocalContainerManager(BaseManager):
             agent_id=config["agent_id"],
         )
 
-        super().__init__(config, jobset, logger, legacy, max_concurrency)
+        super().__init__(
+            config, jobset, logger, legacy, scheduler_queue, max_concurrency
+        )
         # TODO: handle orphaned runs and assign to self (blocked on accurately knowing the agent that launched these runs has been killed)
 
     async def find_orphaned_jobs(self) -> List[Any]:

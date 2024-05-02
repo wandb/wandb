@@ -4,9 +4,16 @@ import pytest
 from wandb.sdk.launch.agent2.controllers.k8s import KubernetesManager
 
 
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 @pytest.fixture
 def k8s_container_manager(controller_config, jobset):
-    return KubernetesManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
+    return KubernetesManager(
+        controller_config, jobset, MagicMock(), MagicMock(), AsyncMock, 1
+    )
 
 
 @pytest.mark.parametrize(

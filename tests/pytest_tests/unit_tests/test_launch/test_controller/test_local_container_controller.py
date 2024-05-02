@@ -5,15 +5,20 @@ from wandb.sdk.launch.agent2.controllers.local_container import LocalContainerMa
 from wandb.sdk.lib.hashutil import b64_to_hex_id, md5_string
 
 
+class AsyncMock(MagicMock):
+    async def __call__(self, *args, **kwargs):
+        return super().__call__(*args, **kwargs)
+
+
 @pytest.fixture
 def local_container_manager(controller_config, jobset):
-    return LocalContainerManager(controller_config, jobset, MagicMock(), MagicMock(), 1)
-
-JOBSET_LABEL = b64_to_hex_id(
-    md5_string(
-        "test-entity/test"
+    return LocalContainerManager(
+        controller_config, jobset, MagicMock(), MagicMock(), AsyncMock(), 1
     )
-)
+
+
+JOBSET_LABEL = b64_to_hex_id(md5_string("test-entity/test"))
+
 
 @pytest.mark.parametrize(
     "resource_args, expected",

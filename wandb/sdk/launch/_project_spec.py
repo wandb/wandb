@@ -45,6 +45,7 @@ class LaunchSource(enum.IntEnum):
 
     DOCKER: int = 1
     JOB: int = 2
+    SCHEDULER: int = 3
 
 
 class LaunchProject:
@@ -138,6 +139,9 @@ class LaunchProject:
             self.project_dir = None
         elif self.job is not None:
             self.source = LaunchSource.JOB
+            self.project_dir = tempfile.mkdtemp()
+        elif self.uri == "placeholder-uri-scheduler":
+            self.source = LaunchSource.SCHEDULER
             self.project_dir = tempfile.mkdtemp()
         else:
             raise LaunchError("Launch project must have a source.")
@@ -359,7 +363,7 @@ class LaunchProject:
             A validated `LaunchProject` object.
 
         """
-        if self.source == LaunchSource.DOCKER:
+        if self.source == LaunchSource.DOCKER or self.source == LaunchSource.SCHEDULER:
             return
         elif self.source == LaunchSource.JOB:
             self._fetch_job()
