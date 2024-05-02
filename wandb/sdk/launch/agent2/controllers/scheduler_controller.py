@@ -39,12 +39,12 @@ async def scheduler_process_controller(
 class SchedulerController:
     def __init__(
         self,
-        controller: LocalProcessManager,
+        manager: LocalProcessManager,
         max_schedulers: int,
         scheduler_jobs_queue: "asyncio.Queue[JobWithQueue]",
         logger: logging.Logger,
     ):
-        self._controller = controller
+        self._manager = manager
         self._scheduler_jobs_queue = scheduler_jobs_queue
         self._logger = logger
         self._max_schedulers = max_schedulers
@@ -61,13 +61,12 @@ class SchedulerController:
                 "this value use `max_schedulers` key in the agent config"
             )
             return
-        asyncio.create_task(self._controller.launch_scheduler_item(job))
-        self._scheduler_jobs_queue.task_done()
+        asyncio.create_task(self._manager.launch_scheduler_item(job))
         self._logger.info(f"Launched scheduler job: {job}")
 
     @property
     def active_runs(self):
-        return self._controller.active_runs
+        return self._manager.active_runs
 
 
 class SchedulerManager(LocalProcessManager):
@@ -92,6 +91,7 @@ class SchedulerManager(LocalProcessManager):
 
     async def launch_scheduler_item(self, item: JobWithQueue) -> Optional[str]:
         self.logger.info(f"Launching item: {item}")
+        print("LAUNCHING SCHEDULER")
         project = self._populate_project(item)
         project.fetch_and_validate_project()
 
