@@ -1,10 +1,227 @@
 import os
-import platform
-from typing import Callable, List
+import pathlib
+import shutil
+import time
+from contextlib import contextmanager
+from typing import Callable, Iterator, List
 
 import nox
 
-CORE_VERSION = "0.17.0b10"
+nox.options.default_venv_backend = "uv"
+
+_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+
+@contextmanager
+def report_time(session: nox.Session):
+    t = time.time()
+    yield
+    session.log(f"Took {time.time() - t:.2f} seconds.")
+
+
+def install_timed(session: nox.Session, *args, **kwargs):
+    with report_time(session):
+        session.install(*args, **kwargs)
+
+
+def install_wandb(session: nox.Session):
+    if session.venv_backend == "uv":
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+    else:
+        install_timed(session, "--force-reinstall", ".")
+
+
+def run_go_covtool(
+    session: nox.Session,
+    input: pathlib.Path,
+    output: pathlib.Path,
+) -> None:
+    session.run(
+        "go",
+        "tool",
+        "covdata",
+        "textfmt",
+        f"-i={input}",
+        f"-o={output}",
+        external=True,
+    )
+
+
+@contextmanager
+def go_code_coverage(session: nox.Session) -> Iterator[str]:
+    """Runs a command while collecting Go code coverage.
+
+    This provides a gocoverdir path that should be passed as the
+    GOCOVERDIR environment variable to the command.
+    """
+    # Using an absolute path is critical. We can't assume that the working
+    # directory of the wandb-core binary will match the working directory
+    # of the Nox session!
+    gocoverdir = pathlib.Path(session.create_tmp(), "gocoverage").absolute()
+    if gocoverdir.exists():
+        shutil.rmtree(gocoverdir)
+    gocoverdir.mkdir()
+
+    yield str(gocoverdir)
+
+    run_go_covtool(session, gocoverdir, pathlib.Path("coverage.txt"))
+
+
+def run_pytest(
+    session: nox.Session,
+    gocoverdir: str,
+    require_core: bool,
+    paths: List[str],
+) -> None:
+    pytest_opts = []
+    pytest_env = {
+        "GOCOVERDIR": gocoverdir,
+        "WANDB__REQUIRE_CORE": str(require_core),
+        "WANDB__NETWORK_BUFFER": "1000",
+        "WANDB_ERROR_REPORTING": "false",
+        "WANDB_CORE_ERROR_REPORTING": "false",
+        "USERNAME": session.env.get("USERNAME"),
+        "PATH": session.env.get("PATH"),
+        "USERPROFILE": session.env.get("USERPROFILE"),
+    }
+
+    # When running with core, skip tests that we know fail with it.
+    if require_core:
+        pytest_opts.extend(["-m", "not wandb_core_failure"])
+
+    # Print 20 slowest tests.
+    pytest_opts.append("--durations=20")
+
+    # Output test results for tooling.
+    pytest_opts.append("--junitxml=test-results/junit.xml")
+
+    # (pytest-timeout) Per-test timeout.
+    pytest_opts.append("--timeout=300")
+
+    # (pytest-xdist) Run tests in parallel.
+    pytest_opts.append("-n=8")
+
+    # (pytest-split) Run a subset of tests only (for external parallelism).
+    # These environment variables come from CircleCI.
+    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
+    if circle_node_total and circle_node_index:
+        pytest_opts.append(f"--splits={circle_node_total}")
+        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+
+    # (pytest-cov) Enable code coverage reporting.
+    pytest_opts.extend(["--cov", "--cov-report=xml", "--no-cov-on-fail"])
+    pytest_env["COVERAGE_FILE"] = ".coverage"
+
+    session.run(
+        "pytest",
+        *pytest_opts,
+        *paths,
+        env=pytest_env,
+        include_outer_env=False,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def unit_tests(session: nox.Session, core: bool) -> None:
+    """Runs Python unit tests.
+
+    By default this runs all unit tests, but specific tests can be selected
+    by passing them via positional arguments.
+    """
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        # For test_reports:
+        ".[reports]",
+        "polyfactory",
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=session.posargs or ["tests/pytest_tests/unit_tests"],
+        )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def system_tests(session: nox.Session, core: bool) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "annotated-types",  # for test_reports
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=(
+                session.posargs
+                or [
+                    "tests/pytest_tests/system_tests",
+                    "--ignore=tests/pytest_tests/system_tests/test_importers",
+                    "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                ]
+            ),
+        )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [True, False])
+def notebook_tests(session: nox.Session, core: bool) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "nbclient",
+        "nbconvert",
+        "nbformat",
+        "ipykernel",
+        "ipython",
+    )
+
+    session.run(
+        "ipython",
+        "kernel",
+        "install",
+        "--user",
+        "--name=wandb_python",
+        external=True,
+    )
+
+    with go_code_coverage(session) as gocoverdir:
+        run_pytest(
+            session,
+            gocoverdir=gocoverdir,
+            require_core=core,
+            paths=(
+                session.posargs
+                or [
+                    "tests/pytest_tests/system_tests/test_notebooks",
+                ]
+            ),
+        )
 
 
 @nox.session(python=False, name="build-rust")
@@ -26,7 +243,7 @@ def install(session: nox.Session) -> None:
     wheel_file = [
         f
         for f in os.listdir("./client/target/wheels/")
-        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
+        if f.startswith("wandb_core-") and f.endswith(".whl")
     ][0]
     session.run(
         "pip",
@@ -91,31 +308,6 @@ def list_failing_tests_wandb_core(session: nox.Session) -> None:
         ],
         plugins=[my_plugin],
     )
-
-
-@nox.session(python=False, name="build-apple-stats-monitor")
-def build_apple_stats_monitor(session: nox.Session) -> None:
-    """Builds the apple stats monitor binary for the current platform.
-
-    The binary will be located in
-    core/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
-    """
-    with session.chdir("core/pkg/monitor/apple"):
-        session.run(
-            "swift",
-            "build",
-            "--configuration",
-            "release",
-            "-Xswiftc",
-            "-cross-module-optimization",
-            external=True,
-        )
-        # copy the binary to core/pkg/monitor/apple/AppleStats
-        session.run(
-            "cp",
-            f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
-            "AppleStats",
-        )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
@@ -267,28 +459,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
-@nox.session(python=False, name="bump-core-version")
-def bump_core_version(session: nox.Session) -> None:
-    args = session.posargs
-    if not args:
-        session.log("Usage: nox -s bump-core-version -- <args>\n")
-        # Examples:
-        session.log(
-            "For example, to bump from 0.17.0b8/0.17.0-beta.8 to 0.17.0b9/0.17.0-beta.9:"
-        )
-        session.log("nox -s bump-core-version -- pre")
-        return
-
-    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
-        session.run(
-            "bump2version",
-            "--config-file",
-            cfg,
-            *args,
-        )
-
-
-@nox.session(python=False, name="proto-go")
+@nox.session(python=False, name="proto-go", tags=["proto"])
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
     _generate_proto_go(session)
@@ -298,7 +469,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python")
+@nox.session(name="proto-python", tags=["proto"])
 @nox.parametrize("pb", [3, 4])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
@@ -325,7 +496,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     else:
         session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
 
-    session.install("-r", "requirements_build.txt")
+    session.install("packaging")
     session.install(".")
 
     with session.chdir("wandb/proto"):
@@ -363,4 +534,74 @@ def proto_check_go(session: nox.Session) -> None:
         session,
         after=lambda: _generate_proto_go(session),
         in_directory="core/pkg/service/.",
+    )
+
+
+@nox.session(name="codegen")
+def codegen(session: nox.Session) -> None:
+    session.install("ruff")
+    session.install(".")
+
+    args = session.posargs
+    if not args:
+        args = ["--generate"]
+    session.run("python", "tools/generate-tool.py", *args)
+
+
+@nox.session(name="mypy-report")
+def mypy_report(session: nox.Session) -> None:
+    """Type-check the code with mypy.
+
+    This session will install the package and run mypy with the --install-types flag.
+    If the report parameter is set to True, it will also generate an html report.
+    """
+    session.install(
+        # https://github.com/python/mypy/issues/17166
+        "mypy != 1.10.0",
+        "pycobertura",
+        "lxml",
+        "pandas-stubs",
+        "types-click",
+        "types-openpyxl",
+        "types-Pillow",
+        "types-PyYAML",
+        "types-Pygments",
+        "types-protobuf",
+        "types-pytz",
+        "types-requests",
+        "types-setuptools",
+        "types-six",
+        "types-tqdm",
+    )
+
+    path = "mypy-results"
+
+    if not pathlib.Path(path).exists():
+        session.run(
+            "mkdir",
+            path,
+            external=True,
+        )
+
+    session.run(
+        "mypy",
+        "--install-types",
+        "--non-interactive",
+        "--show-error-codes",
+        "-p",
+        "wandb",
+        "--html-report",
+        path,
+        "--cobertura-xml-report",
+        path,
+        "--lineprecision-report",
+        path,
+    )
+
+    session.run(
+        "pycobertura",
+        "show",
+        "--format",
+        "text",
+        f"{path}/cobertura.xml",
     )

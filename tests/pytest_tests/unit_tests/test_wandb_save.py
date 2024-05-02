@@ -1,79 +1,203 @@
-import os
-import tempfile
+import pathlib
 
 import pytest
-from wandb.sdk.lib import filesystem
 
 # ----------------------------------
 # wandb.save
 # ----------------------------------
 
 
-@pytest.mark.xfail(reason="This test is flaky")
-def test_save_policy_symlink(mock_run, parse_records, record_q):
-    run = mock_run()
+def test_save_relative_path(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    # Use a fake working directory for the test.
+    monkeypatch.chdir(tmp_path)
+    pathlib.Path("test.rad").touch()
 
-    with open("test.rad", "w") as f:
-        f.write("something")
-    run.save("test.rad")
-    assert os.path.exists(os.path.join(run.dir, "test.rad"))
+    run = mock_run()
+    run.save("test.rad", policy="now")
+
+    assert pathlib.Path(run.dir, "test.rad").exists()
     parsed = parse_records(record_q)
     file_record = parsed.files[0].files[0]
     assert file_record.path == "test.rad"
-    assert file_record.policy == 2
 
 
-@pytest.mark.xfail(reason="This test is flaky")
-def test_save_policy_glob_symlink(mock_run, parse_records, record_q, capsys):
+def test_save_relative_base_path(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    # Use a fake working directory for the test.
+    monkeypatch.chdir(tmp_path)
+    test_file = pathlib.Path("dir", "subdir", "file.txt")
+    test_file.parent.mkdir(parents=True)
+    test_file.touch()
+
     run = mock_run()
+    run.save(str(test_file), base_path="dir")
 
-    with open("test.rad", "w") as f:
-        f.write("something")
-    with open("foo.rad", "w") as f:
-        f.write("something")
-    run.save("*.rad")
+    assert pathlib.Path(run.dir, "subdir", "file.txt").exists()
+    parsed = parse_records(record_q)
+    file_record = parsed.files[0].files[0]
+    assert pathlib.Path(file_record.path) == pathlib.Path("subdir", "file.txt")
+
+
+def test_save_relative_path_glob_files(
+    monkeypatch,
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+    capsys,
+):
+    # Use a fake working directory for the test.
+    monkeypatch.chdir(tmp_path)
+    pathlib.Path("test.rad").touch()
+    pathlib.Path("foo.rad").touch()
+
+    run = mock_run()
+    run.save("*.rad", policy="now")
+
     _, err = capsys.readouterr()
     assert "Symlinked 2 files" in err
-    assert os.path.exists(os.path.join(run.dir, "test.rad"))
-    assert os.path.exists(os.path.join(run.dir, "foo.rad"))
-
-    # test_save_policy_glob_symlink
+    assert pathlib.Path(run.dir, "test.rad").exists()
+    assert pathlib.Path(run.dir, "foo.rad").exists()
     parsed = parse_records(record_q)
-    file_record = parsed.files[0].files[0]
-    assert file_record.path == "*.rad"
-    assert file_record.policy == 2
+    paths = set([f.path for f in parsed.files[0].files])
+    assert paths == set(["test.rad", "foo.rad"])
 
 
-@pytest.mark.xfail(reason="This test is flaky")
-def test_save_absolute_path(mock_run, parse_records, record_q, capsys):
+def test_save_valid_absolute_glob(
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    (tmp_path / "dir" / "globbed" / "subdir").mkdir(parents=True)
+    (tmp_path / "dir" / "globbed" / "subdir" / "test.txt").touch()
+    test_glob = tmp_path / "dir" / "*" / "subdir" / "*.txt"
+    assert test_glob.is_absolute()
+
     run = mock_run()
-    root = tempfile.gettempdir()
-    test_path = os.path.join(root, "test.txt")
-    with open(test_path, "w") as f:
-        f.write("something")
+    run.save(str(test_glob), policy="now")
 
-    run.save(test_path)
-    _, err = capsys.readouterr()
-    assert "Saving files without folders" in err
-    assert os.path.exists(os.path.join(run.dir, "test.txt"))
     parsed = parse_records(record_q)
-    file_record = parsed.files[0].files[0]
-    assert file_record.path == "test.txt"
-    assert file_record.policy == 2
+    paths = set([pathlib.Path(f.path) for f in parsed.files[0].files])
+    assert paths == set([pathlib.Path("subdir", "test.txt")])
 
 
-@pytest.mark.xfail(reason="This test is flaky")
-def test_save_relative_path(mock_run, parse_records, record_q):
+def test_save_valid_absolute_glob_base_path(
+    tmp_path: pathlib.Path,
+    mock_run,
+    parse_records,
+    record_q,
+):
+    (tmp_path / "dir" / "x").mkdir(parents=True)
+    (tmp_path / "dir" / "y").mkdir(parents=True)
+    (tmp_path / "dir" / "x" / "file.txt").touch()
+    (tmp_path / "dir" / "y" / "file.txt").touch()
+
     run = mock_run()
-    root = tempfile.gettempdir()
-    test_path = os.path.join(root, "tmp", "test.txt")
-    print("DAMN", os.path.dirname(test_path))
-    filesystem.mkdir_exists_ok(os.path.dirname(test_path))
-    with open(test_path, "w") as f:
-        f.write("something")
-    run.save(test_path, base_path=root, policy="now")
-    assert os.path.exists(os.path.join(run.dir, test_path))
+    run.save(
+        str(tmp_path / "dir" / "*" / "file.txt"),
+        base_path=tmp_path,
+    )
+
+    assert pathlib.Path(run.dir, "dir", "x", "file.txt").exists()
+    assert pathlib.Path(run.dir, "dir", "y", "file.txt").exists()
+    parsed = parse_records(record_q)
+    paths = set([pathlib.Path(f.path) for f in parsed.files[0].files])
+    assert paths == set(
+        [
+            pathlib.Path("dir", "x", "file.txt"),
+            pathlib.Path("dir", "y", "file.txt"),
+        ]
+    )
+
+
+def test_save_file_in_run_dir(mock_run):
+    run = mock_run()
+    file = pathlib.Path(run.dir, "my_file.txt")
+    file.parent.mkdir(parents=True)
+    file.touch()
+
+    run.save(file, base_path=run.dir)
+
+    assert file.exists()
+    assert not file.is_symlink()
+
+
+def test_save_base_path_glob_first_directory_invalid(mock_run):
+    with pytest.raises(ValueError, match="may not start with '*'"):
+        mock_run().save("dir/*/file.txt", base_path="dir")
+
+
+def test_save_glob_first_directory_invalid(mock_run):
+    with pytest.raises(ValueError, match="may not start with '*'"):
+        mock_run().save("*/file.txt")
+
+
+def test_save_absolute_glob_first_directory_invalid(tmp_path: pathlib.Path, mock_run):
+    with pytest.raises(ValueError, match="may not start with '*"):
+        mock_run().save(str(tmp_path / "*" / "file.txt"), base_path=str(tmp_path))
+
+
+def test_save_absolute_glob_last_directory_invalid(tmp_path: pathlib.Path, mock_run):
+    # For absolute globs without a base path, files are saved in the directory
+    # named by the second-to-last path component of the glob. In this case,
+    # that component is "*", which we do not support.
+    with pytest.raises(ValueError, match="may not start with '*'"):
+        mock_run().save(str(tmp_path / "*" / "file.txt"))
+
+
+def test_save_dotdot(tmp_path: pathlib.Path, mock_run, parse_records, record_q):
+    test_path = tmp_path / "subdir" / "and_more" / ".." / "nvm.txt"
+    assert ".." in str(test_path)
+    test_path.resolve().parent.mkdir()
+    test_path.resolve().touch()
+
+    run = mock_run()
+    run.save(str(test_path), policy="now")
+
+    assert pathlib.Path(run.dir, "subdir", "nvm.txt").exists()
     parsed = parse_records(record_q)
     file_record = parsed.files[0].files[0]
-    assert file_record.path == os.path.relpath(test_path, root)
-    assert file_record.policy == 0
+    assert pathlib.Path(file_record.path) == pathlib.Path("subdir", "nvm.txt")
+
+
+def test_save_cannot_escape_base_path(tmp_path: pathlib.Path, mock_run):
+    with pytest.raises(ValueError, match="may not walk above the base path"):
+        mock_run().save(
+            str(tmp_path / ".." / "file.txt"),
+            base_path=str(tmp_path),
+        )
+
+
+def test_save_bytes_glob(monkeypatch, tmp_path: pathlib.Path, mock_run):
+    # Use a fake working directory for the test.
+    monkeypatch.chdir(tmp_path)
+    pathlib.Path("my_file.txt").touch()
+
+    run = mock_run()
+    run.save(b"my_file.txt")
+
+    assert pathlib.Path(run.dir, "my_file.txt").exists()
+
+
+def test_save_g3_path_warns(mock_run, capsys):
+    mock_run().save("gs://file.txt")
+
+    assert "cloud storage url, can't save" in capsys.readouterr().err
+
+
+def test_save_s3_path_warns(mock_run, capsys):
+    mock_run().save("s3://file.txt")
+
+    assert "cloud storage url, can't save" in capsys.readouterr().err

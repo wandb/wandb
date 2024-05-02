@@ -1,4 +1,5 @@
 """Utilities for the agent."""
+
 from typing import Any, Dict, Optional
 
 import wandb

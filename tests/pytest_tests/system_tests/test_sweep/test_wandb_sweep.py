@@ -1,9 +1,13 @@
 """Sweep tests."""
 
+import json
+import sys
 from typing import Any, Dict, List
 
 import pytest
 import wandb
+import wandb.apis
+from wandb.cli import cli
 
 # Sweep configs used for testing
 SWEEP_CONFIG_GRID: Dict[str, Any] = {
@@ -198,3 +202,74 @@ def test_nones_validation():
     filled = api.api._validate_config_and_fill_distribution(SWEEP_CONFIG_BAYES_NONES)
     assert filled["parameters"]["param1"]["values"] == [None, 1, 2, 3]
     assert filled["parameters"]["param2"]["value"] is None
+
+
+@pytest.mark.parametrize("stop_method", ["cancel", "stop"])
+def test_sweep_pause(runner, user, mocker, stop_method, monkeypatch):
+    with runner.isolated_filesystem():
+        # hack: need to reset the cling between reqs
+        cli._get_cling_api(reset=True)
+        sweep_config = {
+            "name": f"My Sweep-{stop_method}",
+            "method": "grid",
+            "entity": user,
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=stop_method)
+
+        def mock_read_from_queue(a, b, c):
+            sys.exit(1)
+
+        mocker.patch("wandb.wandb_agent.Agent._process_command", mock_read_from_queue)
+        res_agent = runner.invoke(cli.agent, [sweep_id, "--project", stop_method])
+        assert res_agent.exit_code == 1
+        assert runner.invoke(cli.sweep, ["--pause", sweep_id]).exit_code == 0
+        assert (
+            runner.invoke(
+                cli.sweep, ["--resume", sweep_id, "--project", stop_method]
+            ).exit_code
+            == 0
+        )
+        if stop_method == "stop":
+            assert (
+                runner.invoke(
+                    cli.sweep, ["--stop", sweep_id, "--project", stop_method]
+                ).exit_code
+                == 0
+            )
+        else:
+            assert (
+                runner.invoke(
+                    cli.sweep, ["--cancel", sweep_id, "--project", stop_method]
+                ).exit_code
+                == 0
+            )
+
+
+def test_sweep_scheduler(runner, user):
+    cli._get_cling_api(reset=True)
+    with runner.isolated_filesystem():
+        with open("config.json", "w") as f:
+            json.dump(
+                {
+                    "queue": "default",
+                    "resource": "local-process",
+                    "job": "mock-launch-job",
+                    "scheduler": {
+                        "resource": "local-process",
+                    },
+                },
+                f,
+            )
+        sweep_config = {
+            "name": "My Sweep",
+            "method": "grid",
+            "parameters": {"parameter1": {"values": [1, 2, 3]}},
+        }
+        sweep_id = wandb.sweep(sweep_config)
+        res = runner.invoke(
+            cli.launch_sweep,
+            ["config.json", "--resume_id", sweep_id],
+        )
+        print(res.output)
+        assert res.exit_code == 0

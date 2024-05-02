@@ -4,7 +4,6 @@ plugin:
 tag:
   shards:
     - artifacts
-    - wandb_core_failure
 depend:
   requirements:
     - torch
@@ -13,4 +12,4 @@ assert:
   - :wandb:runs[0][config]: {}
   - :wandb:runs[0][exitcode]: 0
   - :wandb:artifacts[my-art-name][type]: my-art-type
-  - :wandb:portfolio_links[test_portfolio][num]: 1
+  - :wandb:portfolio_links[test_portfolio_public_link_test][num]: 1

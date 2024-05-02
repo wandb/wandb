@@ -1,4 +1,5 @@
 """Abstract base class for registries."""
+
 from abc import ABC, abstractmethod
 from typing import Tuple
 

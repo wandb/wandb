@@ -4,7 +4,6 @@ Manage wandb agent.
 
 """
 
-
 import ctypes
 import logging
 import os
@@ -347,7 +346,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count (int, optional): the number of trials to run.
     """
     if not callable(function):
-        raise Exception("function paramter must be callable!")
+        raise Exception("function parameter must be callable!")
     agent = Agent(
         sweep_id,
         function=function,

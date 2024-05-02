@@ -9,6 +9,7 @@ import (
 	"log/slog"
 	"net"
 	"sync"
+	"sync/atomic"
 
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -30,6 +31,9 @@ type Connection struct {
 	// ctx is the context for the connection
 	ctx context.Context
 
+	// cancel is the cancel function for the connection
+	cancel context.CancelFunc
+
 	// conn is the underlying connection
 	conn net.Conn
 
@@ -42,28 +46,29 @@ type Connection struct {
 	// outChan is the channel for outgoing messages
 	outChan chan *service.ServerResponse
 
-	// teardownChan is the channel for signaling teardown
-	teardownChan chan struct{}
-
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
 	stream *Stream
+
+	// closed indicates if the outChan is closed
+	closed *atomic.Bool
 }
 
 // NewConnection creates a new connection
 func NewConnection(
 	ctx context.Context,
+	cancel context.CancelFunc,
 	conn net.Conn,
-	teardown chan struct{},
 ) *Connection {
 
 	nc := &Connection{
-		ctx:          ctx,
-		conn:         conn,
-		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:       make(chan *service.ServerRequest, BufferSize),
-		outChan:      make(chan *service.ServerResponse, BufferSize),
-		teardownChan: teardown, // TODO: should we trigger teardown from a connection?
+		ctx:     ctx,
+		cancel:  cancel,
+		conn:    conn,
+		id:      conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:  make(chan *service.ServerRequest, BufferSize),
+		outChan: make(chan *service.ServerResponse, BufferSize),
+		closed:  &atomic.Bool{},
 	}
 	return nc
 }
@@ -94,30 +99,11 @@ func (nc *Connection) HandleConnection() {
 		wg.Done()
 	}()
 
-	// Force shutdown of connections on teardown.
-	// TODO(beta): refactor the connection code so this is not needed
-	// Why this is needed right now:
-	//   - client might have multiple open connections to core
-	//   - teardown usually is sent on a new connection
-	//   - teardown closes teardownChan but we have nothing to
-	//     force shutdown of other connections
-	wgTeardown := sync.WaitGroup{}
-	wgTeardown.Add(1)
-	teardownWatcherChan := make(chan interface{})
-	go func() {
-		select {
-		case <-nc.teardownChan:
-			nc.Close()
-			break
-		case <-teardownWatcherChan:
-			break
-		}
-		wgTeardown.Done()
-	}()
-
+	// context is cancelled when we receive a teardown message on any connection
+	// this will trigger all connections to close since they all share the same context
+	<-nc.ctx.Done()
+	nc.Close()
 	wg.Wait()
-	close(teardownWatcherChan)
-	wgTeardown.Wait()
 
 	slog.Info("connection closed", "id", nc.id)
 }
@@ -132,6 +118,12 @@ func (nc *Connection) Close() {
 }
 
 func (nc *Connection) Respond(resp *service.ServerResponse) {
+	if nc.closed.Load() {
+		// TODO: this is a bit of a hack, we should probably handle this better
+		//       and not send responses to closed connections
+		slog.Error("connection is closed", "id", nc.id)
+		return
+	}
 	nc.outChan <- resp
 }
 
@@ -222,14 +214,16 @@ func (nc *Connection) handleServerRequest() {
 			panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
 		}
 	}
-	close(nc.outChan)
+	if !nc.closed.Swap(true) {
+		close(nc.outChan)
+	}
 	slog.Debug("finished handleServerRequest", "id", nc.id)
 }
 
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
-	settings := settings.Parse(msg.GetSettings())
+	settings := settings.From(msg.GetSettings())
 
 	err := settings.EnsureAPIKey()
 	if err != nil {
@@ -243,11 +237,11 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
-	// TODO: redo this function, to only init the stream and have the stream
-	//       handle the rest of the startup
-	nc.stream = NewStream(nc.ctx, settings, streamId)
+
+	nc.stream = NewStream(settings, streamId)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
+	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
 	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
@@ -262,13 +256,13 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
-	nc.stream.settings = settings.Parse(msg.GetSettings())
+	nc.stream.settings = settings.From(msg.GetSettings())
 
 	// update sentry tags
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
-		"run_url": nc.stream.settings.RunURL,
-		"entity":  nc.stream.settings.Entity,
+		"run_url": nc.stream.settings.GetRunURL(),
+		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("core", nil)
@@ -340,6 +334,8 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 // all streams
 func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
 	slog.Debug("handle teardown received", "id", nc.id)
-	close(nc.teardownChan)
+	// cancel the context to signal the server to shutdown
+	// this will trigger all the connections to close
+	nc.cancel()
 	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 }

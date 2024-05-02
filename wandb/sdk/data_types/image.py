@@ -167,7 +167,7 @@ class Image(BatchableMedia):
         self._file_type = None
 
         # Allows the user to pass an Image object as the first parameter and have a perfect copy,
-        # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
+        # only overriding additional metadata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, str):

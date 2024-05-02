@@ -1,4 +1,5 @@
 """Storage handler."""
+
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 from wandb.sdk.lib.paths import FilePathStr, URIStr
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
-DEFAULT_MAX_OBJECTS = 10000
+DEFAULT_MAX_OBJECTS = 10**7
 
 
 class StorageHandler:

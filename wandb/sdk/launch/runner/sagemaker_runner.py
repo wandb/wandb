@@ -1,4 +1,5 @@
 """Implementation of the SageMakerRunner class."""
+
 import asyncio
 import logging
 from typing import Any, Dict, List, Optional, cast
@@ -11,8 +12,7 @@ from wandb.apis.internal import Api
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
 
-from .._project_spec import EntryPoint, LaunchProject, get_entry_point_command
-from ..builder.build import get_env_vars_dict
+from .._project_spec import EntryPoint, LaunchProject
 from ..registry.abstract import AbstractRegistry
 from ..utils import (
     LOG_PREFIX,
@@ -67,6 +67,7 @@ class SagemakerSubmittedRun(AbstractRun):
                 logGroupName="/aws/sagemaker/TrainingJobs",
                 logStreamName=log_name,
             )
+            assert "events" in res
             return "\n".join(
                 [f'{event["timestamp"]}:{event["message"]}' for event in res["events"]]
             )
@@ -220,12 +221,12 @@ class SageMakerRunner(AbstractRunner):
         launch_project.fill_macros(image_uri)
         _logger.info("Connecting to sagemaker client")
         entry_point = (
-            launch_project.override_entrypoint
-            or launch_project.get_single_entry_point()
+            launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
-        command_args = get_entry_point_command(
-            entry_point, launch_project.override_args
-        )
+        command_args = []
+        if entry_point is not None:
+            command_args += entry_point.command
+        command_args += launch_project.override_args
         if command_args:
             command_str = " ".join(command_args)
             wandb.termlog(
@@ -324,16 +325,16 @@ def build_sagemaker_args(
     sagemaker_args["TrainingJobName"] = training_job_name
     entry_cmd = entry_point.command if entry_point else []
 
-    sagemaker_args[
-        "AlgorithmSpecification"
-    ] = merge_image_uri_with_algorithm_specification(
-        given_sagemaker_args.get(
-            "AlgorithmSpecification",
-            given_sagemaker_args.get("algorithm_specification"),
-        ),
-        image_uri,
-        entry_cmd,
-        args,
+    sagemaker_args["AlgorithmSpecification"] = (
+        merge_image_uri_with_algorithm_specification(
+            given_sagemaker_args.get(
+                "AlgorithmSpecification",
+                given_sagemaker_args.get("algorithm_specification"),
+            ),
+            image_uri,
+            entry_cmd,
+            args,
+        )
     )
 
     sagemaker_args["RoleArn"] = role_arn
@@ -348,18 +349,18 @@ def build_sagemaker_args(
 
     if sagemaker_args.get("ResourceConfig") is None:
         raise LaunchError(
-            "Sagemaker launcher requires a ResourceConfig Sagemaker resource argument"
+            "Sagemaker launcher requires a ResourceConfig resource argument"
         )
 
     if sagemaker_args.get("StoppingCondition") is None:
         raise LaunchError(
-            "Sagemaker launcher requires a StoppingCondition Sagemaker resource argument"
+            "Sagemaker launcher requires a StoppingCondition resource argument"
         )
 
     given_env = given_sagemaker_args.get(
         "Environment", sagemaker_args.get("environment", {})
     )
-    calced_env = get_env_vars_dict(launch_project, api, max_env_length)
+    calced_env = launch_project.get_env_vars_dict(api, max_env_length)
     total_env = {**calced_env, **given_env}
     sagemaker_args["Environment"] = total_env
 

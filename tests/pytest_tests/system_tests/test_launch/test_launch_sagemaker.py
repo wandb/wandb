@@ -87,13 +87,14 @@ async def test_sagemaker_resolved_submitted_job(
         project.run_id = "asdasd"
         project.sweep_id = "sweeeeep"
         project.override_config = {}
-        project.get_single_entry_point.return_value = entrypoint
+        project.get_job_entry_point.return_value = entrypoint
         if override_entrypoint:
             project.override_entrypoint = EntryPoint("blah2", override_entrypoint)
         else:
             project.override_entrypoint = None
         project._entrypoint = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
+        project.override_files = {}
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
@@ -101,6 +102,19 @@ async def test_sagemaker_resolved_submitted_job(
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.get_env_vars_dict = lambda *args, **kwargs: {
+            "WANDB_API_KEY": user,
+            "WANDB_PROJECT": project_name,
+            "WANDB_ENTITY": entity_name,
+            "WANDB_LAUNCH": "True",
+            "WANDB_RUN_ID": "asdasd",
+            "WANDB_DOCKER": "testimage",
+            "WANDB_SWEEP_ID": "sweeeeep",
+            "WANDB_CONFIG": "{}",
+            "WANDB_LAUNCH_FILE_OVERRIDES": "{}",
+            "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
+            "WANDB_BASE_URL": "",
+        }
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -133,5 +147,6 @@ async def test_sagemaker_resolved_submitted_job(
             "WANDB_DOCKER": "testimage",
             "WANDB_SWEEP_ID": "sweeeeep",
             "WANDB_CONFIG": "{}",
+            "WANDB_LAUNCH_FILE_OVERRIDES": "{}",
             "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
         }

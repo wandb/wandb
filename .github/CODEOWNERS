@@ -2,15 +2,18 @@
 /wandb/sdk/internal/internal_api.py @wandb/sdk-team
 # Changing interfaces need extra scrutiny
 /tests/pytest_tests/unit_tests/test_library_public.py @wandb/sdk-team
-# Adding or removing dependencies needs extra scrutiny
+# Packaging and releasing related files need extra scrutiny
 /pyproject.toml @wandb/sdk-team
 /setup.py @wandb/sdk-team
+/CHANGELOG.md @wandb/sdk-team
+/MANIFEST.in @wandb/sdk-team
 # core changes need extra scrutiny during the initial rollout
 /core/ @wandb/sdk-team
 # CircleCI configuration changes need extra scrutiny
 /.circleci @wandb/sdk-team
 # GitHub configuration changes need extra scrutiny
 /.github @wandb/sdk-team
+
 
 # ML Workflows team
 /core/pkg/artifacts/ @wandb/mlw-team

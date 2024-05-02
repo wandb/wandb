@@ -6,7 +6,7 @@ Functions:
     log_message_send    - message sent to socket
     log_message_recv    - message received from socket
     log_message_process - message processed by thread
-    log_message_link    - message linked to another mesage
+    log_message_link    - message linked to another message
     log_message_assert  - message encountered problem
 
 """

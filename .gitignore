@@ -1,7 +1,11 @@
+# NOTE: We use Hatch to build wandb, and it respects the *first* .gitignore
+# file it sees. It doesn't consider .gitignore files in subdirectories.
+
 __pycache__/
 htmlcov/
 .coverage
 coverage.xml
+coverage.txt
 .tox/
 .mypy_cache/
 .pytest_cache/
@@ -34,12 +38,5 @@ logs/
 # Conventional location for Python virtual environments.
 .venv/*
 
-# Private directory for wini (scripts & tools for the repo).
-.wini/*
-
-# Swift compiler's cache when building Apple stats monitoring library.
-core/pkg/monitor/apple/.build/*
-
-# Build outputs that our tooling stores in the source tree.
-core/wandb_core/AppleStats
-core/wandb_core/wandb-core
+# Build output in apple_stats.
+apple_stats/.build/

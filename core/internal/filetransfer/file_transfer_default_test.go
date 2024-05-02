@@ -1,11 +1,14 @@
 package filetransfer_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
@@ -31,7 +34,11 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		retryablehttp.NewClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	// Mocking task
 	task := &filetransfer.Task{
@@ -86,7 +93,11 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer mockServer.Close()
 
 	// Creating a file transfer
-	ft := filetransfer.NewDefaultFileTransfer(observability.NewNoOpLogger(), retryablehttp.NewClient())
+	ft := filetransfer.NewDefaultFileTransfer(
+		retryablehttp.NewClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
 
 	// Creating a file to be uploaded
 	filename := "test-upload-file.txt"
@@ -96,6 +107,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 
 	// Mocking task
 	task := &filetransfer.Task{
+		Type:    filetransfer.UploadTask,
 		Path:    filename,
 		Url:     mockServer.URL,
 		Headers: headers,
@@ -104,4 +116,119 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	// Performing the upload
 	err = ft.Upload(task)
 	assert.NoError(t, err)
+}
+
+func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {
+	fnfHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNotFound)
+	}
+	err := uploadToServerWithHandler(t, fnfHandler)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "404")
+	// 404s shouldn't be retried.
+	assert.NotContains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func TestDefaultFileTransfer_UploadConnectionClosed(t *testing.T) {
+	closeHandler := func(w http.ResponseWriter, r *http.Request) {
+		hj, ok := w.(http.Hijacker)
+		assert.True(t, ok, "webserver doesn't support hijacking")
+		conn, _, err := hj.Hijack()
+		assert.NoError(t, err, "hijacking error")
+		conn.Close()
+	}
+	err := uploadToServerWithHandler(t, closeHandler)
+	assert.Error(t, err)
+	assert.Condition(t, func() bool {
+		return strings.Contains(err.Error(), "EOF") ||
+			strings.Contains(err.Error(), "connection reset")
+	})
+	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cancel()
+	}))
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	err = ft.Upload(&filetransfer.Task{
+		Type:    filetransfer.UploadTask,
+		Path:    tempFile.Name(),
+		Url:     server.URL,
+		Context: ctx,
+	})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "context canceled")
+	// Context cancellation shouldn't result in a retry.
+	assert.NotContains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.Task{
+		Type: filetransfer.UploadTask,
+		Path: tempFile.Name(),
+		Url:  server.URL,
+	}
+
+	// Close the server before the upload begins.
+	server.Close()
+
+	err = ft.Upload(task)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "connection refused")
+	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
+}
+
+func uploadToServerWithHandler(
+	t *testing.T,
+	handler func(w http.ResponseWriter, r *http.Request),
+) error {
+	server := httptest.NewServer(http.HandlerFunc(handler))
+	defer server.Close()
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.Task{
+		Type: filetransfer.UploadTask,
+		Path: tempFile.Name(),
+		Url:  server.URL,
+	}
+
+	return ft.Upload(task)
+}
+
+func impatientClient() *retryablehttp.Client {
+	client := retryablehttp.NewClient()
+	client.RetryMax = 1
+	client.RetryWaitMin = 1 * time.Millisecond
+	return client
 }

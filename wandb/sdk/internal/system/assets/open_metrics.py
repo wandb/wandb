@@ -65,13 +65,13 @@ def _setup_requests_session() -> requests.Session:
 
 
 def _nested_dict_to_tuple(
-    nested_dict: Mapping[str, Mapping[str, str]]
+    nested_dict: Mapping[str, Mapping[str, str]],
 ) -> Tuple[Tuple[str, Tuple[str, str]], ...]:
     return tuple((k, *v.items()) for k, v in nested_dict.items())  # type: ignore
 
 
 def _tuple_to_nested_dict(
-    nested_tuple: Tuple[Tuple[str, Tuple[str, str]], ...]
+    nested_tuple: Tuple[Tuple[str, Tuple[str, str]], ...],
 ) -> Dict[str, Dict[str, str]]:
     return {k: dict(v) for k, *v in nested_tuple}
 

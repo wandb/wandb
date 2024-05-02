@@ -20,13 +20,21 @@ type DefaultFileTransfer struct {
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
+
+	// fileTransferStats is used to track upload/download progress
+	fileTransferStats FileTransferStats
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
-func NewDefaultFileTransfer(logger *observability.CoreLogger, client *retryablehttp.Client) *DefaultFileTransfer {
+func NewDefaultFileTransfer(
+	client *retryablehttp.Client,
+	logger *observability.CoreLogger,
+	fileTransferStats FileTransferStats,
+) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
-		logger: logger,
-		client: client,
+		logger:            logger,
+		client:            client,
+		fileTransferStats: fileTransferStats,
 	}
 	return fileTransfer
 }
@@ -52,9 +60,33 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
 		return err
 	}
+
+	// Don't try to upload directories.
+	if stat.IsDir() {
+		return fmt.Errorf(
+			"file transfer: upload: cannot upload directory %v",
+			task.Path,
+		)
+	}
+
 	task.Size = stat.Size()
 
-	progressReader, err := NewProgressReader(file, task.Size, task.ProgressCallback)
+	progressReader, err := NewProgressReader(
+		file,
+		task.Size,
+		func(processed int, total int) {
+			if task.ProgressCallback != nil {
+				task.ProgressCallback(processed, total)
+			}
+
+			ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+				FileKind:      task.FileKind,
+				Path:          task.Path,
+				UploadedBytes: int64(processed),
+				TotalBytes:    int64(total),
+			})
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -70,8 +102,15 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		}
 		req.Header.Set(parts[0], parts[1])
 	}
-	if _, err := ft.client.Do(req); err != nil {
+	if task.Context != nil {
+		req = req.WithContext(task.Context)
+	}
+	resp, err := ft.client.Do(req)
+	if err != nil {
 		return err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
 	}
 	return nil
 }
@@ -124,6 +163,8 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 }
 
 type ProgressReader struct {
+	// Note: this turns ProgressReader into a ReadSeeker, not just a Reader!
+	// The retryablehttp client will seek to 0 on every retry.
 	*os.File
 	len      int
 	read     int

@@ -46,7 +46,7 @@ func ResolveTypes(data interface{}) TypeRepresentation {
 	return resolveTypes(data)
 }
 
-func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
+func resolveTypes(data interface{}) TypeRepresentation {
 	// TODO: need to properly understand how to handle invalid types
 
 	switch v := data.(type) {
@@ -111,11 +111,18 @@ func resolveTypes(data interface{}, invalid ...bool) TypeRepresentation {
 				Length: len(v),
 			},
 		}
-	case int, float64:
+	case int, int8, int16, int32, int64:
 		return TypeRepresentation{
 			Name: NumberTypeName,
 		}
-
+	case uint, uint8, uint16, uint32, uint64:
+		return TypeRepresentation{
+			Name: NumberTypeName,
+		}
+	case float32, float64:
+		return TypeRepresentation{
+			Name: NumberTypeName,
+		}
 	case string:
 		return TypeRepresentation{
 			Name: StringTypeName,
