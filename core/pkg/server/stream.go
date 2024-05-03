@@ -131,7 +131,16 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string) *Stream {
+func NewStream(settings *settings.Settings, nc *Connection) *Stream {
+
+	if err := settings.EnsureAPIKey(); err != nil {
+		err = fmt.Errorf("could not get API key: %w", err)
+		slog.Error(
+			"stream: NewStream:", "error", err,
+		)
+		panic(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
@@ -144,6 +153,8 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
 	}
+
+	s.AddResponders(ResponderEntry{nc, nc.id})
 
 	w := watcher.New(watcher.Params{
 		Logger:   s.logger,
@@ -236,7 +247,9 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	s.dispatcher = NewDispatcher(s.logger)
 
-	s.logger.Info("created new stream", "id", s.settings.GetRunID())
+	s.logger.Info(
+		"stream: NewStream: created stream", "id", s.settings.GetRunID(),
+	)
 	return s
 }
 
@@ -306,15 +319,18 @@ func (s *Stream) Start() {
 		close(s.outChan)
 		s.wg.Done()
 	}()
-	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
+	s.logger.Info("stream: Start: started stream", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
-	s.logger.Debug("handling record", "record", rec)
+	s.logger.Debug("stream: HandleRecord: handling record", "record", rec)
 	if s.closed.Load() {
 		// this is to prevent trying to process messages after the stream is closed
-		s.logger.Error("context done, not handling record", "record", rec)
+		s.logger.Error(
+			"stream: HandleRecord: stream is closed, not handling record",
+			"record", rec,
+		)
 		return
 	}
 	s.inChan <- rec
@@ -330,6 +346,7 @@ func (s *Stream) Close() {
 		close(s.inChan)
 	}
 	s.wg.Wait()
+	s.logger.Info("stream: Close: closed stream", "id", s.settings.GetRunID())
 }
 
 // Respond Handle internal responses like from the finish and close path
@@ -350,7 +367,11 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 				Exit: &service.RunExitRecord{
 					ExitCode: exitCode,
 				}},
-			Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
+			Control: &service.Control{
+				AlwaysSend:   true,
+				ConnectionId: internalConnectionId,
+				ReqResp:      true,
+			},
 		}
 
 		s.HandleRecord(record)
@@ -368,5 +389,8 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		utils.PrintFooterOnline(run, s.settings.Proto)
 	}
 
-	s.logger.Info("closed stream", "id", s.settings.GetRunID())
+	s.logger.Info(
+		"stream: FinishAndClose: finished and closed stream",
+		"id", s.settings.GetRunID(),
+	)
 }

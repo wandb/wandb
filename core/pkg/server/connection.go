@@ -77,7 +77,9 @@ func NewConnection(
 // and passing the messages to the stream
 // and writing messages from the stream to the connection
 func (nc *Connection) HandleConnection() {
-	slog.Info("created new connection", "id", nc.id)
+	slog.Info("connection: HandleConnection: created new connection",
+		"connection", nc.id,
+	)
 
 	wg := sync.WaitGroup{}
 
@@ -105,26 +107,35 @@ func (nc *Connection) HandleConnection() {
 	nc.Close()
 	wg.Wait()
 
-	slog.Info("connection closed", "id", nc.id)
+	slog.Info("connection: HandleConnection: connection closed",
+		"connection", nc.id,
+	)
 }
 
 // Close closes the connection
 func (nc *Connection) Close() {
-	slog.Debug("closing connection", "id", nc.id)
+	slog.Debug("connection: Close: closing connection", "connection", nc.id)
 	if err := nc.conn.Close(); err != nil {
-		slog.Error("error closing connection", "err", err, "id", nc.id)
+		slog.Error("connection: Close: error closing connection",
+			"error", err, "connection", nc.id,
+		)
 	}
-	slog.Info("closed connection", "id", nc.id)
+	slog.Debug("connection: Close: closed connection", "connection", nc.id)
 }
 
 func (nc *Connection) Respond(resp *service.ServerResponse) {
 	if nc.closed.Load() {
 		// TODO: this is a bit of a hack, we should probably handle this better
 		//       and not send responses to closed connections
-		slog.Error("connection is closed", "id", nc.id)
+		slog.Error("connection: Respond: connection is closed",
+			"connection", nc.id,
+		)
 		return
 	}
 	nc.outChan <- resp
+	slog.Debug("connection: Respond: response sent",
+		"connection", nc.id, "response", resp,
+	)
 }
 
 // readConnection reads the streaming connection
@@ -132,6 +143,9 @@ func (nc *Connection) Respond(resp *service.ServerResponse) {
 // it passes the messages to the inChan to be handled by handleServerRequest
 // it closes the inChan when the connection is closed
 func (nc *Connection) readConnection() {
+	slog.Info("connection: readConnection: starting",
+		"connection", nc.id,
+	)
 	scanner := bufio.NewScanner(nc.conn)
 	buf := make([]byte, messageSize)
 	scanner.Buffer(buf, maxMessageSize)
@@ -140,10 +154,8 @@ func (nc *Connection) readConnection() {
 	for scanner.Scan() {
 		msg := &service.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
-			slog.Error(
-				"unmarshalling error",
-				"err", err,
-				"conn", nc.conn.RemoteAddr())
+			slog.Error("connection: readConnection: unmarshalling error",
+				"error", err, "address", nc.conn.RemoteAddr())
 		} else {
 			nc.inChan <- msg
 		}
@@ -152,45 +164,65 @@ func (nc *Connection) readConnection() {
 		panic(scanner.Err())
 	}
 	close(nc.inChan)
+	slog.Info("connection: readConnection: finished",
+		"connection", nc.id,
+	)
 }
 
 // handleServerRequest handles outgoing messages from the server
 // to the client, it writes the messages to the connection
 // the client is responsible for reading and parsing the messages
 func (nc *Connection) handleServerResponse() {
-	slog.Debug("starting handleServerResponse", "id", nc.id)
+	slog.Info("connection: handleServerResponse: starting",
+		"connection", nc.id,
+	)
 	for msg := range nc.outChan {
 		out, err := proto.Marshal(msg)
 		if err != nil {
-			slog.Error("error marshalling msg", "err", err, "id", nc.id)
+			slog.Error(
+				"connection: handleServerResponse: error marshalling message",
+				"error", err, "connection", nc.id,
+			)
 			return
 		}
 
 		writer := bufio.NewWriter(nc.conn)
 		header := Header{Magic: byte('W'), DataLength: uint32(len(out))}
 		if err = binary.Write(writer, binary.LittleEndian, &header); err != nil {
-			slog.Error("error writing header", "err", err, "id", nc.id)
+			slog.Error("connection: handleServerResponse: error writing header",
+				"error", err, "connection", nc.id,
+			)
 			return
 		}
 		if _, err = writer.Write(out); err != nil {
-			slog.Error("error writing msg", "err", err, "id", nc.id)
+			slog.Error("connection: handleServerResponse: error writing msg",
+				"error", err, "connection", nc.id,
+			)
 			return
 		}
 
 		if err = writer.Flush(); err != nil {
-			slog.Error("error flushing writer", "err", err, "id", nc.id)
+			slog.Error("connection: handleServerResponse:error flushing writer",
+				"error", err, "connection", nc.id,
+			)
 			return
 		}
 	}
-	slog.Debug("finished handleServerResponse", "id", nc.id)
+	slog.Info("connection: handleServerResponse: finished",
+		"connection", nc.id,
+	)
 }
 
 // handleServerRequest handles incoming messages from the client
 // to the server, it passes the messages to the stream
 func (nc *Connection) handleServerRequest() {
-	slog.Debug("starting handleServerRequest", "id", nc.id)
+	slog.Info("connection: handleServerRequest: starting",
+		"connection", nc.id,
+	)
 	for msg := range nc.inChan {
-		slog.Debug("handling server request", "msg", msg, "id", nc.id)
+		slog.Debug("connection: handleServerRequest: handling server request",
+			"message", msg, "connection", nc.id,
+		)
 		switch x := msg.ServerRequestType.(type) {
 		case *service.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
@@ -207,47 +239,46 @@ func (nc *Connection) handleServerRequest() {
 		case *service.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
 		case nil:
-			slog.Error("ServerRequestType is nil", "id", nc.id)
-			panic("ServerRequestType is nil")
+			err := fmt.Errorf("ServerRequestType is nil type")
+			slog.Error("connection: handleServerRequest:",
+				"error", err, "connection", nc.id,
+			)
+			panic(err)
 		default:
-			slog.Error("ServerRequestType is unknown", "type", x, "id", nc.id)
-			panic(fmt.Sprintf("ServerRequestType is unknown, %T", x))
+			err := fmt.Errorf("ServerRequestType is unknown, %T", x)
+			slog.Error("connection: handleServerRequest:",
+				"error", err, "connection", nc.id,
+			)
+			panic(err)
 		}
 	}
 	if !nc.closed.Swap(true) {
 		close(nc.outChan)
 	}
-	slog.Debug("finished handleServerRequest", "id", nc.id)
+	slog.Info("connection: handleServerRequest: finished", "connection", nc.id)
 }
 
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
+
 	settings := settings.From(msg.GetSettings())
 
-	err := settings.EnsureAPIKey()
-	if err != nil {
-		slog.Error(
-			"connection: couldn't get API key",
-			"err", err,
-			"id", nc.id,
-		)
-		panic(err)
-	}
-
 	streamId := msg.GetXInfo().GetStreamId()
-	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
-
-	nc.stream = NewStream(settings, streamId)
-	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+	nc.stream = NewStream(settings, nc)
 	nc.stream.Start()
-	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
 	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
-		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
+		slog.Error("connection: handleInformInit: error adding stream",
+			"error", err, "stream", streamId, "connection", nc.id,
+		)
 		// TODO: should we Close the stream?
 		return
 	}
+	slog.Debug("connection: handleInformInit: stream created",
+		"stream", streamId, "connection", nc.id,
+	)
+
 }
 
 // handleInformStart is called when the client sends an InformStart message
@@ -266,6 +297,10 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("core", nil)
+
+	slog.Debug("connection: handleInformStart: stream started",
+		"stream", msg.GetXInfo().GetStreamId(), "connection", nc.id,
+	)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message
@@ -274,25 +309,30 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 // hence multiple clients can attach to the same stream
 func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
-	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	var err error
 	nc.stream, err = streamMux.GetStream(streamId)
 	if err != nil {
-		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
-	} else {
-		nc.stream.AddResponders(ResponderEntry{nc, nc.id})
-		// TODO: we should redo this attach logic, so that the stream handles
-		//       the attach logic
-		resp := &service.ServerResponse{
+		slog.Error("connection: handleInformAttach: stream not found",
+			"stream", streamId, "connection", nc.id,
+		)
+		return
+	}
+
+	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+	// TODO: we should redo this attach logic, so that the stream handles
+	//       the attach logic
+	nc.Respond(
+		&service.ServerResponse{
 			ServerResponseType: &service.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &service.ServerInformAttachResponse{
-					XInfo:    msg.XInfo,
+					XInfo:    msg.GetXInfo(),
 					Settings: nc.stream.settings.Proto,
 				},
 			},
-		}
-		nc.Respond(resp)
-	}
+		})
+	slog.Debug("connection: handleInformAttach: stream attached",
+		"stream", streamId, "connection", nc.id,
+	)
 }
 
 // handleInformRecord is called when the client sends a record message
@@ -300,42 +340,59 @@ func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest)
 // for a specific stream, the messages are part of the regular execution
 // and are not control messages like the other Inform* messages
 func (nc *Connection) handleInformRecord(msg *service.Record) {
+
 	streamId := msg.GetXInfo().GetStreamId()
-	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
+
 	if nc.stream == nil {
-		slog.Error("handleInformRecord: stream not found", "streamId", streamId, "id", nc.id)
-	} else {
-		// add connection id to control message
-		// so that the stream can send back a response
-		// to the correct connection
-		if msg.Control != nil {
-			msg.Control.ConnectionId = nc.id
-		} else {
-			msg.Control = &service.Control{ConnectionId: nc.id}
-		}
-		nc.stream.HandleRecord(msg)
+		slog.Error("handleInformRecord: stream not found",
+			"stream", streamId, "connection", nc.id,
+		)
+		return
 	}
+
+	// add connection id to control message
+	// so that the stream can send back a response
+	// to the correct connection
+	if msg.Control == nil {
+		msg.Control = &service.Control{}
+	}
+	msg.Control.ConnectionId = nc.id
+	nc.stream.HandleRecord(msg)
+	slog.Debug("connection: handleInformRecord: record handled",
+		"message", msg, "stream", streamId, "connection", nc.id,
+	)
 }
 
 // handleInformFinish is called when the client sends a finish message
 // this should happen when the client want to close a specific stream
-func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest) {
-	streamId := msg.XInfo.StreamId
-	slog.Info("handle finish received", "streamId", streamId, "id", nc.id)
-	if stream, err := streamMux.RemoveStream(streamId); err != nil {
-		slog.Error("handleInformFinish:", "err", err, "streamId", streamId, "id", nc.id)
-	} else {
-		stream.Close()
+func (nc *Connection) handleInformFinish(
+	msg *service.ServerInformFinishRequest,
+) {
+	streamId := msg.GetXInfo().GetStreamId()
+	stream, err := streamMux.RemoveStream(streamId)
+	if err != nil {
+		slog.Error("connection: handleInformFinish:",
+			"error", err, "stream", streamId, "connection", nc.id,
+		)
+		return
 	}
+	stream.Close()
+	slog.Debug("connection: handleInformFinish: stream finished",
+		"stream", streamId, "connection", nc.id,
+	)
 }
 
 // handleInformTeardown is called when the client sends a teardown message
 // this should happen when the client is shutting down and wants to close
 // all streams
-func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
-	slog.Debug("handle teardown received", "id", nc.id)
+func (nc *Connection) handleInformTeardown(
+	teardown *service.ServerInformTeardownRequest,
+) {
 	// cancel the context to signal the server to shutdown
 	// this will trigger all the connections to close
 	nc.cancel()
 	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
+	slog.Debug("connection: handleInformTeardown: teardown",
+		"exit_code", teardown.ExitCode, "connection", nc.id,
+	)
 }
