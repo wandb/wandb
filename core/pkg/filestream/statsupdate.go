@@ -39,20 +39,21 @@ func (u *StatsUpdate) Chunk(fs *fileStream) error {
 
 	// marshal the row
 	line, err := json.Marshal(row)
-	if err != nil {
+	switch {
+	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
 		fs.logger.CaptureError(
 			"filestream: failed to marshal system metrics",
 			err,
 		)
-	} else if len(line) > maxFileLineBytes {
+	case len(line) > maxFileLineBytes:
 		// This is a non-blocking failure as well.
 		fs.logger.CaptureWarn(
 			"filestream: system metrics line too long, skipping",
 			"len", len(line),
 			"max", maxFileLineBytes,
 		)
-	} else {
+	default:
 		fs.addTransmit(&TransmitChunk{
 			EventsLines: []string{string(line)},
 		})
