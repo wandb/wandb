@@ -2,7 +2,7 @@
 
 import json
 from copy import copy
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
 
 from wandb_gql import Client, gql
 
@@ -508,20 +508,237 @@ class ArtifactCollection:
         """A description of the artifact collection."""
         return self._description
 
+    @description.setter
+    def description(self, description: Optional[str]) -> None:
+        """Set the description of the artifact collection.
+
+        Arguments:
+            description: (str) Free text that offers a description of the artifact collection.
+        """
+        self._description = description
+
     @property
     def tags(self):
         """The tags associated with the artifact collection."""
         return self._tags
+
+    @tags.setter
+    def tags(self, tags: List[str]) -> None:
+        """Set the tags associated with the artifact collection.
+
+        Arguments:
+            tags: (List[str]) List of tag names to set the collection's tags to.
+        """
+        if any(char in tag for tag in tags for char in ["/", ":"]):
+            raise ValueError(
+                "Tags must not contain any of the following characters: /, :"
+            )
+        self._tags = tags
 
     @property
     def name(self):
         """The name of the artifact collection."""
         return self._name
 
+    @name.setter
+    def name(self, name: List[str]) -> None:
+        """Set the name of the artifact collection.
+
+        Arguments:
+            name: (str) Name to change the collection name to.
+        """
+        self._name = name
+
     @property
     def type(self):
         """The type of the artifact collection."""
         return self._type
+
+    @type.setter
+    def type(self, type: List[str]) -> None:
+        """Set the type of the artifact collection.
+
+        Arguments:
+            type: (str) The type to change the collection to.
+        """
+        if not self.is_sequence():
+            raise ValueError(
+                "Type can only be changed if the artifact collection is a sequence."
+            )
+        self._type = type
+
+    def save(self) -> None:
+        """Persist any changes made to the artifact collection."""
+        if self.is_sequence():
+            mutation = gql("""
+                mutation UpdateArtifactCollection(
+                    $artifactSequenceID: ID!
+                    $name: String
+                    $description: String
+                ) {
+                    updateArtifactSequence(
+                    input: {
+                        artifactSequenceID: $artifactSequenceID
+                        name: $name
+                        description: $description
+                    }
+                    ) {
+                    artifactCollection {
+                        id
+                        name
+                        description
+                    }
+                    }
+                }
+            """)
+
+            variable_values = {
+                "artifactSequenceID": self.id,
+                "name": self._name,
+                "description": self.description,
+            }
+            self.client.execute(mutation, variable_values=variable_values)
+            self._saved_name = self._name
+
+            if self._saved_type != self._type:
+                type_mutation = gql("""
+                    mutation MoveArtifactCollection(
+                        $artifactSequenceID: ID!
+                        $destinationArtifactTypeName: String!
+                    ) {
+                        moveArtifactSequence(
+                        input: {
+                            artifactSequenceID: $artifactSequenceID
+                            destinationArtifactTypeName: $destinationArtifactTypeName
+                        }
+                        ) {
+                        artifactCollection {
+                            id
+                            name
+                            description
+                            __typename
+                        }
+                        }
+                    }
+                    """)
+
+                variable_values = {
+                    "artifactSequenceID": self.id,
+                    "destinationArtifactTypeName": self._type,
+                }
+                self.client.execute(type_mutation, variable_values=variable_values)
+                self._saved_type = self._type
+        else:
+            mutation = gql("""
+                mutation UpdateArtifactPortfolio(
+                    $artifactPortfolioID: ID!
+                    $name: String
+                    $description: String
+                ) {
+                    updateArtifactPortfolio(
+                    input: {
+                        artifactPortfolioID: $artifactPortfolioID
+                        name: $name
+                        description: $description
+                    }
+                    ) {
+                    artifactCollection {
+                        id
+                        name
+                        description
+                    }
+                    }
+                }
+            """)
+            variable_values = {
+                "artifactPortfolioID": self.id,
+                "name": self._name,
+                "description": self.description,
+            }
+            self.client.execute(mutation, variable_values=variable_values)
+            self._saved_name = self._name
+
+        tags_to_add = set(self._tags) - set(self._saved_tags)
+        tags_to_delete = set(self._saved_tags) - set(self._tags)
+        if len(tags_to_add) > 0:
+            print(f"tags to add: {tags_to_add}")
+            add_mutation = gql(
+                """
+                mutation CreateArtifactCollectionTagAssignments(
+                    $entityName: String!
+                    $projectName: String!
+                    $artifactCollectionName: String!
+                    $tags: [TagInput!]!
+                ) {
+                    createArtifactCollectionTagAssignments(
+                    input: {
+                        entityName: $entityName
+                        projectName: $projectName
+                        artifactCollectionName: $artifactCollectionName
+                        tags: $tags
+                    }
+                    ) {
+                    tags {
+                        id
+                        name
+                        tagCategoryName
+                    }
+                    }
+                }
+                """
+            )
+            self.client.execute(
+                add_mutation,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "artifactCollectionName": self._saved_name,
+                    "tags": [
+                        {
+                            "tagName": tag,
+                        }
+                        for tag in tags_to_add
+                    ],
+                },
+            )
+        if len(tags_to_delete) > 0:
+            print(f"tags to delete: {tags_to_delete}")
+            delete_mutation = gql(
+                """
+                mutation DeleteArtifactCollectionTagAssignments(
+                    $entityName: String!
+                    $projectName: String!
+                    $artifactCollectionName: String!
+                    $tags: [TagInput!]!
+                ) {
+                    deleteArtifactCollectionTagAssignments(
+                    input: {
+                        entityName: $entityName
+                        projectName: $projectName
+                        artifactCollectionName: $artifactCollectionName
+                        tags: $tags
+                    }
+                    ) {
+                    success
+                    }
+                }
+                """
+            )
+            self.client.execute(
+                delete_mutation,
+                variable_values={
+                    "entityName": self.entity,
+                    "projectName": self.project,
+                    "artifactCollectionName": self._saved_name,
+                    "tags": [
+                        {
+                            "tagName": tag,
+                        }
+                        for tag in tags_to_delete
+                    ],
+                },
+            )
+        self._saved_tags = copy(self._tags)
 
     def __repr__(self):
         return f"<ArtifactCollection {self._name} ({self._type})>"
