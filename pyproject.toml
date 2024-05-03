@@ -200,7 +200,7 @@ convention = "google"
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
 "wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
-"wandb/plots/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
+"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
 "tests/pytest_tests/unit_tests_old/**" = ["B", "C", "D", "E", "F", "N", "UP026"]
 "tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
@@ -241,7 +241,6 @@ module = [
     "wandb.sync.*",
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
-    "wandb.plots.*",
     "wandb.old.*",
 ]
 ignore_errors = true
