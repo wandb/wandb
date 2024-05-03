@@ -19,7 +19,7 @@ func makeHandler(
 			Settings:        &service.Settings{},
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
-			TerminalPrinter: observability.NewPrinter[string](),
+			TerminalPrinter: &observability.Printer{},
 		},
 	)
 
