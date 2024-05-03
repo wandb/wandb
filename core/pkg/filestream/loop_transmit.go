@@ -25,11 +25,11 @@ type fsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-func (fs *fileStream) addTransmit(chunk processedChunk) {
+func (fs *fileStream) addTransmit(chunk CollectorStateUpdate) {
 	fs.transmitChan <- chunk
 }
 
-func (fs *fileStream) loopTransmit(inChan <-chan processedChunk) {
+func (fs *fileStream) loopTransmit(inChan <-chan CollectorStateUpdate) {
 	collector := chunkCollector{
 		input:           inChan,
 		processDelay:    fs.delayProcess,

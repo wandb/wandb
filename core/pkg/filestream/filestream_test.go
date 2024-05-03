@@ -20,9 +20,9 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func NewHistoryRecord() *filestream.Update {
-	return &filestream.Update{
-		HistoryRecord: &service.HistoryRecord{
+func NewHistoryRecord() filestream.Update {
+	return &filestream.HistoryUpdate{
+		Record: &service.HistoryRecord{
 			Step: &service.HistoryStep{Num: 0},
 			Item: []*service.HistoryItem{
 				{Key: "test_key", ValueJson: fmt.Sprintf("%f", 0.0)},
@@ -60,7 +60,7 @@ func TestFileStream(t *testing.T) {
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
 		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
 		fs.StreamUpdate(NewHistoryRecord())
-		fs.StreamUpdate(&filestream.Update{UploadedFile: "file.txt"})
+		fs.StreamUpdate(&filestream.FilesUploadedUpdate{RelativePath: "file.txt"})
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
