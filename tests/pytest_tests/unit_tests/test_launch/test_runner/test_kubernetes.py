@@ -1151,10 +1151,12 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
     core_api.read_namespaced_pod_log = _mock_read_namespaced_pod_log
 
     submitted_run = KubernetesSubmittedRun(
+        internal_api=MagicMock(),
         batch_api=MagicMock(),
         core_api=core_api,
         namespace="wandb",
         name="test_run",
+        job_tracker=None,
     )
     # Assert that we get the logs back.
     assert await submitted_run.get_logs() == expected
