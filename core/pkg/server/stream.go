@@ -16,13 +16,13 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/shared"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const (
@@ -155,6 +155,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
+	terminalPrinter := observability.NewPrinter[string]()
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -175,6 +176,16 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
+
+		go func() {
+			err := <-fileStreamOrNil.FatalErrorChan()
+			s.logger.CaptureFatal("stream: fatal error in filestream", err)
+			terminalPrinter.Write(
+				"Fatal error while uploading data. Some run data will" +
+					" not be synced, but it will still be written to disk. Use" +
+					" `wandb sync` at the end of the run to try uploading.",
+			)
+		}()
 	}
 
 	mailbox := mailbox.NewMailbox()
@@ -196,6 +207,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			RunSummary:        runSummary,
 			MetricHandler:     NewMetricHandler(),
 			Mailbox:           mailbox,
+			TerminalPrinter:   terminalPrinter,
 		},
 	)
 
@@ -359,5 +371,5 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 
 func (s *Stream) PrintFooter() {
 	run := s.GetRun()
-	shared.PrintHeadFoot(run, s.settings.Proto, true)
+	utils.PrintHeadFoot(run, s.settings.Proto, true)
 }

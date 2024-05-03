@@ -31,7 +31,7 @@ type FakeClient struct {
 
 type RequestCopy struct {
 	Method string
-	URL    *url.URL
+	URL    string
 	Body   []byte
 	Header http.Header
 }
@@ -103,7 +103,7 @@ func (c *FakeClient) Do(req *http.Request) (*http.Response, error) {
 
 	c.requests = append(c.requests, RequestCopy{
 		Method: req.Method,
-		URL:    req.URL,
+		URL:    req.URL.String(),
 		Body:   body,
 		Header: req.Header,
 	})

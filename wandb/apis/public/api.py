@@ -111,6 +111,17 @@ class Api:
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(19)
+    DEFAULT_ENTITY_QUERY = gql(
+        """
+        query Viewer{
+            viewer {
+                id
+                entity
+            }
+        }
+        """
+    )
+
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -490,7 +501,7 @@ class Api:
     @property
     def default_entity(self):
         if self._default_entity is None:
-            res = self._client.execute(self.VIEWER_QUERY)
+            res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
 

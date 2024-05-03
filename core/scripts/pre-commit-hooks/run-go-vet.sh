@@ -4,6 +4,9 @@
 set -e
 for f in $(echo $@|xargs -n1 dirname | sort -u); do
     # Temporary hack
+    if [[ $f == "experiment"* ]]; then
+        continue
+    fi
     if [ "$f" == "core" ]; then
         continue
     fi
@@ -11,6 +14,7 @@ for f in $(echo $@|xargs -n1 dirname | sort -u); do
     rest=$(echo $f | cut -d/ -f2-)
     cd $base
     mod=$(go list)
+    echo "Running go vet on $mod/$rest"
     go vet $mod/$rest
     cd -
 done

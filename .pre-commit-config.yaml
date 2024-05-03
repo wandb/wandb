@@ -7,7 +7,7 @@ repos:
     rev: v1.0
     hooks:
     - id: clippy
-      args: ['--manifest-path=client/Cargo.toml', '--all', '--']
+      args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: "v0.3.7"
     hooks:

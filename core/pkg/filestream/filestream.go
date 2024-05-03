@@ -81,14 +81,14 @@ type FileStream interface {
 	// Close waits for all work to be completed.
 	Close()
 
-	// StreamRecord adds data to be sent to the filestream API.
-	StreamRecord(rec *service.Record)
+	// StreamUpdate uploads information through the filestream API.
+	StreamUpdate(update Update)
 
-	// SignalFileUploaded tells the backend that a run file has been uploaded.
+	// FatalErrorChan is a channel that emits if there is a fatal error.
 	//
-	// This is used in some deployments where the backend is not notified when
-	// files finish uploading.
-	SignalFileUploaded(path string)
+	// If this channel emits, all filestream operations afterward become
+	// no-ops. This channel emits at most once, and it is never closed.
+	FatalErrorChan() <-chan error
 }
 
 // fileStream is a stream of data to the server
@@ -98,7 +98,7 @@ type fileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
-	processChan  chan processTask
+	processChan  chan Update
 	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
@@ -128,8 +128,9 @@ type fileStream struct {
 	clientId string
 
 	// A channel that is closed if there is a fatal error.
-	deadChan     chan struct{}
-	deadChanOnce *sync.Once
+	deadChan       chan struct{}
+	deadChanOnce   *sync.Once
+	fatalErrorChan chan error
 }
 
 type FileStreamParams struct {
@@ -150,13 +151,14 @@ func NewFileStream(params FileStreamParams) FileStream {
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan processTask, BufferSize),
+		processChan:     make(chan Update, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
+		fatalErrorChan:  make(chan error, 1),
 	}
 
 	fs.delayProcess = params.DelayProcess
@@ -231,13 +233,13 @@ func (fs *fileStream) Start(
 	}()
 }
 
-func (fs *fileStream) StreamRecord(rec *service.Record) {
-	fs.logger.Debug("filestream: stream record", "record", rec)
-	fs.addProcess(processTask{Record: rec})
+func (fs *fileStream) StreamUpdate(update Update) {
+	fs.logger.Debug("filestream: stream update", "update", update)
+	fs.addProcess(update)
 }
 
-func (fs *fileStream) SignalFileUploaded(path string) {
-	fs.addProcess(processTask{UploadedFile: path})
+func (fs *fileStream) FatalErrorChan() <-chan error {
+	return fs.fatalErrorChan
 }
 
 func (fs *fileStream) Close() {
@@ -259,6 +261,7 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal("filestream: fatal error", err)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
+		fs.fatalErrorChan <- err
 	})
 }
 
