@@ -41,10 +41,12 @@ class LaunchSource(enum.IntEnum):
         DOCKER: Source is a Docker image. This can happen if a user runs
             `wandb launch -d <docker-image>`.
         JOB: Source is a job. This is standard case.
+        SCHEDULER: Source is a wandb sweep scheduler command.
     """
 
     DOCKER: int = 1
     JOB: int = 2
+    SCHEDULER: int = 3
 
 
 class LaunchProject:
@@ -117,8 +119,11 @@ class LaunchProject:
             "docker_image"
         ) or launch_spec.get("image_uri")
         self.docker_user_id = docker_config.get("user_id", 1000)
-        self.init_source()
+        self._entry_point: Optional[EntryPoint] = (
+            None  # todo: keep multiple entrypoint support?
+        )
         self.init_overrides(overrides)
+        self.init_source()
         self.init_git(git_info)
         self.deps_type: Optional[str] = None
         self._runtime: Optional[str] = None
@@ -126,9 +131,6 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
-        self._entry_point: Optional[EntryPoint] = (
-            None  # todo: keep multiple entrypoint support?
-        )
         self._job_dockerfile: Optional[str] = None
         self._job_build_context: Optional[str] = None
 
@@ -139,8 +141,10 @@ class LaunchProject:
         elif self.job is not None:
             self.source = LaunchSource.JOB
             self.project_dir = tempfile.mkdtemp()
-        else:
-            raise LaunchError("Launch project must have a source.")
+        if self.uri and self.uri.startswith("placeholder"):
+            self.source = LaunchSource.SCHEDULER
+            self.project_dir = os.getcwd()
+            self._entry_point = self.override_entrypoint
 
     def init_git(self, git_info: Dict[str, str]) -> None:
         self.git_version = git_info.get("version")

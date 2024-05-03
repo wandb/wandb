@@ -19,6 +19,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
   * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
   * Please report any issues with `pip install wandb`!
 * `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
+* Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
+* `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
 
 ### Fixed
 
@@ -32,6 +34,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 * When using `wandb-core` need to specify a required flag (`wandb.require("core")`) to enable it, before it was picked up automatically by @kptkin in  https://github.com/wandb/wandb/pull/7228
 * Use ETags instead of MD5 hashes for GCS reference artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7337
+
+### Removed
+
+* Removed the deprecated `wandb.plots.*` functions and top-level third-party integrations `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. Please use `wandb.plot` instead of `wandb.plots` and `wandb.integration.[catboost,fastai,keras,lightgbm,sacred,xgboost]` instead of `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. By @dmitryduev in https://github.com/wandb/wandb/pull/7552
+* Removed the `[async]` extra and the `_async_upload_concurrency_limit` setting by @moredatarequired in https://github.com/wandb/wandb/pull/7416
 
 ## [0.16.6] - 2024-04-03
 

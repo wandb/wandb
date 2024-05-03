@@ -298,7 +298,6 @@ class SettingsData:
 
     _args: Sequence[str]
     _aws_lambda: bool
-    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _code_path_local: str
     _colab: bool
@@ -621,10 +620,6 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
-            _async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate__async_upload_concurrency_limit,
-            },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
                 "auto_hook": True,
@@ -1177,35 +1172,6 @@ class Settings(SettingsData):
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
-        return True
-
-    @staticmethod
-    def _validate__async_upload_concurrency_limit(value: int) -> bool:
-        if value <= 0:
-            raise UsageError("_async_upload_concurrency_limit must be positive")
-
-        try:
-            import resource  # not always available on Windows
-
-            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        except Exception:
-            # Couldn't get the open-file-limit for some reason,
-            # probably very platform-specific. Not a problem,
-            # we just won't use it to cap the concurrency.
-            pass
-        else:
-            if value > file_limit:
-                wandb.termwarn(
-                    (
-                        "_async_upload_concurrency_limit setting of"
-                        f" {value} exceeds this process's limit"
-                        f" on open files ({file_limit}); may cause file-upload failures."
-                        " Try decreasing _async_upload_concurrency_limit,"
-                        " or increasing your file limit with `ulimit -n`."
-                    ),
-                    repeat=False,
-                )
-
         return True
 
     @staticmethod

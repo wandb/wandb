@@ -10,7 +10,7 @@ import tensorflow as tf  # noqa: E402
 from tensorflow.keras import backend as K  # noqa: N812, E402
 from tensorflow.keras.layers import Dense, Flatten, Reshape  # noqa: E402
 from tensorflow.keras.models import Sequential  # noqa: E402
-from wandb.keras import WandbCallback  # noqa: E402
+from wandb.integration.keras import WandbCallback  # noqa: E402
 
 
 @pytest.fixture
