@@ -134,9 +134,7 @@ def roc(
     wandb.sklearn.plot_roc(y_true, y_probas, labels)
     ```
     """
-    roc_chart = wandb.plots.roc_curve(
-        y_true, y_probas, labels, classes_to_plot
-    )
+    roc_chart = wandb.plots.roc_curve(y_true, y_probas, labels, classes_to_plot)
     wandb.log({"roc": roc_chart})
 
 
