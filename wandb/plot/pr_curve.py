@@ -13,7 +13,7 @@ def test_missing(**kwargs):
     for k, v in kwargs.items():
         # Missing/empty params/datapoint arrays
         if v is None:
-            wandb.termerror("%s is None. Please try again." % (k))
+            wandb.termerror("{} is None. Please try again.".format(k))
             test_passed = False
         if (k == "X") or (k == "X_test"):
             if isinstance(v, scipy.sparse.csr.csr_matrix):
@@ -52,8 +52,8 @@ def test_missing(**kwargs):
                 )
             if non_nums > 0:
                 wandb.termerror(
-                    "%s contains values that are not numbers. Please vectorize, label encode or one hot encode %s and call the plotting function again."
-                    % (k, k)
+                    f"{k} contains values that are not numbers. Please vectorize, "
+                    f"label encode or one hot encode {k} and call the plotting function again."
                 )
                 test_passed = False
     return test_passed
@@ -61,8 +61,8 @@ def test_missing(**kwargs):
 
 def test_fitted(model):
     np = util.get_module("numpy", required="Logging plots requires numpy")
-    pd = util.get_module("pandas", required="Logging dataframes requires pandas")
-    scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
+    _ = util.get_module("pandas", required="Logging dataframes requires pandas")
+    _ = util.get_module("scipy", required="Logging scipy matrices requires scipy")
     scikit_utils = util.get_module(
         "sklearn.utils",
         required="roc requires the scikit utils submodule, install with `pip install scikit-learn`",
@@ -159,26 +159,26 @@ def test_types(**kwargs):
                     list,
                 ),
             ):
-                wandb.termerror("%s is not an array. Please try again." % (k))
+                wandb.termerror("{} is not an array. Please try again.".format(k))
                 test_passed = False
         # check for classifier types
         if k == "model":
             if (not base.is_classifier(v)) and (not base.is_regressor(v)):
                 wandb.termerror(
-                    "%s is not a classifier or regressor. Please try again." % (k)
+                    "{} is not a classifier or regressor. Please try again.".format(k)
                 )
                 test_passed = False
         elif k == "clf" or k == "binary_clf":
             if not (base.is_classifier(v)):
-                wandb.termerror("%s is not a classifier. Please try again." % (k))
+                wandb.termerror("{} is not a classifier. Please try again.".format(k))
                 test_passed = False
         elif k == "regressor":
             if not base.is_regressor(v):
-                wandb.termerror("%s is not a regressor. Please try again." % (k))
+                wandb.termerror("{} is not a regressor. Please try again.".format(k))
                 test_passed = False
         elif k == "clusterer":
             if not (getattr(v, "_estimator_type", None) == "clusterer"):
-                wandb.termerror("%s is not a clusterer. Please try again." % (k))
+                wandb.termerror("{} is not a clusterer. Please try again.".format(k))
                 test_passed = False
     return test_passed
 
