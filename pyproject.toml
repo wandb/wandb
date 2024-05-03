@@ -241,7 +241,6 @@ module = [
     "wandb.sync.*",
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
-    "wandb.plots.*",
     "wandb.old.*",
 ]
 ignore_errors = true
