@@ -10,17 +10,17 @@ import (
 // A fake implementation of FileStream.
 type FakeFileStream struct {
 	sync.Mutex
-	updates []*filestream.Update
+	updates []filestream.Update
 }
 
 func NewFakeFileStream() *FakeFileStream {
 	return &FakeFileStream{
-		updates: make([]*filestream.Update, 0),
+		updates: make([]filestream.Update, 0),
 	}
 }
 
 // GetUpdates returns all updates passed to `StreamUpdate`.
-func (fs *FakeFileStream) GetUpdates() []*filestream.Update {
+func (fs *FakeFileStream) GetUpdates() []filestream.Update {
 	fs.Lock()
 	defer fs.Unlock()
 	return slices.Clone(fs.updates)
@@ -39,7 +39,7 @@ func (fs *FakeFileStream) Start(
 
 func (fs *FakeFileStream) Close() {}
 
-func (fs *FakeFileStream) StreamUpdate(update *filestream.Update) {
+func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {
 	fs.Lock()
 	defer fs.Unlock()
 
