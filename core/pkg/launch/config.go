@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 
 	"github.com/segmentio/encoding/json"
 	"gopkg.in/yaml.v3"
@@ -137,12 +138,13 @@ func dictToPathMap(dict ConfigDict) PathMap {
 // Recursively constructs a flattened map of paths to values from a nested dict.
 func flattenMap(input ConfigDict, path ConfigPath, output PathMap) {
 	for k, v := range input {
-		path := append(path, k)
+		new_path := slices.Clone(path)
+		new_path = append(new_path, k)
 		switch v := v.(type) {
 		case ConfigDict:
-			flattenMap(v, path, output)
+			flattenMap(v, new_path, output)
 		default:
-			output[&path] = v
+			output[&new_path] = v
 		}
 	}
 }
