@@ -82,7 +82,7 @@ type FileStream interface {
 	Close()
 
 	// StreamUpdate uploads information through the filestream API.
-	StreamUpdate(update *Update)
+	StreamUpdate(update Update)
 
 	// FatalErrorChan is a channel that emits if there is a fatal error.
 	//
@@ -98,7 +98,7 @@ type fileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
-	processChan  chan *Update
+	processChan  chan Update
 	transmitChan chan processedChunk
 	feedbackChan chan map[string]interface{}
 
@@ -151,7 +151,7 @@ func NewFileStream(params FileStreamParams) FileStream {
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan *Update, BufferSize),
+		processChan:     make(chan Update, BufferSize),
 		transmitChan:    make(chan processedChunk, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
@@ -233,7 +233,7 @@ func (fs *fileStream) Start(
 	}()
 }
 
-func (fs *fileStream) StreamUpdate(update *Update) {
+func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
 	fs.addProcess(update)
 }

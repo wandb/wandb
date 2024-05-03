@@ -555,9 +555,7 @@ func (s *Sender) sendPreempting(record *service.RunPreemptingRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.Update{
-		PreemptRecord: record,
-	})
+	s.fileStream.StreamUpdate(&fs.PreemptingUpdate{Record: record})
 }
 
 func (s *Sender) sendLinkArtifact(record *service.Record) {
@@ -786,9 +784,7 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.Update{
-		HistoryRecord: record,
-	})
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
 func (s *Sender) streamSummary() {
@@ -802,8 +798,8 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.Update{
-		SummaryRecord: &service.SummaryRecord{Update: update},
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
+		Record: &service.SummaryRecord{Update: update},
 	})
 }
 
@@ -943,9 +939,7 @@ func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.Update{
-		StatsRecord: record,
-	})
+	s.fileStream.StreamUpdate(&fs.StatsUpdate{Record: record})
 }
 
 func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
@@ -1000,8 +994,8 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.Update{
-		LogsRecord: &service.OutputRawRecord{Line: line},
+	s.fileStream.StreamUpdate(&fs.LogsUpdate{
+		Record: &service.OutputRawRecord{Line: line},
 	})
 }
 
@@ -1043,7 +1037,7 @@ func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRec
 	s.exitRecord = record
 
 	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.Update{ExitRecord: exitRecord})
+		s.fileStream.StreamUpdate(&fs.ExitUpdate{Record: exitRecord})
 	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream

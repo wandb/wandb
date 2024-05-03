@@ -256,8 +256,10 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Equal(t,
-				[]*filestream.Update{
-					{UploadedFile: filepath.Join("subdir", "test.txt")},
+				[]filestream.Update{
+					&filestream.FilesUploadedUpdate{
+						RelativePath: filepath.Join("subdir", "test.txt"),
+					},
 				},
 				fakeFileStream.GetUpdates())
 		})
