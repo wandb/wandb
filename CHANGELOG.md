@@ -29,6 +29,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 * Implemented a stricter check for AMD GPU availability by @dmitryduev in https://github.com/wandb/wandb/pull/7322
 * Fixed `run.save()` on Windows by @timoffex in https://github.com/wandb/wandb/pull/7412
 * Show a warning instead of failing when using registries other than ECR and GAR with the Kaniko builder by @TimH98 in https://github.com/wandb/wandb/pull/7461
+* Fixed `wandb.init()` type signature including `None` by @timoffex in https://github.com/wandb/wandb/pull/7563
 
 ### Changed
 
