@@ -152,7 +152,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
-	terminalPrinter := &observability.Printer{}
+	terminalPrinter := observability.NewPrinter()
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()

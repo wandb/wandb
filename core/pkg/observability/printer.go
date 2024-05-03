@@ -10,6 +10,10 @@ type Printer struct {
 	messages []string
 }
 
+func NewPrinter() *Printer {
+	return &Printer{}
+}
+
 // Write adds a message to the console.
 func (p *Printer) Write(message string) {
 	p.Lock()
