@@ -16,7 +16,7 @@ def test_init(test_settings):
             "wandb._sentry.exception", autospec=True
         ), patch("wandb._assert_is_user_process", side_effect=lambda: None):
             instance = mocked_wandbinit.return_value
-            instance.settings = test_settings({"problem": "fatal"})
+            instance.settings = test_settings()
             instance.setup.side_effect = lambda *_: None
             instance.init.side_effect = MyExitError("test")
             with pytest.raises(MyExitError):

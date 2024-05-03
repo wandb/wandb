@@ -782,12 +782,10 @@ def test_strict():
     assert not settings.strict
 
 
-def test_validate_console_problem_anonymous():
+def test_validate_console_anonymous():
     s = Settings()
     with pytest.raises(UsageError):
         s.update(console="lol")
-    with pytest.raises(UsageError):
-        s.update(problem="lol")
     with pytest.raises(UsageError):
         s.update(anonymous="lol")
 
