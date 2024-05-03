@@ -8,9 +8,8 @@ type LogsUpdate struct {
 }
 
 func (u *LogsUpdate) Chunk(fs *fileStream) error {
-	fs.addTransmit(processedChunk{
-		fileType: OutputChunk,
-		fileLine: u.Record.Line,
+	fs.addTransmit(&TransmitChunk{
+		ConsoleLogLines: []string{u.Record.Line},
 	})
 	return nil
 }
