@@ -1,9 +1,9 @@
 from typing import Optional
 
-from utils import test_missing, test_types
-
 import wandb
 from wandb import util
+
+from .utils import test_missing, test_types
 
 
 def pr_curve(
