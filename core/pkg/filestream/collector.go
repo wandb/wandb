@@ -4,8 +4,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 )
 
-type chunkMap map[ChunkTypeEnum][]string
-
 var chunkFilename = map[ChunkTypeEnum]string{
 	HistoryChunk: HistoryFileName,
 	OutputChunk:  OutputFileName,
