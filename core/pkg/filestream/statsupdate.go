@@ -40,9 +40,8 @@ func (u *StatsUpdate) Chunk(fs *fileStream) error {
 		// This is a non-blocking failure, so we don't return an error.
 		fs.logger.CaptureError("sender: sendSystemMetrics: failed to marshal system metrics", err)
 	} else {
-		fs.addTransmit(processedChunk{
-			fileType: EventsChunk,
-			fileLine: string(line),
+		fs.addTransmit(&TransmitChunk{
+			EventsLines: []string{string(line)},
 		})
 	}
 

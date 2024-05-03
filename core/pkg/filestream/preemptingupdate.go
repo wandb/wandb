@@ -15,8 +15,9 @@ type PreemptingUpdate struct {
 }
 
 func (u *PreemptingUpdate) Chunk(fs *fileStream) error {
-	fs.addTransmit(processedChunk{
-		Preempting: true,
+	fs.addTransmit(&TransmitChunk{
+		HasPreempting: true,
+		Preempting:    true,
 	})
 
 	return nil

@@ -40,9 +40,8 @@ func (u *HistoryUpdate) Chunk(fs *fileStream) error {
 			"filestream: failed to serialize history: %v", err)
 	}
 
-	fs.addTransmit(processedChunk{
-		fileType: HistoryChunk,
-		fileLine: string(line),
+	fs.addTransmit(&TransmitChunk{
+		HistoryLines: []string{string(line)},
 	})
 
 	return nil
