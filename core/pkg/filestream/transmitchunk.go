@@ -55,9 +55,12 @@ func (c *TransmitChunk) Write(
 		}
 	}
 	addLines(HistoryChunk, c.HistoryLines)
-	addLines(SummaryChunk, []string{c.LatestSummary})
 	addLines(EventsChunk, c.EventsLines)
 	addLines(OutputChunk, c.ConsoleLogLines)
+
+	if c.LatestSummary != "" {
+		addLines(SummaryChunk, []string{c.LatestSummary})
+	}
 
 	hasData := false
 
