@@ -37,6 +37,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Removed
 
+* Removed the deprecated `wandb.plots.*` functions and top-level third-party integrations `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. Please use `wandb.plot` instead of `wandb.plots` and `wandb.integration.[catboost,fastai,keras,lightgbm,sacred,xgboost]` instead of `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. By @dmitryduev in https://github.com/wandb/wandb/pull/7552
 * Removed the `[async]` extra and the `_async_upload_concurrency_limit` setting by @moredatarequired in https://github.com/wandb/wandb/pull/7416
 
 ## [0.16.6] - 2024-04-03
