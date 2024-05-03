@@ -31,9 +31,8 @@ func (u *SummaryUpdate) Chunk(fs *fileStream) error {
 		)
 	}
 
-	fs.addTransmit(processedChunk{
-		fileType: SummaryChunk,
-		fileLine: string(line),
+	fs.addTransmit(&TransmitChunk{
+		LatestSummary: string(line),
 	})
 
 	return nil
