@@ -1,14 +1,5 @@
 package filestream
 
-type processedChunk struct {
-	fileType   ChunkTypeEnum
-	fileLine   string
-	Complete   *bool
-	Exitcode   *int32
-	Preempting bool
-	Uploaded   []string
-}
-
 func (fs *fileStream) addProcess(input Update) {
 	select {
 	case fs.processChan <- input:

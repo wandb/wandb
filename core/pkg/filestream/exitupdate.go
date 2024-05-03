@@ -8,12 +8,21 @@ type ExitUpdate struct {
 }
 
 func (u *ExitUpdate) Chunk(fs *fileStream) error {
-	boolTrue := true
 
-	fs.addTransmit(processedChunk{
-		Complete: &boolTrue,
-		Exitcode: &u.Record.ExitCode,
+	fs.addTransmit(&collectorExitUpdate{
+		exitCode: u.Record.ExitCode,
 	})
 
 	return nil
+}
+
+type collectorExitUpdate struct {
+	exitCode int32
+}
+
+func (u *collectorExitUpdate) Apply(state *CollectorState) {
+	boolTrue := true
+
+	state.ExitCode = &u.exitCode
+	state.Complete = &boolTrue
 }
