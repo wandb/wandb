@@ -43,6 +43,8 @@ message RunMoment {
 //
 // Next ID: 166
 message Settings {
+  reserved 12;
+
   // The W&B API key.
   //
   // This can be empty if we're in offline mode.
@@ -91,7 +93,6 @@ message Settings {
   google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
-  google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
   MapStringKeyStringValue _extra_http_headers = 14;
   google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;

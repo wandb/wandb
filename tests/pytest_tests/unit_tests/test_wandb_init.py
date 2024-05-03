@@ -13,16 +13,12 @@ def test_init(test_settings):
 
     with patch("wandb.sdk.wandb_init._WandbInit", autospec=True) as mocked_wandbinit:
         with patch("wandb.sdk.wandb_init.logger", autospec=True), patch(
-            "wandb.sdk.wandb_init.getcaller", autospec=True
-        ), patch("os._exit", side_effect=MyExitError("")), patch(
             "wandb._sentry.exception", autospec=True
         ), patch("wandb._assert_is_user_process", side_effect=lambda: None):
             instance = mocked_wandbinit.return_value
-            instance.settings = test_settings(
-                {"_except_exit": True, "problem": "fatal"}
-            )
+            instance.settings = test_settings({"problem": "fatal"})
             instance.setup.side_effect = lambda *_: None
-            instance.init.side_effect = Exception("test")
+            instance.init.side_effect = MyExitError("test")
             with pytest.raises(MyExitError):
                 wandb.init()
 

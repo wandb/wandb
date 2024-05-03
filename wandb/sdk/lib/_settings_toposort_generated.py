@@ -24,7 +24,6 @@ _Setting = Literal[
     "_disable_update_check",
     "_disable_viewer",
     "_disable_machine_info",
-    "_except_exit",
     "_executable",
     "_extra_http_headers",
     "_file_stream_retry_max",

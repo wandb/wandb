@@ -312,7 +312,6 @@ class SettingsData:
     _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
-    _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
     # file stream retry client configuration
@@ -1749,9 +1748,6 @@ class Settings(SettingsData):
             settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            settings["_except_exit"] = True  # type: ignore
 
         if _logger is not None:
             _logger.info(
