@@ -147,7 +147,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	w := watcher.New(watcher.Params{
 		Logger:   s.logger,
-		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
+		FilesDir: s.settings.GetFilesDir(),
 	})
 
 	// TODO: replace this with a logger that can be read by the user
@@ -324,10 +324,6 @@ func (s *Stream) HandleRecord(rec *service.Record) {
 	s.inChan <- rec
 }
 
-func (s *Stream) GetRun() *service.RunRecord {
-	return s.handler.GetRun()
-}
-
 // Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
@@ -345,10 +341,13 @@ func (s *Stream) Respond(resp *service.ServerResponse) {
 	s.outChan <- resp
 }
 
+// FinishAndClose closes the stream and sends an exit record to the handler.
+// This will be called when we recieve a teardown signal from the client.
+// So it is used to close all active streams in the system.
 func (s *Stream) FinishAndClose(exitCode int32) {
 	s.AddResponders(ResponderEntry{s, internalConnectionId})
 
-	if !s.settings.Proto.GetXSync().GetValue() {
+	if !s.settings.IsSync() {
 		// send exit record to handler
 		record := &service.Record{
 			RecordType: &service.Record_Exit{
@@ -359,17 +358,19 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		}
 
 		s.HandleRecord(record)
-		// TODO(beta): process the response so we can formulate a more correct footer
 		<-s.outChan
 	}
 
 	s.Close()
 
-	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.GetRunID())
-}
+	// TODO: we are using service.Settings instead of settings.Settings
+	// because this package is used by the go wandb client package
+	if s.settings.IsOffline() {
+		utils.PrintFooterOffline(s.settings.Proto)
+	} else {
+		run := s.handler.GetRun()
+		utils.PrintFooterOnline(run, s.settings.Proto)
+	}
 
-func (s *Stream) PrintFooter() {
-	run := s.GetRun()
-	utils.PrintHeadFoot(run, s.settings.Proto, true)
+	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }
