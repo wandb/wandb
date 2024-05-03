@@ -1428,7 +1428,6 @@ def test_change_artifact_collection_type(monkeypatch, wandb_init):
 
     with wandb_init() as run:
         artifact = run.use_artifact("image_data:latest")
-        print(artifact.qualified_name)
         artifact.collection.change_type("lucas_type")
 
     with wandb_init() as run:

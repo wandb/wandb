@@ -661,7 +661,6 @@ class ArtifactCollection:
         tags_to_add = set(self._tags) - set(self._saved_tags)
         tags_to_delete = set(self._saved_tags) - set(self._tags)
         if len(tags_to_add) > 0:
-            print(f"tags to add: {tags_to_add}")
             add_mutation = gql(
                 """
                 mutation CreateArtifactCollectionTagAssignments(
@@ -702,7 +701,6 @@ class ArtifactCollection:
                 },
             )
         if len(tags_to_delete) > 0:
-            print(f"tags to delete: {tags_to_delete}")
             delete_mutation = gql(
                 """
                 mutation DeleteArtifactCollectionTagAssignments(
