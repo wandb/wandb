@@ -125,6 +125,7 @@ def _pod_scheduled_status(status: "V1PodStatus") -> Tuple[bool, str]:
     for condition in status.conditions:
         if condition.type == "PodScheduled" and condition.message:
             return (condition.status == "True", condition.message)
+    return False, ""
 
 
 def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
@@ -361,7 +362,7 @@ class LaunchKubernetesMonitor:
             # If the job is deleted and we haven't seen a terminal state
             # then we will consider the job failed.
             if event.get("type") == "DELETED":
-                if self._job_states.get(job_name).state != "finished":
+                if self._job_states.get(job_name) != Status("finished"):
                     self._set_status_state(job_name, "failed")
 
     async def _monitor_crd(

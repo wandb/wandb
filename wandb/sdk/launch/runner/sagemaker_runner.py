@@ -148,7 +148,7 @@ class SageMakerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-        job_tracker: JobAndRunStatusTracker,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:
         """Run a project on Amazon Sagemaker.
 

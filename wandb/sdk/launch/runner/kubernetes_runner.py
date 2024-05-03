@@ -75,7 +75,7 @@ class KubernetesSubmittedRun(AbstractRun):
         internal_api: Api,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
-        job_tracker: JobAndRunStatusTracker,
+        job_tracker: Optional[JobAndRunStatusTracker],
         name: str,
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
@@ -161,6 +161,8 @@ class KubernetesSubmittedRun(AbstractRun):
         if status in ["stopped", "failed", "finished", "preempted"]:
             await self._delete_secret()
 
+        if not self.job_tracker:
+            return status
         for warning in status.messages:
             if warning not in self._known_warnings:
                 self._known_warnings.append(warning)
@@ -505,7 +507,7 @@ class KubernetesRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-        job_tracker: JobAndRunStatusTracker,
+        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
