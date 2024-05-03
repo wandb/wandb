@@ -108,7 +108,7 @@ def test_fitted(model):
 
 
 def encode_labels(df):
-    pd = util.get_module("pandas", required="Logging dataframes requires pandas")
+    _ = util.get_module("pandas", required="Logging dataframes requires pandas")
     preprocessing = util.get_module(
         "sklearn.preprocessing",
         "roc requires the scikit preprocessing submodule, install with `pip install scikit-learn`",
@@ -125,7 +125,7 @@ def encode_labels(df):
 def test_types(**kwargs):
     np = util.get_module("numpy", required="Logging plots requires numpy")
     pd = util.get_module("pandas", required="Logging dataframes requires pandas")
-    scipy = util.get_module("scipy", required="Logging scipy matrices requires scipy")
+    _ = util.get_module("scipy", required="Logging scipy matrices requires scipy")
 
     base = util.get_module(
         "sklearn.base",
