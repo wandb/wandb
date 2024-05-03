@@ -15,7 +15,6 @@ import os
 import platform
 import sys
 import tempfile
-import traceback
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
@@ -1177,3 +1176,4 @@ def init(
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
         wandb._sentry.reraise(e)
+        raise AssertionError()  # unreachable

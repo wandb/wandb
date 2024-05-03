@@ -423,7 +423,6 @@ class SettingsData:
     # magic: Union[str, bool, dict]  # never used in code, deprecated
     mode: str
     notebook_name: str
-    problem: str
     program: str
     program_abspath: str
     program_relpath: str
@@ -856,7 +855,6 @@ class Settings(SettingsData):
             },
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
-            problem={"value": "fatal", "validator": self._validate_problem},
             program={
                 "hook": lambda x: self._get_program(x),
             },
@@ -1017,13 +1015,6 @@ class Settings(SettingsData):
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: {value!r} not in {choices}")
-        return True
-
-    @staticmethod
-    def _validate_problem(value: str) -> bool:
-        choices: Set[str] = {"fatal", "warn", "silent"}
-        if value not in choices:
-            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
         return True
 
     @staticmethod
