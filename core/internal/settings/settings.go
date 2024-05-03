@@ -57,6 +57,11 @@ func (s *Settings) GetAPIKey() string {
 	return s.Proto.ApiKey.GetValue()
 }
 
+// Whether we are in sync mode.
+func (s *Settings) IsSync() bool {
+	return s.Proto.XSync.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
