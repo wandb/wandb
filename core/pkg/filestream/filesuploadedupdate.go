@@ -10,8 +10,8 @@ type FilesUploadedUpdate struct {
 }
 
 func (u *FilesUploadedUpdate) Chunk(fs *fileStream) error {
-	fs.addTransmit(processedChunk{
-		Uploaded: []string{u.RelativePath},
+	fs.addTransmit(&TransmitChunk{
+		UploadedFiles: []string{u.RelativePath},
 	})
 
 	return nil

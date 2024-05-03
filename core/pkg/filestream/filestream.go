@@ -99,7 +99,7 @@ type fileStream struct {
 	path string
 
 	processChan  chan Update
-	transmitChan chan processedChunk
+	transmitChan chan CollectorStateUpdate
 	feedbackChan chan map[string]interface{}
 
 	processWait  *sync.WaitGroup
@@ -152,7 +152,7 @@ func NewFileStream(params FileStreamParams) FileStream {
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
 		processChan:     make(chan Update, BufferSize),
-		transmitChan:    make(chan processedChunk, BufferSize),
+		transmitChan:    make(chan CollectorStateUpdate, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
