@@ -20,7 +20,7 @@ type Printer struct {
 func NewPrinter() *Printer {
 	printer := &Printer{
 		rateLimits: make(map[string]time.Time),
-		getNow:     func() time.Time { return time.Now() },
+		getNow:     time.Now,
 	}
 
 	// Occasionally clean up the rateLimits map.
