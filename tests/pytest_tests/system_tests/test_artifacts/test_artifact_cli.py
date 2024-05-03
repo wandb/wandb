@@ -2,7 +2,6 @@ import os
 import platform
 from pathlib import Path
 
-import pytest
 from wandb.cli import cli
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -36,7 +35,6 @@ def test_artifact(runner, user):
     assert os.path.exists(path)
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_artifact_put_with_cache_enabled(runner, user, monkeypatch, tmp_path, api):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))

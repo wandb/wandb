@@ -3,6 +3,7 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"os"
 	"strings"
@@ -21,6 +22,7 @@ type ArtifactSaver struct {
 	Ctx                 context.Context
 	GraphqlClient       graphql.Client
 	FileTransferManager filetransfer.FileTransferManager
+	FileCache           Cache
 	// Input.
 	Artifact    *service.ArtifactRecord
 	HistoryStep int64
@@ -39,6 +41,7 @@ func NewArtifactSaver(
 		Ctx:                 ctx,
 		GraphqlClient:       graphQLClient,
 		FileTransferManager: uploadManager,
+		FileCache:           NewFileCache(UserCacheDir()),
 		Artifact:            artifact,
 		HistoryStep:         historyStep,
 		StagingDir:          stagingDir,
@@ -221,6 +224,16 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				continue
 			}
 			numDone++
+			entry := manifest.Contents[result.Name]
+			if !entry.SkipCache {
+				digest := entry.Digest
+				go func() {
+					err := as.FileCache.AddFileAndCheckDigest(result.Task.Path, digest)
+					if err != nil {
+						slog.Error("error adding file to cache", "err", err)
+					}
+				}()
+			}
 		}
 	}
 	return nil

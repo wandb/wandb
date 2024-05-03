@@ -6,7 +6,6 @@ import yaml
 from wandb.sdk.launch._launch import create_and_run_agent, resolve_agent_config
 from wandb.sdk.launch.agent.config import validate_registry_uri
 from wandb.sdk.launch.errors import LaunchError
-from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 
 
 class MockAgent:
@@ -32,14 +31,12 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
             },
             False,
         ),
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
             },
             False,
@@ -47,7 +44,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
                 "builder": {
                     "type": "docker",
@@ -61,7 +57,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
             },
             False,
         ),
@@ -69,7 +64,6 @@ def mock_agent(monkeypatch):
         (
             {
                 "entity": "test-entity",
-                "project": "test-project",
                 "queues": ["test-queue"],
                 "builder": {
                     "type": "docker",
@@ -133,7 +127,6 @@ def test_resolve_agent_config(monkeypatch, runner):
             )
         config, returned_api = resolve_agent_config(
             entity=None,
-            project=None,
             max_jobs=-1,
             queues=["diff-queue"],
             config=None,
@@ -143,4 +136,3 @@ def test_resolve_agent_config(monkeypatch, runner):
         assert config["registry"] == {"url": "test"}
         assert config["entity"] == "diffentity"
         assert config["max_jobs"] == -1
-        assert config.get("project") == LAUNCH_DEFAULT_PROJECT

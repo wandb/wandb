@@ -16,10 +16,11 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/shared"
+	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
@@ -91,7 +92,7 @@ func NewFileStream(
 		Settings:  settings.Proto,
 		Logger:    logger,
 		ApiClient: fileStreamRetryClient,
-		ClientId:  shared.ShortID(32),
+		ClientId:  utils.ShortID(32),
 	}
 
 	return filestream.NewFileStream(params)
@@ -140,6 +141,6 @@ func NewRunfilesUploader(
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
 		FileWatcher:  watcher2.New(watcher2.Params{Logger: logger}),
-		BatchWindow:  50 * time.Millisecond,
+		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
 	})
 }

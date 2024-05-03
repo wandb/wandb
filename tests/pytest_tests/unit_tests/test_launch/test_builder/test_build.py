@@ -137,7 +137,8 @@ def test_get_requirements_section_frozen_requirements(
 ):
     """Test that we use frozen requirements.txt if nothing else is provided."""
     mock_launch_project.project_dir = tmp_path
-    (tmp_path / "requirements.frozen.txt").write_text("")
+    (tmp_path / "src").mkdir()
+    (tmp_path / "src" / "requirements.frozen.txt").write_text("")
     mock_launch_project.parse_existing_requirements = lambda: ""
     assert get_requirements_section(
         mock_launch_project, tmp_path, "docker"

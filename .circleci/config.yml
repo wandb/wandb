@@ -464,8 +464,7 @@ jobs:
           name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
           command: >
-            nox -db uv -s "<<parameters.session>>" \
-              --python <<parameters.python>>
+            nox -s "<<parameters.session>>" --python <<parameters.python>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
@@ -479,7 +478,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox nox pip uv
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
@@ -546,7 +545,7 @@ jobs:
             - install_go
             - run:
                 name: Install Python dependencies
-                command: pip install -U tox nox pip
+                command: pip install -U tox nox pip uv
                 no_output_timeout: 5m
             - restore_cache_tox
             - run:
@@ -604,7 +603,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip
+          command: pip install -U tox nox pip uv
           no_output_timeout: 5m
       - restore_cache_tox
       - run:
@@ -657,7 +656,7 @@ jobs:
           name:
           command: |
             go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            pip install -U pip nox requests
+            pip install -U pip nox requests uv
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 
@@ -710,7 +709,7 @@ jobs:
             - run:
                 name: Install python dependencies
                 command: |
-                  python -m pip install -U tox nox pip
+                  python -m pip install -U tox nox pip uv
             - when:
                 condition:
                   equal: ["server-2019-cuda", << parameters.machine_executor >>]
@@ -773,7 +772,7 @@ jobs:
       - run:
           name: Install python dependencies, build r2d
           command: |
-            pip3 install tox nox chardet iso8601
+            pip3 install tox nox uv chardet iso8601
       - run:
           name: pull base docker images
           command: |
@@ -1565,7 +1564,7 @@ workflows:
             parameters:
               python: ["3.8", "3.12"]
 
-          parallelism: 12
+          parallelism: 8
           executor:
             name: local-testcontainer
             python: <<matrix.python>>
