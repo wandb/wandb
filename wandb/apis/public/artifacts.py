@@ -1,7 +1,8 @@
 """Public API: artifacts."""
 
 import json
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
+from copy import copy
+from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
 
 from wandb_gql import Client, gql
 
@@ -318,14 +319,18 @@ class ArtifactCollection:
         self.client = client
         self.entity = entity
         self.project = project
-        self.name = name
-        self.type = type
+        self._name = name
+        self._saved_name = name
+        self._type = type
+        self._saved_type = type
         self._attrs = attrs
         if self._attrs is None:
             self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
         self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
+        self._saved_tags = copy(self._tags)
+        self._is_sequence = self.load_is_sequence()
 
     @property
     def id(self):
@@ -338,8 +343,8 @@ class ArtifactCollection:
             self.client,
             self.entity,
             self.project,
-            self.name,
-            self.type,
+            self._saved_name,
+            self._saved_type,
             per_page=per_page,
         )
 
@@ -400,8 +405,8 @@ class ArtifactCollection:
             variable_values={
                 "entityName": self.entity,
                 "projectName": self.project,
-                "artifactTypeName": self.type,
-                "artifactCollectionName": self.name,
+                "artifactTypeName": self._saved_type,
+                "artifactCollectionName": self._saved_name,
             },
         )
         if (
@@ -410,7 +415,7 @@ class ArtifactCollection:
             or response["project"].get("artifactType") is None
             or response["project"]["artifactType"].get("artifactCollection") is None
         ):
-            raise ValueError("Could not find artifact type %s" % self.type)
+            raise ValueError("Could not find artifact type %s" % self._saved_type)
         self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
@@ -422,7 +427,9 @@ class ArtifactCollection:
         """
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
-        termlog(f"Changing artifact collection type of " f"{self.type} to {new_type}")
+        termlog(
+            f"Changing artifact collection type of " f"{self._saved_type} to {new_type}"
+        )
         template = """
             mutation MoveArtifactCollection(
                 $artifactSequenceID: ID!
@@ -449,10 +456,11 @@ class ArtifactCollection:
         }
         mutation = gql(template)
         self.client.execute(mutation, variable_values=variable_values)
-        self.type = new_type
+        self._saved_type = new_type
+        self._type = new_type
 
     @normalize_exceptions
-    def is_sequence(self) -> bool:
+    def load_is_sequence(self) -> bool:
         """Return True if this is a sequence."""
         query = gql(
             """
@@ -471,12 +479,16 @@ class ArtifactCollection:
         variables = {
             "entity": self.entity,
             "project": self.project,
-            "collection": self.name,
-            "type": self.type,
+            "collection": self._saved_name,
+            "type": self._saved_type,
         }
         res = self.client.execute(query, variable_values=variables)
         sequence = res["project"]["artifactType"]["artifactSequence"]
         return sequence is not None and sequence["__typename"] == "ArtifactSequence"
+
+    def is_sequence(self):
+        """Return whether the artifact collection is a sequence."""
+        return self._is_sequence
 
     @normalize_exceptions
     def delete(self):
@@ -516,35 +528,23 @@ class ArtifactCollection:
         """A description of the artifact collection."""
         return self._description
 
-    @description.setter
-    def description(self, description: Optional[str]) -> None:
-        """Set the description of the artifact collection.
-
-        Arguments:
-            description: (str) Free text that offers a description of the artifact collection.
-        """
-        self._description = description
-
     @property
     def tags(self):
         """The tags associated with the artifact collection."""
         return self._tags
 
-    @tags.setter
-    def tags(self, tags: List[str]) -> None:
-        """Set the tags associated with the artifact collection.
+    @property
+    def name(self):
+        """The name of the artifact collection."""
+        return self._name
 
-        Arguments:
-            tags: (List[str]) List of tag names to set the collection's tags to.
-        """
-        if any(char in tag for tag in tags for char in ["/", ":"]):
-            raise ValueError(
-                "Tags must not contain any of the following characters: /, :"
-            )
-        self._tags = tags
+    @property
+    def type(self):
+        """The type of the artifact collection."""
+        return self._type
 
     def __repr__(self):
-        return f"<ArtifactCollection {self.name} ({self.type})>"
+        return f"<ArtifactCollection {self._saved_name} ({self._saved_type})>"
 
 
 class Artifacts(Paginator):
