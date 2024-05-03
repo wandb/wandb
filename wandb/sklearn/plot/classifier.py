@@ -6,7 +6,7 @@ import numpy as np
 from sklearn import naive_bayes
 
 import wandb
-import wandb.plots
+import wandb.plot
 from wandb.sklearn import calculate, utils
 
 from . import shared
@@ -134,8 +134,8 @@ def roc(
     wandb.sklearn.plot_roc(y_true, y_probas, labels)
     ```
     """
-    roc_chart = wandb.plots.roc.roc(
-        y_true, y_probas, labels, plot_micro, plot_macro, classes_to_plot
+    roc_chart = wandb.plots.roc_curve(
+        y_true, y_probas, labels, classes_to_plot
     )
     wandb.log({"roc": roc_chart})
 
@@ -213,8 +213,8 @@ def precision_recall(
     wandb.sklearn.plot_precision_recall(y_true, y_probas, labels)
     ```
     """
-    precision_recall_chart = wandb.plots.precision_recall(
-        y_true, y_probas, labels, plot_micro, classes_to_plot
+    precision_recall_chart = wandb.plot.pr_curve(
+        y_true, y_probas, labels, classes_to_plot
     )
 
     wandb.log({"precision_recall": precision_recall_chart})
