@@ -26,7 +26,10 @@ func (u *StatsUpdate) Chunk(fs *fileStream) error {
 		var val interface{}
 		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
 			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
-			errMsg := fmt.Sprintf("sender: sendSystemMetrics: failed to marshal value: %s for key: %s", item.ValueJson, item.Key)
+			errMsg := fmt.Sprintf(
+				"filestream: failed to marshal StatsItem key: %s",
+				item.Key,
+			)
 			fs.logger.CaptureError(errMsg, e)
 			continue
 		}
@@ -38,7 +41,17 @@ func (u *StatsUpdate) Chunk(fs *fileStream) error {
 	line, err := json.Marshal(row)
 	if err != nil {
 		// This is a non-blocking failure, so we don't return an error.
-		fs.logger.CaptureError("sender: sendSystemMetrics: failed to marshal system metrics", err)
+		fs.logger.CaptureError(
+			"filestream: failed to marshal system metrics",
+			err,
+		)
+	} else if len(line) > maxFileLineBytes {
+		// This is a non-blocking failure as well.
+		fs.logger.CaptureWarn(
+			"filestream: system metrics line too long, skipping",
+			"len", len(line),
+			"max", maxFileLineBytes,
+		)
 	} else {
 		fs.addTransmit(&TransmitChunk{
 			EventsLines: []string{string(line)},

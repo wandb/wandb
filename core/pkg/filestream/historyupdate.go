@@ -3,6 +3,7 @@ package filestream
 import (
 	"fmt"
 	"slices"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -40,9 +41,25 @@ func (u *HistoryUpdate) Chunk(fs *fileStream) error {
 			"filestream: failed to serialize history: %v", err)
 	}
 
-	fs.addTransmit(&TransmitChunk{
-		HistoryLines: []string{string(line)},
-	})
+	if len(line) > maxFileLineBytes {
+		// We consider this non-blocking. We'll upload a run with some missing
+		// data, but it's better than not uploading anything at all, as long
+		// as we inform the user.
+		//
+		// TODO: inform the user
+		fs.logger.CaptureWarn(
+			"filestream: run history line too long, skipping",
+			"len", len(line),
+			"max", maxFileLineBytes,
+		)
+		fs.printer.
+			AtMostEvery(time.Minute).
+			Write("Skipped uploading run.log() data that exceeded size limit.")
+	} else {
+		fs.addTransmit(&TransmitChunk{
+			HistoryLines: []string{string(line)},
+		})
+	}
 
 	return nil
 }

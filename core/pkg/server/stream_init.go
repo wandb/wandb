@@ -71,6 +71,7 @@ func NewGraphQLClient(
 func NewFileStream(
 	backend *api.Backend,
 	logger *observability.CoreLogger,
+	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
 ) filestream.FileStream {
@@ -91,6 +92,7 @@ func NewFileStream(
 	params := filestream.FileStreamParams{
 		Settings:  settings.Proto,
 		Logger:    logger,
+		Printer:   printer,
 		ApiClient: fileStreamRetryClient,
 		ClientId:  utils.ShortID(32),
 	}

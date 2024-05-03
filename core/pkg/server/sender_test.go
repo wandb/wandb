@@ -50,7 +50,8 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
 	backend := server.NewBackend(logger, settings)
-	fileStream := server.NewFileStream(backend, logger, settings, nil)
+	fileStream := server.NewFileStream(
+		backend, logger, observability.NewPrinter(), settings, nil)
 	fileTransferManager := server.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
