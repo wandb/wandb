@@ -6,9 +6,10 @@ package filestream
 // the buffered data.
 type TransmitChunk struct {
 	HistoryLines    []string
-	SummaryLines    []string
 	EventsLines     []string
 	ConsoleLogLines []string
+
+	LatestSummary string
 
 	UploadedFiles []string
 
@@ -19,12 +20,14 @@ type TransmitChunk struct {
 func (c *TransmitChunk) Apply(state *CollectorState) {
 	state.Buffer.HistoryLines =
 		append(state.Buffer.HistoryLines, c.HistoryLines...)
-	state.Buffer.SummaryLines =
-		append(state.Buffer.SummaryLines, c.SummaryLines...)
 	state.Buffer.EventsLines =
 		append(state.Buffer.EventsLines, c.EventsLines...)
 	state.Buffer.ConsoleLogLines =
 		append(state.Buffer.ConsoleLogLines, c.ConsoleLogLines...)
+
+	if c.LatestSummary != "" {
+		state.Buffer.LatestSummary = c.LatestSummary
+	}
 
 	state.Buffer.UploadedFiles =
 		append(state.Buffer.UploadedFiles, c.UploadedFiles...)
@@ -52,7 +55,7 @@ func (c *TransmitChunk) Write(
 		}
 	}
 	addLines(HistoryChunk, c.HistoryLines)
-	addLines(SummaryChunk, c.SummaryLines)
+	addLines(SummaryChunk, []string{c.LatestSummary})
 	addLines(EventsChunk, c.EventsLines)
 	addLines(OutputChunk, c.ConsoleLogLines)
 
