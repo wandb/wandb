@@ -118,6 +118,15 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
+def _pod_scheduled_status(status: "V1PodStatus") -> Tuple[bool, str]:
+    """Return whether the pod is scheduled along with the reason message"""
+    if not status.conditions:
+        return False, ""
+    for condition in status.conditions:
+        if condition.type == "PodScheduled" and condition.message:
+            return (condition.status == "True", condition.message)
+
+
 def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
     """Get the status from the pod conditions."""
     true_conditions = [
@@ -298,10 +307,17 @@ class LaunchKubernetesMonitor:
                 counts[state] += 1
         return counts
 
-    def _set_status(self, job_name: str, status: Status) -> None:
+    def _set_status_state(self, job_name: str, state: State) -> None:
         """Set the status of the run."""
-        if self._job_states.get(job_name) != status:
-            self._job_states[job_name] = status
+        if job_name not in self._job_states:
+            self._job_states[job_name] = Status(state)
+        elif self._job_states[job_name].state != state:
+            self._job_states[job_name].state = state
+
+    def _add_status_message(self, job_name: str, message: str) -> None:
+        if job_name not in self._job_states:
+            self._job_states[job_name] = Status("unknown")
+        self._job_states[job_name].messages.append(message)
 
     async def _monitor_pods(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
@@ -317,10 +333,14 @@ class LaunchKubernetesMonitor:
                 continue
             if self.__get_status(job_name) in ["finished", "failed"]:
                 continue
+
+            scheduled, reason = _pod_scheduled_status(obj.status)
+            if not scheduled:
+                self._add_status_message(job_name, reason)
             if obj.status.phase == "Running" or _is_container_creating(obj.status):
-                self._set_status(job_name, Status("running"))
+                self._set_status_state(job_name, "running")
             elif _is_preempted(obj.status):
-                self._set_status(job_name, Status("preempted"))
+                self._set_status_state(job_name, "preempted")
 
     async def _monitor_jobs(self, namespace: str) -> None:
         """Monitor a namespace for changes."""
@@ -334,15 +354,15 @@ class LaunchKubernetesMonitor:
             job_name = obj.metadata.name
 
             if obj.status.succeeded == 1:
-                self._set_status(job_name, Status("finished"))
+                self._set_status_state(job_name, "finished")
             elif obj.status.failed is not None and obj.status.failed >= 1:
-                self._set_status(job_name, Status("failed"))
+                self._set_status_state(job_name, "failed")
 
             # If the job is deleted and we haven't seen a terminal state
             # then we will consider the job failed.
             if event.get("type") == "DELETED":
-                if self._job_states.get(job_name) != Status("finished"):
-                    self._set_status(job_name, Status("failed"))
+                if self._job_states.get(job_name).state != "finished":
+                    self._set_status_state(job_name, "failed")
 
     async def _monitor_crd(
         self, namespace: str, custom_resource: CustomResource
@@ -383,8 +403,7 @@ class LaunchKubernetesMonitor:
                     )
             if state is None:
                 continue
-            status = Status(state)
-            self._set_status(name, status)
+            self._set_status_state(name, state)
 
 
 class SafeWatch:

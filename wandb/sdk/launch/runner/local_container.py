@@ -8,6 +8,7 @@ import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
+from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
@@ -128,6 +129,7 @@ class LocalContainerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
+        job_tracker: JobAndRunStatusTracker,
     ) -> Optional[AbstractRun]:
         docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]

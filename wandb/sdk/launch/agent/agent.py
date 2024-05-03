@@ -733,7 +733,7 @@ class LaunchAgent:
             run = await backend.run(project, image_uri)
         else:
             assert image_uri
-            run = await backend.run(project, image_uri)
+            run = await backend.run(project, image_uri, job_tracker)
         if self._is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
