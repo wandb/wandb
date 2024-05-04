@@ -803,9 +803,15 @@ func (s *Sender) streamSummary() {
 	})
 }
 
-func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
+func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
+	s.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			s.logger.CaptureError("Error updating run summary", err)
+		},
+	)
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
