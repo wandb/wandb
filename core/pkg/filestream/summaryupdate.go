@@ -2,6 +2,7 @@ package filestream
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -31,9 +32,21 @@ func (u *SummaryUpdate) Chunk(fs *fileStream) error {
 		)
 	}
 
-	fs.addTransmit(&TransmitChunk{
-		LatestSummary: string(line),
-	})
+	if len(line) > maxFileLineBytes {
+		// Failing to upload the summary is non-blocking.
+		fs.logger.CaptureWarn(
+			"filestream: run summary line too long, skipping",
+			"len", len(line),
+			"max", maxFileLineBytes,
+		)
+		fs.printer.
+			AtMostEvery(time.Minute).
+			Write("Skipped uploading summary data that exceeded size limit.")
+	} else {
+		fs.addTransmit(&TransmitChunk{
+			LatestSummary: string(line),
+		})
+	}
 
 	return nil
 }

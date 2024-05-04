@@ -162,7 +162,13 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileStreamOrNil = NewFileStream(
+			backendOrNil,
+			s.logger,
+			terminalPrinter,
+			settings,
+			peeker,
+		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
@@ -176,16 +182,6 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
-
-		go func() {
-			err := <-fileStreamOrNil.FatalErrorChan()
-			s.logger.CaptureFatal("stream: fatal error in filestream", err)
-			terminalPrinter.Write(
-				"Fatal error while uploading data. Some run data will" +
-					" not be synced, but it will still be written to disk. Use" +
-					" `wandb sync` at the end of the run to try uploading.",
-			)
-		}()
 	}
 
 	mailbox := mailbox.NewMailbox()
