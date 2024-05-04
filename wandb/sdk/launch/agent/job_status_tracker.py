@@ -13,6 +13,16 @@ from .run_queue_item_file_saver import RunQueueItemFileSaver
 _logger = logging.getLogger(__name__)
 
 
+WANDB_FINISHED_RUN_STATES = [
+    "finished",
+    "preempted",
+    "killed",
+    "stopped",
+    "crashed",
+    "failed",
+]
+
+
 @dataclass
 class JobAndRunStatusTracker:
     run_queue_item_id: str
@@ -38,6 +48,22 @@ class JobAndRunStatusTracker:
 
     def set_err_stage(self, stage: str) -> None:
         self.err_stage = stage
+
+    async def check_wandb_run_finished_state(self, api: Api) -> bool:
+        assert (
+            self.run_id is not None
+            and self.project is not None
+            and self.entity is not None
+        ), "Job tracker does not contain run info. Update with run info before checking run status"
+        check_status = event_loop_thread_exec(api.api.get_run_state)
+        try:
+            state = await check_status(self.entity, self.project, self.run_id)
+            if state in WANDB_FINISHED_RUN_STATES:
+                return True
+        # TODO: when runs are created when pushed to queue, return True if run is not found
+        except CommError as e:
+            _logger.error(f"CommError when checking wandb run status: {e}")
+        return False
 
     async def check_wandb_run_stopped(self, api: Api) -> bool:
         assert (

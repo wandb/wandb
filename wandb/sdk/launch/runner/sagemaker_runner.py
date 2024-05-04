@@ -11,6 +11,7 @@ import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
+from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..registry.abstract import AbstractRegistry
@@ -24,6 +25,9 @@ from ..utils import (
 from .abstract import AbstractRun, AbstractRunner, Status
 
 _logger = logging.getLogger(__name__)
+
+
+botocore = get_module("botocore")
 
 
 class SagemakerSubmittedRun(AbstractRun):
@@ -76,6 +80,11 @@ class SagemakerSubmittedRun(AbstractRun):
                 f"Failed to get logs for training job: {self.training_job_name}"
             )
             return None
+        except self.log_client.exceptions.ExpiredTokenException:
+            wandb.termwarn(
+                f"Failed to get logs for training job: {self.training_job_name}. Token expired."
+            )
+            return None
         except Exception as e:
             wandb.termwarn(
                 f"Failed to handle logs for training job: {self.training_job_name} with error {str(e)}"
@@ -104,9 +113,15 @@ class SagemakerSubmittedRun(AbstractRun):
         describe_training_job = event_loop_thread_exec(
             self.client.describe_training_job
         )
-        job_status = (
-            await describe_training_job(TrainingJobName=self.training_job_name)
-        )["TrainingJobStatus"]
+        try:
+            job_status = (
+                await describe_training_job(TrainingJobName=self.training_job_name)
+            )["TrainingJobStatus"]
+        except self.client.exceptions.ExpiredTokenException:
+            wandb.termwarn(
+                f"Failed to get status for training job: {self.training_job_name}, token expired."
+            )
+            job_status = "Unknown"
         if job_status == "Completed" or job_status == "Stopped":
             self._status = Status("finished")
         elif job_status == "Failed":
@@ -115,6 +130,8 @@ class SagemakerSubmittedRun(AbstractRun):
             self._status = Status("stopping")
         elif job_status == "InProgress":
             self._status = Status("running")
+        elif job_status == "Unknown":
+            self._status = Status("unknown")
         return self._status
 
 
