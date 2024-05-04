@@ -186,10 +186,6 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	mailbox := mailbox.NewMailbox()
 
-	// runSummary is used to track the summary of the run's metrics
-	// and is shared between the handler and the sender
-	runSummary := runsummary.New()
-
 	s.handler = NewHandler(s.ctx,
 		&HandlerParams{
 			Logger:            s.logger,
@@ -200,7 +196,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan),
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runSummary,
+			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
@@ -226,7 +222,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FileTransferManager: fileTransferManagerOrNil,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Peeker:              peeker,
-			RunSummary:          runSummary,
+			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
