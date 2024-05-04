@@ -2,7 +2,6 @@ package runsummary
 
 import (
 	"fmt"
-	"sync"
 
 	// TODO: use simplejsonext for now until we replace the usage of json with
 	// protocol buffer and proto json marshaler
@@ -14,17 +13,14 @@ import (
 
 type RunSummary struct {
 	pathTree *pathtree.PathTree
-	// TODO: mu is a mutex to protect the tree since RunSummary is a shared object.
-	// Once we have incremental updates, we can remove the mutex.
-	mu *sync.Mutex
 }
 
 func New() *RunSummary {
-	return &RunSummary{pathTree: pathtree.New(), mu: &sync.Mutex{}}
+	return &RunSummary{pathTree: pathtree.New()}
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{pathTree: pathtree.NewFrom(tree), mu: &sync.Mutex{}}
+	return &RunSummary{pathTree: pathtree.NewFrom(tree)}
 }
 
 // Updates and/or removes values from the configuration tree.
@@ -35,8 +31,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
 
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 	for _, item := range summaryRecord.GetUpdate() {
@@ -68,9 +62,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
-
 	leaves := rs.pathTree.Flatten()
 
 	summary := make([]*service.SummaryItem, 0, len(leaves))
@@ -108,16 +99,12 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 
 // Clones the tree. This is useful for creating a snapshot of the tree.
 func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
 
 	return rs.pathTree.CloneTree()
 }
 
 // Tree returns the tree data.
 func (rs *RunSummary) Tree() pathtree.TreeData {
-	rs.mu.Lock()
-	defer rs.mu.Unlock()
 
 	return rs.pathTree.Tree()
 }
