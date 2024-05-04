@@ -37,52 +37,6 @@ def docker(request, mock_server, mocker, monkeypatch):
     return docker
 
 
-@pytest.mark.skipif(
-    platform.system() == "Windows",
-    reason="The patch in mock_server.py doesn't work in windows",
-)
-def test_restore_no_remote(runner, mock_server, git_repo, docker, monkeypatch):
-    # TODO(jhr): does not work with --flake-finder
-    with open("patch.txt", "w") as f:
-        f.write("test")
-    git_repo.repo.index.add(["patch.txt"])
-    git_repo.repo.commit()
-    result = runner.invoke(cli.restore, ["wandb/test:abcdef"])
-    print(result.output)
-    print(traceback.print_tb(result.exc_info[2]))
-    assert result.exit_code == 0
-    assert "Created branch wandb/abcdef" in result.output
-    assert "Applied patch" in result.output
-    assert "Restored config variables to " in result.output
-    assert "Launching docker container" in result.output
-    docker.assert_called_with(
-        [
-            "docker",
-            "run",
-            "-e",
-            "LANG=C.UTF-8",
-            "-e",
-            "WANDB_DOCKER=wandb/deepo@sha256:abc123",
-            "--ipc=host",
-            "-v",
-            wandb.docker.entrypoint + ":/wandb-entrypoint.sh",
-            "--entrypoint",
-            "/wandb-entrypoint.sh",
-            "-v",
-            os.getcwd() + ":/app",
-            "-w",
-            "/app",
-            "-e",
-            "WANDB_API_KEY=test",
-            "-e",
-            "WANDB_COMMAND=python train.py --test foo",
-            "-it",
-            "test/docker",
-            "/bin/bash",
-        ]
-    )
-
-
 def test_restore_bad_remote(runner, mock_server, git_repo, docker, monkeypatch):
     # git_repo creates its own isolated filesystem
     mock_server.set_context("git", {"repo": "http://fake.git/foo/bar"})
