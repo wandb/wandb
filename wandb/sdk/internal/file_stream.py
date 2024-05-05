@@ -53,7 +53,7 @@ logger = logging.getLogger(__name__)
 
 class Chunk(NamedTuple):
     filename: str
-    data: Any
+    data: str
 
 
 class DefaultFilePolicy:
@@ -227,7 +227,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
+    def process_chunks(self, chunks: List[Chunk]) -> List["ProcessedChunk"]:
         r"""Process chunks.
 
         Args:
@@ -585,12 +585,12 @@ class FileStreamApi:
     def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename: str, data: Any) -> None:
+    def push(self, filename: str, data: str) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
-            filename: Name of file that this is a chunk of.
-            data: File data.
+            filename: Name of file to append to.
+            data: Text to append to the file.
         """
         self._queue.put(Chunk(filename, data))
 
