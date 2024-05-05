@@ -300,18 +300,6 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         return ret
 
 
-class BinaryFilePolicy(DefaultFilePolicy):
-    def __init__(self) -> None:
-        super().__init__()
-        self._offset: int = 0
-
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":
-        data = b"".join([c.data for c in chunks])
-        enc = base64.b64encode(data).decode("ascii")
-        self._offset += len(data)
-        return {"offset": self._offset, "content": enc, "encoding": "base64"}
-
-
 class FileStreamApi:
     """Pushes chunks of files to our streaming endpoint.
 
