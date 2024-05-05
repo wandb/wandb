@@ -33,6 +33,7 @@ package filestream
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -207,10 +208,7 @@ func (fs *fileStream) Start(
 		project,
 		runID,
 	)
-
-	for k, v := range offsetMap {
-		fs.offsetMap[k] = v
-	}
+	fs.offsetMap = maps.Clone(offsetMap)
 
 	fs.processWait.Add(1)
 	go func() {
