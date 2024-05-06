@@ -510,11 +510,6 @@ class ArtifactCollection:
 
     @description.setter
     def description(self, description: Optional[str]) -> None:
-        """Set the description of the artifact collection.
-
-        Arguments:
-            description: (str) Free text that offers a description of the artifact collection.
-        """
         self._description = description
 
     @property
@@ -524,11 +519,6 @@ class ArtifactCollection:
 
     @tags.setter
     def tags(self, tags: List[str]) -> None:
-        """Set the tags associated with the artifact collection.
-
-        Arguments:
-            tags: (List[str]) List of tag names to set the collection's tags to.
-        """
         if any(char in tag for tag in tags for char in ["/", ":"]):
             raise ValueError(
                 "Tags must not contain any of the following characters: /, :"
@@ -542,11 +532,6 @@ class ArtifactCollection:
 
     @name.setter
     def name(self, name: List[str]) -> None:
-        """Set the name of the artifact collection.
-
-        Arguments:
-            name: (str) Name to change the collection name to.
-        """
         self._name = name
 
     @property
@@ -556,11 +541,6 @@ class ArtifactCollection:
 
     @type.setter
     def type(self, type: List[str]) -> None:
-        """Set the type of the artifact collection.
-
-        Arguments:
-            type: (str) The type to change the collection to.
-        """
         if not self.is_sequence():
             raise ValueError(
                 "Type can only be changed if the artifact collection is a sequence."
