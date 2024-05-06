@@ -539,10 +539,6 @@ class WandbImporter:
             )
         logger.info(f"Finished uploading {seq=}")
 
-        # query it back and remove placeholders
-        logger.info(f"Removing placeholders {seq=}")
-        self._remove_placeholders(seq)
-
     def _remove_placeholders(self, seq: ArtifactSequence) -> None:
         try:
             retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
@@ -563,6 +559,7 @@ class WandbImporter:
                 continue
 
             try:
+                logger.info(f"Deleting placeholder {art=}")
                 art.delete(delete_aliases=True)
             except wandb.CommError as e:
                 if "cannot delete system managed artifact" in str(e):
@@ -817,6 +814,8 @@ class WandbImporter:
                     config=send_manager_config,
                 )
 
+        # query it back and remove placeholders
+        logger.info(f"Removing placeholders {sequence=}")
         self._remove_placeholders(sequence)
 
     def import_runs(
