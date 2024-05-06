@@ -99,9 +99,6 @@ def cli(
 
     if core:
         wandb.require("core")
-        print("using Go core")
-    else:
-        print("using Python core")
 
     ctx.obj["count"] = count
     ctx.obj["size"] = size
@@ -131,6 +128,8 @@ def cli(
 
     os.environ["WANDB_SILENT"] = "true"
 
+    wandb.login()  # Ensure our credentials work before doing anything time consuming.
+
     if ctx.invoked_subcommand is None:
         start = perf_counter()
         ctx.invoke(upload)
@@ -159,7 +158,10 @@ def upload(ctx) -> None:
 
         start = perf_counter()
         with wandb.init(
-            project=o["project"], entity=o["entity"], settings={"console": "off"}
+            project=o["project"],
+            entity=o["entity"],
+            settings={"console": "off"},
+            tags=[str(o["count"])],
         ) as run:
             begin = perf_counter()
             artifact = wandb.Artifact(name=o["name"], type="test")

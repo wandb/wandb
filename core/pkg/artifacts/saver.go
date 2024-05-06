@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/ryboe/q"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
@@ -224,6 +225,8 @@ func (as *ArtifactSaver) uploadFiles(artifactID string, manifest *Manifest, mani
 				continue
 			}
 			numDone++
+			currentTime := time.Now().Format(time.DateTime)
+			q.Q(currentTime, numDone, result.Name)
 			entry := manifest.Contents[result.Name]
 			if !entry.SkipCache {
 				digest := entry.Digest
