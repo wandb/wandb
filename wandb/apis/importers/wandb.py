@@ -817,6 +817,8 @@ class WandbImporter:
                     config=send_manager_config,
                 )
 
+        self._remove_placeholders(sequence)
+
     def import_runs(
         self,
         *,
