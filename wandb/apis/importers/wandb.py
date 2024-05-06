@@ -369,9 +369,7 @@ class WandbImporter:
         }
 
     def __repr__(self):
-        return (
-            f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"
-        )  # pragma: no cover
+        return f"<WandbImporter src={self.src_base_url}, dst={self.dst_base_url}>"  # pragma: no cover
 
     def _import_run(
         self,
@@ -542,6 +540,7 @@ class WandbImporter:
         logger.info(f"Finished uploading {seq=}")
 
         # query it back and remove placeholders
+        logger.info(f"Removing placeholders {seq=}")
         self._remove_placeholders(seq)
 
     def _remove_placeholders(self, seq: ArtifactSequence) -> None:
@@ -557,8 +556,10 @@ class WandbImporter:
 
         for art in dst_arts:
             if art.description != ART_SEQUENCE_DUMMY_PLACEHOLDER:
+                logger.info(f"Skipping {art=} because it's not a placeholder")
                 continue
             if art.type in ("wandb-history", "job"):
+                logger.info(f"Skipping {art=} because it's a system-managed artifact")
                 continue
 
             try:
@@ -567,6 +568,7 @@ class WandbImporter:
                 if "cannot delete system managed artifact" in str(e):
                     logger.warn("Cannot delete system managed artifact")
                 else:
+                    logger.error(f"Problem deleting {art=}, {e=}")
                     raise e
 
     def _get_dst_art(
