@@ -357,7 +357,8 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy: ...
+    class Dummy:
+        ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1481,8 +1482,12 @@ class Run:
             if isinstance(value, dict):
                 return {k: transform([*key, k], v) for k, v in value.items()}
             if isinstance(value, Visualize):
-                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
-                config_value = value.get_config_value(key if isinstance(key, str) else ".".join(key))
+                config_key = value.get_config_key(
+                    key if isinstance(key, str) else ".".join(key)
+                )
+                config_value = value.get_config_value(
+                    key if isinstance(key, str) else ".".join(key)
+                )
                 value = value._data
                 self._config_callback(val=config_value, key=config_key)
                 return value
@@ -1490,7 +1495,9 @@ class Run:
                 formatted_key = ".".join(key)
 
                 chart_keys.add(key)
-                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
+                config_key = value.get_config_key(
+                    key if isinstance(key, str) else ".".join(key)
+                )
                 if value._split_table:
                     config_value = value.get_config_value(
                         "Vega2",
@@ -3379,8 +3386,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert (
-            "model" in str(artifact.type.lower())
+        assert "model" in str(
+            artifact.type.lower()
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3472,8 +3479,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert (
-                "model" in str(artifact.type.lower())
+            assert "model" in str(
+                artifact.type.lower()
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
