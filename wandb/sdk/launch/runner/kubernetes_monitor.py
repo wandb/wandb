@@ -119,7 +119,7 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
 
 
 def _is_pod_unschedulable(status: "V1PodStatus") -> Tuple[bool, str]:
-    """Return whether the pod is unschedulable along with the reason message"""
+    """Return whether the pod is unschedulable along with the reason message."""
     if not status.conditions:
         return False, ""
     for condition in status.conditions:
