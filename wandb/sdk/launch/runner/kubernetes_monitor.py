@@ -118,13 +118,17 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _pod_scheduled_status(status: "V1PodStatus") -> Tuple[bool, str]:
-    """Return whether the pod is scheduled along with the reason message"""
+def _is_pod_unschedulable(status: "V1PodStatus") -> Tuple[bool, str]:
+    """Return whether the pod is unschedulable along with the reason message"""
     if not status.conditions:
         return False, ""
     for condition in status.conditions:
-        if condition.type == "PodScheduled" and condition.message:
-            return (condition.status == "True", condition.message)
+        if (
+            condition.type == "PodScheduled"
+            and condition.status == "False"
+            and condition.reason == "Unschedulable"
+        ):
+            return True, condition.message
     return False, ""
 
 
@@ -335,8 +339,8 @@ class LaunchKubernetesMonitor:
             if self.__get_status(job_name) in ["finished", "failed"]:
                 continue
 
-            scheduled, reason = _pod_scheduled_status(obj.status)
-            if not scheduled:
+            is_unschedulable, reason = _is_pod_unschedulable(obj.status)
+            if is_unschedulable:
                 self._add_status_message(job_name, reason)
             if obj.status.phase == "Running" or _is_container_creating(obj.status):
                 self._set_status_state(job_name, "running")
