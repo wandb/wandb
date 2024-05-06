@@ -322,6 +322,7 @@ class LaunchKubernetesMonitor:
     def _add_status_message(self, job_name: str, message: str) -> None:
         if job_name not in self._job_states:
             self._job_states[job_name] = Status("unknown")
+        wandb.termwarn(f"Warning from Kubernetes for job {job_name}: {message}")
         self._job_states[job_name].messages.append(message)
 
     async def _monitor_pods(self, namespace: str) -> None:
