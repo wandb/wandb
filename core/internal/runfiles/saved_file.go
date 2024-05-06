@@ -120,7 +120,9 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 // onFinishUpload marks an upload completed and triggers another if scheduled.
 func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
 	if task.Err == nil {
-		f.fs.SignalFileUploaded(f.runPath)
+		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
+			RelativePath: f.runPath,
+		})
 	}
 
 	f.Lock()

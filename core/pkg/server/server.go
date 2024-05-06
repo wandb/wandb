@@ -17,13 +17,18 @@ var defaultLoggerPath atomic.Value
 
 // Server is the core server
 type Server struct {
-	// ctx is the context for the server
+	// ctx is the context for the server. It is used to signal
+	// the server to shutdown
 	ctx context.Context
+
+	// cancel is the cancel function for the server
+	cancel context.CancelFunc
 
 	// listener is the underlying listener
 	listener net.Listener
 
-	// wg is the WaitGroup for the server
+	// wg is the WaitGroup to wait for all connections to finish
+	// and for the serve goroutine to finish
 	wg sync.WaitGroup
 
 	// teardownChan is the channel for signaling and waiting for teardown
@@ -38,15 +43,19 @@ type Server struct {
 
 // NewServer creates a new server
 func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Server, error) {
+	ctx, cancel := context.WithCancel(ctx)
+
 	listener, err := net.Listen("tcp", addr)
 	if err != nil {
+		cancel()
 		return nil, err
 	}
 
 	s := &Server{
-		ctx:          ctx,
-		listener:     listener,
-		wg:           sync.WaitGroup{},
+		ctx:      ctx,
+		cancel:   cancel,
+		listener: listener,
+		wg:       sync.WaitGroup{},
 		teardownChan: make(chan struct{}),
 		shutdownChan: make(chan struct{}),
 		pidwatchChan: make(chan struct{}),
@@ -96,16 +105,23 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 	defaultLoggerPath.Store(path)
 }
 
-// Serve serves the server
-func (s *Server) Serve() {
-	defer s.wg.Done()
+// Serve starts the server
+func (s *Server) Start() {
+	s.wg.Add(1)
+	go func() {
+		defer s.wg.Done()
+		s.serve()
+	}()
+}
+
+func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
 	// Run a separate goroutine to handle incoming connections
 	for {
 		conn, err := s.listener.Accept()
 		if err != nil {
 			select {
-			case <-s.shutdownChan:
+			case <-s.ctx.Done():
 				slog.Debug("server shutting down...")
 				return
 			default:
@@ -114,12 +130,18 @@ func (s *Server) Serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				nc := NewConnection(s.ctx, conn, s.teardownChan)
+				nc := NewConnection(s.ctx, s.cancel, conn)
 				nc.HandleConnection()
 				s.wg.Done()
 			}()
 		}
 	}
+}
+
+// Wait waits for a signal to shutdown the server
+func (s *Server) Wait() {
+	<-s.ctx.Done()
+	slog.Info("server is shutting down")
 }
 
 // Close closes the server

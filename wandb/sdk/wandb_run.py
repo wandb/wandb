@@ -1826,7 +1826,7 @@ class Run:
             import wandb
 
             run = wandb.init()
-            run.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
+            run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
             ```
 
             ### 3D Object

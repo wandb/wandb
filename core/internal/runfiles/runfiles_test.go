@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watcher2test"
+	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/filestreamtest"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -255,8 +256,12 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Equal(t,
-				[]string{filepath.Join("subdir", "test.txt")},
-				fakeFileStream.GetFilesUploaded())
+				[]filestream.Update{
+					&filestream.FilesUploadedUpdate{
+						RelativePath: filepath.Join("subdir", "test.txt"),
+					},
+				},
+				fakeFileStream.GetUpdates())
 		})
 
 	runTest("upload serializes uploads of the same file",
