@@ -312,7 +312,6 @@ class SettingsData:
     _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
-    _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
     # file stream retry client configuration
@@ -424,7 +423,6 @@ class SettingsData:
     # magic: Union[str, bool, dict]  # never used in code, deprecated
     mode: str
     notebook_name: str
-    problem: str
     program: str
     program_abspath: str
     program_relpath: str
@@ -857,7 +855,6 @@ class Settings(SettingsData):
             },
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
-            problem={"value": "fatal", "validator": self._validate_problem},
             program={
                 "hook": lambda x: self._get_program(x),
             },
@@ -1018,13 +1015,6 @@ class Settings(SettingsData):
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: {value!r} not in {choices}")
-        return True
-
-    @staticmethod
-    def _validate_problem(value: str) -> bool:
-        choices: Set[str] = {"fatal", "warn", "silent"}
-        if value not in choices:
-            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
         return True
 
     @staticmethod
@@ -1749,9 +1739,6 @@ class Settings(SettingsData):
             settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            settings["_except_exit"] = True  # type: ignore
 
         if _logger is not None:
             _logger.info(

@@ -51,6 +51,11 @@ const (
 	defaultMaxItemsPerPush   = 5_000
 	defaultDelayProcess      = 20 * time.Millisecond
 	defaultHeartbeatInterval = 30 * time.Second
+
+	// Maximum line length for filestream jsonl files, imposed by the back-end.
+	//
+	// See https://github.com/wandb/core/pull/7339 for history.
+	maxFileLineBytes = (10 << 20) - (100 << 10)
 )
 
 type ChunkTypeEnum int8
@@ -81,14 +86,8 @@ type FileStream interface {
 	// Close waits for all work to be completed.
 	Close()
 
-	// StreamRecord adds data to be sent to the filestream API.
-	StreamRecord(rec *service.Record)
-
-	// SignalFileUploaded tells the backend that a run file has been uploaded.
-	//
-	// This is used in some deployments where the backend is not notified when
-	// files finish uploading.
-	SignalFileUploaded(path string)
+	// StreamUpdate uploads information through the filestream API.
+	StreamUpdate(update Update)
 }
 
 // fileStream is a stream of data to the server
@@ -98,8 +97,8 @@ type fileStream struct {
 	// This must not include the schema and hostname prefix.
 	path string
 
-	processChan  chan processTask
-	transmitChan chan processedChunk
+	processChan  chan Update
+	transmitChan chan CollectorStateUpdate
 	feedbackChan chan map[string]interface{}
 
 	processWait  *sync.WaitGroup
@@ -112,8 +111,11 @@ type fileStream struct {
 	// settings is the settings for the filestream
 	settings *service.Settings
 
-	// logger is the logger for the filestream
+	// A logger for internal debug logging.
 	logger *observability.CoreLogger
+
+	// A way to print console messages to the user.
+	printer *observability.Printer
 
 	// The client for making API requests.
 	apiClient api.Client
@@ -135,6 +137,7 @@ type fileStream struct {
 type FileStreamParams struct {
 	Settings           *service.Settings
 	Logger             *observability.CoreLogger
+	Printer            *observability.Printer
 	ApiClient          api.Client
 	MaxItemsPerPush    int
 	ClientId           string
@@ -143,15 +146,24 @@ type FileStreamParams struct {
 }
 
 func NewFileStream(params FileStreamParams) FileStream {
+	// Panic early to avoid surprises. These fields are required.
+	if params.Logger == nil {
+		panic("filestream: nil logger")
+	}
+	if params.Printer == nil {
+		panic("filestream: nil printer")
+	}
+
 	fs := &fileStream{
 		settings:        params.Settings,
 		logger:          params.Logger,
+		printer:         params.Printer,
 		apiClient:       params.ApiClient,
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
-		processChan:     make(chan processTask, BufferSize),
-		transmitChan:    make(chan processedChunk, BufferSize),
+		processChan:     make(chan Update, BufferSize),
+		transmitChan:    make(chan CollectorStateUpdate, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
@@ -202,42 +214,26 @@ func (fs *fileStream) Start(
 
 	fs.processWait.Add(1)
 	go func() {
-		defer func() {
-			fs.processWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
+		defer fs.processWait.Done()
 		fs.loopProcess(fs.processChan)
 	}()
 
 	fs.transmitWait.Add(1)
 	go func() {
-		defer func() {
-			fs.transmitWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
+		defer fs.transmitWait.Done()
 		fs.loopTransmit(fs.transmitChan)
 	}()
 
 	fs.feedbackWait.Add(1)
 	go func() {
-		defer func() {
-			fs.feedbackWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
+		defer fs.feedbackWait.Done()
 		fs.loopFeedback(fs.feedbackChan)
 	}()
 }
 
-func (fs *fileStream) StreamRecord(rec *service.Record) {
-	fs.logger.Debug("filestream: stream record", "record", rec)
-	fs.addProcess(processTask{Record: rec})
-}
-
-func (fs *fileStream) SignalFileUploaded(path string) {
-	fs.addProcess(processTask{UploadedFile: path})
+func (fs *fileStream) StreamUpdate(update Update) {
+	fs.logger.Debug("filestream: stream update", "update", update)
+	fs.addProcess(update)
 }
 
 func (fs *fileStream) Close() {
@@ -259,6 +255,11 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal("filestream: fatal error", err)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
+		fs.printer.Write(
+			"Fatal error while uploading data. Some run data will" +
+				" not be synced, but it will still be written to disk. Use" +
+				" `wandb sync` at the end of the run to try uploading.",
+		)
 	})
 }
 
@@ -269,18 +270,5 @@ func (fs *fileStream) isDead() bool {
 		return true
 	default:
 		return false
-	}
-}
-
-// recoverUnexpectedPanic redirects panics to FatalErrorChan.
-//
-// This should be used in a `defer` statement at the top of a function. This
-// is intended for truly *unexpected* panics to completely panic-proof critical
-// goroutines. All other errors should directly use `pushFatalError`.
-func (fs *fileStream) recoverUnexpectedPanic() {
-	if e := recover(); e != nil {
-		fs.logFatalAndStopWorking(
-			fmt.Errorf("filestream: unexpected panic: %v", e),
-		)
 	}
 }

@@ -75,6 +75,8 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         entrypoint="python test.py",
         name="test-job-9999",
         runtime="3.8",  # micro will get stripped
+        dockerfile="Dockerfile",
+        build_context="src/",
     )
 
     assert isinstance(artifact, Artifact)
@@ -87,7 +89,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
 
     assert job_v0._partial
     assert job_v0._job_info["runtime"] == "3.8"
-    assert job_v0._job_info["_version"] == "v0"
+    assert job_v0._job_info["_version"] == "0.17.0"
     assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
     assert job_v0._job_info["source"]["notebook"] is False
 

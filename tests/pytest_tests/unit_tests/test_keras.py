@@ -18,7 +18,7 @@ from keras.layers import (  # noqa: E402
     Input,
 )
 from keras.models import Model, Sequential  # noqa: E402
-from wandb.keras import WandbCallback  # noqa: E402
+from wandb.integration.keras import WandbCallback  # noqa: E402
 
 
 def test_no_init():
