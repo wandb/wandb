@@ -1,13 +1,12 @@
 package filestream
 
 import (
-	"bytes"
+	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/segmentio/encoding/json"
-
-	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/wandb/core/internal/api"
 )
 
 // FsTransmitData is serialized and sent to a W&B server
@@ -26,45 +25,72 @@ type fsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-func (fs *FileStream) addTransmit(chunk processedChunk) {
+func (fs *fileStream) addTransmit(chunk CollectorStateUpdate) {
 	fs.transmitChan <- chunk
 }
 
-func (fs *FileStream) loopTransmit(inChan <-chan processedChunk) {
+func (fs *fileStream) loopTransmit(inChan <-chan CollectorStateUpdate) {
 	collector := chunkCollector{
 		input:           inChan,
-		heartbeatTime:   fs.heartbeatTime,
-		delayProcess:    fs.delayProcess,
+		processDelay:    fs.delayProcess,
 		maxItemsPerPush: fs.maxItemsPerPush,
 	}
 	for !collector.isDone {
-		if readMore := collector.read(); readMore {
-			collector.readMore()
-		}
-		data := collector.dump(fs.offsetMap)
-		if data != nil {
-			fs.send(data)
+		data, ok := collector.CollectAndDump(fs.offsetMap)
+
+		if ok {
+			if err := fs.send(data); err != nil {
+				fs.logFatalAndStopWorking(err)
+				return
+			}
+
+			fs.heartbeatStopwatch.Reset()
+		} else if fs.heartbeatStopwatch.IsDone() {
+			if err := fs.send(&FsTransmitData{}); err != nil {
+				fs.logFatalAndStopWorking(err)
+				return
+			}
+
+			fs.heartbeatStopwatch.Reset()
 		}
 	}
 }
 
-func (fs *FileStream) send(data interface{}) {
+func (fs *fileStream) send(data *FsTransmitData) error {
+	// Stop working after death to avoid data corruption.
+	if fs.isDead() {
+		return fmt.Errorf("filestream: can't send because I am dead")
+	}
+
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		fs.logger.CaptureFatalAndPanic("json marshal error", err)
+		return fmt.Errorf("filestream: json marshall error in send(): %v", err)
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
-	buffer := bytes.NewBuffer(jsonData)
-	req, err := retryablehttp.NewRequest(http.MethodPost, fs.path, buffer)
-	if err != nil {
-		fs.logger.CaptureFatalAndPanic("filestream: error creating HTTP request", err)
+	req := &api.Request{
+		Method: http.MethodPost,
+		Path:   fs.path,
+		Body:   jsonData,
+		Headers: map[string]string{
+			"Content-Type": "application/json",
+		},
 	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := fs.httpClient.Do(req)
-	if err != nil {
-		fs.logger.CaptureFatalAndPanic("filestream: error making HTTP request", err)
+
+	resp, err := fs.apiClient.Send(req)
+
+	switch {
+	case err != nil:
+		return fmt.Errorf("filestream: error making HTTP request: %v", err)
+	case resp == nil:
+		// Sometimes resp and err can both be nil in retryablehttp's Client.
+		return fmt.Errorf("filestream: nil response and nil error")
+	case resp.StatusCode < 200 || resp.StatusCode > 300:
+		// If we reach here, that means all retries were exhausted. This could
+		// mean, for instance, that the user's internet connection broke.
+		return fmt.Errorf("filestream: failed to upload: %v", resp.Status)
 	}
+
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
 			fs.logger.CaptureError("filestream: error closing response body", err)
@@ -78,4 +104,5 @@ func (fs *FileStream) send(data interface{}) {
 	}
 	fs.addFeedback(res)
 	fs.logger.Debug("filestream: post response", "response", res)
+	return nil
 }

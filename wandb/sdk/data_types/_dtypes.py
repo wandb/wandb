@@ -14,7 +14,7 @@ np = get_module("numpy")  # intentionally not required
 if t.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
-ConvertableToType = t.Union["Type", t.Type["Type"], type, t.Any]
+ConvertibleToType = t.Union["Type", t.Type["Type"], type, t.Any]
 
 
 class TypeRegistry:
@@ -84,7 +84,7 @@ class TypeRegistry:
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
-    def type_from_dtype(dtype: ConvertableToType) -> "Type":
+    def type_from_dtype(dtype: ConvertibleToType) -> "Type":
         # The dtype is already an instance of Type
         if isinstance(dtype, Type):
             wbtype: Type = dtype
@@ -528,7 +528,7 @@ class UnionType(Type):
 
     def __init__(
         self,
-        allowed_types: t.Optional[t.Sequence[ConvertableToType]] = None,
+        allowed_types: t.Optional[t.Sequence[ConvertibleToType]] = None,
     ):
         assert allowed_types is None or (allowed_types.__class__ == list)
         if allowed_types is None:
@@ -576,7 +576,7 @@ class UnionType(Type):
         return "{}".format(" or ".join([str(t) for t in self.params["allowed_types"]]))
 
 
-def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
+def OptionalType(dtype: ConvertibleToType) -> UnionType:  # noqa: N802
     """Function that mimics the Type class API for constructing an "Optional Type".
 
     This is just a Union[wb_type, NoneType].
@@ -591,14 +591,14 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 class ListType(Type):
-    """A list of homogenous types."""
+    """A list of homogeneous types."""
 
     name = "list"
     types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
 
     def __init__(
         self,
-        element_type: t.Optional[ConvertableToType] = None,
+        element_type: t.Optional[ConvertibleToType] = None,
         length: t.Optional[int] = None,
     ):
         if element_type is None:
@@ -691,7 +691,7 @@ class ListType(Type):
 
 
 class NDArrayType(Type):
-    """Represents a list of homogenous types."""
+    """Represents a list of homogeneous types."""
 
     name = "ndarray"
     types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
@@ -786,7 +786,7 @@ class TypedDictType(Type):
 
     def __init__(
         self,
-        type_map: t.Optional[t.Dict[str, ConvertableToType]] = None,
+        type_map: t.Optional[t.Dict[str, ConvertibleToType]] = None,
     ):
         if type_map is None:
             type_map = {}

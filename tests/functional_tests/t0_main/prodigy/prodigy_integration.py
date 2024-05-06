@@ -9,6 +9,7 @@ command:
 plugin:
   - wandb
 tag:
+  shard: prodigy
   skips:
     - platform: win
 depend:

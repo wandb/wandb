@@ -1,4 +1,5 @@
 """Public API: artifacts."""
+
 import json
 from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
 

@@ -4,6 +4,9 @@ plugin:
 tag:
   platforms:
     - linux
+  shards:
+    - launch
+    - wandb_core_failure
 depend:
   requirements:
     - pytest

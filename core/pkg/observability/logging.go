@@ -95,6 +95,7 @@ func (cl *CoreLogger) SetTags(tags Tags) {
 
 // CaptureError logs an error and sends it to sentry.
 func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
+	args = append(args, "error", err)
 	cl.Logger.Error(msg, args...)
 	if err != nil {
 		// send error to sentry:
@@ -106,23 +107,10 @@ func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
 	}
 }
 
-// Fatal logs an error at the fatal level.
-func (cl *CoreLogger) Fatal(msg string, err error, args ...any) {
-	args = append(args, "error", err)
-	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
-}
-
-// FatalAndPanic logs an error at the fatal level and panics.
-func (cl *CoreLogger) FatalAndPanic(msg string, err error, args ...any) {
-	cl.Fatal(msg, err, args...)
-	if err != nil {
-		panic(err)
-	}
-}
-
 // CaptureFatal logs an error at the fatal level and sends it to sentry.
 func (cl *CoreLogger) CaptureFatal(msg string, err error, args ...any) {
 	// TODO: make sure this level is printed nicely
+	args = append(args, "error", err)
 	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 	if err != nil {
 		// send error to sentry:

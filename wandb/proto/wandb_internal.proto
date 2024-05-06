@@ -46,6 +46,7 @@ message Record {
     RunPreemptingRecord preempting = 23;
     LinkArtifactRecord link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
+
     // request field does not belong here longterm
     Request request = 100;
   }
@@ -142,6 +143,7 @@ message RunRecord {
   TelemetryRecord telemetry = 19;
   int32 runtime = 20;
   GitRepoRecord git = 21;
+  bool forked = 22;
   _RecordInfo _info = 200;
 }
 
@@ -213,6 +215,13 @@ message HistoryRecord {
   _RecordInfo _info = 200;
 }
 
+/*
+ * HistoryItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -310,6 +319,13 @@ message ConfigRecord {
   _RecordInfo _info = 200;
 }
 
+/*
+ * ConfigItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
 message ConfigItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -327,6 +343,13 @@ message SummaryRecord {
   _RecordInfo _info = 200;
 }
 
+/*
+ * SummaryItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
 message SummaryItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -335,30 +358,42 @@ message SummaryItem {
 
 message SummaryResult {}
 
-/*
- * FilesRecord: files added to run
- */
+// Files added to a run, such as through run.save().
 message FilesRecord {
   repeated FilesItem files = 1;
   _RecordInfo _info = 200;
 }
 
+// One or more files being saved with a run.
 message FilesItem {
+  reserved 16;
+
   enum PolicyType {
+    // Upload the file immediately.
     NOW = 0;
+
+    // Upload the file during run.finish().
     END = 1;
+
+    // Re-upload the file continuously as it changes.
     LIVE = 2;
   }
+
   enum FileType {
     OTHER = 0;
     WANDB = 1;
     MEDIA = 2;
     ARTIFACT = 3;
   }
+
+  // A path or Unix glob relative to the W&B files directory.
   string path = 1;
+
+  // When to upload the file.
   PolicyType policy = 2;
+
+  // What kind of file it is.
   FileType type = 3;
-  string external_path = 16;
 }
 
 message FilesResult {}
@@ -422,6 +457,8 @@ message ArtifactManifestEntry {
   string mimetype = 5;
   string local_path = 6;
   string birth_artifact_id = 7;
+  // Whether to avoid copying/moving files to the cache while uploading.
+  bool skip_cache = 8;
   repeated ExtraItem extra = 16;
 }
 
@@ -485,6 +522,8 @@ message AlertResult {}
  * Request: all non persistent messages
  */
 message Request {
+  reserved 75;
+
   oneof request_type {
     StopStatusRequest stop_status = 1;
     NetworkStatusRequest network_status = 2;
@@ -517,8 +556,8 @@ message Request {
     TelemetryRecordRequest telemetry_record = 72;
     JobInfoRequest job_info = 73;
     GetSystemMetricsRequest get_system_metrics = 74;
-    FileTransferInfoRequest file_transfer_info = 75;
     SyncRequest sync = 76;
+    JobInputRequest job_input = 77;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -877,6 +916,13 @@ message SampledHistoryRequest {
   _RequestInfo _info = 200;
 }
 
+/*
+ * SampledHistoryItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
 message SampledHistoryItem {
   string key = 1;
   repeated string nested_key = 2;
@@ -962,6 +1008,8 @@ message DownloadArtifactRequest {
   string artifact_id = 1;
   string download_root = 2;
   bool allow_missing_references = 4;
+  bool skip_cache = 5;
+  string path_prefix = 6;
   _RequestInfo _info = 200;
 }
 
@@ -985,6 +1033,8 @@ message ArtifactInfo {
   string artifact = 1;
   repeated string entrypoint = 2;
   bool notebook = 3;
+  string build_context = 4;
+  string dockerfile = 5;
 }
 
 message GitInfo {
@@ -996,6 +1046,8 @@ message GitSource {
   GitInfo git_info = 1;
   repeated string entrypoint = 2;
   bool notebook = 3;
+  string build_context = 4;
+  string dockerfile = 5;
 }
 
 message ImageSource {
@@ -1130,4 +1182,46 @@ message PythonPackagesRequest {
     string version = 2;
   }
   repeated PythonPackage package = 1;
+}
+
+// Path within nested configuration object.
+//
+// The path is a list of strings, each string is a key in a nested configuration
+// dict. These paths are used to filter subtrees in and out of the config
+// before we capture a schema. This gives users the ability to limit which
+// parts of the config are exposed as inputs to a job.
+message JobInputPath {
+  repeated string path = 1;
+}
+
+// Specifies a source for job inputs.
+//
+// The source is either the run config (wandb.config) or a config file.
+// If a config file is specified, the file path is relative to
+// <run-files-dir>/configs.
+message JobInputSource {
+  message RunConfigSource {}
+  message ConfigFileSource {
+    string path = 1;
+  }
+  oneof source {
+    RunConfigSource run_config = 1;
+    ConfigFileSource file = 2;
+  }
+}
+
+// Specifies a new source for job inputs.
+//
+// source tells us where this config is coming from and therefore how it can
+// be patched in future runs.
+//
+// If include_paths is not empty, then endpoints of the config not prefixed by
+// an include path will be ignored.
+//
+// If exclude_paths is not empty, then endpoints of the config prefixed by an
+// exclude path will be ignored.
+message JobInputRequest {
+  JobInputSource input_source = 1;
+  repeated JobInputPath include_paths = 2;
+  repeated JobInputPath exclude_paths = 3;
 }

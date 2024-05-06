@@ -89,7 +89,6 @@ def test_joined_table_logging(wandb_init):
     run.finish()
 
 
-# @pytest.mark.skip(reason="Currently seems to fail in CI")
 def test_log_with_dir_sep_windows(wandb_init):
     image = np.zeros((28, 28))
     run = wandb_init()
@@ -98,7 +97,6 @@ def test_log_with_dir_sep_windows(wandb_init):
     run.finish()
 
 
-# @pytest.mark.skip(reason="Currently seems to fail in CI")
 def test_log_with_back_slash_windows(wandb_init):
     run = wandb_init()
     wb_image = wandb.Image(np.zeros((28, 28)))
@@ -113,29 +111,39 @@ def test_log_with_back_slash_windows(wandb_init):
     run.finish()
 
 
-def test_image_array_old_wandb(relay_server, wandb_init, monkeypatch, capsys):
+def test_image_array_old_wandb(
+    relay_server,
+    wandb_init,
+    monkeypatch,
+    mock_wandb_log,
+):
     with relay_server() as relay:
         monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+
         run = wandb_init()
         wb_image = [wandb.Image(np.zeros((28, 28))) for i in range(5)]
         run.log({"logged_images": wb_image})
         run.finish()
-        outerr = capsys.readouterr()
 
-        assert "Unable to log image array filenames." in outerr.err
+        assert mock_wandb_log.warned("Unable to log image array filenames.")
 
         assert "filenames" not in relay.context.summary["logged_images"][0]
 
 
-def test_image_array_old_wandb_mp_warning(wandb_init, capsys, monkeypatch):
+def test_image_array_old_wandb_mp_warning(
+    wandb_init,
+    monkeypatch,
+    mock_wandb_log,
+):
     monkeypatch.setattr(wandb.util, "_get_max_cli_version", lambda: "0.10.33")
+
     run = wandb_init()
     wb_image = [wandb.Image(np.zeros((28, 28))) for _ in range(5)]
     run._init_pid += 1
     run.log({"logged_images": wb_image})
     run.finish()
-    outerr = capsys.readouterr()
-    assert (
-        "Attempting to log a sequence of Image objects from multiple processes might result in data loss. Please upgrade your wandb server"
-        in outerr.err
+
+    assert mock_wandb_log.warned(
+        "Attempting to log a sequence of Image objects from multiple processes"
+        " might result in data loss. Please upgrade your wandb server"
     )

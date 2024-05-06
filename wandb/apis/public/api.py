@@ -10,6 +10,7 @@ You might use the Public API to
 
 For more on using the Public API, check out [our guide](https://docs.wandb.com/guides/track/public-api-guide).
 """
+
 import json
 import logging
 import os
@@ -29,6 +30,7 @@ from wandb.apis.public.const import RETRY_TIMEDELTA
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
 
 if TYPE_CHECKING:
@@ -88,10 +90,7 @@ class RetryingClient:
         return self._server_info
 
     def version_supported(self, min_version):
-        try:
-            from packaging.version import Version as parse_version  # noqa: N813
-        except ImportError:
-            from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         return parse_version(min_version) <= parse_version(
             self.server_info["cliVersionInfo"]["max_cli_version"]
@@ -112,6 +111,17 @@ class Api:
     """
 
     _HTTP_TIMEOUT = env.get_http_timeout(19)
+    DEFAULT_ENTITY_QUERY = gql(
+        """
+        query Viewer{
+            viewer {
+                id
+                entity
+            }
+        }
+        """
+    )
+
     VIEWER_QUERY = gql(
         """
         query Viewer{
@@ -316,15 +326,15 @@ class Api:
             entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
             prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
             config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
-            template_variables (dict): A dictionary of template variable schemas to be used with the config. Expected format of:
+            template_variables: (dict) A dictionary of template variable schemas to be used with the config. Expected format of:
                 {
                     "var-name": {
                         "schema": {
-                            "type": "<string | number | integer>",
-                            "default": <optional value>,
-                            "minimum": <optional minimum>,
-                            "maximum": <optional maximum>,
-                            "enum": [..."<options>"]
+                            "type": ("string", "number", or "integer"),
+                            "default": (optional value),
+                            "minimum": (optional minimum),
+                            "maximum": (optional maximum),
+                            "enum": [..."(options)"]
                         }
                     }
                 }
@@ -491,7 +501,7 @@ class Api:
     @property
     def default_entity(self):
         if self._default_entity is None:
-            res = self._client.execute(self.VIEWER_QUERY)
+            res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
 
@@ -929,8 +939,12 @@ class Api:
     @normalize_exceptions
     def artifact_versions(self, type_name, name, per_page=50):
         """Deprecated, use artifacts(type_name, name) instead."""
-        wandb.termwarn(
-            "Api.artifact_versions(type_name, name) is deprecated, use Api.artifacts(type_name, name) instead."
+        deprecate(
+            field_name=Deprecated.api__artifact_versions,
+            warning_message=(
+                "Api.artifact_versions(type_name, name) is deprecated, "
+                "use Api.artifacts(type_name, name) instead."
+            ),
         )
         return self.artifacts(type_name, name, per_page=per_page)
 
@@ -1044,4 +1058,39 @@ class Api:
 
             return [x["node"]["artifacts"] for x in artifacts]
         except requests.exceptions.HTTPError:
+            return False
+
+    @normalize_exceptions
+    def artifact_exists(self, name: str, type: Optional[str] = None):
+        """Return whether an artifact version exists within a specified project and entity.
+
+        Arguments:
+            name: (str) An artifact name. May be prefixed with entity/project.
+                If entity or project is not specified, it will be inferred from the override params if populated.
+                Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
+                Valid names can be in the following forms:
+                    name:version
+                    name:alias
+            type: (str, optional) The type of artifact
+        """
+        try:
+            self.artifact(name, type)
+            return True
+        except wandb.errors.CommError:
+            return False
+
+    @normalize_exceptions
+    def artifact_collection_exists(self, name: str, type: str):
+        """Return whether an artifact collection exists within a specified project and entity.
+
+        Arguments:
+            name: (str) An artifact collection name. May be prefixed with entity/project.
+                If entity or project is not specified, it will be inferred from the override params if populated.
+                Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
+            type: (str) The type of artifact collection
+        """
+        try:
+            self.artifact_collection(type, name)
+            return True
+        except wandb.errors.CommError:
             return False

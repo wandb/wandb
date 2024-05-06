@@ -4,6 +4,7 @@ __all__ = [
     "AuthenticationError",
     "UsageError",
     "UnsupportedError",
+    "WandbCoreNotAvailableError",
 ]
 
 from typing import Optional
@@ -39,3 +40,7 @@ class UsageError(Error):
 
 class UnsupportedError(UsageError):
     """Raised when trying to use a feature that is not supported."""
+
+
+class WandbCoreNotAvailableError(Error):
+    """Raised when wandb core is not available."""

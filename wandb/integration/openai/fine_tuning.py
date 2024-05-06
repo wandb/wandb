@@ -1,17 +1,18 @@
 import datetime
 import io
 import json
+import os
 import re
+import tempfile
 import time
-from typing import Any, Dict, Optional, Tuple
-
-from pkg_resources import parse_version
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb import util
 from wandb.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
+from wandb.util import parse_version
 
 openai = util.get_module(
     name="openai",
@@ -27,7 +28,10 @@ if parse_version(openai.__version__) < parse_version("1.0.1"):
 
 from openai import OpenAI  # noqa: E402
 from openai.types.fine_tuning import FineTuningJob  # noqa: E402
-from openai.types.fine_tuning.fine_tuning_job import Hyperparameters  # noqa: E402
+from openai.types.fine_tuning.fine_tuning_job import (  # noqa: E402
+    Error,
+    Hyperparameters,
+)
 
 np = util.get_module(
     name="numpy",
@@ -60,6 +64,7 @@ class WandbLogger:
         entity: Optional[str] = None,
         overwrite: bool = False,
         wait_for_job_success: bool = True,
+        log_datasets: bool = True,
         **kwargs_wandb_init: Dict[str, Any],
     ) -> str:
         """Sync fine-tunes to Weights & Biases.
@@ -151,6 +156,7 @@ class WandbLogger:
                 entity,
                 overwrite,
                 show_individual_warnings,
+                log_datasets,
                 **kwargs_wandb_init,
             )
 
@@ -161,11 +167,14 @@ class WandbLogger:
 
     @classmethod
     def _wait_for_job_success(cls, fine_tune: FineTuningJob) -> FineTuningJob:
-        wandb.termlog("Waiting for the OpenAI fine-tuning job to be finished...")
+        wandb.termlog("Waiting for the OpenAI fine-tuning job to finish training...")
+        wandb.termlog(
+            "To avoid blocking, you can call `WandbLogger.sync` with `wait_for_job_success=False` after OpenAI training completes."
+        )
         while True:
             if fine_tune.status == "succeeded":
                 wandb.termlog(
-                    "Fine-tuning finished, logging metrics, model metadata, and more to W&B"
+                    "Fine-tuning finished, logging metrics, model metadata, and run metadata to Weights & Biases"
                 )
                 return fine_tune
             if fine_tune.status == "failed":
@@ -191,6 +200,7 @@ class WandbLogger:
         entity: Optional[str],
         overwrite: bool,
         show_individual_warnings: bool,
+        log_datasets: bool,
         **kwargs_wandb_init: Dict[str, Any],
     ):
         fine_tune_id = fine_tune.id
@@ -210,7 +220,7 @@ class WandbLogger:
         # check results are present
         try:
             results_id = fine_tune.result_files[0]
-            results = cls.openai_client.files.retrieve_content(file_id=results_id)
+            results = cls.openai_client.files.content(file_id=results_id).text
         except openai.NotFoundError:
             if show_individual_warnings:
                 wandb.termwarn(
@@ -234,7 +244,7 @@ class WandbLogger:
             cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
-        cls._log_artifacts(fine_tune, project, entity)
+        cls._log_artifacts(fine_tune, project, entity, log_datasets, overwrite)
 
         # mark run as complete
         cls._run.summary["status"] = "succeeded"
@@ -250,7 +260,7 @@ class WandbLogger:
             else:
                 raise Exception(
                     "It appears you are not currently logged in to Weights & Biases. "
-                    "Please run `wandb login` in your terminal. "
+                    "Please run `wandb login` in your terminal or `wandb.login()` in a notebook."
                     "When prompted, you can obtain your API key by visiting wandb.ai/authorize."
                 )
 
@@ -287,15 +297,9 @@ class WandbLogger:
                 config["finished_at"]
             ).strftime("%Y-%m-%d %H:%M:%S")
         if config.get("hyperparameters"):
-            hyperparameters = config.pop("hyperparameters")
-            hyperparams = cls._unpack_hyperparameters(hyperparameters)
-            if hyperparams is None:
-                # If unpacking fails, log the object which will render as string
-                config["hyperparameters"] = hyperparameters
-            else:
-                # nested rendering on hyperparameters
-                config["hyperparameters"] = hyperparams
-
+            config["hyperparameters"] = cls.sanitize(config["hyperparameters"])
+        if config.get("error"):
+            config["error"] = cls.sanitize(config["error"])
         return config
 
     @classmethod
@@ -306,30 +310,53 @@ class WandbLogger:
         try:
             hyperparams["n_epochs"] = hyperparameters.n_epochs
             hyperparams["batch_size"] = hyperparameters.batch_size
-            hyperparams[
-                "learning_rate_multiplier"
-            ] = hyperparameters.learning_rate_multiplier
+            hyperparams["learning_rate_multiplier"] = (
+                hyperparameters.learning_rate_multiplier
+            )
         except Exception:
             # If unpacking fails, return the object to be logged as config
             return None
 
         return hyperparams
 
+    @staticmethod
+    def sanitize(input: Any) -> Union[Dict, List, str]:
+        valid_types = [bool, int, float, str]
+        if isinstance(input, (Hyperparameters, Error)):
+            return dict(input)
+        if isinstance(input, dict):
+            return {
+                k: v if type(v) in valid_types else str(v) for k, v in input.items()
+            }
+        elif isinstance(input, list):
+            return [v if type(v) in valid_types else str(v) for v in input]
+        else:
+            return str(input)
+
     @classmethod
     def _log_artifacts(
-        cls, fine_tune: FineTuningJob, project: str, entity: Optional[str]
+        cls,
+        fine_tune: FineTuningJob,
+        project: str,
+        entity: Optional[str],
+        log_datasets: bool,
+        overwrite: bool,
     ) -> None:
-        # training/validation files
-        training_file = fine_tune.training_file if fine_tune.training_file else None
-        validation_file = (
-            fine_tune.validation_file if fine_tune.validation_file else None
-        )
-        for file, prefix, artifact_type in (
-            (training_file, "train", "training_files"),
-            (validation_file, "valid", "validation_files"),
-        ):
-            if file is not None:
-                cls._log_artifact_inputs(file, prefix, artifact_type, project, entity)
+        if log_datasets:
+            wandb.termlog("Logging training/validation files...")
+            # training/validation files
+            training_file = fine_tune.training_file if fine_tune.training_file else None
+            validation_file = (
+                fine_tune.validation_file if fine_tune.validation_file else None
+            )
+            for file, prefix, artifact_type in (
+                (training_file, "train", "training_files"),
+                (validation_file, "valid", "validation_files"),
+            ):
+                if file is not None:
+                    cls._log_artifact_inputs(
+                        file, prefix, artifact_type, project, entity, overwrite
+                    )
 
         # fine-tune details
         fine_tune_id = fine_tune.id
@@ -338,9 +365,14 @@ class WandbLogger:
             type="model",
             metadata=dict(fine_tune),
         )
+
         with artifact.new_file("model_metadata.json", mode="w", encoding="utf-8") as f:
             dict_fine_tune = dict(fine_tune)
-            dict_fine_tune["hyperparameters"] = dict(dict_fine_tune["hyperparameters"])
+            dict_fine_tune["hyperparameters"] = cls.sanitize(
+                dict_fine_tune["hyperparameters"]
+            )
+            dict_fine_tune["error"] = cls.sanitize(dict_fine_tune["error"])
+            dict_fine_tune = cls.sanitize(dict_fine_tune)
             json.dump(dict_fine_tune, f, indent=2)
         cls._run.log_artifact(
             artifact,
@@ -355,6 +387,7 @@ class WandbLogger:
         artifact_type: str,
         project: str,
         entity: Optional[str],
+        overwrite: bool,
     ) -> None:
         # get input artifact
         artifact_name = f"{prefix}-{file_id}"
@@ -367,23 +400,26 @@ class WandbLogger:
         artifact = cls._get_wandb_artifact(artifact_path)
 
         # create artifact if file not already logged previously
-        if artifact is None:
+        if artifact is None or overwrite:
             # get file content
             try:
-                file_content = cls.openai_client.files.retrieve_content(file_id=file_id)
+                file_content = cls.openai_client.files.content(file_id=file_id)
             except openai.NotFoundError:
                 wandb.termerror(
-                    f"File {file_id} could not be retrieved. Make sure you are allowed to download training/validation files"
+                    f"File {file_id} could not be retrieved. Make sure you have OpenAI permissions to download training/validation files"
                 )
                 return
 
             artifact = wandb.Artifact(artifact_name, type=artifact_type)
-            with artifact.new_file(file_id, mode="w", encoding="utf-8") as f:
-                f.write(file_content)
+            with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+                tmp_file.write(file_content.content)
+                tmp_file_path = tmp_file.name
+            artifact.add_file(tmp_file_path, file_id)
+            os.unlink(tmp_file_path)
 
             # create a Table
             try:
-                table, n_items = cls._make_table(file_content)
+                table, n_items = cls._make_table(file_content.text)
                 # Add table to the artifact.
                 artifact.add(table, file_id)
                 # Add the same table to the workspace.
@@ -391,9 +427,9 @@ class WandbLogger:
                 # Update the run config and artifact metadata
                 cls._run.config.update({f"n_{prefix}": n_items})
                 artifact.metadata["items"] = n_items
-            except Exception:
+            except Exception as e:
                 wandb.termerror(
-                    f"File {file_id} could not be read as a valid JSON file"
+                    f"Issue saving {file_id} as a Table to Artifacts, exception:\n  '{e}'"
                 )
         else:
             # log number of items

@@ -4,6 +4,7 @@ plugin:
 tag:
   skips:
     - platform: win
+  shard: catboost
 depend:
     requirements:
         - catboost>=0.26

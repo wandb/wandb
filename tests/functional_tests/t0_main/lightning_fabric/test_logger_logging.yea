@@ -3,6 +3,8 @@ plugin:
     - wandb
 command:
     program: test_logger_logging.py
+tag:
+  shard: lightning
 depend:
     requirements:
         - wandb

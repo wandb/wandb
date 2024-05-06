@@ -1,10 +1,8 @@
 package filestream
 
 import (
-	"time"
+	"github.com/wandb/wandb/core/internal/waiting"
 )
-
-type chunkMap map[ChunkTypeEnum][]string
 
 var chunkFilename = map[ChunkTypeEnum]string{
 	HistoryChunk: HistoryFileName,
@@ -14,141 +12,60 @@ var chunkFilename = map[ChunkTypeEnum]string{
 }
 
 type chunkCollector struct {
-	input             <-chan processedChunk
-	isDone            bool
-	heartbeatTime     time.Duration
-	delayProcess      time.Duration
-	fileChunks        chunkMap
-	maxItemsPerPush   int
-	itemsCollected    int
-	isOverflow        bool
-	isTransmitReady   bool
-	isDirty           bool
-	transmitData      *FsTransmitData
-	finalTransmitData *FsTransmitData
+	// A stream of updates which get batched together.
+	input <-chan CollectorStateUpdate
+
+	// Maximum time to wait before finalizing a batch.
+	processDelay waiting.Delay
+
+	// Maximum number of chunks to include in a push.
+	maxItemsPerPush int
+
+	// **************************************************
+	// Internal state
+	// **************************************************
+
+	state CollectorState
+
+	// Whether we finished reading the entire input stream.
+	isDone bool
 }
 
-func (cr *chunkCollector) reset() {
-	cr.fileChunks = make(chunkMap)
-	cr.itemsCollected = 0
-	cr.transmitData = &FsTransmitData{}
-	cr.isTransmitReady = false
-	cr.isDirty = false
-}
+// CollectAndDump returns the next batch of updates to send to the backend.
+//
+// Returns nil and false if there are no updates. Otherwise, returns
+// the updates and true.
+func (cr *chunkCollector) CollectAndDump(
+	offsetMap FileStreamOffsetMap,
+) (*FsTransmitData, bool) {
+	itemsCollected := 0
 
-func (cr *chunkCollector) read() bool {
-	cr.reset()
-	select {
-	case chunk, ok := <-cr.input:
-		if !ok {
-			cr.isDone = true
-			break
-		}
-		cr.addFileChunk(chunk)
-		return true
-	case <-time.After(cr.heartbeatTime):
-	}
-	return false
-}
-
-func (cr *chunkCollector) delayTime() time.Duration {
-	delayTime := cr.delayProcess
-	// do not delay for more chunks if we overflowed on last iteration
-	if cr.isOverflow {
-		delayTime = 0
-	}
-	cr.isOverflow = false
-	return delayTime
-}
-
-func (cr *chunkCollector) readMore() {
-	// TODO(core:beta): add rate limiting
-	delayChan := time.After(cr.delayTime())
-	for {
+	maxChunkWait := cr.processDelay.Wait()
+	for readMore := true; readMore; {
 		select {
-		case chunk, ok := <-cr.input:
+		case update, ok := <-cr.input:
 			if !ok {
 				cr.isDone = true
-				return
+				readMore = false
+				break // out of the select
 			}
-			cr.addFileChunk(chunk)
-			if cr.itemsCollected >= cr.maxItemsPerPush {
-				cr.isOverflow = true
-				return
+
+			update.Apply(&cr.state)
+			itemsCollected++
+
+			if itemsCollected >= cr.maxItemsPerPush {
+				readMore = false
 			}
-		case <-delayChan:
-			return
+
+		case <-maxChunkWait:
+			readMore = false
 		}
 	}
-}
 
-func (cr *chunkCollector) update(chunk processedChunk) {
-	// Complete and Exitcode are saved to finalTransmitData because
-	// they need to be sent last
-	switch {
-	case chunk.Complete != nil || chunk.Exitcode != nil:
-		if cr.finalTransmitData == nil {
-			cr.finalTransmitData = &FsTransmitData{}
-		}
-		if chunk.Complete != nil {
-			cr.finalTransmitData.Complete = chunk.Complete
-		}
-		if chunk.Exitcode != nil {
-			cr.finalTransmitData.Exitcode = chunk.Exitcode
-		}
-
-	case chunk.Preempting:
-		cr.transmitData.Preempting = chunk.Preempting
-		cr.isDirty = true
-
-	case chunk.Uploaded != nil:
-		cr.transmitData.Uploaded = chunk.Uploaded
-		cr.isDirty = true
-	}
-}
-
-func (cr *chunkCollector) addFileChunk(chunk processedChunk) {
-	if chunk.fileType != NoneChunk {
-		cr.fileChunks[chunk.fileType] = append(cr.fileChunks[chunk.fileType], chunk.fileLine)
-		cr.isDirty = true
+	data, ok := cr.state.Consume(offsetMap, cr.isDone)
+	if !ok {
+		return nil, false
 	} else {
-		cr.update(chunk)
+		return data, true
 	}
-	cr.itemsCollected += 1
-}
-
-func (cr *chunkCollector) dumpFinalTransmit() {
-	if cr.finalTransmitData == nil {
-		return
-	}
-	cr.isTransmitReady = true
-	if cr.finalTransmitData.Complete != nil {
-		cr.transmitData.Complete = cr.finalTransmitData.Complete
-	}
-	if cr.finalTransmitData.Exitcode != nil {
-		cr.transmitData.Exitcode = cr.finalTransmitData.Exitcode
-	}
-}
-
-func (cr *chunkCollector) dump(offsets FileStreamOffsetMap) *FsTransmitData {
-	if cr.isDirty {
-		files := make(map[string]fsTransmitFileData)
-		for fileType, lines := range cr.fileChunks {
-			fname := chunkFilename[fileType]
-			files[fname] = fsTransmitFileData{
-				Offset:  offsets[fileType],
-				Content: lines}
-			offsets[fileType] += len(lines)
-		}
-		cr.transmitData.Files = files
-		cr.isTransmitReady = true
-		cr.isDirty = false
-	}
-	if cr.isDone {
-		cr.dumpFinalTransmit()
-	}
-	if cr.isTransmitReady {
-		return cr.transmitData
-	}
-	return nil
 }

@@ -33,7 +33,6 @@ Download artifacts from an executed workflow
 
 """
 
-
 import argparse
 import os
 import subprocess

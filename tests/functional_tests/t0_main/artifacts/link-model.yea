@@ -2,7 +2,8 @@ id: 0.artifacts.link-model
 plugin:
   - wandb
 tag:
-  shard: artifacts
+  shards:
+    - artifacts
 depend:
   requirements:
     - cloudpickle

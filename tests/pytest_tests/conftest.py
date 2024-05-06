@@ -3,7 +3,7 @@ import shutil
 import unittest.mock
 from pathlib import Path
 from queue import Queue
-from typing import Any, Callable, Generator, Optional, Union
+from typing import Any, Callable, Generator, Iterable, Optional, Union
 
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
@@ -19,6 +19,50 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue  # noqa: E402
 from wandb.sdk.lib import filesystem, runid  # noqa: E402
 from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
+
+# --------------------------------
+# Global pytest configuration
+# --------------------------------
+
+
+@pytest.fixture(autouse=True)
+def toggle_wandb_core(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Sets WANDB__REQUIRE_CORE in each test.
+
+    wandb-core is a Go rewrite of some Python logic, and all tests should work
+    the same both with and without it.
+    """
+    monkeypatch.setenv("WANDB__REQUIRE_CORE", str(request.param))
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
+
+    # Run each test both with and without wandb-core.
+    if toggle_wandb_core.__name__ in metafunc.fixturenames:
+        # Allow tests to opt-out of wandb-core until we have feature parity.
+        skip_wandb_core = False
+        for mark in metafunc.definition.iter_markers():
+            if mark.name == "wandb_core_failure":
+                skip_wandb_core = True
+                break
+
+        values = [False]
+        ids = ["no_wandb_core"]
+        if not skip_wandb_core:
+            values.append(True)
+            ids.append("wandb_core")
+
+        metafunc.parametrize(
+            toggle_wandb_core.__name__,
+            values,
+            ids=ids,
+            indirect=True,  # Causes the fixture to be invoked.
+        )
+
 
 # --------------------------------
 # Misc Fixtures utilities
@@ -47,6 +91,74 @@ def copy_asset(assets_path) -> Generator[Callable, None, None]:
 # --------------------------------
 # Misc Fixtures
 # --------------------------------
+
+
+class MockWandbTerm:
+    """Helper to test wandb.term*() calls.
+
+    See the `mock_wandb_log` fixture.
+    """
+
+    def __init__(
+        self,
+        termlog: unittest.mock.MagicMock,
+        termwarn: unittest.mock.MagicMock,
+        termerror: unittest.mock.MagicMock,
+    ):
+        self._termlog = termlog
+        self._termwarn = termwarn
+        self._termerror = termerror
+
+    def logged(self, msg: str) -> bool:
+        """Returns whether the message was included in a termlog()."""
+        return self._logged(self._termlog, msg)
+
+    def warned(self, msg: str) -> bool:
+        """Returns whether the message was included in a termwarn()."""
+        return self._logged(self._termwarn, msg)
+
+    def errored(self, msg: str) -> bool:
+        """Returns whether the message was included in a termerror()."""
+        return self._logged(self._termerror, msg)
+
+    def _logged(self, termfunc: unittest.mock.MagicMock, msg: str) -> bool:
+        return any(msg in logged for logged in self._logs(termfunc))
+
+    def _logs(self, termfunc: unittest.mock.MagicMock) -> Iterable[str]:
+        # All the term*() functions have a similar API: the message is the
+        # first argument, which may also be passed as a keyword argument called
+        # "string".
+        for call in termfunc.call_args_list:
+            if "string" in call.kwargs:
+                yield call.kwargs["string"]
+            else:
+                yield call.args[0]
+
+
+@pytest.fixture()
+def mock_wandb_log() -> Generator[MockWandbTerm, None, None]:
+    """Mocks the wandb.term*() methods for a test.
+
+    This patches the termlog() / termwarn() / termerror() methods and returns
+    a `MockWandbTerm` object that can be used to assert on their usage.
+
+    The logging functions mutate global state (for repeat=False), making
+    them unsuitable for tests. Use this fixture to assert that a message
+    was logged.
+    """
+    # NOTE: This only stubs out calls like "wandb.termlog()", NOT
+    # "from wandb.errors.term import termlog; termlog()".
+    with unittest.mock.patch.multiple(
+        "wandb",
+        termlog=unittest.mock.DEFAULT,
+        termwarn=unittest.mock.DEFAULT,
+        termerror=unittest.mock.DEFAULT,
+    ) as patched:
+        yield MockWandbTerm(
+            patched["termlog"],
+            patched["termwarn"],
+            patched["termerror"],
+        )
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -195,9 +307,7 @@ def dict_factory():
 @pytest.fixture(scope="function")
 def test_settings():
     def update_test_settings(
-        extra_settings: Union[
-            dict, wandb.sdk.wandb_settings.Settings
-        ] = dict_factory(),  # noqa: B008
+        extra_settings: Union[dict, wandb.sdk.wandb_settings.Settings] = dict_factory(),  # noqa: B008
     ):
         settings = wandb.Settings(
             console="off",

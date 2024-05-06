@@ -1,10 +1,10 @@
 package filestream
 
-func (fs *FileStream) addFeedback(reply map[string]interface{}) {
+func (fs *fileStream) addFeedback(reply map[string]interface{}) {
 	fs.feedbackChan <- reply
 }
 
-func (fs *FileStream) loopFeedback(inChan <-chan map[string]interface{}) {
+func (fs *fileStream) loopFeedback(inChan <-chan map[string]interface{}) {
 	for range inChan {
 	}
 }

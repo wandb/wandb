@@ -3,6 +3,7 @@
 Artifacts are registered in the cache to ensure they won't be immediately garbage
 collected and can be retrieved by their ID.
 """
+
 from typing import TYPE_CHECKING, Dict
 
 from wandb.sdk.lib.capped_dict import CappedDict

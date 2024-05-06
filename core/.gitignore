@@ -1,5 +1,2 @@
-__pycache__/
-wandb_core.egg-info/
-wandb_core/bin-*/
 # Lets not save the schema in the repo right now
 api/graphql/schema.graphql

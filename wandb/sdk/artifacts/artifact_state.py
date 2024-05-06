@@ -1,4 +1,5 @@
 """Artifact state."""
+
 from enum import Enum
 
 

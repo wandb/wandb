@@ -1,6 +1,8 @@
 """Implementation of KubernetesRunner class for wandb launch."""
+
 import asyncio
 import base64
+import datetime
 import json
 import logging
 import os
@@ -23,10 +25,10 @@ from wandb.sdk.launch.runner.kubernetes_monitor import (
     CustomResource,
     LaunchKubernetesMonitor,
 )
+from wandb.sdk.lib.retry import ExponentialBackoff, retry_async
 from wandb.util import get_module
 
 from .._project_spec import EntryPoint, LaunchProject
-from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
@@ -59,6 +61,7 @@ from kubernetes_asyncio.client.models.v1_secret import (  # type: ignore # noqa:
 from kubernetes_asyncio.client.rest import ApiException  # type: ignore # noqa: E402
 
 TIMEOUT = 5
+API_KEY_SECRET_MAX_RETRIES = 5
 
 _logger = logging.getLogger(__name__)
 
@@ -370,8 +373,7 @@ class KubernetesRunner(AbstractRunner):
                 }
 
         entry_point = (
-            launch_project.override_entrypoint
-            or launch_project.get_single_entry_point()
+            launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
         if launch_project.docker_image:
             # dont specify run id if user provided image, could have multiple runs
@@ -397,8 +399,8 @@ class KubernetesRunner(AbstractRunner):
             launch_project.override_entrypoint is not None,
         )
 
-        env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
         api_key_secret = None
         for cont in containers:
@@ -421,8 +423,23 @@ class KubernetesRunner(AbstractRunner):
                     else:
                         secret_name += f"-{launch_project.run_id}"
 
-                    api_key_secret = await ensure_api_key_secret(
-                        core_api, secret_name, namespace, value
+                    def handle_exception(e):
+                        wandb.termwarn(
+                            f"Exception when ensuring Kubernetes API key secret: {e}. Retrying..."
+                        )
+
+                    api_key_secret = await retry_async(
+                        backoff=ExponentialBackoff(
+                            initial_sleep=datetime.timedelta(seconds=1),
+                            max_sleep=datetime.timedelta(minutes=1),
+                            max_retries=API_KEY_SECRET_MAX_RETRIES,
+                        ),
+                        fn=ensure_api_key_secret,
+                        on_exc=handle_exception,
+                        core_api=core_api,
+                        secret_name=secret_name,
+                        namespace=namespace,
+                        api_key=value,
                     )
                     env.append(
                         {
@@ -492,8 +509,8 @@ class KubernetesRunner(AbstractRunner):
         api_version = resource_args.get("apiVersion", "batch/v1")
 
         if api_version not in ["batch/v1", "batch/v1beta1"]:
-            env_vars = get_env_vars_dict(
-                launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+            env_vars = launch_project.get_env_vars_dict(
+                self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
             )
             # Crawl the resource args and add our env vars to the containers.
             add_wandb_env(resource_args, env_vars)
@@ -521,9 +538,9 @@ class KubernetesRunner(AbstractRunner):
                     WANDB_K8S_LABEL_MONITOR,
                     LaunchAgent.name(),
                 )
-                resource_args["metadata"]["labels"][
-                    WANDB_K8S_LABEL_AGENT
-                ] = LaunchAgent.name()
+                resource_args["metadata"]["labels"][WANDB_K8S_LABEL_AGENT] = (
+                    LaunchAgent.name()
+                )
 
             overrides = {}
             if launch_project.override_args:

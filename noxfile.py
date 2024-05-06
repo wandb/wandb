@@ -1,10 +1,204 @@
 import os
-import platform
+import pathlib
+import re
+import shutil
+import time
+from contextlib import contextmanager
 from typing import Callable, List
 
 import nox
 
-CORE_VERSION = "0.17.0b9"
+nox.options.default_venv_backend = "uv"
+
+_SUPPORTED_PYTHONS = ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"]
+
+# Directories in which to create temporary per-session directories
+# containing test results and pytest/Go coverage.
+#
+# This is created by test sessions and then consumed + deleted by
+# the 'coverage' session.
+_NOX_PYTEST_COVERAGE_DIR = pathlib.Path(".nox-wandb", "pytest-coverage")
+_NOX_PYTEST_RESULTS_DIR = pathlib.Path(".nox-wandb", "pytest-results")
+_NOX_GO_COVERAGE_DIR = pathlib.Path(".nox-wandb", "go-coverage")
+
+
+@contextmanager
+def report_time(session: nox.Session):
+    t = time.time()
+    yield
+    session.log(f"Took {time.time() - t:.2f} seconds.")
+
+
+def install_timed(session: nox.Session, *args, **kwargs):
+    with report_time(session):
+        session.install(*args, **kwargs)
+
+
+def install_wandb(session: nox.Session):
+    if session.venv_backend == "uv":
+        install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
+    else:
+        install_timed(session, "--force-reinstall", ".")
+
+
+def run_pytest(
+    session: nox.Session,
+    paths: List[str],
+) -> None:
+    # Session name, transformed to be usable in a file name.
+    session_file_name = re.sub(r"[\(\)=\"\'\.]", "_", session.name)
+
+    pytest_opts = []
+    pytest_env = {
+        "WANDB__NETWORK_BUFFER": "1000",
+        "WANDB_ERROR_REPORTING": "false",
+        "WANDB_CORE_ERROR_REPORTING": "false",
+        "USERNAME": session.env.get("USERNAME"),
+        "PATH": session.env.get("PATH"),
+        "USERPROFILE": session.env.get("USERPROFILE"),
+    }
+
+    # Print 20 slowest tests.
+    pytest_opts.append("--durations=20")
+
+    # Output test results for tooling.
+    junitxml = _NOX_PYTEST_RESULTS_DIR / session_file_name / "junit.xml"
+    pytest_opts.append(f"--junitxml={junitxml}")
+    session.notify("combine_test_results")
+
+    # (pytest-timeout) Per-test timeout.
+    pytest_opts.append("--timeout=300")
+
+    # (pytest-xdist) Run tests in parallel.
+    pytest_opts.append("-n=auto")
+
+    # (pytest-split) Run a subset of tests only (for external parallelism).
+    # These environment variables come from CircleCI.
+    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
+    if circle_node_total and circle_node_index:
+        pytest_opts.append(f"--splits={circle_node_total}")
+        pytest_opts.append(f"--group={int(circle_node_index) + 1}")
+
+    # (pytest-cov) Enable Python code coverage collection.
+    # We set "--cov-report=" to suppress terminal output.
+    pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
+
+    # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
+    _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
+    pycovfile = _NOX_PYTEST_COVERAGE_DIR / (".coverage-" + session_file_name)
+
+    # Enable Go code coverage collection.
+    _NOX_GO_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
+    gocovdir = _NOX_GO_COVERAGE_DIR / session_file_name
+    gocovdir.mkdir(exist_ok=True)
+
+    # We must pass an absolute directory to GOCOVERDIR because we cannot
+    # assume the working directory of the Go process!
+    pytest_env["GOCOVERDIR"] = str(gocovdir.absolute())
+    pytest_env["COVERAGE_FILE"] = str(pycovfile)
+
+    session.log(f"Storing Python coverage in {pycovfile}")
+    session.log(f"Storing Go coverage in {gocovdir}")
+    session.notify("coverage")
+
+    session.run(
+        "pytest",
+        *pytest_opts,
+        *paths,
+        env=pytest_env,
+        include_outer_env=False,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def unit_tests(session: nox.Session) -> None:
+    """Runs Python unit tests.
+
+    By default this runs all unit tests, but specific tests can be selected
+    by passing them via positional arguments.
+    """
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        # For test_reports:
+        ".[reports]",
+        "polyfactory",
+    )
+
+    run_pytest(
+        session,
+        paths=session.posargs or ["tests/pytest_tests/unit_tests"],
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def system_tests(session: nox.Session) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "annotated-types",  # for test_reports
+    )
+
+    run_pytest(
+        session,
+        paths=(
+            session.posargs
+            or [
+                "tests/pytest_tests/system_tests",
+                "--ignore=tests/pytest_tests/system_tests/test_importers",
+                "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+            ]
+        ),
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def notebook_tests(session: nox.Session) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+        "nbclient",
+        "nbconvert",
+        "nbformat",
+        "ipykernel",
+        "ipython",
+    )
+
+    session.run(
+        "ipython",
+        "kernel",
+        "install",
+        "--user",
+        "--name=wandb_python",
+        external=True,
+    )
+
+    run_pytest(
+        session,
+        paths=(
+            session.posargs
+            or [
+                "tests/pytest_tests/system_tests/test_notebooks",
+            ]
+        ),
+    )
 
 
 @nox.session(python=False, name="build-rust")
@@ -26,7 +220,7 @@ def install(session: nox.Session) -> None:
     wheel_file = [
         f
         for f in os.listdir("./client/target/wheels/")
-        if f.startswith(f"wandb_core-{CORE_VERSION}") and f.endswith(".whl")
+        if f.startswith("wandb_core-") and f.endswith(".whl")
     ][0]
     session.run(
         "pip",
@@ -91,31 +285,6 @@ def list_failing_tests_wandb_core(session: nox.Session) -> None:
         ],
         plugins=[my_plugin],
     )
-
-
-@nox.session(python=False, name="build-apple-stats-monitor")
-def build_apple_stats_monitor(session: nox.Session) -> None:
-    """Builds the apple stats monitor binary for the current platform.
-
-    The binary will be located in
-    core/pkg/monitor/apple/.build/<arch>-apple-macosx/release/AppleStats
-    """
-    with session.chdir("core/pkg/monitor/apple"):
-        session.run(
-            "swift",
-            "build",
-            "--configuration",
-            "release",
-            "-Xswiftc",
-            "-cross-module-optimization",
-            external=True,
-        )
-        # copy the binary to core/pkg/monitor/apple/AppleStats
-        session.run(
-            "cp",
-            f".build/{platform.machine().lower()}-apple-macosx/release/AppleStats",
-            "AppleStats",
-        )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
@@ -267,28 +436,7 @@ def local_testcontainer_registry(session: nox.Session) -> None:
     session.log(f"Successfully copied image {target_image}")
 
 
-@nox.session(python=False, name="bump-core-version")
-def bump_core_version(session: nox.Session) -> None:
-    args = session.posargs
-    if not args:
-        session.log("Usage: nox -s bump-core-version -- <args>\n")
-        # Examples:
-        session.log(
-            "For example, to bump from 0.17.0b8/0.17.0-beta.8 to 0.17.0b9/0.17.0-beta.9:"
-        )
-        session.log("nox -s bump-core-version -- pre")
-        return
-
-    for cfg in (".bumpversion.core.cfg", ".bumpversion.cargo.cfg"):
-        session.run(
-            "bump2version",
-            "--config-file",
-            cfg,
-            *args,
-        )
-
-
-@nox.session(python=False, name="proto-go")
+@nox.session(python=False, name="proto-go", tags=["proto"])
 def proto_go(session: nox.Session) -> None:
     """Generate Go bindings for protobufs."""
     _generate_proto_go(session)
@@ -298,7 +446,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python")
+@nox.session(name="proto-python", tags=["proto"])
 @nox.parametrize("pb", [3, 4])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
@@ -325,7 +473,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
     else:
         session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
 
-    session.install("-r", "requirements_build.txt")
+    session.install("packaging")
     session.install(".")
 
     with session.chdir("wandb/proto"):
@@ -364,3 +512,147 @@ def proto_check_go(session: nox.Session) -> None:
         after=lambda: _generate_proto_go(session),
         in_directory="core/pkg/service/.",
     )
+
+
+@nox.session(name="codegen")
+def codegen(session: nox.Session) -> None:
+    session.install("ruff")
+    session.install(".")
+
+    args = session.posargs
+    if not args:
+        args = ["--generate"]
+    session.run("python", "tools/generate-tool.py", *args)
+
+
+@nox.session(name="mypy-report")
+def mypy_report(session: nox.Session) -> None:
+    """Type-check the code with mypy.
+
+    This session will install the package and run mypy with the --install-types flag.
+    If the report parameter is set to True, it will also generate an html report.
+    """
+    session.install(
+        # https://github.com/python/mypy/issues/17166
+        "mypy != 1.10.0",
+        "pycobertura",
+        "lxml",
+        "pandas-stubs",
+        "types-click",
+        "types-openpyxl",
+        "types-Pillow",
+        "types-PyYAML",
+        "types-Pygments",
+        "types-protobuf",
+        "types-pytz",
+        "types-requests",
+        "types-setuptools",
+        "types-six",
+        "types-tqdm",
+    )
+
+    path = "mypy-results"
+
+    if not pathlib.Path(path).exists():
+        session.run(
+            "mkdir",
+            path,
+            external=True,
+        )
+
+    session.run(
+        "mypy",
+        "--install-types",
+        "--non-interactive",
+        "--show-error-codes",
+        "-p",
+        "wandb",
+        "--html-report",
+        path,
+        "--cobertura-xml-report",
+        path,
+        "--lineprecision-report",
+        path,
+    )
+
+    session.run(
+        "pycobertura",
+        "show",
+        "--format",
+        "text",
+        f"{path}/cobertura.xml",
+    )
+
+
+@nox.session(default=False)
+def coverage(session: nox.Session) -> None:
+    """Combines coverage outputs from test sessions.
+
+    This is invoked automatically by test sessions and should not be
+    invoked manually.
+    """
+    install_timed(session, "coverage[toml]")
+
+    ###########################################################
+    # Python coverage will be in a "coverage.xml" file.
+    ###########################################################
+
+    # https://coverage.readthedocs.io/en/latest/cmd.html#combining-data-files-coverage-combine
+    py_directories = list(_NOX_PYTEST_COVERAGE_DIR.iterdir())
+    session.run("coverage", "combine", *py_directories)
+    session.run("coverage", "xml")
+    shutil.rmtree(_NOX_PYTEST_COVERAGE_DIR, ignore_errors=True)
+
+    ###########################################################
+    # Go coverage will be in a "coverage.txt" file.
+    ###########################################################
+
+    go_directories = list(str(p) for p in _NOX_GO_COVERAGE_DIR.iterdir())
+    go_combined = pathlib.Path(session.create_tmp(), "go")
+    shutil.rmtree(go_combined, ignore_errors=True)
+    go_combined.mkdir()
+    session.run(
+        "go",
+        "tool",
+        "covdata",
+        "merge",
+        f"-i={','.join(go_directories)}",
+        f"-o={go_combined}",
+        external=True,
+    )
+    shutil.rmtree(_NOX_GO_COVERAGE_DIR, ignore_errors=True)
+
+    # The output directory won't be created if there was no Go coverage
+    # collected. This can happen if only a subset of tests was run that
+    # didn't spin up wandb-core.
+    if go_combined.exists():
+        session.run(
+            "go",
+            "tool",
+            "covdata",
+            "textfmt",
+            f"-i={go_combined}",
+            "-o=coverage.txt",
+            external=True,
+        )
+
+
+@nox.session(default=False)
+def combine_test_results(session: nox.Session) -> None:
+    """Merges Python test results into a test-results/junit.xml file.
+
+    This is invoked automatically by test sessions and should not be
+    invoked manually.
+    """
+    install_timed(session, "junitparser")
+
+    pathlib.Path("test-results").mkdir(exist_ok=True)
+    xml_paths = list(_NOX_PYTEST_RESULTS_DIR.glob("*/junit.xml"))
+    session.run(
+        "junitparser",
+        "merge",
+        *xml_paths,
+        "test-results/junit.xml",
+    )
+
+    shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)

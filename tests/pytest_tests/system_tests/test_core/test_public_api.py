@@ -1,6 +1,5 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
-
 import json
 from typing import Dict, List, Optional
 from unittest import mock

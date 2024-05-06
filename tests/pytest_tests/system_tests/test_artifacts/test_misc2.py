@@ -192,7 +192,7 @@ def test_reference_download(user):
             assert entry.ref_target()
 
 
-def test_deliver_artifact(user, relay_server, publish_util, mock_run):
+def test_communicate_artifact(user, relay_server, publish_util, mock_run):
     with relay_server() as relay:
         run = mock_run()
         artifact = wandb.Artifact("comms_test_PENDING", "dataset")

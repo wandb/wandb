@@ -27,11 +27,11 @@ V = TypeVar("V")
 
 
 class Response(Protocol[K, V]):
-    def __getitem__(self, key: K) -> V:
-        ...  # pragma: no cover
+    def __getitem__(self, key: K) -> V: ...  # pragma: no cover
 
-    def get(self, key: K, default: Optional[V] = None) -> Optional[V]:
-        ...  # pragma: no cover
+    def get(
+        self, key: K, default: Optional[V] = None
+    ) -> Optional[V]: ...  # pragma: no cover
 
 
 class ArgumentResponseResolver(Protocol):
@@ -42,8 +42,7 @@ class ArgumentResponseResolver(Protocol):
         response: Response,
         start_time: float,
         time_elapsed: float,
-    ) -> Optional[Dict[str, Any]]:
-        ...  # pragma: no cover
+    ) -> Optional[Dict[str, Any]]: ...  # pragma: no cover
 
 
 class PatchAPI:

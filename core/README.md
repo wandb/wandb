@@ -10,18 +10,20 @@ more performant, versatile, and robust.
 
 ## Getting Started
 
-To start using [`wandb-core`](https://pypi.org/project/wandb-core/), simply install
-the package in your environment. The `wandb` library will automatically detect and utilize it:
+To start using [`wandb-core`](https://pypi.org/project/wandb-core/), run
+`wandb.require("core")` in your script before starting any runs:
 
-```bash
-pip install -U wandb wandb-core
+```python
+import wandb
+
+wandb.require("core")
 ```
 
-Note: ensure you have `wandb>=0.16.1`.
+Note: ensure you have `wandb>=0.17`.
 
 ### Platform Compatibility
 
-`wandb-core` comes with wheels pre-built for the following platforms:
+`wandb-core` is pre-built for the following platforms:
 
 - Linux:`x86_64`, `aarch64`
 - macOS: `x86_64`, `arm64`
@@ -36,11 +38,7 @@ For other platforms, build `wandb-core` from the source as outlined in our [cont
 
 ### Switching Back to the Old SDK Backend
 
-To revert to the old SDK backend, simply uninstall `wandb-core` from your environment:
-
-```bash
-pip uninstall wandb-core
-```
+To revert to the old SDK backend, remove `wandb.require("core")` from your script.
 
 ## Contributing
 
@@ -51,7 +49,7 @@ We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug
 
 ## Feature Support Status
 
-Below is an overview of the feature support status in the `wandb-core` version `0.17.0b9`.
+Below is an overview of the feature support status in `wandb-core`.
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -97,6 +95,8 @@ Status legend:
 |             | `sync`            | ✅[^E.1][^CLI.1] |
 |             | `<other commands>`| 🚧[^CLI.2]      |
 | Artifacts   |                   | ✅               |
+|             | caching           | ❌               |
+|             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
 |             | Sweeps on Launch  | 🚧[^L.1]         |

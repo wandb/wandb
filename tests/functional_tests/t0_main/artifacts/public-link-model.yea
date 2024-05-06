@@ -2,7 +2,8 @@ id: 0.artifacts.public-link-model
 plugin:
   - wandb
 tag:
-  shard: artifacts
+  shards:
+    - artifacts
 depend:
   requirements:
     - torch
@@ -11,4 +12,4 @@ assert:
   - :wandb:runs[0][config]: {}
   - :wandb:runs[0][exitcode]: 0
   - :wandb:artifacts[my-art-name][type]: my-art-type
-  - :wandb:portfolio_links[test_portfolio][num]: 1
+  - :wandb:portfolio_links[test_portfolio_public_link_test][num]: 1

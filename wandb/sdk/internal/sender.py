@@ -1,6 +1,5 @@
 """sender."""
 
-import concurrent.futures
 import json
 import logging
 import os
@@ -18,12 +17,10 @@ from typing import (
     Dict,
     Generator,
     List,
-    NewType,
     Optional,
     Tuple,
     Type,
     Union,
-    cast,
 )
 
 import requests
@@ -43,6 +40,7 @@ from wandb.sdk.internal import (
     file_stream,
     internal_api,
     job_builder,
+    sender_config,
     update,
 )
 from wandb.sdk.internal.file_pusher import FilePusher
@@ -85,9 +83,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-DictWithValues = NewType("DictWithValues", Dict[str, Any])
-DictNoValues = NewType("DictNoValues", Dict[str, Any])
-
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
 
@@ -120,6 +115,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
                 "ref": content.ref if content.ref else None,
                 "size": content.size if content.size is not None else None,
                 "local_path": content.local_path if content.local_path else None,
+                "skip_cache": content.skip_cache,
                 "extra": {
                     extra.key: json.loads(extra.value_json) for extra in content.extra
                 },
@@ -263,8 +259,9 @@ class SendManager:
         self._project = None
 
         # keep track of config from key/val updates
-        self._consolidated_config: DictNoValues = cast(DictNoValues, dict())
-        self._start_time: float = 0
+        self._consolidated_config = sender_config.ConfigState()
+
+        self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
@@ -330,7 +327,6 @@ class SendManager:
             # ignore_globs=(),
             _sync=True,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
@@ -540,7 +536,7 @@ class SendManager:
         self._maybe_update_config(always=final)
 
     def _debounce_config(self) -> None:
-        config_value_dict = self._config_format(self._consolidated_config)
+        config_value_dict = self._config_backend_dict()
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
@@ -737,18 +733,7 @@ class SendManager:
             )
         self._respond_result(result)
 
-    def send_request_job_info(self, record: "Record") -> None:
-        """Respond to a request for a job link."""
-        result = proto_util._result_from_record(record)
-        result.response.job_info_response.sequenceId = (
-            self._job_builder._job_seq_id or ""
-        )
-        result.response.job_info_response.version = (
-            self._job_builder._job_version_alias or ""
-        )
-        self._respond_result(result)
-
-    def _maybe_setup_resume(
+    def _setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """Queries the backend for a run; fail if the settings are incompatible."""
@@ -856,51 +841,20 @@ class SendManager:
         )
         return framework
 
-    def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add legacy telemetry to config object."""
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        s: str
-        b: bool
-        s = self._telemetry_obj.python_version
-        if s:
-            config_dict[wandb_key]["python_version"] = s
-        s = self._telemetry_obj.cli_version
-        if s:
-            config_dict[wandb_key]["cli_version"] = s
-        s = self._telemetry_get_framework()
-        if s:
-            config_dict[wandb_key]["framework"] = s
-        s = self._telemetry_obj.huggingface_version
-        if s:
-            config_dict[wandb_key]["huggingface_version"] = s
-        b = self._telemetry_obj.env.jupyter
-        config_dict[wandb_key]["is_jupyter_run"] = b
-        b = self._telemetry_obj.env.kaggle
-        config_dict[wandb_key]["is_kaggle_kernel"] = b
+    def _config_backend_dict(self) -> sender_config.BackendConfigDict:
+        config = self._consolidated_config or sender_config.ConfigState()
 
-        config_dict[wandb_key]["start_time"] = self._start_time
+        return config.to_backend_dict(
+            telemetry_record=self._telemetry_obj,
+            framework=self._telemetry_get_framework(),
+            start_time_millis=self._start_time,
+            metric_pbdicts=self._config_metric_pbdict_list,
+        )
 
-        t: Dict[int, Any] = proto_util.proto_encode_to_dict(self._telemetry_obj)
-        config_dict[wandb_key]["t"] = t
-
-    def _config_metric_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add default xaxis to config."""
-        if not self._config_metric_pbdict_list:
-            return
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
-
-    def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
-        """Format dict into value dict with telemetry info."""
-        config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
-        self._config_telemetry_update(config_dict)
-        self._config_metric_update(config_dict)
-        config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
-        return config_value_dict
-
-    def _config_save(self, config_value_dict: DictWithValues) -> None:
+    def _config_save(
+        self,
+        config_value_dict: sender_config.BackendConfigDict,
+    ) -> None:
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
@@ -925,13 +879,37 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
+    def _setup_fork(self, server_run: dict):
+        assert self._settings.fork_from
+        assert self._settings.fork_from.metric == "_step"
+        assert self._run
+        first_step = int(self._settings.fork_from.value) + 1
+        self._resume_state.step = first_step
+        self._resume_state.history = server_run.get("historyLineCount", 0)
+        self._run.forked = True
+        self._run.starting_step = first_step
+
+    def _handle_error(
+        self,
+        record: "Record",
+        error: "wandb_internal_pb2.ErrorInfo",
+        run: "RunRecord",
+    ) -> None:
+        if record.control.req_resp or record.control.mailbox_slot:
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(run)
+            result.run_result.error.CopyFrom(error)
+            self._respond_result(result)
+        else:
+            logger.error("Got error in async mode: %s", error.message)
+
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.ToMicroseconds() / 1e6
+        self._start_time = int(run.start_time.ToMicroseconds() // 1e6)
 
         # update telemetry
         if run.telemetry:
@@ -940,60 +918,68 @@ class SendManager:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
-        config_value_dict: Optional[DictWithValues] = None
+        config_value_dict: Optional[sender_config.BackendConfigDict] = None
         if run.config:
-            config_util.update_from_proto(self._consolidated_config, run.config)
-            config_value_dict = self._config_format(self._consolidated_config)
+            self._consolidated_config.update_from_proto(run.config)
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
+
+        do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_resume = bool(self._settings.resume)
+
+        if do_fork and do_resume:
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "You cannot use `resume` and `fork_from` together. Please choose one."
+            )
+            self._handle_error(record, error, run)
 
         if is_wandb_init:
             # Ensure we have a project to query for status
             if run.project == "":
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
-            error = self._maybe_setup_resume(run)
+
+            if do_resume:
+                error = self._setup_resume(run)
 
         if error is not None:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
+            self._handle_error(record, error, run)
             return
 
         # Save the resumed config
         if self._resume_state.config is not None:
-            # TODO: should we merge this with resumed config?
-            config_override = self._consolidated_config
-            config_dict = self._resume_state.config
-            config_dict = config_util.dict_strip_value_dict(config_dict)
-            config_dict.update(config_override)
-            self._consolidated_config.update(config_dict)
-            config_value_dict = self._config_format(self._consolidated_config)
+            self._consolidated_config.merge_resumed_config(
+                config_util.dict_strip_value_dict(self._resume_state.config)
+            )
+
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         # handle empty config
         # TODO(jhr): consolidate the 4 ways config is built:
         #            (passed config, empty config, resume config, send_config)
         if not config_value_dict:
-            config_value_dict = self._config_format(None)
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         try:
-            self._init_run(run, config_value_dict)
+            server_run = self._init_run(run, config_value_dict)
         except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                error = ProtobufErrorHandler.from_exception(e)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
+            error = ProtobufErrorHandler.from_exception(e)
+            self._handle_error(record, error, run)
             return
 
         assert self._run  # self._run is configured in _init_run()
+
+        if do_fork:
+            error = self._setup_fork(server_run)
+
+        if error is not None:
+            self._handle_error(record, error, run)
+            return
 
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
@@ -1012,8 +998,8 @@ class SendManager:
     def _init_run(
         self,
         run: "RunRecord",
-        config_dict: Optional[DictWithValues],
-    ) -> None:
+        config_dict: Optional[sender_config.BackendConfigDict],
+    ) -> dict:
         # We subtract the previous runs runtime when resuming
         start_time = (
             run.start_time.ToMicroseconds() / 1e6
@@ -1098,6 +1084,7 @@ class SendManager:
             self._run.sweep_id = sweep_id
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
+        return server_run
 
     def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller
@@ -1344,8 +1331,7 @@ class SendManager:
         self._config_needs_debounce = True
 
     def send_config(self, record: "Record") -> None:
-        cfg = record.config
-        config_util.update_from_proto(self._consolidated_config, cfg)
+        self._consolidated_config.update_from_proto(record.config)
         self._update_config()
 
     def send_metric(self, record: "Record") -> None:
@@ -1457,40 +1443,27 @@ class SendManager:
             )
 
     def send_request_log_artifact(self, record: "Record") -> None:
-        assert record.control.mailbox_slot
+        assert record.control.req_resp
         result = proto_util._result_from_record(record)
         artifact = record.request.log_artifact.artifact
         history_step = record.request.log_artifact.history_step
 
-        future = None
         try:
-            res, future = self._send_artifact(artifact, history_step)
+            res = self._send_artifact(artifact, history_step)
             assert res, "Unable to send artifact"
-            result.response.log_artifact_response.artifact_id = res.get("id", None)
+            result.response.log_artifact_response.artifact_id = res["id"]
             logger.info(f"logged artifact {artifact.name} - {res}")
         except Exception as e:
             result.response.log_artifact_response.error_message = (
                 f'error logging artifact "{artifact.type}/{artifact.name}": {e}'
             )
 
-        def _respond_result(fut: concurrent.futures.Future):
-            if fut.exception() is not None:
-                result.response.log_artifact_response.error_message = f'error logging artifact "{artifact.type}/{artifact.name}": {fut.exception()}'
-            self._respond_result(result)
-
-        if future is not None:
-            # respond to the request only after the artifact is fully committed
-            future.add_done_callback(_respond_result)
-        else:
-            self._respond_result(result)
+        self._respond_result(result)
 
     def send_artifact(self, record: "Record") -> None:
         artifact = record.artifact
         try:
-            res, future = self._send_artifact(artifact)
-            # wait for future to complete in send artifact
-            if future is not None:
-                future.result()
+            res = self._send_artifact(artifact)
             logger.info(f"sent artifact {artifact.name} - {res}")
         except Exception as e:
             logger.error(
@@ -1501,8 +1474,8 @@ class SendManager:
 
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
-    ) -> Tuple[Dict, Optional[concurrent.futures.Future]]:
-        from pkg_resources import parse_version
+    ) -> Optional[Dict]:
+        from wandb.util import parse_version
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1522,10 +1495,10 @@ class SendManager:
                     "This W&B Server doesn't support distributed artifacts, "
                     "have your administrator install wandb/local >= 0.9.37"
                 )
-                return {}, None
+                return None
 
         metadata = json.loads(artifact.metadata) if artifact.metadata else None
-        res, future = saver.save(
+        res = saver.save(
             type=artifact.type,
             name=artifact.name,
             client_id=artifact.client_id,
@@ -1543,10 +1516,10 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
-        return res, future
+        return res
 
     def send_alert(self, record: "Record") -> None:
-        from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
@@ -1639,9 +1612,7 @@ class SendManager:
     def _flush_job(self) -> None:
         if self._job_builder.disable or self._settings._offline:
             return
-        self._job_builder.set_config(
-            {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
-        )
+        self._job_builder.set_config(self._consolidated_config.non_internal_config())
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)

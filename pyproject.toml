@@ -1,6 +1,6 @@
 [build-system]
-requires = ['setuptools>61']
-build-backend = "setuptools.build_meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "wandb"
@@ -11,20 +11,23 @@ readme = "package_readme.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.7"
 dependencies = [
-    "Click>=7.1,!=8.0.0",                                                                # click 8.0.0 is broken
-    "GitPython>=1.0.0,!=3.1.29",                                                         # CVE-2022-24439
+    "Click>=7.1,!=8.0.0",        # click 8.0.0 is broken
+    "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
     "sentry-sdk>=1.0.0",
     "docker-pycreds>=0.4.0",
+    # setuptools is needed for distutils in dependencies after Python 3.12 :(
+    # One such dependency is docker-pycreds, where the latest release is 0.4.0
+    # which was released in 2018.
+    "setuptools",
     "protobuf>=3.12.0,!=4.21.0,<5; python_version < '3.9' and sys_platform == 'linux'",
     "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
     "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
-    "setuptools",
-    "appdirs>=1.4.3",
+    "platformdirs",
     "typing_extensions; python_version < '3.10'",
 ]
 classifiers = [
@@ -93,28 +96,19 @@ launch = [
     "nbformat",
     "pydantic",
     "typing_extensions",
+    "tomli",
     "PyYAML>=6.0.0",
 ]
 models = ["cloudpickle"]
-async = ["httpx>=0.23.0"]
 perf = ["orjson"]
+importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
 reports = ["pydantic>=2.0.0"]
-
-[tool.setuptools]
-zip-safe = false
-include-package-data = true
-packages = ["wandb"]
-package-dir = { "wandb" = "wandb" }
-package-data = { "wandb" = ["py.typed"] }
-
-[tool.setuptools.dynamic]
-version = { attr = "wandb.__version__" }
 
 
 [tool.pytest.ini_options]
 minversion = "6.0"
 console_output_style = "count"
-addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope --capture=no"
+addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
 markers = [
     "image_output",
     "multiclass",
@@ -126,8 +120,7 @@ timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
 testpaths = "tests"
-filterwarnings = "ignore::DeprecationWarning"
-open_files_ignore = "*.ttf"
+filterwarnings = ["ignore::DeprecationWarning", "error:ResourceWarning"]
 norecursedirs = [
     "vendor",
     "wandb/vendor",
@@ -169,8 +162,10 @@ wandb/vendor/
 '''
 
 [tool.ruff]
-exclude = ["wandb/__init__.py"]
-extend-exclude = ["wandb/vendor/**", "wandb/proto/**"]
+extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
+target-version = "py37"
+
+[tool.ruff.lint]
 select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
@@ -178,14 +173,25 @@ ignore = [
     "D1",    # Allow missing docstrings.
     "D417",  # Don't require descriptions for all arguments.
     "UP022",
+    "UP032", # Allow using format instead of f-string.
     "UP036",
 ]
-target-version = "py37"
 
-[tool.ruff.isort]
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.lint.isort]
 split-on-trailing-comma = false
 
-[tool.ruff.per-file-ignores]
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
 "wandb/cli/cli.py" = ["C901"]
@@ -194,20 +200,12 @@ split-on-trailing-comma = false
 "wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
 "wandb/integration/metaflow/metaflow.py" = ["F811"]
 "wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
-"wandb/plots/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
+"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
 "tests/pytest_tests/unit_tests_old/**" = ["B", "C", "D", "E", "F", "N", "UP026"]
 "tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
 "tests/functional_tests/t0_main/metaflow/**" = ["D", "N806"]
 
-[tool.ruff.pydocstyle]
-convention = "google"
-
-[tool.ruff.pycodestyle]
-ignore-overlong-task-comments = true
-
-[tool.ruff.mccabe]
-max-complexity = 18
 
 [tool.mypy]
 warn_redundant_casts = true
@@ -216,6 +214,7 @@ exclude = '''
       wandb/vendor/.
    )
 '''
+
 
 # wandb.*
 [[tool.mypy.overrides]]
@@ -242,7 +241,6 @@ module = [
     "wandb.sync.*",
     "wandb.sdk.integration_utils.*",
     "wandb.plot.*",
-    "wandb.plots.*",
     "wandb.old.*",
 ]
 ignore_errors = true

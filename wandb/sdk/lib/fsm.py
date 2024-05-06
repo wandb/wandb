@@ -52,43 +52,39 @@ T_FsmContext_contra = TypeVar("T_FsmContext_contra", contravariant=True)
 @runtime_checkable
 class FsmStateCheck(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_check(self, inputs: T_FsmInputs) -> None:
-        ...  # pragma: no cover
+    def on_check(self, inputs: T_FsmInputs) -> None: ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateOutput(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_state(self, inputs: T_FsmInputs) -> None:
-        ...  # pragma: no cover
+    def on_state(self, inputs: T_FsmInputs) -> None: ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateEnter(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_enter(self, inputs: T_FsmInputs) -> None:
-        ...  # pragma: no cover
+    def on_enter(self, inputs: T_FsmInputs) -> None: ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateEnterWithContext(Protocol[T_FsmInputs, T_FsmContext_contra]):
     @abstractmethod
-    def on_enter(self, inputs: T_FsmInputs, context: T_FsmContext_contra) -> None:
-        ...  # pragma: no cover
+    def on_enter(
+        self, inputs: T_FsmInputs, context: T_FsmContext_contra
+    ) -> None: ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateStay(Protocol[T_FsmInputs]):
     @abstractmethod
-    def on_stay(self, inputs: T_FsmInputs) -> None:
-        ...  # pragma: no cover
+    def on_stay(self, inputs: T_FsmInputs) -> None: ...  # pragma: no cover
 
 
 @runtime_checkable
 class FsmStateExit(Protocol[T_FsmInputs, T_FsmContext_cov]):
     @abstractmethod
-    def on_exit(self, inputs: T_FsmInputs) -> T_FsmContext_cov:
-        ...  # pragma: no cover
+    def on_exit(self, inputs: T_FsmInputs) -> T_FsmContext_cov: ...  # pragma: no cover
 
 
 # It would be nice if python provided optional protocol members, but it doesnt as described here:

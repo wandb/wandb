@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
-"""PyTorch-specific functionality
-"""
+"""PyTorch-specific functionality"""
 
 import itertools
 from functools import reduce

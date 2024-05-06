@@ -14,7 +14,6 @@ from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.filenames import CONDA_ENVIRONMENTS_FNAME, DIFF_FNAME, METADATA_FNAME
 from wandb.sdk.lib.gitlib import GitRepo
-from wandb.sdk.wandb_settings import _get_program_relpath
 
 from .assets.interfaces import Interface
 
@@ -168,7 +167,7 @@ class SystemInfo:
             data["program"] = self.settings.program
             # Used during artifact-job creation, always points to the relpath
             # of code execution, even when in a git repo
-            data["codePathLocal"] = _get_program_relpath(self.settings.program)
+            data["codePathLocal"] = self.settings._code_path_local
         if not self.settings.disable_code:
             if self.settings.program_relpath:
                 data["codePath"] = self.settings.program_relpath
@@ -213,7 +212,10 @@ class SystemInfo:
                 os.path.join(self.settings.files_dir, CONDA_ENVIRONMENTS_FNAME), "w"
             ) as f:
                 subprocess.call(
-                    ["conda", "env", "export"], stdout=f, stderr=subprocess.DEVNULL
+                    ["conda", "env", "export"],
+                    stdout=f,
+                    stderr=subprocess.DEVNULL,
+                    timeout=15,  # add timeout since conda env export could take a really long time
                 )
         except Exception as e:
             logger.exception(f"Error saving conda packages: {e}")

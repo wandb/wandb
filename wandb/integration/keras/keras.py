@@ -19,7 +19,8 @@ from wandb.util import add_import_hook
 
 def _check_keras_version():
     from keras import __version__ as keras_version
-    from pkg_resources import parse_version
+
+    from wandb.util import parse_version
 
     if parse_version(keras_version) < parse_version("2.4.0"):
         wandb.termwarn(
@@ -29,7 +30,7 @@ def _check_keras_version():
 
 def _can_compute_flops() -> bool:
     """FLOPS computation is restricted to TF 2.x as it requires tf.compat.v1."""
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     if parse_version(tf.__version__) >= parse_version("2.0.0"):
         return True
@@ -73,8 +74,9 @@ def is_generator_like(data):
 
 
 def patch_tf_keras():  # noqa: C901
-    from pkg_resources import parse_version
     from tensorflow.python.eager import context
+
+    from wandb.util import parse_version
 
     if (
         parse_version("2.6.0")
@@ -235,7 +237,7 @@ patch_tf_keras()
 
 
 def _get_custom_optimizer_parent_class():
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     if parse_version(tf.__version__) >= parse_version("2.9.0"):
         custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
@@ -574,7 +576,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
                     )
                     self._model_trained_since_last_eval = False
             except Exception as e:
-                wandb.termwarn("Error durring prediction logging for epoch: " + str(e))
+                wandb.termwarn("Error during prediction logging for epoch: " + str(e))
 
     def on_epoch_end(self, epoch, logs=None):
         if logs is None:
@@ -614,9 +616,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
-                wandb.run.summary[
-                    f"{self.log_best_prefix}{self.monitor}"
-                ] = self.current
+                wandb.run.summary[f"{self.log_best_prefix}{self.monitor}"] = (
+                    self.current
+                )
                 wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
@@ -935,9 +937,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         grads = self._grad_accumulator_callback.grads
         metrics = {}
         for weight, grad in zip(weights, grads):
-            metrics[
-                "gradients/" + weight.name.split(":")[0] + ".gradient"
-            ] = wandb.Histogram(grad)
+            metrics["gradients/" + weight.name.split(":")[0] + ".gradient"] = (
+                wandb.Histogram(grad)
+            )
         return metrics
 
     def _log_dataframe(self):

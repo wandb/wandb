@@ -42,7 +42,7 @@ def _server_accepts_image_filenames() -> bool:
     max_cli_version = util._get_max_cli_version()
     if max_cli_version is None:
         return False
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     accepts_image_filenames: bool = parse_version("0.12.10") <= parse_version(
         max_cli_version
@@ -51,7 +51,7 @@ def _server_accepts_image_filenames() -> bool:
 
 
 def _server_accepts_artifact_path() -> bool:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     target_version = "0.12.14"
     max_cli_version = util._get_max_cli_version() if not util._is_offline() else None
@@ -167,7 +167,7 @@ class Image(BatchableMedia):
         self._file_type = None
 
         # Allows the user to pass an Image object as the first parameter and have a perfect copy,
-        # only overriding additional metdata passed in. If this pattern is compelling, we can generalize.
+        # only overriding additional metadata passed in. If this pattern is compelling, we can generalize.
         if isinstance(data_or_path, Image):
             self._initialize_from_wbimage(data_or_path)
         elif isinstance(data_or_path, str):
