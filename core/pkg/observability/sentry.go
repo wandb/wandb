@@ -24,6 +24,8 @@ func InitSentry(disabled bool, commit string) {
 		Commit: commit,
 	}
 
+	fmt.Println("sentry disabled: ", disabled)
+
 	// The DSN to use. If the DSN is not set, the client is effectively disabled.
 	if !disabled {
 		s.Dsn = sentryDsn
