@@ -66,6 +66,35 @@ def test_log_dataframe(user, test_settings):
     assert len(run.logged_artifacts()) == 1
 
 
+def test_log_nested_CC(user, test_settings, relay_server, inject_graphql_response):
+    server_info_response = inject_graphql_response(
+        # request
+        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
+        # response
+        body=json.dumps(
+            {
+                "data": {
+                    "serverInfo": {
+                        "cliVersionInfo": {"max_cli_version": "0.11.0"}
+                    }
+                }
+            }
+        ),
+    )
+    with relay_server(inject=[server_info_response]):
+        run = wandb.init(settings=test_settings())
+        x_data = [0, 1, 2, 3, 4]
+        y_data = [[123, 333, 111, 42, 533], [0.5, 11, 72, 3, 41]]
+        run.log({"layer1":{
+                    "level4":wandb.plot.line_series(
+                        xs = x_data,
+                        ys = y_data,
+                        keys = ["metric_A", "metric_B"])
+                    }
+                })
+        run.finish()
+
+
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
 def test_reference_table_logging(
     user, test_settings, relay_server, inject_graphql_response, max_cli_version
