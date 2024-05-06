@@ -156,12 +156,20 @@ def upload(ctx) -> None:
             path.write_text(token_hex((o["size"] + 1) // 2)[: o["size"]])
         print(f"\tcreated {o['count']} test files under {root}")
 
+        config = {
+            "file_count": o["count"],
+            "file_size": o["size"],
+            "core": o["core"],
+            "cache": o["cache"],
+            "stage": o["stage"],
+        }
+
         start = perf_counter()
         with wandb.init(
             project=o["project"],
             entity=o["entity"],
             settings={"console": "off"},
-            tags=[str(o["count"])],
+            config=config,
         ) as run:
             begin = perf_counter()
             artifact = wandb.Artifact(name=o["name"], type="test")
