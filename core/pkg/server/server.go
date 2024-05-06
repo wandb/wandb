@@ -31,6 +31,9 @@ type Server struct {
 	// and for the serve goroutine to finish
 	wg sync.WaitGroup
 
+	// pid is the parent pid
+	pid int
+
 	// teardownChan is the channel for signaling and waiting for teardown
 	teardownChan chan struct{}
 
@@ -52,10 +55,11 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 	}
 
 	s := &Server{
-		ctx:      ctx,
-		cancel:   cancel,
-		listener: listener,
-		wg:       sync.WaitGroup{},
+		ctx:          ctx,
+		cancel:       cancel,
+		listener:     listener,
+		wg:           sync.WaitGroup{},
+		pid:          pid,
 		teardownChan: make(chan struct{}),
 		shutdownChan: make(chan struct{}),
 		pidwatchChan: make(chan struct{}),
@@ -67,12 +71,6 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 		return nil, err
 	}
 
-	s.wg.Add(1)
-	go s.Serve()
-	if pid != 0 {
-		s.wg.Add(1)
-		go s.WatchParentPid(pid)
-	}
 	return s, nil
 }
 
@@ -108,6 +106,10 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 // Serve starts the server
 func (s *Server) Start() {
 	s.wg.Add(1)
+	if s.pid != 0 {
+		s.wg.Add(1)
+		go s.WatchParentPid(s.pid)
+	}
 	go func() {
 		defer s.wg.Done()
 		s.serve()
