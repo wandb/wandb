@@ -549,6 +549,9 @@ class WandbImporter:
         except TypeError as e:
             logger.error(f"Problem getting dst versions (try again later) {e=}")
             return
+        except Exception as e:
+            logger.error(f"Unknown error, {e=}")
+            return
 
         for art in dst_arts:
             if art.description != ART_SEQUENCE_DUMMY_PLACEHOLDER:
