@@ -24,10 +24,7 @@ TIMING_DATA: List = []
 
 
 def run_one(args, n=0, m=0):
-    kwargs = {}
-    if args.mode:
-        kwargs["mode"] = args.mode
-    with wandb.init(**kwargs) as run:
+    with wandb.init(mode=args.mode) as run:
         for e in range(args.num_history):
             d = {}
             for i in range(args.history_floats):
