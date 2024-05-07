@@ -198,6 +198,10 @@ message Feature {
   bool lightning_fabric_logger = 60;     // Using Lightning Fabric logger
   bool set_step_log = 61;                // step was set in wandb.log
   bool set_summary = 62;                 // summary was set by the user
+  bool metric_summary = 63;              // summary arg passed to define_metric
+  bool metric_goal = 64;                 // goal arg passed to define_metric
+  bool metric_hidden = 65;               // hidden arg passed to define_metric
+  bool metric_step_sync = 66;            // step_sync arg passed to define_metric
 }
 
 message Env {
