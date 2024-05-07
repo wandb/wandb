@@ -33,11 +33,13 @@ func NewHistoryRecord() filestream.Update {
 
 func TestFileStream(t *testing.T) {
 	var fakeClient *apitest.FakeClient
+	var printer *observability.Printer
 	var heartbeatStopwatch waiting.Stopwatch
 	var processDelay waiting.Delay
 
 	setup := func(configure func()) filestream.FileStream {
 		fakeClient = apitest.NewFakeClient("test-url")
+		printer = observability.NewPrinter()
 		// By default, chunk everything and prevent heartbeats.
 		heartbeatStopwatch = waitingtest.NewFakeStopwatch()
 		processDelay = waitingtest.NewFakeDelay()
@@ -48,6 +50,7 @@ func TestFileStream(t *testing.T) {
 		return filestream.NewFileStream(filestream.FileStreamParams{
 			Settings:           &service.Settings{},
 			Logger:             observability.NewNoOpLogger(),
+			Printer:            printer,
 			ApiClient:          fakeClient,
 			DelayProcess:       processDelay,
 			HeartbeatStopwatch: heartbeatStopwatch,
@@ -123,12 +126,8 @@ func TestFileStream(t *testing.T) {
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
-		select {
-		case err := <-fs.FatalErrorChan():
-			assert.ErrorContains(t, err, "error making HTTP request")
-			assert.ErrorContains(t, err, "nope!")
-		case <-time.After(time.Second):
-			t.Error("Didn't push to FatalErrorChan()")
-		}
+		messages := printer.Read()
+		assert.Len(t, messages, 1)
+		assert.Contains(t, messages[0], "Fatal error")
 	})
 }

@@ -147,22 +147,28 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	w := watcher.New(watcher.Params{
 		Logger:   s.logger,
-		FilesDir: s.settings.Proto.GetFilesDir().GetValue(),
+		FilesDir: s.settings.GetFilesDir(),
 	})
 
 	// TODO: replace this with a logger that can be read by the user
-	peeker := observability.NewPeeker()
+	peeker := &observability.Peeker{}
+	terminalPrinter := observability.NewPrinter()
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	terminalPrinter := observability.NewPrinter[string]()
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileStreamOrNil = NewFileStream(
+			backendOrNil,
+			s.logger,
+			terminalPrinter,
+			settings,
+			peeker,
+		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
@@ -176,23 +182,9 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
-
-		go func() {
-			err := <-fileStreamOrNil.FatalErrorChan()
-			s.logger.CaptureFatal("stream: fatal error in filestream", err)
-			terminalPrinter.Write(
-				"Fatal error while uploading data. Some run data will" +
-					" not be synced, but it will still be written to disk. Use" +
-					" `wandb sync` at the end of the run to try uploading.",
-			)
-		}()
 	}
 
 	mailbox := mailbox.NewMailbox()
-
-	// runSummary is used to track the summary of the run's metrics
-	// and is shared between the handler and the sender
-	runSummary := runsummary.New()
 
 	s.handler = NewHandler(s.ctx,
 		&HandlerParams{
@@ -204,7 +196,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan),
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runSummary,
+			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
@@ -230,7 +222,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FileTransferManager: fileTransferManagerOrNil,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Peeker:              peeker,
-			RunSummary:          runSummary,
+			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
@@ -324,10 +316,6 @@ func (s *Stream) HandleRecord(rec *service.Record) {
 	s.inChan <- rec
 }
 
-func (s *Stream) GetRun() *service.RunRecord {
-	return s.handler.GetRun()
-}
-
 // Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
 // assumes an exit record has already been sent
 func (s *Stream) Close() {
@@ -345,10 +333,13 @@ func (s *Stream) Respond(resp *service.ServerResponse) {
 	s.outChan <- resp
 }
 
+// FinishAndClose closes the stream and sends an exit record to the handler.
+// This will be called when we recieve a teardown signal from the client.
+// So it is used to close all active streams in the system.
 func (s *Stream) FinishAndClose(exitCode int32) {
 	s.AddResponders(ResponderEntry{s, internalConnectionId})
 
-	if !s.settings.Proto.GetXSync().GetValue() {
+	if !s.settings.IsSync() {
 		// send exit record to handler
 		record := &service.Record{
 			RecordType: &service.Record_Exit{
@@ -359,17 +350,19 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		}
 
 		s.HandleRecord(record)
-		// TODO(beta): process the response so we can formulate a more correct footer
 		<-s.outChan
 	}
 
 	s.Close()
 
-	s.PrintFooter()
-	s.logger.Info("closed stream", "id", s.settings.GetRunID())
-}
+	// TODO: we are using service.Settings instead of settings.Settings
+	// because this package is used by the go wandb client package
+	if s.settings.IsOffline() {
+		utils.PrintFooterOffline(s.settings.Proto)
+	} else {
+		run := s.handler.GetRun()
+		utils.PrintFooterOnline(run, s.settings.Proto)
+	}
 
-func (s *Stream) PrintFooter() {
-	run := s.GetRun()
-	utils.PrintHeadFoot(run, s.settings.Proto, true)
+	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }

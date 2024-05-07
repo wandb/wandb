@@ -47,7 +47,7 @@ type HandlerParams struct {
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
 	SystemMonitor     *monitor.SystemMonitor
-	TerminalPrinter   *observability.Printer[string]
+	TerminalPrinter   *observability.Printer
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -106,7 +106,7 @@ type Handler struct {
 	fileTransferStats filetransfer.FileTransferStats
 
 	// terminalPrinter gathers terminal messages to send back to the user process
-	terminalPrinter *observability.Printer[string]
+	terminalPrinter *observability.Printer
 
 	mailbox *mailbox.Mailbox
 }

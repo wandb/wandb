@@ -9,7 +9,7 @@ import (
 )
 
 func TestCollectNothing(t *testing.T) {
-	input := make(chan processedChunk, 32)
+	input := make(chan CollectorStateUpdate, 32)
 	collector := chunkCollector{
 		input:           input,
 		processDelay:    waiting.NoDelay(),
@@ -23,21 +23,19 @@ func TestCollectNothing(t *testing.T) {
 }
 
 func TestCollectSomething(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line",
+	input := make(chan CollectorStateUpdate, 32)
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line"},
 	}
-	input <- processedChunk{
-		fileType: OutputChunk,
-		fileLine: "line3",
+	input <- &TransmitChunk{
+		ConsoleLogLines: []string{"line3"},
 	}
-	input <- processedChunk{
-		Preempting: true,
+	input <- &TransmitChunk{
+		HasPreempting: true,
+		Preempting:    true,
 	}
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line2",
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line2"},
 	}
 
 	collector := chunkCollector{
@@ -67,22 +65,18 @@ func TestCollectSomething(t *testing.T) {
 }
 
 func TestCollectFinal(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line",
+	input := make(chan CollectorStateUpdate, 32)
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line"},
 	}
-	exitcode := int32(2)
-	input <- processedChunk{
-		Exitcode: &exitcode,
+	input <- &collectorExitUpdate{
+		exitCode: 2,
 	}
-	input <- processedChunk{
-		fileType: OutputChunk,
-		fileLine: "line3",
+	input <- &TransmitChunk{
+		ConsoleLogLines: []string{"line3"},
 	}
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line2",
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line2"},
 	}
 	collector := chunkCollector{
 		input:           input,
@@ -93,6 +87,8 @@ func TestCollectFinal(t *testing.T) {
 
 	data, ok := collector.CollectAndDump(FileStreamOffsetMap{})
 
+	boolTrue := true
+	exitcode := int32(2)
 	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
@@ -106,6 +102,7 @@ func TestCollectFinal(t *testing.T) {
 					Content: []string{"line3"},
 				},
 			},
+			Complete: &boolTrue,
 			Exitcode: &exitcode,
 		},
 		data,
@@ -113,8 +110,8 @@ func TestCollectFinal(t *testing.T) {
 }
 
 func TestCollectProcessedChunkUpdate(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{Preempting: true}
+	input := make(chan CollectorStateUpdate, 32)
+	input <- &TransmitChunk{HasPreempting: true, Preempting: true}
 	collector := chunkCollector{
 		input:           input,
 		processDelay:    waiting.NewDelay(10 * time.Millisecond),

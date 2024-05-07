@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -34,8 +33,6 @@ import (
 )
 
 const (
-	// RFC3339Micro Modified from time.RFC3339Nano
-	RFC3339Micro              = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit  = 1 / 30.0 // todo: audit rate limit
 	configDebouncerBurstSize  = 1        // todo: audit burst size
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -803,9 +800,15 @@ func (s *Sender) streamSummary() {
 	})
 }
 
-func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
+func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
+	s.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			s.logger.CaptureError("Error updating run summary", err)
+		},
+	)
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
@@ -976,27 +979,9 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
 
-	if s.fileStream == nil {
-		return
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
 	}
-
-	// generate compatible timestamp to python iso-format (microseconds without Z)
-	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
-	var line string
-	switch outputRaw.OutputType {
-	case service.OutputRawRecord_STDOUT:
-		line = fmt.Sprintf("%s %s", t, outputRaw.Line)
-	case service.OutputRawRecord_STDERR:
-		line = fmt.Sprintf("ERROR %s %s", t, outputRaw.Line)
-	default:
-		err := fmt.Errorf("sender: sendOutputRaw: unexpected output type %v", outputRaw.OutputType)
-		s.logger.CaptureError("sender received error", err)
-		return
-	}
-
-	s.fileStream.StreamUpdate(&fs.LogsUpdate{
-		Record: &service.OutputRawRecord{Line: line},
-	})
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {

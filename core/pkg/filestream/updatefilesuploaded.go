@@ -9,9 +9,9 @@ type FilesUploadedUpdate struct {
 	RelativePath string
 }
 
-func (u *FilesUploadedUpdate) Chunk(fs *fileStream) error {
-	fs.addTransmit(processedChunk{
-		Uploaded: []string{u.RelativePath},
+func (u *FilesUploadedUpdate) Apply(ctx UpdateContext) error {
+	ctx.ModifyRequest(&TransmitChunk{
+		UploadedFiles: []string{u.RelativePath},
 	})
 
 	return nil

@@ -33,6 +33,7 @@ package filestream
 
 import (
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -51,6 +52,11 @@ const (
 	defaultMaxItemsPerPush   = 5_000
 	defaultDelayProcess      = 20 * time.Millisecond
 	defaultHeartbeatInterval = 30 * time.Second
+
+	// Maximum line length for filestream jsonl files, imposed by the back-end.
+	//
+	// See https://github.com/wandb/core/pull/7339 for history.
+	maxFileLineBytes = (10 << 20) - (100 << 10)
 )
 
 type ChunkTypeEnum int8
@@ -83,12 +89,6 @@ type FileStream interface {
 
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
-
-	// FatalErrorChan is a channel that emits if there is a fatal error.
-	//
-	// If this channel emits, all filestream operations afterward become
-	// no-ops. This channel emits at most once, and it is never closed.
-	FatalErrorChan() <-chan error
 }
 
 // fileStream is a stream of data to the server
@@ -99,7 +99,7 @@ type fileStream struct {
 	path string
 
 	processChan  chan Update
-	transmitChan chan processedChunk
+	transmitChan chan CollectorStateUpdate
 	feedbackChan chan map[string]interface{}
 
 	processWait  *sync.WaitGroup
@@ -112,8 +112,11 @@ type fileStream struct {
 	// settings is the settings for the filestream
 	settings *service.Settings
 
-	// logger is the logger for the filestream
+	// A logger for internal debug logging.
 	logger *observability.CoreLogger
+
+	// A way to print console messages to the user.
+	printer *observability.Printer
 
 	// The client for making API requests.
 	apiClient api.Client
@@ -128,14 +131,14 @@ type fileStream struct {
 	clientId string
 
 	// A channel that is closed if there is a fatal error.
-	deadChan       chan struct{}
-	deadChanOnce   *sync.Once
-	fatalErrorChan chan error
+	deadChan     chan struct{}
+	deadChanOnce *sync.Once
 }
 
 type FileStreamParams struct {
 	Settings           *service.Settings
 	Logger             *observability.CoreLogger
+	Printer            *observability.Printer
 	ApiClient          api.Client
 	MaxItemsPerPush    int
 	ClientId           string
@@ -144,21 +147,29 @@ type FileStreamParams struct {
 }
 
 func NewFileStream(params FileStreamParams) FileStream {
+	// Panic early to avoid surprises. These fields are required.
+	if params.Logger == nil {
+		panic("filestream: nil logger")
+	}
+	if params.Printer == nil {
+		panic("filestream: nil printer")
+	}
+
 	fs := &fileStream{
 		settings:        params.Settings,
 		logger:          params.Logger,
+		printer:         params.Printer,
 		apiClient:       params.ApiClient,
 		processWait:     &sync.WaitGroup{},
 		transmitWait:    &sync.WaitGroup{},
 		feedbackWait:    &sync.WaitGroup{},
 		processChan:     make(chan Update, BufferSize),
-		transmitChan:    make(chan processedChunk, BufferSize),
+		transmitChan:    make(chan CollectorStateUpdate, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
-		fatalErrorChan:  make(chan error, 1),
 	}
 
 	fs.delayProcess = params.DelayProcess
@@ -198,37 +209,25 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	for k, v := range offsetMap {
-		fs.offsetMap[k] = v
+	if offsetMap != nil {
+		fs.offsetMap = maps.Clone(offsetMap)
 	}
 
 	fs.processWait.Add(1)
 	go func() {
-		defer func() {
-			fs.processWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
+		defer fs.processWait.Done()
 		fs.loopProcess(fs.processChan)
 	}()
 
 	fs.transmitWait.Add(1)
 	go func() {
-		defer func() {
-			fs.transmitWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
+		defer fs.transmitWait.Done()
 		fs.loopTransmit(fs.transmitChan)
 	}()
 
 	fs.feedbackWait.Add(1)
 	go func() {
-		defer func() {
-			fs.feedbackWait.Done()
-			fs.recoverUnexpectedPanic()
-		}()
-
+		defer fs.feedbackWait.Done()
 		fs.loopFeedback(fs.feedbackChan)
 	}()
 }
@@ -236,10 +235,6 @@ func (fs *fileStream) Start(
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
 	fs.addProcess(update)
-}
-
-func (fs *fileStream) FatalErrorChan() <-chan error {
-	return fs.fatalErrorChan
 }
 
 func (fs *fileStream) Close() {
@@ -261,7 +256,11 @@ func (fs *fileStream) logFatalAndStopWorking(err error) {
 	fs.logger.CaptureFatal("filestream: fatal error", err)
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
-		fs.fatalErrorChan <- err
+		fs.printer.Write(
+			"Fatal error while uploading data. Some run data will" +
+				" not be synced, but it will still be written to disk. Use" +
+				" `wandb sync` at the end of the run to try uploading.",
+		)
 	})
 }
 
@@ -272,18 +271,5 @@ func (fs *fileStream) isDead() bool {
 		return true
 	default:
 		return false
-	}
-}
-
-// recoverUnexpectedPanic redirects panics to FatalErrorChan.
-//
-// This should be used in a `defer` statement at the top of a function. This
-// is intended for truly *unexpected* panics to completely panic-proof critical
-// goroutines. All other errors should directly use `pushFatalError`.
-func (fs *fileStream) recoverUnexpectedPanic() {
-	if e := recover(); e != nil {
-		fs.logFatalAndStopWorking(
-			fmt.Errorf("filestream: unexpected panic: %v", e),
-		)
 	}
 }
