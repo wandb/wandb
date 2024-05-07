@@ -26,6 +26,12 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
+def disable_sentry_in_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disables Sentry for all tests with core."""
+    monkeypatch.setenv("WANDB_CORE_ERROR_REPORTING", "false")
+
+
+@pytest.fixture(autouse=True)
 def toggle_wandb_core(
     monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
