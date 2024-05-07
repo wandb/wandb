@@ -10,7 +10,7 @@ import (
 	"runtime/trace"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/wandb/wandb/core/internal/processlib"
+	// "github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -37,7 +37,7 @@ func main() {
 	var shutdownOnParentExitEnabled bool
 	if *pid != 0 {
 		// Shutdown this process if the parent pid exits (if supported by the OS)
-		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
+		// shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
 	}
 
 	// set up sentry reporting
