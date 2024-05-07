@@ -52,6 +52,7 @@ func (c *TransmitChunk) Write(
 				Offset:  offsets[chunkType],
 				Content: lines,
 			}
+			offsets[chunkType] += len(lines)
 		}
 	}
 	addLines(HistoryChunk, c.HistoryLines)
