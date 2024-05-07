@@ -35,6 +35,7 @@ func main() {
 	flag.Parse()
 
 	var shutdownOnParentExitEnabled bool
+	// TODO: figure out if we can enable this in the future, there is an interaction with pthreads
 	// if *pid != 0 {
 	//	// Shutdown this process if the parent pid exits (if supported by the OS)
 	//	shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
