@@ -21,6 +21,67 @@ from wandb.sdk.lib.gitlib import GitRepo  # noqa: E402
 from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 # --------------------------------
+# Global pytest configuration
+# --------------------------------
+
+
+@pytest.fixture(autouse=True)
+def disable_sentry_in_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Disables Sentry for all tests with core."""
+    monkeypatch.setenv("WANDB_CORE_ERROR_REPORTING", "false")
+
+
+@pytest.fixture(autouse=True)
+def toggle_wandb_core(
+    monkeypatch: pytest.MonkeyPatch,
+    request: pytest.FixtureRequest,
+) -> None:
+    """Sets WANDB__REQUIRE_CORE in each test.
+
+    wandb-core is a Go rewrite of some Python logic, and all tests should work
+    the same both with and without it.
+    """
+    monkeypatch.setenv("WANDB__REQUIRE_CORE", str(request.param))
+
+
+def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
+    # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
+
+    # Run each test both with and without wandb-core.
+    if toggle_wandb_core.__name__ in metafunc.fixturenames:
+        # Allow tests to opt-out of wandb-core until we have feature parity.
+        skip_wandb_core = False
+        wandb_core_only = False
+        for mark in metafunc.definition.iter_markers():
+            if mark.name == "wandb_core_failure":
+                skip_wandb_core = True
+            elif mark.name == "wandb_core_only":
+                wandb_core_only = True
+
+        if wandb_core_only:
+            # Don't merge tests like this. Implement the feature first.
+            assert (
+                not skip_wandb_core
+            ), "Cannot mark test both wandb_core_failure and wandb_core_only"
+
+            values = [True]
+            ids = ["wandb_core"]
+        elif skip_wandb_core:
+            values = [False]
+            ids = ["no_wandb_core"]
+        else:
+            values = [False, True]
+            ids = ["no_wandb_core", "wandb_core"]
+
+        metafunc.parametrize(
+            toggle_wandb_core.__name__,
+            values,
+            ids=ids,
+            indirect=True,  # Causes the fixture to be invoked.
+        )
+
+
+# --------------------------------
 # Misc Fixtures utilities
 # --------------------------------
 

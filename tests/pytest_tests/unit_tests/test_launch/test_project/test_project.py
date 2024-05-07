@@ -2,7 +2,7 @@ import os
 from unittest.mock import MagicMock
 
 import pytest
-from wandb.sdk.launch._project_spec import LaunchProject
+from wandb.sdk.launch._project_spec import LaunchProject, LaunchSource
 
 
 def test_project_build_required():
@@ -243,3 +243,10 @@ def test_get_env_vars_dict_with_low_max_length(mock_project_args, test_api):
         "WANDB_SWEEP_ID": "mock-sweep-id",
         "WANDB_USERNAME": "mock-author",
     }
+
+
+def test_init_source_placeholder_uri(mock_project_args):
+    """Test that the source placeholder URI is correctly initialized."""
+    mock_project_args["uri"] = "placeholder-uri"
+    project = LaunchProject(**mock_project_args)
+    assert project.source == LaunchSource.SCHEDULER

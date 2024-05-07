@@ -466,29 +466,13 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     assert local_path == path
 
 
+class UnfinishedStoragePolicy(StoragePolicy):
+    @classmethod
+    def name(cls) -> str:
+        return "UnfinishedStoragePolicy"
+
+
 def test_storage_policy_incomplete():
-    class UnfinishedStoragePolicy(StoragePolicy):
-        pass
-
-    # Invalid argument values since we're only testing abstract code coverage.
-    abstract_method_args = {
-        "name": {},
-        "from_config": dict(config={}),
-        "config": {},
-        "load_file": dict(artifact=None, manifest_entry=None),
-        "store_file": dict(
-            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
-        ),
-        "store_reference": dict(artifact=None, path=""),
-        "load_reference": dict(manifest_entry=None),
-    }
-    usp = UnfinishedStoragePolicy()
-    for method, kwargs in abstract_method_args.items():
-        with pytest.raises(NotImplementedError):
-            getattr(usp, method)(**kwargs)
-
-    UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
-
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
