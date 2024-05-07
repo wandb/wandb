@@ -115,6 +115,7 @@ markers = [
     "wandb_args",
     "flaky",
     "wandb_core_failure(feature): test failures with wandb-core, grouped by feature",
+    "wandb_core_only: tests for features only available with wandb-core",
 ]
 timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"

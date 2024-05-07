@@ -51,16 +51,27 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     if toggle_wandb_core.__name__ in metafunc.fixturenames:
         # Allow tests to opt-out of wandb-core until we have feature parity.
         skip_wandb_core = False
+        wandb_core_only = False
         for mark in metafunc.definition.iter_markers():
             if mark.name == "wandb_core_failure":
                 skip_wandb_core = True
-                break
+            elif mark.name == "wandb_core_only":
+                wandb_core_only = True
 
-        values = [False]
-        ids = ["no_wandb_core"]
-        if not skip_wandb_core:
-            values.append(True)
-            ids.append("wandb_core")
+        if wandb_core_only:
+            # Don't merge tests like this. Implement the feature first.
+            assert (
+                not skip_wandb_core
+            ), "Cannot mark test both wandb_core_failure and wandb_core_only"
+
+            values = [True]
+            ids = ["wandb_core"]
+        elif skip_wandb_core:
+            values = [False]
+            ids = ["no_wandb_core"]
+        else:
+            values = [False, True]
+            ids = ["no_wandb_core", "wandb_core"]
 
         metafunc.parametrize(
             toggle_wandb_core.__name__,
