@@ -11,6 +11,6 @@ protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'
 PyYAML
 setproctitle
 setuptools
-appdirs>=1.4.3
-dataclasses; python_version < '3.7'
+platformdirs
 typing_extensions; python_version < '3.10'
+

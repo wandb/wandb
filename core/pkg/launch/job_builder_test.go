@@ -105,7 +105,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Equal(t, "testEntity", artifact.Entity)
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 3, len(artifact.Manifest.Contents))
-		assert.Equal(t, "054a1c0c892a8507b3700f93878ed16c", artifact.Digest)
+		assert.Equal(t, "148c5ecbb60815f037fd8ba2715ec1c6", artifact.Digest)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -165,7 +165,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Equal(t, "testEntity", artifact.Entity)
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 3, len(artifact.Manifest.Contents))
-		assert.Equal(t, "1cafb1fd366920224373d8fd14f035ad", artifact.Digest)
+		assert.Equal(t, "955b87b67813fcf514645b98ed9aaccf", artifact.Digest)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -216,7 +216,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 		assert.Equal(t, "testEntity", artifact.Entity)
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
-		assert.Equal(t, "446f079e79cf2236cc6fbba24fdf5411", artifact.Digest)
+		assert.Equal(t, "53efc97d385924d4eeb9893d44552c3c", artifact.Digest)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -277,7 +277,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 		assert.Equal(t, "testEntity", artifact.Entity)
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
-		assert.Equal(t, "de46eb3e3d97a0296402e1ece353900a", artifact.Digest)
+		assert.Equal(t, "107ca7f9f6220f0c713f316664fa46f1", artifact.Digest)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -323,7 +323,7 @@ func TestJobBuilderImage(t *testing.T) {
 		assert.Equal(t, "testEntity", artifact.Entity)
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
-		assert.Equal(t, "d5c70218aa7a6695f0e5f76bc623f701", artifact.Digest)
+		assert.Equal(t, "e56fd338fa10f4b993f78e4530b30f76", artifact.Digest)
 		assert.Equal(t, []string{"testTag"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
@@ -434,6 +434,7 @@ func TestJobBuilderFromPartial(t *testing.T) {
 					Partial: &service.PartialJobArtifact{
 						JobName: "job-testJobName",
 						SourceInfo: &service.JobSource{
+							XVersion:   "v0",
 							SourceType: "repo",
 							Runtime:    "3.11.2",
 							Source: &service.Source{
@@ -443,7 +444,9 @@ func TestJobBuilderFromPartial(t *testing.T) {
 										Commit: "1234567890",
 										Remote: "example.com",
 									},
-									Notebook: false,
+									Notebook:     false,
+									Dockerfile:   "Dockerfile",
+									BuildContext: "context",
 								},
 							},
 						},
@@ -459,7 +462,7 @@ func TestJobBuilderFromPartial(t *testing.T) {
 		assert.Equal(t, "testEntity", artifact.Entity)
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
-		assert.Equal(t, "a9e89c980664f90b0e2d7e1326f182d7", artifact.Digest)
+		assert.Equal(t, "dfc5b8caa82c6b45d41986c787ab6e56", artifact.Digest)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -476,6 +479,64 @@ func TestJobBuilderFromPartial(t *testing.T) {
 		}
 	})
 }
+
+func TestJobBuilderCodeJobFromPartial(t *testing.T) {
+	t.Run("Build code job from partial", func(t *testing.T) {
+		metadata := map[string]interface{}{
+			"python": "3.11.2",
+		}
+
+		fdir := filepath.Join(os.TempDir(), "test")
+		err := os.MkdirAll(fdir, 0777)
+		assert.Nil(t, err)
+		writeRequirements(t, fdir)
+		writeWandbMetadata(t, fdir, metadata)
+
+		defer os.RemoveAll(fdir)
+		settings := &service.Settings{
+			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+		}
+		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+		artifactRecord := &service.Record{
+			RecordType: &service.Record_UseArtifact{
+				UseArtifact: &service.UseArtifactRecord{
+					Id:   "testID",
+					Type: "job",
+					Name: "partialArtifact",
+					Partial: &service.PartialJobArtifact{
+						JobName: "job-testJobName",
+						SourceInfo: &service.JobSource{
+							XVersion:   "0.17.0",
+							SourceType: "artifact",
+							Runtime:    "3.11.2",
+							Source: &service.Source{
+								Artifact: &service.ArtifactInfo{
+									Artifact:     "testArtifactId",
+									Entrypoint:   []string{"a", "b"},
+									Dockerfile:   "Dockerfile",
+									BuildContext: "context",
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+		jobBuilder.HandleUseArtifactRecord(artifactRecord)
+		artifact, err := jobBuilder.Build(map[string]interface{}{})
+		assert.Nil(t, err)
+		assert.Equal(t, "job-testJobName", artifact.Name)
+		assert.Equal(t, "testProject", artifact.Project)
+		assert.Equal(t, "testEntity", artifact.Entity)
+		assert.Equal(t, "testRunId", artifact.RunId)
+		assert.Equal(t, 2, len(artifact.Manifest.Contents))
+		assert.Equal(t, "f457273fd1b4bee4177ded847e048d48", artifact.Digest)
+	})
+}
+
 func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 	t.Run("HandleUseArtifactRecord repo type", func(t *testing.T) {
 		settings := &service.Settings{
@@ -601,7 +662,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
 	})
 
-	t.Run("HandleUseArtifactRecord disabeld when use non partial artifact job", func(t *testing.T) {
+	t.Run("HandleUseArtifactRecord disabled when use non partial artifact job", func(t *testing.T) {
 		settings := &service.Settings{}
 		artifactRecord := &service.Record{
 			RecordType: &service.Record_UseArtifact{
@@ -722,7 +783,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("GetSourceType job type specified repo", func(t *testing.T) {
 		sourceType := RepoSourceType
-		noRepoIngrediantsError := "no repo job ingredients found, but source type set to repo"
+		noRepoIngredientsError := "no repo job ingredients found, but source type set to repo"
 		commit := "1234567890"
 		remote := "example.com"
 		settings := &service.Settings{
@@ -749,7 +810,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 			{
 				metadata:           RunMetadata{},
 				expectedSourceType: nil,
-				expectedError:      &noRepoIngrediantsError,
+				expectedError:      &noRepoIngredientsError,
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -771,7 +832,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 
 	t.Run("GetSourceType job type specified artifact", func(t *testing.T) {
 		sourceType := ArtifactSourceType
-		noArtifactIngrediantsError := "no artifact job ingredients found, but source type set to artifact"
+		noArtifactIngredientsError := "no artifact job ingredients found, but source type set to artifact"
 		settings := &service.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
@@ -791,7 +852,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 			{
 				metadata:           RunMetadata{},
 				expectedSourceType: nil,
-				expectedError:      &noArtifactIngrediantsError,
+				expectedError:      &noArtifactIngredientsError,
 			},
 		}
 
@@ -821,7 +882,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("getSourceType job type specified image", func(t *testing.T) {
 		sourceType := ImageSourceType
 		imageName := "testImage"
-		noImageIngrediantsError := "no image job ingredients found, but source type set to image"
+		noImageIngredientsError := "no image job ingredients found, but source type set to image"
 		settings := &service.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
@@ -843,7 +904,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 			{
 				metadata:           RunMetadata{},
 				expectedSourceType: nil,
-				expectedError:      &noImageIngrediantsError,
+				expectedError:      &noImageIngredientsError,
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -932,7 +993,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 	jobBuilder.SetRunConfig(*runconfig.NewFrom(
-		runconfig.RunConfigDict{
+		map[string]interface{}{
 			"key1": "value1",
 			"key2": "value2",
 			"key3": map[string]interface{}{

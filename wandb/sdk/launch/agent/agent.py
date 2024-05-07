@@ -9,7 +9,9 @@ import time
 import traceback
 from dataclasses import dataclass
 from multiprocessing import Event
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import yaml
 
 import wandb
 from wandb.apis.internal import Api
@@ -18,11 +20,11 @@ from wandb.sdk.launch._launch_add import launch_add
 from wandb.sdk.launch.runner.local_container import LocalSubmittedRun
 from wandb.sdk.launch.runner.local_process import LocalProcessRunner
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
+from wandb.sdk.launch.utils import LAUNCH_CONFIG_FILE, resolve_build_and_registry_config
 from wandb.sdk.lib import runid
 
 from .. import loader
 from .._project_spec import LaunchProject
-from ..builder.build import construct_agent_configs
 from ..errors import LaunchDockerError, LaunchError
 from ..utils import (
     LAUNCH_DEFAULT_PROJECT,
@@ -134,6 +136,31 @@ class InternalAgentLogger:
         _logger.debug(f"{LOG_PREFIX}{message}")
 
 
+def construct_agent_configs(
+    launch_config: Optional[Dict] = None,
+    build_config: Optional[Dict] = None,
+) -> Tuple[Optional[Dict[str, Any]], Dict[str, Any], Dict[str, Any]]:
+    registry_config = None
+    environment_config = None
+    if launch_config is not None:
+        build_config = launch_config.get("builder")
+        registry_config = launch_config.get("registry")
+
+    default_launch_config = None
+    if os.path.exists(os.path.expanduser(LAUNCH_CONFIG_FILE)):
+        with open(os.path.expanduser(LAUNCH_CONFIG_FILE)) as f:
+            default_launch_config = (
+                yaml.safe_load(f) or {}
+            )  # In case the config is empty, we want it to be {} instead of None.
+        environment_config = default_launch_config.get("environment")
+
+    build_config, registry_config = resolve_build_and_registry_config(
+        default_launch_config, build_config, registry_config
+    )
+
+    return environment_config, build_config, registry_config
+
+
 class LaunchAgent:
     """Launch agent class which polls run given run queues and launches runs for wandb launch."""
 
@@ -173,7 +200,7 @@ class LaunchAgent:
             config: Config dictionary for the agent.
         """
         self._entity = config["entity"]
-        self._project = config.get("project", LAUNCH_DEFAULT_PROJECT)
+        self._project = LAUNCH_DEFAULT_PROJECT
         self._api = api
         self._base_url = self._api.settings().get("base_url")
         self._ticks = 0
@@ -241,7 +268,7 @@ class LaunchAgent:
         """Determine whether a job/runSpec is a sweep scheduler."""
         if not run_spec:
             self._internal_logger.debug(
-                "Recieved runSpec in _is_scheduler_job that was empty"
+                "Received runSpec in _is_scheduler_job that was empty"
             )
 
         if run_spec.get("uri") != Scheduler.PLACEHOLDER_URI:
@@ -277,6 +304,8 @@ class LaunchAgent:
 
     def _init_agent_run(self) -> None:
         # TODO: has it been long enough that all backends support agents?
+        self._wandb_run = None
+
         if self.gorilla_supports_agents:
             settings = wandb.Settings(silent=True, disable_git=True)
             self._wandb_run = wandb.init(
@@ -286,8 +315,6 @@ class LaunchAgent:
                 id=self._name,
                 job_type=HIDDEN_AGENT_RUN_TYPE,
             )
-        else:
-            self._wandb_run = None
 
     @property
     def thread_ids(self) -> List[int]:
@@ -339,10 +366,7 @@ class LaunchAgent:
         if self._name:
             output_str += f"{self._name} "
         if self.num_running_jobs < self._max_jobs:
-            output_str += "polling on "
-            if self._project != LAUNCH_DEFAULT_PROJECT:
-                output_str += f"project {self._project}, "
-            output_str += f"queues {','.join(self._queues)}, "
+            output_str += f"polling on queues {','.join(self._queues)}, "
         output_str += (
             f"running {self.num_running_jobs} out of a maximum of {self._max_jobs} jobs"
         )
@@ -434,7 +458,6 @@ class LaunchAgent:
             # We retry for 60 seconds with an exponential backoff in case
             # upsert run is taking a while.
             logs = None
-            start_time = time.time()
             interval = 1
             while True:
                 called_init = self._check_run_exists_and_inited(
@@ -443,7 +466,7 @@ class LaunchAgent:
                     job_and_run_status.run_id,
                     job_and_run_status.run_queue_item_id,
                 )
-                if called_init or time.time() - start_time > RUN_INFO_GRACE_PERIOD:
+                if called_init or interval > RUN_INFO_GRACE_PERIOD:
                     break
                 if not called_init:
                     # Fetch the logs now if we don't get run info on the
@@ -692,7 +715,7 @@ class LaunchAgent:
             default_config, override_build_config
         )
         image_uri = project.docker_image
-        entrypoint = project.get_single_entry_point()
+        entrypoint = project.get_job_entry_point()
         environment = loader.environment_from_config(
             default_config.get("environment", {})
         )

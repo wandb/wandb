@@ -5,7 +5,7 @@ import wandb
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.launch.agent.agent import LaunchAgent
 from wandb.sdk.launch.sweeps.scheduler import Scheduler
-from wandb.sdk.launch.utils import construct_launch_spec
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, construct_launch_spec
 
 
 @pytest.mark.parametrize(
@@ -129,7 +129,7 @@ def test_sweeps_on_launch(
 def test_launch_agent_scheduler(
     monkeypatch, user, wandb_init, test_settings, max_schedulers
 ):
-    proj = "123"
+    proj = LAUNCH_DEFAULT_PROJECT
     queue = "queue"
     settings = test_settings({"project": proj})
     run = wandb_init(settings=settings)
@@ -219,7 +219,6 @@ def test_launch_agent_scheduler(
         api=api,
         config={
             "entity": user,
-            "project": proj,
             "queues": [queue],
             "max_schedulers": max_schedulers,
         },

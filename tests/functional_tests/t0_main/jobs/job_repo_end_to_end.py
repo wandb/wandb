@@ -50,7 +50,7 @@ kwargs = {
 lp = LaunchProject(**kwargs)
 
 job.configure_launch_project(lp)
-command = lp.get_single_entry_point().compute_command({})
+command = lp.get_job_entry_point().compute_command({})
 print(LogicalPath(command[1]))
 assert (
     LogicalPath(command[1])

@@ -207,6 +207,15 @@ class RunStatusChecker:
         self._network_status_thread.start()
         self._internal_messages_thread.start()
 
+    @staticmethod
+    def _abandon_status_check(
+        lock: threading.Lock,
+        handle: Optional[MailboxHandle],
+    ):
+        with lock:
+            if handle:
+                handle.abandon()
+
     def _loop_check_status(
         self,
         *,
@@ -265,13 +274,19 @@ class RunStatusChecker:
                         )
                     )
 
-        self._loop_check_status(
-            lock=self._network_status_lock,
-            set_handle=lambda x: setattr(self, "_network_status_handle", x),
-            timeout=self._retry_polling_interval,
-            request=self._interface.deliver_network_status,
-            process=_process_network_status,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._network_status_lock,
+                set_handle=lambda x: setattr(self, "_network_status_handle", x),
+                timeout=self._retry_polling_interval,
+                request=self._interface.deliver_network_status,
+                process=_process_network_status,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._network_status_lock,
+                self._network_status_handle,
+            )
 
     def check_stop_status(self) -> None:
         def _process_stop_status(result: Result) -> None:
@@ -283,13 +298,19 @@ class RunStatusChecker:
                     thread.interrupt_main()
                     return
 
-        self._loop_check_status(
-            lock=self._stop_status_lock,
-            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-            timeout=self._stop_polling_interval,
-            request=self._interface.deliver_stop_status,
-            process=_process_stop_status,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._stop_status_lock,
+                set_handle=lambda x: setattr(self, "_stop_status_handle", x),
+                timeout=self._stop_polling_interval,
+                request=self._interface.deliver_stop_status,
+                process=_process_stop_status,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._stop_status_lock,
+                self._stop_status_handle,
+            )
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
@@ -297,25 +318,34 @@ class RunStatusChecker:
             for msg in internal_messages.messages.warning:
                 wandb.termwarn(msg)
 
-        self._loop_check_status(
-            lock=self._internal_messages_lock,
-            set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-            timeout=1,
-            request=self._interface.deliver_internal_messages,
-            process=_process_internal_messages,
-        )
+            try:
+                self._loop_check_status(
+                    lock=self._internal_messages_lock,
+                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+                    timeout=1,
+                    request=self._interface.deliver_internal_messages,
+                    process=_process_internal_messages,
+                )
+            except BrokenPipeError:
+                self._abandon_status_check(
+                    self._internal_messages_lock,
+                    self._internal_messages_handle,
+                )
 
     def stop(self) -> None:
         self._join_event.set()
-        with self._stop_status_lock:
-            if self._stop_status_handle:
-                self._stop_status_handle.abandon()
-        with self._network_status_lock:
-            if self._network_status_handle:
-                self._network_status_handle.abandon()
-        with self._internal_messages_lock:
-            if self._internal_messages_handle:
-                self._internal_messages_handle.abandon()
+        self._abandon_status_check(
+            self._stop_status_lock,
+            self._stop_status_handle,
+        )
+        self._abandon_status_check(
+            self._network_status_lock,
+            self._network_status_handle,
+        )
+        self._abandon_status_check(
+            self._internal_messages_lock,
+            self._internal_messages_handle,
+        )
 
     def join(self) -> None:
         self.stop()
@@ -1400,6 +1430,10 @@ class Run:
         # self._printer.display(line)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
+        if self._is_finished:
+            # TODO: WB-18420: fetch summary from backend and stage it before run is finished
+            wandb.termwarn("Summary data not available in finished run")
+            return {}
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
@@ -1792,7 +1826,7 @@ class Run:
             import wandb
 
             run = wandb.init()
-            run.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
+            run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
@@ -1853,7 +1887,7 @@ class Run:
         picked up automatically.
 
         A `base_path` may be provided to control the directory structure of
-        uploaded files. It should be a prefix of `glob_str`, and the direcotry
+        uploaded files. It should be a prefix of `glob_str`, and the directory
         structure beneath it is preserved. It's best understood through
         examples:
 
@@ -1911,7 +1945,11 @@ class Run:
             # Provide a better error message for a common misuse.
             wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
             return []
-        glob_path = pathlib.Path(glob_str)
+        # NOTE: We use PurePath instead of Path because WindowsPath doesn't
+        # like asterisks and errors out in resolve(). It also makes logical
+        # sense: globs aren't real paths, they're just path-like strings.
+        glob_path = pathlib.PurePath(glob_str)
+        resolved_glob_path = pathlib.PurePath(os.path.abspath(glob_path))
 
         if base_path is not None:
             base_path = pathlib.Path(base_path)
@@ -1925,15 +1963,14 @@ class Run:
                 'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
                 repeat=False,
             )
-            base_path = glob_path.resolve().parent.parent
+            base_path = resolved_glob_path.parent.parent
 
         if policy not in ("live", "end", "now"):
             raise ValueError(
                 'Only "live", "end" and "now" policies are currently supported.'
             )
 
-        resolved_glob_path = glob_path.resolve()
-        resolved_base_path = base_path.resolve()
+        resolved_base_path = pathlib.PurePath(os.path.abspath(base_path))
 
         return self._save(
             resolved_glob_path,
@@ -1943,8 +1980,8 @@ class Run:
 
     def _save(
         self,
-        glob_path: pathlib.Path,
-        base_path: pathlib.Path,
+        glob_path: pathlib.PurePath,
+        base_path: pathlib.PurePath,
         policy: "PolicyName",
     ) -> List[str]:
         # Can't use is_relative_to() because that's added in Python 3.9,
@@ -2440,12 +2477,20 @@ class Run:
         self._telemetry_obj_active = True
         self._telemetry_flush()
 
+        self._detect_and_apply_job_inputs()
+
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
         if not self._settings.resume:
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
+
+    def _detect_and_apply_job_inputs(self) -> None:
+        """If the user has staged launch inputs, apply them to the run."""
+        from wandb.sdk.launch.inputs.internal import StagedLaunchInputs
+
+        StagedLaunchInputs().apply(self)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         from wandb.util import working_set
@@ -2705,12 +2750,23 @@ class Run:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_summary = True
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
                 raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_goal = True
+        if hidden:
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_hidden = True
+        if step_sync:
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_step_sync = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -3658,7 +3714,7 @@ class Run:
     # FOOTER
     # ------------------------------------------------------------------------------
     # Note: All the footer methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have acess to the run instance
+    # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _footer(
         sampled_history: Optional["SampledHistoryResponse"] = None,
@@ -3961,11 +4017,11 @@ class Run:
 
         # Render summary if available
         if summary:
-            final_summary = {
-                item.key: json.loads(item.value_json)
-                for item in summary.item
-                if not item.key.startswith("_")
-            }
+            final_summary = {}
+            for item in summary.item:
+                if item.key.startswith("_") or len(item.nested_key) > 0:
+                    continue
+                final_summary[item.key] = json.loads(item.value_json)
 
             logger.info("rendering summary")
             summary_rows = []

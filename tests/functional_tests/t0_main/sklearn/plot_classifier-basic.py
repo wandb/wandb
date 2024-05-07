@@ -2,7 +2,7 @@
 """Demonstrate basic API of plot_classifier.
 
 ---
-id: 0.sklearn.plot_classifer-basic
+id: 0.sklearn.plot_classifier-basic
 tag:
   shard: sklearn
 plugin:

@@ -7,20 +7,40 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 Starting with the 0.16.4 release on March 5, 2024, the format is based on
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+Please add to the relevant subsections under Unreleased below on every PR where this is applicable.
+
 ## Unreleased
 
-We follow https://keepachangelog.com/en/1.1.0/. Please add to relevant subsections
-here on every PR where this is applicable.
+### Added
+
+* The `wandb` package now includes the `wandb-core` binary to prepare for rolling it out by @timoffex in https://github.com/wandb/wandb/pull/7381
+  * `wandb-core` is a Go rewrite of some of the Python portions of the SDK, written with a focus on performance
+  * The binary can be activated using `wandb.require("core")` at the start of a script
+  * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
+  * Please report any issues with `pip install wandb`!
+* `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
+* Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
+* `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
 
 ### Fixed
 
+* Prevent crash on `run.summary` for finished runs by @dmitryduev in https://github.com/wandb/wandb/pull/7440
 * Correctly report file upload errors when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7196
 * Implemented a stricter check for AMD GPU availability by @dmitryduev in https://github.com/wandb/wandb/pull/7322
+* Fixed `run.save()` on Windows by @timoffex in https://github.com/wandb/wandb/pull/7412
+* Show a warning instead of failing when using registries other than ECR and GAR with the Kaniko builder by @TimH98 in https://github.com/wandb/wandb/pull/7461
+* Fixed `wandb.init()` type signature including `None` by @timoffex in https://github.com/wandb/wandb/pull/7563
 
 ### Changed
 
 * When using `wandb-core` need to specify a required flag (`wandb.require("core")`) to enable it, before it was picked up automatically by @kptkin in  https://github.com/wandb/wandb/pull/7228
 * Use ETags instead of MD5 hashes for GCS reference artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7337
+
+### Removed
+
+* Removed the deprecated `wandb.plots.*` functions and top-level third-party integrations `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. Please use `wandb.plot` instead of `wandb.plots` and `wandb.integration.[catboost,fastai,keras,lightgbm,sacred,xgboost]` instead of `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. By @dmitryduev in https://github.com/wandb/wandb/pull/7552
+* Removed the `[async]` extra and the `_async_upload_concurrency_limit` setting by @moredatarequired in https://github.com/wandb/wandb/pull/7416
+* Removed undocumented settings: `_except_exit` and `problem` by @timoffex in https://github.com/wandb/wandb/pull/7563
 
 ## [0.16.6] - 2024-04-03
 
@@ -334,7 +354,7 @@ here on every PR where this is applicable.
 ### :hammer: Fixes
 * fix(sdk): Fix logger when logging filestream exception by @KyleGoyette in https://github.com/wandb/wandb/pull/6246
 * fix(launch): use watch api to monitor launched CRDs by @bcsherma in https://github.com/wandb/wandb/pull/6226
-* fix(launch): forbid enqueing docker images without target project by @bcsherma in https://github.com/wandb/wandb/pull/6248
+* fix(launch): forbid enqueuing docker images without target project by @bcsherma in https://github.com/wandb/wandb/pull/6248
 * fix(sdk): add missing Twitter import for API users by @fdsig in https://github.com/wandb/wandb/pull/6261
 * fix(artifacts): get S3 versionIDs from directory references by @moredatarequired in https://github.com/wandb/wandb/pull/6255
 * fix(launch): make watch streams recover from connection reset by @bcsherma in https://github.com/wandb/wandb/pull/6272
@@ -406,7 +426,7 @@ here on every PR where this is applicable.
 * fix(sdk): further speed up import time by @hauntsaninja in https://github.com/wandb/wandb/pull/6032
 * fix(launch): Fix sample kubernetes agent manifest secret mount by @KyleGoyette in https://github.com/wandb/wandb/pull/6057
 * fix(nexus): rm unused import by @dmitryduev in https://github.com/wandb/wandb/pull/6085
-* fix(launch): watch to get kuberntes run statuses by @bcsherma in https://github.com/wandb/wandb/pull/6022
+* fix(launch): watch to get kubernetes run statuses by @bcsherma in https://github.com/wandb/wandb/pull/6022
 * fix(artifacts): prohibit saving artifacts to a different project than their base artifact by @moredatarequired in https://github.com/wandb/wandb/pull/6042
 * fix(artifacts): require existing artifacts to save to their source entity/project by @moredatarequired in https://github.com/wandb/wandb/pull/6034
 * fix(nexus): adjust system monitor start and stop functionality by @dmitryduev in https://github.com/wandb/wandb/pull/6087
@@ -428,7 +448,7 @@ here on every PR where this is applicable.
 ### :books: Docs
 * docs(nexus): add package level docstrings for filestream by @raubitsj in https://github.com/wandb/wandb/pull/6061
 * docs(nexus): add basic developer guide by @kptkin in https://github.com/wandb/wandb/pull/6119
-* docs(cli): Added more context for lauch job describe description. by @ngrayluna in https://github.com/wandb/wandb/pull/6193
+* docs(cli): Added more context for launch job describe description. by @ngrayluna in https://github.com/wandb/wandb/pull/6193
 ### :nail_care: Cleanup
 * style(sdk): fix to new ruff rule E721 additions by @nickpenaranda in https://github.com/wandb/wandb/pull/6102
 
@@ -972,7 +992,7 @@ here on every PR where this is applicable.
 * refactor(artifacts): use a pytest fixture for the artifact cache by @moredatarequired in https://github.com/wandb/wandb/pull/4648
 * refactor(artifacts): use ArtifactEntry directly instead of subclassing by @moredatarequired in https://github.com/wandb/wandb/pull/4649
 * refactor(artifacts): consolidate hash utilities into lib.hashutil by @moredatarequired in https://github.com/wandb/wandb/pull/4525
-* style(public-api): format public file with proper formating by @kptkin in https://github.com/wandb/wandb/pull/4697
+* style(public-api): format public file with proper formatting by @kptkin in https://github.com/wandb/wandb/pull/4697
 * chore(sdk): install tox into proper env in dev env setup tool by @dmitryduev in https://github.com/wandb/wandb/pull/4318
 * refactor(sdk): clean up the init and run logic by @kptkin in https://github.com/wandb/wandb/pull/4730
 
@@ -1839,7 +1859,7 @@ here on every PR where this is applicable.
 - Found and fixed the remaining issues causing runs to be marked crashed during outages
 - Improved performance for users of `define_metric`, pytorch-lightning, and aggressive config saving
 - Fix issue when trying to log a cuda tensor to config or summary
-- Remove dependancy on torch `backward_hooks` to compute graph
+- Remove dependency on torch `backward_hooks` to compute graph
 - Fix an issue preventing the ability to resume runs on sagemaker
 - Fix issues preventing pdb from working reliably with wandb
 - Fix deprecation warning in vendored library (user submission)
@@ -1893,7 +1913,7 @@ here on every PR where this is applicable.
 - Fix network handling issue where syncing stopped (use wandb sync to recover)
 - Fix auth problem when using sagemaker and hugginface integrations together
 - Fix handling of NaN values in tables with non floats
-- Lazy load API object to prevent unnessary file access on module load
+- Lazy load API object to prevent unnecessary file access on module load
 
 #### :nail_care: Enhancement
 
@@ -2245,7 +2265,7 @@ here on every PR where this is applicable.
 #### :bug: Bug Fix
 
 -  Fix codesaving to respect the server settings
--  Fix issue runing wandb.init() on restricted networks
+-  Fix issue running wandb.init() on restricted networks
 -  Fix issue where we were ignoring settings changes
 -  Fix artifact download issues
 
@@ -2494,7 +2514,7 @@ wandb.Api().Artifact().file()
 
 #### :bug: Bug Fix
 
--   Fix situations where uncommited data from wandb.log() is not persisted
+-   Fix situations where uncommitted data from wandb.log() is not persisted
 
 ## 0.8.27 (Feb 11, 2020)
 
@@ -2526,7 +2546,7 @@ wandb.Api().Artifact().file()
 
 #### :bug: Bug Fix
 
--   Relax version dependancy for PyYAML for users with old environments
+-   Relax version dependency for PyYAML for users with old environments
 
 ## 0.8.23 (Feb 3, 2020)
 
@@ -2577,7 +2597,7 @@ wandb.Api().Artifact().file()
 
 #### :bug: Bug Fix
 
--   Prevent sweep agent from failing continously when misconfigured
+-   Prevent sweep agent from failing continuously when misconfigured
 
 ## 0.8.19 (Dec 18, 2019)
 
@@ -2684,7 +2704,7 @@ wandb.Api().Artifact().file()
 -   wandb.config object now has a setdefaults method enabling improved sweep support
 -   Improved terminal and jupyter message incorporating :rocket: emojii!
 -   Allow wandb.watch to be called multiple times on different models
--   Improved support for watching multple tfevent files
+-   Improved support for watching multiple tfevent files
 -   Windows no longer requires `wandb run` simply run `python script_name.py`
 -   `wandb agent` now works on windows.
 -   Nice error message when wandb.log is called without a dict
@@ -2733,7 +2753,7 @@ wandb.Api().Artifact().file()
 -   New global config file in ~/.config/wandb for global settings
 -   Added tests for fastai, thanks @borisdayma
 -   Public api performance enhancements
--   Deprecated username in favor of enitity in the public api for consistency
+-   Deprecated username in favor of entity in the public api for consistency
 -   Anonymous login support enabled by default
 -   New wandb.login method to be used in jupyter enabling anonymous logins
 -   Better dependency error messages for data frames
@@ -2839,7 +2859,7 @@ wandb.Api().Artifact().file()
 
 -   WANDB_IGNORE_GLOBS is respected on the final scan of files
 -   Unified run.id, run.name, and run.notes across all apis
--   Handle funky terminal sizes when setting up our psuedo tty
+-   Handle funky terminal sizes when setting up our pseudo tty
 -   Fixed Jupyter notebook introspection logic
 -   run.summary.update() persists changes to the server
 -   tensorboard syncing is robust to invalid histograms and truncated files
@@ -2904,7 +2924,7 @@ wandb.Api().Artifact().file()
 -   wandb.Api().runs returns an iterator that's reusable
 -   WANDB_DIR within a hidden directory doesn't prevent syncing
 -   run.files() iterates over all files
--   pytorch recurssion too deep error
+-   pytorch recursion too deep error
 
 #### :nail_care: Enhancement
 
@@ -2917,7 +2937,7 @@ wandb.Api().Artifact().file()
 
 -   Better error messages on access denied
 -   Better error messages when optional packages aren't installed
--   Urls printed to the termial are url-escaped
+-   Urls printed to the terminal are url-escaped
 -   Namespaced tensorboard events work with histograms
 -   Public API now retries on failures and re-uses connection pool
 -   Catch git errors when remotes aren't pushed to origin

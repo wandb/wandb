@@ -15,7 +15,6 @@ import os
 import platform
 import sys
 import tempfile
-import traceback
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
@@ -555,7 +554,7 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
+    def init(self) -> Union[Run, RunDisabled]:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
@@ -653,9 +652,6 @@ class _WandbInit:
 
             if self.settings.launch:
                 tel.feature.launch = True
-
-            if self.settings._async_upload_concurrency_limit:
-                tel.feature.async_uploads = True
 
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
                 setattr(tel.imports_init, module_name, True)
@@ -843,13 +839,6 @@ class _WandbInit:
         return run
 
 
-def getcaller() -> None:
-    if not logger:
-        return None
-    src, line, func, stack = logger.findCaller(stack_info=True)
-    print("Problem at:", src, line, func)
-
-
 def _attach(
     attach_id: Optional[str] = None,
     run_id: Optional[str] = None,
@@ -958,7 +947,7 @@ def init(
     id: Optional[str] = None,
     fork_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Union[Run, RunDisabled]:
     r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
@@ -1164,9 +1153,6 @@ def init(
     wandb._assert_is_user_process()
 
     kwargs = dict(locals())
-    error_seen = None
-    except_exit = None
-    run: Optional[Union[Run, RunDisabled]] = None
 
     # convert fork_from into a version that can be passed to settings
     if fork_from is not None and resume is not None:
@@ -1175,46 +1161,19 @@ def init(
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
-        assert wi.settings
-        except_exit = wi.settings._except_exit
-        try:
-            run = wi.init()
-            except_exit = wi.settings._except_exit
-        except (KeyboardInterrupt, Exception) as e:
-            if not isinstance(e, KeyboardInterrupt):
-                wandb._sentry.exception(e)
-            if not (
-                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
-            ):
-                getcaller()
-            assert logger
-            if wi.settings.problem == "fatal":
-                raise
-            if wi.settings.problem == "warn":
-                pass
-            # TODO(jhr): figure out how to make this RunDummy
-            run = None
-    except Error as e:
-        if logger is not None:
-            logger.exception(str(e))
-        raise e
+        return wi.init()
+
     except KeyboardInterrupt as e:
-        assert logger
-        logger.warning("interrupted", exc_info=e)
-        raise e
+        if logger is not None:
+            logger.warning("interrupted", exc_info=e)
+
+        raise
+
     except Exception as e:
-        error_seen = e
-        traceback.print_exc()
-        assert logger
-        logger.error("error", exc_info=e)
+        if logger is not None:
+            logger.exception("error in wandb.init()", exc_info=e)
+
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
-        wandb._sentry.exception(e)
-        # reraise(*sys.exc_info())
-    finally:
-        if error_seen:
-            if except_exit:
-                wandb.termerror("Abnormal program exit")
-                os._exit(1)
-            raise Error("An unexpected error occurred") from error_seen
-    return run
+        wandb._sentry.reraise(e)
+        raise AssertionError()  # unreachable

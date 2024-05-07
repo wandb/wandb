@@ -11,6 +11,7 @@ import logging
 import math
 import numbers
 import os
+import pathlib
 import platform
 import queue
 import random
@@ -43,7 +44,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     TextIO,
     Tuple,
     TypeVar,
@@ -543,50 +543,41 @@ def _numpy_generic_convert(obj: Any) -> Any:
     return obj
 
 
-def _find_all_matching_keys(
+def _sanitize_numpy_keys(
     d: Dict,
-    match_fn: Callable[[Any], bool],
-    visited: Optional[Set[int]] = None,
-    key_path: Tuple[Any, ...] = (),
-) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
-    """Recursively find all keys that satisfies a match function.
+    visited: Optional[Dict[int, Dict]] = None,
+) -> Tuple[Dict, bool]:
+    """Returns a dictionary where all NumPy keys are converted.
 
     Args:
-       d: The dict to search.
-       match_fn: The function to determine if the key is a match.
-       visited: Keep track of visited nodes so we dont recurse forever.
-       key_path: Keep track of all the keys to get to the current node.
+        d: The dictionary to sanitize.
 
-    Yields:
-       (key_path, key): The location where the key was found, and the key
+    Returns:
+        A sanitized dictionary, and a boolean indicating whether anything was
+        changed.
     """
+    out: Dict[Any, Any] = dict()
+    converted = False
+
+    # Work with recursive dictionaries: if a dictionary has already been
+    # converted, reuse its converted value to retain the recursive structure
+    # of the input.
     if visited is None:
-        visited = set()
-    me = id(d)
-    if me not in visited:
-        visited.add(me)
-        for key, value in d.items():
-            if match_fn(key):
-                yield key_path, key
-            if isinstance(value, dict):
-                yield from _find_all_matching_keys(
-                    value,
-                    match_fn,
-                    visited=visited,
-                    key_path=tuple(list(key_path) + [key]),
-                )
+        visited = {id(d): out}
+    elif id(d) in visited:
+        return visited[id(d)], False
+    visited[id(d)] = out
 
+    for key, value in d.items():
+        if isinstance(value, dict):
+            value, converted_value = _sanitize_numpy_keys(value, visited)
+            converted |= converted_value
+        if isinstance(key, np.generic):
+            key = _numpy_generic_convert(key)
+            converted = True
+        out[key] = value
 
-def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
-    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
-    if not np_keys:
-        return d, False
-    for key_path, key in np_keys:
-        ptr = d
-        for k in key_path:
-            ptr = ptr[k]
-        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
-    return d, True
+    return out, converted
 
 
 def json_friendly(  # noqa: C901
@@ -1885,70 +1876,40 @@ def parse_version(version: str) -> "packaging.version.Version":
     try:
         from packaging.version import parse as parse_version  # type: ignore
     except ImportError:
-        from pkg_resources import parse_version
+        from pkg_resources import parse_version  # type: ignore[assignment]
 
     return parse_version(version)
 
 
-# check if wandb_core is installed and if it is a dev version
-def is_core_dev() -> bool:
-    wandb_core = get_module("wandb_core")
-    # if wandb_core is not installed, we don't care
-    if not wandb_core:
-        return False
-    return "dev" in wandb_core.__version__
-
-
 def get_core_path() -> str:
-    """Get the path to the wandb-core package. This is used to run the core service.
+    """Returns the path to the wandb-core binary.
 
-    The core path can be set in the following ways:
-    The environment variable _WANDB_CORE_PATH will be used as the core path if it is set.
-    Otherwise, the wandb_core package will be imported and the core path will be retrieved from it.
+    The path can be set explicitly via the _WANDB_CORE_PATH environment
+    variable. Otherwise, the path to the binary in the current package
+    is returned.
 
     Returns:
         str: The path to the wandb-core package.
 
     Raises:
-        Error: If the wandb-core package is not installed.
-        ImportError: If the installed wandb-core version is incompatible with the wandb version.
-        WandbCoreNotAvailableError: If wandb-core is not available for the current system.
+        WandbCoreNotAvailableError: If wandb-core was not built for the current system.
     """
     # NOTE: Environment variable _WANDB_CORE_PATH is a temporary development feature
     #       to assist in running the core service from a live development directory.
-    core_path: str = os.environ.get("_WANDB_CORE_PATH", "")
-    # TODO: should we check version compatibility here?
-    if core_path:
+    path_from_env: str = os.environ.get("_WANDB_CORE_PATH", "")
+    if path_from_env:
         wandb.termwarn(
-            f"Using wandb-core from path `_WANDB_CORE_PATH={core_path}`. "
+            f"Using wandb-core from path `_WANDB_CORE_PATH={path_from_env}`. "
             "This is a development feature and may not work as expected."
         )
-        return core_path
+        return path_from_env
 
-    required_core_version = wandb.__core_version__
-    wandb_core = get_module(
-        "wandb_core",
-        required=(
-            "`wandb-core` is required to run the core service. "
-            f"Please install it with `pip install wandb-core=={required_core_version}`."
-        ),
-    )
-
-    installed_core_version = wandb_core.__version__
-    # Check if the installed wandb-core version is compatible with the wandb version.
-    if parse_version(required_core_version) != parse_version(installed_core_version):
-        raise ImportError(
-            f"Requires `wandb-core` version {required_core_version}."
-            f"but you have {installed_core_version}."
-            f" Please run `pip install wandb-core=={required_core_version}`."
-        )
-
-    core_path = wandb_core.get_core_path()
-    if not core_path:
+    bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
+    if not bin_path.exists():
         raise WandbCoreNotAvailableError(
             f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
-            "your installed `wandb-core` package is using the no-op wheel."
             " Please contact support at support@wandb.com to request `wandb-core`"
             " support for your system."
         )
-    return core_path
+
+    return str(bin_path)

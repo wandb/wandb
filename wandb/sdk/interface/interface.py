@@ -387,18 +387,30 @@ class InterfaceBase:
     def _make_partial_source_str(
         source: Any, job_info: Dict[str, Any], metadata: Dict[str, Any]
     ) -> str:
-        """Construct use_artifact.partial.source_info.sourc as str."""
+        """Construct use_artifact.partial.source_info.source as str."""
         source_type = job_info.get("source_type", "").strip()
         if source_type == "artifact":
             info_source = job_info.get("source", {})
             source.artifact.artifact = info_source.get("artifact", "")
             source.artifact.entrypoint.extend(info_source.get("entrypoint", []))
             source.artifact.notebook = info_source.get("notebook", False)
+            build_context = info_source.get("build_context")
+            if build_context:
+                source.artifact.build_context = build_context
+            dockerfile = info_source.get("dockerfile")
+            if dockerfile:
+                source.artifact.dockerfile = dockerfile
         elif source_type == "repo":
             source.git.git_info.remote = metadata.get("git", {}).get("remote", "")
             source.git.git_info.commit = metadata.get("git", {}).get("commit", "")
             source.git.entrypoint.extend(metadata.get("entrypoint", []))
             source.git.notebook = metadata.get("notebook", False)
+            build_context = metadata.get("build_context")
+            if build_context:
+                source.git.build_context = build_context
+            dockerfile = metadata.get("dockerfile")
+            if dockerfile:
+                source.git.dockerfile = dockerfile
         elif source_type == "image":
             source.image.image = metadata.get("docker", "")
         else:
@@ -424,7 +436,7 @@ class InterfaceBase:
             job_info=job_info,
             metadata=metadata,
         )
-        use_artifact.partial.source_info.source.ParseFromString(src_str)
+        use_artifact.partial.source_info.source.ParseFromString(src_str)  # type: ignore[arg-type]
 
         return use_artifact
 
@@ -775,6 +787,7 @@ class InterfaceBase:
             source.file.CopyFrom(
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
+        request.input_source.CopyFrom(source)
 
         return self._publish_job_input(request)
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -263,7 +264,7 @@ func (r *State) updateConfig(
 		return err
 	}
 
-	deserializedConfig := make(runconfig.RunConfigDict)
+	deserializedConfig := make(pathtree.TreeData)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]interface{})
 

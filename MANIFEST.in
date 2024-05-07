@@ -1,9 +1,0 @@
-include wandb/py.typed
-include package_readme.md
-include wandb/bin/apple_gpu_stats
-
-
-recursive-include wandb *.py
-recursive-include wandb *.sh
-recursive-exclude * __pycache__
-recursive-exclude * *.py[co]

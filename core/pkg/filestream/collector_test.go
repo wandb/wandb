@@ -5,45 +5,47 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 func TestCollectNothing(t *testing.T) {
-	input := make(chan processedChunk, 32)
+	input := make(chan CollectorStateUpdate, 32)
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   2 * time.Second,
-		delayProcess:    1 * time.Second,
+		processDelay:    waiting.NoDelay(),
 		maxItemsPerPush: 100,
 	}
-	assert.False(t, collector.read())
+
+	data, ok := collector.CollectAndDump(FileStreamOffsetMap{})
+
+	assert.Nil(t, data)
+	assert.False(t, ok)
 }
 
 func TestCollectSomething(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line",
+	input := make(chan CollectorStateUpdate, 32)
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line"},
 	}
-	input <- processedChunk{
-		fileType: OutputChunk,
-		fileLine: "line3",
+	input <- &TransmitChunk{
+		ConsoleLogLines: []string{"line3"},
 	}
-	input <- processedChunk{
-		Preempting: true,
+	input <- &TransmitChunk{
+		HasPreempting: true,
+		Preempting:    true,
 	}
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line2",
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line2"},
 	}
+
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
+		processDelay:    waiting.NewDelay(10 * time.Millisecond),
 		maxItemsPerPush: 100,
 	}
-	assert.True(t, collector.read())
-	collector.readMore()
-	offset := FileStreamOffsetMap{}
+	data, ok := collector.CollectAndDump(make(FileStreamOffsetMap))
+
+	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
 			Files: map[string]fsTransmitFileData{
@@ -58,38 +60,36 @@ func TestCollectSomething(t *testing.T) {
 			},
 			Preempting: true,
 		},
-		collector.dump(offset),
+		data,
 	)
 }
 
 func TestCollectFinal(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line",
+	input := make(chan CollectorStateUpdate, 32)
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line"},
 	}
-	exitcode := int32(2)
-	input <- processedChunk{
-		Exitcode: &exitcode,
+	input <- &collectorExitUpdate{
+		exitCode: 2,
 	}
-	input <- processedChunk{
-		fileType: OutputChunk,
-		fileLine: "line3",
+	input <- &TransmitChunk{
+		ConsoleLogLines: []string{"line3"},
 	}
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line2",
+	input <- &TransmitChunk{
+		HistoryLines: []string{"line2"},
 	}
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    30 * time.Second,
+		processDelay:    waiting.NewDelay(10 * time.Millisecond),
 		maxItemsPerPush: 100,
 	}
 	close(input)
-	assert.True(t, collector.read())
-	collector.readMore()
-	offset := FileStreamOffsetMap{}
+
+	data, ok := collector.CollectAndDump(FileStreamOffsetMap{})
+
+	boolTrue := true
+	exitcode := int32(2)
+	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
 			Files: map[string]fsTransmitFileData{
@@ -102,57 +102,24 @@ func TestCollectFinal(t *testing.T) {
 					Content: []string{"line3"},
 				},
 			},
+			Complete: &boolTrue,
 			Exitcode: &exitcode,
 		},
-		collector.dump(offset),
+		data,
 	)
 }
 
-func TestIsDirtyAfterAddingChunk(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line",
-	}
+func TestCollectProcessedChunkUpdate(t *testing.T) {
+	input := make(chan CollectorStateUpdate, 32)
+	input <- &TransmitChunk{HasPreempting: true, Preempting: true}
 	collector := chunkCollector{
 		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
+		processDelay:    waiting.NewDelay(10 * time.Millisecond),
 		maxItemsPerPush: 100,
 	}
-	collector.read()
-	assert.True(t, collector.isDirty)
-}
 
-func TestIsDirtyAfterProcessedChunkUpdate(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		Preempting: true,
-	}
-	collector := chunkCollector{
-		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
-		maxItemsPerPush: 100,
-	}
-	collector.read()
-	assert.True(t, collector.isDirty)
-}
+	data, ok := collector.CollectAndDump(FileStreamOffsetMap{})
 
-func TestIsDirtyResetAfterDump(t *testing.T) {
-	input := make(chan processedChunk, 32)
-	input <- processedChunk{
-		fileType: HistoryChunk,
-		fileLine: "line",
-	}
-	collector := chunkCollector{
-		input:           input,
-		heartbeatTime:   60 * time.Second,
-		delayProcess:    2 * time.Second,
-		maxItemsPerPush: 100,
-	}
-	collector.read()
-	offset := FileStreamOffsetMap{}
-	collector.dump(offset)
-	assert.False(t, collector.isDirty)
+	assert.True(t, ok)
+	assert.NotNil(t, data)
 }

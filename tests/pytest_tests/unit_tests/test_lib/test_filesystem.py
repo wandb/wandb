@@ -108,7 +108,7 @@ def test_copy_or_overwrite_changed_no_copy(tmp_path):
         assert not copy2_mock.called
 
 
-def test_copy_or_overwrite_changed_overwite_different_mtime(tmp_path):
+def test_copy_or_overwrite_changed_overwrite_different_mtime(tmp_path):
     source_path = tmp_path / "new_file.txt"
     target1_path = tmp_path / "target1.txt"
     target2_path = tmp_path / "target2.txt"

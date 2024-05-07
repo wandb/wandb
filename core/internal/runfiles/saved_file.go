@@ -19,12 +19,6 @@ type savedFile struct {
 	// The path to the actual file.
 	realPath string
 
-	// The URL to which the file should be uploaded.
-	uploadURL string
-
-	// HTTP headers to set on upload requests for the file.
-	uploadHeaders []string
-
 	// The path to the file relative to the run's files directory.
 	runPath string
 
@@ -42,6 +36,13 @@ type savedFile struct {
 
 	// Whether the file should be reuploaded after the current upload.
 	reuploadScheduled bool
+
+	// The URL to which the file should be reuploaded if `reuploadScheduled`.
+	reuploadURL string
+
+	// HTTP headers to set on the reupload request for the file if
+	// `reuploadScheduled`.
+	reuploadHeaders []string
 }
 
 func newSavedFile(
@@ -79,41 +80,31 @@ func (f *savedFile) Upload(
 	f.Lock()
 	defer f.Unlock()
 
-	if f.uploadURL != "" && f.uploadURL != url {
-		f.logger.CaptureError(
-			"runfiles: file upload URL changed, but we assumed it wouldn't",
-			nil,
-			"oldURL", f.uploadURL,
-			"newURL", url,
-		)
-	}
-
-	f.uploadURL = url
-	f.uploadHeaders = headers
-
 	if f.isFinished {
 		return
 	}
 
 	if f.isUploading {
 		f.reuploadScheduled = true
+		f.reuploadURL = url
+		f.reuploadHeaders = headers
 		return
 	}
 
-	f.doUpload()
+	f.doUpload(url, headers)
 }
 
 // doUpload sends an upload Task to the FileTransferManager.
 //
-// It must be called while a lock is held.
-func (f *savedFile) doUpload() {
+// It must be called while a lock is held. It temporarily releases the lock.
+func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 	task := &filetransfer.Task{
 		FileKind: f.category,
 		Type:     filetransfer.UploadTask,
 		Path:     f.realPath,
 		Name:     f.runPath,
-		Url:      f.uploadURL,
-		Headers:  f.uploadHeaders,
+		Url:      uploadURL,
+		Headers:  uploadHeaders,
 	}
 
 	f.isUploading = true
@@ -129,14 +120,16 @@ func (f *savedFile) doUpload() {
 // onFinishUpload marks an upload completed and triggers another if scheduled.
 func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
 	if task.Err == nil {
-		f.fs.SignalFileUploaded(f.runPath)
+		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
+			RelativePath: f.runPath,
+		})
 	}
 
 	f.Lock()
 	f.isUploading = false
 	if f.reuploadScheduled {
 		f.reuploadScheduled = false
-		f.doUpload()
+		f.doUpload(f.reuploadURL, f.reuploadHeaders)
 	}
 	f.Unlock()
 

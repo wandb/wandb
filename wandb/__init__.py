@@ -11,8 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.16.7.dev1"
-__core_version__ = "0.17.0b12.dev1"
+__version__ = "0.17.0rc3.dev1"
 
 
 # Used with pypi checks and other messages related to pip
@@ -86,7 +85,6 @@ from wandb.wandb_agent import agent
 # from wandb.core import *
 from wandb.viz import visualize
 from wandb import plot
-from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 

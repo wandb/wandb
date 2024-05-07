@@ -43,6 +43,8 @@ message RunMoment {
 //
 // Next ID: 166
 message Settings {
+  reserved 12, 94;
+
   // The W&B API key.
   //
   // This can be empty if we're in offline mode.
@@ -83,7 +85,6 @@ message Settings {
 
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
-  google.protobuf.Int32Value _async_upload_concurrency_limit = 3;
   google.protobuf.BoolValue _cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
   google.protobuf.StringValue _cuda = 6;
@@ -92,7 +93,6 @@ message Settings {
   google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
-  google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
   MapStringKeyStringValue _extra_http_headers = 14;
   google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;
@@ -165,7 +165,6 @@ message Settings {
   google.protobuf.DoubleValue login_timeout = 90;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
-  google.protobuf.StringValue problem = 94;
   google.protobuf.StringValue program = 95;
   google.protobuf.StringValue program_relpath = 96;
   google.protobuf.StringValue project_url = 98;

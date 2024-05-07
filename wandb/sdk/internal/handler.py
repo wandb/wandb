@@ -50,6 +50,18 @@ SummaryDict = Dict[str, Any]
 
 logger = logging.getLogger(__name__)
 
+# Update (March 5, 2024): Since ~2020/2021, when constructing the summary
+# object, we had replaced the artifact path for media types with the latest
+# artifact path. The primary purpose of this was to support live updating of
+# media objects in the UI (since the default artifact path was fully qualified
+# and would not update). However, in March of 2024, a bug was discovered with
+# this approach which causes this path to be incorrect in cases where the media
+# object is logged to another artifact before being logged to the run. Setting
+# this to `False` disables this copy behavior. The impact is that users will
+# need to refresh to see updates. Ironically, this updating behavior is not
+# currently supported in the UI, so the impact of this change is minimal.
+REPLACE_SUMMARY_ART_PATH_WITH_LATEST = False
+
 
 def _dict_nested_set(target: Dict[str, Any], key_list: Sequence[str], v: Any) -> None:
     # recurse down the dictionary structure:
@@ -371,7 +383,11 @@ class HandleManager:
                     updated = True
             return updated
         # If the dict is a media object, update the pointer to the latest alias
-        elif isinstance(v, dict) and handler_util.metric_is_wandb_dict(v):
+        elif (
+            REPLACE_SUMMARY_ART_PATH_WITH_LATEST
+            and isinstance(v, dict)
+            and handler_util.metric_is_wandb_dict(v)
+        ):
             if "_latest_artifact_path" in v and "artifact_path" in v:
                 # TODO: Make non-destructive?
                 v["artifact_path"] = v["_latest_artifact_path"]
@@ -381,7 +397,7 @@ class HandleManager:
     def _update_summary_media_objects(self, v: Dict[str, Any]) -> Dict[str, Any]:
         # For now, non-recursive - just top level
         for nk, nv in v.items():
-            if (
+            if REPLACE_SUMMARY_ART_PATH_WITH_LATEST and (
                 isinstance(nv, dict)
                 and handler_util.metric_is_wandb_dict(nv)
                 and "_latest_artifact_path" in nv

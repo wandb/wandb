@@ -327,7 +327,6 @@ class SendManager:
             # ignore_globs=(),
             _sync=True,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
@@ -910,7 +909,7 @@ class SendManager:
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.ToMicroseconds() // 1e6
+        self._start_time = int(run.start_time.ToMicroseconds() // 1e6)
 
         # update telemetry
         if run.telemetry:

@@ -558,7 +558,7 @@ func TestRecoverMultipleBlocks(t *testing.T) {
 	// Reading deeper should yield a checksum mismatch.
 	_, err = io.ReadAll(r0)
 	if err == nil {
-		t.Fatal("Exptected a checksum mismatch error, got nil")
+		t.Fatal("Expected a checksum mismatch error, got nil")
 	}
 	if !strings.Contains(err.Error(), "checksum mismatch") {
 		t.Fatalf("Unexpected error returned: %v", err)
