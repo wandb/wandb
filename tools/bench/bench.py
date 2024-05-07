@@ -109,8 +109,6 @@ def main():
     parser.add_argument("--history_tables", type=int, default=0)
     parser.add_argument("--mode", type=str, default="", choices=("online", "offline"))
     parser.add_argument("--core", type=str, default="", choices=("true", "false"))
-    # parser.add_argument("--artifacts", type=int)
-    # parser.add_argument("--artifact_files", type=int)
 
     args = parser.parse_args()
     args_list = []
