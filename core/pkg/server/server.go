@@ -31,17 +31,8 @@ type Server struct {
 	// and for the serve goroutine to finish
 	wg sync.WaitGroup
 
-	// pid is the parent pid
+	// pid is the parent pid to watch and exit if it goes away
 	pid int
-
-	// teardownChan is the channel for signaling and waiting for teardown
-	teardownChan chan struct{}
-
-	// shutdownChan is the channel for signaling shutdown
-	shutdownChan chan struct{}
-
-	// pidwatchChan is the channel for signaling shutdown of pid watcher
-	pidwatchChan chan struct{}
 }
 
 // NewServer creates a new server
@@ -60,9 +51,6 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 		listener:     listener,
 		wg:           sync.WaitGroup{},
 		pid:          pid,
-		teardownChan: make(chan struct{}),
-		shutdownChan: make(chan struct{}),
-		pidwatchChan: make(chan struct{}),
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
