@@ -1,9 +1,11 @@
 import json
 import os
+import platform
 import sys
 import tempfile
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.sdk.internal.job_builder import JobBuilder
 from wandb.sdk.launch.create_job import (
     _configure_job_builder_for_partial,
@@ -93,6 +95,10 @@ def test_dump_metadata_and_requirements():
     assert metadata == m
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="python exec name is different on windows",
+)
 def test_get_entrypoint():
     dir = tempfile.TemporaryDirectory().name
     job_source = "artifact"
