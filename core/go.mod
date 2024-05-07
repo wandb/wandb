@@ -10,6 +10,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.5
 	github.com/radovskyb/watcher v1.0.7
+	github.com/ryboe/q v1.0.21
 	github.com/segmentio/encoding v0.4.0
 	github.com/shirou/gopsutil/v3 v3.24.2
 	github.com/spf13/afero v1.11.0
@@ -39,10 +40,13 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99 // indirect
 	github.com/kevinburke/ssh_config v1.2.0 // indirect
+	github.com/kr/pretty v0.3.1 // indirect
+	github.com/kr/text v0.2.0 // indirect
 	github.com/lufia/plan9stats v0.0.0-20240226150601-1dcf7310316a // indirect
 	github.com/pjbgf/sha1cd v0.3.0 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
+	github.com/rogpeppe/go-internal v1.12.0 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect

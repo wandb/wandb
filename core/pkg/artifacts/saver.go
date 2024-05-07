@@ -11,6 +11,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 
+	"github.com/ryboe/q"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -220,10 +221,13 @@ func (as *ArtifactSaver) processFiles(
 		// Listen for completed uploads, adding to the retry list if they failed.
 		case result := <-doneChan:
 			numActive--
+			now := time.Now().Format(time.TimeOnly)
 			if result.Err != nil {
 				mustRetry[result.Name] = fileSpecs[result.Name]
+				q.Q(now, result.Err, result.Name)
 			} else {
 				numDone++
+				q.Q(now, numDone, numActive, result.Name)
 			}
 		// Check for errors.
 		case err := <-errorChan:
