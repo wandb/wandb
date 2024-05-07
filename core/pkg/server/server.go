@@ -97,12 +97,16 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 
 // Serve starts the server
 func (s *Server) Start() {
+	// add reference for main server loop
+	s.wg.Add(1)
+
 	// watch for parent process exit in background (if specified)
 	if s.pid != 0 {
 		s.wg.Add(1)
 		go func() {
 			shouldExit := s.loopCheckIfParentGone(s.pid)
 			if shouldExit {
+				slog.Info("Parent process exited, terminating core process")
 				os.Exit(1)
 			}
 			s.wg.Done()
