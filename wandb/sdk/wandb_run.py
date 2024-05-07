@@ -2750,12 +2750,23 @@ class Run:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_summary = True
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
                 raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_goal = True
+        if hidden:
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_hidden = True
+        if step_sync:
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_step_sync = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
