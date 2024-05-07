@@ -13,13 +13,13 @@ type SummaryUpdate struct {
 	Record *service.SummaryRecord
 }
 
-func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
+func (u *SummaryUpdate) Chunk(fs *fileStream) error {
 	rs := runsummary.New()
 	rs.ApplyChangeRecord(
 		u.Record,
 		func(err error) {
 			// TODO: maybe we should shut down filestream if this fails?
-			ctx.Logger.CaptureError(
+			fs.logger.CaptureError(
 				"filestream: failed to apply summary record", err)
 		},
 	)
@@ -34,27 +34,19 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 
 	if len(line) > maxFileLineBytes {
 		// Failing to upload the summary is non-blocking.
-		ctx.Logger.CaptureWarn(
+		fs.logger.CaptureWarn(
 			"filestream: run summary line too long, skipping",
 			"len", len(line),
 			"max", maxFileLineBytes,
 		)
-		ctx.Printer.
+		fs.printer.
 			AtMostEvery(time.Minute).
 			Write("Skipped uploading summary data that exceeded size limit.")
 	} else {
-		ctx.ModifyRequest(&collectorSummaryUpdate{
-			newSummary: string(line),
+		fs.addTransmit(&TransmitChunk{
+			LatestSummary: string(line),
 		})
 	}
 
 	return nil
-}
-
-type collectorSummaryUpdate struct {
-	newSummary string
-}
-
-func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
-	state.Buffer.LatestSummary = u.newSummary
 }

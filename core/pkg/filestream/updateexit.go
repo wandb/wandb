@@ -7,9 +7,9 @@ type ExitUpdate struct {
 	Record *service.RunExitRecord
 }
 
-func (u *ExitUpdate) Apply(ctx UpdateContext) error {
+func (u *ExitUpdate) Chunk(fs *fileStream) error {
 
-	ctx.ModifyRequest(&collectorExitUpdate{
+	fs.addTransmit(&collectorExitUpdate{
 		exitCode: u.Record.ExitCode,
 	})
 

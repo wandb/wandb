@@ -12,7 +12,7 @@ type StatsUpdate struct {
 	Record *service.StatsRecord
 }
 
-func (u *StatsUpdate) Apply(ctx UpdateContext) error {
+func (u *StatsUpdate) Chunk(fs *fileStream) error {
 	// todo: there is a lot of unnecessary overhead here,
 	//  we should prepare all the data in the system monitor
 	//  and then send it in one record
@@ -20,7 +20,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_wandb"] = true
 	timestamp := float64(u.Record.GetTimestamp().Seconds) + float64(u.Record.GetTimestamp().Nanos)/1e9
 	row["_timestamp"] = timestamp
-	row["_runtime"] = timestamp - ctx.Settings.XStartTime.GetValue()
+	row["_runtime"] = timestamp - fs.settings.XStartTime.GetValue()
 
 	for _, item := range u.Record.Item {
 		var val interface{}
@@ -30,7 +30,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 				"filestream: failed to marshal StatsItem key: %s",
 				item.Key,
 			)
-			ctx.Logger.CaptureError(errMsg, e)
+			fs.logger.CaptureError(errMsg, e)
 			continue
 		}
 
@@ -42,31 +42,22 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	switch {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
-		ctx.Logger.CaptureError(
+		fs.logger.CaptureError(
 			"filestream: failed to marshal system metrics",
 			err,
 		)
 	case len(line) > maxFileLineBytes:
 		// This is a non-blocking failure as well.
-		ctx.Logger.CaptureWarn(
+		fs.logger.CaptureWarn(
 			"filestream: system metrics line too long, skipping",
 			"len", len(line),
 			"max", maxFileLineBytes,
 		)
 	default:
-		ctx.ModifyRequest(&collectorStatsUpdate{
-			lines: []string{string(line)},
+		fs.addTransmit(&TransmitChunk{
+			EventsLines: []string{string(line)},
 		})
 	}
 
 	return nil
-}
-
-type collectorStatsUpdate struct {
-	lines []string
-}
-
-func (u *collectorStatsUpdate) Apply(state *CollectorState) {
-	state.Buffer.EventsLines =
-		append(state.Buffer.EventsLines, u.lines...)
 }

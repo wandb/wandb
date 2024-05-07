@@ -11,7 +11,7 @@ import (
 
 // FsTransmitData is serialized and sent to a W&B server
 type FsTransmitData struct {
-	Files      map[string]FsTransmitFileData `json:"files,omitempty"`
+	Files      map[string]fsTransmitFileData `json:"files,omitempty"`
 	Complete   *bool                         `json:"complete,omitempty"`
 	Exitcode   *int32                        `json:"exitcode,omitempty"`
 	Preempting bool                          `json:"preempting,omitempty"`
@@ -20,7 +20,7 @@ type FsTransmitData struct {
 }
 
 // FsServerFileData (part of FsTransmitData) is serialized and sent to a W&B server
-type FsTransmitFileData struct {
+type fsTransmitFileData struct {
 	Offset  int      `json:"offset"`
 	Content []string `json:"content"`
 }
