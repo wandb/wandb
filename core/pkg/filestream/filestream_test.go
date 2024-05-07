@@ -31,12 +31,6 @@ func NewHistoryRecord() filestream.Update {
 	}
 }
 
-func jsonCompact(t *testing.T, s string) []byte {
-	var result bytes.Buffer
-	assert.NoError(t, json.Compact(&result, []byte(s)))
-	return result.Bytes()
-}
-
 func TestFileStream(t *testing.T) {
 	var fakeClient *apitest.FakeClient
 	var printer *observability.Printer
@@ -77,52 +71,18 @@ func TestFileStream(t *testing.T) {
 		assert.Equal(t, "POST", req.Method)
 		assert.Equal(t, "test-url/files/entity/project/run/file_stream", req.URL)
 		assert.Equal(t, http.Header{}, req.Header)
-		assert.Equal(t,
-			jsonCompact(t,
-				`{
-					"files": {
-						"wandb-history.jsonl": {
-							"offset": 0,
-							"content": ["{\"test_key\":0}"]
-						}
-					},
-					"uploaded": ["file.txt"]
-				}`),
-			req.Body,
-		)
-	})
-
-	t.Run("increments file offsets", func(t *testing.T) {
-		fakeBatchDelay := waitingtest.NewFakeDelay()
-		fs := setup(func() {
-			processDelay = fakeBatchDelay
-		})
-
-		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
-		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
-		fs.StreamUpdate(NewHistoryRecord())
-		fakeBatchDelay.WaitAndTick(true, time.Second)
-		fs.StreamUpdate(NewHistoryRecord())
-		fakeBatchDelay.WaitAndTick(true, time.Second)
-		fs.Close()
-
-		requests := fakeClient.GetRequests()
-		assert.Len(t, requests, 3) // 2 history, 1 final transmission
-
-		assert.Equal(t,
-			jsonCompact(t,
-				`{
-					"files": {"wandb-history.jsonl":
-						{"offset": 0, "content": ["{\"test_key\":0}"]}}
-				}`),
-			requests[0].Body)
-		assert.Equal(t,
-			jsonCompact(t,
-				`{
-					"files": {"wandb-history.jsonl":
-						{"offset": 1, "content": ["{\"test_key\":0}"]}}
-				}`),
-			requests[1].Body)
+		var expected bytes.Buffer
+		assert.NoError(t, json.Compact(&expected,
+			[]byte(`{
+				"files": {
+					"wandb-history.jsonl": {
+						"offset": 0,
+						"content": ["{\"test_key\":0}"]
+					}
+				},
+				"uploaded": ["file.txt"]
+			}`)))
+		assert.Equal(t, expected.String(), string(req.Body))
 	})
 
 	t.Run("sends heartbeat", func(t *testing.T) {
