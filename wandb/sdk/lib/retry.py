@@ -143,6 +143,7 @@ class Retry(Generic[_R]):
                         )
                 return result
             except self._retryable_exceptions as e:
+                wandb.termlog(f"PROBLEM, {e=}")
                 # if the secondary check fails, re-raise
                 retry_timedelta_triggered = check_retry_fn(e)
                 if not retry_timedelta_triggered:
