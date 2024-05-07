@@ -265,7 +265,7 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
-	nc.stream.logger.CaptureInfo("core", nil)
+	nc.stream.logger.CaptureInfo("wandb-core", nil)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message
