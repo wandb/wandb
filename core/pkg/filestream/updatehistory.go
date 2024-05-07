@@ -14,15 +14,15 @@ type HistoryUpdate struct {
 	Record *service.HistoryRecord
 }
 
-func (u *HistoryUpdate) Chunk(fs *fileStream) error {
+func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 	items := slices.Clone(u.Record.Item)
 
 	// when logging to the same run with multiple writers, we need to
 	// add a client id to the history record
-	if fs.clientId != "" {
+	if ctx.ClientID != "" {
 		items = append(items, &service.HistoryItem{
 			Key:       "_client_id",
-			ValueJson: fmt.Sprintf(`"%s"`, fs.clientId),
+			ValueJson: fmt.Sprintf(`"%s"`, ctx.ClientID),
 		})
 	}
 
@@ -31,7 +31,7 @@ func (u *HistoryUpdate) Chunk(fs *fileStream) error {
 		items,
 		func(err error) {
 			// TODO: maybe we should shut down filestream if this fails?
-			fs.logger.CaptureError(
+			ctx.Logger.CaptureError(
 				"filestream: failed to apply history record", err)
 		},
 	)
@@ -47,16 +47,16 @@ func (u *HistoryUpdate) Chunk(fs *fileStream) error {
 		// as we inform the user.
 		//
 		// TODO: inform the user
-		fs.logger.CaptureWarn(
+		ctx.Logger.CaptureWarn(
 			"filestream: run history line too long, skipping",
 			"len", len(line),
 			"max", maxFileLineBytes,
 		)
-		fs.printer.
+		ctx.Printer.
 			AtMostEvery(time.Minute).
 			Write("Skipped uploading run.log() data that exceeded size limit.")
 	} else {
-		fs.addTransmit(&TransmitChunk{
+		ctx.ModifyRequest(&TransmitChunk{
 			HistoryLines: []string{string(line)},
 		})
 	}
