@@ -208,7 +208,10 @@ func (fs *fileStream) Start(
 		project,
 		runID,
 	)
-	fs.offsetMap = maps.Clone(offsetMap)
+
+	if offsetMap != nil {
+		fs.offsetMap = maps.Clone(offsetMap)
+	}
 
 	fs.processWait.Add(1)
 	go func() {
