@@ -37,6 +37,11 @@ if TYPE_CHECKING:
             pass
 
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class ArtifactSaver:
     _server_artifact: Optional[Dict]  # TODO better define this dict
 
@@ -175,14 +180,16 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
+            lambda entry,
+            progress_callback: self._manifest.storage_policy.store_file_sync(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
                 step_prepare,
                 progress_callback=progress_callback,
             ),
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
+            lambda entry,
+            progress_callback: self._manifest.storage_policy.store_file_async(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
@@ -219,6 +226,8 @@ class ArtifactSaver:
 
             # We're duplicating the file upload logic a little, which isn't great.
             upload_url = resp["uploadUrl"]
+            logger.debug(f">>> {upload_url=}")
+
             upload_headers = resp["uploadHeaders"]
             extra_headers = {}
             for upload_header in upload_headers:

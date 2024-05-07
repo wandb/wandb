@@ -987,6 +987,7 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
+        max_workers: Optional[int] = None,
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -994,6 +995,7 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
+                max_workers=max_workers,
             )
 
         if reports:
@@ -1007,6 +1009,7 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
+                max_workers=max_workers,
             )
 
         logger.info("END: Importing all")

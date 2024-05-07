@@ -111,6 +111,7 @@ class UploadJob:
             logger.info("Skipped uploading %s", self.save_path)
             self._stats.set_file_deduped(self.save_name)
         else:
+            logger.info(f"Uploading {upload_url=}")
             extra_headers = {}
             for upload_header in upload_headers:
                 key, val = upload_header.split(":", 1)
