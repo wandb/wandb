@@ -77,7 +77,7 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 func (s *Server) loopCheckIfParentGone(pid int) bool {
 	for {
 		select {
-		case <-s.pidwatchChan:
+		case <-s.ctx.Done():
 			return false
 		case <-time.After(100 * time.Millisecond):
 		}
@@ -86,14 +86,6 @@ func (s *Server) loopCheckIfParentGone(pid int) bool {
 			return true
 		}
 	}
-}
-
-func (s *Server) WatchParentPid(pid int) {
-	shouldExit := s.loopCheckIfParentGone(pid)
-	if shouldExit {
-		os.Exit(2)
-	}
-	s.wg.Done()
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {
@@ -105,11 +97,19 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 
 // Serve starts the server
 func (s *Server) Start() {
-	s.wg.Add(1)
+	// watch for parent process exit in background (if specified)
 	if s.pid != 0 {
 		s.wg.Add(1)
-		go s.WatchParentPid(s.pid)
+		go func() {
+			shouldExit := s.loopCheckIfParentGone(s.pid)
+			if shouldExit {
+				os.Exit(1)
+			}
+			s.wg.Done()
+		}()
 	}
+
+	// run server in background
 	go func() {
 		defer s.wg.Done()
 		s.serve()
@@ -148,9 +148,6 @@ func (s *Server) Wait() {
 
 // Close closes the server
 func (s *Server) Close() {
-	<-s.teardownChan
-	close(s.pidwatchChan)
-	close(s.shutdownChan)
 	if err := s.listener.Close(); err != nil {
 		slog.Error("failed to Close listener", err)
 	}
