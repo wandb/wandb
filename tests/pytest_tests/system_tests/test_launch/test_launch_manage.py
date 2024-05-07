@@ -31,6 +31,7 @@ def test_config():
     }
 
 
+@pytest.mark.wandb_core_only
 def test_manage_config_file(
     test_settings,
     wandb_init,
@@ -45,11 +46,6 @@ def test_manage_config_file(
     have the config file saved in its files and the job should have the config
     file schema.
     """
-    # This is a short term hack to avoid running this test without wandb core
-    # enabled. Long term this should controlled with a pytest marker.
-    core = os.environ.get("WANDB__REQUIRE_CORE", "false")
-    if core.lower() != "true":
-        return
     monkeypatch.chdir(tmp_path)
     config_str = yaml.dump(test_config)
 
@@ -127,6 +123,7 @@ def test_manage_config_file(
         }
 
 
+@pytest.mark.wandb_core_only
 def test_manage_wandb_config(
     test_settings,
     wandb_init,
@@ -137,9 +134,6 @@ def test_manage_wandb_config(
     If `manage_wandb_config` is called and a job is created then the job should
     have the wandb config schema saved in its metadata.
     """
-    core = os.environ.get("WANDB__REQUIRE_CORE", "false")
-    if core.lower() != "true":
-        return
     settings = test_settings()
     settings.update(
         {
