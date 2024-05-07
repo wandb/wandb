@@ -59,6 +59,10 @@ func (fs *FakeStopwatch) Reset() {
 }
 
 func (fs *FakeStopwatch) Wait() <-chan struct{} {
+	if fs.IsDone() {
+		return completedDelay()
+	}
+
 	fs.Lock()
 	defer fs.Unlock()
 

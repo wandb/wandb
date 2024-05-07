@@ -92,14 +92,12 @@ func TestFileStream(t *testing.T) {
 		})
 
 		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
-		fakeHeartbeat.SetDone()
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
-		// We're relying on a single loop happening in-between. Technically
-		// this test is brittle: the code would still be correct if Close()
-		// pre-empted Start().
+		fakeHeartbeat.SetDone()
+		fakeClient.WaitUntilRequestCount(t, 1, time.Hour)
 		fs.Close()
 
-		assert.Len(t, fakeClient.GetRequests(), 1)
+		assert.Len(t, fakeClient.GetRequests(), 2) // heartbeat, then final request
 		assert.Equal(t,
 			apitest.RequestCopy{
 				Method: "POST",
@@ -119,10 +117,10 @@ func TestFileStream(t *testing.T) {
 
 		fakeClient.SetResponse(nil, fmt.Errorf("nope!"))
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
-		fs.StreamUpdate(NewHistoryRecord())           // should go through
-		fakeBatchDelay.WaitAndTick(true, time.Second) // picks up the chunk
-		fs.StreamUpdate(NewHistoryRecord())           // should be ignored
-		fs.StreamUpdate(NewHistoryRecord())           // should be ignored
+		fs.StreamUpdate(NewHistoryRecord())              // should go through
+		fakeBatchDelay.WaitAndTick(t, true, time.Second) // picks up the chunk
+		fs.StreamUpdate(NewHistoryRecord())              // should be ignored
+		fs.StreamUpdate(NewHistoryRecord())              // should be ignored
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
