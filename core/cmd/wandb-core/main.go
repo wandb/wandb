@@ -35,10 +35,10 @@ func main() {
 	flag.Parse()
 
 	var shutdownOnParentExitEnabled bool
-	if *pid != 0 {
-		// Shutdown this process if the parent pid exits (if supported by the OS)
-		// shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
-	}
+	// if *pid != 0 {
+	//	// Shutdown this process if the parent pid exits (if supported by the OS)
+	//	shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
+	// }
 
 	// set up sentry reporting
 	observability.InitSentry(*disableAnalytics, commit)
