@@ -62,7 +62,7 @@ func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
 	}
 
 	timestamp := time.Now().Format("20060102_150405")
-	path := filepath.Join(dir, "wandb", fmt.Sprintf("core-debug-%s.log", timestamp))
+	path := filepath.Join(dir, "wandb", "logs", fmt.Sprintf("core-debug-%s.log", timestamp))
 
 	if err := fs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, fmt.Errorf("error creating log directory: %s", err)
