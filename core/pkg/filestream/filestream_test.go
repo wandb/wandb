@@ -66,7 +66,7 @@ func TestFileStream(t *testing.T) {
 		fs.StreamUpdate(&filestream.FilesUploadedUpdate{RelativePath: "file.txt"})
 		fs.Close()
 
-		assert.Len(t, fakeClient.GetRequests(), 1)
+		assert.Len(t, fakeClient.GetRequests(), 2) // 1 batch + 1 final transmission
 		req := fakeClient.GetRequests()[0]
 		assert.Equal(t, "POST", req.Method)
 		assert.Equal(t, "test-url/files/entity/project/run/file_stream", req.URL)

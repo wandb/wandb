@@ -1,38 +1,70 @@
 package waitingtest
 
 import (
-	"sync/atomic"
+	"sync"
 
 	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 // FakeStopwatch is a Stopwatch that tests can set to Done manually.
 type FakeStopwatch struct {
-	done        *atomic.Bool
-	doneForever *atomic.Bool
+	sync.Mutex
+
+	waitChan    chan struct{}
+	done        bool
+	doneForever bool
 }
 
 func NewFakeStopwatch() *FakeStopwatch {
-	return &FakeStopwatch{&atomic.Bool{}, &atomic.Bool{}}
+	return &FakeStopwatch{}
 }
 
 // SetDone makes IsDone return true until Reset is called.
 func (fs *FakeStopwatch) SetDone() {
-	fs.done.Store(true)
+	fs.Lock()
+	defer fs.Unlock()
+	fs.done = true
+
+	if fs.waitChan != nil {
+		close(fs.waitChan)
+		fs.waitChan = nil
+	}
 }
 
 // SetFinallyDone makes IsDone always return true even if Reset is called.
 func (fs *FakeStopwatch) SetDoneForever() {
-	fs.doneForever.Store(true)
+	fs.Lock()
+	defer fs.Unlock()
+	fs.doneForever = true
+
+	if fs.waitChan != nil {
+		close(fs.waitChan)
+		fs.waitChan = nil
+	}
 }
 
 // Prove we implement the interface.
 var _ waiting.Stopwatch = &FakeStopwatch{}
 
 func (fs *FakeStopwatch) IsDone() bool {
-	return fs.done.Load() || fs.doneForever.Load()
+	fs.Lock()
+	defer fs.Unlock()
+	return fs.done || fs.doneForever
 }
 
 func (fs *FakeStopwatch) Reset() {
-	fs.done.Store(false)
+	fs.Lock()
+	defer fs.Unlock()
+	fs.done = false
+}
+
+func (fs *FakeStopwatch) Wait() <-chan struct{} {
+	fs.Lock()
+	defer fs.Unlock()
+
+	if fs.waitChan == nil {
+		fs.waitChan = make(chan struct{})
+	}
+
+	return fs.waitChan
 }

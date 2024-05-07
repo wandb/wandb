@@ -117,7 +117,6 @@ func (d *FakeDelay) Wait() <-chan struct{} {
 
 		d.numWaiting--
 
-		waitChan <- struct{}{}
 		close(waitChan)
 	}()
 
@@ -126,7 +125,6 @@ func (d *FakeDelay) Wait() <-chan struct{} {
 
 func completedDelay() <-chan struct{} {
 	ch := make(chan struct{}, 1)
-	ch <- struct{}{}
 	close(ch)
 	return ch
 }
