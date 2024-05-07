@@ -18,7 +18,19 @@ def timeit(lst):
     return timing_val
 
 
-def write(fname, lst, prefix=None):
+def write(
+    fname: str,
+    timings: <timing type>,
+    prefix: str | None = None,
+):
+    """Appends timing data to the file.
+    
+    Args:
+        fname: The name of the file.
+        timings: The timings data to append to the file, one row per timing.
+            This list is cleared at the end.
+        prefix: An optional prefix for each timing line written.
+    """
     prefix = prefix or []
     with open(fname, "a") as csvfile:
         writer = csv.writer(csvfile)
