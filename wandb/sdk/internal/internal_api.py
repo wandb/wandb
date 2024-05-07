@@ -163,6 +163,7 @@ def check_httpclient_logger_handler() -> None:
 
 def check_httpx_exc_retriable(exc: Exception) -> bool:
     retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
+    print(f"SOMETHING IS CAUSING A PROBLEM HERE, {exc=}")
     return (
         isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
         or (
