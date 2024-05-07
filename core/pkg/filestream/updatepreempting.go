@@ -14,15 +14,11 @@ type PreemptingUpdate struct {
 	Record *service.RunPreemptingRecord
 }
 
-func (u *PreemptingUpdate) Apply(ctx UpdateContext) error {
-	ctx.ModifyRequest(&collectorPreemptingUpdate{})
+func (u *PreemptingUpdate) Chunk(fs *fileStream) error {
+	fs.addTransmit(&TransmitChunk{
+		HasPreempting: true,
+		Preempting:    true,
+	})
 
 	return nil
-}
-
-type collectorPreemptingUpdate struct{}
-
-func (u *collectorPreemptingUpdate) Apply(state *CollectorState) {
-	state.Buffer.HasPreempting = true
-	state.Buffer.Preempting = true
 }
