@@ -60,14 +60,11 @@ def run_parallel(args):
 
 
 def setup(args):
-    # print("DEBUG SETUP", args)
     if args.core == "true":
-        # print("REQ CORE")
         wandb.require("core")
 
 
 def teardown(args):
-    # print("DEBUG TEARDOWN")
     wandb.teardown()
     os.environ.pop("WANDB__REQUIRE_CORE", None)
 
@@ -104,7 +101,7 @@ def main():
     parser.add_argument("--history_ints", type=int, default=0)
     parser.add_argument("--history_strings", type=int, default=0)
     parser.add_argument("--history_tables", type=int, default=0)
-    parser.add_argument("--mode", type=str, default="", choices=("online", "offline"))
+    parser.add_argument("--mode", type=str, default="online", choices=("online", "offline"))
     parser.add_argument("--core", type=str, default="", choices=("true", "false"))
 
     args = parser.parse_args()
@@ -119,7 +116,7 @@ def main():
         prefix_list = [VERSION]
         for field in BENCH_FIELDS:
             prefix_list.append(getattr(args, field))
-        _timing.write(BENCH_OUTFILE, TIMING_DATA, prefix=prefix_list)
+        _timing.write(BENCH_OUTFILE, TIMING_DATA, prefix_list=prefix_list)
 
 
 if __name__ == "__main__":
