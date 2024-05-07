@@ -1587,7 +1587,6 @@ def launch(
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
-            runtime=resource,
         )
         if artifact is None:
             raise LaunchError(f"Failed to create job from uri: {uri}")
