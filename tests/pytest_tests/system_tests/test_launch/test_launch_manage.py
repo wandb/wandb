@@ -4,7 +4,6 @@ These tests execute the real user flow exposed by the
 `wandb.sdk.launch.inputs.manage` module.
 """
 
-import os
 import time
 
 import pytest
