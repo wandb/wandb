@@ -1,10 +1,9 @@
 #!/usr/bin/env python
 
-from typing import List, Optional, Tuple
 import csv
-import time
-
 import dataclasses
+import time
+from typing import List, Optional
 
 
 @dataclasses.dataclass(frozen=True)
@@ -21,6 +20,7 @@ def timeit(
     Args:
        timings: list of FunctionTiming to append for each function call
     """
+
     def timing_func(func):
         def wrapper(*args, **kwargs):
             t1 = time.time()
