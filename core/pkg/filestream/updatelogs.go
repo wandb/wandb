@@ -16,7 +16,7 @@ type LogsUpdate struct {
 	Record *service.OutputRawRecord
 }
 
-func (u *LogsUpdate) Chunk(fs *fileStream) error {
+func (u *LogsUpdate) Apply(ctx UpdateContext) error {
 	// generate compatible timestamp to python iso-format (microseconds without Z)
 	t := strings.TrimSuffix(time.Now().UTC().Format(rfc3339Micro), "Z")
 
@@ -27,7 +27,7 @@ func (u *LogsUpdate) Chunk(fs *fileStream) error {
 	case service.OutputRawRecord_STDERR:
 		line = fmt.Sprintf("ERROR %s %s", t, u.Record.Line)
 	default:
-		fs.logger.CaptureError(
+		ctx.Logger.CaptureError(
 			fmt.Sprintf(
 				"filestream: unexpected logs output type %v",
 				u.Record.OutputType,
@@ -38,7 +38,7 @@ func (u *LogsUpdate) Chunk(fs *fileStream) error {
 		return nil
 	}
 
-	fs.addTransmit(&collectorLogsUpdate{
+	ctx.ModifyRequest(&collectorLogsUpdate{
 		line: line,
 	})
 
