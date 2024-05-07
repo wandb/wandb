@@ -7,7 +7,7 @@ import (
 
 const (
 	// Linux syscall for prctl, see x/sys/unix SYS_PRCTL
-	PRCTL_SYSCALL    = 157
+	PRCTL_SYSCALL = 157
 	// Set the parent-death signal of the calling process, see uapi/linux/prctl.h
 	PR_SET_PDEATHSIG = 1
 )

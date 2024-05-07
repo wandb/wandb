@@ -46,11 +46,11 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 	}
 
 	s := &Server{
-		ctx:          ctx,
-		cancel:       cancel,
-		listener:     listener,
-		wg:           sync.WaitGroup{},
-		pid:          pid,
+		ctx:      ctx,
+		cancel:   cancel,
+		listener: listener,
+		wg:       sync.WaitGroup{},
+		pid:      pid,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
