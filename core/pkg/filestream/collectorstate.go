@@ -23,19 +23,22 @@ type CollectorStateUpdate interface {
 }
 
 // Consume turns the buffered data into an API request, resetting buffers.
+//
+// Returns a boolean that's true if the request is non-empty.
 func (s *CollectorState) Consume(
 	offsets FileStreamOffsetMap,
 	isDone bool,
-) *FsTransmitData {
+) (*FsTransmitData, bool) {
 	transmitData := FsTransmitData{}
 
-	s.Buffer.Write(&transmitData, offsets)
+	hasData := s.Buffer.Write(&transmitData, offsets)
 	if isDone {
 		transmitData.Exitcode = s.ExitCode
 		transmitData.Complete = s.Complete
+		hasData = true
 	}
 
 	s.Buffer = TransmitChunk{}
 
-	return &transmitData
+	return &transmitData, hasData
 }

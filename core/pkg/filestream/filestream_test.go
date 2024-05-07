@@ -31,6 +31,12 @@ func NewHistoryRecord() filestream.Update {
 	}
 }
 
+func jsonCompact(t *testing.T, s string) string {
+	var buf bytes.Buffer
+	assert.NoError(t, json.Compact(&buf, []byte(s)))
+	return buf.String()
+}
+
 func TestFileStream(t *testing.T) {
 	var fakeClient *apitest.FakeClient
 	var printer *observability.Printer
@@ -71,9 +77,8 @@ func TestFileStream(t *testing.T) {
 		assert.Equal(t, "POST", req.Method)
 		assert.Equal(t, "test-url/files/entity/project/run/file_stream", req.URL)
 		assert.Equal(t, http.Header{}, req.Header)
-		var expected bytes.Buffer
-		assert.NoError(t, json.Compact(&expected,
-			[]byte(`{
+		assert.Equal(t,
+			jsonCompact(t, `{
 				"files": {
 					"wandb-history.jsonl": {
 						"offset": 0,
@@ -81,8 +86,8 @@ func TestFileStream(t *testing.T) {
 					}
 				},
 				"uploaded": ["file.txt"]
-			}`)))
-		assert.Equal(t, expected.String(), string(req.Body))
+			}`),
+			string(req.Body))
 	})
 
 	t.Run("sends heartbeat", func(t *testing.T) {
@@ -107,6 +112,25 @@ func TestFileStream(t *testing.T) {
 			},
 			fakeClient.GetRequests()[0],
 		)
+	})
+
+	t.Run("sends exit code at end", func(t *testing.T) {
+		fs := setup(func() {})
+
+		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
+		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
+		fs.StreamUpdate(&filestream.ExitUpdate{
+			Record: &service.RunExitRecord{ExitCode: 345},
+		})
+		fs.Close()
+
+		assert.Len(t, fakeClient.GetRequests(), 1)
+		assert.Equal(t,
+			jsonCompact(t, `{
+				"complete": true,
+				"exitcode": 345
+			}`),
+			string(fakeClient.GetRequests()[0].Body))
 	})
 
 	t.Run("shuts down on HTTP failure", func(t *testing.T) {
