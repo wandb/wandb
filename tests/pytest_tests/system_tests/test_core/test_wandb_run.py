@@ -316,10 +316,7 @@ def test_summary_from_history(relay_server, wandb_init):
     assert summary == {"a": 2}
 
 
-@pytest.mark.skipif(
-    not wandb.env.is_require_core(),
-    reason="This is broken in the python code",
-)
+@pytest.mark.wandb_core_only
 def test_summary_remove(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -331,10 +328,7 @@ def test_summary_remove(relay_server, wandb_init):
     assert summary == {}
 
 
-@pytest.mark.skipif(
-    not wandb.env.is_require_core(),
-    reason="This is broken in the python code",
-)
+@pytest.mark.wandb_core_only
 def test_summary_remove_nested(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(allow_val_change=True)

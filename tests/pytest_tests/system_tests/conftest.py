@@ -567,7 +567,7 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
         subprocess.Popen(command)
         # wait for the server to start
         server_is_up = check_server_health(
-            base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+            base_url=base_url, endpoint=app_health_endpoint, num_retries=120
         )
         if not server_is_up:
             return False
@@ -579,7 +579,7 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
         )
 
     return check_server_health(
-        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
+        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=20
     )
 
 
