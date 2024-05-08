@@ -133,6 +133,7 @@ func NewRunfilesUploader(
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
+	fileWatcher watcher2.Watcher,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
@@ -142,7 +143,7 @@ func NewRunfilesUploader(
 		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
-		FileWatcher:  watcher2.New(watcher2.Params{Logger: logger}),
+		FileWatcher:  fileWatcher,
 		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
 	})
 }

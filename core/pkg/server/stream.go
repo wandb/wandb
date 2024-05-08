@@ -17,7 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -145,17 +145,13 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 		closed:       &atomic.Bool{},
 	}
 
-	w := watcher.New(watcher.Params{
-		Logger:   s.logger,
-		FilesDir: s.settings.GetFilesDir(),
-	})
-
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
+	fileWatcher := watcher2.New(watcher2.Params{Logger: s.logger})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -180,6 +176,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
+			fileWatcher,
 			graphqlClientOrNil,
 		)
 	}
@@ -194,7 +191,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			OutChan:           make(chan *service.Result, BufferSize),
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
 			RunfilesUploader:  runfilesUploaderOrNil,
-			TBHandler:         NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan),
+			TBHandler:         NewTBHandler(fileWatcher, s.logger, s.settings.Proto, s.loopBackChan),
 			FileTransferStats: fileTransferStats,
 			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
@@ -220,6 +217,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
+			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
