@@ -237,46 +237,31 @@ patch_tf_keras()
 ### For gradient logging ###
 
 
-def _get_custom_optimizer_parent_class():
-    from wandb.util import parse_version
-
-    if parse_version(tf.__version__) >= parse_version("2.9.0"):
-        # Legacy not available in Keras 3
-        #custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
-        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
-    else:
-        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
-
-    return custom_optimizer_parent_class
-
-
-_custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
-
-
 class _CustomOptimizer(_custom_optimizer_parent_class):
     def __init__(self):
         # learning_rate is a required argument for the non-legacy optimiser; the legacy version
         # is removed in Keras 3.
         # Provide a dummy value of 1.0, seeing as don't think we actually use it
         super().__init__(name="CustomOptimizer", learning_rate = 1.0)
-        self._resource_apply_dense = tf.function(self._resource_apply_dense)
-        self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
-    def _resource_apply_dense(self, grad, var):
-        var.assign(grad)
 
-    # this needs to be implemented to prevent a NotImplementedError when
-    # using Lookup layers.
-    def _resource_apply_sparse(self, grad, var, indices):
-        pass
+    # New optimiser API.
+    def apply_gradients(self, grads_and_vars, name=None, skip_gradients_aggregation=False, **kwargs):
+        # This function receives a list of tuples of gradients and variables these gradients are associated with
+        for grad, var in grads_and_vars:
+            # Iterate through, and some variables might not have a gradient if they are e.g. constant
+            if grad is not None:
+                # Overwrite the current weight in this model with the gradient
+                # We use the weights inside the model as a hack to store the gradients for later use;
+                # The callback will then pull these out in each batch and sum for the histogram.
+                var.assign(grad)
+        
+        self.iterations.assign_add(1) # iteration++
 
-    def get_config(self):
-        return super().get_config()
-    
-    # Needed as pure virtual in parent as of Keras 3
-    def update_step(self, gradient, variable, learning_rate):
-        # Does not return anything, so assume we need not do anything.
-        pass
+        # Return the current iteration; the base class provides this but we have to increment it ourselves.
+        return self.iterations
+
+
 
 class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
     """Accumulates gradients during a fit() call when used in conjunction with the CustomOptimizer above."""
@@ -284,20 +269,29 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
     def set_model(self, model):
         super().set_model(model)
         self.og_weights = model.get_weights()
+        # Begin by zeroing-outthe gradients.
         self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
 
+    def on_batch_begin(self, batch, logs=None):
+        # Set abreakpoint here if needed for debugging.
 
     # Logs the gradients on each batch, os we keep a running copy of all the operations over each batch in the epoch.
     def on_batch_end(self, batch, logs=None):
+        # The weights are really the gradients of our true model, stashed by the custom optimiser.
         for g, w in zip(self.grads, self.model.trainable_weights):
-            # Must be oding some manual jiggery-pokery by addding in the weights. Not sure on the logic of this.
+            
+            # Add the stashed gradients and keep hold of in the callback for the histogram
             g += w.numpy()
-        self.model.set_weights(self.og_weights)
 
-    # Just returns a copy of the gradients that were previouslyl ogged on each batch.
+        # Now reset it for the next pass???
+        # Presumably we just take the weights as they were for the first batch in the epoch, and this model
+        # is iterating oive all the input data to see how they would have been affected.
+        self.model.set_weights(self.og_weights)
+    
+    
+    # Just returns a copy of the gradients that were previously logged on each batch.
     def get_grads(self):
         return [g.copy() for g in self.grads]
-
 
 ###
 
