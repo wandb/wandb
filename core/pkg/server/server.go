@@ -8,7 +8,6 @@ import (
 	"os"
 	"sync"
 	"sync/atomic"
-	"time"
 )
 
 const BufferSize = 32

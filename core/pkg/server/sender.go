@@ -919,7 +919,7 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 		return
 	}
 	filesPath := s.settings.GetFilesDir().GetValue()
-	hrecordNew, hFileNames := historyMediaProcess(hrecord, filesPath)
+	hrecordNew, hFileNames := historyMediaProcess(record, filesPath)
 	if s.runfilesUploader == nil {
 		return
 	}
