@@ -50,9 +50,6 @@ def run_pytest(
 
     pytest_opts = []
     pytest_env = {
-        "WANDB__NETWORK_BUFFER": "1000",
-        "WANDB_ERROR_REPORTING": "false",
-        "WANDB_CORE_ERROR_REPORTING": "false",
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),

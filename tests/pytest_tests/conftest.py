@@ -5,6 +5,9 @@ from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Iterable, Optional, Union
 
+# Don't write to Sentry in wandb.
+#
+# For wandb-core, this setting is configured below.
 os.environ["WANDB_ERROR_REPORTING"] = "false"
 
 import git  # noqa: E402
@@ -26,9 +29,17 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def disable_sentry_in_core(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Disables Sentry for all tests with core."""
+def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Configures wandb env variables to suitable defaults for tests."""
+    # Don't write to Sentry in wandb-core.
+    #
+    # The corresponding setting for wandb is read on import, so it is
+    # configured above the imports in this file.
     monkeypatch.setenv("WANDB_CORE_ERROR_REPORTING", "false")
+
+    # Set the _network_buffer setting to 1000 to increase the likelihood
+    # of triggering flow control logic.
+    monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
 
 
 @pytest.fixture(autouse=True)
@@ -51,16 +62,27 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     if toggle_wandb_core.__name__ in metafunc.fixturenames:
         # Allow tests to opt-out of wandb-core until we have feature parity.
         skip_wandb_core = False
+        wandb_core_only = False
         for mark in metafunc.definition.iter_markers():
             if mark.name == "wandb_core_failure":
                 skip_wandb_core = True
-                break
+            elif mark.name == "wandb_core_only":
+                wandb_core_only = True
 
-        values = [False]
-        ids = ["no_wandb_core"]
-        if not skip_wandb_core:
-            values.append(True)
-            ids.append("wandb_core")
+        if wandb_core_only:
+            # Don't merge tests like this. Implement the feature first.
+            assert (
+                not skip_wandb_core
+            ), "Cannot mark test both wandb_core_failure and wandb_core_only"
+
+            values = [True]
+            ids = ["wandb_core"]
+        elif skip_wandb_core:
+            values = [False]
+            ids = ["no_wandb_core"]
+        else:
+            values = [False, True]
+            ids = ["no_wandb_core", "wandb_core"]
 
         metafunc.parametrize(
             toggle_wandb_core.__name__,

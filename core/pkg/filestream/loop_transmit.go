@@ -30,6 +30,12 @@ func (fs *fileStream) addTransmit(chunk CollectorStateUpdate) {
 	fs.transmitChan <- chunk
 }
 
+// loopTransmit sends updates to the backend, consuming the entire channel.
+//
+// Updates are batched to reduce the total number of HTTP requests.
+// An empty "heartbeat" request is sent when there are no updates for too long,
+// guaranteeing that a request is sent at least once every period specified
+// by `heartbeatStopwatch`.
 func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
 	state := CollectorState{}
 
@@ -43,6 +49,10 @@ func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
 	}()
 
 	// Periodically send heartbeats.
+	//
+	// We do this by pushing a transmission if no requests are sent for too
+	// long---that is, when the heartbeat stopwatch hits zero. Whenever we
+	// transmit, we reset the stopwatch.
 	stopHearbeat := make(chan struct{})
 	heartbeatWG := &sync.WaitGroup{}
 	heartbeatWG.Add(1)
