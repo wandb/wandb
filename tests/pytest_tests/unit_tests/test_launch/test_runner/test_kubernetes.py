@@ -663,7 +663,7 @@ async def test_launch_crd_pod_schedule_warning(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    submitted_run = await runner.run(project, "hello-world", job_tracker)
+    submitted_run = await runner.run(project, "hello-world")
     await asyncio.sleep(1)
     _, pod_stream = mock_event_streams
     await pod_stream.add(
@@ -693,10 +693,6 @@ async def test_launch_crd_pod_schedule_warning(
     await asyncio.sleep(0.1)
     status = await submitted_run.get_status()
     assert status.messages == ["Test message"]
-    assert submitted_run._known_warnings == ["Test message"]
-    test_api.update_run_queue_item_warning.assert_called_once_with(
-        "test-rqi", "Test message", "Kubernetes", []
-    )
 
 
 @pytest.mark.timeout(320)

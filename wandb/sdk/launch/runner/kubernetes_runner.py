@@ -187,10 +187,8 @@ class CrdSubmittedRun(AbstractRun):
         plural: str,
         name: str,
         namespace: str,
-        internal_api: Api,
         core_api: CoreV1Api,
         custom_api: CustomObjectsApi,
-        job_tracker: Optional[JobAndRunStatusTracker],
     ) -> None:
         """Create a run object for tracking the progress of a CRD.
 
@@ -211,12 +209,9 @@ class CrdSubmittedRun(AbstractRun):
         self.plural = plural
         self.name = name
         self.namespace = namespace
-        self.internal_api = internal_api
         self.core_api = core_api
         self.custom_api = custom_api
-        self.job_tracker = job_tracker
         self._fail_count = 0
-        self._known_warnings: List[str] = []
 
     @property
     def id(self) -> str:
@@ -246,24 +241,7 @@ class CrdSubmittedRun(AbstractRun):
 
     async def get_status(self) -> Status:
         """Get status of custom object."""
-        status = LaunchKubernetesMonitor.get_status(self.name)
-        if not self.job_tracker:
-            return status
-        for warning in status.messages:
-            if warning not in self._known_warnings:
-                self._known_warnings.append(warning)
-                success = self.internal_api.update_run_queue_item_warning(
-                    self.job_tracker.run_queue_item_id,
-                    warning,
-                    "Kubernetes",
-                    [],
-                )
-                if not success:
-                    _logger.warning(
-                        f"Error adding warning {warning} to run queue item {self.job_tracker.run_queue_item_id}"
-                    )
-                    self._known_warnings.remove(warning)
-        return status
+        return LaunchKubernetesMonitor.get_status(self.name)
 
     async def cancel(self) -> None:
         """Cancel the custom object."""
@@ -613,10 +591,8 @@ class KubernetesRunner(AbstractRunner):
                 version=version,
                 namespace=namespace,
                 plural=plural,
-                internal_api=self._api,
                 core_api=client.CoreV1Api(api_client),
                 custom_api=api,
-                job_tracker=job_tracker,
             )
             if self.backend_config[PROJECT_SYNCHRONOUS]:
                 await submitted_run.wait()
