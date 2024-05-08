@@ -13,13 +13,18 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
+* Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
+
+## [0.17.0] - 2024-05-07
+
+### Added
+
 * The `wandb` package now includes the `wandb-core` binary by @timoffex in https://github.com/wandb/wandb/pull/7381
   * `wandb-core` is a new and improved backend for the W&B SDK that focuses on performance, versatility, and robustness.
   * Currently, it is opt-in. To start using the new backend, add `wandb.require("core")` to your script after importing `wandb`.
 * `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
 * Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
 * `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
-* Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 
 ### Fixed
 
