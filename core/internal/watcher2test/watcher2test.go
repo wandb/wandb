@@ -13,14 +13,14 @@ import (
 type FakeWatcher struct {
 	sync.Mutex
 
-	handlers map[string]func()
+	handlers map[string]func(string)
 }
 
 var _ watcher2.Watcher = &FakeWatcher{}
 
 func NewFakeWatcher() *FakeWatcher {
 	return &FakeWatcher{
-		handlers: make(map[string]func()),
+		handlers: make(map[string]func(string)),
 	}
 }
 
@@ -28,10 +28,13 @@ func NewFakeWatcher() *FakeWatcher {
 func (w *FakeWatcher) OnChange(path string) {
 	w.Lock()
 	handler := w.handlers[path]
+	parentHandler := w.handlers[filepath.Dir(path)]
 	w.Unlock()
 
 	if handler != nil {
-		handler()
+		handler(path)
+	} else if parentHandler != nil {
+		parentHandler(path)
 	}
 }
 
@@ -44,6 +47,14 @@ func (w *FakeWatcher) IsWatching(path string) bool {
 }
 
 func (w *FakeWatcher) Watch(path string, callback func()) error {
+	return w.watchFileOrDir(path, func(string) { callback() })
+}
+
+func (w *FakeWatcher) WatchDir(path string, callback func(string)) error {
+	return w.watchFileOrDir(path, callback)
+}
+
+func (w *FakeWatcher) watchFileOrDir(path string, callback func(string)) error {
 	w.Lock()
 	defer w.Unlock()
 

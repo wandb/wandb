@@ -23,6 +23,15 @@ type Watcher interface {
 	// The file must exist, or an error is returned.
 	Watch(path string, onChange func()) error
 
+	// WatchDir begins watching the contents of the directory at the path.
+	//
+	// `onChange` is invoked with a file path if a direct child of the
+	// directory is changed or created. The directory is not watched
+	// recursively.
+	//
+	// The directory must exist, or an error is returned.
+	WatchDir(path string, onChange func(string)) error
+
 	// Finish stops the watcher from emitting any more change events.
 	Finish()
 }
