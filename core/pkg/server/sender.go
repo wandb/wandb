@@ -836,15 +836,13 @@ func createPNG(data []byte, width, height int, filesPath string, imagePath strin
 	return imagePath, hash, size, nil
 }
 
-/*
-_type:"image-file"
-format:"png"
-height:8
-path:"media/images/e_0_bf803d096a43bb99af79.png"
-sha256:"bf803d096a43bb99af79738cfc7e036f5021727042a67ff3c99a0cd114c49cad"
-size:268
-width:8
-*/
+// _type:"image-file"
+// format:"png"
+// height:8
+// path:"media/images/e_0_bf803d096a43bb99af79.png"
+// sha256:"bf803d096a43bb99af79738cfc7e036f5021727042a67ff3c99a0cd114c49cad"
+// size:268
+// width:8
 type Media struct {
 	Type   string `json:"_type"`
 	Format string `json:"format"`
