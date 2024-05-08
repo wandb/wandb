@@ -918,6 +918,7 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 	if s.fileStream == nil {
 		return
 	}
+/*
 	filesPath := s.settings.GetFilesDir().GetValue()
 	hrecordNew, hFileNames := historyMediaProcess(record, filesPath)
 	if s.runfilesUploader == nil {
@@ -943,6 +944,7 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 		Control: record.Control,
 		Uuid:    record.Uuid,
 	}
+*/
 
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
