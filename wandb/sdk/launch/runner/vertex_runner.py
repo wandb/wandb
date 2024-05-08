@@ -2,8 +2,6 @@ import asyncio
 import logging
 from typing import Any, Dict, Optional
 
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-
 if False:
     from google.cloud import aiplatform  # type: ignore   # noqa: F401
 
@@ -98,7 +96,6 @@ class VertexRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
         full_resource_args = launch_project.fill_macros(image_uri)

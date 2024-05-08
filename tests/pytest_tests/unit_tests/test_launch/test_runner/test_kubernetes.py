@@ -759,7 +759,6 @@ async def test_launch_kube_pod_schedule_warning(
     clean_monitor,
 ):
     mock_batch_api.jobs = {"test-job": MockDict(manifest)}
-    test_api.update_run_queue_item_warning = MagicMock(return_value=True)
     job_tracker = MagicMock()
     job_tracker.run_queue_item_id = "test-rqi"
     project = LaunchProject(
@@ -783,7 +782,7 @@ async def test_launch_kube_pod_schedule_warning(
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
     )
-    submitted_run = await runner.run(project, "hello-world", job_tracker)
+    submitted_run = await runner.run(project, "hello-world")
     await asyncio.sleep(1)
     _, pod_stream = mock_event_streams
     await pod_stream.add(
@@ -810,10 +809,6 @@ async def test_launch_kube_pod_schedule_warning(
     await asyncio.sleep(0.1)
     status = await submitted_run.get_status()
     assert status.messages == ["Test message"]
-    assert submitted_run._known_warnings == ["Test message"]
-    test_api.update_run_queue_item_warning.assert_called_once_with(
-        "test-rqi", "Test message", "Kubernetes", []
-    )
 
 
 @pytest.mark.asyncio
@@ -1221,12 +1216,10 @@ async def test_kubernetes_submitted_run_get_logs(pods, logs, expected):
     core_api.read_namespaced_pod_log = _mock_read_namespaced_pod_log
 
     submitted_run = KubernetesSubmittedRun(
-        internal_api=MagicMock(),
         batch_api=MagicMock(),
         core_api=core_api,
         namespace="wandb",
         name="test_run",
-        job_tracker=None,
     )
     # Assert that we get the logs back.
     assert await submitted_run.get_logs() == expected
