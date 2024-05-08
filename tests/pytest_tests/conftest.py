@@ -5,6 +5,11 @@ from pathlib import Path
 from queue import Queue
 from typing import Any, Callable, Generator, Iterable, Optional, Union
 
+# Don't write to Sentry in wandb.
+#
+# For wandb-core, this setting is configured below.
+os.environ["WANDB_ERROR_REPORTING"] = "false"
+
 import git  # noqa: E402
 import pytest  # noqa: E402
 import wandb  # noqa: E402
@@ -24,13 +29,16 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
-def disable_sentry(monkeypatch: pytest.MonkeyPatch) -> None:
+def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configures wandb env variables to suitable defaults for tests."""
-    # Don't write to Sentry.
-    monkeypatch.setenv("WANDB_ERROR_REPORTING", "false")
+    # Don't write to Sentry in wandb-core.
+    #
+    # The corresponding setting for wandb is read on import, so it is
+    # configured above the imports in this file.
     monkeypatch.setenv("WANDB_CORE_ERROR_REPORTING", "false")
 
-    # Set the _network_buffer setting to 1000. Not sure why. It's undocumented.
+    # Set the _network_buffer setting to 1000 to increase the likelihood
+    # of triggering flow control logic.
     monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
 
 
