@@ -13,7 +13,6 @@ import yaml
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch.agent.agent import LaunchAgent
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
@@ -72,10 +71,8 @@ class KubernetesSubmittedRun(AbstractRun):
 
     def __init__(
         self,
-        internal_api: Api,
         batch_api: "BatchV1Api",
         core_api: "CoreV1Api",
-        job_tracker: Optional[JobAndRunStatusTracker],
         name: str,
         namespace: Optional[str] = "default",
         secret: Optional["V1Secret"] = None,
@@ -91,10 +88,8 @@ class KubernetesSubmittedRun(AbstractRun):
         `_status` attribute is returned.
 
         Arguments:
-            internal_api: wandb internal API
             batch_api: Kubernetes BatchV1Api object.
             core_api: Kubernetes CoreV1Api object.
-            job_tracker: Status tracker for this job.
             name: Name of the job.
             namespace: Kubernetes namespace.
             secret: Kubernetes secret.
@@ -102,15 +97,12 @@ class KubernetesSubmittedRun(AbstractRun):
         Returns:
             None.
         """
-        self.internal_api = internal_api
         self.batch_api = batch_api
         self.core_api = core_api
-        self.job_tracker = job_tracker
         self.name = name
         self.namespace = namespace
         self._fail_count = 0
         self.secret = secret
-        self._known_warnings: List[str] = []
 
     @property
     def id(self) -> str:
@@ -160,23 +152,6 @@ class KubernetesSubmittedRun(AbstractRun):
         status = LaunchKubernetesMonitor.get_status(self.name)
         if status in ["stopped", "failed", "finished", "preempted"]:
             await self._delete_secret()
-
-        if not self.job_tracker:
-            return status
-        for warning in status.messages:
-            if warning not in self._known_warnings:
-                self._known_warnings.append(warning)
-                success = self.internal_api.update_run_queue_item_warning(
-                    self.job_tracker.run_queue_item_id,
-                    warning,
-                    "Kubernetes",
-                    [],
-                )
-                if not success:
-                    _logger.warning(
-                        f"Error adding warning {warning} to run queue item {self.job_tracker.run_queue_item_id}"
-                    )
-                    self._known_warnings.remove(warning)
         return status
 
     async def cancel(self) -> None:
@@ -526,10 +501,7 @@ class KubernetesRunner(AbstractRunner):
         return job, api_key_secret
 
     async def run(
-        self,
-        launch_project: LaunchProject,
-        image_uri: str,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -680,13 +652,7 @@ class KubernetesRunner(AbstractRunner):
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(
-            internal_api=self._api,
-            batch_api=batch_api,
-            core_api=core_api,
-            job_tracker=job_tracker,
-            name=job_name,
-            namespace=namespace,
-            secret=secret,
+            batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()

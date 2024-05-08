@@ -4,8 +4,6 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, cast
 
-from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-
 if False:
     import boto3  # type: ignore
 
@@ -148,7 +146,6 @@ class SageMakerRunner(AbstractRunner):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-        job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> Optional[AbstractRun]:
         """Run a project on Amazon Sagemaker.
 

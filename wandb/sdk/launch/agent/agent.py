@@ -221,6 +221,7 @@ class LaunchAgent:
         self._stopped_run_timeout = config.get(
             "stopped_run_timeout", DEFAULT_STOPPED_RUN_TIMEOUT
         )
+        self._known_warnings: List[str] = []
 
         # Get agent version from env var if present, otherwise wandb version
         self.version: str = "wandb@" + wandb.__version__
@@ -733,7 +734,7 @@ class LaunchAgent:
             run = await backend.run(project, image_uri)
         else:
             assert image_uri
-            run = await backend.run(project, image_uri, job_tracker)
+            run = await backend.run(project, image_uri)
         if self._is_scheduler_job(launch_spec):
             with self._jobs_lock:
                 self._jobs[thread_id].is_scheduler = True
@@ -813,14 +814,30 @@ class LaunchAgent:
         known_error = False
         try:
             run = job_tracker.run
-            status = (await run.get_status()).state
+            status = await run.get_status()
+            state = status.state
 
-            if status == "preempted" and job_tracker.entity == self._entity:
+            for warning in status.messages:
+                if warning not in self._known_warnings:
+                    self._known_warnings.append(warning)
+                    success = self._api.update_run_queue_item_warning(
+                        job_tracker.run_queue_item_id,
+                        warning,
+                        "Kubernetes",
+                        [],
+                    )
+                    if not success:
+                        _logger.warning(
+                            f"Error adding warning {warning} to run queue item {job_tracker.run_queue_item_id}"
+                        )
+                        self._known_warnings.remove(warning)
+
+            if state == "preempted" and job_tracker.entity == self._entity:
                 config = launch_spec.copy()
                 config["run_id"] = job_tracker.run_id
                 config["_resume_count"] = config.get("_resume_count", 0) + 1
                 with self._jobs_lock:
-                    job_tracker.completed_status = status
+                    job_tracker.completed_status = state
                 if config["_resume_count"] > MAX_RESUME_COUNT:
                     wandb.termlog(
                         f"{LOG_PREFIX}Run {job_tracker.run_id} has already resumed {MAX_RESUME_COUNT} times."
@@ -842,10 +859,10 @@ class LaunchAgent:
                 )
                 return True
             # TODO change these statuses to an enum
-            if status in ["stopped", "failed", "finished", "preempted"]:
+            if state in ["stopped", "failed", "finished", "preempted"]:
                 if job_tracker.is_scheduler:
                     wandb.termlog(f"{LOG_PREFIX}Scheduler finished with ID: {run.id}")
-                    if status == "failed":
+                    if state == "failed":
                         # on fail, update sweep state. scheduler run_id should == sweep_id
                         try:
                             self._api.set_sweep_state(
@@ -859,7 +876,7 @@ class LaunchAgent:
                 else:
                     wandb.termlog(f"{LOG_PREFIX}Job finished with ID: {run.id}")
                 with self._jobs_lock:
-                    job_tracker.completed_status = status
+                    job_tracker.completed_status = state
                 return True
 
             return False

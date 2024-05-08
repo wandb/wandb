@@ -50,9 +50,6 @@ def run_pytest(
 
     pytest_opts = []
     pytest_env = {
-        "WANDB__NETWORK_BUFFER": "1000",
-        "WANDB_ERROR_REPORTING": "false",
-        "WANDB_CORE_ERROR_REPORTING": "false",
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
@@ -446,7 +443,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"])
+@nox.session(name="proto-python", tags=["proto"], python="3.9")
 @nox.parametrize("pb", [3, 4])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.

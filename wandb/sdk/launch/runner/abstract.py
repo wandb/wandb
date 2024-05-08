@@ -180,7 +180,6 @@ class AbstractRunner(ABC):
         self,
         launch_project: LaunchProject,
         image_uri: str,
-        job_tracker: Optional["JobAndRunStatusTracker"] = None,  # type: ignore # noqa: F821
     ) -> Optional[AbstractRun]:
         """Submit an LaunchProject to be run.
 
