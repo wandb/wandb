@@ -17,7 +17,7 @@ require (
 	github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635
 	golang.org/x/sync v0.7.0
 	golang.org/x/time v0.5.0
-	google.golang.org/protobuf v1.33.0
+	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
 )
 
