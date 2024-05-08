@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.0] - 2024-05-07
+
 ### Added
 
 * The `wandb` package now includes the `wandb-core` binary by @timoffex in https://github.com/wandb/wandb/pull/7381
