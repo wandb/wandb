@@ -578,9 +578,6 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	}
 	h.fwdRecord(record)
 
-	// TODO: mark OutputFileName as a WANDB file
-	_ = OutputFileName
-
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
 		h.systemMonitor.Do()
