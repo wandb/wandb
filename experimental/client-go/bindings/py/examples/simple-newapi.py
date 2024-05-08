@@ -36,5 +36,5 @@ run.log({"a": 1})
 run.finish()
 
 run = session.get_run(run_id)
-for row in run.history():
+for _ in run.history():
     pass

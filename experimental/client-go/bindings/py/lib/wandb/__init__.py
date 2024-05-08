@@ -97,11 +97,11 @@ class Run:
             item = data_msg.item.add()
             item.key = k
             d = pb2.DataValue()
-            if type(v) == int:
+            if isinstance(v, int):
                 d.value_int = v
-            elif type(v) == float:
+            elif isinstance(v, float):
                 d.value_double = v
-            elif type(v) == str:
+            elif isinstance(v, str):
                 d.value_string = v
             elif isinstance(v, Image):
                 tensor_msg = pb2.TensorData()
@@ -144,7 +144,7 @@ def init(*args, **kwargs):
 
 
 def log(*args, **kwargs):
-    default_session._last_run.log(data)
+    default_session._last_run.log(*args, **kwargs)
 
 
 def teardown():
