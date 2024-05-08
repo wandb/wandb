@@ -58,28 +58,6 @@ func NewServer(ctx context.Context, addr string, portFile string) (*Server, erro
 	return s, nil
 }
 
-func (s *Server) loopCheckIfParentGone(pid int) bool {
-	for {
-		select {
-		case <-s.pidwatchChan:
-			return false
-		case <-time.After(50 * time.Millisecond):
-		}
-		parentpid := os.Getppid()
-		if parentpid != pid {
-			return true
-		}
-	}
-}
-
-func (s *Server) WatchParentPid(pid int) {
-	shouldExit := s.loopCheckIfParentGone(pid)
-	if shouldExit {
-		os.Exit(2)
-	}
-	s.wg.Done()
-}
-
 func (s *Server) SetDefaultLoggerPath(path string) {
 	if path == "" {
 		return
