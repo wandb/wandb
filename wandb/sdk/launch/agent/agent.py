@@ -304,6 +304,8 @@ class LaunchAgent:
 
     def _init_agent_run(self) -> None:
         # TODO: has it been long enough that all backends support agents?
+        self._wandb_run = None
+
         if self.gorilla_supports_agents:
             settings = wandb.Settings(silent=True, disable_git=True)
             self._wandb_run = wandb.init(
@@ -313,8 +315,6 @@ class LaunchAgent:
                 id=self._name,
                 job_type=HIDDEN_AGENT_RUN_TYPE,
             )
-        else:
-            self._wandb_run = None
 
     @property
     def thread_ids(self) -> List[int]:

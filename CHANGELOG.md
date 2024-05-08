@@ -13,11 +13,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
-* The `wandb` package now includes the `wandb-core` binary to prepare for rolling it out by @timoffex in https://github.com/wandb/wandb/pull/7381
-  * `wandb-core` is a Go rewrite of some of the Python portions of the SDK, written with a focus on performance
-  * The binary can be activated using `wandb.require("core")` at the start of a script
-  * Eventually it will be opt-out, and at some point required as we deprecate and remove old Python code
-  * Please report any issues with `pip install wandb`!
+* The `wandb` package now includes the `wandb-core` binary by @timoffex in https://github.com/wandb/wandb/pull/7381
+  * `wandb-core` is a new and improved backend for the W&B SDK that focuses on performance, versatility, and robustness.
+  * Currently, it is opt-in. To start using the new backend, add `wandb.require("core")` to your script after importing `wandb`.
 * `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
 * Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
 * `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
@@ -29,6 +27,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 * Implemented a stricter check for AMD GPU availability by @dmitryduev in https://github.com/wandb/wandb/pull/7322
 * Fixed `run.save()` on Windows by @timoffex in https://github.com/wandb/wandb/pull/7412
 * Show a warning instead of failing when using registries other than ECR and GAR with the Kaniko builder by @TimH98 in https://github.com/wandb/wandb/pull/7461
+* Fixed `wandb.init()` type signature including `None` by @timoffex in https://github.com/wandb/wandb/pull/7563
 
 ### Changed
 
@@ -37,7 +36,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Removed
 
+* Removed the deprecated `wandb.plots.*` functions and top-level third-party integrations `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. Please use `wandb.plot` instead of `wandb.plots` and `wandb.integration.[catboost,fastai,keras,lightgbm,sacred,xgboost]` instead of `wandb.[catboost,fastai,keras,lightgbm,sacred,xgboost]`. By @dmitryduev in https://github.com/wandb/wandb/pull/7552
 * Removed the `[async]` extra and the `_async_upload_concurrency_limit` setting by @moredatarequired in https://github.com/wandb/wandb/pull/7416
+* Removed undocumented settings: `_except_exit` and `problem` by @timoffex in https://github.com/wandb/wandb/pull/7563
 
 ## [0.16.6] - 2024-04-03
 

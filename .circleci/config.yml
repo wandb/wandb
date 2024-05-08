@@ -92,18 +92,16 @@ executors:
 
   linux-python:
     parameters:
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
+      python: { type: string }
     docker:
-      - image: python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>
+      - image: python:<<parameters.python>>
     resource_class: xlarge
 
   local-testcontainer:
     parameters:
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
+      python: { type: string }
     docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      - image: "python:<<parameters.python>>"
       - image: <<pipeline.parameters.container_registry>>/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
         auth:
           username: _json_key
@@ -348,12 +346,12 @@ commands:
             # Note that virtualenvs are not portable! We include the job name
             # in the key in the hopes that it encapsulates the Python version.
             # We include the architecture (OS + processor) as well to be safe.
-            - &tox-cache v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+            - &tox-cache v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "tox-cache-date.txt" }}-{{
                 checksum "requirements_dev.txt" }}-{{
                 checksum "requirements_test.txt" }}-{{
                 checksum "tox.ini" }}
-            - v1-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
+            - v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
                 checksum "tox-cache-date.txt" }}
   save_cache_tox:
     steps:
@@ -445,10 +443,8 @@ jobs:
       executor: { type: executor }
       parallelism: { type: integer }
       install_deps: { type: steps }
-      session_base: { type: string }
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
-      core: { type: string }
+      session: { type: string }
+      python: { type: string }
       codecov_flags: { type: string }
 
     executor: <<parameters.executor>>
@@ -465,13 +461,10 @@ jobs:
           no_output_timeout: 5m
 
       - run:
-          name: "Run nox tests: <<parameters.session_base>>"
+          name: "Run nox session: <<parameters.session>>"
           no_output_timeout: 10m
-          command: "\
-            nox -s '<<parameters.session_base>>-\
-              <<parameters.python_version_major>>.\
-              <<parameters.python_version_minor>>\
-              (core=<<parameters.core>>)'"
+          command: >
+            nox -s "<<parameters.session>>" --python <<parameters.python>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
@@ -532,15 +525,11 @@ jobs:
       tox_args:
         type: string
         default: ""
-      with_core:
-        type: boolean
-        default: false
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
     environment:
       SHARD: << parameters.shard >>
       COVERAGE_DIR: << parameters.coverage_dir >>
-      WANDB__REQUIRE_CORE: << parameters.with_core >>
     parallelism: << parameters.parallelism >>
     resource_class: xlarge
     working_directory: /mnt/ramdisk
@@ -1241,7 +1230,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1251,11 +1239,9 @@ workflows:
               shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
               python_version_major: [3]
               python_version_minor: [7]
-              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
@@ -1264,7 +1250,6 @@ workflows:
 
           coverage_dir: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"
@@ -1275,7 +1260,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1303,11 +1287,9 @@ workflows:
                 - lightning
               python_version_major: [3]
               python_version_minor: [9]
-              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
@@ -1316,7 +1298,6 @@ workflows:
 
           coverage_dir: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"
@@ -1420,10 +1401,8 @@ workflows:
       #
       # Prep jobs
       #
-      # TODO: pre-create toxenvs for all python versions,
-      #       currently these are just placeholders
-      - prep:
-          name: "unit-tests-legacy"
+      # TODO: remove; these were used for grouping when we had too many tests
+      #
       - prep:
           name: "executor-tests"
           filters:
@@ -1435,34 +1414,16 @@ workflows:
       # Unit tests with pytest on Linux, using the old mock server
       #
       - tox-base:
-          requires:
-            - "unit-tests-legacy"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [10]
           name: "unit-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "core-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "-m 'not wandb_core_failure' tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
-          codecov_flags: unit
-      #
-      # Unit tests with pytest on Linux, using the old mock server
-      #
-      - tox-base:
-          requires:
-            - "unit-tests-legacy"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [10]
-          name: "unit(service)-legacy-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
           codecov_flags: unit
 
       - win:
-          requires:
-            - "unit-tests-legacy"
           filters:
             branches:
               only:
@@ -1473,7 +1434,7 @@ workflows:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit(service)-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-legacy-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old --ignore=tests/pytest_tests/unit_tests_old/test_launch"
@@ -1482,13 +1443,11 @@ workflows:
       # wandb launch tests
       #
       - launch:
-          requires:
-            - "unit-tests-legacy"
           matrix:
             parameters:
               python_version_major: [3]
               python_version_minor: [9]
-          name: "unit(service)-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
+          name: "unit-legacy-launch-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           toxenv: "py<<matrix.python_version_major>><<matrix.python_version_minor>>"
           codecov_flags: unit
           tox_args: "tests/pytest_tests/unit_tests_old/test_launch/"
@@ -1502,25 +1461,18 @@ workflows:
       # Unit tests with pytest on Linux
       #
       - nox-tests:
-          name: "\
-            unit-tests-linux-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: unit_tests
+          name: unit-tests-linux-<<matrix.python>>
+          session: unit_tests
           codecov_flags: unit
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [8, 12]
-              core: ["True", "False"]
+              python: ["3.8", "3.12"]
 
           parallelism: 4
           executor:
             name: linux-python
-            python_version_major: <<matrix.python_version_major>>
-            python_version_minor: <<matrix.python_version_minor>>
+            python: <<matrix.python>>
 
           install_deps:
             - run:
@@ -1541,19 +1493,13 @@ workflows:
       # the common part separately and reuse it.
       #
       - nox-tests:
-          name: "\
-            unit-tests-macos-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: unit_tests
+          name: unit-tests-macos-<<matrix.python>>
+          session: unit_tests
           codecov_flags: unit
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9, 12]
-              core: ["True", "False"]
+              python: ["3.9", "3.12"]
 
           parallelism: 4
           executor: macos
@@ -1562,8 +1508,7 @@ workflows:
             - run:
                 name: Install system deps
                 command: |
-                  brew install ffmpeg \
-                    python@<<matrix.python_version_major>>.<<matrix.python_version_minor>>
+                  brew install ffmpeg python@<<matrix.python>>
 
       #
       # Unit tests with pytest on Windows
@@ -1573,12 +1518,8 @@ workflows:
       #   - install_deps
       #
       - nox-tests:
-          name: "\
-            unit-tests-win-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: unit_tests
+          name: unit-tests-win-<<matrix.python>>
+          session: unit_tests
           codecov_flags: unit
 
           filters:
@@ -1590,9 +1531,7 @@ workflows:
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9, 12]
-              core: ["True", "False"]
+              python: ["3.9", "3.12"]
 
 
           parallelism: 4
@@ -1606,18 +1545,14 @@ workflows:
                 name: Install system deps
                 command: |
                   choco install -y ffmpeg \
-                    python<<matrix.python_version_major>><<matrix.python_version_minor>>
+                    $( echo python<<matrix.python>> | tr -d . )
 
       #
       # System tests on Linux
       #
       - nox-tests:
-          name: "\
-            system-tests-linux-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: system_tests
+          name: system-tests-linux-<<matrix.python>>
+          session: system_tests
           codecov_flags: system
 
           filters:
@@ -1627,15 +1562,12 @@ workflows:
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [8, 12]
-              core: ["True", "False"]
+              python: ["3.8", "3.12"]
 
-          parallelism: 12
+          parallelism: 8
           executor:
             name: local-testcontainer
-            python_version_major: <<matrix.python_version_major>>
-            python_version_minor: <<matrix.python_version_minor>>
+            python: <<matrix.python>>
 
           install_deps:
             - run:
@@ -1645,25 +1577,18 @@ workflows:
                   apt-get install -y libsndfile1 ffmpeg
 
       - nox-tests:
-          name: "\
-            notebook-tests-linux-\
-            core(<<matrix.core>>)-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-          session_base: notebook_tests
+          name: notebook-tests-linux-<<matrix.python>>
+          session: notebook_tests
           codecov_flags: system
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [8, 12]
-              core: ["True", "False"]
+              python: ["3.8", "3.12"]
 
           parallelism: 1
           executor:
             name: local-testcontainer
-            python_version_major: <<matrix.python_version_major>>
-            python_version_minor: <<matrix.python_version_minor>>
+            python: <<matrix.python>>
 
           install_deps:
             - run:
@@ -1699,7 +1624,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1708,14 +1632,12 @@ workflows:
 
           matrix:
             parameters:
-              with_core: [true, false]
               shard: ["default", "artifacts", "launch"]
               python_version_major: [3]
               python_version_minor: [9]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
@@ -1725,7 +1647,6 @@ workflows:
 
           coverage_dir: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             base-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"
@@ -1734,7 +1655,6 @@ workflows:
       - tox-base:
           name: "\
             func-tests-linux-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-\
             <<matrix.python_version_major>>-\
             <<matrix.python_version_minor>>"
@@ -1744,18 +1664,16 @@ workflows:
               shard: [mitm, docs]
               python_version_major: [3]
               python_version_minor: [9]
-              with_core: [true]
 
           toxenv: "\
             func-\
-            <<#matrix.with_core>>core-<</matrix.with_core>>\
             <<matrix.shard>>-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>\
             ,cover-func-linux-circle"
 
           coverage_dir: "\
-            func-<<#matrix.with_core>>core-<</matrix.with_core>>\
+            func-\
             <<matrix.shard>>-py\
             <<matrix.python_version_major>>\
             <<matrix.python_version_minor>>"

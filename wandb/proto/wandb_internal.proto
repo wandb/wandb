@@ -1052,6 +1052,8 @@ message ArtifactInfo {
   string artifact = 1;
   repeated string entrypoint = 2;
   bool notebook = 3;
+  string build_context = 4;
+  string dockerfile = 5;
 }
 
 message GitInfo {
@@ -1063,6 +1065,8 @@ message GitSource {
   GitInfo git_info = 1;
   repeated string entrypoint = 2;
   bool notebook = 3;
+  string build_context = 4;
+  string dockerfile = 5;
 }
 
 message ImageSource {

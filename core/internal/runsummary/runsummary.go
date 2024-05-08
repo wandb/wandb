@@ -31,6 +31,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
+
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 	for _, item := range summaryRecord.GetUpdate() {
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
@@ -61,7 +62,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
 func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
-
 	leaves := rs.pathTree.Flatten()
 
 	summary := make([]*service.SummaryItem, 0, len(leaves))
@@ -99,17 +99,19 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 
 // Clones the tree. This is useful for creating a snapshot of the tree.
 func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
+
 	return rs.pathTree.CloneTree()
 }
 
 // Tree returns the tree data.
 func (rs *RunSummary) Tree() pathtree.TreeData {
+
 	return rs.pathTree.Tree()
 }
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
-	return json.Marshal(rs.pathTree.Tree())
+	return json.Marshal(rs.Tree())
 }
 
 // keyPath returns the key path for the given config item.

@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"bytes"
 	"crypto/sha256"
@@ -44,10 +43,10 @@ import (
 )
 
 const (
-	// RFC3339Micro Modified from time.RFC3339Nano
-	RFC3339Micro             = "2006-01-02T15:04:05.000000Z07:00"
-	configDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
-	configDebouncerBurstSize = 1        // todo: audit burst size
+	configDebouncerRateLimit  = 1 / 30.0 // todo: audit rate limit
+	configDebouncerBurstSize  = 1        // todo: audit burst size
+	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
+	summaryDebouncerBurstSize = 1        // todo: audit burst size
 )
 
 type SenderParams struct {
@@ -309,13 +308,13 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
-		s.sendHistory(record, x.History)
+		s.sendHistory(x.History)
 	case *service.Record_Summary:
 		s.sendSummary(record, x.Summary)
 	case *service.Record_Config:
 		s.sendConfig(record, x.Config)
 	case *service.Record_Stats:
-		s.sendSystemMetrics(record, x.Stats)
+		s.sendSystemMetrics(x.Stats)
 	case *service.Record_OutputRaw:
 		s.sendOutputRaw(record, x.OutputRaw)
 	case *service.Record_Output:
@@ -323,7 +322,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Telemetry:
 		s.sendTelemetry(record, x.Telemetry)
 	case *service.Record_Preempting:
-		s.sendPreempting(record)
+		s.sendPreempting(x.Preempting)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
 	case *service.Record_LinkArtifact:
@@ -533,7 +532,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 			// since exit is already stored in the transaction log
 			s.respond(s.exitRecord, &service.RunExitResult{})
 		}
-		// cancel tells the stream to close the loopback channel
+		// cancel tells the stream to close the loopback and input channels
 		s.cancel()
 	default:
 		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
@@ -558,12 +557,12 @@ func (s *Sender) sendTelemetry(_ *service.Record, telemetry *service.TelemetryRe
 	s.configDebouncer.SetNeedsDebounce()
 }
 
-func (s *Sender) sendPreempting(record *service.Record) {
+func (s *Sender) sendPreempting(record *service.RunPreemptingRecord) {
 	if s.fileStream == nil {
 		return
 	}
 
-	s.fileStream.StreamRecord(record)
+	s.fileStream.StreamUpdate(&fs.PreemptingUpdate{Record: record})
 }
 
 func (s *Sender) sendLinkArtifact(record *service.Record) {
@@ -915,7 +914,7 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
-func (s *Sender) sendHistory(record *service.Record, hrecord *service.HistoryRecord) {
+func (s *Sender) sendHistory(record *service.HistoryRecord) {
 	if s.fileStream == nil {
 		return
 	}
@@ -945,7 +944,7 @@ func (s *Sender) sendHistory(record *service.Record, hrecord *service.HistoryRec
 		Uuid:    record.Uuid,
 	}
 
-	s.fileStream.StreamRecord(recordNew)
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 }
 
 func (s *Sender) streamSummary() {
@@ -959,20 +958,20 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: update,
-			},
-		},
-	}
-
-	s.fileStream.StreamRecord(record)
+	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
+		Record: &service.SummaryRecord{Update: update},
+	})
 }
 
-func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
+func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
+	s.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			s.logger.CaptureError("Error updating run summary", err)
+		},
+	)
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
@@ -1101,12 +1100,12 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 }
 
 // sendSystemMetrics sends a system metrics record via the file stream
-func (s *Sender) sendSystemMetrics(record *service.Record, _ *service.StatsRecord) {
+func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 	if s.fileStream == nil {
 		return
 	}
 
-	s.fileStream.StreamRecord(record)
+	s.fileStream.StreamUpdate(&fs.StatsUpdate{Record: record})
 }
 
 func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
@@ -1126,6 +1125,7 @@ func writeOutputToFile(file, line string) error {
 }
 
 func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
+	// TODO: move this to filestream!
 	// TODO: match logic handling of lines to the one in the python version
 	// - handle carriage returns (for tqdm-like progress bars)
 	// - handle caching multiple (non-new lines) and sending them in one chunk
@@ -1142,34 +1142,9 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
 
-	if s.fileStream == nil {
-		return
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
 	}
-
-	// generate compatible timestamp to python iso-format (microseconds without Z)
-	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
-	var line string
-	switch outputRaw.OutputType {
-	case service.OutputRawRecord_STDOUT:
-		line = fmt.Sprintf("%s %s", t, outputRaw.Line)
-	case service.OutputRawRecord_STDERR:
-		line = fmt.Sprintf("ERROR %s %s", t, outputRaw.Line)
-	default:
-		err := fmt.Errorf("sender: sendOutputRaw: unexpected output type %v", outputRaw.OutputType)
-		s.logger.CaptureError("sender received error", err)
-		return
-	}
-	newRecord := &service.Record{
-		RecordType: &service.Record_OutputRaw{
-			OutputRaw: &service.OutputRawRecord{
-				Line: line,
-			},
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-		XInfo:   record.XInfo,
-	}
-	s.fileStream.StreamRecord(newRecord)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -1205,12 +1180,12 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
-func (s *Sender) sendExit(record *service.Record, _ *service.RunExitRecord) {
+func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRecord) {
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
 
 	if s.fileStream != nil {
-		s.fileStream.StreamRecord(record)
+		s.fileStream.StreamUpdate(&fs.ExitUpdate{Record: exitRecord})
 	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream

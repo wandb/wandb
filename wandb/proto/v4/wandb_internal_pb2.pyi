@@ -3390,18 +3390,24 @@ class ArtifactInfo(google.protobuf.message.Message):
     ARTIFACT_FIELD_NUMBER: builtins.int
     ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
+    BUILD_CONTEXT_FIELD_NUMBER: builtins.int
+    DOCKERFILE_FIELD_NUMBER: builtins.int
     artifact: builtins.str
     @property
     def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
+    build_context: builtins.str
+    dockerfile: builtins.str
     def __init__(
         self,
         *,
         artifact: builtins.str = ...,
         entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
+        build_context: builtins.str = ...,
+        dockerfile: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "build_context", b"build_context", "dockerfile", b"dockerfile", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
 
 global___ArtifactInfo = ArtifactInfo
 
@@ -3430,20 +3436,26 @@ class GitSource(google.protobuf.message.Message):
     GIT_INFO_FIELD_NUMBER: builtins.int
     ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
+    BUILD_CONTEXT_FIELD_NUMBER: builtins.int
+    DOCKERFILE_FIELD_NUMBER: builtins.int
     @property
     def git_info(self) -> global___GitInfo: ...
     @property
     def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
+    build_context: builtins.str
+    dockerfile: builtins.str
     def __init__(
         self,
         *,
         git_info: global___GitInfo | None = ...,
         entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
+        build_context: builtins.str = ...,
+        dockerfile: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["git_info", b"git_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["entrypoint", b"entrypoint", "git_info", b"git_info", "notebook", b"notebook"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["build_context", b"build_context", "dockerfile", b"dockerfile", "entrypoint", b"entrypoint", "git_info", b"git_info", "notebook", b"notebook"]) -> None: ...
 
 global___GitSource = GitSource
 
