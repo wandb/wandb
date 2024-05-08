@@ -45,7 +45,7 @@ func TestCollectSomething(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
-			Files: map[string]fsTransmitFileData{
+			Files: map[string]FsTransmitFileData{
 				"wandb-history.jsonl": {
 					Offset:  0,
 					Content: []string{"line", "line2"},
@@ -89,7 +89,7 @@ func TestCollectFinal(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
-			Files: map[string]fsTransmitFileData{
+			Files: map[string]FsTransmitFileData{
 				"wandb-history.jsonl": {
 					Offset:  0,
 					Content: []string{"line", "line2"},

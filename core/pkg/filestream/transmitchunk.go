@@ -21,10 +21,10 @@ func (c *TransmitChunk) Write(
 	data *FsTransmitData,
 	offsets FileStreamOffsetMap,
 ) bool {
-	files := make(map[string]fsTransmitFileData)
+	files := make(map[string]FsTransmitFileData)
 	addLines := func(chunkType ChunkTypeEnum, lines []string) {
 		if len(lines) > 0 {
-			files[chunkFilename[chunkType]] = fsTransmitFileData{
+			files[chunkFilename[chunkType]] = FsTransmitFileData{
 				Offset:  offsets[chunkType],
 				Content: lines,
 			}
