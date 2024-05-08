@@ -1483,8 +1483,12 @@ class Run:
             if isinstance(value, dict):
                 return {k: transform([*key, k], v) for k, v in value.items()}
             if isinstance(value, Visualize):
-                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
-                config_value = value.get_config_value(key if isinstance(key, str) else ".".join(key))
+                config_key = value.get_config_key(
+                    key if isinstance(key, str) else ".".join(key)
+                )
+                config_value = value.get_config_value(
+                    key if isinstance(key, str) else ".".join(key)
+                )
                 value = value._data
                 self._config_callback(val=config_value, key=config_key)
                 return value
@@ -1492,8 +1496,9 @@ class Run:
                 formatted_key = ".".join(key)
                 chart_keys.add(tuple(key))
 
-
-                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
+                config_key = value.get_config_key(
+                    key if isinstance(key, str) else ".".join(key)
+                )
                 if value._split_table:
                     config_value = value.get_config_value(
                         "Vega2",
