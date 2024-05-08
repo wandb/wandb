@@ -45,9 +45,3 @@ func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {
 
 	fs.updates = append(fs.updates, update)
 }
-
-func (fs *FakeFileStream) FatalErrorChan() <-chan error {
-	ch := make(chan error)
-	close(ch)
-	return ch
-}

@@ -1,3 +1,4 @@
+import platform
 from unittest.mock import MagicMock
 
 import pytest
@@ -86,6 +87,10 @@ def mock_docker_build(mocker):
 
 
 @pytest.mark.asyncio
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Windows handles the path differently and isn't supported",
+)
 async def test_docker_builder_build(
     mock_launch_project,
     mock_build_context_manager,

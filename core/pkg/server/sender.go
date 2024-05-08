@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -34,8 +33,6 @@ import (
 )
 
 const (
-	// RFC3339Micro Modified from time.RFC3339Nano
-	RFC3339Micro              = "2006-01-02T15:04:05.000000Z07:00"
 	configDebouncerRateLimit  = 1 / 30.0 // todo: audit rate limit
 	configDebouncerBurstSize  = 1        // todo: audit burst size
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
@@ -488,6 +485,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
+		s.uploadOutputFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -803,9 +801,15 @@ func (s *Sender) streamSummary() {
 	})
 }
 
-func (s *Sender) sendSummary(_ *service.Record, _ *service.SummaryRecord) {
+func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
 
 	// TODO(network): buffer summary sending for network efficiency until we can send only updates
+	s.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			s.logger.CaptureError("Error updating run summary", err)
+		},
+	)
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
@@ -958,7 +962,28 @@ func writeOutputToFile(file, line string) error {
 	return err
 }
 
-func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
+func (s *Sender) uploadOutputFile() {
+	// In the end of a run, we upload the output file to the server
+	// This is a bit of a duplication, as we send the same content through the
+	// filestream
+	// Ideally, the output content from the filestream would be converted
+	// to a file on the server side, but for now we do it here as well
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: OutputFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdRecord(record)
+}
+
+func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRecord) {
 	// TODO: move this to filestream!
 	// TODO: match logic handling of lines to the one in the python version
 	// - handle carriage returns (for tqdm-like progress bars)
@@ -976,27 +1001,9 @@ func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.Output
 		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
 
-	if s.fileStream == nil {
-		return
+	if s.fileStream != nil {
+		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
 	}
-
-	// generate compatible timestamp to python iso-format (microseconds without Z)
-	t := strings.TrimSuffix(time.Now().UTC().Format(RFC3339Micro), "Z")
-	var line string
-	switch outputRaw.OutputType {
-	case service.OutputRawRecord_STDOUT:
-		line = fmt.Sprintf("%s %s", t, outputRaw.Line)
-	case service.OutputRawRecord_STDERR:
-		line = fmt.Sprintf("ERROR %s %s", t, outputRaw.Line)
-	default:
-		err := fmt.Errorf("sender: sendOutputRaw: unexpected output type %v", outputRaw.OutputType)
-		s.logger.CaptureError("sender received error", err)
-		return
-	}
-
-	s.fileStream.StreamUpdate(&fs.LogsUpdate{
-		Record: &service.OutputRawRecord{Line: line},
-	})
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {

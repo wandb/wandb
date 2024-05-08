@@ -151,18 +151,24 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	})
 
 	// TODO: replace this with a logger that can be read by the user
-	peeker := observability.NewPeeker()
+	peeker := &observability.Peeker{}
+	terminalPrinter := observability.NewPrinter()
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	terminalPrinter := observability.NewPrinter[string]()
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
 	var runfilesUploaderOrNil runfiles.Uploader
 	if backendOrNil != nil {
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
-		fileStreamOrNil = NewFileStream(backendOrNil, s.logger, settings, peeker)
+		fileStreamOrNil = NewFileStream(
+			backendOrNil,
+			s.logger,
+			terminalPrinter,
+			settings,
+			peeker,
+		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
 			s.logger,
@@ -176,23 +182,9 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			fileTransferManagerOrNil,
 			graphqlClientOrNil,
 		)
-
-		go func() {
-			err := <-fileStreamOrNil.FatalErrorChan()
-			s.logger.CaptureFatal("stream: fatal error in filestream", err)
-			terminalPrinter.Write(
-				"Fatal error while uploading data. Some run data will" +
-					" not be synced, but it will still be written to disk. Use" +
-					" `wandb sync` at the end of the run to try uploading.",
-			)
-		}()
 	}
 
 	mailbox := mailbox.NewMailbox()
-
-	// runSummary is used to track the summary of the run's metrics
-	// and is shared between the handler and the sender
-	runSummary := runsummary.New()
 
 	s.handler = NewHandler(s.ctx,
 		&HandlerParams{
@@ -204,7 +196,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         NewTBHandler(w, s.logger, s.settings.Proto, s.loopBackChan),
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runSummary,
+			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
@@ -230,7 +222,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FileTransferManager: fileTransferManagerOrNil,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			Peeker:              peeker,
-			RunSummary:          runSummary,
+			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

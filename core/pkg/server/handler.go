@@ -47,7 +47,7 @@ type HandlerParams struct {
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
 	SystemMonitor     *monitor.SystemMonitor
-	TerminalPrinter   *observability.Printer[string]
+	TerminalPrinter   *observability.Printer
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -106,7 +106,7 @@ type Handler struct {
 	fileTransferStats filetransfer.FileTransferStats
 
 	// terminalPrinter gathers terminal messages to send back to the user process
-	terminalPrinter *observability.Printer[string]
+	terminalPrinter *observability.Printer
 
 	mailbox *mailbox.Mailbox
 }
@@ -577,9 +577,6 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		h.logger.CaptureFatalAndPanic("error handling run start", err)
 	}
 	h.fwdRecord(record)
-
-	// TODO: mark OutputFileName as a WANDB file
-	_ = OutputFileName
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {

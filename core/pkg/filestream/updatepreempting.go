@@ -14,9 +14,10 @@ type PreemptingUpdate struct {
 	Record *service.RunPreemptingRecord
 }
 
-func (u *PreemptingUpdate) Chunk(fs *fileStream) error {
-	fs.addTransmit(processedChunk{
-		Preempting: true,
+func (u *PreemptingUpdate) Apply(ctx UpdateContext) error {
+	ctx.ModifyRequest(&TransmitChunk{
+		HasPreempting: true,
+		Preempting:    true,
 	})
 
 	return nil
