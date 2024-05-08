@@ -1,5 +1,6 @@
 """keras init."""
 
+from termcolor import colored
 import logging
 import operator
 import os
@@ -240,7 +241,9 @@ def _get_custom_optimizer_parent_class():
     from wandb.util import parse_version
 
     if parse_version(tf.__version__) >= parse_version("2.9.0"):
-        custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
+        # Legacy not available in Keras 3
+        #custom_optimizer_parent_class = tf.keras.optimizers.legacy.Optimizer
+        custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
     else:
         custom_optimizer_parent_class = tf.keras.optimizers.Optimizer
 
@@ -252,7 +255,10 @@ _custom_optimizer_parent_class = _get_custom_optimizer_parent_class()
 
 class _CustomOptimizer(_custom_optimizer_parent_class):
     def __init__(self):
-        super().__init__(name="CustomOptimizer")
+        # learning_rate is a required argument for the non-legacy optimiser; the legacy version
+        # is removed in Keras 3.
+        # Provide a dummy value of 1.0, seeing as don't think we actually use it
+        super().__init__(name="CustomOptimizer", learning_rate = 1.0)
         self._resource_apply_dense = tf.function(self._resource_apply_dense)
         self._resource_apply_sparse = tf.function(self._resource_apply_sparse)
 
@@ -266,7 +272,11 @@ class _CustomOptimizer(_custom_optimizer_parent_class):
 
     def get_config(self):
         return super().get_config()
-
+    
+    # Needed as pure virtual in parent as of Keras 3
+    def update_step(self, gradient, variable, learning_rate):
+        # Does not return anything, so assume we need not do anything.
+        pass
 
 class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
     """Accumulates gradients during a fit() call when used in conjunction with the CustomOptimizer above."""
@@ -276,11 +286,15 @@ class _GradAccumulatorCallback(tf.keras.callbacks.Callback):
         self.og_weights = model.get_weights()
         self.grads = [np.zeros(tuple(w.shape)) for w in model.trainable_weights]
 
+
+    # Logs the gradients on each batch, os we keep a running copy of all the operations over each batch in the epoch.
     def on_batch_end(self, batch, logs=None):
         for g, w in zip(self.grads, self.model.trainable_weights):
+            # Must be oding some manual jiggery-pokery by addding in the weights. Not sure on the logic of this.
             g += w.numpy()
         self.model.set_weights(self.og_weights)
 
+    # Just returns a copy of the gradients that were previouslyl ogged on each batch.
     def get_grads(self):
         return [g.copy() for g in self.grads]
 
@@ -528,10 +542,12 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self._model_trained_since_last_eval = False
 
     def _build_grad_accumulator_model(self):
-        inputs = self.model.inputs
-        outputs = self.model(inputs)
+        inputs = self.Model.inputs
+        outputs = self.Model(inputs)
+
         grad_acc_model = tf.keras.models.Model(inputs, outputs)
-        grad_acc_model.compile(loss=self.model.loss, optimizer=_CustomOptimizer())
+
+        grad_acc_model.compile(loss=self.Model.loss, optimizer=_CustomOptimizer())
 
         # make sure magic doesn't think this is a user model
         grad_acc_model._wandb_internal_model = True
@@ -552,7 +568,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.params = params
 
     def set_model(self, model):
-        self.model = model
+        # model is now a property in Keras 3; see https://github.com/wandb/wandb/issues/7578
+        self.Model = model
         if self.input_type == "auto" and len(model.inputs) == 1:
             self.input_type = wandb.util.guess_data_type(
                 model.inputs[0].shape, risky=True
@@ -565,12 +582,12 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def _attempt_evaluation_log(self, commit=True):
         if self.log_evaluation and self._validation_data_logger:
             try:
-                if not self.model:
+                if not self.Model:
                     wandb.termwarn("WandbCallback unable to read model from trainer")
                 else:
                     self._validation_data_logger.log_predictions(
                         predictions=self._validation_data_logger.make_predictions(
-                            self.model.predict
+                            self.Model.predict
                         ),
                         commit=commit,
                     )
@@ -616,9 +633,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.current = logs.get(self.monitor)
         if self.current and self.monitor_op(self.current, self.best):
             if self.log_best_prefix:
-                wandb.run.summary[f"{self.log_best_prefix}{self.monitor}"] = (
-                    self.current
-                )
+                wandb.run.summary[
+                    f"{self.log_best_prefix}{self.monitor}"
+                ] = self.current
                 wandb.run.summary["{}{}".format(self.log_best_prefix, "epoch")] = epoch
                 if self.verbose and not self.save_model:
                     print(
@@ -641,7 +658,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def on_batch_end(self, batch, logs=None):
         if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
-            wandb.run.summary["graph"] = wandb.Graph.from_keras(self.model)
+            wandb.run.summary["graph"] = wandb.Graph.from_keras(self.Model)
             self._graph_rendered = True
 
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
@@ -653,7 +670,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
     def on_train_batch_end(self, batch, logs=None):
         if self.save_graph and not self._graph_rendered:
             # Couldn't do this in train_begin because keras may still not be built
-            wandb.run.summary["graph"] = wandb.Graph.from_keras(self.model)
+            wandb.run.summary["graph"] = wandb.Graph.from_keras(self.Model)
             self._graph_rendered = True
 
         if self.log_batch_frequency and batch % self.log_batch_frequency == 0:
@@ -806,16 +823,16 @@ class WandbCallback(tf.keras.callbacks.Callback):
             test_data.append(test_example)
             test_output.append(validation_y[i])
 
-        if self.model.stateful:
-            predictions = self.model.predict(np.stack(test_data), batch_size=1)
-            self.model.reset_states()
+        if self.Model.stateful:
+            predictions = self.Model.predict(np.stack(test_data), batch_size=1)
+            self.Model.reset_states()
         else:
-            predictions = self.model.predict(
+            predictions = self.Model.predict(
                 np.stack(test_data), batch_size=self._prediction_batch_size
             )
             if len(predictions) != len(test_data):
                 self._prediction_batch_size = 1
-                predictions = self.model.predict(
+                predictions = self.Model.predict(
                     np.stack(test_data), batch_size=self._prediction_batch_size
                 )
 
@@ -906,7 +923,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
     def _log_weights(self):
         metrics = {}
-        for layer in self.model.layers:
+        for layer in self.Model.layers:
             weights = layer.get_weights()
             if len(weights) == 1:
                 _update_if_numeric(
@@ -926,6 +943,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
         og_level = tf_logger.level
         tf_logger.setLevel("ERROR")
 
+        print(colored("Running gradient accumulation model", "yellow"))
+
         self._grad_accumulator_model.fit(
             self._training_data_x,
             self._training_data_y,
@@ -933,13 +952,15 @@ class WandbCallback(tf.keras.callbacks.Callback):
             callbacks=[self._grad_accumulator_callback],
         )
         tf_logger.setLevel(og_level)
-        weights = self.model.trainable_weights
+        weights = self.Model.trainable_weights
         grads = self._grad_accumulator_callback.grads
         metrics = {}
         for weight, grad in zip(weights, grads):
-            metrics["gradients/" + weight.name.split(":")[0] + ".gradient"] = (
-                wandb.Histogram(grad)
-            )
+            metrics[
+                "gradients/" + weight.name.split(":")[0] + ".gradient"
+            ] = wandb.Histogram(grad)
+            
+        print(colored("Completed gradient accumulation model", "yellow"))
         return metrics
 
     def _log_dataframe(self):
@@ -947,7 +968,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         if self.validation_data:
             x, y_true = self.validation_data[0], self.validation_data[1]
-            y_pred = self.model.predict(x)
+            y_pred = self.Model.predict(x)
         elif self.generator:
             if not self.validation_steps:
                 wandb.termwarn(
@@ -958,7 +979,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
             for _ in range(self.validation_steps):
                 bx, by_true = next(self.generator)
-                by_pred = self.model.predict(bx)
+                by_pred = self.Model.predict(bx)
                 if x is None:
                     x, y_true, y_pred = bx, by_true, by_pred
                 else:
@@ -1001,9 +1022,9 @@ class WandbCallback(tf.keras.callbacks.Callback):
 
         try:
             if self.save_weights_only:
-                self.model.save_weights(self.filepath, overwrite=True)
+                self.Model.save_weights(self.filepath, overwrite=True)
             else:
-                self.model.save(self.filepath, overwrite=True)
+                self.Model.save(self.filepath, overwrite=True)
         # Was getting `RuntimeError: Unable to create link` in TF 1.13.1
         # also saw `TypeError: can't pickle _thread.RLock objects`
         except (ImportError, RuntimeError, TypeError, AttributeError) as e:
@@ -1020,7 +1041,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         # Save the model in the SavedModel format.
         # TODO: Replace this manual artifact creation with the `log_model` method
         # after `log_model` is released from beta.
-        self.model.save(self.filepath[:-3], overwrite=True, save_format="tf")
+        self.Model.save(self.filepath[:-3], overwrite=True, save_format="tf")
 
         # Log the model as artifact.
         name = wandb.util.make_artifact_name_safe(f"model-{wandb.run.name}")
@@ -1037,10 +1058,10 @@ class WandbCallback(tf.keras.callbacks.Callback):
         It uses tf.compat.v1.profiler under the hood.
         """
         if not hasattr(self, "model"):
-            raise wandb.Error("self.model must be set before using this method.")
+            raise wandb.Error("self.Model must be set before using this method.")
 
         if not isinstance(
-            self.model, (tf.keras.models.Sequential, tf.keras.models.Model)
+            self.Model, (tf.keras.models.Sequential, tf.keras.models.Model)
         ):
             raise ValueError(
                 "Calculating FLOPS is only supported for "
@@ -1055,11 +1076,11 @@ class WandbCallback(tf.keras.callbacks.Callback):
         batch_size = 1
         inputs = [
             tf.TensorSpec([batch_size] + inp.shape[1:], inp.dtype)
-            for inp in self.model.inputs
+            for inp in self.Model.inputs
         ]
 
         # convert tf.keras model into frozen graph to count FLOPs about operations used at inference
-        real_model = tf.function(self.model).get_concrete_function(inputs)
+        real_model = tf.function(self.Model).get_concrete_function(inputs)
         frozen_func, _ = convert_variables_to_constants_v2_as_graph(real_model)
 
         # Calculate FLOPs with tf.profiler
