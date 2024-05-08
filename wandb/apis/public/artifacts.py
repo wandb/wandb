@@ -324,13 +324,11 @@ class ArtifactCollection:
         self._type = type
         self._saved_type = type
         self._attrs = attrs
-        if self._attrs is None:
-            self.load()
+        self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
         self._description = self._attrs["description"]
         self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
         self._saved_tags = copy(self._tags)
-        self._is_sequence = self.load_is_sequence()
 
     @property
     def id(self):
@@ -392,6 +390,9 @@ class ArtifactCollection:
                             }
                         }
                     }
+                    artifactSequence(name: $artifactCollectionName) {
+                        __typename
+                    }
                 }
             }
         }
@@ -416,7 +417,13 @@ class ArtifactCollection:
             or response["project"]["artifactType"].get("artifactCollection") is None
         ):
             raise ValueError("Could not find artifact type %s" % self._saved_type)
-        self._attrs = response["project"]["artifactType"]["artifactCollection"]
+        sequence = response["project"]["artifactType"]["artifactSequence"]
+        self._is_sequence = (
+            sequence is not None and sequence["__typename"] == "ArtifactSequence"
+        )
+
+        if self._attrs is None:
+            self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def change_type(self, new_type: str) -> None:
@@ -428,7 +435,7 @@ class ArtifactCollection:
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
         termlog(
-            f"Changing artifact collection type of " f"{self._saved_type} to {new_type}"
+            f"Changing artifact collection type of {self._saved_type} to {new_type}"
         )
         template = """
             mutation MoveArtifactCollection(
@@ -458,33 +465,6 @@ class ArtifactCollection:
         self.client.execute(mutation, variable_values=variable_values)
         self._saved_type = new_type
         self._type = new_type
-
-    @normalize_exceptions
-    def load_is_sequence(self) -> bool:
-        """Return True if this is a sequence."""
-        query = gql(
-            """
-            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
-                project(name: $project, entityName: $entity) {
-                    artifactType(name: $type) {
-                        __typename
-                        artifactSequence(name: $collection) {
-                            __typename
-                        }
-                    }
-                }
-            }
-            """
-        )
-        variables = {
-            "entity": self.entity,
-            "project": self.project,
-            "collection": self._saved_name,
-            "type": self._saved_type,
-        }
-        res = self.client.execute(query, variable_values=variables)
-        sequence = res["project"]["artifactType"]["artifactSequence"]
-        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
 
     def is_sequence(self):
         """Return whether the artifact collection is a sequence."""
@@ -544,7 +524,7 @@ class ArtifactCollection:
         return self._type
 
     def __repr__(self):
-        return f"<ArtifactCollection {self._saved_name} ({self._saved_type})>"
+        return f"<ArtifactCollection {self._name} ({self._type})>"
 
 
 class Artifacts(Paginator):
