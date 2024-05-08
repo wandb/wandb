@@ -541,7 +541,7 @@ class WandbImporter:
 
     def _remove_placeholders(self, seq: ArtifactSequence) -> None:
         try:
-            retry_arts_func = internal.exp_retry(self._dst_api.artifacts)
+            retry_arts_func = internal.exp_retry(self.dst_api.artifacts)
             dst_arts = list(retry_arts_func(seq.type_, seq.name))
         except wandb.CommError:
             logger.warn(f"{seq=} does not exist in dst.  Has it already been deleted?")
