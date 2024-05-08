@@ -479,9 +479,7 @@ class KubernetesRunner(AbstractRunner):
         return job, api_key_secret
 
     async def run(
-        self,
-        launch_project: LaunchProject,
-        image_uri: str,
+        self, launch_project: LaunchProject, image_uri: str,
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
@@ -630,11 +628,7 @@ class KubernetesRunner(AbstractRunner):
         job_name = job_response.metadata.name
         LaunchKubernetesMonitor.monitor_namespace(namespace)
         submitted_job = KubernetesSubmittedRun(
-            batch_api=batch_api,
-            core_api=core_api,
-            name=job_name,
-            namespace=namespace,
-            secret=secret,
+            batch_api, core_api, job_name, namespace, secret
         )
         if self.backend_config[PROJECT_SYNCHRONOUS]:
             await submitted_job.wait()
