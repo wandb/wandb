@@ -93,9 +93,7 @@ class VertexRunner(AbstractRunner):
         self.registry = registry
 
     async def run(
-        self,
-        launch_project: LaunchProject,
-        image_uri: str,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:
         """Run a Vertex job."""
         full_resource_args = launch_project.fill_macros(image_uri)
