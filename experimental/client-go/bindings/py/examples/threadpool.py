@@ -2,10 +2,11 @@
 
 import argparse
 from concurrent.futures import ThreadPoolExecutor
-import time
+
 import wandb
 
 wandb.setup()
+
 
 def do_run():
     run = wandb.init()

@@ -2,6 +2,7 @@
 
 from wandb.proto import wandb_internal_pb2 as pb2
 
+
 class Api:
     def __init__(self):
         self._obj = None
@@ -12,6 +13,7 @@ class Api:
             import ctypes
             import os
             import pathlib
+
             lib_path = pathlib.Path(__file__).parent / "lib" / "libwandb_core.so"
             self._obj = ctypes.cdll.LoadLibrary(lib_path)
         return self._obj
@@ -131,6 +133,7 @@ default_session = new_session()
 # ---
 # wandb 0.x Compatibility
 # ---
+
 
 def setup():
     default_session._ensure_loaded()

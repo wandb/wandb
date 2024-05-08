@@ -1,5 +1,4 @@
 #!/usr/bin/env python
-import time
 import wandb
 
 run = wandb.init()
