@@ -3,6 +3,7 @@ package watcher2
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,7 +17,7 @@ type watcher struct {
 	logger     *observability.CoreLogger
 	delegate   *poller.Watcher
 	wg         *sync.WaitGroup
-	handlers   map[string]func()
+	handlers   map[string]func(string)
 	isFinished bool
 
 	pollingPeriod time.Duration
@@ -30,13 +31,21 @@ func newWatcher(params Params) *watcher {
 	return &watcher{
 		logger:   params.Logger,
 		wg:       &sync.WaitGroup{},
-		handlers: make(map[string]func()),
+		handlers: make(map[string]func(string)),
 
 		pollingPeriod: params.PollingPeriod,
 	}
 }
 
 func (w *watcher) Watch(path string, onChange func()) error {
+	return w.watchFileOrDir(path, func(string) { onChange() })
+}
+
+func (w *watcher) WatchDir(path string, onChange func(string)) error {
+	return w.watchFileOrDir(path, onChange)
+}
+
+func (w *watcher) watchFileOrDir(path string, onChange func(string)) error {
 	w.Lock()
 	defer w.Unlock()
 
@@ -80,10 +89,12 @@ func (w *watcher) startWatcher() error {
 	}
 
 	w.delegate = poller.New()
-	// Note: we only include Create because there's a bug in this dependency
-	// where it can sometimes emit a Create event for a file that already
-	// exists. This is because of a race condition between Add() and the
-	// polling loop in Start().
+	// NOTE: The "radovskyb/watcher" dependency has a bug where it sometimes
+	// emits 'Create' events for files that already exist because of a race
+	// condition between Add() and the polling loop in Start().
+	//
+	// In other words, we cannot distinguish between Write and Create events,
+	// which is why that's not part of this package's public interface.
 	w.delegate.FilterOps(poller.Write, poller.Create)
 
 	grp, ctx := errgroup.WithContext(context.Background())
@@ -164,14 +175,15 @@ func (w *watcher) loopWatchFiles(ctx context.Context) {
 func (w *watcher) onChange(evt poller.Event) {
 	w.Lock()
 	handler := w.handlers[evt.Path]
+	parentHandler := w.handlers[filepath.Dir(evt.Path)]
 	w.Unlock()
 
-	if handler == nil {
-		// This shouldn't happen since we don't remove handlers,
-		// but we should fail gracefully just in case.
-		return
+	if handler != nil {
+		handler(evt.Path)
+	} else if parentHandler != nil {
+		parentHandler(evt.Path)
 	}
 
-	// Never hold a mutex while invoking code you don't control!
-	handler()
+	// This shouldn't happen since we don't remove handlers,
+	// but we should fail gracefully just in case.
 }

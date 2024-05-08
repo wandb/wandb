@@ -7,16 +7,21 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/watcher2"
 )
 
-func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time {
+func mkdir(t *testing.T, path string) {
 	require.NoError(t,
 		os.MkdirAll(
-			filepath.Dir(path),
+			path,
 			syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IXUSR,
 		))
+}
+
+func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time {
+	mkdir(t, filepath.Dir(path))
 
 	require.NoError(t,
 		os.WriteFile(path, []byte(content), syscall.S_IRUSR|syscall.S_IWUSR))
@@ -29,6 +34,16 @@ func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time
 
 func writeFile(t *testing.T, path string, content string) {
 	_ = writeFileAndGetModTime(t, path, content)
+}
+
+func waitWithDeadline[S any](t *testing.T, c <-chan S, msg string) S {
+	select {
+	case x := <-c:
+		return x
+	case <-time.After(5 * time.Second):
+		t.Fatal("took too long: " + msg)
+		panic("unreachable")
+	}
 }
 
 func TestWatcher(t *testing.T) {
@@ -54,13 +69,6 @@ func TestWatcher(t *testing.T) {
 			PollingPeriod: 10 * time.Millisecond,
 		})
 	}
-	waitWithDeadline := func(t *testing.T, c <-chan struct{}, msg string) {
-		select {
-		case <-c:
-		case <-time.After(5 * time.Second):
-			t.Fatal("took too long: " + msg)
-		}
-	}
 	finishWithDeadline := func(t *testing.T, w watcher2.Watcher) {
 		finished := make(chan struct{})
 
@@ -82,9 +90,7 @@ func TestWatcher(t *testing.T) {
 		watcher := newTestWatcher()
 		defer finishWithDeadline(t, watcher)
 		require.NoError(t,
-			watcher.Watch(file, func() {
-				onChangeChan <- struct{}{}
-			}))
+			watcher.Watch(file, func() { onChangeChan <- struct{}{} }))
 		time.Sleep(100 * time.Millisecond) // see below
 		t2 := writeFileAndGetModTime(t, file, "xyz")
 
@@ -102,6 +108,25 @@ func TestWatcher(t *testing.T) {
 
 		waitWithDeadline(t, onChangeChan,
 			"expected file callback to be called")
+	})
+
+	t.Run("runs callback on new file in directory", func(t *testing.T) {
+		t.Parallel()
+
+		onChangeChan := make(chan string)
+		dir := filepath.Join(t.TempDir(), "dir")
+		file := filepath.Join(dir, "file.txt")
+		mkdir(t, dir)
+
+		watcher := newTestWatcher()
+		defer finishWithDeadline(t, watcher)
+		require.NoError(t,
+			watcher.WatchDir(dir, func(s string) { onChangeChan <- s }))
+		writeFile(t, file, "")
+
+		result := waitWithDeadline(t, onChangeChan,
+			"expected file callback to be called")
+		assert.Equal(t, result, file)
 	})
 
 	t.Run("fails if file does not exist", func(t *testing.T) {
