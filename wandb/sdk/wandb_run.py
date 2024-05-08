@@ -1477,26 +1477,23 @@ class Run:
         chart_keys = set()
         split_table_set = set()
 
-        def transform(key: str | List[str], value: Any) -> Any:
+        def transform(key: Union[str, List[str]], value: Any) -> Any:
+            if isinstance(key, str):
+                key = [key]
             if isinstance(value, dict):
                 return {k: transform([*key, k], v) for k, v in value.items()}
             if isinstance(value, Visualize):
-                config_key = value.get_config_key(
-                    key if isinstance(key, str) else ".".join(key)
-                )
-                config_value = value.get_config_value(
-                    key if isinstance(key, str) else ".".join(key)
-                )
+                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
+                config_value = value.get_config_value(key if isinstance(key, str) else ".".join(key))
                 value = value._data
                 self._config_callback(val=config_value, key=config_key)
                 return value
             elif isinstance(value, CustomChart):
                 formatted_key = ".".join(key)
+                chart_keys.add(tuple(key))
 
-                chart_keys.add(key)
-                config_key = value.get_config_key(
-                    key if isinstance(key, str) else ".".join(key)
-                )
+
+                config_key = value.get_config_key(key if isinstance(key, str) else ".".join(key))
                 if value._split_table:
                     config_value = value.get_config_value(
                         "Vega2",
@@ -1517,7 +1514,7 @@ class Run:
             row[k] = transform(k, v)
 
         for k in chart_keys:
-            klist = k.split(".")
+            klist = list(k)
             value = self._get_nested_value(row, klist)
 
             if k in split_table_set:
