@@ -87,6 +87,12 @@ class Run:
         self._session = _session
         self._run_nexus_id = None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.finish()
+
     @property
     def _api(self):
         return self._session._api
@@ -133,6 +139,10 @@ default_session = new_session()
 # ---
 # wandb 0.x Compatibility
 # ---
+
+
+def require(_):
+    pass
 
 
 def setup():
