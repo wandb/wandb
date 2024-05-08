@@ -479,7 +479,7 @@ class KubernetesRunner(AbstractRunner):
         return job, api_key_secret
 
     async def run(
-        self, launch_project: LaunchProject, image_uri: str,
+        self, launch_project: LaunchProject, image_uri: str
     ) -> Optional[AbstractRun]:  # noqa: C901
         """Execute a launch project on Kubernetes.
 
