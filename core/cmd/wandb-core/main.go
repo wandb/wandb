@@ -12,7 +12,6 @@ import (
 	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/internal/processlib"
 )
 
 // this is set by the build script and used by the observability package
@@ -33,11 +32,6 @@ func main() {
 	_ = flag.Bool("serve-sock", false, "use sockets")
 
 	flag.Parse()
-
-        if *pid != 0 {
-                // Lets make sure this process is killed by the OS (if supported)
-                processlib.ShutdownOnParentDeath(*pid)
-        }
 
 	// set up sentry reporting
 	observability.InitSentry(*disableAnalytics, commit)

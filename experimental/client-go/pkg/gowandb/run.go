@@ -26,7 +26,7 @@ type Run struct {
 	run            *service.RunRecord
 	params         *runopts.RunParams
 	partialHistory History
-        step           int64
+	step           int64
 }
 
 // NewRun creates a new run with the given settings and responders.
@@ -154,14 +154,14 @@ func (r *Run) start() {
 func (r *Run) logCommit(data map[string]interface{}) {
 	history := service.PartialHistoryRequest{}
 	for key, value := range data {
-                data, err := json.Marshal(value)
+		data, err := json.Marshal(value)
 		if err != nil {
-		        panic(err)
+			panic(err)
 		}
 		history.Item = append(history.Item, &service.HistoryItem{
-                                        Key:       key,
-                                        ValueJson: string(data),
-                })
+			Key:       key,
+			ValueJson: string(data),
+		})
 	}
 	request := service.Request{
 		RequestType: &service.Request_PartialHistory{PartialHistory: &history},
@@ -223,9 +223,9 @@ func (r *Run) Log(data map[string]interface{}) {
 
 // TODO: might want to make this internal?
 func (r *Run) LogHistory(hproto *service.HistoryRecord) {
-        hproto.Step = &service.HistoryStep{Num: r.step}
-        r.step += 1
-        r.logHistory(hproto)
+	hproto.Step = &service.HistoryStep{Num: r.step}
+	r.step += 1
+	r.logHistory(hproto)
 }
 
 func (r *Run) sendExit() {

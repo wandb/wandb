@@ -10,7 +10,7 @@ typedef enum {
 import "C"
 
 import (
-        "os"
+	"os"
 	"unsafe"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -32,7 +32,7 @@ func wandbcoreSetup() {
 		return
 	}
 	var err error
-        currentPid := os.Getpid()
+	currentPid := os.Getpid()
 	wandbSession, err = gowandb.NewSession(
 		sessionopts.WithCoreBinary(coreBinary),
 		sessionopts.WithPidParent(currentPid),

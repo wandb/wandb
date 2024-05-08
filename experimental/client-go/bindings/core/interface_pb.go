@@ -2,10 +2,11 @@ package main
 
 import (
 	"C"
-        "unsafe"
-	"google.golang.org/protobuf/proto"
-	"github.com/wandb/wandb/core/pkg/service"
+	"unsafe"
+
 	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/proto"
 )
 
 //export pbSessionSetup
@@ -15,7 +16,7 @@ func pbSessionSetup() {
 
 //export pbSessionTeardown
 func pbSessionTeardown() {
-        // prob dont want this, we could share nexus across "sessions"
+	// prob dont want this, we could share nexus across "sessions"
 	wandbcoreTeardown()
 }
 
@@ -33,16 +34,16 @@ func pbRunStart() int {
 
 //export pbRunLog
 func pbRunLog(num int, cBuffer *C.char, cLength C.int) {
-        data := C.GoBytes(unsafe.Pointer(cBuffer), cLength)
-        // Unmarshal protobuf
-        msg := &service.HistoryRecord{}
-        if err := proto.Unmarshal(data, msg); err != nil {
-                return
-        }
-        // Process data (here simply prepending a string)
+	data := C.GoBytes(unsafe.Pointer(cBuffer), cLength)
+	// Unmarshal protobuf
+	msg := &service.HistoryRecord{}
+	if err := proto.Unmarshal(data, msg); err != nil {
+		return
+	}
+	// Process data (here simply prepending a string)
 	run := wandbRuns.Get(num)
 
-        // TODO: this might need to be internal
+	// TODO: this might need to be internal
 	run.LogHistory(msg)
 }
 
