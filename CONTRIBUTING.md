@@ -218,7 +218,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Download and install Go version `1.22.2` following the instructions [here](https://go.dev/doc/install).
+Download and install Go version `1.22.3` following the instructions [here](https://go.dev/doc/install).
 
 ### Building/installing the package
 
