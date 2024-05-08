@@ -1,4 +1,4 @@
-package core
+package main
 
 /*
 typedef const char cchar_t;

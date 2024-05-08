@@ -14,15 +14,15 @@ mkdir export/examples
 rm -rf tmpbuild
 mkdir tmpbuild
 # build binary
-cd ..
+cd ../../../core/
 SYSTEM=`uname -s`
 if [ "x$SYSTEM" == "xLinux" ]; then
 CGO_ENABLED=1 go build \
   -ldflags "-extldflags \"-fuse-ld=gold -Wl,--weak-unresolved-symbols\"" \
-  -o lang/tmpbuild/embed-core.bin cmd/wandb-core/main.go
+  -o ../experimental/client-go/bindings/tmpbuild/embed-core.bin cmd/wandb-core/main.go
 else
 go build \
-  -o lang/tmpbuild/embed-core.bin cmd/wandb-core/main.go
+  -o ../experimental/client-go/bindings/tmpbuild/tmpbuild/embed-core.bin cmd/wandb-core/main.go
 fi
 cd -
 

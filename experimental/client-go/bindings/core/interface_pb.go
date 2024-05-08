@@ -4,7 +4,7 @@ import (
 	"C"
 	"unsafe"
 
-	"github.com/wandb/wandb/core/pkg/gowandb/opts/runopts"
+	"github.com/wandb/wandb/experimental/client-go/pkg/opts/runopts"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/proto"
 )
