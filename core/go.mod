@@ -4,7 +4,7 @@ go 1.22.3
 
 require (
 	github.com/Khan/genqlient v0.7.0
-	github.com/NVIDIA/go-nvml v0.12.0-3
+	github.com/NVIDIA/go-nvml v0.12.0-5
 	github.com/getsentry/sentry-go v0.27.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/golang/mock v1.6.0
