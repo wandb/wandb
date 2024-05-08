@@ -279,7 +279,7 @@ jobs:
           files: |
             wandb-${{ github.event.inputs.version }}.zip
             wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: false
+          draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
