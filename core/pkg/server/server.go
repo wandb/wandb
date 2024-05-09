@@ -18,6 +18,12 @@ const (
 
 var defaultLoggerPath atomic.Value
 
+type ServerParams struct {
+	ListenIPAddress string
+	PortFile        string
+	ParentPid       int
+}
+
 // Server is the core server
 type Server struct {
 	// ctx is the context for the server. It is used to signal
@@ -39,10 +45,16 @@ type Server struct {
 }
 
 // NewServer creates a new server
-func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Server, error) {
+func NewServer(
+	ctx context.Context,
+	params *ServerParams,
+) (*Server, error) {
+	if params == nil {
+		return nil, errors.New("unconfigured params")
+	}
 	ctx, cancel := context.WithCancel(ctx)
 
-	listener, err := net.Listen("tcp", addr)
+	listener, err := net.Listen("tcp", params.ListenIpAddress)
 	if err != nil {
 		cancel()
 		return nil, err
@@ -53,11 +65,11 @@ func NewServer(ctx context.Context, addr string, portFile string, pid int) (*Ser
 		cancel:   cancel,
 		listener: listener,
 		wg:       sync.WaitGroup{},
-		pid:      pid,
+		pid:      params.ParentPid,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
-	if err := writePortFile(portFile, port); err != nil {
+	if err := writePortFile(params.PortFile, port); err != nil {
 		slog.Error("failed to write port file", "error", err)
 		return nil, err
 	}
