@@ -6,7 +6,7 @@
 # Contributing to `wandb`
 
 We at Weights & Biases ❤️ open source and welcome contributions from the community!
-This guide discusses the development workflow and the internals of the `wandb` library.
+This guide discusses the development workflow of the `wandb` library.
 
 ### Table of Contents
 
@@ -20,6 +20,9 @@ Please make sure to update the ToC when you update this page!
     + [Scopes](#scopes)
     + [Subjects](#subjects)
 - [Setting up your development environment](#setting-up-your-development-environment)
+  * [Setting up Python](#setting-up-python)
+  * [Setting up Go](#setting-up-go)
+  * [Building/installing the package](#building-installing-the-package)
   * [Linting the code](#linting-the-code)
   * [Auto-Generating Code](#auto-generating-code)
     + [Building protocol buffers](#building-protocol-buffers)
@@ -27,7 +30,7 @@ Please make sure to update the ToC when you update this page!
     + [Adding URLs](#adding-urls)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Editable mode](#editable-mode)
+  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core-)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
 
@@ -199,20 +202,43 @@ If the feature or fix does not directly impact users, consider using a different
 
 ## Setting up your development environment
 
-We test the library code against multiple `python` versions
-and use [`pyenv`](https://github.com/pyenv/pyenv) to manage those.Install `pyenv` by following the instructions at [pyenv](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
+The W&B SDK is implemented in Python and Go.
 
-You would also likely want to setup pyenv-virtualenv to manage multiple environement.
-For more details see: [pyenv-virtualenv](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv)
+### Setting up Python
 
-Once you have everything installed, you can add additional python version, for example python 3.7.17, you could run the
-following commmand:
+You can use your favorite `python` version management tool, such as [`pyenv`](https://github.com/pyenv/pyenv). To install it, follow [these instructions](https://github.com/pyenv/pyenv?tab=readme-ov-file#getting-pyenv).
 
+Optionally set up a tool to manage multiple virtual environements, for example [`pyenv-virtualenv`](https://github.com/pyenv/pyenv-virtualenv?tab=readme-ov-file#pyenv-virtualenv).
+
+Install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv) into your environment:
+
+```shell
+pip install -U nox uv
 ```
-pyenv install 3.7.17
+
+### Setting up Go
+
+Install Go version `1.22.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+```shell
+brew install go@1.22
 ```
 
-Note: to switch the default python version, edit the `.python-version` file in the repository root.
+### Building/installing the package
+
+We recommend installing the `wandb` package in the editable mode with either `pip` or `uv`:
+
+```shell
+uv pip install -e .
+```
+
+If you are modifying Go code, you should rerun the command to rebuild and reinstall the package.
+
+Alternatively, you can install `wandb-core` (the Go backend of the SDK) in development mode, by running the following command:
+```shell
+./core/scripts/setup-core-path.sh
+```
+This script will also allow you to unset the `wandb-core` path if you no longer want to use
+the development version of `wandb-core`.
 
 ### Linting the code
 
@@ -235,18 +261,12 @@ pre-commit run ruff-format --all-files --hook-stage pre-push
 
 ### Auto-Generating Code
 
-For auto generated code you will need to install [`nox`](https://nox.thea.codes/en/stable/tutorial.html#installation) and [`uv`](https://github.com/astral-sh/uv). You could just run:
-```shell
-pip install -U nox uv
-```
-
 #### Building protocol buffers
 
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
 
 If you update any of the `.proto` files in `wandb/proto`, you'll need to:
-
 
 
 - Now you can run the proto action to build the protocol buffer files.
@@ -314,27 +334,18 @@ deprecate.deprecate(
 )
 ```
 
-### Editable mode
+### Modifying GraphQL Schema in `wandb-core`
 
-When using editable mode outside of the wandb directory, it is necessary to apply specific configuration settings. Due to the naming overlap between the run directory and the package, editable mode might erroneously identify the wrong files. To address this concern, several options can be considered. For more detailed information, refer to the documentation available at [this link](https://setuptools.pypa.io/en/latest/userguide/development_mode.html#strict-editable-installs). There are two approaches to achieve this:
+If there is a schema change on the Server side that affects your GraphQL API,
+update `core/api/graphql/schemas/schema-latest.graphql` and run
 
-- During installation, provide the following flags:
+```shell
+nox -s graphql-codegen-schema-change
+```
 
-  ```shell
-  pip install -e . --config-settings editable_mode=strict
-  ```
-  By doing so, editable mode will correctly identify the relevant files.
-
-
-- Alternatively, you can configure it once using the following command:
-  ```shell
-  pip config set global.config-settings editable_mode=strict
-  ```
-  Once the configuration is in place, you can use the command:
-  ```shell
-  pip install -e .
-  ```
-  without any additional flags, and the strict editable mode will be applied consistently.
+If there is no schema change and you are e.g. just adding a new query or mutation
+against the schema that already supports it, DO NOT USE this nox session.
+Our pre-commit hook will auto-generate the required code for you.
 
 ## Testing
 
@@ -351,5 +362,5 @@ All test dependencies should be in `requirements_dev.txt` so you could just run:
 After that you can run your test using the standard `pytest` commands. For example:
 
 ```shell
-pytest tests/path-to-tests/test_file.py
+pytest -s -vv tests/path-to-tests/test_file.py
 ```

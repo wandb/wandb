@@ -747,6 +747,71 @@ async def test_launch_kube_api_secret_failed(
 
 
 @pytest.mark.asyncio
+async def test_launch_kube_pod_schedule_warning(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+):
+    mock_batch_api.jobs = {"test-job": MockDict(manifest)}
+    job_tracker = MagicMock()
+    job_tracker.run_queue_item_id = "test-rqi"
+    project = LaunchProject(
+        docker_config={"docker_image": "test_image"},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    submitted_run = await runner.run(project, "hello-world")
+    await asyncio.sleep(1)
+    _, pod_stream = mock_event_streams
+    await pod_stream.add(
+        MockDict(
+            {
+                "type": "WARNING",
+                "object": {
+                    "metadata": {"labels": {"job-name": "test-job"}},
+                    "status": {
+                        "phase": "Pending",
+                        "conditions": [
+                            {
+                                "type": "PodScheduled",
+                                "status": "False",
+                                "reason": "Unschedulable",
+                                "message": "Test message",
+                            }
+                        ],
+                    },
+                },
+            }
+        )
+    )
+    await asyncio.sleep(0.1)
+    status = await submitted_run.get_status()
+    assert status.messages == ["Test message"]
+
+
+@pytest.mark.asyncio
 async def test_maybe_create_imagepull_secret_given_creds():
     mock_registry = MagicMock()
 

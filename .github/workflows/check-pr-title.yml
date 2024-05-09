@@ -41,6 +41,7 @@ jobs:
             sweeps
             launch
             integrations
+            deps
           requireScope: true
           wip: true
           validateSingleCommit: false
