@@ -50,9 +50,6 @@ def run_pytest(
 
     pytest_opts = []
     pytest_env = {
-        "WANDB__NETWORK_BUFFER": "1000",
-        "WANDB_ERROR_REPORTING": "false",
-        "WANDB_CORE_ERROR_REPORTING": "false",
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
@@ -474,10 +471,17 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
 
     session.install("packaging")
-    session.install(".")
 
     with session.chdir("wandb/proto"):
-        session.run("python", "wandb_internal_codegen.py")
+        session.run("python", "wandb_generate_proto.py")
+
+
+@nox.session(name="generate-deprecated", tags=["proto"], python="3.9")
+def generate_deprecated_class_definition(session: nox.Session) -> None:
+    session.install("-e", ".")
+
+    with session.chdir("wandb/proto"):
+        session.run("python", "wandb_generate_deprecated.py")
 
 
 def _ensure_no_diff(

@@ -13,6 +13,12 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
+* Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
+
+## [0.17.0] - 2024-05-07
+
+### Added
+
 * The `wandb` package now includes the `wandb-core` binary by @timoffex in https://github.com/wandb/wandb/pull/7381
   * `wandb-core` is a new and improved backend for the W&B SDK that focuses on performance, versatility, and robustness.
   * Currently, it is opt-in. To start using the new backend, add `wandb.require("core")` to your script after importing `wandb`.

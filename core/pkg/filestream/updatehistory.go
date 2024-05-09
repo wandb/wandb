@@ -56,10 +56,19 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 			AtMostEvery(time.Minute).
 			Write("Skipped uploading run.log() data that exceeded size limit.")
 	} else {
-		ctx.ModifyRequest(&TransmitChunk{
-			HistoryLines: []string{string(line)},
+		ctx.ModifyRequest(&collectorHistoryUpdate{
+			lines: []string{string(line)},
 		})
 	}
 
 	return nil
+}
+
+type collectorHistoryUpdate struct {
+	lines []string
+}
+
+func (u *collectorHistoryUpdate) Apply(state *CollectorState) {
+	state.Buffer.HistoryLines =
+		append(state.Buffer.HistoryLines, u.lines...)
 }
