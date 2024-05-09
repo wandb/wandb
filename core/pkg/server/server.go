@@ -97,6 +97,7 @@ func (s *Server) Start() {
 				slog.Info("Parent process exited, terminating core process")
 				// Forcefully exit the server process because our controlling user process
 				// has exited so there is no need to sync uncommitted data.
+				// Exit code is arbitrary as parent process is gone.
 				os.Exit(1)
 			}
 			s.wg.Done()
