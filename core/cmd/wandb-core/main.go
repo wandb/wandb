@@ -10,7 +10,7 @@ import (
 	"runtime/trace"
 
 	"github.com/getsentry/sentry-go"
-	// "github.com/wandb/wandb/core/internal/processlib"
+	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -28,6 +28,7 @@ func main() {
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 	enableDebugLogging := flag.Bool("debug", false, "enable debug logging")
 	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
+	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false, "enable OS pid shutdown")
 	traceFile := flag.String("trace", "", "file name to write trace output to")
 	// TODO: remove these flags, they are here for backward compatibility
 	_ = flag.Bool("serve-sock", false, "use sockets")
@@ -35,11 +36,10 @@ func main() {
 	flag.Parse()
 
 	var shutdownOnParentExitEnabled bool
-	// TODO: figure out if we can enable this in the future, there is an interaction with pthreads
-	// if *pid != 0 {
-	//	// Shutdown this process if the parent pid exits (if supported by the OS)
-	//	shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
-	// }
+	if *pid != 0 && enableOsPidShutdown {
+		// Shutdown this process if the parent pid exits (if supported by the OS)
+		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
+	}
 
 	// set up sentry reporting
 	observability.InitSentry(*disableAnalytics, commit)
