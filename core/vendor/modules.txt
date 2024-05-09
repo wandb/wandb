@@ -3,6 +3,7 @@
 dario.cat/mergo
 # github.com/Khan/genqlient v0.7.0
 ## explicit; go 1.20
+github.com/Khan/genqlient
 github.com/Khan/genqlient/generate
 github.com/Khan/genqlient/graphql
 # github.com/Microsoft/go-winio v0.6.1
