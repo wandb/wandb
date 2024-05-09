@@ -246,7 +246,7 @@ We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our l
 
 To install `pre-commit` run the following:
 ```shell
-pip install pre-commit
+pip install -U pre-commit
 ```
 
 To install all of our pre-commit hooks run:
@@ -353,7 +353,6 @@ Our pre-commit hook will auto-generate the required code for you.
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
 All test dependencies should be in `requirements_dev.txt` so you could just run:
-`
 
 ```shell
 `pip install -r requirements_dev.txt`
