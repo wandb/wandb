@@ -41,8 +41,8 @@ type Server struct {
 	// and for the serve goroutine to finish
 	wg sync.WaitGroup
 
-	// pid is the parent pid to watch and exit if it goes away
-	pid int
+	// parentPid is the parent pid to watch and exit if it goes away
+	parentPid int
 }
 
 // NewServer creates a new server
@@ -62,11 +62,11 @@ func NewServer(
 	}
 
 	s := &Server{
-		ctx:      ctx,
-		cancel:   cancel,
-		listener: listener,
-		wg:       sync.WaitGroup{},
-		pid:      params.ParentPid,
+		ctx:       ctx,
+		cancel:    cancel,
+		listener:  listener,
+		wg:        sync.WaitGroup{},
+		parentPid: params.ParentPid,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -102,10 +102,10 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 // Serve starts the server
 func (s *Server) Start() {
 	// watch for parent process exit in background (if specified)
-	if s.pid != 0 {
+	if s.parentPid != 0 {
 		s.wg.Add(1)
 		go func() {
-			shouldExit := s.loopCheckIfParentGone(s.pid)
+			shouldExit := s.loopCheckIfParentGone(s.parentPid)
 			if shouldExit {
 				slog.Info("Parent process exited, terminating core process")
 				// Forcefully exit the server process because our controlling user process
