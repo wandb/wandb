@@ -496,6 +496,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
+		s.uploadOutputFile()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -1127,7 +1128,28 @@ func writeOutputToFile(file, line string) error {
 	return err
 }
 
-func (s *Sender) sendOutputRaw(record *service.Record, outputRaw *service.OutputRawRecord) {
+func (s *Sender) uploadOutputFile() {
+	// In the end of a run, we upload the output file to the server
+	// This is a bit of a duplication, as we send the same content through the
+	// filestream
+	// Ideally, the output content from the filestream would be converted
+	// to a file on the server side, but for now we do it here as well
+	record := &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{
+						Path: OutputFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
+			},
+		},
+	}
+	s.fwdRecord(record)
+}
+
+func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRecord) {
 	// TODO: move this to filestream!
 	// TODO: match logic handling of lines to the one in the python version
 	// - handle carriage returns (for tqdm-like progress bars)

@@ -24,18 +24,15 @@ func TestCollectNothing(t *testing.T) {
 
 func TestCollectSomething(t *testing.T) {
 	input := make(chan CollectorStateUpdate, 32)
-	input <- &TransmitChunk{
-		HistoryLines: []string{"line"},
+	input <- &collectorHistoryUpdate{
+		lines: []string{"line"},
 	}
-	input <- &TransmitChunk{
-		ConsoleLogLines: []string{"line3"},
+	input <- &collectorLogsUpdate{
+		line: "line3",
 	}
-	input <- &TransmitChunk{
-		HasPreempting: true,
-		Preempting:    true,
-	}
-	input <- &TransmitChunk{
-		HistoryLines: []string{"line2"},
+	input <- &collectorPreemptingUpdate{}
+	input <- &collectorHistoryUpdate{
+		lines: []string{"line2"},
 	}
 
 	collector := chunkCollector{
@@ -48,7 +45,7 @@ func TestCollectSomething(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
-			Files: map[string]fsTransmitFileData{
+			Files: map[string]FsTransmitFileData{
 				"wandb-history.jsonl": {
 					Offset:  0,
 					Content: []string{"line", "line2"},
@@ -66,17 +63,17 @@ func TestCollectSomething(t *testing.T) {
 
 func TestCollectFinal(t *testing.T) {
 	input := make(chan CollectorStateUpdate, 32)
-	input <- &TransmitChunk{
-		HistoryLines: []string{"line"},
+	input <- &collectorHistoryUpdate{
+		lines: []string{"line"},
 	}
 	input <- &collectorExitUpdate{
 		exitCode: 2,
 	}
-	input <- &TransmitChunk{
-		ConsoleLogLines: []string{"line3"},
+	input <- &collectorLogsUpdate{
+		line: "line3",
 	}
-	input <- &TransmitChunk{
-		HistoryLines: []string{"line2"},
+	input <- &collectorHistoryUpdate{
+		lines: []string{"line2"},
 	}
 	collector := chunkCollector{
 		input:           input,
@@ -92,7 +89,7 @@ func TestCollectFinal(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t,
 		&FsTransmitData{
-			Files: map[string]fsTransmitFileData{
+			Files: map[string]FsTransmitFileData{
 				"wandb-history.jsonl": {
 					Offset:  0,
 					Content: []string{"line", "line2"},
@@ -111,7 +108,7 @@ func TestCollectFinal(t *testing.T) {
 
 func TestCollectProcessedChunkUpdate(t *testing.T) {
 	input := make(chan CollectorStateUpdate, 32)
-	input <- &TransmitChunk{HasPreempting: true, Preempting: true}
+	input <- &collectorPreemptingUpdate{}
 	collector := chunkCollector{
 		input:           input,
 		processDelay:    waiting.NewDelay(10 * time.Millisecond),

@@ -251,7 +251,10 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
-	nvml.Shutdown()
+	err := nvml.Shutdown()
+	if err != nvml.SUCCESS {
+		return
+	}
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
