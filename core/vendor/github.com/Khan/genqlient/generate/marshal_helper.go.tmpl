@@ -1,0 +1,44 @@
+{{/* This is somewhat parallel to unmarshal_helper.go.tmpl, but, as usual, in
+     reverse.  Note the helper accepts a pointer-to-interface, for
+     consistency with unmarshaling and with the API we expect of custom
+     marshalers. */}}
+
+func __marshal{{.GoName}}(v *{{.GoName}}) ([]byte, error) {
+    {{/* Determine the GraphQL typename, which the unmarshaler will need should
+         it be called on our output. */}}
+    var typename string
+    switch v := (*v).(type) {
+    {{range .Implementations -}}
+    case *{{.GoName}}:
+        typename = "{{.GraphQLName}}"
+
+        {{/* Now actually do the marshal, with the concrete type. (Go only
+             marshals embeds the way we want if they're structs.)  Except that
+             won't work right if the implementation-type has its own
+             MarshalJSON method (maybe it in turn has an interface-typed
+             field), so we call the helper __premarshalJSON directly (see
+             marshal.go.tmpl). */}}
+        {{if .NeedsMarshaling -}}
+        premarshaled, err := v.__premarshalJSON()
+        if err != nil {
+            return nil, err
+        }
+        result := struct {
+            TypeName string `json:"__typename"`
+            *__premarshal{{.GoName}}
+        }{typename, premarshaled}
+        {{else -}}
+        result := struct {
+            TypeName string `json:"__typename"`
+            *{{.GoName}}
+        }{typename, v}
+        {{end -}}
+        return json.Marshal(result)
+    {{end -}}
+    case nil:
+        return []byte("null"), nil
+    default:
+        return nil, {{ref "fmt.Errorf"}}(
+            `unexpected concrete type for {{.GoName}}: "%T"`, v)
+    }
+}
