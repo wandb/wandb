@@ -1504,7 +1504,7 @@ class Run:
                         "Vega2",
                         value.user_query(f"Custom Chart Tables/{formatted_key}_table"),
                     )
-                    split_table_set.add(key)
+                    split_table_set.add(tuple(key))
                 else:
                     config_value = value.get_config_value(
                         "Vega2", value.user_query(f"{formatted_key}_table")
