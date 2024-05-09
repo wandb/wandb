@@ -11,7 +11,10 @@ import (
 	"time"
 )
 
-const BufferSize = 32
+const (
+	BufferSize = 32
+	IntervalCheckParentPidMilliseconds = 100
+)
 
 var defaultLoggerPath atomic.Value
 
@@ -67,7 +70,7 @@ func (s *Server) loopCheckIfParentGone(pid int) bool {
 		select {
 		case <-s.ctx.Done():
 			return false
-		case <-time.After(100 * time.Millisecond):
+		case <-time.After(IntervalCheckParentPidMilliseconds * time.Millisecond):
 		}
 		parentpid := os.Getppid()
 		if parentpid != pid {
@@ -85,9 +88,6 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 
 // Serve starts the server
 func (s *Server) Start() {
-	// add reference for main server loop
-	s.wg.Add(1)
-
 	// watch for parent process exit in background (if specified)
 	if s.pid != 0 {
 		s.wg.Add(1)
@@ -95,6 +95,8 @@ func (s *Server) Start() {
 			shouldExit := s.loopCheckIfParentGone(s.pid)
 			if shouldExit {
 				slog.Info("Parent process exited, terminating core process")
+				// Forcefully exit the server process because our controlling user process
+				// has exited so there is no need to sync uncommitted data.
 				os.Exit(1)
 			}
 			s.wg.Done()
@@ -102,6 +104,7 @@ func (s *Server) Start() {
 	}
 
 	// run server in background
+	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		s.serve()
