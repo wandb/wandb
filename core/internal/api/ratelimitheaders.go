@@ -21,18 +21,42 @@ type RateLimitHeaders struct {
 
 // Parses RateLimitHeaders out of the HTTP header.
 func ParseRateLimitHeaders(header http.Header) (RateLimitHeaders, bool) {
-	rlRemaining, err := strconv.ParseFloat(header.Get("RateLimit-Remaining"), 64)
-	if err != nil || rlRemaining < 0 {
-		return RateLimitHeaders{}, false
+	headers := RateLimitHeaders{}
+
+	remainingStr := header.Get("RateLimit-Remaining")
+	resetStr := header.Get("RateLimit-Reset")
+
+	if remainingStr != "" && resetStr != "" {
+		remaining, err := strconv.ParseFloat(remainingStr, 64)
+		if err != nil || remaining < 0 {
+			return RateLimitHeaders{}, false
+		}
+
+		reset, err := strconv.ParseFloat(resetStr, 64)
+		if err != nil || reset < 0 {
+			return RateLimitHeaders{}, false
+		}
+
+		headers.Remaining = remaining
+		headers.Reset = reset
+		return headers, true
 	}
 
-	rlReset, err := strconv.ParseFloat(header.Get("RateLimit-Reset"), 64)
-	if err != nil || rlReset < 0 {
-		return RateLimitHeaders{}, false
+	// legacy entity level rate limit headers
+	legacyRemainingStr := header.Get("X-RateLimit-Remaining")
+	if legacyRemainingStr != "" {
+		remaining, err := strconv.ParseFloat(legacyRemainingStr, 64)
+		if err != nil || remaining < 0 {
+			return RateLimitHeaders{}, false
+		}
+
+		headers.Remaining = remaining
+		// legacy rate limit doesn't send back a reset time
+		headers.Reset = 0
+		return headers, true
 	}
 
-	return RateLimitHeaders{
-		Remaining: rlRemaining,
-		Reset:     rlReset,
-	}, true
+	return RateLimitHeaders{}, false
 }
+
+
