@@ -535,7 +535,7 @@ class KubernetesRunner(AbstractRunner):
             if LaunchAgent.initialized():
                 add_label_to_pods(
                     resource_args,
-                    WANDB_K8S_LABEL_MONITOR,
+                    WANDB_K8S_LABEL_AGENT,
                     LaunchAgent.name(),
                 )
                 resource_args["metadata"]["labels"][WANDB_K8S_LABEL_AGENT] = (
