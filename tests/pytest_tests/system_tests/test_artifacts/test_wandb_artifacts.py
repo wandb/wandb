@@ -1439,10 +1439,10 @@ def test_save_artifact_sequence(monkeypatch, wandb_init):
     with wandb_init() as run:
         artifact = wandb.Artifact("sequence_name", "data")
         run.log_artifact(artifact)
+        artifact.wait()
 
-    with wandb_init() as run:
         artifact = run.use_artifact("sequence_name:latest")
-        collection = artifact.collection
+        collection = wandb.Api().artifact_collection("data", "sequence_name")
         collection.description = "new description"
         collection.name = "new_name"
         collection.type = "new_type"
@@ -1470,10 +1470,9 @@ def test_save_artifact_portfolio(monkeypatch, wandb_init):
         artifact = wandb.Artifact("image_data", "data")
         run.log_artifact(artifact)
         artifact.link("portfolio_name")
+        artifact.wait()
 
-    with wandb_init() as run:
-        port_artifact = run.use_artifact("portfolio_name:v0")
-        portfolio = port_artifact.collection
+        portfolio = wandb.Api().artifact_collection("data", "portfolio_name")
         portfolio.description = "new description"
         portfolio.name = "new_name"
         with pytest.raises(ValueError):

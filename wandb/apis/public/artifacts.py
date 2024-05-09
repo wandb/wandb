@@ -1,6 +1,7 @@
 """Public API: artifacts."""
 
 import json
+import re
 from copy import copy
 from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
 
@@ -11,6 +12,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
 from wandb.errors.term import termlog
+from wandb.sdk.lib import deprecate
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
@@ -427,11 +429,12 @@ class ArtifactCollection:
         return self._attrs
 
     def change_type(self, new_type: str) -> None:
-        """Change the type of the artifact collection.
+        """Deprecated, change type directly with `save` instead."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.artifact_collection__change_type,
+            warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
+        )
 
-        Arguments:
-            new_type: The new collection type to use, freeform string.
-        """
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
         termlog(
@@ -519,9 +522,9 @@ class ArtifactCollection:
 
     @tags.setter
     def tags(self, tags: List[str]) -> None:
-        if any(char in tag for tag in tags for char in ["/", ":"]):
+        if any(not re.match(r"^[-\w]+([ ]+[-\w]+)*$", tag) for tag in tags):
             raise ValueError(
-                "Tags must not contain any of the following characters: /, :"
+                "Tags must only contain alphanumeric characters or underscores separated by spaces or hyphens"
             )
         self._tags = tags
 

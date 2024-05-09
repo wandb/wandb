@@ -14,6 +14,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 * Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
+* Added `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
+
+### Deprecated
+
+* Deprecated `ArtifactCollection.change_type()` in favor of `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ## [0.17.0] - 2024-05-07
 
@@ -25,7 +30,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 * `wandb-core` now supports Artifact file caching by @moredatarequired in https://github.com/wandb/wandb/pull/7364 and https://github.com/wandb/wandb/pull/7366
 * Added artifact_exists() and artifact_collection_exists() methods to Api to check if an artifact or collection exists by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7483
 * `wandb launch -u <git-uri | local-path> ` creates and launches a job from the given source code by @bcsherma in https://github.com/wandb/wandb/pull/7485
-* Added ArtifactCollection.save() by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ### Fixed
 
