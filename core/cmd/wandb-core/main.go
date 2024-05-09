@@ -98,8 +98,8 @@ func main() {
 		ctx,
 		&server.ServerParams{
 			ListenIPAddress: "127.0.0.1:0",
-			PortFilename: *portFilename,
-			ParentPid: *pid,
+			PortFilename:    *portFilename,
+			ParentPid:       *pid,
 		},
 	)
 	if err != nil {

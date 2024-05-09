@@ -21,7 +21,7 @@ var defaultLoggerPath atomic.Value
 
 type ServerParams struct {
 	ListenIPAddress string
-	PortFile        string
+	PortFilename    string
 	ParentPid       int
 }
 
@@ -70,7 +70,7 @@ func NewServer(
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
-	if err := writePortFile(params.PortFile, port); err != nil {
+	if err := writePortFile(params.PortFilename, port); err != nil {
 		slog.Error("failed to write port file", "error", err)
 		return nil, err
 	}
