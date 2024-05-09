@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net"
@@ -54,7 +55,7 @@ func NewServer(
 	}
 	ctx, cancel := context.WithCancel(ctx)
 
-	listener, err := net.Listen("tcp", params.ListenIpAddress)
+	listener, err := net.Listen("tcp", params.ListenIPAddress)
 	if err != nil {
 		cancel()
 		return nil, err
