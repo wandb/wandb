@@ -169,9 +169,6 @@ func (u *uploader) Finish() {
 	u.isFinished = true
 	u.stateMu.Unlock()
 
-	// Stop watching live files.
-	u.watcher.Finish()
-
 	// Flush any remaining upload batches.
 	u.uploadBatcher.Wait()
 

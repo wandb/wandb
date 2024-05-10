@@ -34,7 +34,7 @@ repos:
       - id: check-merge-conflict
       - id: trailing-whitespace
         name: trailing-whitespace
-        exclude: ^(wandb/|tests/|src/|core/vendor/)
+        exclude: ^(wandb/|tests/|src/|core/vendor/|.bumpversion.*.cfg)
       - id: end-of-file-fixer
         name: end-of-file-fixer
         exclude: ^(wandb/|tests/|src/|.*_durations|core/vendor/)

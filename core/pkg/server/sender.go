@@ -35,6 +35,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
+	"github.com/wandb/wandb/core/internal/watcher2"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/launch"
@@ -56,6 +57,7 @@ type SenderParams struct {
 	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
+	FileWatcher         watcher2.Watcher
 	RunfilesUploader    runfiles.Uploader
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
@@ -92,8 +94,11 @@ type Sender struct {
 	// fileStream is the file stream
 	fileStream fs.FileStream
 
-	// filetransfer is the file uploader/downloader
+	// fileTransferManager is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
+
+	// fileWatcher notifies when files in the file system are changed
+	fileWatcher watcher2.Watcher
 
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
@@ -167,6 +172,7 @@ func NewSender(
 		settings:            params.Settings,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
+		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
@@ -507,6 +513,11 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FP:
+		// Order matters: we must stop watching files first, since that pushes
+		// updates to the runfiles uploader. The uploader creates file upload
+		// tasks, so it must be flushed before we close the file transfer
+		// manager.
+		s.fileWatcher.Finish()
 		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
 			s.runfilesUploader.Finish()
