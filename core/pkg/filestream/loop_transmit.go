@@ -62,6 +62,9 @@ func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
 	}()
 
 	// Batch and send updates.
+	//
+	// We try to batch updates that happen in quick succession by waiting a
+	// short time after receiving an update.
 	for firstUpdate := range updates {
 		firstUpdate.Apply(&state)
 		fs.collectBatch(&state, updates)
