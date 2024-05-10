@@ -54,10 +54,19 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 			"max", maxFileLineBytes,
 		)
 	default:
-		ctx.ModifyRequest(&TransmitChunk{
-			EventsLines: []string{string(line)},
+		ctx.ModifyRequest(&collectorStatsUpdate{
+			lines: []string{string(line)},
 		})
 	}
 
 	return nil
+}
+
+type collectorStatsUpdate struct {
+	lines []string
+}
+
+func (u *collectorStatsUpdate) Apply(state *CollectorState) {
+	state.Buffer.EventsLines =
+		append(state.Buffer.EventsLines, u.lines...)
 }
