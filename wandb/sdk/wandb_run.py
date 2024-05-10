@@ -31,6 +31,7 @@ from typing import (
     Tuple,
     Type,
     Union,
+    Set
 )
 
 import requests
@@ -1474,21 +1475,16 @@ class Run:
             self._set_nested_value(d[keys[0]], keys[1:], value, split_table)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        chart_keys = set()
+        chart_keys: Set[Tuple[str, ...]] = set()
         split_table_set = set()
 
-        def transform(key: Union[str, List[str]], value: Any) -> Any:
-            if isinstance(key, str):
-                key = [key]
+        def transform(key: List[str], value: Any) -> Any:
             if isinstance(value, dict):
                 return {k: transform([*key, k], v) for k, v in value.items()}
             if isinstance(value, Visualize):
-                config_key = value.get_config_key(
-                    key if isinstance(key, str) else ".".join(key)
-                )
-                config_value = value.get_config_value(
-                    key if isinstance(key, str) else ".".join(key)
-                )
+                formatted_key = ".".join(key)
+                config_key = value.get_config_key(formatted_key)
+                config_value = value.get_config_value(formatted_key)
                 value = value._data
                 self._config_callback(val=config_value, key=config_key)
                 return value
@@ -1496,15 +1492,14 @@ class Run:
                 formatted_key = ".".join(key)
                 chart_keys.add(tuple(key))
 
-                config_key = value.get_config_key(
-                    key if isinstance(key, str) else ".".join(key)
-                )
+                config_key = value.get_config_key(formatted_key)
                 if value._split_table:
                     config_value = value.get_config_value(
                         "Vega2",
                         value.user_query(f"Custom Chart Tables/{formatted_key}_table"),
                     )
                     split_table_set.add(tuple(key))
+                    
                 else:
                     config_value = value.get_config_value(
                         "Vega2", value.user_query(f"{formatted_key}_table")
@@ -1516,7 +1511,7 @@ class Run:
                 return value
 
         for k, v in row.items():
-            row[k] = transform(k, v)
+            row[k] = transform([k], v)
 
         for k in chart_keys:
             klist = list(k)
