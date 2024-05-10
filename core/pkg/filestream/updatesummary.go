@@ -43,10 +43,18 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 			AtMostEvery(time.Minute).
 			Write("Skipped uploading summary data that exceeded size limit.")
 	} else {
-		ctx.ModifyRequest(&TransmitChunk{
-			LatestSummary: string(line),
+		ctx.ModifyRequest(&collectorSummaryUpdate{
+			newSummary: string(line),
 		})
 	}
 
 	return nil
+}
+
+type collectorSummaryUpdate struct {
+	newSummary string
+}
+
+func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
+	state.Buffer.LatestSummary = u.newSummary
 }

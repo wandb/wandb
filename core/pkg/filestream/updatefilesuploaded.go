@@ -10,9 +10,18 @@ type FilesUploadedUpdate struct {
 }
 
 func (u *FilesUploadedUpdate) Apply(ctx UpdateContext) error {
-	ctx.ModifyRequest(&TransmitChunk{
-		UploadedFiles: []string{u.RelativePath},
+	ctx.ModifyRequest(&collectorFilesUploadedUpdate{
+		relativePaths: []string{u.RelativePath},
 	})
 
 	return nil
+}
+
+type collectorFilesUploadedUpdate struct {
+	relativePaths []string
+}
+
+func (u *collectorFilesUploadedUpdate) Apply(state *CollectorState) {
+	state.Buffer.UploadedFiles =
+		append(state.Buffer.UploadedFiles, u.relativePaths...)
 }

@@ -640,6 +640,52 @@ async def test_inner_thread_run_job(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
+async def test_raise_warnings(mocker, clean_agent):
+    _setup(mocker)
+    mocker.status = MagicMock()
+    mocker.status.state = "preempted"
+    mocker.status.messages = ["Test message"]
+    mocker.run = MagicMock()
+    _mock_get_status = AsyncMock(return_value=mocker.status)
+    mocker.run.get_status = _mock_get_status
+    mocker.runner = MagicMock()
+    mocker.runner.run = AsyncMock(return_value=mocker.run)
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.runner_from_config",
+        return_value=mocker.runner,
+    )
+
+    mocker.patch("wandb.sdk.launch.agent.agent.DEFAULT_STOPPED_RUN_TIMEOUT", new=0)
+    mocker.patch("wandb.sdk.launch.agent.agent.AGENT_POLLING_INTERVAL", new=0)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", MagicMock(), run=mocker.run
+    )
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_spec = {
+        "docker": {"docker_image": "blah-blah:latest"},
+        "entity": "user",
+        "project": "test",
+    }
+
+    await agent._task_run_job(
+        mock_spec,
+        {"runQueueItemId": "blah"},
+        {},
+        mocker.api,
+        threading.current_thread().ident,
+        job,
+    )
+    assert agent._known_warnings == ["Test message"]
+    mocker.api.update_run_queue_item_warning.assert_called_once_with(
+        "run_queue_item_id", "Test message", "Kubernetes", []
+    )
+
+
+@pytest.mark.asyncio
 async def test_get_job_and_queue(mocker):
     _setup(mocker)
     mock_config = {

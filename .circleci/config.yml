@@ -49,7 +49,7 @@ parameters:
     default: 1
   go_version:
     type: string
-    default: "1.22.2"
+    default: "1.22.3"
   container_registry:
     type: string
     default: "us-central1-docker.pkg.dev"

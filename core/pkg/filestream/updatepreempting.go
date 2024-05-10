@@ -15,10 +15,14 @@ type PreemptingUpdate struct {
 }
 
 func (u *PreemptingUpdate) Apply(ctx UpdateContext) error {
-	ctx.ModifyRequest(&TransmitChunk{
-		HasPreempting: true,
-		Preempting:    true,
-	})
+	ctx.ModifyRequest(&collectorPreemptingUpdate{})
 
 	return nil
+}
+
+type collectorPreemptingUpdate struct{}
+
+func (u *collectorPreemptingUpdate) Apply(state *CollectorState) {
+	state.Buffer.HasPreempting = true
+	state.Buffer.Preempting = true
 }
