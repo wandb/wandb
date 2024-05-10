@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
-  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 # Contributing to `wandb`
@@ -218,7 +218,10 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Download and install Go version `1.22.2` following the instructions [here](https://go.dev/doc/install).
+Install Go version `1.22.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+```shell
+brew install go@1.22
+```
 
 ### Building/installing the package
 
@@ -243,7 +246,7 @@ We are using [pre-commit hooks](https://pre-commit.com/#install) to manage our l
 
 To install `pre-commit` run the following:
 ```shell
-pip install pre-commit
+pip install -U pre-commit
 ```
 
 To install all of our pre-commit hooks run:
@@ -350,7 +353,6 @@ Our pre-commit hook will auto-generate the required code for you.
 
 We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in `tests/`.
 All test dependencies should be in `requirements_dev.txt` so you could just run:
-`
 
 ```shell
 `pip install -r requirements_dev.txt`

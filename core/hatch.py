@@ -28,6 +28,7 @@ def build_wandb_core(
     coverage_flags = ["-cover"] if with_code_coverage else []
     output_flags = ["-o", str(".." / output_path)]
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
+    vendor_flags = ["-mod=vendor"]
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
@@ -38,6 +39,7 @@ def build_wandb_core(
             *coverage_flags,
             *ld_flags,
             *output_flags,
+            *vendor_flags,
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
         cwd="./core",
