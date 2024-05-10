@@ -1513,14 +1513,14 @@ class Run:
         for k, v in row.items():
             row[k] = transform([k], v)
 
-        for k in chart_keys:
-            klist = list(k)
-            value = self._get_nested_value(row, klist)
+        for keys_set in chart_keys:
+            key_list = list(keys_set)
+            value = self._get_nested_value(row, key_list)
 
-            if k in split_table_set:
-                self._set_nested_value(row, klist, value, split_table=True)
+            if keys_set in split_table_set:
+                self._set_nested_value(row, key_list, value, split_table=True)
             else:
-                self._set_nested_value(row, klist, value, split_table=False)
+                self._set_nested_value(row, key_list, value, split_table=False)
 
         return row
 
