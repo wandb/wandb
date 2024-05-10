@@ -9,6 +9,8 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"testing"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
 )
@@ -21,6 +23,8 @@ import (
 // a real object in tests.
 type FakeClient struct {
 	sync.Mutex
+
+	requestCountCond *sync.Cond
 
 	baseURL  *url.URL
 	requests []RequestCopy
@@ -42,11 +46,15 @@ func NewFakeClient(baseURLString string) *FakeClient {
 		panic(err)
 	}
 
-	return &FakeClient{
+	client := &FakeClient{
 		baseURL:     baseURL,
 		requests:    make([]RequestCopy, 0),
 		responseErr: fmt.Errorf("apitest: no response"),
 	}
+
+	client.requestCountCond = sync.NewCond(&client.Mutex)
+
+	return client
 }
 
 // TestResponse is an easy-to-use [http.Response] for tests.
@@ -75,6 +83,32 @@ func (c *FakeClient) GetRequests() []RequestCopy {
 	c.Lock()
 	defer c.Unlock()
 	return slices.Clone(c.requests)
+}
+
+// WaitUntilRequestCount blocks until len(GetRequests()) >= n.
+func (c *FakeClient) WaitUntilRequestCount(
+	t *testing.T,
+	n int,
+	timeout time.Duration,
+) {
+	success := make(chan struct{})
+
+	c.Lock()
+	go func() {
+		defer c.Unlock()
+		for len(c.requests) < n {
+			c.requestCountCond.Wait()
+		}
+		close(success)
+	}()
+
+	select {
+	case <-success:
+	case <-time.After(timeout):
+		t.Fatal(fmt.Errorf(
+			"did not reach %d requests after %v",
+			n, timeout))
+	}
 }
 
 var _ api.Client = &FakeClient{}
@@ -107,6 +141,7 @@ func (c *FakeClient) Do(req *http.Request) (*http.Response, error) {
 		Body:   body,
 		Header: req.Header,
 	})
+	c.requestCountCond.Broadcast()
 
 	return c.response, c.responseErr
 }
