@@ -113,7 +113,7 @@ def run_pytest(
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")
 
-    # (pytest-cov) Python coverage information.
+    # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
     pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
 
@@ -161,11 +161,9 @@ def run_yea(
         yea_opts.append("--yeadoc")
 
     yea_env = {
-        # TODO: We shouldn't have to do this!
         "YEACOV_SOURCE": str(site_packages_dir(session) / "wandb"),
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
-        # TODO: Do we really need this one when testing?
         "WANDB_API_KEY": session.env.get("WANDB_API_KEY"),
         "WANDB__REQUIRE_CORE": str(require_core),
         # Set the _network_buffer setting to 1000 to increase the likelihood

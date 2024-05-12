@@ -447,7 +447,8 @@ jobs:
       python: { type: string }
       codecov_flags: { type: string }
 
-      # If using the `yea_tests` nox session, this is the YEA_SHARD to set.
+      # If using the `functional_tests` nox session, this is
+      # the YEA_SHARD to set.
       yea_shard:
         default: ""
         type: string
@@ -1234,42 +1235,38 @@ workflows:
           requires:
             - "slack-notify-on-start"
 
-      - tox-base:
+      - nox-tests:
           name: "\
             func-tests-linux-\
             <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
 
           matrix:
             parameters:
-              shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
-              python_version_major: [3]
-              python_version_minor: [7]
+              yea_shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+              python: ["3.7"]
 
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
+          parallelism: 1
+          executor:
+            name: linux-python
+            python: <<matrix.python>>
 
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
-          notify_on_failure: true
-
-      - tox-base:
+      - nox-tests:
           name: "\
             func-tests-linux-\
             <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
 
           context: sdk-third-party-api
 
@@ -1292,25 +1289,19 @@ workflows:
                 - sb3
                 - tf
                 - lightning
-              python_version_major: [3]
-              python_version_minor: [9]
+              python: ["3.9"]
 
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
+          parallelism: 1
+          executor:
+            name: linux-python
+            python: <<matrix.python>>
 
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
-          notify_on_failure: true
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
       # build docker images for yea shards
       - sdk_docker:
