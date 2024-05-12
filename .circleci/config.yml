@@ -1666,15 +1666,24 @@ workflows:
             <<matrix.python>>"
           session: yea_tests
           yea_shard: <<matrix.shard>>
+          codecov_flags: func
 
           matrix:
             parameters:
               shard: [mitm, docs]
               python: ["3.9"]
 
+          parallelism: 1
           executor:
             name: linux-python
             python: <<matrix.python>>
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
       #
       # Functional tests with yea on Windows
