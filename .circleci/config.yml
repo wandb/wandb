@@ -1628,51 +1628,20 @@ workflows:
       #
       # Functional tests with yea on Linux
       #
-      - tox-base:
-          name: "\
-            func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-
-          parallelism: 4
-
-          matrix:
-            parameters:
-              shard: ["default", "artifacts", "launch"]
-              python_version_major: [3]
-              python_version_minor: [9]
-
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-
-          tox_args: "tests/functional_tests"
-
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
       - nox-tests:
           name: "\
             func-tests-linux-\
             <<matrix.yea_shard>>-\
             <<matrix.python>>"
-          session: yea_tests
+          session: functional_tests
           codecov_flags: func
 
           matrix:
             parameters:
-              yea_shard: [mitm, docs]
+              yea_shard: [default, artifacts, launch, mitm, docs]
               python: ["3.9"]
 
-          parallelism: 1
+          parallelism: 4
           executor:
             name: linux-python
             python: <<matrix.python>>

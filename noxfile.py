@@ -306,11 +306,11 @@ def notebook_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 @nox.parametrize("core", [False, True], ["no_wandb_core", "wandb_core"])
-def yea_tests(session: nox.Session, core: bool) -> None:
+def functional_tests(session: nox.Session, core: bool) -> None:
     """Runs functional tests using yea.
 
     The yea shard must be specified using the YEA_SHARD environment variable.
-    The test paths to run are specified via positional arguments.
+    The test paths to run may be specified via positional arguments.
     """
     shard = session.env.get("YEA_SHARD")
     if not shard:
@@ -324,7 +324,13 @@ def yea_tests(session: nox.Session, core: bool) -> None:
         shard=shard,
         require_core=core,
         yeadoc=True,
-        paths=(session.posargs or ["--all"]),
+        paths=(
+            session.posargs
+            or [
+                "tests/functional_tests",
+                "tests/standalone_tests",
+            ]
+        ),
     )
 
 
