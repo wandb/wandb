@@ -75,7 +75,7 @@ def get_circleci_splits(session: nox.Session) -> Optional[Tuple[int, int]]:
     circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
 
     if circle_node_total and circle_node_index:
-        return (circle_node_index, circle_node_total)
+        return (int(circle_node_index), int(circle_node_total))
 
     return (0, 0)
 
