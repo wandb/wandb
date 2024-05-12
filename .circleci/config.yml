@@ -1238,7 +1238,7 @@ workflows:
       - nox-tests:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
+            <<matrix.yea_shard>>-\
             <<matrix.python>>"
           session: functional_tests
           codecov_flags: func
@@ -1263,7 +1263,7 @@ workflows:
       - nox-tests:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
+            <<matrix.yea_shard>>-\
             <<matrix.python>>"
           session: functional_tests
           codecov_flags: func
