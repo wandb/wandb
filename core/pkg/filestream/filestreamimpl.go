@@ -26,17 +26,48 @@ type FsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-func (fs *fileStream) addTransmit(chunk CollectorStateUpdate) {
-	fs.transmitChan <- chunk
+// loopProcess ingests the processChan to process incoming data into
+// FS requests.
+func (fs *fileStream) loopProcess() {
+	// Close the output channel at the end.
+	defer close(fs.transmitChan)
+
+	fs.logger.Debug("filestream: open", "path", fs.path)
+
+	for update := range fs.processChan {
+		err := update.Apply(UpdateContext{
+			ModifyRequest: func(csu CollectorStateUpdate) {
+				fs.transmitChan <- csu
+			},
+
+			Settings: fs.settings,
+			ClientID: fs.clientId,
+
+			Logger:  fs.logger,
+			Printer: fs.printer,
+		})
+
+		if err != nil {
+			fs.logFatalAndStopWorking(err)
+			break
+		}
+	}
+
+	// Flush input channel if we exited early.
+	for range fs.processChan {
+	}
 }
 
-// loopTransmit sends updates to the backend, consuming the entire channel.
+// loopTransmit sends updates in the transmitChan to the backend.
 //
 // Updates are batched to reduce the total number of HTTP requests.
 // An empty "heartbeat" request is sent when there are no updates for too long,
 // guaranteeing that a request is sent at least once every period specified
 // by `heartbeatStopwatch`.
-func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
+func (fs *fileStream) loopTransmit() {
+	// Close the output channel at the end.
+	defer close(fs.feedbackChan)
+
 	state := CollectorState{}
 
 	transmissions := make(chan *FsTransmitData)
@@ -45,7 +76,7 @@ func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
 	transmitWG.Add(1)
 	go func() {
 		defer transmitWG.Done()
-		fs.sendAll(transmissions)
+		fs.sendAll(transmissions, fs.feedbackChan)
 	}()
 
 	// Periodically send heartbeats.
@@ -65,9 +96,9 @@ func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
 	//
 	// We try to batch updates that happen in quick succession by waiting a
 	// short time after receiving an update.
-	for firstUpdate := range updates {
+	for firstUpdate := range fs.transmitChan {
 		firstUpdate.Apply(&state)
-		fs.collectBatch(&state, updates)
+		fs.collectBatch(&state, fs.transmitChan)
 
 		fs.heartbeatStopwatch.Reset()
 		data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
@@ -85,6 +116,12 @@ func (fs *fileStream) loopTransmit(updates <-chan CollectorStateUpdate) {
 	transmissions <- data
 	close(transmissions)
 	transmitWG.Wait()
+}
+
+// loopFeedback consumes the feedbackChan to process feedback from the backend.
+func (fs *fileStream) loopFeedback() {
+	for range fs.feedbackChan {
+	}
 }
 
 func (fs *fileStream) sendHeartbeats(
@@ -122,9 +159,12 @@ func (fs *fileStream) collectBatch(
 	}
 }
 
-func (fs *fileStream) sendAll(data <-chan *FsTransmitData) {
+func (fs *fileStream) sendAll(
+	data <-chan *FsTransmitData,
+	feedbackChan chan<- map[string]any,
+) {
 	for x := range data {
-		err := fs.send(x)
+		err := fs.send(x, feedbackChan)
 
 		if err != nil {
 			fs.logFatalAndStopWorking(err)
@@ -137,7 +177,10 @@ func (fs *fileStream) sendAll(data <-chan *FsTransmitData) {
 	}
 }
 
-func (fs *fileStream) send(data *FsTransmitData) error {
+func (fs *fileStream) send(
+	data *FsTransmitData,
+	feedbackChan chan<- map[string]any,
+) error {
 	// Stop working after death to avoid data corruption.
 	if fs.isDead() {
 		return fmt.Errorf("filestream: can't send because I am dead")
@@ -183,7 +226,7 @@ func (fs *fileStream) send(data *FsTransmitData) error {
 	if err != nil {
 		fs.logger.CaptureError("json decode error", err)
 	}
-	fs.addFeedback(res)
+	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
 	return nil
 }
