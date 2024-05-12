@@ -1,7 +1,5 @@
-// Package watcher2 defines a file watcher.
-//
-// It is the successor to "watcher", which will eventually be removed.
-package watcher2
+// Package watcher notifies on changes to files or directories.
+package watcher
 
 import (
 	"time"
