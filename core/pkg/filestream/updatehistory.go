@@ -45,8 +45,6 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		// We consider this non-blocking. We'll upload a run with some missing
 		// data, but it's better than not uploading anything at all, as long
 		// as we inform the user.
-		//
-		// TODO: inform the user
 		ctx.Logger.CaptureWarn(
 			"filestream: run history line too long, skipping",
 			"len", len(line),
