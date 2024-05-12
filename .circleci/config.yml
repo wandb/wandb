@@ -447,6 +447,11 @@ jobs:
       python: { type: string }
       codecov_flags: { type: string }
 
+      # If using the `yea_tests` nox session, this is the YEA_SHARD to set.
+      yea_shard:
+        default: ""
+        type: string
+
     executor: <<parameters.executor>>
 
     parallelism: <<parameters.parallelism>>
@@ -465,6 +470,8 @@ jobs:
           no_output_timeout: 10m
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>>
+          environment:
+            YEA_SHARD: <<parameters.yea_shard>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
@@ -1652,32 +1659,22 @@ workflows:
             <<matrix.python_version_minor>>"
           codecov_flags: func
 
-      - tox-base:
+      - nox-tests:
           name: "\
             func-tests-linux-\
             <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.python>>"
+          session: yea_tests
+          yea_shard: <<matrix.shard>>
 
           matrix:
             parameters:
               shard: [mitm, docs]
-              python_version_major: [3]
-              python_version_minor: [9]
+              python: ["3.9"]
 
-          toxenv: "\
-            func-\
-            <<matrix.shard>>-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-
-          coverage_dir: "\
-            func-\
-            <<matrix.shard>>-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
+          executor:
+            name: linux-python
+            python: <<matrix.python>>
 
       #
       # Functional tests with yea on Windows
