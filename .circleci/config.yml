@@ -1272,7 +1272,7 @@ workflows:
 
           matrix:
             parameters:
-              shard:
+              yea_shard:
                 # - "llm"  # TODO: needs review
                 - noml
                 - ray112
