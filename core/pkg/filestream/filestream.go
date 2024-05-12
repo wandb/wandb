@@ -1,34 +1,4 @@
-// Package filestream implements routines necessary for communicating with
-// the W&B backend filestream service.
-//
-// Internally there are three goroutines spun up:
-//
-//	process:  process records into an appropriate format to transmit
-//	transmit: collect and transmit messages to the filestream service
-//	feedback: process feedback from the filestream service
-//
-// Below demonstrates a common execution flow through this package:
-//
-//	{caller}:
-//	 - filestream.go:    NewFileStream           - create service
-//	 - filestream.go:    FileStream.Start        - spin up worker goroutines
-//	 - filestream.go:    FileStream.StreamRecord - add a record to be processed and sent
-//	 - loop_process.go:  Filestream.addProcess   - add to process channel
-//	{goroutine process}:
-//	 - loop_process.go:  Filestream.loopProcess  - loop acting on process channel
-//	 - loop_transmit.go: Filestream.addTransmit  - add to transmit channel
-//	{goroutine transmit}:
-//	 - loop_transmit.go: Filestream.loopTransmit - loop acting on transmit channel
-//	 - collector.go:     chunkCollector          - class to coordinate collecting work from transmit channel
-//	 - collector.go:     chunkCollector.read     - read the first transmit work from transmit channel
-//	 - collector.go:     chunkCollector.readMore - keep reading until we have enough or hit timeout
-//	 - collector.go:     chunkCollector.dump     - create a blob to be used to serialize into json to send
-//	 - loop_transmit.go: Filestream.send         - send json to backend filestream service
-//	 - loop_feedback.go: Filestream.add_feedback - add to feedback channel
-//	{goroutine feedback}
-//	 - loop_feedback.go: Filestream.loopFeedback - loop acting on feedback channel
-//	{caller}
-//	 - filestream.go:    FileStream.Close        - graceful shutdown of worker goroutines
+// Package filestream communicates with the W&B backend filestream service.
 package filestream
 
 import (
@@ -108,9 +78,6 @@ type fileStream struct {
 	processChan  chan Update
 	transmitChan chan CollectorStateUpdate
 	feedbackChan chan map[string]interface{}
-
-	processWait  *sync.WaitGroup
-	transmitWait *sync.WaitGroup
 	feedbackWait *sync.WaitGroup
 
 	// keep track of where we are streaming each file chunk
@@ -167,12 +134,10 @@ func NewFileStream(params FileStreamParams) FileStream {
 		logger:          params.Logger,
 		printer:         params.Printer,
 		apiClient:       params.ApiClient,
-		processWait:     &sync.WaitGroup{},
-		transmitWait:    &sync.WaitGroup{},
-		feedbackWait:    &sync.WaitGroup{},
 		processChan:     make(chan Update, BufferSize),
 		transmitChan:    make(chan CollectorStateUpdate, BufferSize),
 		feedbackChan:    make(chan map[string]interface{}, BufferSize),
+		feedbackWait:    &sync.WaitGroup{},
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
@@ -220,36 +185,23 @@ func (fs *fileStream) Start(
 		fs.offsetMap = maps.Clone(offsetMap)
 	}
 
-	fs.processWait.Add(1)
-	go func() {
-		defer fs.processWait.Done()
-		fs.loopProcess(fs.processChan)
-	}()
-
-	fs.transmitWait.Add(1)
-	go func() {
-		defer fs.transmitWait.Done()
-		fs.loopTransmit(fs.transmitChan)
-	}()
+	go fs.loopProcess()
+	go fs.loopTransmit()
 
 	fs.feedbackWait.Add(1)
 	go func() {
 		defer fs.feedbackWait.Done()
-		fs.loopFeedback(fs.feedbackChan)
+		fs.loopFeedback()
 	}()
 }
 
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
-	fs.addProcess(update)
+	fs.processChan <- update
 }
 
 func (fs *fileStream) Close() {
 	close(fs.processChan)
-	fs.processWait.Wait()
-	close(fs.transmitChan)
-	fs.transmitWait.Wait()
-	close(fs.feedbackChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
 }
