@@ -17,7 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/watcher2"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -151,7 +151,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileWatcher := watcher2.New(watcher2.Params{Logger: s.logger})
+	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager

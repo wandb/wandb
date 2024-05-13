@@ -1,12 +1,12 @@
-// Package watcher2test defines a fake Watcher implementation for testing.
-package watcher2test
+// Package watchertest defines a fake Watcher implementation for testing.
+package watchertest
 
 import (
 	"os"
 	"path/filepath"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/watcher2"
+	"github.com/wandb/wandb/core/internal/watcher"
 )
 
 // FakeWatcher is a Watcher implementation that can be used in tests.
@@ -16,7 +16,7 @@ type FakeWatcher struct {
 	handlers map[string]func(string)
 }
 
-var _ watcher2.Watcher = &FakeWatcher{}
+var _ watcher.Watcher = &FakeWatcher{}
 
 func NewFakeWatcher() *FakeWatcher {
 	return &FakeWatcher{

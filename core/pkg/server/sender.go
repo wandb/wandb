@@ -35,7 +35,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/internal/watcher2"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	fs "github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/launch"
@@ -57,7 +57,7 @@ type SenderParams struct {
 	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
-	FileWatcher         watcher2.Watcher
+	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
@@ -98,7 +98,7 @@ type Sender struct {
 	fileTransferManager filetransfer.FileTransferManager
 
 	// fileWatcher notifies when files in the file system are changed
-	fileWatcher watcher2.Watcher
+	fileWatcher watcher.Watcher
 
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
