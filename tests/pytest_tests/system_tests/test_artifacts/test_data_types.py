@@ -116,10 +116,7 @@ def test_log_nested_split_table(
                 data.append(
                     [
                         i,
-                        random.random()
-                        + math.log(1 + i)
-                        + offset
-                        + random.random(),
+                        random.random() + math.log(1 + i) + offset + random.random(),
                     ]
                 )
             randomized_data.append(data)
