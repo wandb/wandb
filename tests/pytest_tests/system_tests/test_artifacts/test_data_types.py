@@ -133,7 +133,7 @@ def test_log_nested_split_table(
                 vega_spec_name="carey/new_chart",
                 data_table=table,
                 fields=fields,
-                split_table=True
+                split_table=True,
             )
 
             # Log the plot to have it show up in the UI
