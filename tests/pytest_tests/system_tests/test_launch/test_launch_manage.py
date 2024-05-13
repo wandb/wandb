@@ -70,7 +70,7 @@ def test_manage_config_file(
         run_api_object = api.run(run.path)
         poll = 1
         while poll < 8:
-            file = run_api_object.file("configs/config.yaml")
+            file = run_api_object.file("_wandb_configs/config.yaml")
             if file.size == len(config_str):
                 break
             time.sleep(poll)

@@ -22,6 +22,7 @@ from .files import config_path_is_valid, override_file
 
 PERIOD = "."
 BACKSLASH = "\\"
+LAUNCH_MANAGED_CONFIGS_DIR = "_wandb_configs"
 
 
 class ConfigTmpDir:
@@ -42,7 +43,7 @@ class ConfigTmpDir:
     def __init__(self):
         if not hasattr(self, "_tmp_dir"):
             self._tmp_dir = tempfile.mkdtemp()
-            self._configs_dir = os.path.join(self._tmp_dir, "configs")
+            self._configs_dir = os.path.join(self._tmp_dir, LAUNCH_MANAGED_CONFIGS_DIR)
             os.mkdir(self._configs_dir)
 
     @property
