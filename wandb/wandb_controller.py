@@ -431,7 +431,7 @@ class _WandbController:
         if self._sweep_metric:
             k = ["_step"]
             k.append(self._sweep_metric)
-            specs_json = {"keys": k, "samples": 1000}
+            specs_json = {"keys": k, "samples": 10_000}
         specs = json.dumps(specs_json)
         # TODO(jhr): catch exceptions?
         sweep_obj = self._api.sweep(self._sweep_id, specs)
