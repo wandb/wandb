@@ -1531,7 +1531,6 @@ workflows:
             parameters:
               python: ["3.9", "3.12"]
 
-
           parallelism: 4
           executor:
             name: win/server-2019
@@ -1647,22 +1646,35 @@ workflows:
       #
       # Functional tests with yea on Windows
       #
-      - win:
+      - nox-tests:
+          name: func-tests-win-default-<<matrix.python>>
+          session: functional_tests
+          yea_shard: default
+          codecov_flags: func
+
           filters:
             branches:
               only:
                 # - main
                 - /^release-.*/
                 - /^.*-ci-win$/
+
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "func-default-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/functional_tests"
-          parallelism: 6
-          xdist: 1
+              python: ["3.9"]
+
+          parallelism: 4
+          executor:
+            name: win/server-2019
+            size: large
+            shell: bash.exe
+
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  choco install -y ffmpeg \
+                    $( echo python<<matrix.python>> | tr -d . )
 
       #
       # functional tests with different executors
