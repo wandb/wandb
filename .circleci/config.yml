@@ -1555,7 +1555,7 @@ workflows:
           filters:
             branches:
               only:
-                # - main
+                - main
                 - /^release-.*/
                 - /^.*-ci-win$/
 
@@ -1644,7 +1644,7 @@ workflows:
           filters:
             branches:
               only:
-                # - main
+                - main
                 - /^release-.*/
                 - /^.*-ci-win$/
 
