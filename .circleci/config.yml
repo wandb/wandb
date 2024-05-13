@@ -466,17 +466,23 @@ jobs:
 
   nox-tests-linux:
     parameters:
+      executor_name:
+        description:
+          Set to "local-testcontainer" to run using the local-testcontainer
+          executor. Defaults to "linux-python".
+        type: string
+        default: linux-python
       parallelism: { type: integer }
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard:  # if tests with yea, like functional_tests
+      yea_shard:  # if running tests with yea, like functional_tests
         default: ""
         type: string
 
     parallelism: <<parameters.parallelism>>
     executor:
-      name: linux-python
+      name: <<parameters.executor_name>>
       python: <<parameters.python>>
 
     steps:
@@ -497,7 +503,7 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard:  # if tests with yea, like functional_tests
+      yea_shard:  # if running tests with yea, like functional_tests
         default: ""
         type: string
 
@@ -522,7 +528,7 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard:  # if tests with yea, like functional_tests
+      yea_shard:  # if running tests with yea, like functional_tests
         default: ""
         type: string
 
@@ -1565,6 +1571,7 @@ workflows:
           session: system_tests
           codecov_flags: system
           parallelism: 8
+          executor_name: local-testcontainer
 
           filters:
             branches:
@@ -1580,6 +1587,7 @@ workflows:
           session: notebook_tests
           codecov_flags: system
           parallelism: 1
+          executor_name: local-testcontainer
 
           matrix:
             parameters:
