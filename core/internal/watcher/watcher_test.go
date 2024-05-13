@@ -1,4 +1,4 @@
-package watcher2_test
+package watcher_test
 
 import (
 	"os"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/watcher2"
+	"github.com/wandb/wandb/core/internal/watcher"
 )
 
 func mkdir(t *testing.T, path string) {
@@ -64,12 +64,12 @@ func TestWatcher(t *testing.T) {
 	// cycle for someone working on this package. So you should try to write
 	// bug-free code :)
 
-	newTestWatcher := func() watcher2.Watcher {
-		return watcher2.New(watcher2.Params{
+	newTestWatcher := func() watcher.Watcher {
+		return watcher.New(watcher.Params{
 			PollingPeriod: 10 * time.Millisecond,
 		})
 	}
-	finishWithDeadline := func(t *testing.T, w watcher2.Watcher) {
+	finishWithDeadline := func(t *testing.T, w watcher.Watcher) {
 		finished := make(chan struct{})
 
 		go func() {

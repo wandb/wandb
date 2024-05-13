@@ -18,7 +18,6 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 	rs.ApplyChangeRecord(
 		u.Record,
 		func(err error) {
-			// TODO: maybe we should shut down filestream if this fails?
 			ctx.Logger.CaptureError(
 				"filestream: failed to apply summary record", err)
 		},

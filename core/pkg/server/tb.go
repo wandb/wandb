@@ -4,13 +4,13 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wandb/wandb/core/internal/watcher2"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type TBHandler struct {
-	watcher    watcher2.Watcher
+	watcher    watcher.Watcher
 	workingDir string
 	tracked    map[string]struct{}
 	logger     *observability.CoreLogger
@@ -20,7 +20,7 @@ type TBHandler struct {
 }
 
 func NewTBHandler(
-	watcher watcher2.Watcher,
+	watcher watcher.Watcher,
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	outChan chan *service.Record,
