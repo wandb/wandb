@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -25,7 +26,6 @@ type ArtifactDownloader struct {
 	ArtifactID             string
 	DownloadRoot           string
 	AllowMissingReferences bool   // Currently unused
-	SkipCache              bool   // Currently unused
 	PathPrefix             string // Currently unused
 }
 
@@ -50,7 +50,6 @@ func NewArtifactDownloader(
 		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
 		AllowMissingReferences: allowMissingReferences,
-		SkipCache:              skipCache,
 		PathPrefix:             pathPrefix,
 		FileCache:              fileCache,
 	}
@@ -120,6 +119,9 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			cursor = response.Artifact.Files.PageInfo.EndCursor
 			for _, edge := range response.GetArtifact().GetFiles().Edges {
 				filePath := edge.GetNode().Name
+				if !strings.HasPrefix(filePath, ad.PathPrefix) {
+					continue
+				}
 				entry, err := manifest.GetManifestEntryFromArtifactFilePath(filePath)
 				if err != nil {
 					return err
