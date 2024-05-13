@@ -358,7 +358,8 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy: ...
+    class Dummy:
+        ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -1491,12 +1492,20 @@ class Run:
             elif isinstance(value, CustomChart):
                 formatted_key = ".".join(key)
                 chart_keys.add(tuple(key))
-
                 config_key = value.get_config_key(formatted_key)
-                if value._split_table:
+                if value._split_table and len(key) == 1:
                     config_value = value.get_config_value(
                         "Vega2",
                         value.user_query(f"Custom Chart Tables/{formatted_key}_table"),
+                    )
+                    split_table_set.add(tuple(key))
+
+                elif value._split_table and len(key) > 1:
+                    config_value = value.get_config_value(
+                        "Vega2",
+                        value.user_query(
+                            f"{key[0]}.Custom Chart Tables/{key[1]}_table"
+                        ),
                     )
                     split_table_set.add(tuple(key))
 
@@ -1521,7 +1530,6 @@ class Run:
                 self._set_nested_value(row, key_list, value, split_table=True)
             else:
                 self._set_nested_value(row, key_list, value, split_table=False)
-
         return row
 
     def _partial_history_callback(
@@ -3393,8 +3401,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert (
-            "model" in str(artifact.type.lower())
+        assert "model" in str(
+            artifact.type.lower()
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3486,8 +3494,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert (
-                "model" in str(artifact.type.lower())
+            assert "model" in str(
+                artifact.type.lower()
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type

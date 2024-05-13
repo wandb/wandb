@@ -1,4 +1,6 @@
 import json
+import math
+import random
 
 import matplotlib
 import numpy as np
@@ -87,6 +89,86 @@ def test_log_nested_cc(user, test_settings, relay_server, inject_graphql_respons
                     )
                 }
             }
+        )
+        run.finish()
+
+
+def test_log_nested_split_table(
+    user, test_settings, relay_server, inject_graphql_response
+):
+    server_info_response = inject_graphql_response(
+        # request
+        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
+        # response
+        body=json.dumps(
+            {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
+        ),
+    )
+    with relay_server(inject=[server_info_response]):
+        run = wandb.init(settings=test_settings())
+        offset = random.random()
+        # Set up data to log in custom charts
+        randomized_data = []
+        # log 5 different randomized plots
+        for k in range(5):
+            data = []
+            for i in range(100):
+                data.append(
+                    [
+                        i,
+                        random.random()
+                        + math.log(1 + i)
+                        + offset
+                        + random.random(),
+                    ]
+                )
+            randomized_data.append(data)
+
+            # Create a table with the columns to plot
+            table = wandb.Table(data=randomized_data[k], columns=["step", "height"])
+
+            # Map from the table's columns to the chart's fields
+            fields = {"x": "step", "value": "height"}
+
+            # Use the table to populate the new custom chart preset
+            # To use your own saved chart preset, change the vega_spec_name
+            my_custom_chart = wandb.plot_table(
+                vega_spec_name="carey/new_chart",
+                data_table=table,
+                fields=fields,
+            )
+
+            # Log the plot to have it show up in the UI
+            run.log({f"test{k}": {"test2": my_custom_chart}})
+        run.finish()
+
+
+def test_log_nested_visualize(
+    user, test_settings, relay_server, inject_graphql_response
+):
+    server_info_response = inject_graphql_response(
+        # request
+        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
+        # response
+        body=json.dumps(
+            {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
+        ),
+    )
+    with relay_server(inject=[server_info_response]):
+        run = wandb.init(settings=test_settings())
+        data = [
+            ("Dog", "Dog", 34),
+            ("Cat", "Cat", 29),
+            ("Dog", "Cat", 5),
+            ("Cat", "Dog", 3),
+            ("Bird", "Bird", 40),
+            ("Bird", "Cat", 2),
+        ]
+
+        table = wandb.Table(columns=["Predicted", "Actual", "Count"], data=data)
+
+        run.log(
+            {"test": {"test2": wandb.visualize("wandb/confusion_matrix/v1", table)}}
         )
         run.finish()
 
