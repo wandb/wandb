@@ -1626,7 +1626,7 @@ workflows:
       #
       # Functional tests with yea on Windows
       #
-      - nox-tests:
+      - nox-tests-win:
           name: func-tests-win-default-<<matrix.python>>
           session: functional_tests
           yea_shard: default
