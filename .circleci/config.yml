@@ -447,6 +447,12 @@ jobs:
       python: { type: string }
       codecov_flags: { type: string }
 
+      # If using the `functional_tests` nox session, this is
+      # the YEA_SHARD to set.
+      yea_shard:
+        default: ""
+        type: string
+
     executor: <<parameters.executor>>
 
     parallelism: <<parameters.parallelism>>
@@ -465,6 +471,8 @@ jobs:
           no_output_timeout: 10m
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>>
+          environment:
+            YEA_SHARD: <<parameters.yea_shard>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
 
@@ -1227,48 +1235,44 @@ workflows:
           requires:
             - "slack-notify-on-start"
 
-      - tox-base:
+      - nox-tests:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
 
           matrix:
             parameters:
-              shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
-              python_version_major: [3]
-              python_version_minor: [7]
+              yea_shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+              python: ["3.7"]
 
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
+          parallelism: 1
+          executor:
+            name: linux-python
+            python: <<matrix.python>>
 
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
-          notify_on_failure: true
-
-      - tox-base:
+      - nox-tests:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
 
           context: sdk-third-party-api
 
           matrix:
             parameters:
-              shard:
+              yea_shard:
                 # - "llm"  # TODO: needs review
                 - noml
                 - ray112
@@ -1285,25 +1289,19 @@ workflows:
                 - sb3
                 - tf
                 - lightning
-              python_version_major: [3]
-              python_version_minor: [9]
+              python: ["3.9"]
 
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
+          parallelism: 1
+          executor:
+            name: linux-python
+            python: <<matrix.python>>
 
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
-          notify_on_failure: true
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
       # build docker images for yea shards
       - sdk_docker:
@@ -1621,63 +1619,30 @@ workflows:
       #
       # Functional tests with yea on Linux
       #
-      - tox-base:
+      - nox-tests:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
+
+          matrix:
+            parameters:
+              yea_shard: [default, artifacts, launch, mitm, docs]
+              python: ["3.9"]
 
           parallelism: 4
+          executor:
+            name: linux-python
+            python: <<matrix.python>>
 
-          matrix:
-            parameters:
-              shard: ["default", "artifacts", "launch"]
-              python_version_major: [3]
-              python_version_minor: [9]
-
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-
-          tox_args: "tests/functional_tests"
-
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
-      - tox-base:
-          name: "\
-            func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-
-          matrix:
-            parameters:
-              shard: [mitm, docs]
-              python_version_major: [3]
-              python_version_minor: [9]
-
-          toxenv: "\
-            func-\
-            <<matrix.shard>>-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-
-          coverage_dir: "\
-            func-\
-            <<matrix.shard>>-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
+          install_deps:
+            - run:
+                name: Install system deps
+                command: |
+                  apt-get update
+                  apt-get install -y libsndfile1 ffmpeg
 
       #
       # Functional tests with yea on Windows
