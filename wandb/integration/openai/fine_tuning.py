@@ -247,7 +247,9 @@ class WandbLogger:
             cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
-        cls._log_artifacts(fine_tune, project, entity, log_datasets, overwrite, model_name)
+        cls._log_artifacts(
+            fine_tune, project, entity, log_datasets, overwrite, model_name
+        )
 
         # mark run as complete
         cls._run.summary["status"] = "succeeded"
