@@ -105,7 +105,7 @@ repos:
         language: 'script'
         description: "Runs `go test`"
         require_serial: true
-        exclude: ^(core/vendor/)
+        exclude: ^([core/vendor/,client/])
       - id: go-vet
         name: 'go-vet'
         entry: core/scripts/pre-commit-hooks/run-go-vet.sh
@@ -113,7 +113,7 @@ repos:
         language: 'script'
         description: "Runs `go vet`, requires golang"
         require_serial: true
-        exclude: ^(core/vendor/)
+        exclude: ^([core/vendor/,client/])
       - id: golangci-lint
         name: 'golangci-lint'
         entry: core/scripts/pre-commit-hooks/run-golangci-lint.sh
