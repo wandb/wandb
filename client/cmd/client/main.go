@@ -9,7 +9,6 @@ import (
 
 //export Init
 func Init(runId *C.char) {
-	// fmt.Printf("Hello, %s!\n", C.GoString(name))
 	session := client.NewSession()
 	run := session.NewRun(C.GoString(runId))
 

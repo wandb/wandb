@@ -12,6 +12,7 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 # A small hack to allow importing build scripts from the source tree.
 sys.path = [str(pathlib.Path(__file__).parent)] + sys.path
 from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
+from client import hatch as hatch_client  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
 
 
@@ -30,6 +31,7 @@ class CustomBuildHook(BuildHookInterface):
         artifacts: list[str] = build_data["artifacts"]
 
         if self._include_wandb_core():
+            artifacts.extend(self._build_client())
             artifacts.extend(self._build_wandb_core())
 
         if self._include_apple_stats():
@@ -93,6 +95,20 @@ class CustomBuildHook(BuildHookInterface):
         hatch_apple_stats.build_applestats(output_path=output)
 
         return [output.as_posix()]
+
+    def _build_client(self) -> List[str]:
+        output = [
+            pathlib.Path("wandb", "bin", "libwandb.so"),
+            pathlib.Path("wandb", "bin", "libwandb.h"),
+        ]
+
+        self.app.display_waiting("Building libwandb.so...")
+        hatch_client.build_libwandb(
+            go_binary=self._get_and_require_go_binary(),
+            output_path=output[0],
+        )
+
+        return [path.as_posix() for path in output]
 
     def _build_wandb_core(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "wandb-core")
