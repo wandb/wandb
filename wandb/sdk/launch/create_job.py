@@ -245,6 +245,7 @@ def _make_metadata_for_partial_job(
 ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     """Create metadata for partial jobs, return metadata and requirements."""
     metadata = {"_partial": "v0"}
+
     if job_type == "git":
         assert entrypoint is not None
         repo_metadata = _create_repo_metadata(
@@ -287,6 +288,14 @@ def _make_metadata_for_partial_job(
     return None, None
 
 
+def _maybe_warn_python_no_executable(entrypoint: str):
+    entrypoint_list = entrypoint.split(" ")
+    if len(entrypoint_list) == 1 and entrypoint_list[0].endswith(".py"):
+        wandb.termwarn(
+            f"Entrypoint {entrypoint} is a python file without an executable, you may want to use `python {entrypoint}` as the entrypoint instead."
+        )
+
+
 def _create_repo_metadata(
     path: str,
     tempdir: str,
@@ -298,6 +307,9 @@ def _create_repo_metadata(
     if entrypoint and ".." in entrypoint:
         wandb.termerror("Entrypoint cannot contain backward path traversal")
         return None
+
+    _maybe_warn_python_no_executable(entrypoint)
+
     if not _is_git_uri(path):
         wandb.termerror("Path must be a git URI")
         return None
@@ -349,13 +361,11 @@ def _create_artifact_metadata(
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
+
+    _maybe_warn_python_no_executable(entrypoint)
+
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
-    if not entrypoint_file:
-        wandb.termerror(
-            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
-        )
-        return None, None
 
     # read local requirements.txt and dump to temp dir for builder
     requirements = []
