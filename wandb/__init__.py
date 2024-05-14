@@ -13,19 +13,18 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 __version__ = "0.17.1.dev1"
 
-__all__ = ("init",)
+# Used with pypi checks and other messages related to pip
+_wandb_module = "wandb"
 
-import os
-if os.environ.get("WANDB_NG", False):
 
-    from wandb.lib import Lib
-    lib = Lib()
-    init = lib.init
+import os as _os
+if _os.environ.get("WANDB_NG", False):
+
+    from wandb.lib import Lib as _Lib
+    _lib = _Lib()
+    init = _lib.init
 
 else:
-    # Used with pypi checks and other messages related to pip
-    _wandb_module = "wandb"
-
     from typing import Optional
 
     from wandb.errors import Error
