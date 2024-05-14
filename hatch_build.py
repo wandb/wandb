@@ -97,8 +97,9 @@ class CustomBuildHook(BuildHookInterface):
         return [output.as_posix()]
 
     def _build_client(self) -> List[str]:
+        dylib_ext = "dll" if platform.system().lower() == "windows" else "so"
         output = [
-            pathlib.Path("wandb", "bin", "libwandb.so"),
+            pathlib.Path("wandb", "bin", f"libwandb.{dylib_ext}"),
             pathlib.Path("wandb", "bin", "libwandb.h"),
         ]
 
