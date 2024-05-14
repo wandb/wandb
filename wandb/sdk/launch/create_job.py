@@ -291,7 +291,11 @@ def _make_metadata_for_partial_job(
 def _maybe_warn_python_no_executable(entrypoint: str):
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
-    if entrypoint_file.endswith(".py") and len(entrypoint_list) == 1:
+    if (
+        entrypoint_file is not None
+        and entrypoint_file.endswith(".py")
+        and len(entrypoint_list) == 1
+    ):
         wandb.termwarn(
             f"Entrypoint {entrypoint} is a python file without an executable, you may want to use `python {entrypoint}` as the entrypoint instead."
         )
