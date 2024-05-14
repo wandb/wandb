@@ -17,6 +17,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
 )
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
+from wandb.sdk.artifacts.storage_handlers.fsspec_file_handler import FsspecFileHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHandler
@@ -93,6 +94,7 @@ class WandbStoragePolicy(StoragePolicy):
         artifact = WBArtifactHandler()
         local_artifact = WBLocalArtifactHandler()
         file_handler = LocalFileHandler()
+        fsspec_handler = FsspecFileHandler()
 
         self._api = api or InternalApi()
         self._handler = MultiHandler(
@@ -105,6 +107,7 @@ class WandbStoragePolicy(StoragePolicy):
                 artifact,
                 local_artifact,
                 file_handler,
+                fsspec_handler,
             ],
             default_handler=TrackingHandler(),
         )
