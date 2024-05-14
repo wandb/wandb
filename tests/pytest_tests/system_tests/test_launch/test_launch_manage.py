@@ -116,7 +116,6 @@ def test_manage_config_file(
                         "wb_type": "typedDict",
                     }
                 },
-                "@wandb.config": {"params": {"type_map": {}}, "wb_type": "typedDict"},
             },
             "output_types": {"wb_type": "unknown"},
         }
