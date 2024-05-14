@@ -65,6 +65,7 @@ class WandbLogger:
         overwrite: bool = False,
         wait_for_job_success: bool = True,
         log_datasets: bool = True,
+        model_name: str = "model-metadata",
         **kwargs_wandb_init: Dict[str, Any],
     ) -> str:
         """Sync fine-tunes to Weights & Biases.
@@ -157,6 +158,7 @@ class WandbLogger:
                 overwrite,
                 show_individual_warnings,
                 log_datasets,
+                model_name,
                 **kwargs_wandb_init,
             )
 
@@ -201,6 +203,7 @@ class WandbLogger:
         overwrite: bool,
         show_individual_warnings: bool,
         log_datasets: bool,
+        model_name: str,
         **kwargs_wandb_init: Dict[str, Any],
     ):
         fine_tune_id = fine_tune.id
@@ -244,7 +247,7 @@ class WandbLogger:
             cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
-        cls._log_artifacts(fine_tune, project, entity, log_datasets, overwrite)
+        cls._log_artifacts(fine_tune, project, entity, log_datasets, overwrite, model_name)
 
         # mark run as complete
         cls._run.summary["status"] = "succeeded"
@@ -341,6 +344,7 @@ class WandbLogger:
         entity: Optional[str],
         log_datasets: bool,
         overwrite: bool,
+        model_name: str,
     ) -> None:
         if log_datasets:
             wandb.termlog("Logging training/validation files...")
@@ -361,7 +365,7 @@ class WandbLogger:
         # fine-tune details
         fine_tune_id = fine_tune.id
         artifact = wandb.Artifact(
-            "model_metadata",
+            model_name,
             type="model",
             metadata=dict(fine_tune),
         )
