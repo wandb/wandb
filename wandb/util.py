@@ -1913,3 +1913,9 @@ def get_core_path() -> str:
         )
 
     return str(bin_path)
+
+class OctalStringDumper(yaml.Dumper):
+    def represent_scalar(self, tag, value, style=None):
+        if tag == 'tag:yaml.org,2002:str' and value.startswith('0') and len(value) > 1:
+            return super().represent_scalar(tag, value, style="'")
+        return super().represent_scalar(tag, value, style)
