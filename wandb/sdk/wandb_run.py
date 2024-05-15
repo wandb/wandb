@@ -1457,24 +1457,53 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _get_nested_value(self, d: Dict[str, Any], keys: List[str]) -> Any:
-        if len(keys) == 1:
-            return d[keys[0]]
-        return self._get_nested_value(d[keys[0]], keys[1:])
+    def _get_nested_value(self, row: Dict[str, Any], chart_key_list: List[str]) -> Any:
+        """
+        Recursively retrieves a nested value from a dictionary using a list of keys.
+
+        Arguments:
+            row (dict): the row logged through `wandb.log()`
+            chart_key_list(list): the keys logged during the step of `wandb.log()`
+        Returns:
+            Value found at the specified path in the dictionary
+        """
+        if len(chart_key_list) == 1:
+            return row[chart_key_list[0]]
+        return self._get_nested_value(row[chart_key_list[0]], chart_key_list[1:])
 
     def _set_nested_value(
-        self, d: Dict[str, Any], keys: List[str], value: Any, split_table: bool
+        self, row: Dict[str, Any], chart_keys: List[str], value: Any, split_table: bool
     ) -> None:
-        if len(keys) == 1:
+        """
+        Updates the row to append _table to all chart keys and optionally create a new workspace section in the UI.
+
+        Arguments:
+            row (dict): the row logged through wandb.log()
+            chart_keys (list) : the keys logged during this step that point to a custom chart
+            value (any): the logged value
+            split_table (bool): whether to create a new section within the UI
+        Returns:
+            Nothing. All updates are in-place.
+        """
+        if len(chart_keys) == 1:
+            key = f"{chart_keys[0]}_table"
             if split_table:
-                d[f"Custom Chart Tables/{keys[0]}_table"] = value
-            else:
-                d[keys[0] + "_table"] = value
-            d.pop(keys[0])
+                key = "Custom Chart Tables/" + key
+            row[key] = value
+
+            row.pop(chart_keys[0])
         else:
-            self._set_nested_value(d[keys[0]], keys[1:], value, split_table)
+            self._set_nested_value(row[chart_keys[0]], chart_keys[1:], value, split_table)
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Flattens the `row` dictionary by using Depth First Traversal.
+
+        Arguments:
+            row (dict): row logged with wandb.log() for a given step.
+        Returns:
+            The flattened row.
+        """
         chart_keys: Set[Tuple[str, ...]] = set()
         split_table_set = set()
 
@@ -1521,14 +1550,12 @@ class Run:
         for k, v in row.items():
             row[k] = transform([k], v)
 
-        for keys_set in chart_keys:
-            key_list = list(keys_set)
-            value = self._get_nested_value(row, key_list)
+        for chart_key_tuple in chart_keys:
+            chart_key_list = list(chart_key_tuple)
+            value = self._get_nested_value(row, chart_key_list)
 
-            if keys_set in split_table_set:
-                self._set_nested_value(row, key_list, value, split_table=True)
-            else:
-                self._set_nested_value(row, key_list, value, split_table=False)
+            self._set_nested_value(row, chart_key_list, value, split_table=chart_key_tuple in split_table_set)
+
         return row
 
     def _partial_history_callback(

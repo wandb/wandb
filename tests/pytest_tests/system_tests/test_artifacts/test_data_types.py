@@ -4,6 +4,7 @@ import random
 
 import matplotlib
 import numpy as np
+import pandas as pd
 import pytest
 import wandb
 from wandb import data_types
@@ -79,18 +80,31 @@ def test_log_nested_cc(user, test_settings, relay_server, inject_graphql_respons
     )
     with relay_server(inject=[server_info_response]):
         run = wandb.init(settings=test_settings())
+        run_id = run.id
+        run_project = run.project
+        run_entity = run.entity
         x_data = [0, 1, 2, 3, 4]
-        y_data = [[123, 333, 111, 42, 533], [0.5, 11, 72, 3, 41]]
-        run.log(
-            {
-                "layer1": {
-                    "level4": wandb.plot.line_series(
-                        xs=x_data, ys=y_data, keys=["metric_A", "metric_B"]
-                    )
-                }
-            }
+        y_data = [[123, 333, 111, 42, 533]]
+        keys = ["metric_A"]
+
+        plot = wandb.plot.line_series(xs=x_data, ys=y_data, keys=keys)
+        df_custom_chart = pd.DataFrame(
+            {"step": x_data, "lineKey": keys * len(x_data), "lineVal": y_data[0]}
         )
+        table_name = "layer2"
+
+        run.log({"layer1": {table_name: plot}})
         run.finish()
+
+        run = wandb.init(settings=test_settings())
+        artifact = run.use_artifact(
+            f"{run_entity}/{run_project}/run-{run_id}-{table_name}_table:v0",
+            type="run_table",
+        )
+        pulled_table = artifact.get(f"{table_name}_table")
+        run.finish()
+        df_pulled_table = pulled_table.get_dataframe()
+        assert df_pulled_table.equals(df_custom_chart)
 
 
 def test_log_nested_split_table(
@@ -106,39 +120,43 @@ def test_log_nested_split_table(
     )
     with relay_server(inject=[server_info_response]):
         run = wandb.init(settings=test_settings())
+        run_entity = run.entity
+        run_id = run.id
+        run_project = run.project
+
         offset = random.random()
-        # Set up data to log in custom charts
-        randomized_data = []
-        # log 5 different randomized plots
-        for k in range(5):
-            data = []
-            for i in range(100):
-                data.append(
-                    [
-                        i,
-                        random.random() + math.log(1 + i) + offset + random.random(),
-                    ]
-                )
-            randomized_data.append(data)
-
-            # Create a table with the columns to plot
-            table = wandb.Table(data=randomized_data[k], columns=["step", "height"])
-
-            # Map from the table's columns to the chart's fields
-            fields = {"x": "step", "value": "height"}
-
-            # Use the table to populate the new custom chart preset
-            # To use your own saved chart preset, change the vega_spec_name
-            my_custom_chart = wandb.plot_table(
-                vega_spec_name="carey/new_chart",
-                data_table=table,
-                fields=fields,
-                split_table=True,
+        data = []
+        for i in range(100):
+            data.append(
+                [
+                    i,
+                    random.random() + math.log(1 + i) + offset + random.random(),
+                ]
             )
+        logged_table = wandb.Table(data=data, columns=["step", "height"])
+        df_logged_table = logged_table.get_dataframe()
 
-            # Log the plot to have it show up in the UI
-            run.log({f"test{k}": {"test2": my_custom_chart}})
+        fields = {"x": "step", "value": "height"}
+
+        my_custom_chart = wandb.plot_table(
+            vega_spec_name="carey/new_chart",
+            data_table=logged_table,
+            fields=fields,
+            split_table=True,
+        )
+        table_name = "test2"
+        run.log({"test1": {f"{table_name}": my_custom_chart}})
         run.finish()
+
+        run = wandb.init(settings=test_settings())
+        artifact = run.use_artifact(
+            f"{run_entity}/{run_project}/run-{run_id}-CustomChartTables{table_name}_table:v0",
+            type="run_table",
+        )
+        pulled_table = artifact.get(f"Custom Chart Tables/{table_name}_table")
+        wandb.finish()
+        df_pulled_table = pulled_table.get_dataframe()
+        assert df_pulled_table.equals(df_logged_table)
 
 
 def test_log_nested_visualize(
@@ -154,6 +172,9 @@ def test_log_nested_visualize(
     )
     with relay_server(inject=[server_info_response]):
         run = wandb.init(settings=test_settings())
+        run_entity = run.entity
+        run_id = run.id
+        run_project = run.project
         data = [
             ("Dog", "Dog", 34),
             ("Cat", "Cat", 29),
@@ -163,12 +184,27 @@ def test_log_nested_visualize(
             ("Bird", "Cat", 2),
         ]
 
-        table = wandb.Table(columns=["Predicted", "Actual", "Count"], data=data)
-
+        logged_table = wandb.Table(columns=["Predicted", "Actual", "Count"], data=data)
+        table_name = "test2"
         run.log(
-            {"test": {"test2": wandb.visualize("wandb/confusion_matrix/v1", table)}}
+            {
+                "test": {
+                    f"{table_name}": wandb.visualize(
+                        "wandb/confusion_matrix/v1", logged_table
+                    )
+                }
+            }
         )
+        df_logged_table = logged_table.get_dataframe()
         run.finish()
+        run = wandb.init(settings=test_settings())
+        artifact = run.use_artifact(
+            f"{run_entity}/{run_project}/run-{run_id}-{table_name}:v0", type="run_table"
+        )
+        pulled_table = artifact.get(table_name)
+        wandb.finish()
+        df_pulled_table = pulled_table.get_dataframe()
+        assert df_pulled_table.equals(df_logged_table)
 
 
 @pytest.mark.parametrize("max_cli_version", ["0.10.33", "0.11.0"])
