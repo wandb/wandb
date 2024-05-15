@@ -1458,8 +1458,7 @@ class Run:
         self._backend.interface.publish_files(files)
 
     def _get_nested_value(self, row: Dict[str, Any], chart_key_list: List[str]) -> Any:
-        """
-        Recursively retrieves a nested value from a dictionary using a list of keys.
+        """Recursively retrieves a nested value from a dictionary using a list of keys.
 
         Arguments:
             row (dict): the row logged through `wandb.log()`
@@ -1474,8 +1473,7 @@ class Run:
     def _set_nested_value(
         self, row: Dict[str, Any], chart_keys: List[str], value: Any, split_table: bool
     ) -> None:
-        """
-        Updates the row to append _table to all chart keys and optionally create a new workspace section in the UI.
+        """Updates the row to append _table to all chart keys and optionally create a new workspace section in the UI.
 
         Arguments:
             row (dict): the row logged through wandb.log()
@@ -1493,14 +1491,16 @@ class Run:
 
             row.pop(chart_keys[0])
         else:
-            self._set_nested_value(row[chart_keys[0]], chart_keys[1:], value, split_table)
+            self._set_nested_value(
+                row[chart_keys[0]], chart_keys[1:], value, split_table
+            )
 
     def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Flattens the `row` dictionary by using Depth First Traversal.
+        """Flattens the `row` dictionary by using Depth First Traversal.
 
         Arguments:
             row (dict): row logged with wandb.log() for a given step.
+
         Returns:
             The flattened row.
         """
@@ -1554,7 +1554,12 @@ class Run:
             chart_key_list = list(chart_key_tuple)
             value = self._get_nested_value(row, chart_key_list)
 
-            self._set_nested_value(row, chart_key_list, value, split_table=chart_key_tuple in split_table_set)
+            self._set_nested_value(
+                row,
+                chart_key_list,
+                value,
+                split_table=chart_key_tuple in split_table_set,
+            )
 
         return row
 
