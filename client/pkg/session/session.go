@@ -1,14 +1,16 @@
 package session
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
-	"os/exec"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/client/internal/launcher"
 	"github.com/wandb/wandb/client/pkg/run"
+)
+
+const (
+	localHost = "127.0.0.1"
 )
 
 type SessionParams struct {
@@ -35,43 +37,25 @@ func New(params *SessionParams) *Session {
 	}
 }
 
-func (s *Session) Start() {
+func (s *Session) Start() error {
 	if s.started.Load() {
-		return
+		return nil
 	}
 
-	// start the session
-	file, err := os.CreateTemp("", ".core-portfile-")
+	launch := launcher.NewLauncher()
+	_, err := launch.LaunchCommand(s.corePath)
 	if err != nil {
-		panic(err)
-	}
-	file.Close()
-
-	args := []string{"--port-filename", file.Name()}
-
-	cmd := exec.Command(s.corePath, args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		panic(err)
+		return err
 	}
 
-	// read the port from the file
-	file, err = os.Open(file.Name())
+	port, err := launch.GetPort()
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	fmt.Println(lines)
+	s.address = fmt.Sprintf("%s:%d", localHost, port)
 
 	s.started.Store(true)
+	return nil
 }
 
 func (s *Session) Close() {
@@ -84,45 +68,3 @@ func (s *Session) Close() {
 func (s *Session) NewRun(id string) *run.Run {
 	return run.New(id)
 }
-
-/*
-func (s *Session) start() {
-	var execCmd *execbin.ForkExecCmd
-	var err error
-
-	ctx := context.Background()
-	sessionSettings := s.Settings
-	if sessionSettings == nil {
-		sessionSettings = settings.NewSettings()
-	}
-
-	if s.Address == "" {
-		launch := launcher.NewLauncher()
-		if len(s.CoreBinary) != 0 {
-			execCmd, err = launch.LaunchBinary(s.CoreBinary)
-		} else {
-			execCmd, err = launch.LaunchCommand("wandb-core")
-		}
-		if err != nil {
-			panic("error launching")
-		}
-		s.execCmd = execCmd
-
-		port, err := launch.Getport()
-		if err != nil {
-			panic("error getting port")
-		}
-		s.Address = fmt.Sprintf("127.0.0.1:%d", port)
-	}
-
-	s.manager = NewManager(ctx, sessionSettings, s.Address)
-}
-
-func (s *Session) Close() {
-	s.manager.Close()
-	if s.execCmd != nil {
-		_ = s.execCmd.Wait()
-		// TODO(beta): check exit code
-	}
-}
-*/

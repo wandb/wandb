@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/wandb/wandb/experimental/client-go/internal/execbin"
+	"github.com/wandb/wandb/client/internal/execbin"
 )
 
 // readLines reads a whole file into memory
@@ -55,7 +55,7 @@ func (l *Launcher) tryport() (int, error) {
 	return intVar, nil
 }
 
-func (l *Launcher) Getport() (int, error) {
+func (l *Launcher) GetPort() (int, error) {
 	defer os.Remove(l.portFilename)
 
 	// wait for 30 seconds for port
