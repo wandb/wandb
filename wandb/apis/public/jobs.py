@@ -66,7 +66,7 @@ class Job:
         self._dockerfile = source_info.get("dockerfile")
         self._build_context = source_info.get("build_context")
         self._args = source_info.get("args")
-        self._partial = self._job_info.get("_partial", False)
+        self._partial = bool(self._job_artifact.metadata.get("_partial", False))
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")

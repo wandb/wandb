@@ -211,7 +211,7 @@ def _create_job(
         project_name=project,
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
-        metadata=metadata,
+        metadata={"_partial": True},
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
@@ -245,8 +245,7 @@ def _make_metadata_for_partial_job(
     entrypoint: Optional[str],
 ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     """Create metadata for partial jobs, return metadata and requirements."""
-    metadata = {"_partial": "v0"}
-
+    metadata = {}
     if job_type == "git":
         assert entrypoint is not None
         repo_metadata = _create_repo_metadata(
