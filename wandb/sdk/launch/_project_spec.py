@@ -486,6 +486,8 @@ class LaunchProject:
                         _logger.warn(f"Unable to parse requirements.txt: {e}")
                         continue
             requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
+            if "wandb" not in requirements_line:
+                wandb.termwarn(f"{LOG_PREFIX}wandb is not present in requirements.txt.")
         return requirements_line
 
 

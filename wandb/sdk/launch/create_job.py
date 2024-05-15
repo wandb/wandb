@@ -374,6 +374,9 @@ def _create_artifact_metadata(
         with open(depspath) as f:
             requirements = f.read().splitlines()
 
+    if not any(["wandb" in r for r in requirements]):
+        wandb.termwarn("wandb is not present in requirements.txt.")
+
     if runtime:
         python_version = _clean_python_version(runtime)
     else:
