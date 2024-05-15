@@ -4,13 +4,19 @@ import "C"
 import (
 	"fmt"
 
-	"github.com/wandb/wandb/client/pkg/client"
+	"github.com/wandb/wandb/client/pkg/session"
 )
 
 //export Init
-func Init(runId *C.char) {
-	session := client.NewSession()
-	run := session.NewRun(C.GoString(runId))
+func Init(corePath *C.char, runId *C.char) {
+
+	params := &session.SessionParams{
+		CorePath: C.GoString(corePath),
+	}
+	s := session.New(params)
+	s.Start()
+
+	run := s.NewRun(C.GoString(runId))
 
 	fmt.Println("Run ID: ", run.GetId())
 }

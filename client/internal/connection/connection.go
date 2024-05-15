@@ -1,4 +1,4 @@
-package client
+package connection
 
 import "context"
 
@@ -7,7 +7,7 @@ type Connection struct {
 	cancel context.CancelFunc
 }
 
-func NewConnection(ctx context.Context) (*Connection, error) {
+func New(ctx context.Context) (*Connection, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	return &Connection{
 		ctx:    ctx,

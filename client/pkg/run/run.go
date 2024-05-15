@@ -1,11 +1,11 @@
-package client
+package run
 
 type Run struct {
 	id       string
 	settings map[string]interface{}
 }
 
-func NewRun(id string) *Run {
+func New(id string) *Run {
 	return &Run{
 		id:       id,
 		settings: make(map[string]interface{}),

@@ -12,8 +12,6 @@ def build_libwandb(
     build_mode_flags = ["-buildmode", "c-shared"]
     vendor_flags = ["-mod=mod"]
 
-    # We have to invoke Go from the directory with go.mod, hence the
-    # paths relative to ./core
     subprocess.check_call(
         [
             str(go_binary),

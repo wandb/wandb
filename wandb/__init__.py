@@ -21,8 +21,10 @@ import os as _os
 if _os.environ.get("WANDB_NG", False):
 
     from wandb.lib import Lib as _Lib
+    from wandb.lib import Session as _Session
     _lib = _Lib()
     init = _lib.init
+    Session = _Session
 
 else:
     from typing import Optional
