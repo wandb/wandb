@@ -16,6 +16,9 @@ class Lib:
         print(core_path)
         self.lib.Init(core_path.encode(), run_id.encode())
 
+    def finish(self) -> None:
+        self.lib.Finish()
+
 
 class Session:
     def __init__(self) -> None:

@@ -24,6 +24,7 @@ if _os.environ.get("WANDB_NG", False):
     from wandb.lib import Session as _Session
     _lib = _Lib()
     init = _lib.init
+    finish = _lib.finish
     Session = _Session
 
 else:
