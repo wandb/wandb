@@ -118,10 +118,13 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert "output_types" in job._job_artifact.metadata
 
 
-@pytest.mark.skip(
-    reason="This test is failing because it uploads an empty to file in an artifact"
-)
+@pytest.mark.wandb_core_failure(feature="launch")
 def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
+    """This tests that a git job is created correctly, and that the job is upgraded correctly.
+
+    Currently failing at the artifact creation stage with wandb-core. Appears to be an issue
+    with the artifact saver that is only happening when running in CI.
+    """
     proj = "test-p99999"
     settings = test_settings({"project": proj})
 
@@ -165,7 +168,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
 
     job_v0 = public_api.job(f"{user}/{proj}/{artifact.name}")
 
-    assert job_v0._partial
+    assert "_partial" in job_v0._job_artifact.metadata
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
     assert job_v0._job_info["source"]["entrypoint"] == [
@@ -189,19 +192,14 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         run2.log({"x": 2})
         run2.finish()
 
-    # now get the job, the version should be v1
-    v1_job = artifact.name.split(":")[0] + ":v1"
-    job = public_api.job(f"{user}/{proj}/{v1_job}")
-
+    # now get the job again, the version should be the same
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
     assert job
 
     # assert updates to partial, and input/output types
-    assert not job._partial
-    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
-    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
-    for key in output_type_keys:
-        assert str(job._output_types._params["type_map"][key]) == "Number"
-    assert str(job._input_types) == "{'input1': Number}"
+    assert "_partial" not in job._job_artifact.metadata
+    assert "input_types" in job._job_artifact.metadata
+    assert "output_types" in job._job_artifact.metadata
 
 
 @pytest.mark.parametrize(

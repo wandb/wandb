@@ -160,6 +160,7 @@ class JobBuilder:
         )
         self._is_notebook_run = self._get_is_notebook_run()
         self._verbose = verbose
+        self._partial = False
 
     def set_config(self, config: Dict[str, Any]) -> None:
         self._config = config
@@ -353,7 +354,7 @@ class JobBuilder:
     ) -> List[str]:
         # if building a partial job from CLI, overwrite entrypoint and notebook
         # should already be in metadata from create_job
-        if metadata.get("_partial"):
+        if self._partial:
             if metadata.get("entrypoint"):
                 entrypoint: List[str] = metadata["entrypoint"]
                 return entrypoint
@@ -500,7 +501,7 @@ class JobBuilder:
             return None
 
         program_relpath = self._get_program_relpath(source_type, metadata)
-        if source_type != "image" and not program_relpath:
+        if not self._partial and source_type != "image" and not program_relpath:
             self._log_if_verbose(
                 "No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
