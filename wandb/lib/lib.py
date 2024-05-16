@@ -3,8 +3,6 @@ import pathlib
 import platform
 from typing import Optional
 
-from nox import session
-
 
 class Lib:
     def __init__(self) -> None:
