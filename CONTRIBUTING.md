@@ -266,15 +266,10 @@ pre-commit run ruff-format --all-files --hook-stage pre-push
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
 
-If you update any of the `.proto` files in `wandb/proto`, you'll need to:
-
-
-- Now you can run the proto action to build the protocol buffer files.
+If you update any of the `.proto` files in `wandb/proto`, you will need to build the protocol buffer files:
 ```shell
 nox -t proto
 ```
-
-Note: you only need to do that if you change any of our protocol buffer files.
 
 #### Adding a new setting
 
@@ -355,7 +350,7 @@ We use the [`pytest`](https://docs.pytest.org/) framework. Tests can be found in
 All test dependencies should be in `requirements_dev.txt` so you could just run:
 
 ```shell
-`pip install -r requirements_dev.txt`
+pip install -r requirements_dev.txt
 ```
 
 After that you can run your test using the standard `pytest` commands. For example:
