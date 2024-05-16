@@ -142,7 +142,7 @@ func (as *ArtifactSaver) uploadFiles(
 	artifactID string, manifest *Manifest, manifestID string, _ chan<- *service.Record,
 ) error {
 	// Prepare GQL input for files that (might) need to be uploaded.
-	fileSpecs := map[string]gql.CreateArtifactFileSpecInput{}
+	namedFileSpecs := map[string]gql.CreateArtifactFileSpecInput{}
 	for name, entry := range manifest.Contents {
 		if entry.LocalPath == nil {
 			continue
@@ -153,15 +153,15 @@ func (as *ArtifactSaver) uploadFiles(
 			Md5:                entry.Digest,
 			ArtifactManifestID: &manifestID,
 		}
-		fileSpecs[name] = fileSpec
+		namedFileSpecs[name] = fileSpec
 	}
-	as.numTotal = len(fileSpecs)
+	as.numTotal = len(namedFileSpecs)
 
 	as.startTime = time.Now()
 	var err error
-	for len(fileSpecs) > 0 {
-		numNeedUploading := len(fileSpecs)
-		if fileSpecs, err = as.processFiles(manifest, fileSpecs); err != nil {
+	for len(namedFileSpecs) > 0 {
+		numNeedUploading := len(namedFileSpecs)
+		if namedFileSpecs, err = as.processFiles(manifest, namedFileSpecs); err != nil {
 			return err
 		}
 		// If more than half of the remaining files uploaded we'll keep retrying.
@@ -170,14 +170,14 @@ func (as *ArtifactSaver) uploadFiles(
 		// urls expire before an upload was started (exceedingly rare).
 		// Still, as long as more than half of them succeed in each iteration this will
 		// eventually terminate, so we're generous with our retry policy.
-		if len(fileSpecs) > numNeedUploading/2 {
+		if len(namedFileSpecs) > numNeedUploading/2 {
 			return fmt.Errorf(
 				"most remaining uploads (%d/%d) have failed, giving up",
-				len(fileSpecs), numNeedUploading,
+				len(namedFileSpecs), numNeedUploading,
 			)
 		}
-		if len(fileSpecs) > 0 {
-			as.Logger.Warn("some files failed to upload, retrying", "count", len(fileSpecs))
+		if len(namedFileSpecs) > 0 {
+			as.Logger.Warn("some files failed to upload, retrying", "count", len(namedFileSpecs))
 		}
 	}
 	return nil
