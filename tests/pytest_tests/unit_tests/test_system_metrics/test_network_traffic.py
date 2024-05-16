@@ -3,13 +3,14 @@ import time
 
 from google.cloud import storage
 from wandb.sdk.internal.settings_static import SettingsStatic
+
 # from wandb.sdk.internal.system.assets import Network
 from wandb.sdk.internal.system.assets.network import (
+    Network,
     NetworkTrafficReceived,
     NetworkTrafficSent,
 )
 from wandb.sdk.internal.system.system_monitor import AssetInterface
-from wandb.sdk.internal.system.assets.network import Network
 
 
 def test_network_metrics(test_settings):
@@ -24,7 +25,9 @@ def test_network_metrics(test_settings):
     )
     shutdown_event = threading.Event()
 
-    network = Network(interface=interface, settings=settings, shutdown_event=shutdown_event)
+    network = Network(
+        interface=interface, settings=settings, shutdown_event=shutdown_event
+    )
 
     assert network.is_available()
 

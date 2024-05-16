@@ -1,7 +1,7 @@
 import threading
+import time
 from collections import deque
 from typing import TYPE_CHECKING, List
-import time
 
 try:
     import psutil
@@ -77,7 +77,6 @@ class NetworkTrafficSent:
     last_sample: float
 
     def __init__(self) -> None:
-
         self.upload_speed = psutil.net_io_counters().bytes_sent
         self.samples = deque([])
         self.upload_speed.sample()
@@ -88,7 +87,9 @@ class NetworkTrafficSent:
         self.upload_speed.sample()
         current_timestamp = time.time()
         current_sample = self.network_sent.samples[-1]
-        delta_sent = (current_sample - self.last_sample) / (current_timestamp - self.initial_timestamp)  # this should be the difference in timestamps
+        delta_sent = (current_sample - self.last_sample) / (
+            current_timestamp - self.initial_timestamp
+        )  # this should be the difference in timestamps
         self.samples.append(delta_sent)
         self.last_sample = current_sample
         self.initial_timestamp = current_timestamp
@@ -112,7 +113,6 @@ class NetworkTrafficReceived:
     samples: "Deque[float]"
 
     def __init__(self) -> None:
-
         self.network_received = psutil.net_io_counters().bytes_recv
         self.samples = deque([])
         self.network_received.sample()
@@ -123,7 +123,9 @@ class NetworkTrafficReceived:
         self.network_received.sample()
         current_timestamp = time.time()
         current_sample = self.network_received.samples[-1]
-        delta_sent = (current_sample - self.last_sample) / (current_timestamp - self.initial_timestamp)
+        delta_sent = (current_sample - self.last_sample) / (
+            current_timestamp - self.initial_timestamp
+        )
         self.samples.append(delta_sent)
         self.last_sample = current_sample
         self.initial_timestamp = current_timestamp
