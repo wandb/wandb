@@ -46,17 +46,16 @@ class Files(Paginator):
     QUERY = gql(
         """
         query RunFiles($project: String!, $entity: String!, $name: String!, $fileCursor: String,
-            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) {
+            $fileLimit: Int = 50, $fileNames: [String] = [], $upload: Boolean = false) {{
+            project(name: $project, entityName: $entity) {{
+                run(name: $name) {{
                     fileCount
                     ...RunFilesFragment
-                }
-            }
-        }
-        %s
-        """
-        % FILE_FRAGMENT
+                }}
+            }}
+        }}
+        {}
+        """.format(FILE_FRAGMENT)
     )
 
     def __init__(self, client, run, names=None, per_page=50, upload=False):

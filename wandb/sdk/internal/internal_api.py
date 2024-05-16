@@ -332,7 +332,7 @@ class Api:
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
-        self.client.transport.url = "%s/graphql" % self.settings("base_url")
+        self.client.transport.url = "{}/graphql".format(self.settings("base_url"))
 
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
         """Wrapper around execute that logs in cases of failure."""
@@ -2911,9 +2911,10 @@ class Api:
                         parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
-                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution)."
-                            % parameter_name
+                            "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution).".format(
+                                parameter_name
+                            )
                         )
         return config
 
@@ -3955,9 +3956,9 @@ class Api:
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
         if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-            raise Exception("Cannot pause %s sweep." % curr_state.lower())
+            raise Exception("Cannot pause {} sweep.".format(curr_state.lower()))
         elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-            raise Exception("Sweep already %s." % curr_state.lower())
+            raise Exception("Sweep already {}.".format(curr_state.lower()))
         sweep_id = s["id"]
         mutation = gql(
             """
