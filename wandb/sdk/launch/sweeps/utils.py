@@ -211,7 +211,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
 
     """
     if "args" not in command:
-        raise ValueError('No "args" found in command: %s' % command)
+        raise ValueError('No "args" found in command: {}'.format(command))
     # four different formats of command args
     # (1) standard command line flags (e.g. --foo=bar)
     flags: List[str] = []
@@ -228,7 +228,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         try:
             _value: Any = config["value"]
         except KeyError:
-            raise ValueError('No "value" found for command["args"]["%s"]' % param)
+            raise ValueError('No "value" found for command["args"]["{}"]'.format(param))
 
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)

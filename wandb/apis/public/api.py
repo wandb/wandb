@@ -276,7 +276,7 @@ class Api:
                 # https://bugs.python.org/issue22889
                 timeout=self._timeout,
                 auth=auth,
-                url="%s/graphql" % self.settings["base_url"],
+                url="{}/graphql".format(self.settings["base_url"]),
                 cookies=_thread_local_api_settings.cookies,
                 proxies=proxies,
             )
@@ -479,7 +479,7 @@ class Api:
 
     @property
     def user_agent(self):
-        return "W&B Public Client %s" % wandb.__version__
+        return "W&B Public Client {}".format(wandb.__version__)
 
     @property
     def api_key(self):
@@ -632,7 +632,7 @@ class Api:
             return entity, project
         parts = path.split("/")
         if len(parts) > 3:
-            raise ValueError("Invalid artifact path: %s" % path)
+            raise ValueError("Invalid artifact path: {}".format(path))
         elif len(parts) == 1:
             return entity, project, path
         elif len(parts) == 2:

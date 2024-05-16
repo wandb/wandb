@@ -39,7 +39,7 @@ def test_split_files():
     num_files = 10
     chunk_size = 0.1  # MB
     files = {
-        "file_%s.txt" % i: {
+        "file_{}.txt".format(i): {
             "content": rand_string_list(int(file_size * 1024 * 1024)),
             "offset": 0,
         }

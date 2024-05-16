@@ -142,7 +142,7 @@ func (device nvmlDevice) VgpuTypeGetMaxInstances(vgpuTypeId VgpuTypeId) (int, Re
 
 func (vgpuTypeId nvmlVgpuTypeId) GetMaxInstances(device Device) (int, Return) {
 	var vgpuInstanceCount uint32
-	ret := nvmlVgpuTypeGetMaxInstances(device.(nvmlDevice), vgpuTypeId, &vgpuInstanceCount)
+	ret := nvmlVgpuTypeGetMaxInstances(nvmlDeviceHandle(device), vgpuTypeId, &vgpuInstanceCount)
 	return int(vgpuInstanceCount), ret
 }
 

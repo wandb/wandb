@@ -211,9 +211,8 @@ def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_i
     }
     magic.wandb(
         "",
-        """with wandb.init(settings=wandb.Settings(**%s)):
-        wandb.log({"a": 1})"""
-        % basic_settings,
+        """with wandb.init(settings=wandb.Settings(**{})):
+        wandb.log({{"a": 1}})""".format(basic_settings),
     )
     wandb.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
