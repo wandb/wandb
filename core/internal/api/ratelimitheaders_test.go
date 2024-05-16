@@ -68,7 +68,6 @@ func Test_NoValue(t *testing.T) {
 	assert.False(t, ok)
 }
 
-
 func Test_UseLegacyRateLimit(t *testing.T) {
 	header := http.Header{}
 	header.Set("X-RateLimit-Remaining", "123.5")
@@ -92,4 +91,3 @@ func Test_UseNewRateLimitOverLegacy(t *testing.T) {
 	assert.EqualValues(t, 200, result.Remaining)
 	assert.EqualValues(t, 50, result.Reset)
 }
-
