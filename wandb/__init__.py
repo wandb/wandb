@@ -18,7 +18,7 @@ _wandb_module = "wandb"
 
 
 import os as _os
-if _os.environ.get("WANDB_NG", False):
+if _os.environ.get("_WANDB_NG", False):
 
     from wandb.lib import Session
 
