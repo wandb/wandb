@@ -285,7 +285,7 @@ func (as *ArtifactSaver) batchSize() int {
 		return minBatchSize
 	}
 	// Given the average time per item, estimate a batch size that will take 1 minute.
-	sinceStart := time.Since(as.startTime)
+	sinceStart := time.Since(as.startTime) + 1*time.Millisecond // Avoid division by zero.
 	filesPerMin := int(float64(as.numDone) / sinceStart.Minutes())
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
