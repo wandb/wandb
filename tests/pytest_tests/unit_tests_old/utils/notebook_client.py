@@ -29,7 +29,7 @@ class WandbNotebookClient(NotebookClient):
                 raise e
             for output in ecell["outputs"]:
                 if output["output_type"] == "error":
-                    print("Error in cell: %s" % idx + 1)
+                    print("Error in cell: {}".format(idx) + 1)
                     print("\n".join(output["traceback"]))
                     raise ValueError(output["evalue"])
             executed_cells.append(ecell)

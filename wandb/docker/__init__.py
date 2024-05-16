@@ -202,7 +202,7 @@ def default_image(gpu: bool = False) -> str:
     tag = "all"
     if not gpu:
         tag += "-cpu"
-    return "wandb/deepo:%s" % tag
+    return "wandb/deepo:{}".format(tag)
 
 
 def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:

@@ -10,7 +10,7 @@ repos:
   #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   #     exclude: ^(core/vendor/)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.3.7"
+    rev: "v0.4.4"
     hooks:
       - id: ruff
         args: [ --fix]

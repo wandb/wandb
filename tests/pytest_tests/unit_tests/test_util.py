@@ -62,7 +62,7 @@ def assert_deep_lists_equal(a, b, indices=None):
                 raise
             finally:
                 if top and indices:
-                    print("Diff at index: %s" % list(reversed(indices)))
+                    print("Diff at index: {}".format(list(reversed(indices))))
 
 
 def json_friendly_test(orig_data, obj):
