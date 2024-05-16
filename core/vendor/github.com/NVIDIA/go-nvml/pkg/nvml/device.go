@@ -15,8 +15,47 @@
 package nvml
 
 import (
+	"fmt"
+	"reflect"
 	"unsafe"
 )
+
+// nvmlDeviceHandle attempts to convert a device d to an nvmlDevice.
+// This is required for functions such as GetTopologyCommonAncestor which
+// accept Device arguments that need to be passed to internal nvml* functions
+// as nvmlDevice parameters.
+func nvmlDeviceHandle(d Device) nvmlDevice {
+	var helper func(val reflect.Value) nvmlDevice
+	helper = func(val reflect.Value) nvmlDevice {
+		if val.Kind() == reflect.Interface {
+			val = val.Elem()
+		}
+
+		if val.Kind() == reflect.Ptr {
+			val = val.Elem()
+		}
+
+		if val.Type() == reflect.TypeOf(nvmlDevice{}) {
+			return val.Interface().(nvmlDevice)
+		}
+
+		if val.Kind() != reflect.Struct {
+			panic(fmt.Errorf("unable to convert non-struct type %v to nvmlDevice", val.Kind()))
+		}
+
+		for i := 0; i < val.Type().NumField(); i++ {
+			if !val.Type().Field(i).Anonymous {
+				continue
+			}
+			if !val.Field(i).Type().Implements(reflect.TypeOf((*Device)(nil)).Elem()) {
+				continue
+			}
+			return helper(val.Field(i))
+		}
+		panic(fmt.Errorf("unable to convert %T to nvmlDevice", d))
+	}
+	return helper(reflect.ValueOf(d))
+}
 
 // EccBitType
 type EccBitType = MemoryErrorType
@@ -220,9 +259,12 @@ func (l *library) DeviceGetTopologyCommonAncestor(device1 Device, device2 Device
 
 func (device1 nvmlDevice) GetTopologyCommonAncestor(device2 Device) (GpuTopologyLevel, Return) {
 	var pathInfo GpuTopologyLevel
-	ret := nvmlDeviceGetTopologyCommonAncestor(device1, device2.(nvmlDevice), &pathInfo)
+	ret := nvmlDeviceGetTopologyCommonAncestorStub(device1, nvmlDeviceHandle(device2), &pathInfo)
 	return pathInfo, ret
 }
+
+// nvmlDeviceGetTopologyCommonAncestorStub allows us to override this for testing.
+var nvmlDeviceGetTopologyCommonAncestorStub = nvmlDeviceGetTopologyCommonAncestor
 
 // nvml.DeviceGetTopologyNearestGpus()
 func (l *library) DeviceGetTopologyNearestGpus(device Device, level GpuTopologyLevel) ([]Device, Return) {
@@ -250,7 +292,7 @@ func (l *library) DeviceGetP2PStatus(device1 Device, device2 Device, p2pIndex Gp
 
 func (device1 nvmlDevice) GetP2PStatus(device2 Device, p2pIndex GpuP2PCapsIndex) (GpuP2PStatus, Return) {
 	var p2pStatus GpuP2PStatus
-	ret := nvmlDeviceGetP2PStatus(device1, device2.(nvmlDevice), p2pIndex, &p2pStatus)
+	ret := nvmlDeviceGetP2PStatus(device1, nvmlDeviceHandle(device2), p2pIndex, &p2pStatus)
 	return p2pStatus, ret
 }
 
@@ -1182,7 +1224,7 @@ func (l *library) DeviceOnSameBoard(device1 Device, device2 Device) (int, Return
 
 func (device1 nvmlDevice) OnSameBoard(device2 Device) (int, Return) {
 	var onSameBoard int32
-	ret := nvmlDeviceOnSameBoard(device1, device2.(nvmlDevice), &onSameBoard)
+	ret := nvmlDeviceOnSameBoard(device1, nvmlDeviceHandle(device2), &onSameBoard)
 	return int(onSameBoard), ret
 }
 
