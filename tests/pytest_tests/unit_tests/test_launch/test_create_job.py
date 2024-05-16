@@ -17,7 +17,9 @@ from wandb.sdk.launch.create_job import (
 from wandb.sdk.launch.utils import get_current_python_version
 
 
-def test_create_artifact_metadata():
+def test_create_artifact_metadata(mocker):
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     path = tempfile.TemporaryDirectory().name
     runtime = "3.9"
     entrypoint = "python test.py"
@@ -28,18 +30,31 @@ def test_create_artifact_metadata():
     metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
     assert not metadata and not requirements
 
+    # wandb missing
     os.makedirs(path)
     with open(os.path.join(path, "requirements.txt"), "w") as f:
-        f.write("wandb\n")
-
-    # basic case
+        f.write("test-import\n")
     metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
     assert metadata == {
         "python": runtime,
         "codePath": entrypoint_file,
         "entrypoint": entrypoint_list,
     }
-    assert requirements == ["wandb"]
+    warn_msg = mocker.termwarn.call_args.args[0]
+    assert "wandb is not present in requirements.txt." in warn_msg
+    mocker.termwarn.reset_mock()
+
+    # basic case
+    with open(os.path.join(path, "requirements.txt"), "a") as f:
+        f.write("wandb\n")
+    metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
+    assert metadata == {
+        "python": runtime,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
+    assert requirements == ["test-import", "wandb"]
+    mocker.termwarn.assert_not_called()
 
     # python picked up correctly
     metadata, requirements = _create_artifact_metadata(path, entrypoint)
@@ -49,7 +64,7 @@ def test_create_artifact_metadata():
         "codePath": entrypoint_file,
         "entrypoint": entrypoint_list,
     }
-    assert requirements == ["wandb"]
+    assert requirements == ["test-import", "wandb"]
 
 
 def test_configure_job_builder_for_partial():
