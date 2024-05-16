@@ -32,6 +32,13 @@ type Task struct {
 	// Size is the size of the file
 	Size int64
 
+	// Offset is the offset of the file
+	Offset int64
+
+	// Length is the length of the segment to upload
+	// If 0 the entire file is uploaded unless Offset > 0
+	Length int64
+
 	// Error, if any.
 	Err error
 

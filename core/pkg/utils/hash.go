@@ -17,6 +17,14 @@ func ComputeB64MD5(data []byte) string {
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 }
 
+// ComputeHexMD5 computes the MD5 hash of the given data and returns the result as a
+// hexadecimal string.
+func ComputeHexMD5(data []byte) string {
+	hasher := md5.New()
+	_, _ = hasher.Write(data)
+	return hex.EncodeToString(hasher.Sum(nil))
+}
+
 // ComputeFileB64MD5 computes the MD5 hash of the file at the given path and returns the
 // result as a base64 encoded string.
 // It returns an error if the file cannot be opened or read.
