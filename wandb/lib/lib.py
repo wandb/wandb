@@ -3,6 +3,8 @@ import pathlib
 import platform
 from typing import Optional
 
+from nox import session
+
 
 class Lib:
     def __init__(self) -> None:
@@ -19,8 +21,11 @@ class Lib:
         self._lib = ctypes.CDLL(str(path_lib))
         return self._lib
 
-    def setup(self, core_path: str) -> None:
-        self.lib.Setup(core_path.encode())
+    def setup(self, core_path: str) -> str:
+        self.lib.Setup.argtypes = [ctypes.c_char_p]
+        self.lib.Setup.restype = ctypes.c_char_p
+        address = self.lib.Setup(core_path.encode())
+        return address.decode()
 
     def teardown(self) -> None:
         self.lib.Teardown()
@@ -29,6 +34,7 @@ class Lib:
 class Session:
     def __init__(self) -> None:
         self._lib = Lib()
+        self.address = ""
         self._setup()
 
     def __enter__(self) -> "Session":
@@ -43,7 +49,8 @@ class Session:
 
     def _setup(self) -> None:
         core_path = str(pathlib.Path(__file__).parent.parent / "bin" / "wandb-core")
-        self._lib.setup(core_path)
+        self.address = self._lib.setup(core_path)
 
     def teardown(self) -> None:
         self._lib.teardown()
+        self.address = ""

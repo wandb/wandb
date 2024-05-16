@@ -36,6 +36,10 @@ func New(params *SessionParams) *Session {
 	}
 }
 
+func (s *Session) Address() string {
+	return s.address
+}
+
 func (s *Session) Start() error {
 	if s.started.Load() {
 		return nil

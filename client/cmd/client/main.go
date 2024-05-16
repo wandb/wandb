@@ -12,15 +12,17 @@ var s *session.Session
 // Setup initializes the session and starts wandb-core process
 //
 //export Setup
-func Setup(corePath *C.char) {
+func Setup(corePath *C.char) *C.char {
 	if s != nil {
-		return
+		return C.CString(s.Address())
 	}
 	params := &session.SessionParams{
 		CorePath: C.GoString(corePath),
 	}
 	s = session.New(params)
 	s.Start()
+
+	return C.CString(s.Address())
 }
 
 // Teardown closes the session and stops wandb-core process
