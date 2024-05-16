@@ -3017,7 +3017,9 @@ class Api:
 
         # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
         # This sanitizes them with a round trip pass through json to get a regular dict.
-        config_str = yaml.dump(json.loads(json.dumps(config)))
+        config_str = yaml.dump(
+            json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
+        )
 
         err: Optional[Exception] = None
         for mutation in mutations:
