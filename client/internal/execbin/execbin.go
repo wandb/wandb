@@ -1,4 +1,4 @@
-// package execbin fork and execs a binary image dealing with system differences.
+// package execbin implements forking and executing a binary.
 package execbin
 
 import (
@@ -14,16 +14,7 @@ type ForkExecCmd struct {
 	waitFunc WaitFunc
 }
 
-func ForkExec(filePayload []byte, args []string) (*ForkExecCmd, error) {
-	var err error
-	waitFunc, err := doForkExec(filePayload, args)
-	if err != nil {
-		panic(err)
-	}
-	return &ForkExecCmd{waitFunc: waitFunc}, err
-}
-
-func ForkExecCommand(command string, args []string) (*ForkExecCmd, error) {
+func ExecCommand(command string, args []string) (*ForkExecCmd, error) {
 	path, err := exec.LookPath(command)
 	if err != nil {
 		panic(err)
