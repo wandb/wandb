@@ -1226,7 +1226,9 @@ class Artifact:
             raise ValueError("Path is not a directory: {}".format(local_path))
 
         termlog(
-            "Adding directory to artifact ({})... ".format(os.path.join(".", os.path.normpath(local_path))),
+            "Adding directory to artifact ({})... ".format(
+                os.path.join(".", os.path.normpath(local_path))
+            ),
             newline=False,
         )
         start_time = time.time()

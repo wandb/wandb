@@ -807,7 +807,9 @@ class SendManager:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume ({}) ".format(run.run_id)
+                error.message = "resume='must' but could not resume ({}) ".format(
+                    run.run_id
+                )
                 return error
 
         # TODO: Do we need to restore config / summary?

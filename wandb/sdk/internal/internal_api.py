@@ -2912,7 +2912,9 @@ class Api:
                     else:
                         raise ValueError(
                             "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution).".format(parameter_name)
+                            "uniform distribution) or ints (for an int_uniform distribution).".format(
+                                parameter_name
+                            )
                         )
         return config
 

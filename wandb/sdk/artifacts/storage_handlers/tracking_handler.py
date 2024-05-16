@@ -57,10 +57,14 @@ class TrackingHandler(StorageHandler):
         url = urlparse(path)
         if name is None:
             raise ValueError(
-                'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: {}'.format(path)
+                'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: {}'.format(
+                    path
+                )
             )
         termwarn(
-            "Artifact references with unsupported schemes cannot be checksummed: {}".format(path)
+            "Artifact references with unsupported schemes cannot be checksummed: {}".format(
+                path
+            )
         )
         name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(path=name, ref=path, digest=path)]

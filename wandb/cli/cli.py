@@ -2205,13 +2205,17 @@ def docker(
     resolved_image = wandb.docker.image_id(image)
     if resolved_image is None:
         raise ClickException(
-            "Couldn't find image locally or in a registry, try running `docker pull {}`".format(image)
+            "Couldn't find image locally or in a registry, try running `docker pull {}`".format(
+                image
+            )
         )
     if digest:
         sys.stdout.write(resolved_image)
         exit(0)
 
-    existing = wandb.docker.shell(["ps", "-f", "ancestor={}".format(resolved_image), "-q"])
+    existing = wandb.docker.shell(
+        ["ps", "-f", "ancestor={}".format(resolved_image), "-q"]
+    )
     if existing:
         if click.confirm(
             "Found running container with the same image, do you want to attach?"
@@ -2246,8 +2250,8 @@ def docker(
     if jupyter:
         command.extend(["-e", "WANDB_ENSURE_JUPYTER=1", "-p", port + ":8888"])
         no_tty = True
-        cmd = (
-            "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {}".format(dir)
+        cmd = "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {}".format(
+            dir
         )
     command.extend(args)
     if no_tty:
@@ -2374,7 +2378,9 @@ def start(ctx, port, env, daemon, upgrade, edge):
             )
             exit(1)
         else:
-            wandb.termlog("W&B server started at http://localhost:{} \U0001f680".format(port))
+            wandb.termlog(
+                "W&B server started at http://localhost:{} \U0001f680".format(port)
+            )
             wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
@@ -2645,10 +2651,8 @@ def restore(ctx, run, no_git, branch, project, entity):
     )
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
-    restore_message = (
-        """`wandb restore` needs to be run from the same git repository as the original run.
+    restore_message = """`wandb restore` needs to be run from the same git repository as the original run.
 Run `git clone {}` and restore from there or pass the --no-git flag.""".format(repo)
-    )
     if no_git:
         commit = None
     elif not api.git.enabled:
@@ -2696,10 +2700,14 @@ Run `git clone {}` and restore from there or pass the --no-git flag.""".format(r
         branch_name = "wandb/{}".format(run)
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
-            wandb.termlog("Created branch {}".format(click.style(branch_name, bold=True)))
+            wandb.termlog(
+                "Created branch {}".format(click.style(branch_name, bold=True))
+            )
         elif branch:
             wandb.termlog(
-                "Using existing branch, run `git branch -D {}` from master for a clean checkout".format(branch_name)
+                "Using existing branch, run `git branch -D {}` from master for a clean checkout".format(
+                    branch_name
+                )
             )
             api.git.repo.git.checkout(branch_name)
         else:
@@ -2776,7 +2784,9 @@ def magic(ctx, program, args):
         with open(program, "rb") as fp:
             code = compile(fp.read(), program, "exec")
     except OSError:
-        click.echo(click.style("Could not launch program: {}".format(program), fg="red"))
+        click.echo(
+            click.style("Could not launch program: {}".format(program), fg="red")
+        )
         sys.exit(1)
     globs = {
         "__file__": program,
@@ -2784,13 +2794,11 @@ def magic(ctx, program, args):
         "__package__": None,
         "wandb_magic_install": magic_install,
     }
-    prep = (
-        """
+    prep = """
 import __main__
 __main__.__file__ = "{}"
 wandb_magic_install()
 """.format(program)
-    )
     magic_run(prep, globs, None)
     magic_run(code, globs, None)
 

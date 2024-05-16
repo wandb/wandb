@@ -236,7 +236,9 @@ def write_key(
     _, suffix = key.split("-", 1) if "-" in key else ("", key)
 
     if len(suffix) != 40:
-        raise ValueError("API key must be 40 characters long, yours was {}".format(len(key)))
+        raise ValueError(
+            "API key must be 40 characters long, yours was {}".format(len(key))
+        )
 
     if anonymous:
         api.set_setting("anonymous", "true", globally=True, persist=True)

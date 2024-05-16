@@ -251,9 +251,11 @@ class ArtifactCollections(Paginator):
                     }}
                 }}
             }}
-        """.format(artifact_collection_plural_edge_name(
-                server_supports_artifact_collections_gql_edges(client)
-            ))
+        """.format(
+                artifact_collection_plural_edge_name(
+                    server_supports_artifact_collections_gql_edges(client)
+                )
+            )
         )
 
         super().__init__(client, variable_values, per_page)
@@ -378,9 +380,11 @@ class ArtifactCollection:
                 }}
             }}
         }}
-        """.format(artifact_collection_edge_name(
-                server_supports_artifact_collections_gql_edges(self.client)
-            ))
+        """.format(
+                artifact_collection_edge_name(
+                    server_supports_artifact_collections_gql_edges(self.client)
+                )
+            )
         )
         response = self.client.execute(
             query,

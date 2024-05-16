@@ -96,7 +96,9 @@ class Video(BatchableMedia):
         self._channels = None
         self._caption = caption
         if self._format not in Video.EXTS:
-            raise ValueError("wandb.Video accepts {} formats".format(", ".join(Video.EXTS)))
+            raise ValueError(
+                "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
+            )
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
