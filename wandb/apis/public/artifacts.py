@@ -551,175 +551,190 @@ class ArtifactCollection:
             )
         self._type = type
 
+    def _update_collection(self):
+        mutation = gql("""
+            mutation UpdateArtifactCollection(
+                $artifactSequenceID: ID!
+                $name: String
+                $description: String
+            ) {
+                updateArtifactSequence(
+                input: {
+                    artifactSequenceID: $artifactSequenceID
+                    name: $name
+                    description: $description
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                }
+                }
+            }
+        """)
+
+        variable_values = {
+            "artifactSequenceID": self.id,
+            "name": self._name,
+            "description": self.description,
+        }
+        self.client.execute(mutation, variable_values=variable_values)
+        self._saved_name = self._name
+
+    def _update_collection_type(self):
+        type_mutation = gql("""
+            mutation MoveArtifactCollection(
+                $artifactSequenceID: ID!
+                $destinationArtifactTypeName: String!
+            ) {
+                moveArtifactSequence(
+                input: {
+                    artifactSequenceID: $artifactSequenceID
+                    destinationArtifactTypeName: $destinationArtifactTypeName
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                    __typename
+                }
+                }
+            }
+            """)
+
+        variable_values = {
+            "artifactSequenceID": self.id,
+            "destinationArtifactTypeName": self._type,
+        }
+        self.client.execute(type_mutation, variable_values=variable_values)
+        self._saved_type = self._type
+
+    def _update_portfolio(self):
+        mutation = gql("""
+            mutation UpdateArtifactPortfolio(
+                $artifactPortfolioID: ID!
+                $name: String
+                $description: String
+            ) {
+                updateArtifactPortfolio(
+                input: {
+                    artifactPortfolioID: $artifactPortfolioID
+                    name: $name
+                    description: $description
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                }
+                }
+            }
+        """)
+        variable_values = {
+            "artifactPortfolioID": self.id,
+            "name": self._name,
+            "description": self.description,
+        }
+        self.client.execute(mutation, variable_values=variable_values)
+        self._saved_name = self._name
+
+    def _add_tags(self, tags_to_add):
+        add_mutation = gql(
+            """
+            mutation CreateArtifactCollectionTagAssignments(
+                $entityName: String!
+                $projectName: String!
+                $artifactCollectionName: String!
+                $tags: [TagInput!]!
+            ) {
+                createArtifactCollectionTagAssignments(
+                input: {
+                    entityName: $entityName
+                    projectName: $projectName
+                    artifactCollectionName: $artifactCollectionName
+                    tags: $tags
+                }
+                ) {
+                tags {
+                    id
+                    name
+                    tagCategoryName
+                }
+                }
+            }
+            """
+        )
+        self.client.execute(
+            add_mutation,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactCollectionName": self._saved_name,
+                "tags": [
+                    {
+                        "tagName": tag,
+                    }
+                    for tag in tags_to_add
+                ],
+            },
+        )
+
+    def _delete_tags(self, tags_to_delete):
+        delete_mutation = gql(
+            """
+            mutation DeleteArtifactCollectionTagAssignments(
+                $entityName: String!
+                $projectName: String!
+                $artifactCollectionName: String!
+                $tags: [TagInput!]!
+            ) {
+                deleteArtifactCollectionTagAssignments(
+                input: {
+                    entityName: $entityName
+                    projectName: $projectName
+                    artifactCollectionName: $artifactCollectionName
+                    tags: $tags
+                }
+                ) {
+                success
+                }
+            }
+            """
+        )
+        self.client.execute(
+            delete_mutation,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactCollectionName": self._saved_name,
+                "tags": [
+                    {
+                        "tagName": tag,
+                    }
+                    for tag in tags_to_delete
+                ],
+            },
+        )
+
     def save(self) -> None:
         """Persist any changes made to the artifact collection."""
         if self.is_sequence():
-            mutation = gql("""
-                mutation UpdateArtifactCollection(
-                    $artifactSequenceID: ID!
-                    $name: String
-                    $description: String
-                ) {
-                    updateArtifactSequence(
-                    input: {
-                        artifactSequenceID: $artifactSequenceID
-                        name: $name
-                        description: $description
-                    }
-                    ) {
-                    artifactCollection {
-                        id
-                        name
-                        description
-                    }
-                    }
-                }
-            """)
-
-            variable_values = {
-                "artifactSequenceID": self.id,
-                "name": self._name,
-                "description": self.description,
-            }
-            self.client.execute(mutation, variable_values=variable_values)
-            self._saved_name = self._name
+            self._update_collection()
 
             if self._saved_type != self._type:
-                type_mutation = gql("""
-                    mutation MoveArtifactCollection(
-                        $artifactSequenceID: ID!
-                        $destinationArtifactTypeName: String!
-                    ) {
-                        moveArtifactSequence(
-                        input: {
-                            artifactSequenceID: $artifactSequenceID
-                            destinationArtifactTypeName: $destinationArtifactTypeName
-                        }
-                        ) {
-                        artifactCollection {
-                            id
-                            name
-                            description
-                            __typename
-                        }
-                        }
-                    }
-                    """)
-
-                variable_values = {
-                    "artifactSequenceID": self.id,
-                    "destinationArtifactTypeName": self._type,
-                }
-                self.client.execute(type_mutation, variable_values=variable_values)
-                self._saved_type = self._type
+                self._update_collection_type()
         else:
-            mutation = gql("""
-                mutation UpdateArtifactPortfolio(
-                    $artifactPortfolioID: ID!
-                    $name: String
-                    $description: String
-                ) {
-                    updateArtifactPortfolio(
-                    input: {
-                        artifactPortfolioID: $artifactPortfolioID
-                        name: $name
-                        description: $description
-                    }
-                    ) {
-                    artifactCollection {
-                        id
-                        name
-                        description
-                    }
-                    }
-                }
-            """)
-            variable_values = {
-                "artifactPortfolioID": self.id,
-                "name": self._name,
-                "description": self.description,
-            }
-            self.client.execute(mutation, variable_values=variable_values)
-            self._saved_name = self._name
+            self._update_portfolio()
 
         tags_to_add = set(self._tags) - set(self._saved_tags)
         tags_to_delete = set(self._saved_tags) - set(self._tags)
         if len(tags_to_add) > 0:
-            add_mutation = gql(
-                """
-                mutation CreateArtifactCollectionTagAssignments(
-                    $entityName: String!
-                    $projectName: String!
-                    $artifactCollectionName: String!
-                    $tags: [TagInput!]!
-                ) {
-                    createArtifactCollectionTagAssignments(
-                    input: {
-                        entityName: $entityName
-                        projectName: $projectName
-                        artifactCollectionName: $artifactCollectionName
-                        tags: $tags
-                    }
-                    ) {
-                    tags {
-                        id
-                        name
-                        tagCategoryName
-                    }
-                    }
-                }
-                """
-            )
-            self.client.execute(
-                add_mutation,
-                variable_values={
-                    "entityName": self.entity,
-                    "projectName": self.project,
-                    "artifactCollectionName": self._saved_name,
-                    "tags": [
-                        {
-                            "tagName": tag,
-                        }
-                        for tag in tags_to_add
-                    ],
-                },
-            )
+            self._add_tags(tags_to_add)
         if len(tags_to_delete) > 0:
-            delete_mutation = gql(
-                """
-                mutation DeleteArtifactCollectionTagAssignments(
-                    $entityName: String!
-                    $projectName: String!
-                    $artifactCollectionName: String!
-                    $tags: [TagInput!]!
-                ) {
-                    deleteArtifactCollectionTagAssignments(
-                    input: {
-                        entityName: $entityName
-                        projectName: $projectName
-                        artifactCollectionName: $artifactCollectionName
-                        tags: $tags
-                    }
-                    ) {
-                    success
-                    }
-                }
-                """
-            )
-            self.client.execute(
-                delete_mutation,
-                variable_values={
-                    "entityName": self.entity,
-                    "projectName": self.project,
-                    "artifactCollectionName": self._saved_name,
-                    "tags": [
-                        {
-                            "tagName": tag,
-                        }
-                        for tag in tags_to_delete
-                    ],
-                },
-            )
+            self._delete_tags(tags_to_delete)
         self._saved_tags = copy(self._tags)
 
     def __repr__(self):
