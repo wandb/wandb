@@ -18,7 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
-	"github.com/wandb/wandb/core/internal/watcher2test"
+	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/filestreamtest"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -62,7 +62,7 @@ func TestUploader(t *testing.T) {
 	var fakeFileStream *filestreamtest.FakeFileStream
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
-	var fakeFileWatcher *watcher2test.FakeWatcher
+	var fakeFileWatcher *watchertest.FakeWatcher
 	var uploader Uploader
 
 	// Optional batch delay to use in the uploader.
@@ -101,7 +101,7 @@ func TestUploader(t *testing.T) {
 
 		mockGQLClient = gqlmock.NewMockClient()
 
-		fakeFileWatcher = watcher2test.NewFakeWatcher()
+		fakeFileWatcher = watchertest.NewFakeWatcher()
 
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
 			Ctx:          context.Background(),

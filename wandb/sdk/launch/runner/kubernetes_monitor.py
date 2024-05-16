@@ -14,6 +14,7 @@ from kubernetes_asyncio.client import (  # type: ignore  # noqa: F401
     BatchV1Api,
     CoreV1Api,
     CustomObjectsApi,
+    V1Pod,
     V1PodStatus,
 )
 
@@ -130,6 +131,13 @@ def _is_pod_unschedulable(status: "V1PodStatus") -> Tuple[bool, str]:
         ):
             return True, condition.message
     return False, ""
+
+
+def _get_crd_job_name(object: "V1Pod") -> Optional[str]:
+    refs = object.metadata.owner_references
+    if refs:
+        return refs[0].name
+    return None
 
 
 def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
@@ -334,7 +342,7 @@ class LaunchKubernetesMonitor:
             label_selector=self._label_selector,
         ):
             obj = event.get("object")
-            job_name = obj.metadata.labels.get("job-name")
+            job_name = obj.metadata.labels.get("job-name") or _get_crd_job_name(obj)
             if job_name is None or not hasattr(obj, "status"):
                 continue
             if self.__get_status(job_name) in ["finished", "failed"]:
@@ -381,7 +389,7 @@ class LaunchKubernetesMonitor:
             plural=custom_resource.plural,
             group=custom_resource.group,
             version=custom_resource.version,
-            label_selector=self._label_selector,  # TODO: Label selector doesn't work for CRDs.
+            label_selector=self._label_selector,
         ):
             object = event.get("object")
             name = object.get("metadata", dict()).get("name")

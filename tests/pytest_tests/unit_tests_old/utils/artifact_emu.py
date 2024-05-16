@@ -144,7 +144,7 @@ class ArtifactEmulator:
 
     def file(self, entity, digest):
         # TODO?
-        return "ARTIFACT %s" % digest, 200
+        return "ARTIFACT {}".format(digest), 200
 
     def storage(self, request, arti_id=None):
         fname = request.args.get("file")

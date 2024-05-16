@@ -198,13 +198,12 @@ func MakeArtifactNameSafe(name string) string {
 
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
 	jobBuilder := JobBuilder{
-		settings:              settings,
-		isNotebookRun:         settings.GetXJupyter().GetValue(),
-		logger:                logger,
-		Disable:               settings.GetDisableJobCreation().GetValue(),
-		wandbConfigParameters: newWandbConfigParameters(),
-		saveShapeToMetadata:   false,
-		verbose:               verbose,
+		settings:            settings,
+		isNotebookRun:       settings.GetXJupyter().GetValue(),
+		logger:              logger,
+		Disable:             settings.GetDisableJobCreation().GetValue(),
+		saveShapeToMetadata: false,
+		verbose:             verbose,
 	}
 	return &jobBuilder
 }
@@ -762,7 +761,7 @@ func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (str
 		}
 		input_types["files"] = files
 	}
-	if j.runConfig != nil {
+	if j.runConfig != nil && j.wandbConfigParameters != nil {
 		runConfigTypes, err := j.inferRunConfigTypes()
 		if err == nil {
 			input_types[WandbConfigKey] = runConfigTypes
@@ -828,6 +827,9 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		}
 		j.configFiles = append(j.configFiles, newInput)
 	case *service.JobInputSource_RunConfig:
+		if j.wandbConfigParameters == nil {
+			j.wandbConfigParameters = newWandbConfigParameters()
+		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
 	}

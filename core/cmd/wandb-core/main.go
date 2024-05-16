@@ -10,6 +10,7 @@ import (
 	"runtime/trace"
 
 	"github.com/getsentry/sentry-go"
+	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -27,11 +28,18 @@ func main() {
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 	enableDebugLogging := flag.Bool("debug", false, "enable debug logging")
 	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
+	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false, "enable OS pid shutdown")
 	traceFile := flag.String("trace", "", "file name to write trace output to")
 	// TODO: remove these flags, they are here for backward compatibility
 	_ = flag.Bool("serve-sock", false, "use sockets")
 
 	flag.Parse()
+
+	var shutdownOnParentExitEnabled bool
+	if *pid != 0 && *enableOsPidShutdown {
+		// Shutdown this process if the parent pid exits (if supported by the OS)
+		shutdownOnParentExitEnabled = processlib.ShutdownOnParentExit(*pid)
+	}
 
 	// set up sentry reporting
 	observability.InitSentry(*disableAnalytics, commit)
@@ -62,6 +70,7 @@ func main() {
 			slog.Bool("debug", *enableDebugLogging),
 			slog.Bool("disable-analytics", *disableAnalytics),
 		)
+		slog.Info("FeatureState", "shutdownOnParentExitEnabled", shutdownOnParentExitEnabled)
 		loggerPath = file.Name()
 		defer file.Close()
 	}
@@ -85,7 +94,14 @@ func main() {
 		defer trace.Stop()
 	}
 
-	srv, err := server.NewServer(ctx, "127.0.0.1:0", *portFilename)
+	srv, err := server.NewServer(
+		ctx,
+		&server.ServerParams{
+			ListenIPAddress: "127.0.0.1:0",
+			PortFilename:    *portFilename,
+			ParentPid:       *pid,
+		},
+	)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
