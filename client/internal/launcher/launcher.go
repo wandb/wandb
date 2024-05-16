@@ -12,47 +12,12 @@ import (
 	"github.com/wandb/wandb/client/internal/execbin"
 )
 
-// readLines reads a whole file into memory
-// and returns a slice of its lines.
-func readLines(path string) ([]string, error) {
-	file, err := os.Open(path)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	var lines []string
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		lines = append(lines, scanner.Text())
-	}
-	return lines, scanner.Err()
-}
-
 type Launcher struct {
 	portFilename string
 }
 
-func (l *Launcher) tryport() (int, error) {
-	lines, err := readLines(l.portFilename)
-	if err != nil {
-		return 0, err
-	}
-	if len(lines) < 2 {
-		return 0, errors.New("expecting at least 2 lines")
-	}
-	pair := strings.SplitN(lines[0], "=", 2)
-	if len(pair) != 2 {
-		return 0, errors.New("expecting split into 2")
-	}
-	if pair[0] != "sock" {
-		return 0, errors.New("expecting sock key")
-	}
-	intVar, err := strconv.Atoi(pair[1])
-	if err != nil {
-		return 0, err
-	}
-	return intVar, nil
+func New() *Launcher {
+	return &Launcher{}
 }
 
 func (l *Launcher) GetPort() (int, error) {
@@ -60,7 +25,7 @@ func (l *Launcher) GetPort() (int, error) {
 
 	// wait for 30 seconds for port
 	for i := 0; i < 3000; i++ {
-		val, err := l.tryport()
+		val, err := extractPort(l.portFilename)
 		if err == nil {
 			return val, err
 		}
@@ -88,6 +53,42 @@ func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
 	return cmd, err
 }
 
-func NewLauncher() *Launcher {
-	return &Launcher{}
+// readLines reads a whole file into memory and returns a slice of its lines.
+func readLines(path string) ([]string, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var lines []string
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		lines = append(lines, scanner.Text())
+	}
+	return lines, scanner.Err()
+}
+
+// extractPort reads a file and extracts the port number from the first line
+// of the file.
+func extractPort(path string) (int, error) {
+	lines, err := readLines(path)
+	if err != nil {
+		return 0, err
+	}
+	if len(lines) < 2 {
+		return 0, errors.New("expecting at least 2 lines")
+	}
+	pair := strings.SplitN(lines[0], "=", 2)
+	if len(pair) != 2 {
+		return 0, errors.New("expecting split into 2")
+	}
+	if pair[0] != "sock" {
+		return 0, errors.New("expecting sock key")
+	}
+	intVar, err := strconv.Atoi(pair[1])
+	if err != nil {
+		return 0, err
+	}
+	return intVar, nil
 }

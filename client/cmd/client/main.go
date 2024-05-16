@@ -28,11 +28,11 @@ func Setup(corePath *C.char) *C.char {
 // Teardown closes the session and stops wandb-core process
 //
 //export Teardown
-func Teardown() {
+func Teardown(code C.int) {
 	if s == nil {
 		return
 	}
-	s.Close()
+	s.Close(int32(code))
 	s = nil
 }
 

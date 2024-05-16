@@ -11,12 +11,18 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+const (
+	defaultBufSize = 16384
+)
+
+// Connection wraps a net.Conn with additional context and cancellation support
 type Connection struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 	net.Conn
 }
 
+// New creates a new Connection to the specified address
 func New(ctx context.Context, addr string) (*Connection, error) {
 	conn, err := net.Dial("tcp", addr)
 	if err != nil {
@@ -31,31 +37,47 @@ func New(ctx context.Context, addr string) (*Connection, error) {
 	}, nil
 }
 
+// Close terminates the connection
 func (c *Connection) Close() error {
 	err := c.Conn.Close()
 	if err != nil {
 		return fmt.Errorf("error closing connection: %w", err)
 	}
+	c.cancel()
 	return nil
 }
 
-// Send sends a message to the server.
+// Send marshals and sends a message to the server
 func (c *Connection) Send(msg proto.Message) error {
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("error marshaling message: %w", err)
 	}
-	writer := bufio.NewWriterSize(c, 16384)
+	return c.send(data)
+}
 
-	header := server.Header{Magic: byte('W'), DataLength: uint32(len(data))}
-	err = binary.Write(writer, binary.LittleEndian, &header)
-	if err != nil {
+// send sends a message to the server
+func (c *Connection) send(msg []byte) error {
+
+	writer := bufio.NewWriterSize(c, defaultBufSize)
+
+	// Create a header for the message.
+	if err := binary.Write(writer, binary.LittleEndian,
+		&server.Header{
+			Magic:      byte('W'),
+			DataLength: uint32(len(msg)),
+		},
+	); err != nil {
 		return fmt.Errorf("error writing header: %w", err)
 	}
-	if _, err = writer.Write(data); err != nil {
+
+	// Write the message to the server.
+	if _, err := writer.Write(msg); err != nil {
 		return fmt.Errorf("error writing message: %w", err)
 	}
-	if err = writer.Flush(); err != nil {
+
+	// Flush the buffered writer to ensure all data is sent.
+	if err := writer.Flush(); err != nil {
 		return fmt.Errorf("error flushing writer: %w", err)
 	}
 	return nil

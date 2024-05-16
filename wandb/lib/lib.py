@@ -25,8 +25,9 @@ class Lib:
         address = self.lib.Setup(core_path.encode())
         return address.decode()
 
-    def teardown(self) -> None:
-        self.lib.Teardown()
+    def teardown(self, exit_code: int) -> None:
+        self.lib.Teardown.argtypes = [ctypes.c_int]
+        self.lib.Teardown(exit_code)
 
 
 class Session:
@@ -40,15 +41,16 @@ class Session:
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        self.teardown()
+        # TODO: make sure to call teardown with the right exit code
+        self.teardown(0)
 
     def __del__(self) -> None:
-        self.teardown()
+        self.teardown(0)
 
     def _setup(self) -> None:
         core_path = str(pathlib.Path(__file__).parent.parent / "bin" / "wandb-core")
         self.address = self._lib.setup(core_path)
 
-    def teardown(self) -> None:
-        self._lib.teardown()
+    def teardown(self, exit_code: int) -> None:
+        self._lib.teardown(exit_code)
         self.address = ""
