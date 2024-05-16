@@ -1182,7 +1182,7 @@ class Artifact:
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
-            raise ValueError("Path is not a file: %s" % local_path)
+            raise ValueError("Path is not a file: {}".format(local_path))
 
         name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
@@ -1223,11 +1223,12 @@ class Artifact:
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: %s" % local_path)
+            raise ValueError("Path is not a directory: {}".format(local_path))
 
         termlog(
-            "Adding directory to artifact (%s)... "
-            % os.path.join(".", os.path.normpath(local_path)),
+            "Adding directory to artifact ({})... ".format(
+                os.path.join(".", os.path.normpath(local_path))
+            ),
             newline=False,
         )
         start_time = time.time()
@@ -1529,7 +1530,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: %s" % name)
+            raise KeyError("Path not contained in artifact: {}".format(name))
         entry._parent_artifact = self
         return entry
 
@@ -1940,11 +1941,11 @@ class Artifact:
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+            print("Warning: skipped verification of {} refs".format(ref_count))
 
     def file(self, root: Optional[str] = None) -> StrPath:
         """Download a single file artifact to the directory you specify with `root`.

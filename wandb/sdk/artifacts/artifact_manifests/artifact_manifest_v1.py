@@ -20,7 +20,7 @@ class ArtifactManifestV1(ArtifactManifest):
     ) -> "ArtifactManifestV1":
         if manifest_json["version"] != cls.version():
             raise ValueError(
-                "Expected manifest version 1, got %s" % manifest_json["version"]
+                "Expected manifest version 1, got {}".format(manifest_json["version"])
             )
 
         storage_policy_name = manifest_json["storagePolicy"]
