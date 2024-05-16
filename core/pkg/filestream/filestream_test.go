@@ -31,6 +31,12 @@ func NewHistoryRecord() filestream.Update {
 	}
 }
 
+func jsonCompact(t *testing.T, s string) string {
+	var buf bytes.Buffer
+	assert.NoError(t, json.Compact(&buf, []byte(s)))
+	return buf.String()
+}
+
 func TestFileStream(t *testing.T) {
 	var fakeClient *apitest.FakeClient
 	var printer *observability.Printer
@@ -66,14 +72,13 @@ func TestFileStream(t *testing.T) {
 		fs.StreamUpdate(&filestream.FilesUploadedUpdate{RelativePath: "file.txt"})
 		fs.Close()
 
-		assert.Len(t, fakeClient.GetRequests(), 1)
+		assert.Len(t, fakeClient.GetRequests(), 2) // 1 batch + 1 final transmission
 		req := fakeClient.GetRequests()[0]
 		assert.Equal(t, "POST", req.Method)
 		assert.Equal(t, "test-url/files/entity/project/run/file_stream", req.URL)
 		assert.Equal(t, http.Header{}, req.Header)
-		var expected bytes.Buffer
-		assert.NoError(t, json.Compact(&expected,
-			[]byte(`{
+		assert.Equal(t,
+			jsonCompact(t, `{
 				"files": {
 					"wandb-history.jsonl": {
 						"offset": 0,
@@ -81,8 +86,8 @@ func TestFileStream(t *testing.T) {
 					}
 				},
 				"uploaded": ["file.txt"]
-			}`)))
-		assert.Equal(t, expected.String(), string(req.Body))
+			}`),
+			string(req.Body))
 	})
 
 	t.Run("sends heartbeat", func(t *testing.T) {
@@ -92,14 +97,12 @@ func TestFileStream(t *testing.T) {
 		})
 
 		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
-		fakeHeartbeat.SetDone()
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
-		// We're relying on a single loop happening in-between. Technically
-		// this test is brittle: the code would still be correct if Close()
-		// pre-empted Start().
+		fakeHeartbeat.SetDone()
+		fakeClient.WaitUntilRequestCount(t, 1, time.Hour)
 		fs.Close()
 
-		assert.Len(t, fakeClient.GetRequests(), 1)
+		assert.Len(t, fakeClient.GetRequests(), 2) // heartbeat, then final request
 		assert.Equal(t,
 			apitest.RequestCopy{
 				Method: "POST",
@@ -111,6 +114,25 @@ func TestFileStream(t *testing.T) {
 		)
 	})
 
+	t.Run("sends exit code at end", func(t *testing.T) {
+		fs := setup(func() {})
+
+		fakeClient.SetResponse(&apitest.TestResponse{StatusCode: 200}, nil)
+		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
+		fs.StreamUpdate(&filestream.ExitUpdate{
+			Record: &service.RunExitRecord{ExitCode: 345},
+		})
+		fs.Close()
+
+		assert.Len(t, fakeClient.GetRequests(), 1)
+		assert.Equal(t,
+			jsonCompact(t, `{
+				"complete": true,
+				"exitcode": 345
+			}`),
+			string(fakeClient.GetRequests()[0].Body))
+	})
+
 	t.Run("shuts down on HTTP failure", func(t *testing.T) {
 		fakeBatchDelay := waitingtest.NewFakeDelay()
 		fs := setup(func() {
@@ -119,10 +141,10 @@ func TestFileStream(t *testing.T) {
 
 		fakeClient.SetResponse(nil, fmt.Errorf("nope!"))
 		fs.Start("entity", "project", "run", filestream.FileStreamOffsetMap{})
-		fs.StreamUpdate(NewHistoryRecord())           // should go through
-		fakeBatchDelay.WaitAndTick(true, time.Second) // picks up the chunk
-		fs.StreamUpdate(NewHistoryRecord())           // should be ignored
-		fs.StreamUpdate(NewHistoryRecord())           // should be ignored
+		fs.StreamUpdate(NewHistoryRecord())              // should go through
+		fakeBatchDelay.WaitAndTick(t, true, time.Second) // picks up the chunk
+		fs.StreamUpdate(NewHistoryRecord())              // should be ignored
+		fs.StreamUpdate(NewHistoryRecord())              // should be ignored
 		fs.Close()
 
 		assert.Len(t, fakeClient.GetRequests(), 1)
