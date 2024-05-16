@@ -12,7 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/internal/watcher2"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -63,7 +63,7 @@ type UploaderParams struct {
 	FileStream   filestream.FileStream
 	FileTransfer filetransfer.FileTransferManager
 	GraphQL      graphql.Client
-	FileWatcher  watcher2.Watcher
+	FileWatcher  watcher.Watcher
 
 	// How long to wait to batch upload operations.
 	//

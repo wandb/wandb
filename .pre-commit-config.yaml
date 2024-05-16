@@ -3,57 +3,65 @@ default_stages:
   - pre-push
 default_install_hook_types: [pre-push, pre-commit]
 repos:
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-    - id: clippy
-      args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
+  # - repo: https://github.com/doublify/pre-commit-rust
+  #   rev: v1.0
+  #   hooks:
+  #   - id: clippy
+  #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
+  #     exclude: ^(core/vendor/)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.3.7"
+    rev: "v0.4.4"
     hooks:
       - id: ruff
         args: [ --fix]
+        exclude: ^(core/vendor/)
       - id: ruff-format
+        exclude: ^(core/vendor/)
   - repo: https://github.com/asottile/blacken-docs
     rev: 1.16.0
     hooks:
       - id: blacken-docs
-        exclude: ^(wandb/vendor/)
+        exclude: (wandb/vendor/|core/vendor/)
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v18.1.3
     hooks:
       - id: clang-format
         types_or: [proto]
+        exclude: ^(core/vendor/)
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.6.0
     hooks:
       - id: check-merge-conflict
       - id: trailing-whitespace
         name: trailing-whitespace
-        exclude: ^(wandb/|tests/|src/)
+        exclude: ^(wandb/|tests/|src/|core/vendor/|.bumpversion.*.cfg)
       - id: end-of-file-fixer
         name: end-of-file-fixer
-        exclude: ^(wandb/|tests/|src/|.*_durations)
+        exclude: ^(wandb/|tests/|src/|.*_durations|core/vendor/)
       - id: check-yaml
         name: check-yaml
-        exclude: ^(wandb/|tests/)
+        exclude: ^(wandb/|tests/|core/vendor/)
       - id: check-added-large-files
         name: check-added-large-files
+        exclude: ^(core/vendor/)
       - id: check-shebang-scripts-are-executable
         name: check-shebang-scripts-are-executable
-        exclude: ^(wandb/|tests/)
+        exclude: ^(wandb/|tests/|core/vendor/)
       - id: check-executables-have-shebangs
         name: check-executables-have-shebangs
-        exclude: ^(wandb/|tests/)
+        exclude: ^(wandb/|tests/|core/vendor/)
       - id: check-symlinks
         name: check-symlinks
+        exclude: ^(core/vendor/)
       - id: check-toml
         name: check-toml
+        exclude: ^(core/vendor/)
       - id: debug-statements
         name: debug-statements
-        exclude: ^(wandb/__init__.py)
+        exclude: ^(wandb/__init__.py|core/vendor/)
       - id: forbid-submodules
         name: forbid-submodules
+        exclude: ^(core/vendor/)
   - repo: local
     hooks:
       - id: go-generate-proto
@@ -62,6 +70,7 @@ repos:
         files: '\.proto$'
         args:
           - ./api/proto
+        exclude: ^(core/vendor/)
         pass_filenames: false
         language: 'script'
         description: "Runs `go generate`, requires golang"
@@ -74,17 +83,19 @@ repos:
         pass_filenames: false
         language: 'script'
         description: "Runs `go generate`, requires golang"
+        exclude: ^(core/vendor/)
       - id: go-fmt
         name: 'go-fmt'
         entry: core/scripts/pre-commit-hooks/run-go-fmt.sh
         files: '\.go$'
         language: 'script'
         description: "Runs `gofmt`, requires golang"
+        exclude: ^(core/vendor/)
       - id: go-imports
         name: 'go-imports'
         entry: core/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
+        exclude: '(core/pkg/service/|core/vendor/)'
         language: 'script'
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests
@@ -94,6 +105,7 @@ repos:
         language: 'script'
         description: "Runs `go test`"
         require_serial: true
+        exclude: ^(core/vendor/)
       - id: go-vet
         name: 'go-vet'
         entry: core/scripts/pre-commit-hooks/run-go-vet.sh
@@ -101,12 +113,14 @@ repos:
         language: 'script'
         description: "Runs `go vet`, requires golang"
         require_serial: true
+        exclude: ^(core/vendor/)
       - id: golangci-lint
         name: 'golangci-lint'
         entry: core/scripts/pre-commit-hooks/run-golangci-lint.sh
         types: [go]
         language: 'script'
         pass_filenames: false
+        exclude: ^(core/vendor/)
       - id: go-critic
         name: 'go-critic'
         entry: core/scripts/pre-commit-hooks/run-go-critic.sh
@@ -114,11 +128,12 @@ repos:
         language: 'script'
         pass_filenames: false
         description: "Runs `go-critic`, requires https://github.com/go-critic/go-critic"
+        exclude: ^(core/vendor/)
       - id: go-cyclo
         name: 'go-cyclo'
         entry: core/scripts/pre-commit-hooks/run-go-cyclo.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
+        exclude: '(core/pkg/service/|core/vendor/)'
         language: 'script'
         description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
         args:
@@ -129,9 +144,11 @@ repos:
         pass_filenames: false
         language: 'script'
         description: "Runs `go mod tidy -v`, requires golang"
+        exclude: ^(core/vendor/)
       - id: go-build
         name: 'go-build'
         entry: core/scripts/pre-commit-hooks/run-go-build.sh
         files: '\.go$'
         language: 'script'
         description: "Runs `go build`, requires golang"
+        exclude: ^(core/vendor/)

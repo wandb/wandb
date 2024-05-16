@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -63,6 +64,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		settings,
 		fileStream,
 		fileTransferManager,
+		watchertest.NewFakeWatcher(),
 		client,
 	)
 	sender := server.NewSender(

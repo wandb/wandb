@@ -107,7 +107,7 @@ class Sweep(Attrs):
         if force or not self._attrs:
             sweep = self.get(self.client, self.entity, self.project, self.id)
             if sweep is None:
-                raise ValueError("Could not find sweep %s" % self)
+                raise ValueError("Could not find sweep {}".format(self))
             self._attrs = sweep._attrs
             self.runs = sweep.runs
 
@@ -133,7 +133,7 @@ class Sweep(Attrs):
                 "No order specified and couldn't find metric in sweep config, returning most recent run"
             )
         else:
-            wandb.termlog("Sorting runs by %s" % order)
+            wandb.termlog("Sorting runs by {}".format(order))
         filters = {"$and": [{"sweep": self.id}]}
         try:
             return public.Runs(

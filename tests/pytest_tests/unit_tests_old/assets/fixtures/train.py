@@ -23,7 +23,7 @@ print(f"Init called with config {wandb.config}")
 # os.kill(os.getpid(), signal.SIGINT)
 for i in range(0, wandb.config.epochs):
     loss = random.uniform(0, wandb.config.epochs - i)
-    print("loss: %s" % loss)
+    print("loss: {}".format(loss))
     wandb.log({"loss": loss}, commit=False)
     if wandb.config.heavy:
         for x in range(50):

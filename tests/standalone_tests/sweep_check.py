@@ -46,7 +46,7 @@ def train(**kwargs):
                 time.sleep(delay)
             if POKE_LOCAL:
                 poke()
-    shutil.copyfile("wandb/debug.log", "wandb/debug-%s.log" % run_id)
+    shutil.copyfile("wandb/debug.log", "wandb/debug-{}.log".format(run_id))
 
 
 # WB-3321: check if sweeps work when a user uses os.chdir in sweep function
@@ -245,7 +245,7 @@ def main():
         print(f"Testing: {t}")
         f = all_tests.get(t)
         if f is None:
-            raise Exception("Unknown test: %s" % t)
+            raise Exception("Unknown test: {}".format(t))
         if args.dryrun:
             continue
         if args.local and t == "grid_hyper":

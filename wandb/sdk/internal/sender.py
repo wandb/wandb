@@ -807,7 +807,9 @@ class SendManager:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume (%s) " % run.run_id
+                error.message = "resume='must' but could not resume ({}) ".format(
+                    run.run_id
+                )
                 return error
 
         # TODO: Do we need to restore config / summary?
@@ -823,7 +825,7 @@ class SendManager:
         self._resume_state.summary = summary
         self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: %s" % self._resume_state)
+        logger.info("configured resuming with: {}".format(self._resume_state))
         return None
 
     def _telemetry_get_framework(self) -> str:

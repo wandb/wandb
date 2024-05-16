@@ -197,9 +197,9 @@ def projects(entity, display=True):
     api = _get_cling_api()
     projects = api.list_projects(entity=entity)
     if len(projects) == 0:
-        message = "No projects found for %s" % entity
+        message = "No projects found for {}".format(entity)
     else:
-        message = 'Latest projects for "%s"' % entity
+        message = 'Latest projects for "{}"'.format(entity)
     if display:
         click.echo(click.style(message, bold=True))
         for project in projects:
@@ -423,7 +423,7 @@ def init(ctx, project, entity, reset, mode):
         """
         ).format(
             code1=click.style("import wandb", bold=True),
-            code2=click.style('wandb.init(project="%s")' % project, bold=True),
+            code2=click.style('wandb.init(project="{}")'.format(project), bold=True),
             run=click.style("python <train.py>", bold=True),
         )
     )
@@ -927,7 +927,7 @@ def sweep(
             "resume": "Resuming",
         }
         wandb.termlog(f"{ings[state]} sweep {entity}/{project}/{sweep_id}")
-        getattr(api, "%s_sweep" % state)(sweep_id, entity=entity, project=project)
+        getattr(api, "{}_sweep".format(state))(sweep_id, entity=entity, project=project)
         wandb.termlog("Done.")
         return
     else:
@@ -2108,13 +2108,13 @@ def docker_run(ctx, docker_run_args):
     if image:
         resolved_image = wandb.docker.image_id(image)
     if resolved_image:
-        args = ["-e", "WANDB_DOCKER=%s" % resolved_image] + args
+        args = ["-e", "WANDB_DOCKER={}".format(resolved_image)] + args
     else:
         wandb.termlog(
             "Couldn't detect image argument, running command without the WANDB_DOCKER env variable"
         )
     if api.api_key:
-        args = ["-e", "WANDB_API_KEY=%s" % api.api_key] + args
+        args = ["-e", "WANDB_API_KEY={}".format(api.api_key)] + args
     else:
         wandb.termlog(
             "Not logged in, run `wandb login` from the host machine to enable result logging"
@@ -2205,14 +2205,17 @@ def docker(
     resolved_image = wandb.docker.image_id(image)
     if resolved_image is None:
         raise ClickException(
-            "Couldn't find image locally or in a registry, try running `docker pull %s`"
-            % image
+            "Couldn't find image locally or in a registry, try running `docker pull {}`".format(
+                image
+            )
         )
     if digest:
         sys.stdout.write(resolved_image)
         exit(0)
 
-    existing = wandb.docker.shell(["ps", "-f", "ancestor=%s" % resolved_image, "-q"])
+    existing = wandb.docker.shell(
+        ["ps", "-f", "ancestor={}".format(resolved_image), "-q"]
+    )
     if existing:
         if click.confirm(
             "Found running container with the same image, do you want to attach?"
@@ -2226,7 +2229,7 @@ def docker(
         "-e",
         "LANG=C.UTF-8",
         "-e",
-        "WANDB_DOCKER=%s" % resolved_image,
+        "WANDB_DOCKER={}".format(resolved_image),
         "--ipc=host",
         "-v",
         wandb.docker.entrypoint + ":/wandb-entrypoint.sh",
@@ -2239,7 +2242,7 @@ def docker(
         #  TODO: We should default to the working directory if defined
         command.extend(["-v", cwd + ":" + dir, "-w", dir])
     if api.api_key:
-        command.extend(["-e", "WANDB_API_KEY=%s" % api.api_key])
+        command.extend(["-e", "WANDB_API_KEY={}".format(api.api_key)])
     else:
         wandb.termlog(
             "Couldn't find WANDB_API_KEY, run `wandb login` to enable streaming metrics"
@@ -2247,16 +2250,15 @@ def docker(
     if jupyter:
         command.extend(["-e", "WANDB_ENSURE_JUPYTER=1", "-p", port + ":8888"])
         no_tty = True
-        cmd = (
-            "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir %s"
-            % dir
+        cmd = "jupyter lab --no-browser --ip=0.0.0.0 --allow-root --NotebookApp.token= --notebook-dir {}".format(
+            dir
         )
     command.extend(args)
     if no_tty:
         command.extend([image, shell, "-c", cmd])
     else:
         if cmd:
-            command.extend(["-e", "WANDB_COMMAND=%s" % cmd])
+            command.extend(["-e", "WANDB_COMMAND={}".format(cmd)])
         command.extend(["-it", image, shell])
         wandb.termlog("Launching docker container \U0001f6a2")
     subprocess.call(command)
@@ -2342,7 +2344,7 @@ def start(ctx, port, env, daemon, upgrade, edge):
             exit(1)
     image = "docker.pkg.github.com/wandb/core/local" if edge else "wandb/local"
     username = getpass.getuser()
-    env_vars = ["-e", "LOCAL_USERNAME=%s" % username]
+    env_vars = ["-e", "LOCAL_USERNAME={}".format(username)]
     for e in env:
         env_vars.append("-e")
         env_vars.append(e)
@@ -2376,7 +2378,9 @@ def start(ctx, port, env, daemon, upgrade, edge):
             )
             exit(1)
         else:
-            wandb.termlog("W&B server started at http://localhost:%s \U0001f680" % port)
+            wandb.termlog(
+                "W&B server started at http://localhost:{} \U0001f680".format(port)
+            )
             wandb.termlog("You can stop the server by running `wandb server stop`")
             if not api.api_key:
                 # Let the server start before potentially launching a browser
@@ -2513,7 +2517,7 @@ def get(path, root, type):
         )
         artifact = public_api.artifact(full_path, type=type)
         path = artifact.download(root=root)
-        wandb.termlog("Artifact downloaded to %s" % path)
+        wandb.termlog("Artifact downloaded to {}".format(path))
     except ValueError:
         raise ClickException("Unable to download artifact")
 
@@ -2591,17 +2595,17 @@ def pull(run, project, entity):
 
     for name in urls:
         if api.file_current(name, urls[name]["md5"]):
-            click.echo("File %s is up to date" % name)
+            click.echo("File {} is up to date".format(name))
         else:
             length, response = api.download_file(urls[name]["url"])
             # TODO: I had to add this because some versions in CI broke click.progressbar
-            sys.stdout.write("File %s\r" % name)
+            sys.stdout.write("File {}\r".format(name))
             dirname = os.path.dirname(name)
             if dirname != "":
                 filesystem.mkdir_exists_ok(dirname)
             with click.progressbar(
                 length=length,
-                label="File %s" % name,
+                label="File {}".format(name),
                 fill_char=click.style("&", fg="green"),
             ) as bar:
                 with open(name, "wb") as f:
@@ -2647,11 +2651,8 @@ def restore(ctx, run, no_git, branch, project, entity):
     )
     repo = metadata.get("git", {}).get("repo")
     image = metadata.get("docker")
-    restore_message = (
-        """`wandb restore` needs to be run from the same git repository as the original run.
-Run `git clone %s` and restore from there or pass the --no-git flag."""
-        % repo
-    )
+    restore_message = """`wandb restore` needs to be run from the same git repository as the original run.
+Run `git clone {}` and restore from there or pass the --no-git flag.""".format(repo)
     if no_git:
         commit = None
     elif not api.git.enabled:
@@ -2696,18 +2697,21 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
             else:
                 patch_path = None
 
-        branch_name = "wandb/%s" % run
+        branch_name = "wandb/{}".format(run)
         if branch and branch_name not in api.git.repo.branches:
             api.git.repo.git.checkout(commit, b=branch_name)
-            wandb.termlog("Created branch %s" % click.style(branch_name, bold=True))
+            wandb.termlog(
+                "Created branch {}".format(click.style(branch_name, bold=True))
+            )
         elif branch:
             wandb.termlog(
-                "Using existing branch, run `git branch -D %s` from master for a clean checkout"
-                % branch_name
+                "Using existing branch, run `git branch -D {}` from master for a clean checkout".format(
+                    branch_name
+                )
             )
             api.git.repo.git.checkout(branch_name)
         else:
-            wandb.termlog("Checking out %s in detached mode" % commit)
+            wandb.termlog("Checking out {} in detached mode".format(commit))
             api.git.repo.git.checkout(commit)
 
         if patch_path:
@@ -2745,7 +2749,7 @@ Run `git clone %s` and restore from there or pass the --no-git flag."""
     with open(config_path, "w") as f:
         f.write(s)
 
-    wandb.termlog("Restored config variables to %s" % config_path)
+    wandb.termlog("Restored config variables to {}".format(config_path))
     if image:
         if not metadata["program"].startswith("<") and metadata.get("args") is not None:
             # TODO: we may not want to default to python here.
@@ -2780,7 +2784,9 @@ def magic(ctx, program, args):
         with open(program, "rb") as fp:
             code = compile(fp.read(), program, "exec")
     except OSError:
-        click.echo(click.style("Could not launch program: %s" % program, fg="red"))
+        click.echo(
+            click.style("Could not launch program: {}".format(program), fg="red")
+        )
         sys.exit(1)
     globs = {
         "__file__": program,
@@ -2788,14 +2794,11 @@ def magic(ctx, program, args):
         "__package__": None,
         "wandb_magic_install": magic_install,
     }
-    prep = (
-        """
+    prep = """
 import __main__
-__main__.__file__ = "%s"
+__main__.__file__ = "{}"
 wandb_magic_install()
-"""
-        % program
-    )
+""".format(program)
     magic_run(prep, globs, None)
     magic_run(code, globs, None)
 

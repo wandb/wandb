@@ -321,7 +321,7 @@ class InterfaceShared(InterfaceBase):
         if result is None:
             # TODO: friendlier error message here
             raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
+                "Couldn't communicate with backend after {} seconds".format(timeout)
             )
         login_response = result.response.login_response
         assert login_response

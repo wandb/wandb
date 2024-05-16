@@ -480,7 +480,7 @@ class Image(BatchableMedia):
             return "RGBA"
         else:
             raise ValueError(
-                "Un-supported shape for image conversion %s" % list(data.shape)
+                "Un-supported shape for image conversion {}".format(list(data.shape))
             )
 
     @classmethod

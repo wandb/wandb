@@ -1068,7 +1068,7 @@ func TestConfigFileParameters(t *testing.T) {
 	writeRequirements(t, fdir)
 	writeDiffFile(t, fdir)
 	writeWandbMetadata(t, fdir, metadata)
-	configDir := filepath.Join(fdir, "configs")
+	configDir := filepath.Join(fdir, LAUNCH_MANAGED_CONFIGS_DIR)
 	err = os.Mkdir(configDir, 0777)
 	assert.Nil(t, err)
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"

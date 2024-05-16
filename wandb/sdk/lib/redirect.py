@@ -504,7 +504,7 @@ class RedirectBase:
 
     @property
     def src_stream(self):
-        return getattr(sys, "__%s__" % self.src)
+        return getattr(sys, "__{}__".format(self.src))
 
     @property
     def src_fd(self):

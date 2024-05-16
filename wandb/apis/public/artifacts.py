@@ -68,16 +68,15 @@ class ArtifactTypes(Paginator):
             $entityName: String!,
             $projectName: String!,
             $cursor: String,
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactTypes(after: $cursor) {
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactTypes(after: $cursor) {{
                     ...ArtifactTypesFragment
-                }
-            }
-        }
-        %s
-    """
-        % ARTIFACTS_TYPES_FRAGMENT
+                }}
+            }}
+        }}
+        {}
+    """.format(ARTIFACTS_TYPES_FRAGMENT)
     )
 
     def __init__(
@@ -181,7 +180,7 @@ class ArtifactType:
             or response.get("project") is None
             or response["project"].get("artifactType") is None
         ):
-            raise ValueError("Could not find artifact type %s" % self.type)
+            raise ValueError("Could not find artifact type {}".format(self.type))
         self._attrs = response["project"]["artifactType"]
         return self._attrs
 
@@ -233,31 +232,32 @@ class ArtifactCollections(Paginator):
                 $projectName: String!,
                 $artifactTypeName: String!
                 $cursor: String,
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifactType(name: $artifactTypeName) {
-                        artifactCollections: %s(after: $cursor) {
-                            pageInfo {
+            ) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifactType(name: $artifactTypeName) {{
+                        artifactCollections: {}(after: $cursor) {{
+                            pageInfo {{
                                 endCursor
                                 hasNextPage
-                            }
+                            }}
                             totalCount
-                            edges {
-                                node {
+                            edges {{
+                                node {{
                                     id
                                     name
                                     description
                                     createdAt
-                                }
+                                }}
                                 cursor
-                            }
-                        }
-                    }
-                }
-            }
-        """
-            % artifact_collection_plural_edge_name(
-                server_supports_artifact_collections_gql_edges(client)
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        """.format(
+                artifact_collection_plural_edge_name(
+                    server_supports_artifact_collections_gql_edges(client)
+                )
             )
         )
 
@@ -363,44 +363,45 @@ class ArtifactCollection:
             $artifactCollectionName: String!,
             $cursor: String,
             $perPage: Int = 1000
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifactCollection: %s(name: $artifactCollectionName) {
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactType(name: $artifactTypeName) {{
+                    artifactCollection: {}(name: $artifactCollectionName) {{
                         id
                         name
                         description
                         createdAt
-                        tags {
-                            edges {
-                                node {
+                        tags {{
+                            edges {{
+                                node {{
                                     id
                                     name
-                                }
-                            }
-                        }
-                        aliases(after: $cursor, first: $perPage){
-                            edges {
-                                node {
+                                }}
+                            }}
+                        }}
+                        aliases(after: $cursor, first: $perPage){{
+                            edges {{
+                                node {{
                                     alias
-                                }
+                                }}
                                 cursor
-                            }
-                            pageInfo {
+                            }}
+                            pageInfo {{
                                 endCursor
                                 hasNextPage
-                            }
-                        }
-                    }
-                    artifactSequence(name: $artifactCollectionName) {
+                            }}
+                        }}
+                    }}
+                    artifactSequence(name: $artifactCollectionName) {{
                         __typename
-                    }
-                }
-            }
-        }
-        """
-            % artifact_collection_edge_name(
-                server_supports_artifact_collections_gql_edges(self.client)
+                    }}
+                }}
+            }}
+        }}
+        """.format(
+                artifact_collection_edge_name(
+                    server_supports_artifact_collections_gql_edges(self.client)
+                )
             )
         )
         response = self.client.execute(
@@ -418,7 +419,7 @@ class ArtifactCollection:
             or response["project"].get("artifactType") is None
             or response["project"]["artifactType"].get("artifactCollection") is None
         ):
-            raise ValueError("Could not find artifact type %s" % self._saved_type)
+            raise ValueError("Could not find artifact type {}".format(self._saved_type))
         sequence = response["project"]["artifactType"]["artifactSequence"]
         self._is_sequence = (
             sequence is not None and sequence["__typename"] == "ArtifactSequence"
@@ -469,7 +470,7 @@ class ArtifactCollection:
         self._saved_type = new_type
         self._type = new_type
 
-    def is_sequence(self):
+    def is_sequence(self) -> bool:
         """Return whether the artifact collection is a sequence."""
         return self._is_sequence
 
@@ -962,18 +963,17 @@ class ArtifactFiles(Paginator):
             $fileNames: [String!],
             $fileCursor: String,
             $fileLimit: Int = 50
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifact(name: $artifactName) {
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactType(name: $artifactTypeName) {{
+                    artifact(name: $artifactName) {{
                         ...ArtifactFilesFragment
-                    }
-                }
-            }
-        }
-        %s
-    """
-        % ARTIFACT_FILES_FRAGMENT
+                    }}
+                }}
+            }}
+        }}
+        {}
+    """.format(ARTIFACT_FILES_FRAGMENT)
     )
 
     def __init__(

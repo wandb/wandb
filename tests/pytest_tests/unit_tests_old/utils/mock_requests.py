@@ -195,7 +195,7 @@ class RequestsMock:
         elif method.lower() == "put":
             return self.put(url, **kwargs)
         else:
-            message = "Request method not implemented: %s" % method
+            message = "Request method not implemented: {}".format(method)
             raise requests.RequestException(message)
 
     def __repr__(self):
