@@ -3,9 +3,12 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -34,11 +37,18 @@ type ArtifactSaver struct {
 	startTime        time.Time
 }
 
+type MultipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
+
 type serverFileResponse struct {
 	Name            string
 	BirthArtifactID string
 	UploadUrl       *string
 	UploadHeaders   []string
+
+	// Used only for multipart uploads.
+	UploadID            string
+	StoragePath         *string
+	MultipartUploadInfo MultipartUploadInfo
 }
 
 func NewArtifactSaver(
@@ -147,11 +157,16 @@ func (as *ArtifactSaver) uploadFiles(
 		if entry.LocalPath == nil {
 			continue
 		}
+		parts, err := multiPartRequest(*entry.LocalPath)
+		if err != nil {
+			return err
+		}
 		fileSpec := gql.CreateArtifactFileSpecInput{
 			ArtifactID:         artifactID,
 			Name:               name,
 			Md5:                entry.Digest,
 			ArtifactManifestID: &manifestID,
+			UploadPartsInput:   parts,
 		}
 		namedFileSpecs[name] = fileSpec
 	}
@@ -221,9 +236,14 @@ func (as *ArtifactSaver) processFiles(
 				as.numDone++
 				continue
 			}
-			task := newUploadTask(fileInfo, *entry.LocalPath)
-			task.SetCompletionCallback(func(t *filetransfer.Task) { doneChan <- t })
-			as.FileTransferManager.AddTask(task)
+			if fileInfo.MultipartUploadInfo != nil {
+				partData := namedFileSpecs[fileInfo.Name].UploadPartsInput
+				go as.uploadMultipart(*entry.LocalPath, fileInfo, partData, doneChan)
+			} else {
+				task := newUploadTask(fileInfo, *entry.LocalPath)
+				task.SetCompletionCallback(func(t *filetransfer.Task) { doneChan <- t })
+				as.FileTransferManager.AddTask(task)
+			}
 		// Listen for completed uploads, adding to the retry list if they failed.
 		case result := <-doneChan:
 			numActive--
@@ -260,12 +280,18 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 		return
 	}
 	for i, edge := range batchDetails {
-		resultChan <- serverFileResponse{
+		resp := serverFileResponse{
 			Name:            batch[i].Name,
 			BirthArtifactID: edge.Node.Artifact.Id,
 			UploadUrl:       edge.Node.UploadUrl,
 			UploadHeaders:   edge.Node.UploadHeaders,
+			StoragePath:     edge.Node.StoragePath,
 		}
+		if edge.Node.UploadMultipartUrls != nil {
+			resp.UploadID = edge.Node.UploadMultipartUrls.UploadID
+			resp.MultipartUploadInfo = edge.Node.UploadMultipartUrls.UploadUrlParts
+		}
+		resultChan <- resp
 	}
 }
 
@@ -299,6 +325,112 @@ func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.
 		Url:      *fileInfo.UploadUrl,
 		Headers:  fileInfo.UploadHeaders,
 	}
+}
+
+const (
+	S3MinMultiUploadSize = 2 << 30 // 2 GiB
+	S3MaxMultiUploadSize = 5 << 40 // 5 TiB
+	S3MaxParts           = 10000
+)
+
+func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file size for path %s: %w", path, err)
+	}
+	fileSize := fileInfo.Size()
+
+	if fileSize < S3MinMultiUploadSize || fileSize > S3MaxMultiUploadSize {
+		// We don't need to use multipart for small files.
+		return nil, nil
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	partsInfo := []gql.UploadPartsInput{}
+	partNumber := int64(1)
+	buffer := make([]byte, getChunkSize(fileSize))
+	for {
+		bytesRead, err := file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if bytesRead == 0 {
+			break
+		}
+		partsInfo = append(partsInfo, gql.UploadPartsInput{
+			PartNumber: partNumber,
+			HexMD5:     utils.ComputeHexMD5(buffer[:bytesRead]),
+		})
+		partNumber++
+	}
+	return partsInfo, nil
+}
+
+func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileResponse,
+	partData []gql.UploadPartsInput, doneChan chan<- *filetransfer.Task,
+) {
+	statInfo, err := os.Stat(path)
+	if err != nil {
+		doneChan <- &filetransfer.Task{Err: err}
+		return
+	}
+	chunkSize := getChunkSize(statInfo.Size())
+
+	wg := sync.WaitGroup{}
+	subChan := make(chan *filetransfer.Task)
+	// TODO: add mid-upload cancel.
+
+	partInfo := fileInfo.MultipartUploadInfo
+	for i, part := range partInfo {
+		task := newUploadTask(fileInfo, path)
+		task.Offset = part.PartNumber * chunkSize
+		if part.PartNumber == int64(len(partInfo)) {
+			task.Length = statInfo.Size() - task.Offset
+		} else {
+			task.Length = chunkSize
+		}
+		task.Headers = append(task.Headers, "content-md5:"+partData[i].HexMD5)
+		// TODO: I think length and type are added automatically at a lower level.
+		task.Headers = append(task.Headers, "content-length:"+strconv.FormatInt(task.Length, 10))
+		task.SetCompletionCallback(func(t *filetransfer.Task) {
+			subChan <- t
+			wg.Done()
+		})
+		wg.Add(1)
+		as.FileTransferManager.AddTask(task)
+	}
+	wg.Wait()
+	close(subChan)
+
+	for t := range subChan {
+		if t.Err != nil {
+			doneChan <- t
+			return
+		}
+	}
+	_, err = gql.CompleteMultipartUploadArtifact(
+		as.Ctx, as.GraphqlClient, gql.CompleteMultipartActionComplete, partData,
+		fileInfo.BirthArtifactID, *fileInfo.StoragePath, fileInfo.UploadID,
+	)
+	task := newUploadTask(fileInfo, path)
+	task.Err = err
+	doneChan <- task
+}
+
+func getChunkSize(fileSize int64) int64 {
+	// Default to 100MiB chunks
+	chunkSize := int64(100 * 1024 * 1024)
+	// Use a larger chunk size if we would need more than 10,000 chunks.
+	if chunkSize*S3MaxParts < fileSize {
+		chunkSize = int64(fileSize/S3MaxParts) + 1
+		chunkSize = (chunkSize + 4095) &^ 4095 // Round up to the nearest multiple of 4096.
+	}
+	return chunkSize
 }
 
 func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {
