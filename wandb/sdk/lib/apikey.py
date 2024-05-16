@@ -202,7 +202,7 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
                     elif skip:
                         skip -= 1
                     else:
-                        f.write("%s\n" % line)
+                        f.write("{}\n".format(line))
             f.write(
                 textwrap.dedent(
                     """\
@@ -236,7 +236,7 @@ def write_key(
     _, suffix = key.split("-", 1) if "-" in key else ("", key)
 
     if len(suffix) != 40:
-        raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
+        raise ValueError("API key must be 40 characters long, yours was {}".format(len(key)))
 
     if anonymous:
         api.set_setting("anonymous", "true", globally=True, persist=True)

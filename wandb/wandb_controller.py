@@ -455,8 +455,7 @@ class _WandbController:
                     rr["history"] = [json.loads(d) for d in rr["history"]]
                 else:
                     raise ValueError(
-                        "Invalid history value: expected list of json strings: %s"
-                        % rr["history"]
+                        "Invalid history value: expected list of json strings: {}".format(rr["history"])
                     )
             if "sampledHistory" in rr:
                 sampled_history = []
