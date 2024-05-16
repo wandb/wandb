@@ -467,7 +467,7 @@ class ArtifactCollection:
         self._saved_type = new_type
         self._type = new_type
 
-    def is_sequence(self):
+    def is_sequence(self) -> bool:
         """Return whether the artifact collection is a sequence."""
         return self._is_sequence
 
