@@ -19,6 +19,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 
+- Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586
+
 ## [0.17.0] - 2024-05-07
 
 ### Added
