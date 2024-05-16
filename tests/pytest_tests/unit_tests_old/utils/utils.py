@@ -40,7 +40,7 @@ def parse_ini_boolean(value: Union[bool, str]) -> bool:
         return True
     if value.lower() == "false":
         return False
-    raise ValueError("unknown string for bool: %r" % value)
+    raise ValueError("unknown string for bool: {!r}".format(value))
 
 
 def assets_path(path):
@@ -118,7 +118,7 @@ def assert_deep_lists_equal(a, b, indices=None):
                 raise
             finally:
                 if top and indices:
-                    print("Diff at index: %s" % list(reversed(indices)))
+                    print("Diff at index: {}".format(list(reversed(indices))))
 
 
 def mock_sagemaker(mocker):
