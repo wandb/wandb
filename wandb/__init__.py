@@ -20,12 +20,9 @@ _wandb_module = "wandb"
 import os as _os
 if _os.environ.get("WANDB_NG", False):
 
-    from wandb.lib import Lib as _Lib
-    from wandb.lib import Session as _Session
-    _lib = _Lib()
-    init = _lib.init
-    finish = _lib.finish
-    Session = _Session
+    from wandb.lib import Session
+
+    __all__ = ("Session",)
 
 else:
     from typing import Optional
@@ -233,31 +230,31 @@ else:
     _sentry.setup()
 
 
-__all__ = (
-    "__version__",
-    "init",
-    "setup",
-    "save",
-    "sweep",
-    "controller",
-    "agent",
-    "config",
-    "log",
-    "summary",
-    "join",
-    "Api",
-    "Graph",
-    "Image",
-    "Plotly",
-    "Video",
-    "Audio",
-    "Table",
-    "Html",
-    "Object3D",
-    "Molecule",
-    "Histogram",
-    "ArtifactTTL",
-    "log_model",
-    "use_model",
-    "link_model",
-)
+    __all__ = (
+        "__version__",
+        "init",
+        "setup",
+        "save",
+        "sweep",
+        "controller",
+        "agent",
+        "config",
+        "log",
+        "summary",
+        "join",
+        "Api",
+        "Graph",
+        "Image",
+        "Plotly",
+        "Video",
+        "Audio",
+        "Table",
+        "Html",
+        "Object3D",
+        "Molecule",
+        "Histogram",
+        "ArtifactTTL",
+        "log_model",
+        "use_model",
+        "link_model",
+    )

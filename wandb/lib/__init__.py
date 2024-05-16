@@ -1,3 +1,3 @@
-__all__ = ("Lib", "Session")
+__all__ = ("Session",)
 
-from .lib import Lib, Session
+from .lib import Session

@@ -70,7 +70,7 @@ func (l *Launcher) GetPort() (int, error) {
 }
 
 func (l *Launcher) prepTempfile() {
-	file, err := os.CreateTemp("", ".core-portfile")
+	file, err := os.CreateTemp("", ".core-portfile-")
 	if err != nil {
 		panic(err)
 	}

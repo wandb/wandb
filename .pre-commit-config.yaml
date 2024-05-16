@@ -3,14 +3,8 @@ default_stages:
   - pre-push
 default_install_hook_types: [pre-push, pre-commit]
 repos:
-  # - repo: https://github.com/doublify/pre-commit-rust
-  #   rev: v1.0
-  #   hooks:
-  #   - id: clippy
-  #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
-  #     exclude: ^(core/vendor/)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.3.7"
+    rev: "v0.4.4"
     hooks:
       - id: ruff
         args: [ --fix]

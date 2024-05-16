@@ -1,8 +1,7 @@
 package main
 
-import "C"
 import (
-	"fmt"
+	"C"
 
 	"github.com/wandb/wandb/client/pkg/session"
 )
@@ -10,24 +9,29 @@ import (
 // TODO: support multiple sessions
 var s *session.Session
 
-//export Init
-func Init(corePath *C.char, runId *C.char) {
-
+// Setup initializes the session and starts wandb-core process
+//
+//export Setup
+func Setup(corePath *C.char) {
+	if s != nil {
+		return
+	}
 	params := &session.SessionParams{
 		CorePath: C.GoString(corePath),
 	}
 	s = session.New(params)
 	s.Start()
-
-	run := s.NewRun(C.GoString(runId))
-
-	fmt.Println("Run ID: ", run.GetId())
 }
 
-//export Finish
-func Finish() {
-	fmt.Println("Finishing session")
+// Teardown closes the session and stops wandb-core process
+//
+//export Teardown
+func Teardown() {
+	if s == nil {
+		return
+	}
 	s.Close()
+	s = nil
 }
 
 func main() {}

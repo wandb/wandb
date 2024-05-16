@@ -7,7 +7,6 @@ import (
 
 	"github.com/wandb/wandb/client/internal/connection"
 	"github.com/wandb/wandb/client/internal/launcher"
-	"github.com/wandb/wandb/client/pkg/run"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -17,7 +16,6 @@ const (
 
 type SessionParams struct {
 	CorePath string
-	Settings map[string]interface{}
 }
 
 type Session struct {
@@ -26,7 +24,6 @@ type Session struct {
 	started  *atomic.Bool
 	corePath string
 	address  string
-	settings map[string]interface{}
 }
 
 func New(params *SessionParams) *Session {
@@ -35,7 +32,6 @@ func New(params *SessionParams) *Session {
 		ctx:      ctx,
 		cancel:   cancel,
 		corePath: params.CorePath,
-		settings: params.Settings,
 		started:  &atomic.Bool{},
 	}
 }
@@ -56,7 +52,6 @@ func (s *Session) Start() error {
 		return err
 	}
 	s.address = fmt.Sprintf("%s:%d", localHost, port)
-	fmt.Println("Address: ", s.address)
 	s.started.Store(true)
 	return nil
 }
@@ -91,10 +86,4 @@ func (s *Session) connect() (*connection.Connection, error) {
 		return nil, err
 	}
 	return conn, nil
-}
-
-// add a new run
-
-func (s *Session) NewRun(id string) *run.Run {
-	return run.New(id)
 }
