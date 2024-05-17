@@ -49,6 +49,7 @@ func (c *Connection) Close() error {
 
 // Send marshals and sends a message to the server
 func (c *Connection) Send(msg proto.Message) error {
+	// TODO: improve robustness: handle timeouts, retries, etc.
 	data, err := proto.Marshal(msg)
 	if err != nil {
 		return fmt.Errorf("error marshaling message: %w", err)
