@@ -68,3 +68,14 @@ class Session:
         self._lib.teardown(exit_code)
         self.address = ""
         self.log_path = ""
+
+    def run(self) -> "Run":
+        return Run()
+
+
+class Run:
+    def __init__(self) -> None:
+        pass
+
+    def log(self, data: dict) -> None:
+        print(data)

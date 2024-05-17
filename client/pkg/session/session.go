@@ -9,6 +9,7 @@ import (
 
 	"github.com/wandb/wandb/client/internal/connection"
 	"github.com/wandb/wandb/client/internal/launcher"
+	"github.com/wandb/wandb/client/pkg/run"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -42,6 +43,9 @@ type Session struct {
 
 	// address is the address of the server that the session is connected to
 	address string
+
+	// runs is a map of run IDs to Run objects
+	runs map[string]*run.Run
 }
 
 // New creates a new Session with the provided parameters
@@ -134,9 +138,9 @@ func (s *Session) Close(exitCode int32) {
 	}
 
 	// create a connection to the server and send a teardown request
-	conn, err := s.connect()
+	conn, err := connection.New(s.ctx, s.address)
 	if err != nil {
-		s.logger.CaptureError("failed to connect", err, "address", s.address)
+		s.logger.CaptureError("failed to create connection", err, "address", s.address)
 		return
 	}
 
@@ -165,12 +169,32 @@ func (s *Session) Close(exitCode int32) {
 	s.logger = nil
 }
 
-// connect establishes a connection to the server.
-func (s *Session) connect() (*connection.Connection, error) {
+func (s *Session) NewRun(settings *service.Settings) (*run.Run, error) {
 	conn, err := connection.New(s.ctx, s.address)
 	if err != nil {
 		s.logger.CaptureError("failed to create connection", err, "address", s.address)
 		return nil, err
 	}
-	return conn, nil
+
+	// communicate run initialization to the server
+	serverRecord := service.ServerRequest{
+		ServerRequestType: &service.ServerRequest_InformInit{InformInit: &service.ServerInformInitRequest{
+			Settings: settings,
+			XInfo:    &service.XRecordInfo{StreamId: settings.GetRunId().GetValue()},
+		}},
+	}
+	err = conn.Send(&serverRecord)
+	if err != nil {
+		s.logger.CaptureError("failed to send inform init request", err)
+		return nil, err
+	}
+
+	params := &run.RunParams{
+		Conn:     conn,
+		Settings: settings,
+	}
+	r := run.New(params)
+	r.Init()
+
+	return r, nil
 }

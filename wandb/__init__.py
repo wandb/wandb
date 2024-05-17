@@ -20,9 +20,9 @@ _wandb_module = "wandb"
 import os as _os
 if _os.environ.get("_WANDB_NG", False):  # TODO: call this something else
 
-    from wandb.lib import Session
+    from wandb.lib import Run, Session
 
-    __all__ = ("Session",)
+    __all__ = ("Run", "Session")
 
 else:
     from typing import Optional
