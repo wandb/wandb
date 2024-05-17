@@ -183,7 +183,7 @@ def log_model(
     return model
 
 
-def use_model(aliased_path: str, trust: bool) -> "_SavedModel":
+def use_model(aliased_path: str, unsafe: bool = False) -> "_SavedModel":
     """Fetch a saved model from an alias.
 
     Under the hood, we use the alias to fetch the model artifact containing the
@@ -193,7 +193,7 @@ def use_model(aliased_path: str, trust: bool) -> "_SavedModel":
     Args:
         aliased_path: `str` - the following forms are valid: "name:version",
             "name:alias". May be prefixed with "entity/project".
-        trust: `bool` - must be True to indicate the user understands the risks
+        unsafe: `bool` - must be True to indicate the user understands the risks
             associated with loading external models.
 
     Returns:
@@ -202,12 +202,12 @@ def use_model(aliased_path: str, trust: bool) -> "_SavedModel":
     Example:
         ```python
         # Assuming the model with the name "my-simple-model" is trusted:
-        sm = use_model("my-simple-model:latest", trust=True)
+        sm = use_model("my-simple-model:latest", unsafe=True)
         model = sm.model_obj()
         ```
     """
-    if not trust:
-        raise ValueError("The 'trust' parameter must be set to True to load a model.")
+    if not unsafe:
+        raise ValueError("The 'unsafe' parameter must be set to True to load a model.")
 
     if ":" not in aliased_path:
         raise ValueError(
