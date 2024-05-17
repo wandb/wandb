@@ -96,7 +96,9 @@ class Video(BatchableMedia):
         self._channels = None
         self._caption = caption
         if self._format not in Video.EXTS:
-            raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
+            raise ValueError(
+                "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
+            )
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
@@ -110,7 +112,7 @@ class Video(BatchableMedia):
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError(
-                    "wandb.Video accepts %s formats" % ", ".join(Video.EXTS)
+                    "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
                 )
             self._set_file(data_or_path, is_tmp=False)
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path

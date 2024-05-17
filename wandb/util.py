@@ -1913,3 +1913,12 @@ def get_core_path() -> str:
         )
 
     return str(bin_path)
+
+
+class NonOctalStringDumper(yaml.Dumper):
+    """Prevents strings containing non-octal values like "008" and "009" from being converted to numbers in in the yaml string saved as the sweep config."""
+
+    def represent_scalar(self, tag, value, style=None):
+        if tag == "tag:yaml.org,2002:str" and value.startswith("0") and len(value) > 1:
+            return super().represent_scalar(tag, value, style="'")
+        return super().represent_scalar(tag, value, style)
