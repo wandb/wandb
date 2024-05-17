@@ -8,8 +8,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/wandb/wandb/client/internal/execbin"
 )
 
 type Launcher struct {
@@ -46,10 +44,10 @@ func (l *Launcher) prepTempfile() {
 }
 
 // LaunchCommand launches a command with the port filename as an argument
-func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
+func (l *Launcher) LaunchCommand(command string) (*ForkExecCmd, error) {
 	l.prepTempfile()
 	args := []string{"--port-filename", l.portFilename}
-	cmd, err := execbin.ExecCommand(command, args)
+	cmd, err := execCommand(command, args)
 	return cmd, err
 }
 

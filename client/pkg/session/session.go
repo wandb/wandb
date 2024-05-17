@@ -37,6 +37,8 @@ type Session struct {
 	// corePath is the path to the core binary that the session will launch
 	corePath string
 
+	internalProcess *launcher.ForkExecCmd
+
 	// address is the address of the server that the session is connected to
 	address string
 }
@@ -44,12 +46,16 @@ type Session struct {
 // New creates a new Session with the provided parameters
 func New(params *SessionParams) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Session{
+
+	s := &Session{
 		ctx:      ctx,
 		cancel:   cancel,
 		corePath: params.CorePath,
 		started:  &atomic.Bool{},
 	}
+	s.setUpLogger()
+
+	return s
 }
 
 // Address returns the address of the wandb-core server that the session is
@@ -98,11 +104,12 @@ func (s *Session) Start() error {
 		return nil
 	}
 
-	s.setUpLogger()
+	// TODO: remove this once we have other telemetry options
 	s.logger.CaptureInfo("using wandb-client")
 
 	launch := launcher.New()
-	_, err := launch.LaunchCommand(s.corePath)
+	internalProcess, err := launch.LaunchCommand(s.corePath)
+	s.internalProcess = internalProcess
 	if err != nil {
 		s.logger.CaptureError("failed to launch core", err)
 		return err
@@ -145,6 +152,12 @@ func (s *Session) Close(exitCode int32) {
 		s.logger.CaptureError("failed to send teardown request", err, "address", s.address)
 		return
 	}
+
+	// if s.execCmd != nil {
+	// 	_ = s.execCmd.Wait()
+	// 	// TODO(beta): check exit code
+	// }
+
 	s.logger.Info("sent teardown request", "exitCode", exitCode)
 	s.started.Store(false)
 	s.loggerFile.Close()
