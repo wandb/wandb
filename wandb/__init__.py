@@ -124,14 +124,6 @@ else:
             return
         assert not _IS_INTERNAL_PROCESS
 
-
-    # toplevel:
-    # save()
-    # restore()
-    # login()
-    # sweep()
-    # agent()
-
     # globals
     Api = PublicApi
     api = InternalApi()
@@ -182,13 +174,6 @@ else:
     def ensure_configured():
         global api
         api = InternalApi()
-
-
-    def set_trace():
-        import pdb  # TODO: support other debuggers
-
-        #  frame = sys._getframe().f_back
-        pdb.set_trace()  # TODO: pass the parent stack...
 
 
     def load_ipython_extension(ipython):
