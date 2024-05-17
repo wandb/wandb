@@ -44,6 +44,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
 	// open the file for reading and defer closing it
+	var reader io.ReadSeeker
 	file, err := os.Open(task.Path)
 	if err != nil {
 		return err
@@ -69,10 +70,22 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		)
 	}
 
-	task.Size = stat.Size()
+	if task.Offset > 0 || (task.Length > 0 && task.Length < stat.Size()) {
+		if task.Offset+task.Length > stat.Size() {
+			ft.logger.Error("file transfer: upload: offset + length is greater than the file size",
+				"offset", task.Offset, "length", task.Length, "file size", stat.Size())
+			task.Length = int64(stat.Size() - task.Offset)
+		}
+		sectionReader := io.NewSectionReader(file, task.Offset, task.Length)
+		reader = sectionReader
+		task.Size = task.Length
+	} else {
+		reader = file
+		task.Size = stat.Size()
+	}
 
 	progressReader, err := NewProgressReader(
-		file,
+		reader,
 		task.Size,
 		func(processed int, total int) {
 			if task.ProgressCallback != nil {
@@ -165,25 +178,25 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 type ProgressReader struct {
 	// Note: this turns ProgressReader into a ReadSeeker, not just a Reader!
 	// The retryablehttp client will seek to 0 on every retry.
-	*os.File
+	io.ReadSeeker
 	len      int
 	read     int
 	callback func(processed, total int)
 }
 
-func NewProgressReader(file *os.File, size int64, callback func(processed, total int)) (*ProgressReader, error) {
+func NewProgressReader(reader io.ReadSeeker, size int64, callback func(processed, total int)) (*ProgressReader, error) {
 	if size > math.MaxInt {
 		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
 	return &ProgressReader{
-		File:     file,
-		len:      int(size),
-		callback: callback,
+		ReadSeeker: reader,
+		len:        int(size),
+		callback:   callback,
 	}, nil
 }
 
 func (pr *ProgressReader) Read(p []byte) (int, error) {
-	n, err := pr.File.Read(p)
+	n, err := pr.ReadSeeker.Read(p)
 	if err != nil {
 		return n, err // Return early if there's an error
 	}
