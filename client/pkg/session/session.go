@@ -156,7 +156,6 @@ func (s *Session) Close(exitCode int32) {
 	// close the internal process and log the exit code
 	if err := s.internalProcess.Close(); err != nil {
 		s.logger.CaptureError("failed to close internal process", err)
-		// TODO: should we return here?
 	}
 
 	s.logger.Info("sent teardown request", "exitCode", exitCode)
