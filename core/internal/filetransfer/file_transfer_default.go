@@ -72,7 +72,9 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 
 	if task.Offset > 0 || (task.Length > 0 && task.Length < stat.Size()) {
 		if task.Offset+task.Length > stat.Size() {
-			return fmt.Errorf("file transfer: upload: offset + length is greater than the file size")
+			ft.logger.Error("file transfer: upload: offset + length is greater than the file size",
+				"offset", task.Offset, "length", task.Length, "file size", stat.Size())
+			task.Length = int64(stat.Size() - task.Offset)
 		}
 		sectionReader := io.NewSectionReader(file, task.Offset, task.Length)
 		reader = sectionReader
