@@ -9,7 +9,10 @@ go 1.22.3
 // github.com/wandb/wandb/core v0.0.0-20240516195453-256d7bde5254
 require google.golang.org/protobuf v1.34.1
 
-require github.com/wandb/wandb/core v0.0.0-00010101000000-000000000000
+require (
+	github.com/getsentry/sentry-go v0.27.0
+	github.com/wandb/wandb/core v0.0.0-00010101000000-000000000000
+)
 
 require (
 	dario.cat/mergo v1.0.0 // indirect
@@ -20,7 +23,6 @@ require (
 	github.com/cloudflare/circl v1.3.8 // indirect
 	github.com/cyphar/filepath-securejoin v0.2.5 // indirect
 	github.com/emirpasic/gods v1.18.1 // indirect
-	github.com/getsentry/sentry-go v0.27.0 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.5.0 // indirect
 	github.com/go-git/go-git/v5 v5.12.0 // indirect
