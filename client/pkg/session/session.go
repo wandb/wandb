@@ -37,6 +37,7 @@ type Session struct {
 	// corePath is the path to the core binary that the session will launch
 	corePath string
 
+	// internalProcess is the launcher that manages the wandb-core process
 	internalProcess *launcher.Launcher
 
 	// address is the address of the server that the session is connected to
