@@ -8,14 +8,14 @@ import (
 	"syscall"
 )
 
-type WaitFunc func() error
-type ForkExecCmd struct {
-	waitFunc WaitFunc
+type waitFunc func() error
+type forkExecCmd struct {
+	waitFunc waitFunc
 }
 
 // ExecCommand executes a command with the given arguments and returns a
 // ForkExecCmd object that can be used to wait for the command to finish.
-func execCommand(command string, args []string) (*ForkExecCmd, error) {
+func execCommand(command string, args []string) (*forkExecCmd, error) {
 	path, err := exec.LookPath(command)
 	if err != nil {
 		return nil, err
@@ -24,12 +24,12 @@ func execCommand(command string, args []string) (*ForkExecCmd, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ForkExecCmd{waitFunc: waitFunc}, nil
+	return &forkExecCmd{waitFunc: waitFunc}, nil
 }
 
 // waitcmd waits for the command to finish and returns an error if the command
 // fails.
-func waitcmd(waitFunc WaitFunc) error {
+func waitcmd(waitFunc waitFunc) error {
 	if err := waitFunc(); err != nil {
 		var exiterr *exec.ExitError
 		if errors.As(err, &exiterr) {
@@ -43,8 +43,8 @@ func waitcmd(waitFunc WaitFunc) error {
 	return nil
 }
 
-// Wait waits for the command to finish and returns an error if the command fails.
-func (c *ForkExecCmd) Wait() error {
+// wait waits for the command to finish and returns an error if the command fails.
+func (c *forkExecCmd) wait() error {
 	// TODO: add error handling
 	if c.waitFunc != nil {
 		err := waitcmd(c.waitFunc)
@@ -56,7 +56,7 @@ func (c *ForkExecCmd) Wait() error {
 }
 
 // runCommand runs the command with the given arguments.
-func runCommand(command string, args []string) (WaitFunc, error) {
+func runCommand(command string, args []string) (waitFunc, error) {
 	cmd := exec.Command(command, args...)
 	cmd.Env = os.Environ()
 	cmd.Stdout = os.Stdout

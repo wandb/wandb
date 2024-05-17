@@ -12,6 +12,7 @@ import (
 
 type Launcher struct {
 	portFilename string
+	command      *forkExecCmd
 }
 
 func New() *Launcher {
@@ -44,11 +45,24 @@ func (l *Launcher) prepTempfile() {
 }
 
 // LaunchCommand launches a command with the port filename as an argument
-func (l *Launcher) LaunchCommand(command string) (*ForkExecCmd, error) {
+func (l *Launcher) LaunchCommand(command string) error {
 	l.prepTempfile()
 	args := []string{"--port-filename", l.portFilename}
 	cmd, err := execCommand(command, args)
-	return cmd, err
+	if err != nil {
+		return err
+	}
+	l.command = cmd
+	return nil
+}
+
+// Close waits for the command to finish
+func (l *Launcher) Close() error {
+	// closing on nil is a no-op
+	if l.command == nil {
+		return nil
+	}
+	return l.command.wait()
 }
 
 // readLines reads a whole file into memory and returns a slice of its lines.

@@ -37,7 +37,7 @@ type Session struct {
 	// corePath is the path to the core binary that the session will launch
 	corePath string
 
-	internalProcess *launcher.ForkExecCmd
+	internalProcess *launcher.Launcher
 
 	// address is the address of the server that the session is connected to
 	address string
@@ -48,12 +48,13 @@ func New(params *SessionParams) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Session{
-		ctx:      ctx,
-		cancel:   cancel,
-		corePath: params.CorePath,
-		started:  &atomic.Bool{},
+		ctx:             ctx,
+		cancel:          cancel,
+		corePath:        params.CorePath,
+		started:         &atomic.Bool{},
+		internalProcess: launcher.New(),
 	}
-	s.setUpLogger()
+	s.setupLogger()
 
 	return s
 }
@@ -72,8 +73,8 @@ func (s *Session) LogFileName() string {
 	return s.loggerFile.Name()
 }
 
-// setUpLogger sets up the default logger for the session
-func (s *Session) setUpLogger() {
+// setupLogger sets up the default logger for the session
+func (s *Session) setupLogger() {
 	if file, _ := observability.GetLoggerPath("client"); file != nil {
 		level := slog.LevelInfo
 		if os.Getenv("WANDB_DEBUG") != "" {
@@ -108,9 +109,7 @@ func (s *Session) Start() error {
 	s.logger.CaptureInfo("using wandb-client")
 
 	launch := launcher.New()
-	internalProcess, err := launch.LaunchCommand(s.corePath)
-	s.internalProcess = internalProcess
-	if err != nil {
+	if err := launch.LaunchCommand(s.corePath); err != nil {
 		s.logger.CaptureError("failed to launch core", err)
 		return err
 	}
@@ -133,6 +132,7 @@ func (s *Session) Close(exitCode int32) {
 		return
 	}
 
+	// create a connection to the server and send a teardown request
 	conn, err := s.connect()
 	if err != nil {
 		s.logger.CaptureError("failed to connect", err, "address", s.address)
@@ -153,10 +153,11 @@ func (s *Session) Close(exitCode int32) {
 		return
 	}
 
-	// if s.execCmd != nil {
-	// 	_ = s.execCmd.Wait()
-	// 	// TODO(beta): check exit code
-	// }
+	// close the internal process and log the exit code
+	if err := s.internalProcess.Close(); err != nil {
+		s.logger.CaptureError("failed to close internal process", err)
+		// TODO: should we return here?
+	}
 
 	s.logger.Info("sent teardown request", "exitCode", exitCode)
 	s.started.Store(false)
