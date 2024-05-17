@@ -14,7 +14,14 @@ try:
 except ImportError:
     from typing_extensions import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    root_validator,
+    validator,
+)
 from pydantic.alias_generators import to_camel
 
 
@@ -103,13 +110,16 @@ class TextLikeMixin:
         return obj
 
 
-class Sentinel(BaseModel): ...
+class Sentinel(BaseModel):
+    ...
 
 
-class ReportEntity(Sentinel): ...
+class ReportEntity(Sentinel):
+    ...
 
 
-class ReportProject(Sentinel): ...
+class ReportProject(Sentinel):
+    ...
 
 
 class ReportAPIBaseModel(BaseModel):
@@ -219,7 +229,7 @@ class PanelBankConfigSectionsItem(ReportAPIBaseModel):
     flow_config: FlowConfig = Field(default_factory=FlowConfig)
     sorted: int = 0
     local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
-    panels: list = Field(default_factory=list)
+    panels: LList["PanelTypes"] = Field(default_factory=list)
     ref: Optional[Ref] = None
 
 
@@ -229,6 +239,17 @@ class PanelBankConfig(ReportAPIBaseModel):
     sections: LList[PanelBankConfigSectionsItem] = Field(
         default_factory=lambda: [PanelBankConfigSectionsItem()]
     )
+    ref: Optional[Ref] = None
+
+    # Run keys are arbitrarily added here, so add some type checking for safety
+    # All run keys have the shape (key:str, value:colour)
+    @root_validator(pre=True)
+    def check_arbitrary_keys(cls, values):
+        fixed_keys = cls.__annotations__.keys()
+        for k, v in values.items():
+            if k not in fixed_keys and not isinstance(v, str):
+                raise ValueError(f"Arbitrary key '{k}' must be of type 'str'")
+        return values
 
 
 class PanelBankSectionConfig(ReportAPIBaseModel):
@@ -239,10 +260,13 @@ class PanelBankSectionConfig(ReportAPIBaseModel):
     flow_config: FlowConfig = Field(default_factory=FlowConfig)
     sorted: int = 0
     local_panel_settings: LocalPanelSettings = Field(default_factory=LocalPanelSettings)
+    local_panel_settings_ref: Optional[Ref] = None
+    pinned: Optional[bool] = None
+    panel_refs: LList[Ref] = Field(default_factory=list)
 
 
 class PanelGridCustomRunColors(ReportAPIBaseModel):
-    ref: Ref
+    ref: Ref = Field(default_factory=lambda: Ref)
 
 
 class PanelGridMetadataPanels(ReportAPIBaseModel):
@@ -269,7 +293,8 @@ class PanelGridMetadata(ReportAPIBaseModel):
     # )
 
 
-class Block(ReportAPIBaseModel): ...
+class Block(ReportAPIBaseModel):
+    ...
 
 
 class PanelGrid(Block):
@@ -320,6 +345,12 @@ class Sort(ReportAPIBaseModel):
     ref: Optional[Ref] = None
 
 
+class RunsetSelections(ReportAPIBaseModel):
+    root: int = 1
+    bounds: LList = Field(default_factory=list)
+    tree: LList[str] = Field(default_factory=list)
+
+
 class Runset(ReportAPIBaseModel):
     id: str = _generate_name()
     run_feed: RunFeed = Field(default_factory=RunFeed)
@@ -332,9 +363,7 @@ class Runset(ReportAPIBaseModel):
     )
     grouping: LList[Key] = Field(default_factory=list)
     sort: Sort = Field(default_factory=Sort)
-    selections: dict = Field(
-        default_factory=lambda: {"root": 1, "bounds": [], "tree": []}
-    )
+    selections: RunsetSelections = Field(default_factory=RunsetSelections)
     expanded_row_addresses: list = Field(default_factory=list)
     ref: Optional[Ref] = None
 
@@ -603,7 +632,7 @@ class LinePlotConfig(ReportAPIBaseModel):
     override_line_widths: Optional[dict] = None
     override_colors: Optional[dict] = None
     override_series_titles: Optional[dict] = None
-    legend_fields: Optional[list] = None
+    legend_fields: Optional[list[str]] = None
 
     # there are more here...
 

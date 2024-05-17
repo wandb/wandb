@@ -101,7 +101,8 @@ class Layout(Base):
 
 
 @dataclass(config=dataclass_config)
-class Block(Base): ...
+class Block(Base):
+    ...
 
 
 @dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
@@ -706,7 +707,8 @@ class Twitter(Block):
 
 
 @dataclass(config=dataclass_config)
-class WeaveBlock(Block): ...
+class WeaveBlock(Block):
+    ...
 
 
 BlockTypes = Union[
@@ -796,6 +798,7 @@ class LinePlot(Panel):
     legend_template: Optional[str] = None
     aggregate: Optional[bool] = None
     xaxis_expression: Optional[str] = None
+    legend_fields: Optional[list[str]] = None
 
     def to_model(self):
         obj = internal.LinePlot(
@@ -826,6 +829,7 @@ class LinePlot(Panel):
                 legend_template=self.legend_template,
                 aggregate=self.aggregate,
                 x_expression=self.xaxis_expression,
+                legend_fields=self.legend_fields,
             ),
             id=self.id,
             layout=self.layout.to_model(),
@@ -862,6 +866,7 @@ class LinePlot(Panel):
             xaxis_expression=model.config.x_expression,
             layout=Layout.from_model(model.layout),
             id=model.id,
+            legend_fields=model.config.legend_fields,
         )
         obj._ref = model.ref
         return obj
