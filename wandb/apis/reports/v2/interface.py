@@ -44,14 +44,25 @@ RunId = str
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
+def is_not_all_none(value):
+    if value is None:
+        return False
+    if isinstance(value, Iterable) and not isinstance(value, str):
+        return any(v is not None for v in value)
+    return True
+
+
 @dataclass(config=dataclass_config, repr=False)
 class Base:
     def __repr__(self):
-        fields = (f"{k}={v!r}" for k, v in self.__dict__.items() if v is not None)
+        fields = (f"{k}={v!r}" for k, v in self.__dict__.items() if is_not_all_none(v))
         fields_str = ", ".join(fields)
         return f"{self.__class__.__name__}({fields_str})"
 
-    # TODO: Add __repr__ that hides Nones
+    def __rich_repr__(self):
+        for k, v in self.__dict__.items():
+            if is_not_all_none(v):
+                yield k, v
 
     @property
     def _model(self):
