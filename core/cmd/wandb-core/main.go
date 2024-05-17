@@ -42,7 +42,7 @@ func main() {
 	}
 
 	// set up sentry reporting
-	observability.InitSentry(*disableAnalytics, commit)
+	observability.InitSentry("", *disableAnalytics, commit)
 	defer sentry.Flush(2)
 
 	// store commit hash in context

@@ -13,6 +13,7 @@ import (
 )
 
 type Launcher struct {
+	// logger 	 observability.CoreLogger
 	portFilename string
 }
 

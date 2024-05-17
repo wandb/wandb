@@ -7,6 +7,7 @@ from typing import Optional
 class Lib:
     def __init__(self) -> None:
         self._lib: Optional[ctypes.CDLL] = None
+        self.init_sentry()
 
     @property
     def lib(self) -> ctypes.CDLL:
@@ -29,11 +30,19 @@ class Lib:
         self.lib.Teardown.argtypes = [ctypes.c_int]
         self.lib.Teardown(exit_code)
 
+    def init_sentry(self) -> None:
+        self.lib.InitSentry()
+
+    def log_path(self) -> str:
+        self.lib.LogPath.restype = ctypes.c_char_p
+        return self.lib.LogPath().decode()
+
 
 class Session:
     def __init__(self) -> None:
         self._lib = Lib()
         self.address = ""
+        self.log_path = ""
         self._setup()
 
     def __enter__(self) -> "Session":
@@ -45,12 +54,17 @@ class Session:
         self.teardown(0)
 
     def __del__(self) -> None:
-        self.teardown(0)
+        try:
+            self.teardown(0)
+        except Exception:
+            pass
 
     def _setup(self) -> None:
         core_path = str(pathlib.Path(__file__).parent.parent / "bin" / "wandb-core")
         self.address = self._lib.setup(core_path)
+        self.log_path = self._lib.log_path()
 
     def teardown(self, exit_code: int) -> None:
         self._lib.teardown(exit_code)
         self.address = ""
+        self.log_path = ""

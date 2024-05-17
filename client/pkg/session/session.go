@@ -57,6 +57,13 @@ func (s *Session) Address() string {
 	return s.address
 }
 
+func (s *Session) LogFileName() string {
+	if s.loggerFile == nil {
+		return ""
+	}
+	return s.loggerFile.Name()
+}
+
 // setUpLogger sets up the default logger for the session
 func (s *Session) setUpLogger() {
 	if file, _ := observability.GetLoggerPath("client"); file != nil {
@@ -79,7 +86,6 @@ func (s *Session) setUpLogger() {
 			observability.WithCaptureException(observability.CaptureException),
 		)
 		s.loggerFile = file
-		fmt.Println("loggerPath", file.Name())
 	}
 }
 
@@ -91,6 +97,7 @@ func (s *Session) Start() error {
 	}
 
 	s.setUpLogger()
+	s.logger.CaptureInfo("using wandb-client")
 
 	launch := launcher.New()
 	_, err := launch.LaunchCommand(s.corePath)
