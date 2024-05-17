@@ -230,7 +230,7 @@ else:
     _sentry.setup()
 
 
-    __all__ = (
+    __all__ = (  # type: ignore
         "__version__",
         "init",
         "setup",

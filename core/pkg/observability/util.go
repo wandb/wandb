@@ -28,9 +28,9 @@ func (OsFs) OpenFile(name string, flag int, perm os.FileMode) (fs.File, error) {
 	return os.OpenFile(name, flag, perm)
 }
 
-func GetLoggerPath() (*os.File, error) {
+func GetLoggerPath(component string) (*os.File, error) {
 	osFs := OsFs{}
-	file, err := GetLoggerPathFS(osFs)
+	file, err := GetLoggerPathFS(osFs, component)
 
 	if err != nil {
 		return nil, err
@@ -45,7 +45,7 @@ func GetLoggerPath() (*os.File, error) {
 }
 
 // GetLoggerPathFS function with FileSystem parameter
-func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
+func GetLoggerPathFS(fs FileSystem, component string) (fs.File, error) {
 	// TODO: replace with a setting during client rewrite
 	dir := os.Getenv("WANDB_CACHE_DIR")
 	if dir == "" {
@@ -62,7 +62,7 @@ func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
 	}
 
 	timestamp := time.Now().Format("20060102_150405")
-	path := filepath.Join(dir, "wandb", "logs", fmt.Sprintf("core-debug-%s.log", timestamp))
+	path := filepath.Join(dir, "wandb", "logs", fmt.Sprintf("%s-debug-%s.log", component, timestamp))
 
 	if err := fs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, fmt.Errorf("error creating log directory: %s", err)

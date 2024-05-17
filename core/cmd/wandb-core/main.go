@@ -50,7 +50,7 @@ func main() {
 	ctx = context.WithValue(ctx, observability.Commit("commit"), commit)
 
 	var loggerPath string
-	if file, _ := observability.GetLoggerPath(); file != nil {
+	if file, _ := observability.GetLoggerPath("core"); file != nil {
 		level := slog.LevelInfo
 		if *enableDebugLogging {
 			level = slog.LevelDebug

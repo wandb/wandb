@@ -3,10 +3,13 @@ package session
 import (
 	"context"
 	"fmt"
+	"log/slog"
+	"os"
 	"sync/atomic"
 
 	"github.com/wandb/wandb/client/internal/connection"
 	"github.com/wandb/wandb/client/internal/launcher"
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -23,6 +26,9 @@ type SessionParams struct {
 type Session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
+
+	logger     *observability.CoreLogger
+	loggerFile *os.File
 
 	// started is an atomic boolean that indicates whether the session has been
 	// started
@@ -51,12 +57,40 @@ func (s *Session) Address() string {
 	return s.address
 }
 
+// setUpLogger sets up the default logger for the session
+func (s *Session) setUpLogger() {
+	if file, _ := observability.GetLoggerPath("client"); file != nil {
+		level := slog.LevelInfo
+		if os.Getenv("WANDB_DEBUG") != "" {
+			level = slog.LevelDebug
+		}
+		opts := &slog.HandlerOptions{
+			Level:     level,
+			AddSource: false,
+		}
+		logger := slog.New(slog.NewJSONHandler(file, opts))
+		slog.SetDefault(logger)
+		slog.Info("corePath", "corePath", s.corePath)
+
+		s.logger = observability.NewCoreLogger(
+			logger,
+			observability.WithTags(observability.Tags{}),
+			observability.WithCaptureMessage(observability.CaptureMessage),
+			observability.WithCaptureException(observability.CaptureException),
+		)
+		s.loggerFile = file
+		fmt.Println("loggerPath", file.Name())
+	}
+}
+
 // Start launches the core service and sets up the session connection to the
 // server. If the session has already been started, this function is a no-op.
 func (s *Session) Start() error {
 	if s.started.Load() {
 		return nil
 	}
+
+	s.setUpLogger()
 
 	launch := launcher.New()
 	_, err := launch.LaunchCommand(s.corePath)
@@ -69,6 +103,7 @@ func (s *Session) Start() error {
 		return err
 	}
 	s.address = fmt.Sprintf("%s:%d", localHost, port)
+	s.logger.Info("started session", "address", s.address)
 	s.started.Store(true)
 	return nil
 }
@@ -97,8 +132,10 @@ func (s *Session) Close(exitCode int32) {
 	if err := conn.Send(&request); err != nil {
 		return
 	}
-	fmt.Println("sent teardown request", exitCode)
+	s.logger.Info("sent teardown request", "exitCode", exitCode)
 	s.started.Store(false)
+	s.loggerFile.Close()
+	s.logger = nil
 }
 
 // connect establishes a connection to the server.

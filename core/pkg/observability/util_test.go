@@ -30,7 +30,7 @@ func TestGetLoggerPath(t *testing.T) {
 	os.Setenv("WANDB_CACHE_DIR", "/tmp/wandb")
 	defer os.Unsetenv("WANDB_CACHE_DIR")
 
-	file, err := observability.GetLoggerPathFS(fs)
+	file, err := observability.GetLoggerPathFS(fs, "core")
 	assert.NoError(t, err)
 	assert.NotNil(t, file)
 
@@ -51,7 +51,7 @@ func TestGetLoggerPath_MkdirFail(t *testing.T) {
 	os.Setenv("WANDB_CACHE_DIR", "/tmp/wandb")
 	defer os.Unsetenv("WANDB_CACHE_DIR")
 
-	_, err := observability.GetLoggerPathFS(fs)
+	_, err := observability.GetLoggerPathFS(fs, "core")
 	assert.Error(t, err, "Expected an error when failing to create a directory")
 }
 
@@ -69,6 +69,6 @@ func TestGetLoggerPath_OpenFileFail(t *testing.T) {
 	os.Setenv("WANDB_CACHE_DIR", "/tmp/wandb")
 	defer os.Unsetenv("WANDB_CACHE_DIR")
 
-	_, err := observability.GetLoggerPathFS(fs)
+	_, err := observability.GetLoggerPathFS(fs, "core")
 	assert.Error(t, err, "Expected an error when failing to open a file")
 }
