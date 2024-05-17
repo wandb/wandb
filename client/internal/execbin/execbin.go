@@ -17,13 +17,13 @@ type ForkExecCmd struct {
 func ExecCommand(command string, args []string) (*ForkExecCmd, error) {
 	path, err := exec.LookPath(command)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	waitFunc, err := runCommand(path, args)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	return &ForkExecCmd{waitFunc: waitFunc}, err
+	return &ForkExecCmd{waitFunc: waitFunc}, nil
 }
 
 func waitcmd(waitFunc WaitFunc) error {
@@ -45,7 +45,7 @@ func (c *ForkExecCmd) Wait() error {
 	if c.waitFunc != nil {
 		err := waitcmd(c.waitFunc)
 		if err != nil {
-			panic(err)
+			return err
 		}
 	}
 	return nil
@@ -60,11 +60,14 @@ func runCommand(command string, args []string) (WaitFunc, error) {
 	if err != nil {
 		switch e := err.(type) {
 		case *exec.Error:
-			fmt.Println("failed executing:", err)
+			err = fmt.Errorf("failed executing: %w", err)
+			return nil, err
 		case *exec.ExitError:
-			fmt.Println("command exit rc =", e.ExitCode())
+			err = fmt.Errorf("command exit rc = %d", e.ExitCode())
+			return nil, err
 		default:
-			panic(err)
+			err = fmt.Errorf("failed executing: %w", err)
+			return nil, err
 		}
 	}
 	return cmd.Wait, nil

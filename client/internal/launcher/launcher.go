@@ -13,7 +13,6 @@ import (
 )
 
 type Launcher struct {
-	// logger 	 observability.CoreLogger
 	portFilename string
 }
 
@@ -21,6 +20,7 @@ func New() *Launcher {
 	return &Launcher{}
 }
 
+// GetPort waits for the port file to be created and reads the port number
 func (l *Launcher) GetPort() (int, error) {
 	defer os.Remove(l.portFilename)
 
@@ -35,6 +35,7 @@ func (l *Launcher) GetPort() (int, error) {
 	return 0, errors.New("prob")
 }
 
+// prepTempfile creates a temporary file to store the port number
 func (l *Launcher) prepTempfile() {
 	file, err := os.CreateTemp("", ".core-portfile-")
 	if err != nil {
@@ -44,13 +45,11 @@ func (l *Launcher) prepTempfile() {
 	l.portFilename = file.Name()
 }
 
+// LaunchCommand launches a command with the port filename as an argument
 func (l *Launcher) LaunchCommand(command string) (*execbin.ForkExecCmd, error) {
 	l.prepTempfile()
 	args := []string{"--port-filename", l.portFilename}
 	cmd, err := execbin.ExecCommand(command, args)
-	if err != nil {
-		panic(err)
-	}
 	return cmd, err
 }
 

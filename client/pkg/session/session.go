@@ -52,11 +52,13 @@ func New(params *SessionParams) *Session {
 	}
 }
 
-// Address returns the address of the session
+// Address returns the address of the wandb-core server that the session is
+// connected to
 func (s *Session) Address() string {
 	return s.address
 }
 
+// LogFileName returns the name of the default log file
 func (s *Session) LogFileName() string {
 	if s.loggerFile == nil {
 		return ""
@@ -102,11 +104,13 @@ func (s *Session) Start() error {
 	launch := launcher.New()
 	_, err := launch.LaunchCommand(s.corePath)
 	if err != nil {
+		s.logger.CaptureError("failed to launch core", err)
 		return err
 	}
 
 	port, err := launch.GetPort()
 	if err != nil {
+		s.logger.CaptureError("failed to get port", err)
 		return err
 	}
 	s.address = fmt.Sprintf("%s:%d", localHost, port)
@@ -124,6 +128,7 @@ func (s *Session) Close(exitCode int32) {
 
 	conn, err := s.connect()
 	if err != nil {
+		s.logger.CaptureError("failed to connect", err, "address", s.address)
 		return
 	}
 
@@ -137,6 +142,7 @@ func (s *Session) Close(exitCode int32) {
 		},
 	}
 	if err := conn.Send(&request); err != nil {
+		s.logger.CaptureError("failed to send teardown request", err, "address", s.address)
 		return
 	}
 	s.logger.Info("sent teardown request", "exitCode", exitCode)
@@ -149,6 +155,7 @@ func (s *Session) Close(exitCode int32) {
 func (s *Session) connect() (*connection.Connection, error) {
 	conn, err := connection.New(s.ctx, s.address)
 	if err != nil {
+		s.logger.CaptureError("failed to create connection", err, "address", s.address)
 		return nil, err
 	}
 	return conn, nil
