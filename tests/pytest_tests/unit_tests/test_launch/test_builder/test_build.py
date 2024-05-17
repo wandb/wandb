@@ -117,9 +117,11 @@ def no_buildx(mocker):
 
 
 def test_get_requirements_section_user_provided_requirements(
-    mock_launch_project, tmp_path, no_buildx
+    mocker, mock_launch_project, tmp_path, no_buildx
 ):
     """Test that we use the user provided requirements.txt."""
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     mock_launch_project.project_dir = tmp_path
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "requirements.txt").write_text("")
@@ -130,12 +132,27 @@ def test_get_requirements_section_user_provided_requirements(
         requirements_files="src/requirements.txt",
         pip_install="pip install -r requirements.txt",
     )
+    warn_msgs = mocker.termwarn.call_args.args
+    assert any(
+        ["wandb is not present in requirements.txt." in msg for msg in warn_msgs]
+    )
+
+    # No warning if wandb is in requirements
+    mocker.termwarn.reset_mock()
+    (tmp_path / "src" / "requirements.txt").write_text("wandb")
+    get_requirements_section(mock_launch_project, tmp_path, "docker")
+    warn_msgs = mocker.termwarn.call_args.args
+    assert not any(
+        ["wandb is not present in requirements.txt." in msg for msg in warn_msgs]
+    )
 
 
 def test_get_requirements_section_frozen_requirements(
-    mock_launch_project, tmp_path, no_buildx
+    mocker, mock_launch_project, tmp_path, no_buildx
 ):
     """Test that we use frozen requirements.txt if nothing else is provided."""
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     mock_launch_project.project_dir = tmp_path
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "requirements.frozen.txt").write_text("")
@@ -147,17 +164,34 @@ def test_get_requirements_section_frozen_requirements(
         requirements_files="src/requirements.frozen.txt _wandb_bootstrap.py",
         pip_install="python _wandb_bootstrap.py",
     )
+    warn_msgs = mocker.termwarn.call_args.args
+    assert any(
+        ["wandb is not present in requirements.frozen.txt." in msg for msg in warn_msgs]
+    )
+
+    # No warning if wandb is in requirements
+    mocker.termwarn.reset_mock()
+    (tmp_path / "src" / "requirements.frozen.txt").write_text("wandb")
+    get_requirements_section(mock_launch_project, tmp_path, "docker")
+    warn_msgs = mocker.termwarn.call_args.args
+    assert not any(
+        ["wandb is not present in requirements.frozen.txt." in msg for msg in warn_msgs]
+    )
 
 
-def test_get_requirements_section_pyproject(mock_launch_project, tmp_path, no_buildx):
+def test_get_requirements_section_pyproject(
+    mocker, mock_launch_project, tmp_path, no_buildx
+):
     """Test that we install deps from [project.dependencies] in pyprojec.toml.
 
     This should only happen if there is no requirements.txt in the directory.
     """
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     mock_launch_project.project_dir = tmp_path
     (tmp_path / "src").mkdir()
     (tmp_path / "src" / "pyproject.toml").write_text(
-        "[project]\ndependencies = ['wandb==0.0.0', 'pandas==0.0.0']\n"
+        "[project]\ndependencies = ['pandas==0.0.0']\n"
     )
     assert get_requirements_section(
         mock_launch_project, tmp_path, "docker"
@@ -165,4 +199,26 @@ def test_get_requirements_section_pyproject(mock_launch_project, tmp_path, no_bu
         buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/requirements.txt",  # We convert into this format.
         pip_install="pip install -r requirements.txt",
+    )
+    warn_msgs = mocker.termwarn.call_args.args
+    assert any(
+        [
+            "wandb is not present as a dependency in pyproject.toml." in msg
+            for msg in warn_msgs
+        ]
+    )
+
+    # No warning if wandb is in requirements
+    mocker.termwarn.reset_mock()
+    (tmp_path / "src" / "requirements.txt").unlink()
+    (tmp_path / "src" / "pyproject.toml").write_text(
+        "[project]\ndependencies = ['wandb==0.0.0', 'pandas==0.0.0']\n"
+    )
+    get_requirements_section(mock_launch_project, tmp_path, "docker")
+    warn_msgs = mocker.termwarn.call_args.args
+    assert not any(
+        [
+            "wandb is not present as a dependency in pyproject.toml." in msg
+            for msg in warn_msgs
+        ]
     )

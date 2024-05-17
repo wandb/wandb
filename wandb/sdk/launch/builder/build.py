@@ -202,6 +202,10 @@ def get_requirements_section(
     if (base_path / "src" / "requirements.txt").exists():
         requirements_files += ["src/requirements.txt"]
         deps_install_line = "pip install -r requirements.txt"
+        with open(base_path / "src" / "requirements.txt") as f:
+            requirements = f.readlines()
+        if not any(["wandb" in r for r in requirements]):
+            wandb.termwarn(f"{LOG_PREFIX}wandb is not present in requirements.txt.")
         return PIP_TEMPLATE.format(
             buildx_optional_prefix=prefix,
             requirements_files=" ".join(requirements_files),
@@ -226,6 +230,10 @@ def get_requirements_section(
                 str(d) for d in contents.get("project", {}).get("dependencies", [])
             ]
             if project_deps:
+                if not any(["wandb" in d for d in project_deps]):
+                    wandb.termwarn(
+                        f"{LOG_PREFIX}wandb is not present as a dependency in pyproject.toml."
+                    )
                 with open(base_path / "src" / "requirements.txt", "w") as f:
                     f.write("\n".join(project_deps))
                 requirements_files += ["src/requirements.txt"]
@@ -251,6 +259,13 @@ def get_requirements_section(
 
         if not deps_install_line:
             raise LaunchError(f"No dependency sources found for {launch_project}")
+
+        with open(base_path / "src" / "requirements.frozen.txt") as f:
+            requirements = f.readlines()
+        if not any(["wandb" in r for r in requirements]):
+            wandb.termwarn(
+                f"{LOG_PREFIX}wandb is not present in requirements.frozen.txt."
+            )
 
         return PIP_TEMPLATE.format(
             buildx_optional_prefix=prefix,
