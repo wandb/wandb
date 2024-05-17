@@ -44,9 +44,13 @@ RunId = str
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Base:
-    ...
+    def __repr__(self):
+        fields = (f"{k}={v!r}" for k, v in self.__dict__.items() if v is not None)
+        fields_str = ", ".join(fields)
+        return f"{self.__class__.__name__}({fields_str})"
+
     # TODO: Add __repr__ that hides Nones
 
     @property
@@ -85,7 +89,7 @@ class SummaryMetric:
     name: str
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Layout(Base):
     x: int = 0
     y: int = 0
@@ -100,7 +104,7 @@ class Layout(Base):
         return cls(x=model.x, y=model.y, w=model.w, h=model.h)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Block(Base):
     ...
 
@@ -124,7 +128,7 @@ class UnknownBlock(Block):
         return cls(**d)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class TextWithInlineComments(Base):
     text: str
 
@@ -133,7 +137,7 @@ class TextWithInlineComments(Base):
     )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Heading(Block):
     @classmethod
     def from_model(cls, model: internal.Heading):
@@ -151,7 +155,7 @@ class Heading(Block):
             return H3(text=text, collapsed_blocks=blocks)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class H1(Heading):
     text: TextLikeField = ""
     collapsed_blocks: Optional[LList["BlockTypes"]] = None
@@ -168,7 +172,7 @@ class H1(Heading):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class H2(Heading):
     text: TextLikeField = ""
     collapsed_blocks: Optional[LList["BlockTypes"]] = None
@@ -185,7 +189,7 @@ class H2(Heading):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class H3(Heading):
     text: TextLikeField = ""
     collapsed_blocks: Optional[LList["BlockTypes"]] = None
@@ -202,7 +206,7 @@ class H3(Heading):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Link(Base):
     text: Union[str, TextWithInlineComments]
     url: str
@@ -212,17 +216,17 @@ class Link(Base):
     )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class InlineLatex(Base):
     text: str
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class InlineCode(Base):
     text: str
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class P(Block):
     text: TextLikeField = ""
 
@@ -236,7 +240,7 @@ class P(Block):
         return cls(text=pieces)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ListItem(Base):
     @classmethod
     def from_model(cls, model: internal.ListItem):
@@ -249,7 +253,7 @@ class ListItem(Base):
         # return UnorderedListItem(text=text)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class CheckedListItem(Base):
     text: TextLikeField = ""
     checked: bool = False
@@ -263,7 +267,7 @@ class CheckedListItem(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class OrderedListItem(Base):
     text: TextLikeField = ""
 
@@ -276,7 +280,7 @@ class OrderedListItem(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class UnorderedListItem(Base):
     text: TextLikeField = ""
 
@@ -288,7 +292,7 @@ class UnorderedListItem(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class List(Block):
     @classmethod
     def from_model(cls, model: internal.List):
@@ -307,7 +311,7 @@ class List(Block):
         return UnorderedList(items=items)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class CheckedList(List):
     items: LList[CheckedListItem] = Field(default_factory=lambda: [CheckedListItem()])
 
@@ -316,7 +320,7 @@ class CheckedList(List):
         return internal.List(children=items)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class OrderedList(List):
     items: LList[str] = Field(default_factory=lambda: [""])
 
@@ -325,7 +329,7 @@ class OrderedList(List):
         return internal.List(children=children, ordered=True)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class UnorderedList(List):
     items: LList[str] = Field(default_factory=lambda: [""])
 
@@ -334,7 +338,7 @@ class UnorderedList(List):
         return internal.List(children=children)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class BlockQuote(Block):
     text: TextLikeField = ""
 
@@ -346,7 +350,7 @@ class BlockQuote(Block):
         return cls(text=_internal_children_to_text(model.children))
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class CodeBlock(Block):
     code: TextLikeField = ""
     language: Optional[Language] = "python"
@@ -368,7 +372,7 @@ class CodeBlock(Block):
         return cls(code=code, language=model.language)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class MarkdownBlock(Block):
     text: str = ""
 
@@ -380,7 +384,7 @@ class MarkdownBlock(Block):
         return cls(text=model.content)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class LatexBlock(Block):
     text: str = ""
 
@@ -392,7 +396,7 @@ class LatexBlock(Block):
         return cls(text=model.content)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Image(Block):
     url: str = "https://raw.githubusercontent.com/wandb/assets/main/wandb-logo-yellow-dots-black-wb.svg"
     caption: TextLikeField = ""
@@ -411,7 +415,7 @@ class Image(Block):
         return cls(url=model.url, caption=caption)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class CalloutBlock(Block):
     text: TextLikeField = ""
 
@@ -428,7 +432,7 @@ class CalloutBlock(Block):
         return cls(text=text)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class HorizontalRule(Block):
     def to_model(self):
         return internal.HorizontalRule()
@@ -438,7 +442,7 @@ class HorizontalRule(Block):
         return cls()
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Video(Block):
     url: str = "https://www.youtube.com/watch?v=krWjJcW80_A"
 
@@ -450,7 +454,7 @@ class Video(Block):
         return cls(url=model.url)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Spotify(Block):
     spotify_id: str
 
@@ -462,7 +466,7 @@ class Spotify(Block):
         return cls(spotify_id=model.spotify_id)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class SoundCloud(Block):
     html: str
 
@@ -474,12 +478,12 @@ class SoundCloud(Block):
         return cls(html=model.html)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class GalleryReport(Base):
     report_id: str
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class GalleryURL(Base):
     url: str  # app accepts non-standard URL unfortunately
     title: Optional[str] = None
@@ -487,7 +491,7 @@ class GalleryURL(Base):
     image_url: Optional[str] = None
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Gallery(Block):
     items: LList[Union[GalleryReport, GalleryURL]] = Field(default_factory=list)
 
@@ -528,7 +532,7 @@ class Gallery(Block):
         return cls(items=items)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class OrderBy(Base):
     name: MetricType
     ascending: bool = False
@@ -547,7 +551,7 @@ class OrderBy(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Runset(Base):
     entity: str = ""
     project: str = ""
@@ -607,7 +611,7 @@ class Runset(Base):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Panel(Base):
     id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
@@ -617,7 +621,7 @@ class Panel(Base):
     )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class PanelGrid(Block):
     runsets: LList["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: LList["PanelTypes"] = Field(default_factory=list)
@@ -684,7 +688,7 @@ class PanelGrid(Block):
         return v
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class TableOfContents(Block):
     def to_model(self):
         return internal.TableOfContents()
@@ -694,7 +698,7 @@ class TableOfContents(Block):
         return cls()
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Twitter(Block):
     html: str
 
@@ -706,7 +710,7 @@ class Twitter(Block):
         return cls(html=model.html)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class WeaveBlock(Block):
     ...
 
@@ -759,7 +763,7 @@ block_mapping = {
 }
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class GradientPoint(Base):
     color: Annotated[str, internal.ColorStrConstraints]
     offset: Annotated[float, Ge(0), Le(100)] = 0
@@ -772,7 +776,7 @@ class GradientPoint(Base):
         return cls(color=model.color, offset=model.offset)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class LinePlot(Panel):
     title: Optional[str] = None
     x: Optional[MetricType] = "Step"
@@ -872,7 +876,7 @@ class LinePlot(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ScatterPlot(Panel):
     title: Optional[str] = None
     x: Optional[MetricType] = None
@@ -957,7 +961,7 @@ class ScatterPlot(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class BarPlot(Panel):
     title: Optional[str] = None
     metrics: LList[MetricType] = Field(default_factory=list)
@@ -1029,7 +1033,7 @@ class BarPlot(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ScalarChart(Panel):
     title: Optional[str] = None
     metric: MetricType = ""
@@ -1073,7 +1077,7 @@ class ScalarChart(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class CodeComparer(Panel):
     diff: CodeCompareDiff = "split"
 
@@ -1097,7 +1101,7 @@ class CodeComparer(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ParallelCoordinatesPlotColumn(Base):
     metric: ParallelCoordinatesMetric
     display_name: Optional[str] = None
@@ -1130,7 +1134,7 @@ class ParallelCoordinatesPlotColumn(Base):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ParallelCoordinatesPlot(Panel):
     columns: LList[ParallelCoordinatesPlotColumn] = Field(default_factory=list)
     title: Optional[str] = None
@@ -1176,7 +1180,7 @@ class ParallelCoordinatesPlot(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
@@ -1202,7 +1206,7 @@ class ParameterImportancePlot(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class RunComparer(Panel):
     diff_only: Optional[Literal["split", True]] = None
 
@@ -1226,7 +1230,7 @@ class RunComparer(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class MediaBrowser(Panel):
     num_columns: Optional[int] = None
     media_keys: LList[str] = Field(default_factory=list)
@@ -1255,7 +1259,7 @@ class MediaBrowser(Panel):
         return obj
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class MarkdownPanel(Panel):
     markdown: str = ""
 
@@ -1279,7 +1283,7 @@ class MarkdownPanel(Panel):
         return obj
 
 
-# @dataclass(config=dataclass_config)
+# @dataclass(config=dataclass_config, repr=False)
 # class ConfusionMatrix(Panel):
 #     def to_model(self):
 #         ...
@@ -1289,7 +1293,7 @@ class MarkdownPanel(Panel):
 #         ...
 
 
-# @dataclass(config=dataclass_config)
+# @dataclass(config=dataclass_config, repr=False)
 # class DataFrames(Panel):
 #     def to_model(self):
 #         ...
@@ -1299,7 +1303,7 @@ class MarkdownPanel(Panel):
 #         ...
 
 
-# @dataclass(config=dataclass_config)
+# @dataclass(config=dataclass_config, repr=False)
 # class MultiRunTable(Panel):
 #     def to_model(self):
 #         ...
@@ -1309,7 +1313,7 @@ class MarkdownPanel(Panel):
 #         ...
 
 
-# @dataclass(config=dataclass_config)
+# @dataclass(config=dataclass_config, repr=False)
 # class Vega(Panel):
 #     def to_model(self):
 #         ...
@@ -1319,7 +1323,7 @@ class MarkdownPanel(Panel):
 #         ...
 
 
-# @dataclass(config=dataclass_config)
+# @dataclass(config=dataclass_config, repr=False)
 # class Vega3(Panel):
 #     def to_model(self):
 #         ...
@@ -1329,7 +1333,7 @@ class MarkdownPanel(Panel):
 #         ...
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class CustomChart(Panel):
     query: dict = Field(default_factory=dict)
     chart_name: str = Field(default_factory=dict)
@@ -1410,7 +1414,7 @@ class WeavePanel(Panel):
         return cls(config=model.config)
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Report(Base):
     project: str
     entity: str = Field(default_factory=lambda: _get_api().default_entity)
