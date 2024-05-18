@@ -946,6 +946,7 @@ def init(
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
     fork_from: Optional[str] = None,
+    resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled]:
     r"""Start a new run to track and log to W&B.
@@ -1154,9 +1155,9 @@ def init(
 
     kwargs = dict(locals())
 
-    # convert fork_from into a version that can be passed to settings
-    if fork_from is not None and resume is not None:
-        raise ValueError("Cannot specify both `fork_from` and `resume`")
+    sum_resume_set = sum(kwargs.get(k) is not None for k in ["fork_from", "resume", "resume_from"])
+    if sum_resume_set > 1:
+        raise ValueError("You cannot specify more than one of `fork_from`, `resume`, or `resume_from`")
 
     try:
         wi = _WandbInit()
