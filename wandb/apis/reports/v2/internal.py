@@ -305,6 +305,7 @@ class PanelGrid(Block):
 
 class RunsetSearch(ReportAPIBaseModel):
     query: str = ""
+    is_regex: Optional[bool] = None
 
 
 class RunFeed(ReportAPIBaseModel):
@@ -328,6 +329,7 @@ class Filters(ReportAPIBaseModel):
     filters: Optional[LList["Filters"]] = None
     value: Optional[Any] = None
     disabled: Optional[bool] = None
+    current: Optional["Filters"] = None
 
 
 class SortKeyKey(ReportAPIBaseModel):

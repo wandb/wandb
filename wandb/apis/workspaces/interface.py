@@ -1,20 +1,47 @@
-from typing import Literal, Optional
-from urllib.parse import parse_qs, urlparse
+import os
+from typing import Annotated, Iterable, Literal, Optional
+from urllib.parse import parse_qs, urlparse, urlunparse
 
 from pydantic import AnyUrl, ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
 import wandb
 from wandb.apis.reports.v2 import expr_parsing
-from wandb.apis.reports.v2.interface import OrderBy, PanelTypes, _lookup_panel
+from wandb.apis.reports.v2.interface import OrderBy, PanelTypes, _get_api, _lookup_panel
 
 from . import internal
 
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
-@dataclass(config=dataclass_config)
+def is_not_all_none(value):
+    if value is None or value == "":
+        return False
+    if isinstance(value, Iterable) and not isinstance(value, str):
+        return any(v not in (None, "") for v in value)
+    return True
+
+
+def is_not_internal(k):
+    return not k.startswith("_")
+
+
+@dataclass(config=dataclass_config, repr=False)
 class Base:
+    def __repr__(self):
+        fields = (
+            f"{k}={v!r}"
+            for k, v in self.__dict__.items()
+            if is_not_all_none(v) and is_not_internal(k)
+        )
+        fields_str = ", ".join(fields)
+        return f"{self.__class__.__name__}({fields_str})"
+
+    def __rich_repr__(self):
+        for k, v in self.__dict__.items():
+            if is_not_all_none(v) and is_not_internal(k):
+                yield k, v
+
     @property
     def _model(self):
         return self.to_model()
@@ -52,13 +79,14 @@ class SectionSettings(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class Section(Base):
     name: str
     panels: list[PanelTypes] = Field(default_factory=list)
     collapsed: bool = False
 
-    section_settings: SectionSettings = Field(default_factory=SectionSettings)
+    # section_settings: SectionSettings = Field(default_factory=SectionSettings)
+    section_settings: Optional[SectionSettings] = None
 
     @classmethod
     def from_model(cls, model: internal.PanelBankConfigSectionsItem):
@@ -70,7 +98,10 @@ class Section(Base):
         )
 
     def to_model(self):
-        section_settings_model = self.section_settings.to_model()
+        if (section_settings := self.section_settings) is None:
+            section_settings = SectionSettings()
+
+        section_settings_model = section_settings.to_model()
         panel_models = [p.to_model() for p in self.panels]
 
         # Add warning that panel layout only works if they set section settings layout = "custom"
@@ -83,62 +114,113 @@ class Section(Base):
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class ViewSettings(Base):
+    # Axis settings
     x_axis: str = "_step"  # fix this to use name map in future
-    # x_min: Optional[float] = None
-    # x_max: Optional[float] = None
+    x_min: Optional[float] = None
+    x_max: Optional[float] = None
+
+    # Smoothing settings
     smoothing_type: internal.SmoothingType = "none"
     smoothing_weight: float = 0
+
+    # Outlier settings
     ignore_outliers: bool = False
+
+    # Panel settings
+    remove_legends_from_panels: bool = False
+
+    # Tooltip settings
+    tooltip_number_of_runs: Literal["single", "default", "all_runs"] = "default"
+    tooltip_color_run_names: bool = True
+
+    # Run settings
+    max_runs: int = 10
+    point_visualization_method: Literal["bucketing", "downsampling"] = "bucketing"
 
     @classmethod
     def from_model(cls, model: internal.OuterSectionSettings):
+        point_viz_method = (
+            "bucketing"
+            if model.point_visualization_method == "bucketing-gorilla"
+            else "downsampling"
+        )
+
         return cls(
             x_axis=model.x_axis,
-            # x_min=model.x_min,
-            # x_max=model.x_max,
+            x_min=model.x_axis_min,
+            x_max=model.x_axis_max,
             smoothing_type=model.smoothing_type,
             smoothing_weight=model.smoothing_weight,
             ignore_outliers=model.ignore_outliers,
+            remove_legends_from_panels=model.settings.suppress_legends,
+            tooltip_number_of_runs=model.settings.tooltip_number_of_runs,
+            tooltip_color_run_names=model.settings.color_run_names,
+            max_runs=model.settings.max_runs,
+            point_visualization_method=point_viz_method,
         )
 
     def to_model(self):
+        point_viz_method = (
+            "bucketing-gorilla"
+            if self.point_visualization_method == "bucketing"
+            else "sampling"
+        )
+
         return internal.OuterSectionSettings(
             x_axis=self.x_axis,
-            # x_min=self.x_min,
-            # x_max=self.x_max,
+            x_axis_min=self.x_min,
+            x_axis_max=self.x_max,
             smoothing_type=self.smoothing_type,
             smoothing_weight=self.smoothing_weight,
             ignore_outliers=self.ignore_outliers,
+            suppress_legends=self.remove_legends_from_panels,
+            tooltip_number_of_runs=self.tooltip_number_of_runs,
+            color_run_names=self.tooltip_color_run_names,
+            max_runs=self.max_runs,
+            point_visualization_method=point_viz_method,
         )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class RunConfig(Base):
-    color: Optional[str] = None
+    color: str = ""  # hex, css color, or rgb
     disabled: bool = False
 
 
-# maybe this can be the top-level object?
-@dataclass(config=dataclass_config)
-class View(Base):
-    entity: str
-    project: str
-    name: str = ""
-    sections: list[Section] = Field(default_factory=list)
-    settings: ViewSettings = Field(default_factory=ViewSettings)
-
-    # View runsets are tightly coupled to the view,
-    # so we have them here instead of in their own object.
-    # Also, the workspace only supports 1 runset at a time.
-    runset_query: str = ""
-    runset_filters: Optional[str] = ""
-    runset_groupby: list[str] = Field(default_factory=list)
-    runset_order: list[OrderBy] = Field(
+@dataclass(config=dataclass_config, repr=False)
+class RunsetConfig(Base):
+    query: str = ""
+    regex_query: bool = False
+    filters: Optional[str] = ""
+    groupby: list[str] = Field(default_factory=list)
+    order: list[OrderBy] = Field(
         default_factory=lambda: [OrderBy("CreatedTimestamp", ascending=False)]
     )
+
     run_configs: dict[str, RunConfig] = Field(default_factory=dict)
+
+
+@dataclass(config=dataclass_config, repr=False)
+class View(Base):
+    """Represents a wandb workspace, including sections, settings, and config for run sets.
+
+    Attributes:
+        entity (str): The entity name (usually user or team name).
+        project (str): The project name.
+        name (str): The name of the view.  Empty string will show "Untitled view" by default.
+        sections (List[Section]): A list of sections included in the view.
+        settings (ViewSettings): Configuration settings for the view.
+        runset_config (RunsetConfig): Configuration for run sets within the view.
+    """
+
+    entity: str
+    project: str
+    name: Annotated[str, Field("")]
+    sections: list[Section] = Field(default_factory=list)
+    settings: ViewSettings = Field(default_factory=ViewSettings)
+    runset_config: RunsetConfig = Field(default_factory=RunsetConfig)
 
     _internal_name: str = Field("", init=False, repr=False)
     _internal_id: str = Field("", init=False, repr=False)
@@ -172,25 +254,36 @@ class View(Base):
                 Section.from_model(s)
                 for s in model.viewspec.section.panel_bank_config.sections
             ],
-            runset_query=model.viewspec.section.run_sets[0].search.query,
-            runset_filters=expr_parsing.filters_to_expr(
-                model.viewspec.section.run_sets[0].filters
+            runset_config=RunsetConfig(
+                query=model.viewspec.section.run_sets[0].search.query,
+                regex_query=model.viewspec.section.run_sets[0].search.is_regex,
+                filters=internal.expression_tree_to_code(
+                    model.viewspec.section.run_sets[0].filters
+                ),
+                groupby=[
+                    expr_parsing.to_frontend_name(k.name)
+                    for k in model.viewspec.section.run_sets[0].grouping
+                ],
+                order=[
+                    OrderBy.from_model(s)
+                    for s in model.viewspec.section.run_sets[0].sort.keys
+                ],
+                run_configs=run_configs,
             ),
-            runset_groupby=[
-                expr_parsing.to_frontend_name(k.name)
-                for k in model.viewspec.section.run_sets[0].grouping
-            ],
-            runset_order=[
-                OrderBy.from_model(s)
-                for s in model.viewspec.section.run_sets[0].sort.keys
-            ],
-            run_configs=run_configs,
         )
         obj._internal_name = model.name
         obj._internal_id = model.id
         return obj
 
     def to_model(self):
+        # hack: create sections to hide unnecessary panels
+        base_sections = [s.to_model() for s in self.sections]
+        hidden_sections = [
+            Section("Hidden Panels", collapsed=True, panels=[]).to_model(),
+            Section("Charts", collapsed=True, panels=[]).to_model(),
+        ]
+        sections = base_sections + hidden_sections
+
         return internal.View(
             entity=self.entity,
             project=self.project,
@@ -201,7 +294,7 @@ class View(Base):
                 section=internal.OuterSection(
                     panel_bank_config=internal.PanelBankConfig(
                         state=1,
-                        sections=[s.to_model() for s in self.sections],
+                        sections=sections,
                     ),
                     panel_bank_section_config=internal.PanelBankSectionConfig(
                         pinned=False
@@ -209,26 +302,32 @@ class View(Base):
                     settings=self.settings.to_model(),
                     run_sets=[
                         internal.Runset(
-                            search=internal.RunsetSearch(query=self.runset_query),
-                            filters=expr_parsing.expr_to_filters(self.runset_filters),
+                            search=internal.RunsetSearch(
+                                query=self.runset_config.query,
+                                is_regex=self.runset_config.regex_query,
+                            ),
+                            filters=internal.code_to_expression_tree(
+                                self.runset_config.filters
+                            ),
                             grouping=[
                                 internal.Key(name=expr_parsing.to_backend_name(g))
-                                for g in self.runset_groupby
+                                for g in self.runset_config.groupby
                             ],
                             sort=internal.Sort(
-                                keys=[o.to_model() for o in self.runset_order]
+                                keys=[o.to_model() for o in self.runset_config.order]
                             ),
                             selections=internal.RunsetSelections(
                                 tree=[
                                     id
-                                    for id, config in self.run_configs.items()
+                                    for id, config in self.runset_config.run_configs.items()
                                     if config.disabled
                                 ],
                             ),
                         ),
                     ],
                     custom_run_colors={
-                        id: config.color for id, config in self.run_configs.items()
+                        id: config.color
+                        for id, config in self.runset_config.run_configs.items()
                     },
                 ),
             ),
@@ -245,18 +344,32 @@ class View(Base):
         view = internal.get_view(entity, project, view_name)
         return cls.from_model(view)
 
-    def save(self, clone: bool = False):
-        api = wandb.Api()
+    @property
+    def url(self):
+        if self._internal_name == "":
+            raise AttributeError(
+                "save view or explicitly pass `_internal_name` to get a url"
+            )
+
+        base = urlparse(_get_api().client.app_url)
+
+        scheme = base.scheme
+        netloc = base.netloc
+        path = os.path.join(self.entity, self.project)
+        params = ""
+        query = f"nw={self._internal_name}"
+        fragment = ""
+
+        return urlunparse((scheme, netloc, path, params, query, fragment))
+
+    def save(
+        self,
+        clone: bool = True,  # set clone to true for now because saving to the same view is broken
+    ):
         resp = internal.upsert_view2(self.to_model(), clone)
+        self._internal_name = internal._unworkspaceify(
+            resp["upsertView"]["view"]["name"]
+        )
 
-        app_url = api.client.app_url
-        entity = self.entity
-        project = self.project
-        name = internal._unworkspaceify(resp["upsertView"]["view"]["name"])
-
-        workspace_url = f"{app_url}/{entity}/{project}?nw={name}"
-        wandb.termlog(f"View saved: {workspace_url}")
-
-        self._internal_name = name
-
+        wandb.termlog(f"View saved: {self.url}")
         return self
