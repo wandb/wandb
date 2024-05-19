@@ -6,24 +6,32 @@ from pydantic import AnyUrl, ConfigDict, Field
 from pydantic.dataclasses import dataclass
 
 import wandb
-from wandb.apis.reports.v2 import expr_parsing
-from wandb.apis.reports.v2.interface import OrderBy, PanelTypes, _get_api, _lookup_panel
+from wandb.apis.reports.v2.interface import PanelTypes, _lookup_panel
 
-from . import internal
+from . import expr, internal
 
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
-def is_not_all_none(value):
-    if value is None or value == "":
+def is_not_all_none(v):
+    if v is None or v == "":
         return False
-    if isinstance(value, Iterable) and not isinstance(value, str):
-        return any(v not in (None, "") for v in value)
+    if isinstance(v, Iterable) and not isinstance(v, str):
+        return any(v not in (None, "") for v in v)
     return True
 
 
 def is_not_internal(k):
     return not k.startswith("_")
+
+
+def should_show(v):
+    """This is a workaround because BaseMetric.__eq__ returns FilterExpr."""
+    if isinstance(v, Iterable) and not isinstance(v, str):
+        return any(should_show(x) for x in v)
+    if isinstance(v, expr.BaseMetric):
+        return True
+    return False
 
 
 @dataclass(config=dataclass_config, repr=False)
@@ -32,14 +40,14 @@ class Base:
         fields = (
             f"{k}={v!r}"
             for k, v in self.__dict__.items()
-            if is_not_all_none(v) and is_not_internal(k)
+            if (is_not_all_none(v) and is_not_internal(k)) or (should_show(v))
         )
         fields_str = ", ".join(fields)
         return f"{self.__class__.__name__}({fields_str})"
 
     def __rich_repr__(self):
         for k, v in self.__dict__.items():
-            if is_not_all_none(v) and is_not_internal(k):
+            if (is_not_all_none(v) and is_not_internal(k)) or (should_show(v)):
                 yield k, v
 
     @property
@@ -52,12 +60,19 @@ class Base:
 
 
 @dataclass
-class SectionSettings(Base):
+class SectionPanelSettings(Base):
+    """Settings for a panels section, typically seen at the top right of the section in the UI.
+
+    Args:
+        layout (str): The layout of the panels in the section.  "standard" follows the grid layout, while "custom" allows for per-panel layouts.
+        columns (int): The number of columns in the layout.
+        rows (int): The number of rows in the layout.
+
+    """
+
     layout: Literal["standard", "custom"] = "standard"
     columns: int = 3
     rows: int = 2
-    height: int = 300
-    width: int = 460
 
     @classmethod
     def from_model(cls, model: internal.FlowConfig):
@@ -65,8 +80,6 @@ class SectionSettings(Base):
             layout="standard" if model.snap_to_columns else "custom",
             columns=model.columns_per_page,
             rows=model.rows_per_page,
-            height=model.box_height,
-            width=model.box_width,
         )
 
     def to_model(self):
@@ -74,19 +87,24 @@ class SectionSettings(Base):
             snap_to_columns=self.layout == "standard",
             columns_per_page=self.columns,
             rows_per_page=self.rows,
-            box_height=self.height,
-            box_width=self.width,
         )
 
 
 @dataclass(config=dataclass_config, repr=False)
 class Section(Base):
+    """Represents a section in a workspace.
+
+    Args:
+        name (str): The name of the section.
+        panels (List[PanelTypes]): A list of panels in the section.
+        collapsed (bool): Whether the section is collapsed.
+        section_panel_settings (SectionPanelSettings): Settings for the panels in this section.
+    """
+
     name: str
     panels: list[PanelTypes] = Field(default_factory=list)
     collapsed: bool = False
-
-    # section_settings: SectionSettings = Field(default_factory=SectionSettings)
-    section_settings: Optional[SectionSettings] = None
+    section_panel_settings: Optional[SectionPanelSettings] = None
 
     @classmethod
     def from_model(cls, model: internal.PanelBankConfigSectionsItem):
@@ -94,12 +112,12 @@ class Section(Base):
             name=model.name,
             panels=[_lookup_panel(p) for p in model.panels],
             collapsed=not model.is_open,
-            section_settings=SectionSettings.from_model(model.flow_config),
+            section_settings=SectionPanelSettings.from_model(model.flow_config),
         )
 
     def to_model(self):
-        if (section_settings := self.section_settings) is None:
-            section_settings = SectionSettings()
+        if (section_settings := self.section_panel_settings) is None:
+            section_settings = SectionPanelSettings()
 
         section_settings_model = section_settings.to_model()
         panel_models = [p.to_model() for p in self.panels]
@@ -115,7 +133,29 @@ class Section(Base):
 
 
 @dataclass(config=dataclass_config, repr=False)
-class ViewSettings(Base):
+class WorkspaceSettings(Base):
+    """Settings for the workspace, typically seen at the top of the workspace in the UI.
+
+    This object includes settings for the x-axis, smoothing, outliers, panels, tooltips, runs, and panel query bar.
+
+    Settings applied here can be overrided by more granular Section and Panel settings.
+
+    Args:
+        x_axis (str): Global x-axis setting.
+        x_min (float): The minimum value for the x-axis.
+        x_max (float): The maximum value for the x-axis.
+        smoothing_type (SmoothingType): The type of smoothing to apply to the data.
+        smoothing_weight (float): The weighting factor for smoothing.
+        ignore_outliers (bool): Whether to ignore outliers in charts
+        remove_legends_from_panels (bool): Whether legends should be removed from panels.
+        tooltip_number_of_runs (str): The number of runs to show in the tooltip.
+        tooltip_color_run_names (bool): Whether to color run names in the tooltip.
+        max_runs (int): The maximum number of runs to display.
+        point_visualization_method (str): Controls sampling method for points
+        panel_search_query (str): The query for the panel search bar.
+        auto_expand_panel_search_results (bool): Whether to auto expand panel search results.
+    """
+
     # Axis settings
     x_axis: str = "_step"  # fix this to use name map in future
     x_min: Optional[float] = None
@@ -138,6 +178,13 @@ class ViewSettings(Base):
     # Run settings
     max_runs: int = 10
     point_visualization_method: Literal["bucketing", "downsampling"] = "bucketing"
+
+    # Panel query bar settings
+    panel_search_query: str = ""
+    auto_expand_panel_search_results: bool = False
+    _panel_search_history: Optional[list[dict[Literal["query"], str]]] = Field(
+        None, init=False, repr=False
+    )
 
     @classmethod
     def from_model(cls, model: internal.OuterSectionSettings):
@@ -184,43 +231,63 @@ class ViewSettings(Base):
 
 
 @dataclass(config=dataclass_config, repr=False)
-class RunConfig(Base):
+class RunSettings(Base):
+    """Settings for a run in a run set.
+
+    Args:
+        color (str): The color of the run in the UI.
+        disabled (bool): Whether the run is disabled (eye closed in the UI).
+    """
+
     color: str = ""  # hex, css color, or rgb
     disabled: bool = False
 
 
 @dataclass(config=dataclass_config, repr=False)
-class RunsetConfig(Base):
+class RunsetSettings(Base):
+    """Settings for the runset (the left bar containing runs) in a workspace.
+
+    Args:
+        query (str): A query to filter the run set (can be a regex expr, see below).
+        regex_query (bool): Whether the query is a regex query.
+        filters (List[FilterExpr]): A list of filters to apply to the runset.
+        groupby (List[MetricType]): A list of metrics to group the runset by.
+        order (List[Ordering]): A list of orderings to apply to the runset.
+        run_settings (Dict[str, RunSettings]): A dictionary of run settings.
+    """
+
     query: str = ""
     regex_query: bool = False
-    filters: Optional[str] = ""
-    groupby: list[str] = Field(default_factory=list)
-    order: list[OrderBy] = Field(
-        default_factory=lambda: [OrderBy("CreatedTimestamp", ascending=False)]
-    )
-
-    run_configs: dict[str, RunConfig] = Field(default_factory=dict)
+    filters: list[expr.FilterExpr] = Field(default_factory=list)
+    groupby: list[expr.MetricType] = Field(default_factory=list)
+    order: list[expr.Ordering] = Field(default_factory=list)
+    run_settings: dict[str, RunSettings] = Field(default_factory=dict)
 
 
 @dataclass(config=dataclass_config, repr=False)
-class View(Base):
-    """Represents a wandb workspace, including sections, settings, and config for run sets.
+class Workspace(Base):
+    """Represents a W&B workspace, including sections, settings, and config for run sets.
 
-    Attributes:
+    Args:
         entity (str): The entity name (usually user or team name).
         project (str): The project name.
-        name (str): The name of the view.  Empty string will show "Untitled view" by default.
-        sections (List[Section]): A list of sections included in the view.
-        settings (ViewSettings): Configuration settings for the view.
-        runset_config (RunsetConfig): Configuration for run sets within the view.
+        name (str): The name of the workspace.  Empty string will show "Untitled view" by default.
+        sections (List[Section]): A list of sections included in the workspace.
+        settings (WorkspaceSettings): Configuration settings for the workspace.
+        run_settings (RunSettings): Configuration for run sets within the workspace.
+
+    Attributes:
+        url (str): The URL to the workspace in the W&B app.
+        _internal_name (str): The internal name of the workspace.
+        _internal_id (str): The internal ID of the workspace.
     """
 
     entity: str
     project: str
     name: Annotated[str, Field("")]
     sections: list[Section] = Field(default_factory=list)
-    settings: ViewSettings = Field(default_factory=ViewSettings)
-    runset_config: RunsetConfig = Field(default_factory=RunsetConfig)
+    settings: WorkspaceSettings = Field(default_factory=WorkspaceSettings)
+    runset_settings: RunsetSettings = Field(default_factory=RunsetSettings)
 
     _internal_name: str = Field("", init=False, repr=False)
     _internal_id: str = Field("", init=False, repr=False)
@@ -228,11 +295,11 @@ class View(Base):
     @classmethod
     def from_model(cls, model: internal.View):
         # construct configs from disjoint parts of settings
-        run_configs = {}
+        run_settings = {}
 
         disabled_runs = model.viewspec.section.run_sets[0].selections.tree
         for id in disabled_runs:
-            run_configs[id] = RunConfig(disabled=True)
+            run_settings[id] = RunSettings(disabled=True)
 
         custom_run_colors = model.viewspec.section.custom_run_colors
         for k, v in custom_run_colors.items():
@@ -240,12 +307,12 @@ class View(Base):
                 id = k
                 color = v
 
-                if id not in run_configs:
-                    run_configs[id] = RunConfig(color=color)
+                if id not in run_settings:
+                    run_settings[id] = RunSettings(color=color)
                 else:
-                    run_configs[id].color = color
+                    run_settings[id].color = color
 
-        # then construct the View object
+        # then construct the Workspace object
         obj = cls(
             entity=model.entity,
             project=model.project,
@@ -254,21 +321,21 @@ class View(Base):
                 Section.from_model(s)
                 for s in model.viewspec.section.panel_bank_config.sections
             ],
-            runset_config=RunsetConfig(
+            runset_config=RunsetSettings(
                 query=model.viewspec.section.run_sets[0].search.query,
-                regex_query=model.viewspec.section.run_sets[0].search.is_regex,
-                filters=internal.expression_tree_to_code(
+                regex_query=bool(model.viewspec.section.run_sets[0].search.is_regex),
+                filters=expr.expression_tree_to_filters(
                     model.viewspec.section.run_sets[0].filters
                 ),
                 groupby=[
-                    expr_parsing.to_frontend_name(k.name)
-                    for k in model.viewspec.section.run_sets[0].grouping
+                    expr.BaseMetric.from_key(v)
+                    for v in model.viewspec.section.run_sets[0].grouping
                 ],
                 order=[
-                    OrderBy.from_model(s)
+                    expr.Ordering.from_key(s)
                     for s in model.viewspec.section.run_sets[0].sort.keys
                 ],
-                run_configs=run_configs,
+                run_settings=run_settings,
             ),
         )
         obj._internal_name = model.name
@@ -278,10 +345,15 @@ class View(Base):
     def to_model(self):
         # hack: create sections to hide unnecessary panels
         base_sections = [s.to_model() for s in self.sections]
+
+        possible_missing_sections = set(("Hidden Panels", "Charts", "System"))
+        base_section_names = set(s.name for s in self.sections)
+        missing_section_names = possible_missing_sections - base_section_names
+
         hidden_sections = [
-            Section("Hidden Panels", collapsed=True, panels=[]).to_model(),
-            Section("Charts", collapsed=True, panels=[]).to_model(),
+            Section(name, collapsed=True).to_model() for name in missing_section_names
         ]
+
         sections = base_sections + hidden_sections
 
         return internal.View(
@@ -303,23 +375,20 @@ class View(Base):
                     run_sets=[
                         internal.Runset(
                             search=internal.RunsetSearch(
-                                query=self.runset_config.query,
-                                is_regex=self.runset_config.regex_query,
+                                query=self.runset_settings.query,
+                                is_regex=self.runset_settings.regex_query,
                             ),
-                            filters=internal.code_to_expression_tree(
-                                self.runset_config.filters
+                            filters=expr.filters_to_expression_tree(
+                                self.runset_settings.filters
                             ),
-                            grouping=[
-                                internal.Key(name=expr_parsing.to_backend_name(g))
-                                for g in self.runset_config.groupby
-                            ],
+                            grouping=[g.to_key() for g in self.runset_settings.groupby],
                             sort=internal.Sort(
-                                keys=[o.to_model() for o in self.runset_config.order]
+                                keys=[o.to_key() for o in self.runset_settings.order]
                             ),
                             selections=internal.RunsetSelections(
                                 tree=[
                                     id
-                                    for id, config in self.runset_config.run_configs.items()
+                                    for id, config in self.runset_settings.run_settings.items()
                                     if config.disabled
                                 ],
                             ),
@@ -327,7 +396,7 @@ class View(Base):
                     ],
                     custom_run_colors={
                         id: config.color
-                        for id, config in self.runset_config.run_configs.items()
+                        for id, config in self.runset_settings.run_settings.items()
                     },
                 ),
             ),
@@ -335,6 +404,7 @@ class View(Base):
 
     @classmethod
     def from_url(cls, url: AnyUrl):
+        """Get a workspace from a URL."""
         parsed_url = urlparse(url)
         query_params = parse_qs(parsed_url.query)
         view_name = query_params.get("nw", [""])[0]
@@ -348,10 +418,10 @@ class View(Base):
     def url(self):
         if self._internal_name == "":
             raise AttributeError(
-                "save view or explicitly pass `_internal_name` to get a url"
+                "save workspace or explicitly pass `_internal_name` to get a url"
             )
 
-        base = urlparse(_get_api().client.app_url)
+        base = urlparse(wandb.Api().client.app_url)
 
         scheme = base.scheme
         netloc = base.netloc
@@ -364,8 +434,9 @@ class View(Base):
 
     def save(
         self,
-        clone: bool = True,  # set clone to true for now because saving to the same view is broken
+        clone: bool = True,  # set clone to true for now because saving to the same workspace is broken
     ):
+        """Save a workspace to W&B."""
         resp = internal.upsert_view2(self.to_model(), clone)
         self._internal_name = internal._unworkspaceify(
             resp["upsertView"]["view"]["name"]

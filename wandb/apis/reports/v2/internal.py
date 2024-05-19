@@ -201,6 +201,9 @@ class PanelBankConfigSettings(ReportAPIBaseModel):
     auto_organize_prefix: int = 2
     show_empty_sections: bool = False
     sort_alphabetically: bool = False
+    search_query: Optional[str] = None
+    search_history: Optional[LList[dict[Literal["query"], str]]] = None
+    auto_expand_search_results: Optional[bool] = None
 
 
 class FlowConfig(ReportAPIBaseModel):

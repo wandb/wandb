@@ -11,8 +11,6 @@ import wandb
 # shared dependency between Workspaces and Reports API
 from wandb.apis.reports.v2.internal import *
 from wandb.apis.reports.v2.internal import (
-    Filters,
-    Key,
     PanelBankConfig,
     PanelBankSectionConfig,
     Ref,
@@ -59,10 +57,6 @@ class OuterSectionSettings(WorkspaceAPIBaseModel):
             or self.x_axis_min is not None
             or self.x_axis_max is not None
         )
-
-
-# class CustomRunColors(WorkspaceAPIBaseModel):
-#     ref: Ref = Field(default_factory=Ref)
 
 
 class OuterSection(WorkspaceAPIBaseModel):
@@ -198,7 +192,9 @@ def upsert_view2(view: View, clone: bool = False) -> dict[str, Any]:
 
     # hack: We're re-using Report API objects.  In the Report API, the value here
     # is expected to be None, but for Workspaces it's expected to be []
-    spec["section"]["runSets"][0]["filters"]["filters"][0]["filters"] = []
+    filters = spec["section"]["runSets"][0]["filters"]
+    if "filters" in filters:
+        filters["filters"][0]["filters"] = []
 
     variables = {
         "entityName": view.entity,
@@ -279,93 +275,3 @@ def _workspaceify(name: str) -> str:
 
 def _unworkspaceify(name: str) -> str:
     return name.replace("nw-", "").replace("-v", "")
-
-
-import ast
-from typing import Any, Dict
-
-Expression = Dict[str, Any]
-
-# Mapping custom operators to Python operators
-OPERATOR_MAP = {
-    "AND": "and",
-    "OR": "or",
-    "=": "==",
-    "!=": "!=",
-    "<": "<",
-    "<=": "<=",
-    ">": ">",
-    ">=": ">=",
-    "IN": "in",
-    "NIN": "not in",
-}
-
-# Reverse mapping for parsing back to expression tree
-REVERSE_OPERATOR_MAP = {
-    "Eq": "=",
-    "NotEq": "!=",
-    "Lt": "<",
-    "LtE": "<=",
-    "Gt": ">",
-    "GtE": ">=",
-    "In": "IN",
-    "NotIn": "NIN",
-}
-
-
-def expression_tree_to_code(expr: Filters) -> str:
-    def parse_filter(filter: Filters) -> str:
-        if filter.current:
-            # Process 'current' key recursively
-            current_expr = expression_tree_to_code(filter.current)
-            if not current_expr:
-                return ""
-        key = filter.key
-        if not key or not key.name:  # Check for empty or null name
-            return ""
-        key_str = f"{key.section}.{key.name}"
-        op = OPERATOR_MAP[filter.op]
-        value = repr(filter.value)
-        if isinstance(filter.value, list):
-            value = "[" + ", ".join(repr(v) for v in filter.value) + "]"
-        return f"{key_str} {op} {value}"
-
-    def parse_expression(expr: Filters) -> str:
-        if expr.filters:
-            filters = [parse_expression(f) for f in expr.filters]
-            filters = [f for f in filters if f]  # Filter out empty strings
-            op = OPERATOR_MAP[expr.op]
-            return f" {op} ".join(f"({f})" for f in filters if f)
-        else:
-            return parse_filter(expr)
-
-    return parse_expression(expr)
-
-
-def code_to_expression_tree(code: str) -> Filters:
-    if not code:  # Handle empty code string
-        return Filters(op="AND", filters=[Filters()])
-
-    def parse_key(key: str) -> Key:
-        section, name = key.split(".")
-        return Key(section=section, name=name)
-
-    def parse_expr(node: ast.AST) -> Filters:
-        if isinstance(node, ast.BoolOp):
-            op = "AND" if isinstance(node.op, ast.And) else "OR"
-            filters = [parse_expr(value) for value in node.values]
-            return Filters(op=op, filters=filters)
-        elif isinstance(node, ast.Compare):
-            left = node.left
-            if isinstance(left, ast.Attribute):
-                key = f"{left.value.id}.{left.attr}"
-            else:
-                key = left.id
-            key = parse_key(key)
-            op = REVERSE_OPERATOR_MAP[node.ops[0].__class__.__name__]
-            value = ast.literal_eval(node.comparators[0])
-            return Filters(key=key, op=op, value=value, disabled=False)
-        return Filters()
-
-    expr_ast = ast.parse(code, mode="eval")
-    return parse_expr(expr_ast.body)
