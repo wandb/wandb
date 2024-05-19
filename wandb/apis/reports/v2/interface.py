@@ -1803,9 +1803,12 @@ def _metric_to_frontend(x: str):
     if x.startswith("config.") and ".value" in x:
         name = x.replace("config.", "").replace(".value", "")
         return Config(name)
-    if x.startswith("summary_metrics."):
-        name = x.replace("summary_metrics.", "")
-        return SummaryMetric(name)
+
+    summary_metrics_keys = ["summary_metrics", "summary"]
+    for k in summary_metrics_keys:
+        if x.startswith(k):
+            name = x.replace(f"{k}.", "")
+            return SummaryMetric(name)
 
     name = expr_parsing.to_frontend_name(x)
     return Metric(name)
