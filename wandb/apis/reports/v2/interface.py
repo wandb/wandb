@@ -895,9 +895,9 @@ class ScatterPlot(Panel):
         obj = internal.ScatterPlot(
             config=internal.ScatterPlotConfig(
                 chart_title=self.title,
-                x_axis=_metric_to_backend(self.x),
-                y_axis=_metric_to_backend(self.y),
-                z_axis=_metric_to_backend(self.z),
+                x_axis=_metric_to_backend_pc(self.x),
+                y_axis=_metric_to_backend_pc(self.y),
+                z_axis=_metric_to_backend_pc(self.z),
                 x_axis_min=self.range_x[0],
                 x_axis_max=self.range_x[1],
                 y_axis_min=self.range_y[0],
