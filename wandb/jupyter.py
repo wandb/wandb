@@ -288,35 +288,34 @@ def attempt_colab_login(app_url):
     display.display(
         display.Javascript(
             """
-        window._wandbApiKey = new Promise((resolve, reject) => {
-            function loadScript(url) {
-            return new Promise(function(resolve, reject) {
+        window._wandbApiKey = new Promise((resolve, reject) => {{
+            function loadScript(url) {{
+            return new Promise(function(resolve, reject) {{
                 let newScript = document.createElement("script");
                 newScript.onerror = reject;
                 newScript.onload = resolve;
                 document.body.appendChild(newScript);
                 newScript.src = url;
-            });
-            }
-            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {
+            }});
+            }}
+            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {{
             const iframe = document.createElement('iframe')
             iframe.style.cssText = "width:0;height:0;border:none"
             document.body.appendChild(iframe)
-            const handshake = new Postmate({
+            const handshake = new Postmate({{
                 container: iframe,
-                url: '%s/authorize'
-            });
+                url: '{}/authorize'
+            }});
             const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
-            handshake.then(function(child) {
-                child.on('authorize', data => {
+            handshake.then(function(child) {{
+                child.on('authorize', data => {{
                     clearTimeout(timeout)
                     resolve(data)
-                });
-            });
-            })
-        });
-    """
-            % app_url.replace("http:", "https:")
+                }});
+            }});
+            }})
+        }});
+    """.format(app_url.replace("http:", "https:"))
         )
     )
     try:

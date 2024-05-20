@@ -43,7 +43,9 @@ class LocalFileHandler(StorageHandler):
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
         if not os.path.exists(local_path):
             raise ValueError(
-                "Local file reference: Failed to find file at path %s" % local_path
+                "Local file reference: Failed to find file at path {}".format(
+                    local_path
+                )
             )
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -131,5 +133,7 @@ class LocalFileHandler(StorageHandler):
             entries.append(entry)
         else:
             # TODO: update error message if we don't allow directories.
-            raise ValueError('Path "%s" must be a valid file or directory path' % path)
+            raise ValueError(
+                'Path "{}" must be a valid file or directory path'.format(path)
+            )
         return entries

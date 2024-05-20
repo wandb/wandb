@@ -60,27 +60,26 @@ class Runs(Paginator):
 
     QUERY = gql(
         """
-        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {
-            project(name: $project, entityName: $entity) {
+        query Runs($project: String!, $entity: String!, $cursor: String, $perPage: Int = 50, $order: String, $filters: JSONString) {{
+            project(name: $project, entityName: $entity) {{
                 runCount(filters: $filters)
                 readOnly
-                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {
-                    edges {
-                        node {
+                runs(filters: $filters, after: $cursor, first: $perPage, order: $order) {{
+                    edges {{
+                        node {{
                             ...RunFragment
-                        }
+                        }}
                         cursor
-                    }
-                    pageInfo {
+                    }}
+                    pageInfo {{
                         endCursor
                         hasNextPage
-                    }
-                }
-            }
-        }
-        %s
-        """
-        % RUN_FRAGMENT
+                    }}
+                }}
+            }}
+        }}
+        {}
+        """.format(RUN_FRAGMENT)
     )
 
     def __init__(
@@ -131,7 +130,7 @@ class Runs(Paginator):
     def convert_objects(self):
         objs = []
         if self.last_response is None or self.last_response.get("project") is None:
-            raise ValueError("Could not find project %s" % self.project)
+            raise ValueError("Could not find project {}".format(self.project))
         for run_response in self.last_response["project"]["runs"]["edges"]:
             run = Run(
                 self.client,
@@ -310,16 +309,15 @@ class Run(Attrs):
     def load(self, force=False):
         query = gql(
             """
-        query Run($project: String!, $entity: String!, $name: String!) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) {
+        query Run($project: String!, $entity: String!, $name: String!) {{
+            project(name: $project, entityName: $entity) {{
+                run(name: $name) {{
                     ...RunFragment
-                }
-            }
-        }
-        %s
-        """
-            % RUN_FRAGMENT
+                }}
+            }}
+        }}
+        {}
+        """.format(RUN_FRAGMENT)
         )
         if force or not self._attrs:
             response = self._exec(query)
@@ -328,7 +326,7 @@ class Run(Attrs):
                 or response.get("project") is None
                 or response["project"].get("run") is None
             ):
-                raise ValueError("Could not find run %s" % self)
+                raise ValueError("Could not find run {}".format(self))
             self._attrs = response["project"]["run"]
             self._state = self._attrs["state"]
 
@@ -402,16 +400,15 @@ class Run(Attrs):
         """Persist changes to the run object to the wandb backend."""
         mutation = gql(
             """
-        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {
-            upsertBucket(input: {id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}) {
-                bucket {
+        mutation UpsertBucket($id: String!, $description: String, $display_name: String, $notes: String, $tags: [String!], $config: JSONString!, $groupName: String) {{
+            upsertBucket(input: {{id: $id, description: $description, displayName: $display_name, notes: $notes, tags: $tags, config: $config, groupName: $groupName}}) {{
+                bucket {{
                     ...RunFragment
-                }
-            }
-        }
-        %s
-        """
-            % RUN_FRAGMENT
+                }}
+            }}
+        }}
+        {}
+        """.format(RUN_FRAGMENT)
         )
         _ = self._exec(
             mutation,
@@ -491,13 +488,12 @@ class Run(Attrs):
         node = "history" if stream == "default" else "events"
         query = gql(
             """
-        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {
-            project(name: $project, entityName: $entity) {
-                run(name: $name) { %s(samples: $samples) }
-            }
-        }
-        """
-            % node
+        query RunFullHistory($project: String!, $entity: String!, $name: String!, $samples: Int) {{
+            project(name: $project, entityName: $entity) {{
+                run(name: $name) {{ {}(samples: $samples) }}
+            }}
+        }}
+        """.format(node)
         )
 
         response = self._exec(query, samples=samples)
