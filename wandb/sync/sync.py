@@ -97,7 +97,7 @@ class SyncThread(threading.Thread):
             if self._job_type:
                 pb.run.job_type = self._job_type
             if self._tags:
-                del pb.run.tags[:]          # Clear existing tags
+                del pb.run.tags[:]  # Clear existing tags
                 pb.run.tags.extend(self._tags)  # Add new tags from CLI
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
