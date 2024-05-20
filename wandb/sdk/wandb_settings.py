@@ -400,6 +400,7 @@ class SettingsData:
     files_dir: str
     force: bool
     fork_from: Optional[RunMoment]
+    resume_from: Optional[RunMoment]
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -809,6 +810,10 @@ class Settings(SettingsData):
             },
             force={"preprocessor": _str_as_bool},
             fork_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
+            resume_from={
                 "value": None,
                 "preprocessor": _runmoment_preprocessor,
             },
