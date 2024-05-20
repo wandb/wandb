@@ -5,7 +5,7 @@ In a future version, Reports will migrate to this expression syntax.
 
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Union
+from typing import Any, ClassVar, Dict, List, Optional, Union
 
 from wandb.apis.reports.v2.internal import SortKey, SortKeyKey
 
@@ -265,13 +265,12 @@ class FilterExpr:
         )
 
 
-def expression_tree_to_filters(expr: Filters) -> List[FilterExpr]:
-    def parse_filter(filter: Filters) -> FilterExpr:
-        key = filter.key
-        if key is None:
+def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
+    def parse_filter(filter: Filters) -> Optional[FilterExpr]:
+        if filter.key is None:
             return None
-        metric_cls = SECTION_CLASS_MAP.get(key.section, BaseMetric)
-        metric = metric_cls(key.name)
+        metric_cls = SECTION_CLASS_MAP.get(filter.key.section, BaseMetric)
+        metric = metric_cls(filter.key.name)
         return FilterExpr.create(filter.op, metric, filter.value)
 
     def parse_expression(expr: Filters) -> List[FilterExpr]:
@@ -281,9 +280,9 @@ def expression_tree_to_filters(expr: Filters) -> List[FilterExpr]:
                 filters.extend(parse_expression(f))
             return filters
         else:
-            return [parse_filter(expr)]
+            return [f for f in [parse_filter(expr)] if f is not None]
 
-    return parse_expression(expr)
+    return parse_expression(tree)
 
 
 def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
@@ -295,7 +294,9 @@ def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
         key = parse_key(filter.key)
         return Filters(op=filter.op, key=key, value=filter.value, disabled=False)
 
-    return Filters(op="AND", filters=[parse_filter(f) for f in filters])
+    return Filters(
+        op="AND", filters=[parse_filter(f) for f in filters if f is not None]
+    )
 
 
 def grouping_backend_to_frontend(grouping: str) -> str:
