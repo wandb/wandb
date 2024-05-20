@@ -39,7 +39,7 @@ class SettingsStatic(SettingsData):
                             unpacked_inner[inner_key] = inner_value
                         unpacked_mapping[outer_key] = unpacked_inner
                     value = unpacked_mapping
-            elif key == "fork_from":
+            elif key == "fork_from" or key == "resume_from":
                 value = getattr(proto, key)
                 if value.run:
                     value = RunMoment(

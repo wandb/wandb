@@ -102,6 +102,7 @@ _Setting = Literal[
     "files_dir",
     "force",
     "fork_from",
+    "resume_from",
     "git_commit",
     "git_remote",
     "git_remote_url",
