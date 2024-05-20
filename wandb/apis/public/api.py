@@ -634,10 +634,8 @@ class Api:
         path_alias = path.split(":")
         if len(path_alias) == 1:
             alias = ""
-        elif len(path_alias) == 2:
-            path, alias = path_alias[0], ":" + path_alias[1]
-        else:
-            raise ValueError("Invalid artifact path: {}".format(path))
+        elif len(path_alias) > 1:
+            path, alias = path_alias[0], ":" + ":".join(path_alias[1:])
 
         parts = path.split("/")
         if len(parts) > 3:
