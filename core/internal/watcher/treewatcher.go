@@ -151,6 +151,13 @@ func (w *treeWatcher) stat() {
 		return nil
 	})
 
+	// If the watcher was stopped, don't do anything more.
+	select {
+	case <-w.cancelChan:
+		return
+	default:
+	}
+
 	modified := make(map[string]struct{})
 
 	// Detect changed and created files.

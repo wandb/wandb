@@ -110,33 +110,3 @@ func (w *watcher) Finish() {
 	}
 	wg.Wait()
 }
-
-func (w *watcher) StatAllNow() {
-	wg := &sync.WaitGroup{}
-
-	for _, fileWatcher := range w.fileWatchers {
-		fileWatcher := fileWatcher // TODO
-		wg.Add(1)
-		go func() {
-			fileWatcher.Lock()
-			fileWatcher.stat()
-			fileWatcher.Unlock()
-
-			wg.Done()
-		}()
-	}
-
-	for _, treeWatcher := range w.treeWatchers {
-		treeWatcher := treeWatcher // TODO
-		wg.Add(1)
-		go func() {
-			treeWatcher.Lock()
-			treeWatcher.stat()
-			treeWatcher.Unlock()
-
-			wg.Done()
-		}()
-	}
-
-	wg.Wait()
-}

@@ -35,12 +35,6 @@ type Watcher interface {
 	Finish()
 }
 
-// WatcherTesting has additional test-only methods.
-type WatcherTesting interface {
-	// StatAllNow polls all watched files immediately.
-	StatAllNow()
-}
-
 type Params struct {
 	Logger *observability.CoreLogger
 
