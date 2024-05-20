@@ -115,7 +115,7 @@ func (w *treeWatcher) stat() {
 		w.lastModToken = nextModToken
 	}()
 
-	filepath.WalkDir(w.absRootPath, func(path string, d fs.DirEntry, err error) error {
+	_ = filepath.WalkDir(w.absRootPath, func(path string, d fs.DirEntry, err error) error {
 		// Check if we should stop.
 		select {
 		case <-w.cancelChan:
@@ -173,6 +173,9 @@ func (w *treeWatcher) stat() {
 	wg := &sync.WaitGroup{}
 	for _, cb := range w.callbacks {
 		for path := range modified {
+			cb := cb
+			path := path
+
 			wg.Add(1)
 			go func() {
 				defer wg.Done()

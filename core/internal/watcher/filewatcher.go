@@ -126,6 +126,8 @@ func (w *fileWatcher) stat() {
 		// Invoke all callbacks in parallel.
 		wg := &sync.WaitGroup{}
 		for _, cb := range w.callbacks {
+			cb := cb
+
 			wg.Add(1)
 			go func() {
 				cb()
