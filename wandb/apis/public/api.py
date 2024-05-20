@@ -630,13 +630,23 @@ class Api:
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
+
+        path_alias = path.split(":")
+        if len(path_alias) == 1:
+            alias = ""
+        elif len(path_alias) == 2:
+            path, alias = path_alias[0], ":" + path_alias[1]
+        else:
+            raise ValueError("Invalid artifact path: {}".format(path))
+
         parts = path.split("/")
         if len(parts) > 3:
             raise ValueError("Invalid artifact path: {}".format(path))
         elif len(parts) == 1:
-            return entity, project, path
+            return entity, project, path + alias
         elif len(parts) == 2:
-            return entity, parts[0], parts[1]
+            return entity, parts[0], parts[1] + alias
+        parts[-1] += alias
         return parts
 
     def projects(self, entity=None, per_page=200):
