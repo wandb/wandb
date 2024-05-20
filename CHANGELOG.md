@@ -18,6 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
+- Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
 - Fix path parsing for artifacts with aliases containing backslashes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7676
 
 ### Changed
