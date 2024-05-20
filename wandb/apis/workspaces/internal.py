@@ -193,7 +193,7 @@ def upsert_view2(view: View, clone: bool = False) -> dict[str, Any]:
     # hack: We're re-using Report API objects.  In the Report API, the value here
     # is expected to be None, but for Workspaces it's expected to be []
     filters = spec["section"]["runSets"][0]["filters"]
-    if "filters" in filters:
+    if "filters" in filters and len(filters["filters"]) > 0:
         filters["filters"][0]["filters"] = []
 
     variables = {
