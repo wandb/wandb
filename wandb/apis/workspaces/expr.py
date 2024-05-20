@@ -255,11 +255,11 @@ class FilterExpr:
 
     def to_model(self) -> Filters:
         section = self.key.section
-        name = self.key.name
+        name = FE_BE_NAME_MAP.get(self.key.name, self.key.name)
 
         return Filters(
             op=self.op,
-            key=Key(section=section, name=FE_BE_NAME_MAP.get(name, name)),
+            key=Key(section=section, name=name),
             value=self.value,
             disabled=False,
         )
@@ -270,7 +270,8 @@ def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
         if filter.key is None:
             return None
         metric_cls = SECTION_CLASS_MAP.get(filter.key.section, BaseMetric)
-        metric = metric_cls(filter.key.name)
+        mapped_name = FE_BE_NAME_MAP.inv.get(filter.key.name, filter.key.name)
+        metric = metric_cls(mapped_name)
         return FilterExpr.create(filter.op, metric, filter.value)
 
     def parse_expression(expr: Filters) -> List[FilterExpr]:
@@ -288,7 +289,8 @@ def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
 def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
     def parse_key(metric: BaseMetric) -> Key:
         section = metric.section
-        return Key(section=section, name=metric.name)
+        name = FE_BE_NAME_MAP.get(metric.name, metric.name)
+        return Key(section=section, name=name)
 
     def parse_filter(filter: FilterExpr) -> Filters:
         key = parse_key(filter.key)
