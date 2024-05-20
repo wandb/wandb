@@ -891,6 +891,16 @@ class SendManager:
         self._run.forked = True
         self._run.starting_step = first_step
 
+    def _setup_rewind(self, server_run: dict):
+        assert self._settings.resume_from
+        assert self._settings.resume_from.metric == "_step"
+        assert self._run
+        first_step = int(self._settings.resume_from.value) + 1
+        self._resume_state.step = first_step
+        self._resume_state.history = server_run.get("historyLineCount", 0)
+        self._run.forked = True
+        self._run.starting_step = first_step
+
     def _handle_error(
         self,
         record: "Record",
@@ -927,13 +937,16 @@ class SendManager:
             self._config_save(config_value_dict)
 
         do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_rewind = self._settings.resume_from is not None and is_wandb_init
         do_resume = bool(self._settings.resume)
 
-        if do_fork and do_resume:
+        num_resume_options_set = sum([do_fork, do_rewind, do_resume])
+        if num_resume_options_set > 1:
             error = wandb_internal_pb2.ErrorInfo()
             error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
             error.message = (
-                "You cannot use `resume` and `fork_from` together. Please choose one."
+                "Multiple resume options specified. "
+                "Please specify only one of `fork_from`, `resume`, or `resume_from`."
             )
             self._handle_error(record, error, run)
 
@@ -978,6 +991,9 @@ class SendManager:
 
         if do_fork:
             error = self._setup_fork(server_run)
+
+        if do_rewind:
+            error = self._setup_rewind(server_run)
 
         if error is not None:
             self._handle_error(record, error, run)

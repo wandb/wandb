@@ -706,6 +706,13 @@ class Run:
                 "step": self._settings.fork_from.value,
             }
 
+        if self._settings.resume_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.resume_from.run,
+                "step": self._settings.resume_from.value,
+                "rewind": True,
+            }
+
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:

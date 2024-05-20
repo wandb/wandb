@@ -1155,9 +1155,13 @@ def init(
 
     kwargs = dict(locals())
 
-    sum_resume_set = sum(kwargs.get(k) is not None for k in ["fork_from", "resume", "resume_from"])
-    if sum_resume_set > 1:
-        raise ValueError("You cannot specify more than one of `fork_from`, `resume`, or `resume_from`")
+    num_resume_options_set = sum(
+        kwargs.get(k) is not None for k in ["fork_from", "resume", "resume_from"]
+    )
+    if num_resume_options_set > 1:
+        raise ValueError(
+            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
+        )
 
     try:
         wi = _WandbInit()
