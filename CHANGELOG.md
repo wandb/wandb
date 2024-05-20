@@ -14,11 +14,15 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
-- Added `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
+- Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ### Fixed
 
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
+
+### Changed
+
+- Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
 
 ### Deprecated
 
