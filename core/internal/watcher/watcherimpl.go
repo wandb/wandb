@@ -1,6 +1,7 @@
 package watcher
 
 import (
+	"maps"
 	"path/filepath"
 	"sync"
 	"time"
@@ -15,7 +16,6 @@ type watcher struct {
 	logger           *observability.CoreLogger
 	pollingStopwatch waiting.StopwatchFactory
 
-	fileWatchers map[string]*fileWatcher
 	treeWatchers map[string]*treeWatcher
 }
 
@@ -30,36 +30,23 @@ func newWatcher(params Params) *watcher {
 		logger:           params.Logger,
 		pollingStopwatch: params.PollingStopwatch,
 
-		fileWatchers: make(map[string]*fileWatcher),
 		treeWatchers: make(map[string]*treeWatcher),
 	}
 }
 
 func (w *watcher) Watch(path string, onChange func()) error {
-	absPath, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-
-	w.Lock()
-	defer w.Unlock()
-
-	fileWatcher := w.fileWatchers[absPath]
-	if fileWatcher == nil {
-		fileWatcher = NewFileWatcher(
-			absPath,
-			w.pollingStopwatch.New(),
-		)
-		w.fileWatchers[absPath] = fileWatcher
-		fileWatcher.Start()
-	}
-
-	fileWatcher.AddCallback(onChange)
-
-	return nil
+	return w.watch(path, onChange, nil)
 }
 
 func (w *watcher) WatchTree(path string, onChange func(string)) error {
+	return w.watch(path, nil, onChange)
+}
+
+func (w *watcher) watch(
+	path string,
+	onRootChange func(),
+	onChildChange func(string),
+) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return err
@@ -78,7 +65,12 @@ func (w *watcher) WatchTree(path string, onChange func(string)) error {
 		treeWatcher.Start()
 	}
 
-	treeWatcher.AddCallback(onChange)
+	if onRootChange != nil {
+		treeWatcher.AddRootCallback(onRootChange)
+	}
+	if onChildChange != nil {
+		treeWatcher.AddChildCallback(onChildChange)
+	}
 
 	return nil
 }
@@ -87,20 +79,15 @@ func (w *watcher) Finish() {
 	stopFns := make([]func(), 0)
 
 	w.Lock()
-	for _, fileWatcher := range w.fileWatchers {
-		stopFns = append(stopFns, fileWatcher.Stop)
-	}
 	for _, treeWatcher := range w.treeWatchers {
 		stopFns = append(stopFns, treeWatcher.Stop)
 	}
-	w.fileWatchers = make(map[string]*fileWatcher)
 	w.treeWatchers = make(map[string]*treeWatcher)
 	w.Unlock()
 
 	// Stop all watchers in parallel.
 	wg := &sync.WaitGroup{}
 	for _, stop := range stopFns {
-		// TODO: Still necessary?
 		stop := stop
 		wg.Add(1)
 		go func() {
@@ -109,4 +96,16 @@ func (w *watcher) Finish() {
 		}()
 	}
 	wg.Wait()
+}
+
+func (w *watcher) StatAllNow() {
+	w.Lock()
+	treeWatchers := maps.Clone(w.treeWatchers)
+	w.Unlock()
+
+	for _, treeWatcher := range treeWatchers {
+		treeWatcher.Lock()
+		treeWatcher.stat()
+		treeWatcher.Unlock()
+	}
 }

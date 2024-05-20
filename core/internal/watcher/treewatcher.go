@@ -31,8 +31,12 @@ type treeWatcher struct {
 	// pollingStopwatch is how frequently to poll the directory.
 	pollingStopwatch waiting.Stopwatch
 
-	// callbacks is a list of callbacks to invoke when the directory changes.
-	callbacks []func(string)
+	// rootCallbacks is a list of callbacks to invoke when the file at the root
+	// of the tree changes.
+	rootCallbacks []func()
+
+	// childCallbacks is a list of callbacks to invoke when the directory changes.
+	childCallbacks []func(string)
 }
 
 func NewTreeWatcher(
@@ -44,24 +48,37 @@ func NewTreeWatcher(
 		lastModToken:     make(map[string]FileModToken),
 		absRootPath:      absPath,
 		pollingStopwatch: pollingStopwatch,
-		callbacks:        make([]func(string), 0),
+		rootCallbacks:    make([]func(), 0),
+		childCallbacks:   make([]func(string), 0),
 	}
 }
 
-// AddCallback registers a callback to run when the directory is modified.
+// AddRootCallback registers a callback to run when the root file changes.
 //
-// The callback is invoked with the path of any file under the directory
-// that changes, is deleted, or is created.
-func (w *treeWatcher) AddCallback(cb func(string)) {
+// The callback is invoked when the file pointed to by the root path
+// is modified, is deleted, or is created. If the path changes from
+// being a file to being a directory, that counts as deleting the file,
+// and vice versa is creating the file.
+func (w *treeWatcher) AddRootCallback(cb func()) {
 	w.Lock()
 	defer w.Unlock()
 
-	// stat first to guarantee:
-	//  1. cb is not invoked for modifications before AddCallback
-	//  2. cb is invoked for modifications after AddCallback
 	w.stat()
 
-	w.callbacks = append(w.callbacks, cb)
+	w.rootCallbacks = append(w.rootCallbacks, cb)
+}
+
+// AddChildCallback registers a callback to run when the directory is modified.
+//
+// The callback is invoked with the path of any file under the directory
+// that changes, is deleted, or is created.
+func (w *treeWatcher) AddChildCallback(cb func(string)) {
+	w.Lock()
+	defer w.Unlock()
+
+	w.stat()
+
+	w.childCallbacks = append(w.childCallbacks, cb)
 }
 
 // Start begins polling the file periodically.
@@ -75,7 +92,7 @@ func (w *treeWatcher) Start() {
 		for {
 			select {
 			case <-w.pollingStopwatch.Wait():
-				// pass
+				// keep looping
 			case <-w.cancelChan:
 				return
 			}
@@ -95,7 +112,8 @@ func (w *treeWatcher) Stop() {
 
 	// Forget all callbacks.
 	w.Lock()
-	w.callbacks = make([]func(string), 0)
+	w.rootCallbacks = make([]func(), 0)
+	w.childCallbacks = make([]func(string), 0)
 	w.Unlock()
 
 	w.wg.Wait()
@@ -116,20 +134,17 @@ func (w *treeWatcher) stat() {
 	}()
 
 	_ = filepath.WalkDir(w.absRootPath, func(path string, d fs.DirEntry, err error) error {
-		// Check if we should stop.
+		// Stop walking if the watcher is stopped.
 		select {
 		case <-w.cancelChan:
 			return filepath.SkipAll
 		default:
 		}
 
-		// Don't invoke callbacks if there's an error, or if this is
-		// a directory, or if this is the root path.
+		// Don't invoke callbacks if there's an error or if this is a directory.
 		//
-		// d can be nil, but supposedly only when path is the root.
-		// It's not obvious from the docs, so check to be safe.
-		if path == w.absRootPath ||
-			err != nil ||
+		// d can be nil when path is the root.
+		if err != nil ||
 			d == nil ||
 			d.IsDir() {
 			return nil
@@ -147,6 +162,11 @@ func (w *treeWatcher) stat() {
 		// it's prefixed by the root which is normalized, and we assume that
 		// WalkDir() doesn't insert unnecessary slashes or dots.
 		nextModToken[path] = FileModTokenFrom(info)
+
+		// If we only care about the root file, stop walking.
+		if len(w.childCallbacks) == 0 {
+			return filepath.SkipAll
+		}
 
 		return nil
 	})
@@ -178,16 +198,28 @@ func (w *treeWatcher) stat() {
 
 	// Invoke all callbacks in parallel.
 	wg := &sync.WaitGroup{}
-	for _, cb := range w.callbacks {
-		for path := range modified {
-			cb := cb
-			path := path
+	for path := range modified {
+		if path == w.absRootPath {
+			for _, cb := range w.rootCallbacks {
+				cb := cb
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				cb(path)
-			}()
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					cb()
+				}()
+			}
+		} else {
+			for _, cb := range w.childCallbacks {
+				cb := cb
+				path := path
+
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					cb(path)
+				}()
+			}
 		}
 	}
 	wg.Wait()
