@@ -119,6 +119,15 @@ func (w *treeWatcher) Stop() {
 	w.wg.Wait()
 }
 
+func (w *treeWatcher) isCancelled() bool {
+	select {
+	case <-w.cancelChan:
+		return true
+	default:
+		return false
+	}
+}
+
 // stat walks the directory and invokes callbacks if it was modified.
 //
 // The mutex must be held. Note that this could take arbitrarily long
@@ -135,10 +144,8 @@ func (w *treeWatcher) stat() {
 
 	_ = filepath.WalkDir(w.absRootPath, func(path string, d fs.DirEntry, err error) error {
 		// Stop walking if the watcher is stopped.
-		select {
-		case <-w.cancelChan:
+		if w.isCancelled() {
 			return filepath.SkipAll
-		default:
 		}
 
 		// Don't invoke callbacks if there's an error or if this is a directory.
@@ -172,10 +179,8 @@ func (w *treeWatcher) stat() {
 	})
 
 	// If the watcher was stopped, don't do anything more.
-	select {
-	case <-w.cancelChan:
+	if w.isCancelled() {
 		return
-	default:
 	}
 
 	modified := make(map[string]struct{})
