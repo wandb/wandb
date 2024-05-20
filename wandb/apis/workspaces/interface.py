@@ -112,7 +112,7 @@ class Section(Base):
             name=model.name,
             panels=[_lookup_panel(p) for p in model.panels],
             collapsed=not model.is_open,
-            section_settings=SectionPanelSettings.from_model(model.flow_config),
+            section_panel_settings=SectionPanelSettings.from_model(model.flow_config),
         )
 
     def to_model(self):
