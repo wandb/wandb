@@ -99,9 +99,7 @@ def test_log_nested_cc(user, test_settings, relay_server):
         assert df_pulled_table.equals(df_custom_chart)
 
 
-def test_log_nested_split_table(
-    user, test_settings, relay_server
-):
+def test_log_nested_split_table(user, test_settings, relay_server):
     with relay_server():
         run = wandb.init(settings=test_settings())
         run_entity = run.entity
@@ -143,9 +141,7 @@ def test_log_nested_split_table(
         assert df_pulled_table.equals(df_logged_table)
 
 
-def test_log_nested_visualize(
-    user, test_settings, relay_server
-):
+def test_log_nested_visualize(user, test_settings, relay_server):
     with relay_server():
         run = wandb.init(settings=test_settings())
         run_entity = run.entity

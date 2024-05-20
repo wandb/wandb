@@ -46,4 +46,3 @@ def test_log_not_dict(mock_run):
     run = mock_run()
     with pytest.raises(ValueError):
         run.log(10)
-
