@@ -69,16 +69,8 @@ def test_log_dataframe(user, test_settings):
     assert len(run.logged_artifacts()) == 1
 
 
-def test_log_nested_cc(user, test_settings, relay_server, inject_graphql_response):
-    server_info_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
-        # response
-        body=json.dumps(
-            {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
-        ),
-    )
-    with relay_server(inject=[server_info_response]):
+def test_log_nested_cc(user, test_settings, relay_server):
+    with relay_server():
         run = wandb.init(settings=test_settings())
         run_id = run.id
         run_project = run.project
@@ -108,17 +100,9 @@ def test_log_nested_cc(user, test_settings, relay_server, inject_graphql_respons
 
 
 def test_log_nested_split_table(
-    user, test_settings, relay_server, inject_graphql_response
+    user, test_settings, relay_server
 ):
-    server_info_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
-        # response
-        body=json.dumps(
-            {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
-        ),
-    )
-    with relay_server(inject=[server_info_response]):
+    with relay_server():
         run = wandb.init(settings=test_settings())
         run_entity = run.entity
         run_id = run.id
@@ -160,17 +144,9 @@ def test_log_nested_split_table(
 
 
 def test_log_nested_visualize(
-    user, test_settings, relay_server, inject_graphql_response
+    user, test_settings, relay_server
 ):
-    server_info_response = inject_graphql_response(
-        # request
-        query_match_fn=lambda query, variables: query.startswith("query ServerInfo"),
-        # response
-        body=json.dumps(
-            {"data": {"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.11.0"}}}}
-        ),
-    )
-    with relay_server(inject=[server_info_response]):
+    with relay_server():
         run = wandb.init(settings=test_settings())
         run_entity = run.entity
         run_id = run.id
