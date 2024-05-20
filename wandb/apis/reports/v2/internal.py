@@ -637,7 +637,7 @@ class LinePlotConfig(ReportAPIBaseModel):
     override_line_widths: Optional[dict] = None
     override_colors: Optional[dict] = None
     override_series_titles: Optional[dict] = None
-    legend_fields: Optional[List[str]] = None
+    legend_fields: Optional[LList[str]] = None
 
     # there are more here...
 

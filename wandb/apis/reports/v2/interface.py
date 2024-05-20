@@ -813,7 +813,7 @@ class LinePlot(Panel):
     legend_template: Optional[str] = None
     aggregate: Optional[bool] = None
     xaxis_expression: Optional[str] = None
-    legend_fields: Optional[List[str]] = None
+    legend_fields: Optional[LList[str]] = None
 
     def to_model(self):
         obj = internal.LinePlot(
