@@ -35,6 +35,17 @@ class Lib:
         return self._lib
 
     def setup(self, core_path: str) -> str:
+        """Setup a new session.
+
+        Setup a new session by starting the wandb-core service
+        and establishing a connection to it.
+
+        Args:
+            core_path: Path to the wandb-core binary.
+
+        Returns:
+            The address of the session's wandb-core service.
+        """
         address = self.lib.Setup(core_path.encode())
         return address.decode()
 
