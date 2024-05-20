@@ -44,10 +44,33 @@ RunId = str
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
-@dataclass(config=dataclass_config)
+def is_not_all_none(v):
+    if v is None or v == "":
+        return False
+    if isinstance(v, Iterable) and not isinstance(v, str):
+        return any(v not in (None, "") for v in v)
+    return True
+
+
+def is_not_internal(k):
+    return not k.startswith("_")
+
+
+@dataclass(config=dataclass_config, repr=False)
 class Base:
-    ...
-    # TODO: Add __repr__ that hides Nones
+    def __repr__(self):
+        fields = (
+            f"{k}={v!r}"
+            for k, v in self.__dict__.items()
+            if (is_not_all_none(v) and is_not_internal(k))
+        )
+        fields_str = ", ".join(fields)
+        return f"{self.__class__.__name__}({fields_str})"
+
+    def __rich_repr__(self):
+        for k, v in self.__dict__.items():
+            if is_not_all_none(v) and is_not_internal(k):
+                yield k, v
 
     @property
     def _model(self):
@@ -101,7 +124,8 @@ class Layout(Base):
 
 
 @dataclass(config=dataclass_config)
-class Block(Base): ...
+class Block(Base):
+    ...
 
 
 @dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
@@ -608,15 +632,17 @@ class Runset(Base):
 
 @dataclass(config=dataclass_config)
 class Panel(Base):
-    id: str = Field(default_factory=internal._generate_name, kw_only=True)
     layout: Layout = Field(default_factory=Layout, kw_only=True)
 
+    _id: str = Field(
+        default_factory=internal._generate_name, init=False, repr=False, kw_only=True
+    )
     _ref: Optional[internal.Ref] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
 
 
-@dataclass(config=dataclass_config)
+@dataclass(config=dataclass_config, repr=False)
 class PanelGrid(Block):
     runsets: LList["Runset"] = Field(default_factory=lambda: [Runset()])
     panels: LList["PanelTypes"] = Field(default_factory=list)
@@ -706,7 +732,8 @@ class Twitter(Block):
 
 
 @dataclass(config=dataclass_config)
-class WeaveBlock(Block): ...
+class WeaveBlock(Block):
+    ...
 
 
 BlockTypes = Union[
@@ -798,7 +825,7 @@ class LinePlot(Panel):
     xaxis_expression: Optional[str] = None
 
     def to_model(self):
-        obj = internal.LinePlot(
+        return internal.LinePlot(
             config=internal.LinePlotConfig(
                 chart_title=self.title,
                 x_axis=_metric_to_backend(self.x),
@@ -827,11 +854,10 @@ class LinePlot(Panel):
                 aggregate=self.aggregate,
                 x_expression=self.xaxis_expression,
             ),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
             layout=self.layout.to_model(),
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.LinePlot):
@@ -861,9 +887,10 @@ class LinePlot(Panel):
             aggregate=model.config.aggregate,
             xaxis_expression=model.config.x_expression,
             layout=Layout.from_model(model.layout),
-            id=model.id,
+            legend_fields=model.config.legend_fields,
         )
         obj._ref = model.ref
+        obj._id = model.id
         return obj
 
 
@@ -892,7 +919,7 @@ class ScatterPlot(Panel):
         if custom_gradient is not None:
             custom_gradient = [cgp.to_model() for cgp in self.gradient]
 
-        obj = internal.ScatterPlot(
+        return internal.ScatterPlot(
             config=internal.ScatterPlotConfig(
                 chart_title=self.title,
                 x_axis=_metric_to_backend(self.x),
@@ -916,10 +943,9 @@ class ScatterPlot(Panel):
                 show_linear_regression=self.regression,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -946,9 +972,9 @@ class ScatterPlot(Panel):
             font_size=model.config.font_size,
             regression=model.config.show_linear_regression,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
         obj._ref = model.ref
+        obj._id = model.id
         return obj
 
 
@@ -972,7 +998,7 @@ class BarPlot(Panel):
     line_colors: Optional[dict] = None
 
     def to_model(self):
-        obj = internal.BarPlot(
+        return internal.BarPlot(
             config=internal.BarPlotConfig(
                 chart_title=self.title,
                 metrics=[_metric_to_backend(name) for name in _listify(self.metrics)],
@@ -993,10 +1019,9 @@ class BarPlot(Panel):
                 override_colors=self.line_colors,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -1018,8 +1043,8 @@ class BarPlot(Panel):
             line_titles=model.config.override_series_titles,
             line_colors=model.config.override_colors,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1035,7 +1060,7 @@ class ScalarChart(Panel):
     font_size: Optional[FontSize] = None
 
     def to_model(self):
-        obj = internal.ScalarChart(
+        return internal.ScalarChart(
             config=internal.ScalarChartConfig(
                 chart_title=self.title,
                 metrics=[_metric_to_backend(self.metric)],
@@ -1046,10 +1071,9 @@ class ScalarChart(Panel):
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            ref=self._ref,
+            id=self._id,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -1062,8 +1086,8 @@ class ScalarChart(Panel):
             legend_template=model.config.legend_template,
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1073,21 +1097,20 @@ class CodeComparer(Panel):
     diff: CodeCompareDiff = "split"
 
     def to_model(self):
-        obj = internal.CodeComparer(
+        return internal.CodeComparer(
             config=internal.CodeComparerConfig(diff=self.diff),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         obj = cls(
             diff=model.config.diff,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1104,14 +1127,13 @@ class ParallelCoordinatesPlotColumn(Base):
     )
 
     def to_model(self):
-        obj = internal.Column(
+        return internal.Column(
             accessor=_metric_to_backend_pc(self.metric),
             display_name=self.display_name,
             inverted=self.inverted,
             log=self.log,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.Column):
@@ -1137,7 +1159,7 @@ class ParallelCoordinatesPlot(Panel):
         if gradient is not None:
             gradient = [x.to_model() for x in self.gradient]
 
-        obj = internal.ParallelCoordinatesPlot(
+        return internal.ParallelCoordinatesPlot(
             config=internal.ParallelCoordinatesPlotConfig(
                 chart_title=self.title,
                 columns=[c.to_model() for c in self.columns],
@@ -1145,10 +1167,9 @@ class ParallelCoordinatesPlot(Panel):
                 font_size=self.font_size,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -1165,8 +1186,8 @@ class ParallelCoordinatesPlot(Panel):
             gradient=gradient,
             font_size=model.config.font_size,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1176,23 +1197,22 @@ class ParameterImportancePlot(Panel):
     with_respect_to: str = ""
 
     def to_model(self):
-        obj = internal.ParameterImportancePlot(
+        return internal.ParameterImportancePlot(
             config=internal.ParameterImportancePlotConfig(
                 target_key=self.with_respect_to
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         obj = cls(
             with_respect_to=model.config.target_key,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1202,21 +1222,20 @@ class RunComparer(Panel):
     diff_only: Optional[Literal["split", True]] = None
 
     def to_model(self):
-        obj = internal.RunComparer(
+        return internal.RunComparer(
             config=internal.RunComparerConfig(diff_only=self.diff_only),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         obj = cls(
             diff_only=model.config.diff_only,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1227,16 +1246,15 @@ class MediaBrowser(Panel):
     media_keys: LList[str] = Field(default_factory=list)
 
     def to_model(self):
-        obj = internal.MediaBrowser(
+        return internal.MediaBrowser(
             config=internal.MediaBrowserConfig(
                 column_count=self.num_columns,
                 media_keys=self.media_keys,
             ),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.MediaBrowser):
@@ -1244,8 +1262,8 @@ class MediaBrowser(Panel):
             num_columns=model.config.column_count,
             media_keys=model.config.media_keys,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1255,21 +1273,20 @@ class MarkdownPanel(Panel):
     markdown: str = ""
 
     def to_model(self):
-        obj = internal.MarkdownPanel(
+        return internal.MarkdownPanel(
             config=internal.MarkdownPanelConfig(value=self.markdown),
             layout=self.layout.to_model(),
-            id=self.id,
+            id=self._id,
+            ref=self._ref,
         )
-        obj.ref = self._ref
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
         obj = cls(
             markdown=model.config.value,
             layout=Layout.from_model(model.layout),
-            id=model.id,
         )
+        obj._id = model.id
         obj._ref = model.ref
         return obj
 
@@ -1342,7 +1359,7 @@ class CustomChart(Panel):
         )
 
     def to_model(self):
-        obj = internal.Vega2(
+        return internal.Vega2(
             config=internal.Vega2Config(
                 # user_query=internal.UserQuery(
                 #     query_fields=[
@@ -1355,10 +1372,9 @@ class CustomChart(Panel):
                 # )
             ),
             layout=self.layout.to_model(),
+            ref=self._ref,
+            id=self._id,
         )
-        obj.ref = self._ref
-        # obj.id=self.id,
-        return obj
 
     @classmethod
     def from_model(cls, model: internal.ScatterPlot):
@@ -1370,6 +1386,7 @@ class CustomChart(Panel):
             layout=Layout.from_model(model.layout),
         )
         obj._ref = model.ref
+        obj._id = model.id
         return obj
 
 
@@ -1768,7 +1785,7 @@ def _collides(p1: Panel, p2: Panel) -> bool:
     l1, l2 = p1.layout, p2.layout
 
     if (
-        (p1.id == p2.id)
+        (p1._id == p2._id)
         or (l1.x + l1.w <= l2.x)
         or (l1.x >= l2.w + l2.x)
         or (l1.y + l1.h <= l2.y)
