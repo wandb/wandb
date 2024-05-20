@@ -54,7 +54,7 @@ func Teardown(code C.int) {
 	s = nil
 }
 
-// InitSetnry initializes Sentry for error reporting
+// InitSentry initializes Sentry for error reporting.
 //
 //export InitSentry
 func InitSentry() {
