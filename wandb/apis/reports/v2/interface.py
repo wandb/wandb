@@ -37,7 +37,7 @@ TextLike = Union[str, "TextWithInlineComments", "Link", "InlineLatex", "InlineCo
 TextLikeField = Union[TextLike, LList[TextLike]]
 SpecialMetricType = Union["Config", "SummaryMetric", "Metric"]
 MetricType = Union[str, SpecialMetricType]
-ParallelCoordinatesMetric = Union[str, "Config", "SummaryMetric"]
+SummaryOrConfigOnlyMetric = Union[str, "Config", "SummaryMetric"]
 RunId = str
 
 
@@ -890,9 +890,9 @@ class LinePlot(Panel):
 @dataclass(config=dataclass_config, repr=False)
 class ScatterPlot(Panel):
     title: Optional[str] = None
-    x: Optional[MetricType] = None
-    y: Optional[MetricType] = None
-    z: Optional[MetricType] = None
+    x: Optional[SummaryOrConfigOnlyMetric] = None
+    y: Optional[SummaryOrConfigOnlyMetric] = None
+    z: Optional[SummaryOrConfigOnlyMetric] = None
     range_x: Range = Field(default_factory=lambda: (None, None))
     range_y: Range = Field(default_factory=lambda: (None, None))
     range_z: Range = Field(default_factory=lambda: (None, None))
@@ -949,9 +949,9 @@ class ScatterPlot(Panel):
 
         obj = cls(
             title=model.config.chart_title,
-            x=_metric_to_frontend(model.config.x_axis),
-            y=_metric_to_frontend(model.config.y_axis),
-            z=_metric_to_frontend(model.config.z_axis),
+            x=_metric_to_frontend_pc(model.config.x_axis),
+            y=_metric_to_frontend_pc(model.config.y_axis),
+            z=_metric_to_frontend_pc(model.config.z_axis),
             range_x=(model.config.x_axis_min, model.config.x_axis_max),
             range_y=(model.config.y_axis_min, model.config.y_axis_max),
             range_z=(model.config.z_axis_min, model.config.z_axis_max),
@@ -1114,7 +1114,7 @@ class CodeComparer(Panel):
 
 @dataclass(config=dataclass_config, repr=False)
 class ParallelCoordinatesPlotColumn(Base):
-    metric: ParallelCoordinatesMetric
+    metric: SummaryOrConfigOnlyMetric
     display_name: Optional[str] = None
     inverted: Optional[bool] = None
     log: Optional[bool] = None
@@ -1834,7 +1834,7 @@ def _metric_to_frontend(x: str):
     return Metric(name)
 
 
-def _metric_to_backend_pc(x: Optional[ParallelCoordinatesMetric]):
+def _metric_to_backend_pc(x: Optional[SummaryOrConfigOnlyMetric]):
     if x is None:
         return x
     if isinstance(x, str):  # Same as SummaryMetric
