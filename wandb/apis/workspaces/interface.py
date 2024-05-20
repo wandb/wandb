@@ -321,7 +321,7 @@ class Workspace(Base):
                 Section.from_model(s)
                 for s in model.viewspec.section.panel_bank_config.sections
             ],
-            runset_config=RunsetSettings(
+            runset_settings=RunsetSettings(
                 query=model.viewspec.section.run_sets[0].search.query,
                 regex_query=bool(model.viewspec.section.run_sets[0].search.is_regex),
                 filters=expr.expression_tree_to_filters(
