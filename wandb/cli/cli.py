@@ -602,6 +602,12 @@ def sync_beta(
     help="Specifies the type of run for grouping related runs together.",
 )
 @click.option(
+    "--tags",
+    "tags",
+    multiple=True,
+    help="Used to label runs",
+)
+@click.option(
     "--sync-tensorboard/--no-sync-tensorboard",
     is_flag=True,
     default=None,
@@ -661,6 +667,7 @@ def sync(
     project=None,
     entity=None,
     job_type=None,  # trace this back to SyncManager
+    tags=None,
     sync_tensorboard=None,
     include_globs=None,
     exclude_globs=None,
@@ -737,6 +744,7 @@ def sync(
             entity=entity,
             run_id=run_id,
             job_type=job_type,
+            tags=tags,
             mark_synced=mark_synced,
             app_url=api.app_url,
             view=view,
