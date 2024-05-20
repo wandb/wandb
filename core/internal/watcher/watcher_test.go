@@ -169,14 +169,14 @@ func TestWatcher(t *testing.T) {
 
 	t.Run("runs callback for modified file", func(t *testing.T) {
 		ctx := setupTest(t)
-		ctx.WriteFile("file.txt", "content 1")
+		ctx.WriteFile("file.txt", "initial")
 
 		require.NoError(t,
 			ctx.Watcher.Watch(
 				ctx.RelPath("file.txt"),
 				ctx.LogID0("watch"),
 			))
-		ctx.WriteFile("file.txt", "content 2")
+		ctx.WriteFile("file.txt", "modified")
 		ctx.PollingStopwatch.SetDone()
 
 		ctx.ExpectLoggedID("watch", "")
