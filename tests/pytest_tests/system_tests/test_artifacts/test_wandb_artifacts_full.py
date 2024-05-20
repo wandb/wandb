@@ -621,11 +621,12 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.type == collection.type
 
 
-def test_used_artifacts_preserve_original_project(wandb_init, user, api, logged_artifact):
+def test_used_artifacts_preserve_original_project(
+    wandb_init, user, api, logged_artifact
+):
     """Run artifacts from the API should preserve the original project they were created in."""
-
-    orig_project: str = logged_artifact.project  # Original project that actually created the artifact
-    new_project: str = "new-project"  # New project using the same artifact
+    orig_project = logged_artifact.project  # Original project that created the artifact
+    new_project = "new-project"  # New project using the same artifact
 
     artifact_path = f"{user}/{orig_project}/{logged_artifact.name}"
 
