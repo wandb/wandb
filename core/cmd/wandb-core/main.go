@@ -15,6 +15,8 @@ import (
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
+const sentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+
 // this is set by the build script and used by the observability package
 var commit string
 
@@ -42,7 +44,7 @@ func main() {
 	}
 
 	// set up sentry reporting
-	observability.InitSentry("", *disableAnalytics, commit)
+	observability.InitSentry(sentryDSN, *disableAnalytics, commit)
 	defer sentry.Flush(2)
 
 	// store commit hash in context

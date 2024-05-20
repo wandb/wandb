@@ -28,7 +28,7 @@ func (OsFs) OpenFile(name string, flag int, perm os.FileMode) (fs.File, error) {
 	return os.OpenFile(name, flag, perm)
 }
 
-func GetLoggerPath(component string) (*os.File, error) {
+func GetLoggerPath(component string /* core or client */) (*os.File, error) {
 	osFs := OsFs{}
 	file, err := GetLoggerPathFS(osFs, component)
 
@@ -44,7 +44,7 @@ func GetLoggerPath(component string) (*os.File, error) {
 	return osfile, nil
 }
 
-// GetLoggerPathFS function with FileSystem parameter
+// GetLoggerPathFS function with FileSystem and component parameters
 func GetLoggerPathFS(fs FileSystem, component string) (fs.File, error) {
 	// TODO: replace with a setting during client rewrite
 	dir := os.Getenv("WANDB_CACHE_DIR")

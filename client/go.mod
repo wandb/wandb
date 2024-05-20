@@ -1,17 +1,16 @@
 module github.com/wandb/wandb/client
 
-replace github.com/wandb/wandb/client => ../client
-
-replace github.com/wandb/wandb/core => ../core
+replace (
+	github.com/wandb/wandb/client => ../client
+	github.com/wandb/wandb/core => ../core
+)
 
 go 1.22.3
 
-// github.com/wandb/wandb/core v0.0.0-20240516195453-256d7bde5254
-require google.golang.org/protobuf v1.34.1
-
 require (
 	github.com/getsentry/sentry-go v0.27.0
-	github.com/wandb/wandb/core v0.0.0-00010101000000-000000000000
+	github.com/wandb/wandb/core v0.0.0-20240520183617-15f442273b70
+	google.golang.org/protobuf v1.34.1
 )
 
 require (

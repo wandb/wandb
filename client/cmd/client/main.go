@@ -24,7 +24,7 @@ func Setup(corePath *C.char) *C.char {
 	if s != nil {
 		return C.CString(s.Address())
 	}
-	params := &session.SessionParams{
+	params := session.Params{
 		CorePath: C.GoString(corePath),
 	}
 	s = session.New(params)

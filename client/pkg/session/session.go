@@ -17,12 +17,12 @@ const (
 	localHost = "127.0.0.1"
 )
 
-// SessionParams holds parameters for creating a new Session
-type SessionParams struct {
+// Params holds parameters for creating a new Session
+type Params struct {
 	CorePath string
 }
 
-// Session manages the lifecycle of a connection session
+// Session manages the lifecycle of a connection session to the internal "wandb-core" process
 type Session struct {
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -45,7 +45,7 @@ type Session struct {
 }
 
 // New creates a new Session with the provided parameters
-func New(params *SessionParams) *Session {
+func New(params Params) *Session {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Session{
@@ -76,31 +76,41 @@ func (s *Session) LogFileName() string {
 
 // setupLogger sets up the default logger for the session
 func (s *Session) setupLogger() {
-	if file, _ := observability.GetLoggerPath("client"); file != nil {
-		level := slog.LevelInfo
-		if os.Getenv("WANDB_DEBUG") != "" {
-			level = slog.LevelDebug
-		}
-		opts := &slog.HandlerOptions{
-			Level:     level,
-			AddSource: false,
-		}
-		logger := slog.New(slog.NewJSONHandler(file, opts))
-		slog.SetDefault(logger)
-		slog.Info("corePath", "corePath", s.corePath)
-
+	file, _ := observability.GetLoggerPath("client")
+	if file == nil {
 		s.logger = observability.NewCoreLogger(
-			logger,
+			slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{})),
 			observability.WithTags(observability.Tags{}),
 			observability.WithCaptureMessage(observability.CaptureMessage),
 			observability.WithCaptureException(observability.CaptureException),
 		)
-		s.loggerFile = file
+		return
 	}
+
+	level := slog.LevelInfo
+	if os.Getenv("WANDB_DEBUG") != "" {
+		level = slog.LevelDebug
+	}
+	opts := &slog.HandlerOptions{
+		Level:     level,
+		AddSource: false,
+	}
+	logger := slog.New(slog.NewJSONHandler(file, opts))
+	slog.SetDefault(logger)
+	slog.Info("corePath", "corePath", s.corePath)
+
+	s.logger = observability.NewCoreLogger(
+		logger,
+		observability.WithTags(observability.Tags{}),
+		observability.WithCaptureMessage(observability.CaptureMessage),
+		observability.WithCaptureException(observability.CaptureException),
+	)
+	s.loggerFile = file
 }
 
-// Start launches the core service and sets up the session connection to the
-// server. If the session has already been started, this function is a no-op.
+// Start launches the wandb-core service and sets up the session connection to it.
+//
+// If the session has already been started, this function is a no-op.
 func (s *Session) Start() error {
 	if s.started.Load() {
 		return nil
@@ -126,8 +136,9 @@ func (s *Session) Start() error {
 	return nil
 }
 
-// Close gracefully shuts down the session. If the session has not been started,
-// this function is a no-op.
+// Close gracefully shuts down the session.
+//
+// If the session has not been started, this function is a no-op.
 func (s *Session) Close(exitCode int32) {
 	if !s.started.Load() {
 		return
@@ -161,11 +172,13 @@ func (s *Session) Close(exitCode int32) {
 
 	s.logger.Info("sent teardown request", "exitCode", exitCode)
 	s.started.Store(false)
-	s.loggerFile.Close()
+	if s.loggerFile != nil {
+		s.loggerFile.Close()
+	}
 	s.logger = nil
 }
 
-// connect establishes a connection to the server.
+// connect establishes a connection to the wandb-core service.
 func (s *Session) connect() (*connection.Connection, error) {
 	conn, err := connection.New(s.ctx, s.address)
 	if err != nil {

@@ -18,23 +18,26 @@ class Lib:
             pathlib.Path(__file__).parent.parent / "bin" / f"libwandb.{dylib_ext}"
         )
         self._lib = ctypes.CDLL(str(path_lib))
+
+        # set up the function signatures
+        self.lib.Setup.argtypes = [ctypes.c_char_p]
+        self.lib.Setup.restype = ctypes.c_char_p
+        self.lib.Teardown.argtypes = [ctypes.c_int]
+        self.lib.LogPath.restype = ctypes.c_char_p
+
         return self._lib
 
     def setup(self, core_path: str) -> str:
-        self.lib.Setup.argtypes = [ctypes.c_char_p]
-        self.lib.Setup.restype = ctypes.c_char_p
         address = self.lib.Setup(core_path.encode())
         return address.decode()
 
     def teardown(self, exit_code: int) -> None:
-        self.lib.Teardown.argtypes = [ctypes.c_int]
         self.lib.Teardown(exit_code)
 
     def init_sentry(self) -> None:
         self.lib.InitSentry()
 
     def log_path(self) -> str:
-        self.lib.LogPath.restype = ctypes.c_char_p
         return self.lib.LogPath().decode()
 
 
