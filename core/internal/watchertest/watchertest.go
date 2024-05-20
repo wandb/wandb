@@ -50,7 +50,7 @@ func (w *FakeWatcher) Watch(path string, callback func()) error {
 	return w.watchFileOrDir(path, func(string) { callback() })
 }
 
-func (w *FakeWatcher) WatchDir(path string, callback func(string)) error {
+func (w *FakeWatcher) WatchTree(path string, callback func(string)) error {
 	return w.watchFileOrDir(path, callback)
 }
 

@@ -225,7 +225,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
-		h.handleTBrecord(record)
+		h.handleTBrecord(x.Tbrecord)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -430,7 +430,6 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 			},
 		)
 	case service.DeferRequest_FLUSH_TB:
-		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -998,7 +997,7 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 	)
 }
 
-func (h *Handler) handleTBrecord(record *service.Record) {
+func (h *Handler) handleTBrecord(record *service.TBRecord) {
 	err := h.tbHandler.Handle(record)
 	if err != nil {
 		h.logger.CaptureError("error handling tbrecord", err)
