@@ -6,11 +6,18 @@ from typing import Optional
 
 class Lib:
     def __init__(self) -> None:
+        """Load the libwandb shared library.
+
+        This class is a wrapper around the libwandb shared library. It loads the
+        shared library and sets up the function signatures. The shared library
+        is expected to be in the `wandb/bin` directory.
+        """
         self._lib: Optional[ctypes.CDLL] = None
         self.init_sentry()
 
     @property
     def lib(self) -> ctypes.CDLL:
+        """Load the shared library."""
         if self._lib is not None:
             return self._lib
         dylib_ext = "dll" if platform.system().lower() == "windows" else "so"
@@ -20,10 +27,10 @@ class Lib:
         self._lib = ctypes.CDLL(str(path_lib))
 
         # set up the function signatures
-        self.lib.Setup.argtypes = [ctypes.c_char_p]
-        self.lib.Setup.restype = ctypes.c_char_p
-        self.lib.Teardown.argtypes = [ctypes.c_int]
-        self.lib.LogPath.restype = ctypes.c_char_p
+        self._lib.Setup.argtypes = [ctypes.c_char_p]
+        self._lib.Setup.restype = ctypes.c_char_p
+        self._lib.Teardown.argtypes = [ctypes.c_int]
+        self._lib.LogPath.restype = ctypes.c_char_p
 
         return self._lib
 
