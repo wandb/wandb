@@ -202,7 +202,7 @@ class PanelBankConfigSettings(ReportAPIBaseModel):
     show_empty_sections: bool = False
     sort_alphabetically: bool = False
     search_query: Optional[str] = None
-    search_history: Optional[LList[dict[Literal["query"], str]]] = None
+    search_history: Optional[LList[Dict[Literal["query"], str]]] = None
     auto_expand_search_results: Optional[bool] = None
 
 
@@ -637,7 +637,7 @@ class LinePlotConfig(ReportAPIBaseModel):
     override_line_widths: Optional[dict] = None
     override_colors: Optional[dict] = None
     override_series_titles: Optional[dict] = None
-    legend_fields: Optional[list[str]] = None
+    legend_fields: Optional[List[str]] = None
 
     # there are more here...
 

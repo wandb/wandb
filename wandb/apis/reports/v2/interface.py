@@ -645,7 +645,7 @@ class PanelGrid(Block):
         default_factory=lambda: None, init=False, repr=False
     )
     _open_viz: bool = Field(default_factory=lambda: True, init=False, repr=False)
-    _panel_bank_sections: LList[dict] = Field(
+    _panel_bank_sections: LList[Dict] = Field(
         default_factory=list, init=False, repr=False
     )
     _panel_grid_metadata_ref: Optional[internal.Ref] = Field(
@@ -813,7 +813,7 @@ class LinePlot(Panel):
     legend_template: Optional[str] = None
     aggregate: Optional[bool] = None
     xaxis_expression: Optional[str] = None
-    legend_fields: Optional[list[str]] = None
+    legend_fields: Optional[List[str]] = None
 
     def to_model(self):
         obj = internal.LinePlot(
@@ -1438,7 +1438,7 @@ class Report(Base):
     _discussion_threads: list = Field(default_factory=list, init=False, repr=False)
     _ref: dict = Field(default_factory=dict, init=False, repr=False)
     _panel_settings: dict = Field(default_factory=dict, init=False, repr=False)
-    _authors: LList[dict] = Field(default_factory=list, init=False, repr=False)
+    _authors: LList[Dict] = Field(default_factory=list, init=False, repr=False)
     _created_at: Optional[datetime] = Field(
         default_factory=lambda: None, init=False, repr=False
     )
