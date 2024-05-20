@@ -14,6 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
+- Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ### Fixed
 
@@ -23,6 +24,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
+
+### Deprecated
+
+- Deprecated `ArtifactCollection.change_type()` in favor of `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ## [0.17.0] - 2024-05-07
 
