@@ -46,7 +46,7 @@ func (tb *TBHandler) Handle(record *service.Record) error {
 		return nil
 	}
 
-	err := tb.watcher.WatchDir(
+	err := tb.watcher.WatchTree(
 		record.GetTbrecord().GetLogDir(),
 		func(path string) {
 			tb.logger.Debug("tb: file updated", "path", path)
