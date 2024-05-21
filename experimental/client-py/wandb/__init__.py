@@ -1,4 +1,5 @@
 """wandb library."""
+
 __version__ = "0.0.1.dev1"
 
 from wandb.proto import wandb_internal_pb2 as pb2

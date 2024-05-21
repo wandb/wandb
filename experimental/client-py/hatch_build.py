@@ -102,12 +102,13 @@ class CustomBuildHook(BuildHookInterface):
         return [output.as_posix()]
 
     def _build_proto(self) -> List[str]:
-        proto_files = [ "wandb_base.proto",
-                        "wandb_internal.proto",
-                        "wandb_telemetry.proto",
-                        "wandb_settings.proto",
-                        "wandb_server.proto",
-                      ]
+        proto_files = [
+            "wandb_base.proto",
+            "wandb_internal.proto",
+            "wandb_telemetry.proto",
+            "wandb_settings.proto",
+            "wandb_server.proto",
+        ]
         output_dir = str(pathlib.Path(__file__).parent)
         current_dir = pathlib.Path.cwd()
         os.chdir(str(pathlib.Path(__file__).parent.parent.parent))
@@ -115,12 +116,13 @@ class CustomBuildHook(BuildHookInterface):
         for file in proto_files:
             output_file = str(pathlib.Path("wandb") / "proto" / file)
             subprocess.check_call(
-                [ "protoc",
-                "-I=.",
-                f"--python_out={output_dir}",
-                output_file,
+                [
+                    "protoc",
+                    "-I=.",
+                    f"--python_out={output_dir}",
+                    output_file,
                 ],
-                )
+            )
             output_files.append(output_file)
         os.chdir(current_dir)
         return output_files
