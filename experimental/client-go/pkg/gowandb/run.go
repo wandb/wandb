@@ -17,7 +17,6 @@ import (
 type Settings map[string]interface{}
 
 type Run struct {
-	// ctx is the context for the run
 	ctx            context.Context
 	settings       *service.Settings
 	config         *runconfig.Config

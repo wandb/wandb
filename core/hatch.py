@@ -42,7 +42,7 @@ def build_wandb_core(
             *vendor_flags,
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
-        cwd="./core",
+        cwd="core",
         env=_go_env(),
     )
 
