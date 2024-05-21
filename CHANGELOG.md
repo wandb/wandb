@@ -25,6 +25,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
 
+- Update order in api.runs() to ascending to prevent duplicate responses by @thanos-wandb https://github.com/wandb/wandb/pull/7675
+ 
 ### Deprecated
 
 - Deprecated `ArtifactCollection.change_type()` in favor of `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
