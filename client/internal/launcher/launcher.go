@@ -4,23 +4,81 @@ package launcher
 import (
 	"bufio"
 	"errors"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
+const (
+	localHost = "127.0.0.1"
+)
+
 type Launcher struct {
+	// portFilename is the path to the file that contains the port number
 	portFilename string
-	command      *forkExecCmd
+
+	// command is the command that is being run
+	command *forkExecCmd
+
+	// started is an atomic boolean that indicates whether the session has been
+	// started
+	started *atomic.Bool
+
+	// address is the address of the server that the session is connected to
+	address string
 }
 
 func New() *Launcher {
-	return &Launcher{}
+	return &Launcher{
+		started: &atomic.Bool{},
+	}
 }
 
-// GetPort waits for the port file to be created and reads the port number
-func (l *Launcher) GetPort() (int, error) {
+// Launch starts the core server and waits for the port file to be created
+func (l *Launcher) Launch(path string) error {
+	if err := l.launchCommand(path); err != nil {
+		return err
+	}
+
+	port, err := l.getPort()
+	if err != nil {
+		return err
+	}
+	l.address = fmt.Sprintf("%s:%d", localHost, port)
+	l.started.Store(true)
+	return nil
+}
+
+// Close gracefully shuts down the core server
+func (l *Launcher) Close() error {
+	if !l.started.Load() {
+		return nil
+	}
+
+	// closing on nil is a no-op
+	if l.command == nil {
+		return nil
+	}
+	// close the internal process and log the exit code
+	if err := l.command.wait(); err != nil {
+		return err
+	}
+
+	l.started.Store(false)
+	return nil
+}
+
+// Address returns the address of the wandb-core server that the session is
+// connected to
+func (l *Launcher) Address() string {
+	return l.address
+}
+
+// getPort waits for the port file to be created and reads the port number
+func (l *Launcher) getPort() (int, error) {
 	defer os.Remove(l.portFilename)
 
 	// wait for 30 seconds for port
@@ -44,8 +102,8 @@ func (l *Launcher) prepTempfile() {
 	l.portFilename = file.Name()
 }
 
-// LaunchCommand launches a command with the port filename as an argument
-func (l *Launcher) LaunchCommand(command string) error {
+// launchCommand launches a command with the port filename as an argument
+func (l *Launcher) launchCommand(command string) error {
 	l.prepTempfile()
 	args := []string{"--port-filename", l.portFilename}
 	cmd, err := execCommand(command, args)
@@ -54,15 +112,6 @@ func (l *Launcher) LaunchCommand(command string) error {
 	}
 	l.command = cmd
 	return nil
-}
-
-// Close waits for the command to finish
-func (l *Launcher) Close() error {
-	// closing on nil is a no-op
-	if l.command == nil {
-		return nil
-	}
-	return l.command.wait()
 }
 
 // readLines reads a whole file into memory and returns a slice of its lines.

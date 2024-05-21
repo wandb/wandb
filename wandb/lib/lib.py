@@ -30,7 +30,6 @@ class Lib:
         self._lib.Setup.argtypes = [ctypes.c_char_p]
         self._lib.Setup.restype = ctypes.c_char_p
         self._lib.Teardown.argtypes = [ctypes.c_int]
-        self._lib.LogPath.restype = ctypes.c_char_p
 
         return self._lib
 
@@ -64,10 +63,6 @@ class Lib:
         """Initialize the Sentry client."""
         self.lib.InitSentry()
 
-    def log_path(self) -> str:
-        """Get the log path."""
-        return self.lib.LogPath().decode()
-
 
 class Session:
     def __init__(self) -> None:
@@ -81,7 +76,6 @@ class Session:
         """
         self._lib = Lib()
         self.address = ""
-        self.log_path = ""
         self._setup()
 
     def __enter__(self) -> "Session":
@@ -102,7 +96,6 @@ class Session:
         """Setup the session."""
         core_path = str(pathlib.Path(__file__).parent.parent / "bin" / "wandb-core")
         self.address = self._lib.setup(core_path)
-        self.log_path = self._lib.log_path()
 
     def teardown(self, exit_code: int) -> None:
         """Teardown the session.
@@ -112,4 +105,3 @@ class Session:
         """
         self._lib.teardown(exit_code)
         self.address = ""
-        self.log_path = ""
