@@ -127,6 +127,16 @@ def test_resume_never_failure(wandb_init):
     run_id = run.id
     run.finish()
 
+    # Wait for run metadata to finish uploading
+    api = Api()
+    api_run = api.run(f"{run.entity}/project/{run_id}")
+    metadata = None
+    tries = 0
+    while metadata is None and tries < 5:
+        metadata = api_run.metadata
+        time.sleep(1)
+    assert metadata is not None
+
     with pytest.raises(UsageError):
         wandb_init(resume="never", id=run_id, project="project")
 
