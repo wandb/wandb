@@ -20,6 +20,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 - Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
+- Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
 
 ### Changed
 
