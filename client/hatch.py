@@ -27,7 +27,7 @@ def build_libwandb(
             *output_flags,
             *build_mode_flags,
             *vendor_flags,
-            str(pathlib.Path("cmd", "client", "main.go")),
+            str(pathlib.Path("cmd", "binding", "main.go")),
         ],
         cwd="client",
         env=_go_env(),
