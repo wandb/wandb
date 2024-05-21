@@ -5,18 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/waitingtest"
-
-	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
-
-	"testing"
-
-	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
