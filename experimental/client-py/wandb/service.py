@@ -249,14 +249,14 @@ class _Service:
                     env=os.environ,
                     **kwargs,
                 )
-            except Exception as e:
+            except Exception:
                 # _sentry.reraise(e)
                 pass
 
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
-            except Exception as e:
+            except Exception:
                 # _sentry.reraise(e)
                 pass
             self._startup_debug_print("wait_ports_done")

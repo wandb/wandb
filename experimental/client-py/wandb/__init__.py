@@ -3,6 +3,7 @@
 __version__ = "0.0.1.dev1"
 
 import time
+
 from wandb.proto import wandb_internal_pb2 as pb2
 
 
@@ -53,6 +54,7 @@ class Session:
         if self._loaded:
             return
         from wandb import service
+
         s = service._Service(None)
         s.start()
         # self._api.pbSessionSetup()
