@@ -78,6 +78,8 @@ class WandbLogger:
         :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
         :param overwrite: Forces logging and overwrite existing wandb run of the same fine-tune.
         :param wait_for_job_success: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
+        :param model_artifact_name: Name of the model artifact that is logged
+        :param model_artifact_type: Type of the model artifact that is logged
         """
         if openai_client is None:
             openai_client = OpenAI()
