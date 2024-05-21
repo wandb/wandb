@@ -69,7 +69,7 @@ class _Service:
     _sock_port: Optional[int]
     # _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
-    _startup_debug_enabled: bool
+    # _startup_debug_enabled: bool
 
     def __init__(
         self,
@@ -79,7 +79,7 @@ class _Service:
         self._stub = None
         self._sock_port = None
         self._internal_proc = None
-        self._startup_debug_enabled = False
+        # self._startup_debug_enabled = False
 
         # _sentry.configure_scope(tags=dict(settings), process_context="service")
 
@@ -88,9 +88,10 @@ class _Service:
         # self._service_interface = ServiceSockInterface()
 
     def _startup_debug_print(self, message: str) -> None:
-        if not self._startup_debug_enabled:
-            return
-        _startup_debug.print_message(message)
+        pass
+        # if not self._startup_debug_enabled:
+        #     return
+        # _startup_debug.print_message(message)
 
     def _wait_for_ports(
         self, fname: str, proc: Optional[subprocess.Popen] = None
