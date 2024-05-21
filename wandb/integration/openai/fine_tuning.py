@@ -251,7 +251,13 @@ class WandbLogger:
 
         # training/validation files and fine-tune details
         cls._log_artifacts(
-            fine_tune, project, entity, log_datasets, overwrite, model_artifact_name, model_artifact_type
+            fine_tune,
+            project,
+            entity,
+            log_datasets,
+            overwrite,
+            model_artifact_name,
+            model_artifact_type,
         )
 
         # mark run as complete
