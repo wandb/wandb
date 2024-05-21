@@ -3,7 +3,6 @@
 Backend server process can be connected to using tcp sockets transport.
 """
 
-import datetime
 import os
 import pathlib
 import platform
@@ -239,7 +238,7 @@ class _Service:
         return self._sock_port
 
     @property
-    def service_interface(self) -> "ServiceInterface":
+    def service_interface(self):
         return self._service_interface
 
     def join(self) -> int:
