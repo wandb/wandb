@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 # from wandb.util import get_core_path, get_module
 
 # from . import _startup_debug, port_file
+from . import port_file
 # from .service_base import ServiceInterface
 # from .service_sock import ServiceSockInterface
 
@@ -251,15 +252,13 @@ class _Service:
                     **kwargs,
                 )
             except Exception:
-                # _sentry.reraise(e)
-                pass
+                raise
 
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
             except Exception:
-                # _sentry.reraise(e)
-                pass
+                raise
             self._startup_debug_print("wait_ports_done")
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")
