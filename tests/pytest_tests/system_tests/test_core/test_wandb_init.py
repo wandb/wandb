@@ -1,8 +1,10 @@
 import json
 import os
+import time
 from unittest import mock
 
 import pytest
+from wandb.apis.public import Api
 from wandb.errors import CommError, UsageError
 
 
@@ -102,6 +104,16 @@ def test_resume_allow_success(
         run_id = run.id
         run.log({"acc": 10}, step=15, commit=True)
         run.finish()
+
+        # Wait for run metadata to finish uploading
+        api = Api()
+        api_run = api.run(f"{run.entity}/project/{run_id}")
+        metadata = None
+        tries = 0
+        while metadata is None and tries < 5:
+            metadata = api_run.metadata
+            time.sleep(1)
+        assert metadata is not None
 
         run = wandb_init(resume="allow", id=run_id, project="project")
         run.log({"acc": 10})
