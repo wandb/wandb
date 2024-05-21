@@ -76,7 +76,7 @@ func (r *State) Update(
 	// If we get that the run is a resume run, we should fail if resume is set to never
 	// for any other case of resume status, we should continue to process the resume response
 	switch {
-	case bucket == nil && r.resume != Must:
+	case (bucket == nil || (bucket != nil && bucket.RunInfo == nil)) && r.resume != Must:
 		return nil, nil
 	case bucket == nil && r.resume == Must:
 		message := fmt.Sprintf(
