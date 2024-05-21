@@ -30,8 +30,8 @@ func Setup(corePath *C.char) *C.char {
 	s = session.New(params)
 	s.Start()
 	/*
-	p = launcher.Launch()
-	s =
+		p = launcher.Launch()
+		s =
 	*/
 
 	return C.CString(s.Address())

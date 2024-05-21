@@ -19,11 +19,11 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
 import wandb.env
+import wandb.integration
 from wandb import trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
-import wandb.integration
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import StrPath
