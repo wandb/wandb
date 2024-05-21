@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING, Any, Dict, Optional
 # from wandb.errors import Error, WandbCoreNotAvailableError
 # from wandb.sdk.lib.wburls import wburls
 # from wandb.util import get_core_path, get_module
-
 # from . import _startup_debug, port_file
 from . import port_file
+
 # from .service_base import ServiceInterface
 # from .service_sock import ServiceSockInterface
 
@@ -212,38 +212,6 @@ class _Service:
                 pid,
             ]
             service_args.append("--serve-sock")
-
-            if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
-                _ = get_module(
-                    "memray",
-                    required=(
-                        "wandb service memory profiling requires memray, "
-                        "install with `pip install memray`"
-                    ),
-                )
-
-                time_tag = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
-                output_file = f"wandb_service.memray.{time_tag}.bin"
-                cli_executable = (
-                    pathlib.Path(__file__).parent.parent.parent.parent
-                    / "tools"
-                    / "cli.py"
-                )
-                exec_cmd_list = [
-                    executable,
-                    "-m",
-                    "memray",
-                    "run",
-                    "-o",
-                    output_file,
-                ]
-                service_args[0] = str(cli_executable)
-                # termlog(
-                #     f"wandb service memory profiling enabled, output file: {output_file}"
-                # )
-                # termlog(
-                #     f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
-                # )
 
             try:
                 internal_proc = subprocess.Popen(
