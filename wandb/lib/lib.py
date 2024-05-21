@@ -3,6 +3,8 @@ import pathlib
 import platform
 from typing import Optional
 
+_wandb_lib: Optional["Lib"] = None
+
 
 class Lib:
     def __init__(self) -> None:
@@ -14,6 +16,9 @@ class Lib:
         """
         self._lib: Optional[ctypes.CDLL] = None
         self.init_sentry()
+        # set the global wandb_lib
+        global _wandb_lib
+        _wandb_lib = self
 
     @property
     def lib(self) -> ctypes.CDLL:
@@ -29,7 +34,7 @@ class Lib:
         # set up the function signatures
         self._lib.Setup.argtypes = [ctypes.c_char_p]
         self._lib.Setup.restype = ctypes.c_char_p
-        self._lib.Teardown.argtypes = [ctypes.c_int]
+        self._lib.Teardown.argtypes = [ctypes.c_char_p, ctypes.c_int]
 
         return self._lib
 
@@ -48,7 +53,7 @@ class Lib:
         address = self.lib.Setup(core_path.encode())
         return address.decode()
 
-    def teardown(self, exit_code: int) -> None:
+    def teardown(self, address: str, exit_code: int) -> None:
         """Teardown the session.
 
         Teardown the session by stopping the wandb-core service.
@@ -57,7 +62,7 @@ class Lib:
             exit_code: The exit code to pass to the wand
                 core service.
         """
-        self.lib.Teardown(exit_code)
+        self.lib.Teardown(address.encode(), exit_code)
 
     def init_sentry(self) -> None:
         """Initialize the Sentry client."""
@@ -74,7 +79,7 @@ class Session:
         This class can be used as a context manager. The session is torn
         down when the context manager exits.
         """
-        self._lib = Lib()
+        self._lib = _wandb_lib or Lib()
         self.address = ""
         self._setup()
 
@@ -103,5 +108,6 @@ class Session:
         Args:
             exit_code: The exit code to pass to the wandb-core service.
         """
-        self._lib.teardown(exit_code)
-        self.address = ""
+        if self.address:
+            self._lib.teardown(self.address, exit_code)
+            self.address = ""

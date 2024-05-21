@@ -2,6 +2,7 @@ package main
 
 import (
 	"C"
+	"fmt"
 	"os"
 	"strings"
 
@@ -15,8 +16,8 @@ import (
 )
 
 var (
-	defaultLauncher *launcher.Launcher
-	defaultLogger   *observability.CoreLogger
+	launcherRegistry = make(map[string]*launcher.Launcher)
+	defaultLogger    *observability.CoreLogger
 )
 
 const (
@@ -31,29 +32,24 @@ func Setup(corePath *C.char) *C.char {
 		defaultLogger = initLogger()
 	}
 
-	if defaultLauncher != nil {
-		return C.CString(defaultLauncher.Address())
-	}
-
 	corePathStr := C.GoString(corePath)
-	defaultLauncher = launcher.New()
-	if err := defaultLauncher.Launch(corePathStr); err != nil {
+	l := launcher.New()
+	if err := l.Launch(corePathStr); err != nil {
 		defaultLogger.CaptureError("failed to launch wandb-core", err)
 		return C.CString("")
 	}
-	return C.CString(defaultLauncher.Address())
+	launcherRegistry[l.Address()] = l
+	return C.CString(l.Address())
 }
 
 // Teardown closes the session and stops wandb-core process
 //
 //export Teardown
-func Teardown(code C.int) {
-	if defaultLauncher == nil {
-		return
-	}
+func Teardown(address *C.char, code C.int) {
+	addressStr := C.GoString(address)
 	s := session.New(
 		session.Params{
-			Address: defaultLauncher.Address(),
+			Address: addressStr,
 		},
 	)
 
@@ -61,10 +57,16 @@ func Teardown(code C.int) {
 		defaultLogger.CaptureError("failed to teardown session", err)
 	}
 
-	if err := defaultLauncher.Close(); err != nil {
+	l, ok := launcherRegistry[addressStr]
+	if !ok {
+		defaultLogger.CaptureError("launcher not found", fmt.Errorf("address: %s", addressStr))
+		return
+	}
+	if err := l.Close(); err != nil {
 		defaultLogger.CaptureError("failed to close launcher", err)
 	}
-	defaultLauncher = nil
+
+	delete(launcherRegistry, addressStr)
 }
 
 // initLogger initializes the logger for the session
