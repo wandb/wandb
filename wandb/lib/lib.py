@@ -50,17 +50,35 @@ class Lib:
         return address.decode()
 
     def teardown(self, exit_code: int) -> None:
+        """Teardown the session.
+
+        Teardown the session by stopping the wandb-core service.
+
+        Args:
+            exit_code: The exit code to pass to the wand
+                core service.
+        """
         self.lib.Teardown(exit_code)
 
     def init_sentry(self) -> None:
+        """Initialize the Sentry client."""
         self.lib.InitSentry()
 
     def log_path(self) -> str:
+        """Get the log path."""
         return self.lib.LogPath().decode()
 
 
 class Session:
     def __init__(self) -> None:
+        """Create a new session.
+
+        The session is created by starting the wandb-core service
+        and establishing a connection to it.
+
+        This class can be used as a context manager. The session is torn
+        down when the context manager exits.
+        """
         self._lib = Lib()
         self.address = ""
         self.log_path = ""
@@ -81,11 +99,17 @@ class Session:
             pass
 
     def _setup(self) -> None:
+        """Setup the session."""
         core_path = str(pathlib.Path(__file__).parent.parent / "bin" / "wandb-core")
         self.address = self._lib.setup(core_path)
         self.log_path = self._lib.log_path()
 
     def teardown(self, exit_code: int) -> None:
+        """Teardown the session.
+
+        Args:
+            exit_code: The exit code to pass to the wandb-core service.
+        """
         self._lib.teardown(exit_code)
         self.address = ""
         self.log_path = ""

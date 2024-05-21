@@ -23,6 +23,7 @@ from wandb import trigger
 from wandb.errors import CommError, Error, UsageError
 from wandb.errors.util import ProtobufErrorHandler
 from wandb.integration import sagemaker
+import wandb.integration
 from wandb.integration.magic import magic_install
 from wandb.sdk.lib import runid
 from wandb.sdk.lib.paths import StrPath
@@ -270,7 +271,7 @@ class _WandbInit:
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
-            wandb.gym.monitor()
+            wandb.integration.gym.monitor()
 
         if wandb.patched["tensorboard"]:
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
