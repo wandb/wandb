@@ -14,18 +14,36 @@ import tempfile
 import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
-from wandb import _sentry, termlog
-from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
-from wandb.errors import Error, WandbCoreNotAvailableError
-from wandb.sdk.lib.wburls import wburls
-from wandb.util import get_core_path, get_module
+# from wandb import _sentry, termlog
+# from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
+# from wandb.errors import Error, WandbCoreNotAvailableError
+# from wandb.sdk.lib.wburls import wburls
+# from wandb.util import get_core_path, get_module
 
-from . import _startup_debug, port_file
-from .service_base import ServiceInterface
-from .service_sock import ServiceSockInterface
+# from . import _startup_debug, port_file
+# from .service_base import ServiceInterface
+# from .service_sock import ServiceSockInterface
+
+SETTINGS_EXECUTABLE = "wandb/bin/wandb-core"
+SETTINGS_SERVICE_WAIT = 60
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
+
+
+class Error(Exception):
+    """Base W&B Error."""
+
+    def __init__(self, message, context: Optional[dict] = None) -> None:
+        super().__init__(message)
+        self.message = message
+        # sentry context capture
+        if context:
+            self.context = context
+
+
+class WandbCoreNotAvailableError(Error):
+    """Raised when wandb core is not available."""
 
 
 class ServiceStartProcessError(Error):
@@ -49,7 +67,7 @@ class ServiceStartPortError(Error):
 class _Service:
     _settings: "Settings"
     _sock_port: Optional[int]
-    _service_interface: ServiceInterface
+    # _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
     _startup_debug_enabled: bool
 
@@ -61,13 +79,13 @@ class _Service:
         self._stub = None
         self._sock_port = None
         self._internal_proc = None
-        self._startup_debug_enabled = _startup_debug.is_enabled()
+        self._startup_debug_enabled = False
 
-        _sentry.configure_scope(tags=dict(settings), process_context="service")
+        # _sentry.configure_scope(tags=dict(settings), process_context="service")
 
         # current code only supports socket server implementation, in the
         # future we might be able to support both
-        self._service_interface = ServiceSockInterface()
+        # self._service_interface = ServiceSockInterface()
 
     def _startup_debug_print(self, message: str) -> None:
         if not self._startup_debug_enabled:
@@ -89,7 +107,7 @@ class _Service:
             ServiceStartProcessError: If the service process exits unexpectedly.
 
         """
-        time_max = time.monotonic() + self._settings._service_wait
+        time_max = time.monotonic() + SETTINGS_SERVICE_WAIT
         while time.monotonic() < time_max:
             if proc and proc.poll():
                 # process finished
@@ -133,7 +151,7 @@ class _Service:
             return
         raise ServiceStartTimeoutError(
             "Timed out waiting for wandb service to start after "
-            f"{self._settings._service_wait} seconds. "
+            f"{SETTINGS_SERVICE_WAIT} seconds. "
             "Try increasing the timeout with the `_service_wait` setting."
         )
 
@@ -156,7 +174,7 @@ class _Service:
         with tempfile.TemporaryDirectory() as tmpdir:
             fname = os.path.join(tmpdir, f"port-{pid}.txt")
 
-            executable = self._settings._executable
+            executable = SETTINGS_EXECUTABLE
             exec_cmd_list = [executable, "-m"]
             # Add coverage collection if needed
             if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
@@ -164,32 +182,26 @@ class _Service:
 
             service_args = []
 
-            if is_require_core():
-                try:
-                    core_path = get_core_path()
-                except WandbCoreNotAvailableError as e:
-                    _sentry.reraise(e)
+            core_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
 
-                service_args.extend([core_path])
+            service_args.extend([core_path])
 
-                if not core_error_reporting_enabled(default="True"):
-                    service_args.append("--no-observability")
+            # if not core_error_reporting_enabled(default="True"):
+            #     service_args.append("--no-observability")
 
-                if core_debug(default="False"):
-                    service_args.append("--debug")
+            # if core_debug(default="False"):
+            #     service_args.append("--debug")
 
-                trace_filename = os.environ.get("_WANDB_TRACE")
-                if trace_filename is not None:
-                    service_args.extend(["--trace", trace_filename])
+            trace_filename = os.environ.get("_WANDB_TRACE")
+            if trace_filename is not None:
+                service_args.extend(["--trace", trace_filename])
 
-                exec_cmd_list = []
-                termlog(
-                    "Using wandb-core as the SDK backend."
-                    f" Please refer to {wburls.get('wandb_core')} for more information.",
-                    repeat=False,
-                )
-            else:
-                service_args.extend(["wandb", "service", "--debug"])
+            exec_cmd_list = []
+            # termlog(
+            #     "Using wandb-core as the SDK backend."
+            #     f" Please refer to {wburls.get('wandb_core')} for more information.",
+            #     repeat=False,
+            # )
 
             service_args += [
                 "--port-filename",
@@ -224,12 +236,12 @@ class _Service:
                     output_file,
                 ]
                 service_args[0] = str(cli_executable)
-                termlog(
-                    f"wandb service memory profiling enabled, output file: {output_file}"
-                )
-                termlog(
-                    f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
-                )
+                # termlog(
+                #     f"wandb service memory profiling enabled, output file: {output_file}"
+                # )
+                # termlog(
+                #     f"Convert to flamegraph with: `python -m memray flamegraph {output_file}`"
+                # )
 
             try:
                 internal_proc = subprocess.Popen(
@@ -238,13 +250,15 @@ class _Service:
                     **kwargs,
                 )
             except Exception as e:
-                _sentry.reraise(e)
+                # _sentry.reraise(e)
+                pass
 
             self._startup_debug_print("wait_ports")
             try:
                 self._wait_for_ports(fname, proc=internal_proc)
             except Exception as e:
-                _sentry.reraise(e)
+                # _sentry.reraise(e)
+                pass
             self._startup_debug_print("wait_ports_done")
             self._internal_proc = internal_proc
         self._startup_debug_print("launch_done")
@@ -257,7 +271,7 @@ class _Service:
         return self._sock_port
 
     @property
-    def service_interface(self) -> ServiceInterface:
+    def service_interface(self) -> "ServiceInterface":
         return self._service_interface
 
     def join(self) -> int:

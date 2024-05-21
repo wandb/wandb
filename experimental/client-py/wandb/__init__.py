@@ -2,6 +2,7 @@
 
 __version__ = "0.0.1.dev1"
 
+import time
 from wandb.proto import wandb_internal_pb2 as pb2
 
 
@@ -51,7 +52,10 @@ class Session:
     def _ensure_loaded(self):
         if self._loaded:
             return
-        self._api.pbSessionSetup()
+        from wandb import service
+        s = service._Service(None)
+        s.start()
+        # self._api.pbSessionSetup()
         self._loaded = True
 
     def configure_auth(self):
@@ -117,6 +121,7 @@ class Run:
         self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
 
     def _start(self):
+        time.sleep(30)
         self._run_nexus_id = self._api.pbRunStart()
 
     def finish(self):
