@@ -161,6 +161,57 @@ class Runs(Paginator):
 
         return objs
 
+    @normalize_exceptions
+    def histories(self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"):
+        """Return history metrics for all runs that fit the conditions.
+
+        Arguments:
+            samples : (int, optional) The number of samples to return per run
+            keys : (list, optional) Only return metrics for specific keys
+            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+            stream : (str, optional) "default" for metrics, "system" for machine metrics
+            pandas : (bool, optional) Return a pandas dataframe
+
+        Returns:
+            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history metrics.
+            list of dicts: If pandas=False returns a list of dicts of history metrics.
+        """
+        if keys is not None and not isinstance(keys, list):
+            wandb.termerror("keys must be specified in a list")
+            return []
+        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
+            wandb.termerror("keys argument must be a list of strings")
+            return []
+        if keys and stream != "default":
+            wandb.termerror("stream must be default when specifying keys")
+            return []
+
+        all_histories = []
+
+        for run in self:
+            history_data = run.history(samples=samples, keys=keys, x_axis=x_axis, pandas=pandas, stream=stream)
+            if pandas:
+                pandas_module = util.get_module("pandas")
+                if pandas_module and isinstance(history_data, pandas_module.DataFrame) and not history_data.empty:
+                    history_data['run_id'] = run.id
+                    all_histories.append(history_data)
+            else:
+                if isinstance(history_data, list) and history_data:
+                    for entry in history_data:
+                        entry['run_id'] = run.id
+                    all_histories.extend(history_data)
+
+        if pandas:
+            pandas_module = util.get_module("pandas")
+            if pandas_module and all_histories:
+                combined_df = pandas_module.concat(all_histories)
+                combined_df.set_index('run_id', inplace=True)
+                return combined_df
+            else:
+                return pandas_module.DataFrame() if pandas_module else []
+        else:
+            return all_histories
+
     def __repr__(self):
         return f"<Runs {self.entity}/{self.project}>"
 
