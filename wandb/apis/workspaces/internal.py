@@ -9,7 +9,7 @@ import wandb
 
 # these internal objects should be factored out into a separate module as a
 # shared dependency between Workspaces and Reports API
-from wandb.apis.reports.v2.internal import *
+from wandb.apis.reports.v2.internal import *  # noqa: F403
 from wandb.apis.reports.v2.internal import (
     PanelBankConfig,
     PanelBankSectionConfig,

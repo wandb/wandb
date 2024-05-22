@@ -247,7 +247,7 @@ class PanelBankConfig(ReportAPIBaseModel):
     # Run keys are arbitrarily added here, so add some type checking for safety
     # All run keys have the shape (key:str, value:colour)
     @root_validator(pre=True)
-    def check_arbitrary_keys(cls, values):
+    def check_arbitrary_keys(cls, values):  # noqa: N805
         fixed_keys = cls.__annotations__.keys()
         for k, v in values.items():
             if k not in fixed_keys and not isinstance(v, str):

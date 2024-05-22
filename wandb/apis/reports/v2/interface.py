@@ -124,8 +124,7 @@ class Layout(Base):
 
 
 @dataclass(config=dataclass_config, repr=False)
-class Block(Base):
-    ...
+class Block(Base): ...
 
 
 @dataclass(config=ConfigDict(validate_assignment=True, extra="allow", slots=True))
@@ -732,8 +731,7 @@ class Twitter(Block):
 
 
 @dataclass(config=dataclass_config, repr=False)
-class WeaveBlock(Block):
-    ...
+class WeaveBlock(Block): ...
 
 
 BlockTypes = Union[
