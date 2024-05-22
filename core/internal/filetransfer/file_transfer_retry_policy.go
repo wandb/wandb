@@ -2,6 +2,8 @@ package filetransfer
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"strings"
 
@@ -15,13 +17,20 @@ func FileTransferRetryPolicy(
 	err error,
 ) (bool, error) {
 	if err != nil {
+		var opErr *net.OpError
 		switch {
 		// Retry dial tcp <IP>: i/o timeout errors.
 		//
 		// Cloud storage providers sometimes return such i/o timeout errors when rate limiting
 		// without specifying the error type to prevent potential malicious attacks.
 		// See https://wandb.atlassian.net/browse/WB-18702 for more context.
-		case strings.Contains(err.Error(), "dial tcp") && strings.Contains(err.Error(), "i/o timeout"):
+		case errors.As(err, &opErr) && strings.Contains(err.Error(), "dial tcp") && strings.Contains(err.Error(), "i/o timeout"):
+			return true, err
+		case errors.As(err, &opErr) && strings.Contains(err.Error(), "read: connection reset by peer"):
+			return true, err
+		case strings.Contains(err.Error(), "unexpected EOF"):
+			return true, err
+		case strings.Contains(err.Error(), "http2: client connection force closed via ClientConn.Close"):
 			return true, err
 		// Retry context deadline exceeded errors.
 		//
