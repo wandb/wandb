@@ -101,9 +101,11 @@ class SyncThread(threading.Thread):
             if self._add_tag:
                 pb.run.tags.extend(self._add_tag)
             if self._remove_tag:
-                pb.run.tags[:] = [
-                    tag for tag in pb.run.tags if tag not in self._remove_tag
-                ]
+                for tag in self._remove_tag:
+                    if tag not in pb.run.tags:
+                        print(f"Warning: Tag '{tag}' does not exist and cannot be removed.")
+                    else:
+                        pb.run.tags[:] = [existing_tag for existing_tag in pb.run.tags if existing_tag != tag]
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
         elif record_type == "exit":
