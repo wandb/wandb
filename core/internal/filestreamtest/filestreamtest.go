@@ -4,7 +4,7 @@ import (
 	"slices"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/internal/filestream"
 )
 
 // A fake implementation of FileStream.
