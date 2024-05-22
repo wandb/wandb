@@ -3,6 +3,7 @@ module github.com/wandb/wandb/core
 go 1.22.3
 
 require (
+	bazil.org/fuse v0.0.0-20230120002735-62a210ff1fd5
 	github.com/Khan/genqlient v0.7.0
 	github.com/NVIDIA/go-nvml v0.12.0-6
 	github.com/getsentry/sentry-go v0.27.0
