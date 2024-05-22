@@ -18,11 +18,13 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
+- Correctly upload console output log files when resuming runs by @kptkin in https://github.com/wandb/wandb/pull/7694
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 - Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
 
 ### Changed
 
+- Change naming scheme for console output logs from `output.log` to `logs/YYYYMMDD_HHmmss.ms_output.log` by @kptkin in https://github.com/wandb/wandb/pull/7694
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
 - Update order in api.runs() to ascending to prevent duplicate responses by @thanos-wandb https://github.com/wandb/wandb/pull/7675
 - Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586
