@@ -1,5 +1,6 @@
 import os
-from typing import Iterable, Literal, Optional
+from typing import Dict, Iterable, Literal, Optional
+from typing import List as LList
 from urllib.parse import parse_qs, urlparse, urlunparse
 
 from annotated_types import Annotated, Ge
@@ -97,13 +98,13 @@ class Section(Base):
 
     Args:
         name (str): The name of the section.
-        panels (List[PanelTypes]): A list of panels in the section.
+        panels (LList[PanelTypes]): A list of panels in the section.
         collapsed (bool): Whether the section is collapsed.
         section_panel_settings (SectionPanelSettings): Settings for the panels in this section.
     """
 
     name: str
-    panels: list[PanelTypes] = Field(default_factory=list)
+    panels: LList[PanelTypes] = Field(default_factory=list)
     collapsed: bool = False
     section_panel_settings: Optional[SectionPanelSettings] = None
 
@@ -183,7 +184,7 @@ class WorkspaceSettings(Base):
     # Panel query bar settings
     panel_search_query: str = ""
     auto_expand_panel_search_results: bool = False
-    _panel_search_history: Optional[list[dict[Literal["query"], str]]] = Field(
+    _panel_search_history: Optional[LList[Dict[Literal["query"], str]]] = Field(
         None, init=False, repr=False
     )
 
@@ -251,18 +252,18 @@ class RunsetSettings(Base):
     Args:
         query (str): A query to filter the run set (can be a regex expr, see below).
         regex_query (bool): Whether the query is a regex query.
-        filters (List[FilterExpr]): A list of filters to apply to the runset.
-        groupby (List[MetricType]): A list of metrics to group the runset by.
-        order (List[Ordering]): A list of orderings to apply to the runset.
+        filters (LList[FilterExpr]): A list of filters to apply to the runset.
+        groupby (LList[MetricType]): A list of metrics to group the runset by.
+        order (LList[Ordering]): A list of orderings to apply to the runset.
         run_settings (Dict[str, RunSettings]): A dictionary of run settings.
     """
 
     query: str = ""
     regex_query: bool = False
-    filters: list[expr.FilterExpr] = Field(default_factory=list)
-    groupby: list[expr.MetricType] = Field(default_factory=list)
-    order: list[expr.Ordering] = Field(default_factory=list)
-    run_settings: dict[str, RunSettings] = Field(default_factory=dict)
+    filters: LList[expr.FilterExpr] = Field(default_factory=list)
+    groupby: LList[expr.MetricType] = Field(default_factory=list)
+    order: LList[expr.Ordering] = Field(default_factory=list)
+    run_settings: Dict[str, RunSettings] = Field(default_factory=dict)
 
 
 @dataclass(config=dataclass_config, repr=False)
@@ -273,7 +274,7 @@ class Workspace(Base):
         entity (str): The entity name (usually user or team name).
         project (str): The project name.
         name (str): The name of the workspace.  Empty string will show "Untitled view" by default.
-        sections (List[Section]): A list of sections included in the workspace.
+        sections (LList[Section]): A list of sections included in the workspace.
         settings (WorkspaceSettings): Configuration settings for the workspace.
         run_settings (RunSettings): Configuration for run sets within the workspace.
 
@@ -286,7 +287,7 @@ class Workspace(Base):
     entity: str
     project: str
     name: Annotated[str, Field("")]
-    sections: list[Section] = Field(default_factory=list)
+    sections: LList[Section] = Field(default_factory=list)
     settings: WorkspaceSettings = Field(default_factory=WorkspaceSettings)
     runset_settings: RunsetSettings = Field(default_factory=RunsetSettings)
 
