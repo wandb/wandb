@@ -1,5 +1,6 @@
 import json
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, Literal, Optional
+from typing import List as LList
 
 from annotated_types import Annotated, Ge
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -68,7 +69,7 @@ class OuterSection(WorkspaceAPIBaseModel):
     custom_run_colors: dict
 
     name: str = ""
-    run_sets: List[Runset] = Field(default_factory=lambda: [Runset()])
+    run_sets: LList[Runset] = Field(default_factory=lambda: [Runset()])
     ref: Ref = Field(default_factory=Ref)
     settings: OuterSectionSettings = Field(default_factory=OuterSectionSettings)
     open_run_set: int = 0
