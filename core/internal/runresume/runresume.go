@@ -60,6 +60,13 @@ func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
 	r.FileStreamOffset[key] = offset
 }
 
+func RunHasStarted(bucket *Bucket) bool {
+	// If bucket is nil, run doesn't exist yet
+	// If bucket is non-nil but RunInfo is nil, the run exists but hasn't started
+	// (e.g. a sweep run that was created ahead of time)
+	return bucket != nil && bucket.RunInfo != nil
+}
+
 func (r *State) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
@@ -76,7 +83,7 @@ func (r *State) Update(
 	// If we get that the run is a resume run, we should fail if resume is set to never
 	// for any other case of resume status, we should continue to process the resume response
 	switch {
-	case (bucket == nil || (bucket != nil && bucket.RunInfo == nil)) && r.resume != Must:
+	case !RunHasStarted(bucket) && r.resume != Must:
 		return nil, nil
 	case bucket == nil && r.resume == Must:
 		message := fmt.Sprintf(
