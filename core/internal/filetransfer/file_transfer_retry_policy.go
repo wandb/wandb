@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -18,6 +19,7 @@ func FileTransferRetryPolicy(
 ) (bool, error) {
 	if err != nil {
 		var opErr *net.OpError
+		var urlErr *url.Error
 		switch {
 		// Retry dial tcp <IP>: i/o timeout errors.
 		//
@@ -28,14 +30,14 @@ func FileTransferRetryPolicy(
 			return true, err
 		case errors.As(err, &opErr) && strings.Contains(err.Error(), "read: connection reset by peer"):
 			return true, err
-		case strings.Contains(err.Error(), "unexpected EOF"):
+		case errors.As(err, &urlErr) && strings.Contains(err.Error(), "unexpected EOF"):
 			return true, err
-		case strings.Contains(err.Error(), "http2: client connection force closed via ClientConn.Close"):
+		case errors.As(err, &urlErr) && strings.Contains(err.Error(), "http2: client connection force closed via ClientConn.Close"):
 			return true, err
 		// Retry context deadline exceeded errors.
 		//
 		// This is controlled by the _file_transfer_timeout_seconds setting.
-		case strings.Contains(err.Error(), "context deadline exceeded"):
+		case errors.As(err, &urlErr) && strings.Contains(err.Error(), "context deadline exceeded"):
 			return true, err
 		// Abort on any other error from the HTTP transport.
 		//
