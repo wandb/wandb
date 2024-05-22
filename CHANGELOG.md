@@ -15,7 +15,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
-- Added --add_tag and --remove_tag to wandb sync to be able to add and remove run tags in offline runs prior to syncing
+- Added --add_tag and --remove_tag to wandb sync to be able to add and remove run tags in offline runs prior to syncing and raises warning when a tag does not exist when trying to remove it
 
 ### Fixed
 
