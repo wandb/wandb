@@ -101,7 +101,9 @@ class SyncThread(threading.Thread):
             if self._add_tag:
                 pb.run.tags.extend(self._add_tag)
             if self._remove_tag:
-                pb.run.tags[:] = [tag for tag in pb.run.tags if tag not in self._remove_tags]
+                pb.run.tags[:] = [
+                    tag for tag in pb.run.tags if tag not in self._remove_tags
+                ]
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
         elif record_type == "exit":
@@ -380,8 +382,8 @@ class SyncManager:
             entity=self._entity,
             run_id=self._run_id,
             job_type=self._job_type,
-            add_tag = self._add_tag,
-            remove_tag = self._remove_tag,
+            add_tag=self._add_tag,
+            remove_tag=self._remove_tag,
             view=self._view,
             verbose=self._verbose,
             mark_synced=self._mark_synced,
