@@ -39,9 +39,9 @@ class OuterSectionSettings(WorkspaceAPIBaseModel):
     x_axis_max: Optional[Annotated[float, Ge(0)]] = None
     color_run_names: Optional[bool] = None
     max_runs: Optional[int] = None
-    point_visualization_method: Optional[
-        Literal["bucketing-gorilla", "sampling"]
-    ] = None
+    point_visualization_method: Optional[Literal["bucketing-gorilla", "sampling"]] = (
+        None
+    )
     suppress_legends: Optional[bool] = None
     tooltip_number_of_runs: Optional[Literal["single", "default", "all_runs"]] = None
 
