@@ -117,9 +117,6 @@ func (fm *fileTransferManager) Start() {
 			go func(task *Task) {
 				// Acquire the semaphore
 				fm.semaphore <- struct{}{}
-				// fmt.Println(task.String())
-				// task.Url = "http://httpbin.org/delay/10"
-				// fmt.Println(task.String())
 
 				task.Err = fm.transfer(task)
 				// Release the semaphore
@@ -147,7 +144,6 @@ func (fm *fileTransferManager) Start() {
 // completeTask runs the completion callback and updates statistics.
 func (fm *fileTransferManager) completeTask(task *Task) {
 	task.CompletionCallback(task)
-	fmt.Println(">>>>", task.String())
 	if task.Type == UploadTask {
 		var uploadedBytes int64
 		if task.Err == nil {
