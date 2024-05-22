@@ -54,6 +54,7 @@ type SenderParams struct {
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
+	OutputFileName      string
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -142,6 +143,9 @@ type Sender struct {
 
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
+
+	// filename to write console output to
+	outputFileName string
 }
 
 // NewSender creates a new Sender with the given settings
@@ -179,6 +183,7 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
+		outputFileName: params.OutputFileName,
 	}
 
 	backendOrNil := params.Backend
@@ -979,12 +984,13 @@ func (s *Sender) uploadOutputFile() {
 	// filestream
 	// Ideally, the output content from the filestream would be converted
 	// to a file on the server side, but for now we do it here as well
+
 	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
 					{
-						Path: OutputFileName,
+						Path: s.outputFileName,
 						Type: service.FilesItem_WANDB,
 					},
 				},
@@ -1006,14 +1012,23 @@ func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRe
 		return
 	}
 
-	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
-	// append line to file
-	if err := writeOutputToFile(outputFile, outputRaw.Line); err != nil {
-		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
-	}
-
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
+	}
+
+	// create a folder for the output file if it doesn't exist
+	fullFilePath := filepath.Join(s.settings.GetFilesDir().GetValue(), s.outputFileName)
+	logPath := filepath.Dir(fullFilePath)
+	// check if the directory exists
+
+	if err := os.MkdirAll(logPath, 0755); err != nil {
+		s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
+		return
+	}
+
+	// append line to file
+	if err := writeOutputToFile(fullFilePath, outputRaw.Line); err != nil {
+		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
 }
 

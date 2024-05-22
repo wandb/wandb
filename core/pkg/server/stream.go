@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -225,6 +226,10 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
 			Mailbox:             mailbox,
+			OutputFileName: filepath.Join(
+				"logs",
+				fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405")),
+			),
 		},
 	)
 
