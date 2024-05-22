@@ -13,7 +13,7 @@ type Storage int
 
 const (
 	bufferSize              = 32
-	defaultConcurrencyLimit = 128
+	DefaultConcurrencyLimit = 128
 )
 
 type FileTransfer interface {
@@ -92,7 +92,7 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 	fm := fileTransferManager{
 		inChan:    make(chan *Task, bufferSize),
 		wg:        &sync.WaitGroup{},
-		semaphore: make(chan struct{}, defaultConcurrencyLimit),
+		semaphore: make(chan struct{}, DefaultConcurrencyLimit),
 	}
 
 	for _, opt := range opts {
