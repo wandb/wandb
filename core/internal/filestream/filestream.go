@@ -172,14 +172,14 @@ func (fs *fileStream) Start(
 	runID string,
 	offsetMap FileStreamOffsetMap,
 ) {
-	fs.logger.Debug("filestream: start", "path", fs.path)
-
 	fs.path = fmt.Sprintf(
 		"files/%s/%s/%s/file_stream",
 		entity,
 		project,
 		runID,
 	)
+
+	fs.logger.Debug("filestream: start", "path", fs.path)
 
 	if offsetMap != nil {
 		fs.offsetMap = maps.Clone(offsetMap)

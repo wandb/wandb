@@ -78,7 +78,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 			if task.ProgressCallback != nil {
 				task.ProgressCallback(processed, total)
 			}
-
+			// TODO: this does not take errors into account
 			ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
 				FileKind:      task.FileKind,
 				Path:          task.Path,
