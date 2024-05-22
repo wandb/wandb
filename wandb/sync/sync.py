@@ -103,7 +103,7 @@ class SyncThread(threading.Thread):
             if self._remove_tag:
                 for tag in self._remove_tag:
                     if tag not in pb.run.tags:
-                        print(
+                        wandb.termwarn(
                             f"Warning: Tag '{tag}' does not exist and cannot be removed."
                         )
                     else:
