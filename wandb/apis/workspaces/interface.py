@@ -1,8 +1,9 @@
 import os
-from typing import Annotated, Iterable, Literal, Optional
+from typing import Iterable, Literal, Optional
 from urllib.parse import parse_qs, urlparse, urlunparse
 
-from pydantic import AnyUrl, ConfigDict, Field
+from annotated_types import Annotated, Ge
+from pydantic import AnyUrl, ConfigDict, Field, PositiveInt
 from pydantic.dataclasses import dataclass
 
 import wandb
@@ -158,12 +159,12 @@ class WorkspaceSettings(Base):
 
     # Axis settings
     x_axis: str = "_step"  # fix this to use name map in future
-    x_min: Optional[float] = None
-    x_max: Optional[float] = None
+    x_min: Optional[Annotated[float, Ge(0)]] = None
+    x_max: Optional[Annotated[float, Ge(0)]] = None
 
     # Smoothing settings
     smoothing_type: internal.SmoothingType = "none"
-    smoothing_weight: float = 0
+    smoothing_weight: Annotated[float, Ge(0)] = 0
 
     # Outlier settings
     ignore_outliers: bool = False
@@ -176,7 +177,7 @@ class WorkspaceSettings(Base):
     tooltip_color_run_names: bool = True
 
     # Run settings
-    max_runs: int = 10
+    max_runs: PositiveInt = 10
     point_visualization_method: Literal["bucketing", "downsampling"] = "bucketing"
 
     # Panel query bar settings
@@ -201,10 +202,10 @@ class WorkspaceSettings(Base):
             smoothing_type=model.smoothing_type,
             smoothing_weight=model.smoothing_weight,
             ignore_outliers=model.ignore_outliers,
-            remove_legends_from_panels=model.settings.suppress_legends,
-            tooltip_number_of_runs=model.settings.tooltip_number_of_runs,
-            tooltip_color_run_names=model.settings.color_run_names,
-            max_runs=model.settings.max_runs,
+            remove_legends_from_panels=model.suppress_legends,
+            tooltip_number_of_runs=model.tooltip_number_of_runs,
+            tooltip_color_run_names=model.color_run_names,
+            max_runs=model.max_runs,
             point_visualization_method=point_viz_method,
         )
 
@@ -321,6 +322,7 @@ class Workspace(Base):
                 Section.from_model(s)
                 for s in model.viewspec.section.panel_bank_config.sections
             ],
+            settings=WorkspaceSettings.from_model(model.viewspec.section.settings),
             runset_settings=RunsetSettings(
                 query=model.viewspec.section.run_sets[0].search.query,
                 regex_query=bool(model.viewspec.section.run_sets[0].search.is_regex),

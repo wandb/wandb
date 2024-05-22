@@ -1,6 +1,7 @@
 import json
 from typing import Any, Literal, Optional
 
+from annotated_types import Annotated, Ge
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 from pydantic.alias_generators import to_camel
 from wandb_gql import gql
@@ -29,13 +30,13 @@ class WorkspaceAPIBaseModel(BaseModel):
 
 
 class OuterSectionSettings(WorkspaceAPIBaseModel):
-    smoothing_weight: int = 0
+    smoothing_weight: Annotated[float, Ge(0)] = 0
     smoothing_type: str = "exponential"
     x_axis: str = "_step"
     ignore_outliers: bool = False
     use_runs_table_grouping_in_panels: bool = True
-    x_axis_min: Optional[int] = None
-    x_axis_max: Optional[int] = None
+    x_axis_min: Optional[Annotated[float, Ge(0)]] = None
+    x_axis_max: Optional[Annotated[float, Ge(0)]] = None
     color_run_names: Optional[bool] = None
     max_runs: Optional[int] = None
     point_visualization_method: Optional[
