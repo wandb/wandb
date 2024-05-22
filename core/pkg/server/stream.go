@@ -185,7 +185,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	mailbox := mailbox.NewMailbox()
 
 	s.handler = NewHandler(s.ctx,
-		&HandlerParams{
+		HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
@@ -202,7 +202,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	)
 
 	s.writer = NewWriter(s.ctx,
-		&WriterParams{
+		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
 			FwdChan:  make(chan *service.Record, BufferSize),
@@ -212,7 +212,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
-		&SenderParams{
+		SenderParams{
 			Logger:              s.logger,
 			Settings:            s.settings.Proto,
 			Backend:             backendOrNil,
@@ -228,7 +228,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			Mailbox:             mailbox,
 			OutputFileName: filepath.Join(
 				"logs",
-				fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405")),
+				fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
 			),
 		},
 	)

@@ -152,7 +152,7 @@ type Sender struct {
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	params *SenderParams,
+	params SenderParams,
 ) *Sender {
 
 	s := &Sender{
@@ -1020,10 +1020,12 @@ func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRe
 	fullFilePath := filepath.Join(s.settings.GetFilesDir().GetValue(), s.outputFileName)
 	logPath := filepath.Dir(fullFilePath)
 	// check if the directory exists
-
-	if err := os.MkdirAll(logPath, 0755); err != nil {
-		s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
-		return
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		// create the directory
+		if err := os.MkdirAll(logPath, 0755); err != nil {
+			s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
+			return
+		}
 	}
 
 	// append line to file
