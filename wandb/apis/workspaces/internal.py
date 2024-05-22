@@ -1,5 +1,5 @@
 import json
-from typing import Any, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from annotated_types import Annotated, Ge
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -68,7 +68,7 @@ class OuterSection(WorkspaceAPIBaseModel):
     custom_run_colors: dict
 
     name: str = ""
-    run_sets: list[Runset] = Field(default_factory=lambda: [Runset()])
+    run_sets: List[Runset] = Field(default_factory=lambda: [Runset()])
     ref: Ref = Field(default_factory=Ref)
     settings: OuterSectionSettings = Field(default_factory=OuterSectionSettings)
     open_run_set: int = 0
@@ -92,7 +92,7 @@ class View(WorkspaceAPIBaseModel):
     viewspec: WorkspaceViewspec
 
 
-def upsert_view2(view: View, clone: bool = False) -> dict[str, Any]:
+def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
     query = gql(
         """
         mutation UpsertView2($id: ID, $entityName: String, $projectName: String, $type: String, $name: String, $displayName: String, $description: String, $spec: String, $parentId: ID, $locked: Boolean, $previewUrl: String, $coverUrl: String, $showcasedAt: DateTime, $createdUsing: ViewSource) {
@@ -217,7 +217,7 @@ def upsert_view2(view: View, clone: bool = False) -> dict[str, Any]:
     return response
 
 
-def _get_view(entity: str, project: str, view_name: str) -> dict[str, Any]:
+def _get_view(entity: str, project: str, view_name: str) -> Dict[str, Any]:
     # Use this query because it let you use view_name instead of id
     query = gql(
         """
