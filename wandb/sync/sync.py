@@ -102,7 +102,7 @@ class SyncThread(threading.Thread):
                 pb.run.tags.extend(self._add_tag)
             if self._remove_tag:
                 pb.run.tags[:] = [
-                    tag for tag in pb.run.tags if tag not in self._remove_tags
+                    tag for tag in pb.run.tags if tag not in self._remove_tag
                 ]
         elif record_type in ("output", "output_raw") and self._skip_console:
             return pb, exit_pb, True
