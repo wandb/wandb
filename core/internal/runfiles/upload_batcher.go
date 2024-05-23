@@ -58,10 +58,11 @@ func (b *uploadBatcher) Add(files []string) {
 	}
 
 	if !b.isQueued {
-		b.addWG.Add(1)
 		b.isQueued = true
 
+		b.addWG.Add(1)
 		go func() {
+			defer b.addWG.Done()
 			<-b.delay.Wait()
 			b.uploadBatch()
 		}()
@@ -86,6 +87,4 @@ func (b *uploadBatcher) uploadBatch() {
 	}
 
 	b.upload(filesSlice)
-
-	b.addWG.Done()
 }
