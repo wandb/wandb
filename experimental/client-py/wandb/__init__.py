@@ -135,12 +135,16 @@ class Run:
             # TODO: see if we can do this without the CopyFrom
             item.value_data.CopyFrom(d)
 
-        _ = data_msg.SerializeToString()
+        #_ = data_msg.SerializeToString()
         # self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
+        record = pb2.Record()
+        record.history.CopyFrom(data_msg)
+        record._info.stream_id = self._run_id
+        self._sock_client.send_record_publish(record)
 
     def _start(self):
         port = self._session._service.sock_port
-        print("start", port)
+        # print("start", port)
         from wandb import sock_client
 
         self._sock_client = sock_client.SockClient()
