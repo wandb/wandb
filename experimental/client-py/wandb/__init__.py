@@ -155,7 +155,6 @@ class Run:
         run_mode = "run"
         sync_dir = pathlib.Path(wandb_dir) / (run_mode + "-" + timestamp + "-" + run_id)
         log_dir = sync_dir / "logs"
-        tmp_dir = sync_dir / "tmp"
         files_dir = sync_dir / "files"
 
         settings.base_url.value = "http://localhost:8080"
@@ -172,7 +171,7 @@ class Run:
         inform_init.settings.CopyFrom(settings)
         inform_init._info.stream_id = run_id
 
-        out = self._sock_client.send(inform_init=inform_init)
+        self._sock_client.send(inform_init=inform_init)
         self._run_id = run_id
 
         run_record = pb2.RunRecord()
@@ -186,7 +185,7 @@ class Run:
         # self._api.pbRunFinish(self._run_nexus_id)
         inform_finish = spb.ServerInformFinishRequest()
         inform_finish._info.stream_id = self._run_id
-        out = self._sock_client.send(inform_finish=inform_finish)
+        self._sock_client.send(inform_finish=inform_finish)
 
     @property
     def id(self):
