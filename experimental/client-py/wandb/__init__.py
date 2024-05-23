@@ -7,12 +7,13 @@ import os
 import pathlib
 import secrets
 import string
-import time
 import threading
+import time
 
 from wandb.proto import wandb_internal_pb2 as pb2
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_settings_pb2 as setpb
+
 
 class MessageRouterClosedError(Exception):
     """Socket has been closed."""
@@ -163,7 +164,7 @@ class Run:
             except EOFError:
                 logger.warning("EOFError seen in message_loop")
             except MessageRouterClosedError:
-                 break
+                break
             if not msg:
                 continue
             self._handle_msg_rcv(msg)
@@ -181,6 +182,7 @@ class Run:
 
     def _socket_connect(self):
         from wandb import sock_client
+
         port = self._session._service.sock_port
         self._sock_client = sock_client.SockClient()
         self._sock_client.connect(port)
