@@ -185,6 +185,7 @@ def _create_job(
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build(
+        api.api,
         dockerfile=dockerfile,
         build_context=build_context,
     )

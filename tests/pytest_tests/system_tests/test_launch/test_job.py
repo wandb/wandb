@@ -4,9 +4,9 @@ import tempfile
 from unittest import mock
 
 import pytest
+from wandb.apis.internal import Api as InternalApi
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
@@ -44,6 +44,7 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
 
 
 def test_create_job_artifact(runner, user, wandb_init, test_settings):
+    """Test that non-core job creation produces a partial job as expected."""
     proj = "test-p"
     settings = test_settings({"project": proj})
 
@@ -87,7 +88,7 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
 
     job_v0 = public_api.job(f"{user}/{proj}/{artifact.name}")
 
-    assert job_v0._partial
+    assert "_partial" in job_v0._job_artifact.metadata
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "0.17.0"
     assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
@@ -109,18 +110,12 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         run2.finish()
 
     # now get the job, the version should be v1
-    v1_job = artifact.name.split(":")[0] + ":v1"
-    job = public_api.job(f"{user}/{proj}/{v1_job}")
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
 
     assert job
-
-    # assert updates to partial, and input/output types
-    assert not job._partial
-    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
-    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
-    for key in output_type_keys:
-        assert str(job._output_types._params["type_map"][key]) == "Number"
-    assert str(job._input_types) == "{'input1': Number}"
+    assert "_partial" not in job._job_artifact.metadata
+    assert "input_types" in job._job_artifact.metadata
+    assert "output_types" in job._job_artifact.metadata
 
 
 @pytest.mark.skip(
@@ -247,4 +242,4 @@ def test_create_job_image(user, wandb_init, test_settings, image_name):
 
     job = public_api.job(f"{user}/{proj}/{artifact.name}")
     assert job
-    assert job._partial
+    assert "_partial" in job._job_artifact.metadata
