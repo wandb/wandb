@@ -155,6 +155,10 @@ func NewSender(
 	params SenderParams,
 ) *Sender {
 
+	if params.OutputFileName == "" {
+		params.OutputFileName = LatestOutputFileName
+	}
+
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -984,7 +988,6 @@ func (s *Sender) uploadOutputFile() {
 	// filestream
 	// Ideally, the output content from the filestream would be converted
 	// to a file on the server side, but for now we do it here as well
-
 	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
@@ -997,6 +1000,7 @@ func (s *Sender) uploadOutputFile() {
 			},
 		},
 	}
+
 	s.fwdRecord(record)
 }
 
