@@ -2,9 +2,24 @@
 
 __version__ = "0.0.1.dev1"
 
+import os
 import time
+import pathlib
+import secrets
+import string
+import datetime
 
 from wandb.proto import wandb_internal_pb2 as pb2
+from wandb.proto import wandb_server_pb2 as spb
+from wandb.proto import wandb_settings_pb2 as setpb
+
+
+def generate_id(length: int = 8) -> str:
+    """Generate a random base-36 string of `length` digits."""
+    # There are ~2.8T base-36 8-digit strings. If we generate 210k ids,
+    # we'll have a ~1% chance of collision.
+    alphabet = string.ascii_lowercase + string.digits
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 class Api:
@@ -58,6 +73,7 @@ class Session:
         s = service._Service(None)
         s.start()
         # self._api.pbSessionSetup()
+        self._service = s
         self._loaded = True
 
     def configure_auth(self):
@@ -120,14 +136,56 @@ class Run:
             item.value_data.CopyFrom(d)
 
         data_bytes = data_msg.SerializeToString()
-        self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
+        # self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
 
     def _start(self):
-        time.sleep(30)
-        self._run_nexus_id = self._api.pbRunStart()
+        port = self._session._service.sock_port
+        print("start", port)
+        from wandb import sock_client
+        self._sock_client = sock_client.SockClient()
+        self._sock_client.connect(port)
+        # self._run_nexus_id = self._api.pbRunStart()
+
+        run_id = generate_id()
+        settings = setpb.Settings()
+        now = datetime.datetime.now()
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        wandb_dir = "wandb"
+        run_mode = "run"
+        sync_dir = pathlib.Path(wandb_dir) / (run_mode + "-" + timestamp + "-" + run_id)
+        log_dir = sync_dir / "logs"
+        tmp_dir = sync_dir / "tmp"
+        files_dir = sync_dir / "files"
+
+        settings.base_url.value = "http://localhost:8080"
+        settings.run_id.value = run_id
+        settings.sync_dir.value = str(sync_dir)
+        settings.sync_file.value = str(sync_dir / ("run-" + run_id + ".wandb"))
+        settings.log_internal.value = str(log_dir / "debug-internal.log")
+        settings.files_dir.value = str(files_dir)
+        os.makedirs(sync_dir)
+        os.makedirs(log_dir)
+        os.makedirs(files_dir)
+
+        inform_init = spb.ServerInformInitRequest()
+        inform_init.settings.CopyFrom(settings)
+        inform_init._info.stream_id = run_id
+
+        out = self._sock_client.send(inform_init=inform_init)
+        self._run_id = run_id
+
+        run_record = pb2.RunRecord()
+        run_record.run_id = run_id
+        record = pb2.Record()
+        record.run.CopyFrom(run_record)
+        record._info.stream_id = run_id
+        self._sock_client.send_record_publish(record)
 
     def finish(self):
-        self._api.pbRunFinish(self._run_nexus_id)
+        # self._api.pbRunFinish(self._run_nexus_id)
+        inform_finish = spb.ServerInformFinishRequest()
+        inform_finish._info.stream_id = self._run_id
+        out = self._sock_client.send(inform_finish=inform_finish)
 
     @property
     def id(self):

@@ -130,7 +130,7 @@ class CustomBuildHook(BuildHookInterface):
 
     def _build_wandb_core(self) -> List[str]:
         current_dir = pathlib.Path.cwd()
-        output = current_dir / pathlib.Path("wandb", "bin", "wandb-core")
+        output = pathlib.Path("wandb", "bin", "wandb-core")
 
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)
 
@@ -138,7 +138,7 @@ class CustomBuildHook(BuildHookInterface):
         os.chdir(str(pathlib.Path(__file__).parent.parent.parent))
         hatch_core.build_wandb_core(
             go_binary=self._get_and_require_go_binary(),
-            output_path=output,
+            output_path=current_dir / output,
             with_code_coverage=with_coverage,
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT),
         )
