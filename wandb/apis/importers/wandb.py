@@ -266,11 +266,10 @@ class WandbRun:
         yield from self._files
 
     def logs(self) -> Optional[Iterable[str]]:
-        if (fname := self._find_in_files("output.log")) is None:
-            return
-
-        with open(fname) as f:
-            yield from f.readlines()
+        log_files = self._find_all_in_files_regex("output.log", r"^.*output\.log$")
+        for path in log_files:
+            with open(path) as f:
+                yield from f.readlines()
 
     def _metadata_file(self) -> Dict[str, Any]:
         if (fname := self._find_in_files("wandb-metadata.json")) is None:
@@ -322,6 +321,12 @@ class WandbRun:
                 if name in path:
                     return path
         return None
+
+    def _find_all_in_files_regex(self, name: str, regex: str) -> Iterable[str]:
+        if files := self.files():
+            for path, _ in files:
+                if re.match(regex, path):
+                    yield path
 
 
 class WandbImporter:
