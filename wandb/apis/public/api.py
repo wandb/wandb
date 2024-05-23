@@ -631,21 +631,17 @@ class Api:
         if path is None:
             return entity, project
 
-        try:
-            alias_idx = path.index(":")
-        except ValueError:
-            path, alias = path, ""
-        else:
-            path, alias = path[:alias_idx], path[alias_idx:]
+        path, colon, alias = path.partition(":")
+        full_alias = colon + alias
 
         parts = path.split("/")
         if len(parts) > 3:
             raise ValueError("Invalid artifact path: {}".format(path))
         elif len(parts) == 1:
-            return entity, project, path + alias
+            return entity, project, path + full_alias
         elif len(parts) == 2:
-            return entity, parts[0], parts[1] + alias
-        parts[-1] += alias
+            return entity, parts[0], parts[1] + full_alias
+        parts[-1] += full_alias
         return parts
 
     def projects(self, entity=None, per_page=200):
