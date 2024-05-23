@@ -2,12 +2,12 @@
 
 __version__ = "0.0.1.dev1"
 
+import datetime
 import os
-import time
 import pathlib
 import secrets
 import string
-import datetime
+import time
 
 from wandb.proto import wandb_internal_pb2 as pb2
 from wandb.proto import wandb_server_pb2 as spb
@@ -142,6 +142,7 @@ class Run:
         port = self._session._service.sock_port
         print("start", port)
         from wandb import sock_client
+
         self._sock_client = sock_client.SockClient()
         self._sock_client.connect(port)
         # self._run_nexus_id = self._api.pbRunStart()
