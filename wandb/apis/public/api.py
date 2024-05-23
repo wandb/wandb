@@ -812,6 +812,8 @@ class Api:
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
                 The default order is run.created_at from newest to oldest.
+            per_page: (int) Sets the page size for query pagination.
+            include_sweeps: (bool) Whether to include the sweep runs in the results.
 
         Returns:
             A `Runs` object, which is an iterable collection of `Run` objects.
@@ -925,8 +927,8 @@ class Api:
         """Return a single artifact collection by type and parsing path in the form `entity/project/name`.
 
         Arguments:
+            type_name: (str) The type of artifact collection to fetch.
             name: (str) An artifact collection name. May be prefixed with entity/project.
-            type: (str) The type of artifact collection to fetch.
 
         Returns:
             An `ArtifactCollection` object.
