@@ -2061,13 +2061,13 @@ class Artifact:
 
         Arguments:
             target_path: The path to the portfolio inside a project.
-            The target path must adhere to one of the following
-            schemas `{portfolio}`, `{project}/{portfolio}` or
-            `{entity}/{project}/{portfolio}`.
-            To link the artifact to the Model Registry, rather than to a generic
-            portfolio inside a project, set `target_path` to the following
-            schema `{"model-registry"}/{Registered Model Name}` or
-            `{entity}/{"model-registry"}/{Registered Model Name}`.
+                The target path must adhere to one of the following
+                schemas `{portfolio}`, `{project}/{portfolio}` or
+                `{entity}/{project}/{portfolio}`.
+                To link the artifact to the Model Registry, rather than to a generic
+                portfolio inside a project, set `target_path` to the following
+                schema `{"model-registry"}/{Registered Model Name}` or
+                `{entity}/{"model-registry"}/{Registered Model Name}`.
             aliases: A list of strings that uniquely identifies the artifact inside the
                 specified portfolio.
 
