@@ -766,7 +766,7 @@ class Api:
         self,
         path: Optional[str] = None,
         filters: Optional[Dict[str, Any]] = None,
-        order: str = "-created_at",
+        order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
     ):
