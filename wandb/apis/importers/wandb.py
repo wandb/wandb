@@ -266,7 +266,7 @@ class WandbRun:
         yield from self._files
 
     def logs(self) -> Optional[Iterable[str]]:
-        log_files = self._find_all_in_files_regex("output.log", r"^.*output\.log$")
+        log_files = self._find_all_in_files_regex(r"^.*output\.log$")
         for path in log_files:
             with open(path) as f:
                 yield from f.readlines()
@@ -322,7 +322,7 @@ class WandbRun:
                     return path
         return None
 
-    def _find_all_in_files_regex(self, name: str, regex: str) -> Iterable[str]:
+    def _find_all_in_files_regex(self, regex: str) -> Iterable[str]:
         if files := self.files():
             for path, _ in files:
                 if re.match(regex, path):
