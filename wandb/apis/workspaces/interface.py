@@ -189,7 +189,7 @@ class WorkspaceSettings(Base):
     )
 
     @classmethod
-    def from_model(cls, model: internal.OuterSectionSettings):
+    def from_model(cls, model: internal.ViewspecSectionSettings):
         point_viz_method = (
             "bucketing"
             if model.point_visualization_method == "bucketing-gorilla"
@@ -217,7 +217,7 @@ class WorkspaceSettings(Base):
             else "sampling"
         )
 
-        return internal.OuterSectionSettings(
+        return internal.ViewspecSectionSettings(
             x_axis=self.x_axis,
             x_axis_min=self.x_min,
             x_axis_max=self.x_max,
@@ -366,7 +366,7 @@ class Workspace(Base):
             name=self._internal_name,
             id=self._internal_id,
             viewspec=internal.WorkspaceViewspec(
-                section=internal.OuterSection(
+                section=internal.ViewspecSection(
                     panel_bank_config=internal.PanelBankConfig(
                         state=1,
                         sections=sections,

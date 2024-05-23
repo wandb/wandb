@@ -30,7 +30,7 @@ class WorkspaceAPIBaseModel(BaseModel):
     )
 
 
-class OuterSectionSettings(WorkspaceAPIBaseModel):
+class ViewspecSectionSettings(WorkspaceAPIBaseModel):
     smoothing_weight: Annotated[float, Ge(0)] = 0
     smoothing_type: str = "exponential"
     x_axis: str = "_step"
@@ -40,9 +40,9 @@ class OuterSectionSettings(WorkspaceAPIBaseModel):
     x_axis_max: Optional[Annotated[float, Ge(0)]] = None
     color_run_names: Optional[bool] = None
     max_runs: Optional[int] = None
-    point_visualization_method: Optional[Literal["bucketing-gorilla", "sampling"]] = (
-        None
-    )
+    point_visualization_method: Optional[
+        Literal["bucketing-gorilla", "sampling"]
+    ] = None
     suppress_legends: Optional[bool] = None
     tooltip_number_of_runs: Optional[Literal["single", "default", "all_runs"]] = None
 
@@ -61,7 +61,7 @@ class OuterSectionSettings(WorkspaceAPIBaseModel):
         )
 
 
-class OuterSection(WorkspaceAPIBaseModel):
+class ViewspecSection(WorkspaceAPIBaseModel):
     panel_bank_config: PanelBankConfig
     panel_bank_section_config: PanelBankSectionConfig
 
@@ -71,14 +71,14 @@ class OuterSection(WorkspaceAPIBaseModel):
     name: str = ""
     run_sets: LList[Runset] = Field(default_factory=lambda: [Runset()])
     ref: Ref = Field(default_factory=Ref)
-    settings: OuterSectionSettings = Field(default_factory=OuterSectionSettings)
+    settings: ViewspecSectionSettings = Field(default_factory=ViewspecSectionSettings)
     open_run_set: int = 0
     open_viz: bool = True
 
 
 # unfortunate nomenclature... this is actually a workspace's view's spec...
 class WorkspaceViewspec(WorkspaceAPIBaseModel):
-    section: OuterSection
+    section: ViewspecSection
     viz_expanded: bool = False
     library_expanded: bool = True
     ref: Ref = Field(default_factory=Ref)
@@ -250,7 +250,15 @@ def _get_view(entity: str, project: str, view_name: str) -> Dict[str, Any]:
             "viewName": _workspaceify(view_name),
         },
     )
-    return response["project"]["allViews"]["edges"][0]["node"]
+
+    edges = response.get("project", {}).get("allViews", {}).get("edges", [])
+
+    try:
+        view = edges[0]["node"]
+    except IndexError:
+        raise ValueError(f"Workspace `{view_name}` not found in project `{project}`")
+    else:
+        return view
 
 
 def get_view(entity: str, project: str, view_name: str) -> View:

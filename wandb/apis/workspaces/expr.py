@@ -5,7 +5,7 @@ In a future version, Reports will migrate to this expression syntax.
 
 from collections.abc import MutableMapping
 from dataclasses import dataclass
-from typing import Any, ClassVar, Dict, List, Optional, Union
+from typing import Any, ClassVar, Dict, List, Literal, Optional, Union
 
 from wandb.apis.reports.v2.internal import SortKey, SortKeyKey
 
@@ -55,7 +55,7 @@ class InvertableDict(MutableMapping):
         return self._backward
 
 
-FE_BE_NAME_MAP = InvertableDict(
+FE_METRIC_NAME_MAP = InvertableDict(
     {
         "ID": "name",
         "Name": "displayName",
@@ -94,16 +94,6 @@ OPERATOR_MAP = InvertableDict(
     }
 )
 
-SECTION_MAP = InvertableDict(
-    {
-        "Metric": "run",
-        "Summary": "summary",
-        "Config": "config",
-        "Tags": "tags",
-        "KeysInfo": "keys_info",
-    }
-)
-
 
 @dataclass(eq=False, frozen=True)
 class BaseMetric:
@@ -138,14 +128,14 @@ class BaseMetric:
         return f"{self.__class__.__name__}('{self.name}')"
 
     def to_key(self) -> Key:
-        name = FE_BE_NAME_MAP.get(self.name, self.name)
+        name = FE_METRIC_NAME_MAP.get(self.name, self.name)
         return Key(section=self.section, name=name)
 
     @classmethod
     def from_key(cls, key: Key) -> "BaseMetric":
         section = key.section
-        name = FE_BE_NAME_MAP.inv.get(key.name, key.name)
-        metric_cls = SECTION_CLASS_MAP.get(section, BaseMetric)
+        name = FE_METRIC_NAME_MAP.inv.get(key.name, key.name)
+        metric_cls = METRIC_TYPE_MAP.get(section, BaseMetric)
         return metric_cls(name)
 
 
@@ -156,28 +146,28 @@ class Metric(BaseMetric):
     These also include any metrics that are logged automatically as part of the run, like `Created Timestamp`
     """
 
-    section: ClassVar[str] = SECTION_MAP["Metric"]
+    section: ClassVar[Literal["run"]] = "run"
 
 
 @dataclass(eq=False, frozen=True)
 class Summary(BaseMetric):
     """Typically the last value for metrics that you log with `wandb.log`."""
 
-    section: ClassVar[str] = SECTION_MAP["Summary"]
+    section: ClassVar[Literal["summary"]] = "summary"
 
 
 @dataclass(eq=False, frozen=True)
 class Config(BaseMetric):
     """Typically the values you log when setting `wandb.config`."""
 
-    section: ClassVar[str] = SECTION_MAP["Config"]
+    section: ClassVar[Literal["config"]] = "config"
 
 
 @dataclass(eq=False, frozen=True)
 class Tags(BaseMetric):
     """The values when setting `wandb.run.tags`."""
 
-    section: ClassVar[str] = SECTION_MAP["Tags"]
+    section: ClassVar[Literal["tags"]] = "tags"
 
 
 @dataclass(eq=False, frozen=True)
@@ -187,10 +177,10 @@ class KeysInfo(BaseMetric):
     This is a special section that contains information about the keys in the other sections.
     """
 
-    section: ClassVar[str] = SECTION_MAP["KeysInfo"]
+    section: ClassVar[Literal["keys_info"]] = "keys_info"
 
 
-SECTION_CLASS_MAP = InvertableDict(
+METRIC_TYPE_MAP = InvertableDict(
     {
         "run": Metric,
         "summary": Summary,
@@ -241,7 +231,7 @@ class FilterExpr:
     @classmethod
     def create(cls, op: str, key: BaseMetric, value: Any):
         key_cls = key.__class__
-        mapped_name = FE_BE_NAME_MAP.inv.get(key.name, key.name)
+        mapped_name = FE_METRIC_NAME_MAP.inv.get(key.name, key.name)
         new_key = key_cls(mapped_name)
 
         instance = cls.__new__(cls)
@@ -255,7 +245,7 @@ class FilterExpr:
 
     def to_model(self) -> Filters:
         section = self.key.section
-        name = FE_BE_NAME_MAP.get(self.key.name, self.key.name)
+        name = FE_METRIC_NAME_MAP.get(self.key.name, self.key.name)
 
         return Filters(
             op=self.op,
@@ -269,8 +259,8 @@ def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
     def parse_filter(filter: Filters) -> Optional[FilterExpr]:
         if filter.key is None:
             return None
-        metric_cls = SECTION_CLASS_MAP.get(filter.key.section, BaseMetric)
-        mapped_name = FE_BE_NAME_MAP.inv.get(filter.key.name, filter.key.name)
+        metric_cls = METRIC_TYPE_MAP.get(filter.key.section, BaseMetric)
+        mapped_name = FE_METRIC_NAME_MAP.inv.get(filter.key.name, filter.key.name)
         metric = metric_cls(mapped_name)
         return FilterExpr.create(filter.op, metric, filter.value)
 
@@ -289,7 +279,7 @@ def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
 def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
     def parse_key(metric: BaseMetric) -> Key:
         section = metric.section
-        name = FE_BE_NAME_MAP.get(metric.name, metric.name)
+        name = FE_METRIC_NAME_MAP.get(metric.name, metric.name)
         return Key(section=section, name=name)
 
     def parse_filter(filter: FilterExpr) -> Filters:
@@ -299,10 +289,6 @@ def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
     return Filters(
         op="AND", filters=[parse_filter(f) for f in filters if f is not None]
     )
-
-
-def grouping_backend_to_frontend(grouping: str) -> str:
-    return FE_BE_NAME_MAP.get(grouping, grouping)
 
 
 MetricType = Union[Metric, Summary, Config, Tags, KeysInfo]
