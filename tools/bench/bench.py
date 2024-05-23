@@ -47,7 +47,7 @@ def run_sequential(args, m=0):
 
 def run_parallel(args):
     procs = []
-    multiprocessing.set_start_method("spawn")
+    # multiprocessing.set_start_method("spawn")
     wandb.setup()
     for n in range(args.num_parallel):
         p = multiprocessing.Process(

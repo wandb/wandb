@@ -185,7 +185,33 @@ class Run:
         record._info.stream_id = run_id
         self._sock_client.send_record_publish(record)
 
+        # start
+        inform_start = spb.ServerInformStartRequest()
+        inform_start.settings.CopyFrom(settings)
+        inform_start._info.stream_id = run_id
+        self._sock_client.send(inform_start=inform_start)
+
+        # start2
+        start_req = pb2.RunStartRequest()
+        start_req.run.CopyFrom(run_record)
+        request = pb2.Request()
+        request.run_start.CopyFrom(start_req)
+        record = pb2.Record()
+        record.request.CopyFrom(request)
+        record._info.stream_id = run_id
+        self._sock_client.send_record_publish(record)
+
+
+    def _exit(self):
+        exit_record = pb2.RunExitRecord()
+        record = pb2.Record()
+        record.exit.CopyFrom(exit_record)
+        record._info.stream_id = self._run_id
+        self._sock_client.send_record_publish(record)
+
     def finish(self):
+        self._exit()
+
         # self._api.pbRunFinish(self._run_nexus_id)
         inform_finish = spb.ServerInformFinishRequest()
         inform_finish._info.stream_id = self._run_id

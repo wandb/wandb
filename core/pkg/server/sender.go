@@ -7,18 +7,21 @@ import (
 	"os"
 	"path/filepath"
 
-	// "strconv"
+	// add strconv below
+	"strconv"
+
 	"strings"
 	"sync"
 
-	// "bytes"
-	// "crypto/sha256"
-	// "encoding/hex"
-	// "image"
-	// "image/color"
-	// "image/png"
+	// add below
+	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
+	"image"
+	"image/color"
+	"image/png"
 
-	// "github.com/segmentio/encoding/json"
+	"github.com/segmentio/encoding/json"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -802,7 +805,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	}
 }
 
-/*
 func createPNG(data []byte, width, height int, filesPath string, imagePath string) (string, string, int, error) {
 	// Create a new RGBA image
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
@@ -928,7 +930,6 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
 	}
 	return hrecordNew, hFiles
 }
-*/
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
@@ -936,35 +937,39 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 	if s.fileStream == nil {
 		return
 	}
-	/*
-		filesPath := s.settings.GetFilesDir().GetValue()
-		hrecordNew, hFileNames := historyMediaProcess(record, filesPath)
-		if s.runfilesUploader == nil {
-			return
-		}
-		for _, hfile := range hFileNames {
-			// fmt.Printf("hfile: %+v\n", hfile)
-			filesRecord := &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: hfile,
-						Type: service.FilesItem_MEDIA,
-					},
+	// fmt.Printf("history %+v\n", record)
+
+	filesPath := s.settings.GetFilesDir().GetValue()
+	hrecordNew, hFileNames := historyMediaProcess(record, filesPath)
+	if s.runfilesUploader == nil {
+		return
+	}
+	for _, hfile := range hFileNames {
+		// fmt.Printf("hfile: %+v\n", hfile)
+		filesRecord := &service.FilesRecord{
+			Files: []*service.FilesItem{
+				{
+					Path: hfile,
+					Type: service.FilesItem_MEDIA,
 				},
-			}
-			s.runfilesUploader.Process(filesRecord)
-		}
-		// TODO: do this better?
-		recordNew := &service.Record{
-			RecordType: &service.Record_History{
-				History: hrecordNew,
 			},
-			Control: record.Control,
-			Uuid:    record.Uuid,
 		}
+		s.runfilesUploader.Process(filesRecord)
+	}
+	/*
+	// TODO: do this better?
+	recordNew := &service.Record{
+		RecordType: &service.Record_History{
+			History: hrecordNew,
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
 	*/
 
-	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	// s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	// fmt.Printf("historyNew %+v\n", hrecordNew)
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: hrecordNew})
 }
 
 func (s *Sender) streamSummary() {
