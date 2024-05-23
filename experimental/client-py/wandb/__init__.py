@@ -135,7 +135,7 @@ class Run:
             # TODO: see if we can do this without the CopyFrom
             item.value_data.CopyFrom(d)
 
-        data_bytes = data_msg.SerializeToString()
+        _ = data_msg.SerializeToString()
         # self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
 
     def _start(self):
