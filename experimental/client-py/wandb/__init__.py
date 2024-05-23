@@ -201,7 +201,6 @@ class Run:
         record._info.stream_id = run_id
         self._sock_client.send_record_publish(record)
 
-
     def _exit(self):
         exit_record = pb2.RunExitRecord()
         record = pb2.Record()

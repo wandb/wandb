@@ -957,14 +957,14 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 		s.runfilesUploader.Process(filesRecord)
 	}
 	/*
-	// TODO: do this better?
-	recordNew := &service.Record{
-		RecordType: &service.Record_History{
-			History: hrecordNew,
-		},
-		Control: record.Control,
-		Uuid:    record.Uuid,
-	}
+		// TODO: do this better?
+		recordNew := &service.Record{
+			RecordType: &service.Record_History{
+				History: hrecordNew,
+			},
+			Control: record.Control,
+			Uuid:    record.Uuid,
+		}
 	*/
 
 	// s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
