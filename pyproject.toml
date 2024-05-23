@@ -193,7 +193,7 @@ convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
 # Ensure stricter docstring requirements where appropriate, e.g. for public API
-"!wandb/apis/public/api.py" = [
+"!wandb/apis/public/**" = [
     "D102",  # Require docstrings in public methods
     "D103",  # Require docstrings in public functions
     "D417",  # Require descriptions for all arguments
