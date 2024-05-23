@@ -9,6 +9,10 @@ import secrets
 import string
 import threading
 import time
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Any, List, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb2
 from wandb.proto import wandb_server_pb2 as spb
@@ -170,7 +174,7 @@ class Run:
             self._handle_msg_rcv(msg)
 
     def _handle_msg_rcv(self, msg):
-        print("GOT", msg)
+        # print("GOT", msg)
         pass
 
     def _socket_router_start(self):
@@ -254,6 +258,7 @@ class Run:
         record.exit.CopyFrom(exit_record)
         record._info.stream_id = self._run_id
         record.control.mailbox_slot = "exit"
+        record.control.always_send = True
         self._sock_client.send_record_publish(record)
 
     def finish(self):
