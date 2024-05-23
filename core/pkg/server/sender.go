@@ -155,6 +155,10 @@ func NewSender(
 	params SenderParams,
 ) *Sender {
 
+	if params.OutputFileName == "" {
+		params.OutputFileName = LatestOutputFileName
+	}
+
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -984,27 +988,15 @@ func (s *Sender) uploadOutputFile() {
 	// filestream
 	// Ideally, the output content from the filestream would be converted
 	// to a file on the server side, but for now we do it here as well
-	files := []*service.FilesItem{
-		{
-			Path: s.outputFileName,
-			Type: service.FilesItem_WANDB,
-		},
-	}
-	// create a symlink to the output file and call it "output.log"
-	symlink := filepath.Join(s.settings.GetFilesDir().GetValue(), LatestOutputFileName)
-	if err := os.Symlink(s.outputFileName, symlink); err != nil {
-		s.logger.Error("sender: sendOutput: failed to create symlink for console output", "error", err)
-	} else {
-		files = append(files, &service.FilesItem{
-			Path: LatestOutputFileName,
-			Type: service.FilesItem_WANDB,
-		})
-	}
-
 	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
-				Files: files,
+				Files: []*service.FilesItem{
+					{
+						Path: s.outputFileName,
+						Type: service.FilesItem_WANDB,
+					},
+				},
 			},
 		},
 	}
