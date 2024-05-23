@@ -166,7 +166,8 @@ class Run:
             try:
                 msg = self._read_message()
             except EOFError:
-                logger.warning("EOFError seen in message_loop")
+                # logger.warning("EOFError seen in message_loop")
+                pass
             except MessageRouterClosedError:
                 break
             if not msg:
