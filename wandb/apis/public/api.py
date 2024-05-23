@@ -631,11 +631,12 @@ class Api:
         if path is None:
             return entity, project
 
-        path_alias = path.split(":")
-        if len(path_alias) == 1:
-            alias = ""
-        elif len(path_alias) > 1:
-            path, alias = path_alias[0], ":" + ":".join(path_alias[1:])
+        try:
+            alias_idx = path.index(":")
+        except ValueError:
+            path, alias = path, ""
+        else:
+            path, alias = path[:alias_idx], path[alias_idx:]
 
         parts = path.split("/")
         if len(parts) > 3:
