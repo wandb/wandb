@@ -8,10 +8,14 @@ import pathlib
 import secrets
 import string
 import time
+import threading
 
 from wandb.proto import wandb_internal_pb2 as pb2
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_settings_pb2 as setpb
+
+class MessageRouterClosedError(Exception):
+    """Socket has been closed."""
 
 
 def generate_id(length: int = 8) -> str:
@@ -142,13 +146,52 @@ class Run:
         record._info.stream_id = self._run_id
         self._sock_client.send_record_publish(record)
 
-    def _start(self):
-        port = self._session._service.sock_port
-        # print("start", port)
-        from wandb import sock_client
+    def _read_message(self) -> "Optional[pb.Result]":
+        try:
+            resp = self._sock_client.read_server_response(timeout=1)
+        except sock_client.SockClientClosedError:
+            raise MessageRouterClosedError
+        if not resp:
+            return None
+        msg = resp.result_communicate
+        return msg
 
+    def message_loop(self) -> None:
+        while not self._join_event.is_set():
+            try:
+                msg = self._read_message()
+            except EOFError:
+                logger.warning("EOFError seen in message_loop")
+            except MessageRouterClosedError:
+                 break
+            if not msg:
+                continue
+            self._handle_msg_rcv(msg)
+
+    def _handle_msg_rcv(self, msg):
+        print("GOT", msg)
+        pass
+
+    def _socket_router_start(self):
+        self._join_event = threading.Event()
+        self._thread = threading.Thread(target=self.message_loop)
+        self._thread.name = "MsgRouterThr"
+        self._thread.daemon = True
+        self._thread.start()
+
+    def _socket_connect(self):
+        from wandb import sock_client
+        port = self._session._service.sock_port
         self._sock_client = sock_client.SockClient()
         self._sock_client.connect(port)
+        # TODO: start a reader thread
+
+        self._socket_router_start()
+
+    def _start(self):
+        # print("start", port)
+
+        self._socket_connect()
         # self._run_nexus_id = self._api.pbRunStart()
 
         run_id = generate_id()
@@ -183,6 +226,7 @@ class Run:
         record = pb2.Record()
         record.run.CopyFrom(run_record)
         record._info.stream_id = run_id
+        record.control.mailbox_slot = "run"
         self._sock_client.send_record_publish(record)
 
         # start
@@ -199,6 +243,7 @@ class Run:
         record = pb2.Record()
         record.request.CopyFrom(request)
         record._info.stream_id = run_id
+        record.control.mailbox_slot = "start"
         self._sock_client.send_record_publish(record)
 
     def _exit(self):
@@ -206,6 +251,7 @@ class Run:
         record = pb2.Record()
         record.exit.CopyFrom(exit_record)
         record._info.stream_id = self._run_id
+        record.control.mailbox_slot = "exit"
         self._sock_client.send_record_publish(record)
 
     def finish(self):
