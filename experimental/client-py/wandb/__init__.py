@@ -152,6 +152,7 @@ class Run:
         self._sock_client.send_record_publish(record)
 
     def _read_message(self) -> "Optional[pb2.Result]":
+        from wandb import sock_client
         try:
             resp = self._sock_client.read_server_response(timeout=1)
         except sock_client.SockClientClosedError:
