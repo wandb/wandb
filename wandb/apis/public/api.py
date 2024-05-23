@@ -1063,7 +1063,7 @@ class Api:
             return False
 
     @normalize_exceptions
-    def artifact_exists(self, name: str, type: Optional[str] = None):
+    def artifact_exists(self, name: str, type: Optional[str] = None) -> bool:
         """Return whether an artifact version exists within a specified project and entity.
 
         Arguments:
@@ -1082,7 +1082,7 @@ class Api:
             return False
 
     @normalize_exceptions
-    def artifact_collection_exists(self, name: str, type: str):
+    def artifact_collection_exists(self, name: str, type: str) -> bool:
         """Return whether an artifact collection exists within a specified project and entity.
 
         Arguments:
