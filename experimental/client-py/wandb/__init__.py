@@ -151,7 +151,7 @@ class Run:
         record._info.stream_id = self._run_id
         self._sock_client.send_record_publish(record)
 
-    def _read_message(self) -> "Optional[pb.Result]":
+    def _read_message(self) -> "Optional[pb2.Result]":
         try:
             resp = self._sock_client.read_server_response(timeout=1)
         except sock_client.SockClientClosedError:
