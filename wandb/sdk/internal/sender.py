@@ -754,7 +754,7 @@ class SendManager:
             name=run.run_id,
         )
 
-        if not resume_status:
+        if not resume_status or not resume_status.get("runInfo"):
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
