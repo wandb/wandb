@@ -54,6 +54,7 @@ type SenderParams struct {
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
+	OutputFileName      string
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -142,14 +143,21 @@ type Sender struct {
 
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
+
+	// filename to write console output to
+	outputFileName string
 }
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	params *SenderParams,
+	params SenderParams,
 ) *Sender {
+
+	if params.OutputFileName == "" {
+		params.OutputFileName = LatestOutputFileName
+	}
 
 	s := &Sender{
 		ctx:                 ctx,
@@ -179,6 +187,7 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
+		outputFileName: params.OutputFileName,
 	}
 
 	backendOrNil := params.Backend
@@ -455,7 +464,7 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
+		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(s.fwdChan); err != nil {
 		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
@@ -984,13 +993,14 @@ func (s *Sender) uploadOutputFile() {
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
 					{
-						Path: OutputFileName,
+						Path: s.outputFileName,
 						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
 		},
 	}
+
 	s.fwdRecord(record)
 }
 
@@ -1006,14 +1016,25 @@ func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRe
 		return
 	}
 
-	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
-	// append line to file
-	if err := writeOutputToFile(outputFile, outputRaw.Line); err != nil {
-		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
-	}
-
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
+	}
+
+	// create a folder for the output file if it doesn't exist
+	fullFilePath := filepath.Join(s.settings.GetFilesDir().GetValue(), s.outputFileName)
+	logPath := filepath.Dir(fullFilePath)
+	// check if the directory exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		// create the directory
+		if err := os.MkdirAll(logPath, 0755); err != nil {
+			s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
+			return
+		}
+	}
+
+	// append line to file
+	if err := writeOutputToFile(fullFilePath, outputRaw.Line); err != nil {
+		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
 }
 
@@ -1109,7 +1130,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 
 func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg, 0, "",
+		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, msg, 0, "",
 	)
 	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
@@ -1122,7 +1143,7 @@ func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
+		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
 	artifactID, err := saver.Save(s.fwdChan)
 	if err != nil {
