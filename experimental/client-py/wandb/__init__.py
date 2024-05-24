@@ -114,6 +114,7 @@ class Run:
     def __init__(self, _session):
         self._session = _session
         self._run_nexus_id = None
+        self._step = 0
 
     def __enter__(self):
         return self
@@ -127,6 +128,8 @@ class Run:
 
     def log(self, data):
         data_msg = pb2.HistoryRecord()
+        data_msg.step.num = self._step
+        self._step += 1
         for k, v in data.items():
             item = data_msg.item.add()
             item.key = k
