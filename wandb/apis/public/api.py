@@ -284,6 +284,12 @@ class Api:
         self._client = RetryingClient(self._base_client)
 
     def create_project(self, name: str, entity: str):
+        """Create a new project.
+
+        Arguments:
+            name: (str) The name of the new project.
+            entity: (str) The entity of the new project.
+        """
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
     def create_run(self, **kwargs):
@@ -952,6 +958,14 @@ class Api:
 
     @normalize_exceptions
     def artifacts(self, type_name, name, per_page=50):
+        """Return an `Artifacts` collection from the given parameters.
+
+        Arguments:
+            type_name: (str) The type of artifacts to fetch.
+            name: (str)
+            per_page: (int)
+
+        """
         entity, project, collection_name = self._parse_artifact_path(name)
         return public.Artifacts(
             self.client, entity, project, collection_name, type_name, per_page=per_page
@@ -985,6 +999,12 @@ class Api:
 
     @normalize_exceptions
     def job(self, name, path=None):
+        """Return a `Job` from the given parameters.
+
+        Arguments:
+            name: (str) The job name.
+            path: (str, optional) If given, the root path in which to download the job artifact.
+        """
         if name is None:
             raise ValueError("You must specify name= to fetch a job.")
         elif name.count("/") != 2 or ":" not in name:
@@ -995,6 +1015,12 @@ class Api:
 
     @normalize_exceptions
     def list_jobs(self, entity, project):
+        """Return a list of jobs, if any, for the given entity and project.
+
+        Arguments:
+            entity: (str) The entity for the listed job(s).
+            project: (str) The project for the listed job(s).
+        """
         if entity is None:
             raise ValueError("Specify an entity when listing jobs")
         if project is None:
