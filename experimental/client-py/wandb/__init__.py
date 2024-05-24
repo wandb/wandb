@@ -263,7 +263,7 @@ class Run:
         handle = self._deliver_record(record)
         # self._sock_client.send_record_publish(record)
 
-        result = handle.wait(timeout=20)
+        result = handle.wait(timeout=180)
         assert result
         print(f"Run: {result.run_result.run.run_id}")
 
@@ -282,7 +282,7 @@ class Run:
         record.request.CopyFrom(request)
         record._info.stream_id = run_id
         handle = self._deliver_record(record)
-        result = handle.wait(timeout=20)
+        result = handle.wait(timeout=180)
         assert result
 
     def _exit(self):
@@ -292,7 +292,7 @@ class Run:
         record._info.stream_id = self._run_id
         record.control.always_send = True
         handle = self._deliver_record(record)
-        result = handle.wait(timeout=120)
+        result = handle.wait(timeout=300)
         assert result
 
     def finish(self):
