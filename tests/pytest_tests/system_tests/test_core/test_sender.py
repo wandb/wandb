@@ -515,9 +515,19 @@ def test_resume_error_must(user, mock_run, backend_interface):
 
 
 def test_resume_success(wandb_init, mock_run, backend_interface):
-    run = wandb_init()
+    run = wandb_init(project="project")
     run.log(dict(a=1), step=15)
     run.finish()
+
+    # Wait for run metadata to finish uploading since resume logic relies on wandb-metadata.json being uploaded
+    api = wandb.Api()
+    api_run = api.run(f"{run.entity}/project/{run.id}")
+    metadata = None
+    tries = 0
+    while metadata is None and tries < 5:
+        metadata = api_run.metadata
+        time.sleep(1)
+    assert metadata is not None
 
     resume_run = mock_run(
         use_magic_mock=True,
@@ -540,9 +550,19 @@ def test_resume_success(wandb_init, mock_run, backend_interface):
 def test_resume_error_never(wandb_init, mock_run, backend_interface):
     # seed server with a run
     # TODO: make a fixture for this
-    run = wandb_init()
+    run = wandb_init(project="project")
     run.log(dict(a=1), step=15)
     run.finish()
+
+    # Wait for run metadata to finish uploading since resume logic relies on wandb-metadata.json being uploaded
+    api = wandb.Api()
+    api_run = api.run(f"{run.entity}/project/{run.id}")
+    metadata = None
+    tries = 0
+    while metadata is None and tries < 5:
+        metadata = api_run.metadata
+        time.sleep(1)
+    assert metadata is not None
 
     resume_run = mock_run(
         use_magic_mock=True,
