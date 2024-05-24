@@ -619,3 +619,28 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.source_project == collection.project
     assert linked_artifact.source_name.startswith(collection.name)
     assert linked_artifact.type == collection.type
+
+
+def test_used_artifacts_preserve_original_project(
+    wandb_init, user, api, logged_artifact
+):
+    """Run artifacts from the API should preserve the original project they were created in."""
+    orig_project = logged_artifact.project  # Original project that created the artifact
+    new_project = "new-project"  # New project using the same artifact
+
+    artifact_path = f"{user}/{orig_project}/{logged_artifact.name}"
+
+    # Use the artifact within a *different* project
+    with wandb_init(entity=user, project=new_project) as run:
+        art = run.use_artifact(artifact_path)
+        art.download()
+
+    # Check project of artifact vs run as retrieved from the API
+    run_from_api = api.run(run.path)
+    art_from_run = run_from_api.used_artifacts()[0]
+
+    # Assumption check in case of future changes to fixtures
+    assert orig_project != new_project
+
+    assert run_from_api.project == new_project
+    assert art_from_run.project == orig_project

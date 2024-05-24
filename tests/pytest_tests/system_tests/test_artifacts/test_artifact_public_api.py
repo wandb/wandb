@@ -228,3 +228,40 @@ def test_artifact_save_norun_nosettings(user, assets_path):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
     artifact.save()
+
+
+def test_parse_artifact_path(user, api):
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias/with/slashes"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias/with/slashes"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias:with:colons"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias:with:colons"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias:with:colons/and/slashes"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias:with:colons/and/slashes"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "artifact:alias/with:colons:and/slashes"
+    )
+    assert path == "artifact:alias/with:colons:and/slashes"
+
+    entity, project, path = api._parse_artifact_path("entity/project/artifact")
+    assert entity == "entity" and project == "project" and path == "artifact"

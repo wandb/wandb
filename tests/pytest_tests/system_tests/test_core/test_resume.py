@@ -65,7 +65,12 @@ def test_resume_output_log(user, relay_server, test_settings):
     with relay_server() as relay:
         run = wandb.init(
             project="output",
-            settings=test_settings({"console": "auto"}),
+            settings=test_settings(
+                {
+                    "console": "auto",
+                    "console_multipart": True,
+                }
+            ),
         )
         run_id = run.id
         print(f"started {run_id}")
@@ -75,7 +80,12 @@ def test_resume_output_log(user, relay_server, test_settings):
             id=run_id,
             resume="must",
             project="output",
-            settings=test_settings({"console": "auto"}),
+            settings=test_settings(
+                {
+                    "console": "auto",
+                    "console_multipart": True,
+                }
+            ),
         )
         print(f"resumed {run_id}")
         run.log({"metric": 1})

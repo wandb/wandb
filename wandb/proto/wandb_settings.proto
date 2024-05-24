@@ -41,7 +41,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 166
+// Next ID: 167
 message Settings {
   reserved 12, 94;
 
@@ -232,6 +232,7 @@ message Settings {
   google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.BoolValue _shared = 162;
   google.protobuf.StringValue _code_path_local = 163;
+  google.protobuf.BoolValue console_multipart = 166;
 
   MapStringKeyStringValue _proxies = 200;
 
