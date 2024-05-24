@@ -99,7 +99,7 @@ func (pt *PathTree) AddUnsetKeysFromSubtree(
 		return nil
 	}
 
-	newSubtree, err := getOrMakeSubtree(pt.tree, path)
+	newSubtree, err := GetOrMakeSubtree(pt.tree, path)
 	if err != nil {
 		return err
 	}
@@ -139,7 +139,7 @@ func flatten(tree TreeData, prefix []string) []PathItem {
 	return leaves
 }
 
-// Sets the value at the path in the config tree.
+// Sets the value at the path in the pathtree.
 func updateAtPath(
 	tree TreeData,
 	path []string,
@@ -148,7 +148,7 @@ func updateAtPath(
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	subtree, err := getOrMakeSubtree(tree, pathPrefix)
+	subtree, err := GetOrMakeSubtree(tree, pathPrefix)
 
 	if err != nil {
 		return err
@@ -183,7 +183,7 @@ func getSubtree(
 // Returns the subtree at the path, creating it if necessary.
 //
 // Returns an error if there exists a non-map value at the path.
-func getOrMakeSubtree(
+func GetOrMakeSubtree(
 	tree TreeData,
 	path TreePath,
 ) (TreeData, error) {

@@ -18,6 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/timer"
@@ -42,7 +43,7 @@ type HandlerParams struct {
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
 	RunSummary        *runsummary.RunSummary
-	MetricHandler     *MetricHandler
+	MetricHandler     *runmetric.MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *TBHandler
@@ -85,7 +86,7 @@ type Handler struct {
 	samplers map[string]*sampler.ReservoirSampler[float32]
 
 	// metricHandler is the metric handler for the stream
-	metricHandler *MetricHandler
+	metricHandler *runmetric.MetricHandler
 
 	// runSummary keeps the complete up-to-date summary
 	runSummary *runsummary.RunSummary
@@ -361,11 +362,11 @@ func (h *Handler) handleStepMetric(key string) {
 	}
 
 	// already exists no need to add
-	if _, defined := h.metricHandler.definedMetrics[key]; defined {
+	if _, defined := h.metricHandler.DefinedMetrics[key]; defined {
 		return
 	}
 
-	metric, err := addMetric(key, key, &h.metricHandler.definedMetrics)
+	metric, err := runmetric.AddMetric(key, key, &h.metricHandler.DefinedMetrics)
 
 	if err != nil {
 		h.logger.CaptureError("error adding metric to map", err)
@@ -388,13 +389,13 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 	// TODO: replace glob-name/name with one-of field
 	switch {
 	case metric.GetGlobName() != "":
-		if _, err := addMetric(metric, metric.GetGlobName(), &h.metricHandler.globMetrics); err != nil {
+		if _, err := runmetric.AddMetric(metric, metric.GetGlobName(), &h.metricHandler.GlobMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
 		}
 		h.fwdRecord(record)
 	case metric.GetName() != "":
-		if _, err := addMetric(metric, metric.GetName(), &h.metricHandler.definedMetrics); err != nil {
+		if _, err := runmetric.AddMetric(metric, metric.GetName(), &h.metricHandler.DefinedMetrics); err != nil {
 			h.logger.CaptureError("error adding metric to map", err)
 			return
 		}
@@ -1253,12 +1254,12 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 	}
 
 	// check if history item matches a defined metric exactly, if it does return the metric
-	if metric, ok := h.metricHandler.definedMetrics[item.Key]; ok {
+	if metric, ok := h.metricHandler.DefinedMetrics[item.Key]; ok {
 		return metric
 	}
 
 	// if a new metric was created, we need to handle it
-	metric := h.metricHandler.createMatchingGlobMetric(item.Key)
+	metric := h.metricHandler.CreateMatchingGlobMetric(item.Key)
 	if metric != nil {
 		record := &service.Record{
 			RecordType: &service.Record_Metric{

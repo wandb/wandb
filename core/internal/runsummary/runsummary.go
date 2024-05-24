@@ -12,11 +12,15 @@ import (
 )
 
 type RunSummary struct {
-	pathTree *pathtree.PathTree
+	pathTree       *pathtree.PathTree
+	DefinedMetrics *map[string]*service.MetricRecord
+	GlobMetrics    *map[string]*service.MetricRecord
 }
 
 func New() *RunSummary {
-	return &RunSummary{pathTree: pathtree.New()}
+	return &RunSummary{
+		pathTree: pathtree.New(),
+	}
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
@@ -31,7 +35,8 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-
+	// fmt.Println("++ApplyChangeRecord")
+	// fmt.Println(summaryRecord)
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 	for _, item := range summaryRecord.GetUpdate() {
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
@@ -44,7 +49,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 			Value: update,
 		})
 	}
-	rs.pathTree.ApplyUpdate(updates, onError)
+	rs.ApplyUpdate(updates, onError)
 
 	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
 	for _, item := range summaryRecord.GetRemove() {
@@ -53,6 +58,71 @@ func (rs *RunSummary) ApplyChangeRecord(
 		})
 	}
 	rs.pathTree.ApplyRemove(removes)
+}
+
+// ApplyUpdate updates values in the summary tree.
+func (rs *RunSummary) ApplyUpdate(
+	items []*pathtree.PathItem,
+	onError func(error),
+) {
+	for _, item := range items {
+		if err := updateAtPath(rs.pathTree.Tree(), item.Path, item.Value); err != nil {
+			onError(err)
+			continue
+		}
+	}
+}
+
+// func (rs *RunSummary) matchAggregationType(value interface{}) runmetric.Aggregation {
+
+// }
+
+func updateAtPath(
+	tree pathtree.TreeData,
+	path []string,
+	value interface{},
+) error {
+	pathPrefix := path[:len(path)-1]
+	key := path[len(path)-1]
+
+	subtree, err := pathtree.GetOrMakeSubtree(tree, pathPrefix)
+
+	if err != nil {
+		return err
+	}
+
+	_, ok := subtree[key]
+	if !ok {
+		// If the key doesn't exist, create a new item.
+		switch value.(type) {
+		case float32, float64, int32, int64, int:
+			subtree[key] = NewItem[float64]()
+		default:
+			subtree[key] = value
+		}
+	}
+	if v, ok := subtree[key]; ok {
+		// fmt.Println("++updateAtPath")
+		// fmt.Println(v, value)
+		switch t := value.(type) {
+		case float32:
+			Update(v.(*Item[float64]), float64(t))
+		case float64:
+			Update(v.(*Item[float64]), t)
+		case int32:
+			Update(v.(*Item[float64]), float64(t))
+		case int64:
+			Update(v.(*Item[float64]), float64(t))
+		case int:
+			Update(v.(*Item[float64]), float64(t))
+		default:
+			subtree[key] = value
+		}
+	} else {
+		subtree[key] = value
+	}
+
+	return nil
 }
 
 // Flatten the summary tree into a slice of SummaryItems.
@@ -73,26 +143,28 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 				leaf,
 			)
 		}
+		fmt.Println("\n++Flatten")
+		fmt.Println(leaf.Value)
 
-		value, err := json.Marshal(leaf.Value)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"runhistory: failed to marshal value for item %v: %v",
-				leaf, err,
-			)
-		}
+		// value, err := json.Marshal(leaf.Value)
+		// if err != nil {
+		// 	return nil, fmt.Errorf(
+		// 		"runhistory: failed to marshal value for item %v: %v",
+		// 		leaf, err,
+		// 	)
+		// }
 
-		if pathLen == 1 {
-			summary = append(summary, &service.SummaryItem{
-				Key:       leaf.Path[0],
-				ValueJson: string(value),
-			})
-		} else {
-			summary = append(summary, &service.SummaryItem{
-				NestedKey: leaf.Path,
-				ValueJson: string(value),
-			})
-		}
+		// if pathLen == 1 {
+		// 	summary = append(summary, &service.SummaryItem{
+		// 		Key:       leaf.Path[0],
+		// 		ValueJson: string(value),
+		// 	})
+		// } else {
+		// 	summary = append(summary, &service.SummaryItem{
+		// 		NestedKey: leaf.Path,
+		// 		ValueJson: string(value),
+		// 	})
+		// }
 	}
 	return summary, nil
 }
@@ -111,6 +183,7 @@ func (rs *RunSummary) Tree() pathtree.TreeData {
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
+	// TODO: this is wrong
 	return json.Marshal(rs.Tree())
 }
 

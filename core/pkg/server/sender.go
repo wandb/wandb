@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -22,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/version"
@@ -105,7 +107,7 @@ type Sender struct {
 	telemetry *service.TelemetryRecord
 
 	// metricSender is a service for managing metrics
-	metricSender *MetricSender
+	metricSender *runmetric.MetricSender
 
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -606,7 +608,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 func (s *Sender) updateConfigPrivate() {
 	metrics := []map[int]interface{}(nil)
 	if s.metricSender != nil {
-		metrics = s.metricSender.configMetrics
+		metrics = s.metricSender.ConfigMetrics
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -1103,7 +1105,7 @@ func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRec
 // which will then send it to the server
 func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
 	if s.metricSender == nil {
-		s.metricSender = NewMetricSender()
+		s.metricSender = runmetric.NewMetricSender()
 	}
 
 	if metric.GetGlobName() != "" {
@@ -1373,4 +1375,32 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
+
+	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
+	if err != nil {
+		return
+	}
+
+	if metric.GetStepMetric() != "" {
+		index, ok := s.metricSender.MetricIndex[metric.GetStepMetric()]
+		if ok {
+			metric = proto.Clone(metric).(*service.MetricRecord)
+			metric.StepMetric = ""
+			metric.StepMetricIndex = index + 1
+		}
+	}
+
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
+	if index, ok := s.metricSender.MetricIndex[metric.GetName()]; ok {
+		s.metricSender.ConfigMetrics[index] = encodeMetric
+	} else {
+		nextIndex := len(s.metricSender.ConfigMetrics)
+		s.metricSender.ConfigMetrics = append(s.metricSender.ConfigMetrics, encodeMetric)
+		s.metricSender.MetricIndex[metric.GetName()] = int32(nextIndex)
+	}
 }

@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
@@ -195,7 +196,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			TBHandler:         NewTBHandler(fileWatcher, s.logger, s.settings.Proto, s.loopBackChan),
 			FileTransferStats: fileTransferStats,
 			RunSummary:        runsummary.New(),
-			MetricHandler:     NewMetricHandler(),
+			MetricHandler:     runmetric.NewMetricHandler(),
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
