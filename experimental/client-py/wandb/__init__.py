@@ -178,9 +178,12 @@ class Run:
 
     def _handle_msg_rcv(self, msg):
         # print("GOT", msg)
+        self._mailbox.deliver(msg)
         pass
 
     def _socket_router_start(self):
+        from wandb import mailbox
+        self._mailbox = mailbox.Mailbox()
         self._join_event = threading.Event()
         self._thread = threading.Thread(target=self.message_loop)
         self._thread.name = "MsgRouterThr"
@@ -196,6 +199,23 @@ class Run:
         # TODO: start a reader thread
 
         self._socket_router_start()
+
+    def _deliver_record(
+        self, record: "pb.Record"
+    ) -> "mailbox.MailboxHandle":
+        handle = self._mailbox.get_handle()
+        # handle._interface = interface
+        # handle._keepalive = self._keepalive
+        record.control.mailbox_slot = handle.address
+        try:
+            # print("SEND", record)
+            self._sock_client.send_record_publish(record)
+            # interface._publish(record)
+        except Exception:
+            # interface._transport_mark_failed()
+            raise
+        # interface._transport_mark_success()
+        return handle
 
     def _start(self):
         # print("start", port)
@@ -235,8 +255,13 @@ class Run:
         record = pb2.Record()
         record.run.CopyFrom(run_record)
         record._info.stream_id = run_id
-        record.control.mailbox_slot = "run"
-        self._sock_client.send_record_publish(record)
+        # record.control.mailbox_slot = "run"
+        handle = self._deliver_record(record)
+        # self._sock_client.send_record_publish(record)
+
+        result = handle.wait(timeout=20)
+        assert result
+        print(f"Run: {result.run_result.run.run_id}")
 
         # start
         inform_start = spb.ServerInformStartRequest()
@@ -252,17 +277,19 @@ class Run:
         record = pb2.Record()
         record.request.CopyFrom(request)
         record._info.stream_id = run_id
-        record.control.mailbox_slot = "start"
-        self._sock_client.send_record_publish(record)
+        handle = self._deliver_record(record)
+        result = handle.wait(timeout=20)
+        assert result
 
     def _exit(self):
         exit_record = pb2.RunExitRecord()
         record = pb2.Record()
         record.exit.CopyFrom(exit_record)
         record._info.stream_id = self._run_id
-        record.control.mailbox_slot = "exit"
         record.control.always_send = True
-        self._sock_client.send_record_publish(record)
+        handle = self._deliver_record(record)
+        result = handle.wait(timeout=120)
+        assert result
 
     def finish(self):
         self._exit()
