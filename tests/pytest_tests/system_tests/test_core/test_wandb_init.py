@@ -105,7 +105,7 @@ def test_resume_allow_success(
         run.log({"acc": 10}, step=15, commit=True)
         run.finish()
 
-        # Wait for run metadata to finish uploading
+        # Wait for run metadata to finish uploading since resume logic relies on wandb-metadata.json being uploaded
         api = Api()
         api_run = api.run(f"{run.entity}/project/{run_id}")
         metadata = None
@@ -127,7 +127,7 @@ def test_resume_never_failure(wandb_init):
     run_id = run.id
     run.finish()
 
-    # Wait for run metadata to finish uploading
+    # Wait for run metadata to finish uploading since resume logic relies on wandb-metadata.json being uploaded
     api = Api()
     api_run = api.run(f"{run.entity}/project/{run_id}")
     metadata = None
