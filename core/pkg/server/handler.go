@@ -29,10 +29,10 @@ import (
 const (
 	MetaFileName         = "wandb-metadata.json"
 	SummaryFileName      = "wandb-summary.json"
-	OutputFileName       = "output.log"
 	DiffFileName         = "diff.patch"
 	RequirementsFileName = "requirements.txt"
 	ConfigFileName       = "config.yaml"
+	LatestOutputFileName = "output.log"
 )
 
 type HandlerParams struct {
@@ -114,7 +114,7 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
-	params *HandlerParams,
+	params HandlerParams,
 ) *Handler {
 	return &Handler{
 		ctx:                   ctx,

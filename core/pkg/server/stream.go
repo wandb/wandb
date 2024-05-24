@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -194,7 +195,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	}
 
 	s.handler = NewHandler(s.ctx,
-		&HandlerParams{
+		HandlerParams{
 			Logger:           s.logger,
 			Settings:         s.settings.Proto,
 			FwdChan:          make(chan *service.Record, BufferSize),
@@ -217,17 +218,24 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	)
 
 	s.writer = NewWriter(s.ctx,
-		&WriterParams{
+		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
 			FwdChan:  make(chan *service.Record, BufferSize),
 		},
 	)
 
+	var outputFile string
+	if settings.Proto.GetConsoleMultipart().GetValue() {
+		outputFile = filepath.Join(
+			"logs",
+			fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
+		)
+	}
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
-		&SenderParams{
+		SenderParams{
 			Logger:              s.logger,
 			Settings:            s.settings.Proto,
 			Backend:             backendOrNil,
@@ -241,6 +249,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
 			Mailbox:             mailbox,
+			OutputFileName:      outputFile,
 		},
 	)
 
