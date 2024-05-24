@@ -18,6 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
+- Correctly pass in project name to internal api from run while calling run.use_artifact() by @ibindlish in https://github.com/wandb/wandb/pull/7701
 - Correctly upload console output log files when resuming runs enabled with `console_multipart` setting by @kptkin in https://github.com/wandb/wandb/pull/7694 and @dmitryduev in
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 - Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
