@@ -118,23 +118,24 @@ def test_get_entrypoint():
     dir = tempfile.TemporaryDirectory().name
     job_source = "artifact"
     builder = _configure_job_builder_for_partial(dir, job_source)
+    python = os.path.basename(sys.executable)  # python or python3
 
     metadata = {"python": "3.9.11", "codePathLocal": "main.py", "_partial": "v0"}
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python", "main.py"]
+    assert entrypoint == [python, "main.py"]
 
     metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python", "main.py"]
+    assert entrypoint == [python, "main.py"]
 
     metadata = {"codePath": "main.py"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
 
-    assert entrypoint == [os.path.basename(sys.executable), "main.py"]
+    assert entrypoint == [python, "main.py"]
 
 
 def test_create_repo_metadata_entrypoint_traversal():
