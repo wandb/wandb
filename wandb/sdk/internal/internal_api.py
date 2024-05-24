@@ -1180,7 +1180,6 @@ class Api:
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
         """
-
         # Pulling runInfo is required so that we can determine if a run has actually started
         # Only pull args (arbitrary) because we just need to check whether runInfo is null
         query = gql(
