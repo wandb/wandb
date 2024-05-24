@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, List, Optional
+    from wandb import mailbox
 
 from wandb.proto import wandb_internal_pb2 as pb2
 from wandb.proto import wandb_server_pb2 as spb
@@ -201,7 +202,7 @@ class Run:
 
         self._socket_router_start()
 
-    def _deliver_record(self, record: "pb.Record") -> "mailbox.MailboxHandle":
+    def _deliver_record(self, record: "pb2.Record") -> "mailbox.MailboxHandle":
         handle = self._mailbox.get_handle()
         # handle._interface = interface
         # handle._keepalive = self._keepalive
