@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from typing import Any, List, Optional
+
     from wandb import mailbox
 
 from wandb.proto import wandb_internal_pb2 as pb2
