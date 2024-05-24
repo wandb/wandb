@@ -2,7 +2,6 @@
 package watchertest
 
 import (
-	"os"
 	"path/filepath"
 	"sync"
 
@@ -47,25 +46,19 @@ func (w *FakeWatcher) IsWatching(path string) bool {
 }
 
 func (w *FakeWatcher) Watch(path string, callback func()) error {
-	return w.watchFileOrDir(path, func(string) { callback() })
+	w.watchFileOrDir(path, func(string) { callback() })
+	return nil
 }
 
 func (w *FakeWatcher) WatchTree(path string, callback func(string)) error {
-	return w.watchFileOrDir(path, callback)
+	w.watchFileOrDir(path, callback)
+	return nil
 }
 
-func (w *FakeWatcher) watchFileOrDir(path string, callback func(string)) error {
+func (w *FakeWatcher) watchFileOrDir(path string, callback func(string)) {
 	w.Lock()
 	defer w.Unlock()
-
-	// Raise an error for non-existent paths like the real implementation.
-	_, err := os.Stat(path)
-	if err != nil {
-		return err
-	}
-
 	w.handlers[w.toAbs(path)] = callback
-	return nil
 }
 
 func (w *FakeWatcher) toAbs(path string) string {

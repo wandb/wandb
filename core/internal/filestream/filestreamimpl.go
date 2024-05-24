@@ -164,7 +164,7 @@ func (fs *fileStream) sendAll(
 	feedbackChan chan<- map[string]any,
 ) {
 	for x := range data {
-		err := fs.send(x, feedbackChan)
+		err := fs.send(*x, feedbackChan)
 
 		if err != nil {
 			fs.logFatalAndStopWorking(err)
@@ -178,7 +178,7 @@ func (fs *fileStream) sendAll(
 }
 
 func (fs *fileStream) send(
-	data *FsTransmitData,
+	data FsTransmitData,
 	feedbackChan chan<- map[string]any,
 ) error {
 	// Stop working after death to avoid data corruption.
