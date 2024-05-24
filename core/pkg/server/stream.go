@@ -209,6 +209,13 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 		},
 	)
 
+	var outputFile string
+	if settings.Proto.GetConsoleMultipart().GetValue() {
+		outputFile = filepath.Join(
+			"logs",
+			fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
+		)
+	}
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
@@ -226,10 +233,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
 			Mailbox:             mailbox,
-			OutputFileName: filepath.Join(
-				"logs",
-				fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
-			),
+			OutputFileName:      outputFile,
 		},
 	)
 
