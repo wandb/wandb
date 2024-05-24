@@ -1,7 +1,6 @@
 package watcher
 
 import (
-	"maps"
 	"path/filepath"
 	"sync"
 	"time"
@@ -96,16 +95,4 @@ func (w *watcher) Finish() {
 		}()
 	}
 	wg.Wait()
-}
-
-func (w *watcher) StatAllNow() {
-	w.Lock()
-	treeWatchers := maps.Clone(w.treeWatchers)
-	w.Unlock()
-
-	for _, treeWatcher := range treeWatchers {
-		treeWatcher.Lock()
-		treeWatcher.stat()
-		treeWatcher.Unlock()
-	}
 }

@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -18,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -183,15 +183,31 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	mailbox := mailbox.NewMailbox()
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		// We log an error but continue anyway with an empty hostname string.
+		// Better behavior would be to inform the user and turn off any
+		// components that rely on the hostname, but it's not easy to do
+		// with our current code structure.
+		s.logger.CaptureError("could not get hostname", err)
+		hostname = ""
+	}
+
 	s.handler = NewHandler(s.ctx,
 		&HandlerParams{
-			Logger:            s.logger,
-			Settings:          s.settings.Proto,
-			FwdChan:           make(chan *service.Record, BufferSize),
-			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
-			RunfilesUploader:  runfilesUploaderOrNil,
-			TBHandler:         NewTBHandler(fileWatcher, s.logger, s.settings.Proto, s.loopBackChan),
+			Logger:           s.logger,
+			Settings:         s.settings.Proto,
+			FwdChan:          make(chan *service.Record, BufferSize),
+			OutChan:          make(chan *service.Result, BufferSize),
+			SystemMonitor:    monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			RunfilesUploader: runfilesUploaderOrNil,
+			TBHandler: NewTBHandler(
+				fileWatcher,
+				s.logger,
+				s.settings.Proto,
+				s.loopBackChan,
+				hostname,
+			),
 			FileTransferStats: fileTransferStats,
 			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
