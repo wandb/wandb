@@ -115,7 +115,7 @@ def test_cb_delete_item():
     del s["this"]
     m.check_removes(("this",))
 
-    m.reset({"this": {"nest1": 2}})
+    m.reset({"this": {"nest1": 2}}) 
     del s["this"]["nest1"]
     m.check_removes(("this", "nest1"))
 
