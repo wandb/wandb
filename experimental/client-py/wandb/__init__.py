@@ -183,6 +183,7 @@ class Run:
 
     def _socket_router_start(self):
         from wandb import mailbox
+
         self._mailbox = mailbox.Mailbox()
         self._join_event = threading.Event()
         self._thread = threading.Thread(target=self.message_loop)
@@ -200,9 +201,7 @@ class Run:
 
         self._socket_router_start()
 
-    def _deliver_record(
-        self, record: "pb.Record"
-    ) -> "mailbox.MailboxHandle":
+    def _deliver_record(self, record: "pb.Record") -> "mailbox.MailboxHandle":
         handle = self._mailbox.get_handle()
         # handle._interface = interface
         # handle._keepalive = self._keepalive
