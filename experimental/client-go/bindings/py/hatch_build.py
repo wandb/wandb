@@ -11,9 +11,7 @@ from typing import Any, Dict, List
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 # A small hack to allow importing build scripts from the source tree.
-sys.path = [
-    str(pathlib.Path(__file__).parent.parent.parent.parent.parent)
-] + sys.path
+sys.path = [str(pathlib.Path(__file__).parent.parent.parent.parent.parent)] + sys.path
 from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
 
