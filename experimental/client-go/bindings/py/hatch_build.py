@@ -12,7 +12,7 @@ from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 # A small hack to allow importing build scripts from the source tree.
 sys.path = [
-    str(pathlib.Path(__file__).parent.parent.parent.parent.parent.parent)
+    str(pathlib.Path(__file__).parent.parent.parent.parent.parent)
 ] + sys.path
 from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
@@ -125,7 +125,7 @@ class CustomBuildHook(BuildHookInterface):
         ]
         output_dir = str(pathlib.Path(__file__).parent)
         current_dir = pathlib.Path.cwd()
-        os.chdir(str(pathlib.Path(__file__).parent.parent.parent.parent.parent.parent))
+        os.chdir(str(pathlib.Path(__file__).parent.parent.parent.parent.parent))
         output_files = []
         for file in proto_files:
             output_file = str(pathlib.Path("wandb") / "proto" / file)
@@ -152,7 +152,7 @@ class CustomBuildHook(BuildHookInterface):
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)
 
         self.app.display_waiting("Building wandb-core Go binary...")
-        os.chdir(str(pathlib.Path(__file__).parent.parent.parent.parent.parent.parent))
+        os.chdir(str(pathlib.Path(__file__).parent.parent.parent.parent.parent))
         hatch_core.build_wandb_core(
             go_binary=self._get_and_require_go_binary(),
             output_path=current_dir / output,
