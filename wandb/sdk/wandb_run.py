@@ -2955,6 +2955,7 @@ class Run:
             api.use_artifact(
                 artifact.id,
                 entity_name=r.entity,
+                project_name=r.project,
                 use_as=use_as or artifact_or_name,
             )
         else:
