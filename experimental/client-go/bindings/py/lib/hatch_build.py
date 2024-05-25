@@ -11,7 +11,9 @@ from typing import Any, Dict, List
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 # A small hack to allow importing build scripts from the source tree.
-sys.path = [str(pathlib.Path(__file__).parent.parent.parent.parent.parent.parent)] + sys.path
+sys.path = [
+    str(pathlib.Path(__file__).parent.parent.parent.parent.parent.parent)
+] + sys.path
 from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
 
@@ -99,7 +101,11 @@ class CustomBuildHook(BuildHookInterface):
 
     def _is_platform_wheel(self) -> bool:
         """Returns whether we're producing a platform-specific wheel."""
-        return self._include_wandb_core() or self._include_lib_wandb_core() or self._include_apple_stats()
+        return (
+            self._include_wandb_core()
+            or self._include_lib_wandb_core()
+            or self._include_apple_stats()
+        )
 
     def _build_apple_stats(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "apple_gpu_stats")
@@ -136,10 +142,7 @@ class CustomBuildHook(BuildHookInterface):
         return output_files
 
     def _build_lib_wandb_core(self) -> List[str]:
-        subprocess.check_call(
-            [ "bash",
-              "hatch_build_lib.sh"
-              ])
+        subprocess.check_call(["bash", "hatch_build_lib.sh"])
         return [str(pathlib.Path("wandb") / "lib" / "libwandb_core.so")]
 
     def _build_wandb_core(self) -> List[str]:
