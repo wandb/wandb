@@ -12,6 +12,8 @@ else:
 
 
 _gym_version_lt_0_26: Optional[bool] = None
+_gymnasium_version_gt_0_29_1: Optional[bool] = None
+
 _required_error_msg = (
     "Couldn't import the gymnasium python package, "
     "install with `pip install gymnasium`"
@@ -41,8 +43,9 @@ def monitor():
     )
 
     global _gym_version_lt_0_26
+    global _gymnasium_version_gt_0_29_1
 
-    if _gym_version_lt_0_26 is None:
+    if _gym_version_lt_0_26 is None or _gymnasium_version_gt_0_29_1 is None:
         if gym_lib == "gym":
             import gym
         else:
@@ -50,15 +53,29 @@ def monitor():
 
         from wandb.util import parse_version
 
-        if parse_version(gym.__version__) < parse_version("0.26.0"):
-            _gym_version_lt_0_26 = True
-        else:
-            _gym_version_lt_0_26 = False
+        gym_lib_version = parse_version(gym.__version__)
+        _gym_version_lt_0_26 = gym_lib_version < parse_version("0.26.0")
+        _gymnasium_version_gt_0_29_1 = gym_lib_version > parse_version("0.29.1")
 
-    # breaking change in gym 0.26.0
-    vcr_recorder_attribute = "ImageEncoder" if _gym_version_lt_0_26 else "VideoRecorder"
-    recorder = getattr(vcr, vcr_recorder_attribute)
-    path = "output_path" if _gym_version_lt_0_26 else "path"
+
+    path = "path"  # Default path
+    if gym_lib == "gymnasium" and _gymnasium_version_gt_0_29_1:
+        vcr_recorder_attribute = "RecordVideo"
+        RecordVideo = wandb.util.get_module(
+            f"{gym_lib}.wrappers.{vcr_recorder_attribute}",
+            required=_required_error_msg,
+        )
+        recorder = RecordVideo  # Use new API class
+    else:
+        # Breaking change in gym 0.26.0
+        vcr_recorder_attribute = "ImageEncoder" if _gym_version_lt_0_26 else "VideoRecorder"
+        vcr = wandb.util.get_module(
+            f"{gym_lib}.wrappers.monitoring.video_recorder",
+            required=_required_error_msg,
+        )
+        recorder = getattr(vcr, vcr_recorder_attribute)
+        if _gym_version_lt_0_26:
+            path = "output_path"  # Override path for older gym versions
 
     recorder.orig_close = recorder.close
 
@@ -77,9 +94,15 @@ def monitor():
     if not _gym_version_lt_0_26:
         recorder.__del__ = del_
     recorder.close = close
+
+    if gym_lib == "gymnasium" and _gymnasium_version_gt_0_29_1:
+        wrapper_name = vcr_recorder_attribute
+    else:
+        wrapper_name = f"monitoring.video_recorder.{vcr_recorder_attribute}"
+
     wandb.patched["gym"].append(
         [
-            f"{gym_lib}.wrappers.monitoring.video_recorder.{vcr_recorder_attribute}",
+            f"{gym_lib}.wrappers.{wrapper_name}",
             "close",
         ]
     )
