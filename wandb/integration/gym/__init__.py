@@ -57,15 +57,14 @@ def monitor():
         _gym_version_lt_0_26 = gym_lib_version < parse_version("0.26.0")
         _gymnasium_version_gt_0_29_1 = gym_lib_version > parse_version("0.29.1")
 
-
     path = "path"  # Default path
     if gym_lib == "gymnasium" and _gymnasium_version_gt_0_29_1:
         vcr_recorder_attribute = "RecordVideo"
-        RecordVideo = wandb.util.get_module(
-            f"{gym_lib}.wrappers.{vcr_recorder_attribute}",
+        wrappers = wandb.util.get_module(
+            f"{gym_lib}.wrappers",
             required=_required_error_msg,
         )
-        recorder = RecordVideo  # Use new API class
+        recorder = getattr(wrappers, vcr_recorder_attribute)
     else:
         # Breaking change in gym 0.26.0
         vcr_recorder_attribute = "ImageEncoder" if _gym_version_lt_0_26 else "VideoRecorder"
