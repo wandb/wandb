@@ -2038,6 +2038,7 @@ class Api:
         commit: Optional[str] = None,
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
+        rewind: Optional[bool] = None,
         num_retries: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
@@ -2061,6 +2062,7 @@ class Api:
             commit (str, optional): The Git SHA to associate the run with
             sweep_name (str, optional): The name of the sweep this run is a part of
             summary_metrics (str, optional): The JSON summary metrics
+            rewind (bool, optional): Whether to rewind the run
             num_retries (int, optional): Number of retries
         """
         query_string = """
@@ -2084,6 +2086,7 @@ class Api:
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
+            $rewind: Boolean,
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -2105,6 +2108,7 @@ class Api:
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
+                rewind: $rewind
             }) {
                 bucket {
                     id
@@ -2176,6 +2180,7 @@ class Api:
             "state": state,
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
+            "rewind": rewind,
         }
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
@@ -2215,7 +2220,89 @@ class Api:
             response["upsertBucket"]["inserted"],
             server_messages,
         )
+    
+    @normalize_exceptions
+    def rewind_run(
+        self,
+        run_name: str,
+        entity: str,
+        project: str,
+        metric_name: str,
+        metric_value: float,        
+        num_retries: Optional[int] = None,
+    ) -> Tuple[dict, bool, Optional[List]]:
+        """Update a run.
 
+        Arguments:
+            run_name (str): The name of the run to rewind
+            entity (str): The entity to scope this project to.
+            project (str): The name of the project
+            metric_name (str): The name of the metric to rewind to
+            metric_value (float): The value of the metric to rewind to
+            num_retries (int, optional): Number of retries
+        """
+        query_string = """
+        mutation RewindRun($runName: String!, $entity: String!, $project: String!, $metricName: String!, $metricValue: Float!) {
+            rewindRun(input: {runName: $runName, entityName: $entity, projectName: $project, metricName: $metricName, metricValue: $metricValue}) {
+                rewoundRun {
+                    id
+                    name
+                    displayName
+                    description
+                    config
+                    sweepName
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+                    historyLineCount
+                }
+            }
+        }
+        """
+
+        mutation = gql(query_string)
+        if num_retries is not None:
+            kwargs["num_retries"] = num_retries
+
+        variable_values = {
+            "runName": run_name,
+            "entityName": entity,
+            "projectName": project,
+            "metricName": metric_name,
+            "metricValue": metric_value,
+        }
+
+        # retry conflict errors for 2 minutes, default to no_auth_retry
+        check_retry_fn = util.make_check_retry_fn(
+            check_fn=util.check_retry_conflict_or_gone,
+            check_timedelta=datetime.timedelta(minutes=2),
+            fallback_retry_fn=util.no_retry_auth,
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values=variable_values,
+            check_retry_fn=check_retry_fn,
+            **kwargs,
+        )
+
+        run_obj: Dict[str, Dict[str, Dict[str, str]]] = response["rewindRun"][
+            "rewoundRun"
+        ]
+        project_obj: Dict[str, Dict[str, str]] = run_obj.get("project", {})
+        if project_obj:
+            self.set_setting("project", project_obj["name"])
+            entity_obj = project_obj.get("entity", {})
+            if entity_obj:
+                self.set_setting("entity", entity_obj["name"])
+
+        return run_obj
+    
     @normalize_exceptions
     def get_run_info(
         self,

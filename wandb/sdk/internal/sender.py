@@ -1028,22 +1028,34 @@ class SendManager:
         if self._resume_state and self._resume_state.tags and not run.tags:
             run.tags.extend(self._resume_state.tags)
 
-        server_run, inserted, server_messages = self._api.upsert_run(
-            name=run.run_id,
-            entity=run.entity or None,
-            project=run.project or None,
-            group=run.run_group or None,
-            job_type=run.job_type or None,
-            display_name=run.display_name or None,
-            notes=run.notes or None,
-            tags=run.tags[:] or None,
-            config=config_dict or None,
-            sweep_name=run.sweep_id or None,
-            host=run.host or None,
-            program_path=self._settings.program or None,
-            repo=run.git.remote_url or None,
-            commit=run.git.commit or None,
-        )
+        if self._settings.resume_from is not None:
+            server_run = self._api.rewind_run(
+                run_name=run.run_id,
+                entity=run.entity or None,
+                project=run.project or None,
+                metric_name=self._settings.resume_from.metric,
+                metric_value=self._settings.resume_from.value,
+            )
+            server_messages = None
+            inserted = True
+        else:
+            server_run, inserted, server_messages = self._api.upsert_run(
+                name=run.run_id,
+                entity=run.entity or None,
+                project=run.project or None,
+                group=run.run_group or None,
+                job_type=run.job_type or None,
+                display_name=run.display_name or None,
+                notes=run.notes or None,
+                tags=run.tags[:] or None,
+                config=config_dict or None,
+                sweep_name=run.sweep_id or None,
+                host=run.host or None,
+                program_path=self._settings.program or None,
+                repo=run.git.remote_url or None,
+                commit=run.git.commit or None,
+                rewind=self._settings.resume_from is not None,
+            )
         # TODO: we don't want to create jobs in sweeps, since the
         #  executable doesn't appear to be consistent
         if run.sweep_id:
