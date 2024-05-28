@@ -70,7 +70,7 @@ class RetryingClient:
         check_retry_fn=util.no_retry_auth,
         retryable_exceptions=(RetryError, requests.RequestException),
     )
-    def execute(self, *args, **kwargs):
+    def execute(self, *args, **kwargs):  # noqa: D102
         try:
             return self._client.execute(*args, **kwargs)
         except requests.exceptions.ReadTimeout:
@@ -89,7 +89,7 @@ class RetryingClient:
             self._server_info = self.execute(self.INFO_QUERY).get("serverInfo")
         return self._server_info
 
-    def version_supported(self, min_version):
+    def version_supported(self, min_version: str) -> bool:  # noqa: D102
         from wandb.util import parse_version
 
         return parse_version(min_version) <= parse_version(
@@ -234,7 +234,7 @@ class Api:
 
     def __init__(
         self,
-        overrides=None,
+        overrides: Optional[Dict[str, Any]] = None,
         timeout: Optional[int] = None,
         api_key: Optional[str] = None,
     ) -> None:
@@ -283,7 +283,7 @@ class Api:
         )
         self._client = RetryingClient(self._base_client)
 
-    def create_project(self, name: str, entity: str):
+    def create_project(self, name: str, entity: str) -> None:
         """Create a new project.
 
         Arguments:
@@ -292,11 +292,24 @@ class Api:
         """
         self.client.execute(self.CREATE_PROJECT, {"entityName": entity, "name": name})
 
-    def create_run(self, **kwargs):
-        """Create a new run."""
-        if kwargs.get("entity") is None:
-            kwargs["entity"] = self.default_entity
-        return public.Run.create(self, **kwargs)
+    def create_run(
+        self,
+        *,
+        run_id: Optional[str] = None,
+        project: Optional[str] = None,
+        entity: Optional[str] = None,
+    ) -> public.Run:
+        """Create a new run.
+
+        Arguments:
+            run_id: (str, optional) The ID to assign to the run, if given.  In general, you do not need to specify this
+                and should only do so at your own risk, as the run ID is automatically generated.
+            project: (str, optional) If given, the project of the new run.
+            entity: (str, optional) If given, the entity of the new run.
+        """
+        if entity is None:
+            entity = self.default_entity
+        return public.Run.create(self, run_id=run_id, project=project, entity=entity)
 
     def create_report(
         self,
@@ -306,7 +319,8 @@ class Api:
         description: Optional[str] = "",
         width: Optional[str] = "readable",
         blocks: Optional["wandb.apis.reports.util.Block"] = None,
-    ) -> "wandb.apis.reports.Report":
+    ) -> wandb.apis.reports.Report:
+        """Create a new report."""
         if entity == "":
             entity = self.default_entity or ""
         if blocks is None:
@@ -318,12 +332,12 @@ class Api:
     def create_run_queue(
         self,
         name: str,
-        type: "public.RunQueueResourceType",
+        type: public.RunQueueResourceType,
         entity: Optional[str] = None,
-        prioritization_mode: Optional["public.RunQueuePrioritizationMode"] = None,
+        prioritization_mode: Optional[public.RunQueuePrioritizationMode] = None,
         config: Optional[dict] = None,
         template_variables: Optional[dict] = None,
-    ) -> "public.RunQueue":
+    ) -> public.RunQueue:
         """Create a new run queue (launch).
 
         Arguments:
@@ -427,7 +441,7 @@ class Api:
             _default_resource_config=config,
         )
 
-    def load_report(self, path: str) -> "wandb.apis.reports.Report":
+    def load_report(self, path: str) -> wandb.apis.reports.Report:
         """Get report at a given path.
 
         Arguments:
@@ -480,15 +494,15 @@ class Api:
         return self.run("/".join([entity, project, run_id]))
 
     @property
-    def client(self):
+    def client(self) -> RetryingClient:
         return self._client
 
     @property
-    def user_agent(self):
+    def user_agent(self) -> str:
         return "W&B Public Client {}".format(wandb.__version__)
 
     @property
-    def api_key(self):
+    def api_key(self) -> str | None:
         # just use thread local api key if it's set
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
@@ -505,14 +519,14 @@ class Api:
         return key
 
     @property
-    def default_entity(self):
+    def default_entity(self) -> str | None:
         if self._default_entity is None:
             res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
         return self._default_entity
 
     @property
-    def viewer(self):
+    def viewer(self) -> public.User:
         if self._viewer is None:
             self._viewer = public.User(
                 self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
@@ -675,7 +689,8 @@ class Api:
             )
         return self._projects[entity]
 
-    def project(self, name, entity=None):
+    def project(self, name, entity=None) -> public.Project:
+        """Return the `Project` with the given name (and entity, if given)."""
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
         return public.Project(self.client, entity, name, {})
@@ -723,10 +738,11 @@ class Api:
         """
         return public.Team.create(self, team, admin_username)
 
-    def team(self, team):
+    def team(self, team: str) -> public.Team:
+        """Return matching `Team` with the given name."""
         return public.Team(self.client, team)
 
-    def user(self, username_or_email):
+    def user(self, username_or_email: str) -> public.User:
         """Return a user from a username or email address.
 
         Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
@@ -748,7 +764,7 @@ class Api:
             )
         return public.User(self._client, res["users"]["edges"][0]["node"])
 
-    def users(self, username_or_email):
+    def users(self, username_or_email: str) -> list[public.User]:
         """Return all users from a partial username or email address query.
 
         Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
@@ -917,24 +933,48 @@ class Api:
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_types(self, project=None):
+    def artifact_types(self, project: Optional[str] = None) -> public.ArtifactTypes:
+        """Return a collection of matching artifact types.
+
+        Arguments:
+            project: (str, optional) If given, a project name or path to filter on.
+        """
         entity, project = self._parse_project_path(project)
         return public.ArtifactTypes(self.client, entity, project)
 
     @normalize_exceptions
-    def artifact_type(self, type_name, project=None):
+    def artifact_type(
+        self, type_name: str, project: Optional[str] = None
+    ) -> public.ArtifactType:
+        """Return the matching `ArtifactType`.
+
+        Arguments:
+            type_name: (str) The name of the artifact type to retrieve.
+            project: (str, optional) If given, a project name or path to filter on.
+        """
         entity, project = self._parse_project_path(project)
         return public.ArtifactType(self.client, entity, project, type_name)
 
     @normalize_exceptions
-    def artifact_collections(self, project_name: str, type_name: str, per_page=50):
+    def artifact_collections(
+        self, project_name: str, type_name: str, per_page: Optional[int] = 50
+    ) -> public.ArtifactCollections:
+        """Return a collection of matching artifact collections.
+
+        Arguments:
+            project_name: (str) The name of the project to filter on.
+            type_name: (str) The name of the artifact type to filter on.
+            per_page: (int) The maximum number of results to return per page.
+        """
         entity, project = self._parse_project_path(project_name)
         return public.ArtifactCollections(
             self.client, entity, project, type_name, per_page=per_page
         )
 
     @normalize_exceptions
-    def artifact_collection(self, type_name: str, name: str):
+    def artifact_collection(
+        self, type_name: str, name: str
+    ) -> public.ArtifactCollection:
         """Return a single artifact collection by type and parsing path in the form `entity/project/name`.
 
         Arguments:
@@ -951,7 +991,7 @@ class Api:
 
     @normalize_exceptions
     def artifact_versions(self, type_name, name, per_page=50):
-        """Deprecated, use artifacts(type_name, name) instead."""
+        """Deprecated, use `artifacts(type_name, name)` instead."""
         deprecate(
             field_name=Deprecated.api__artifact_versions,
             warning_message=(
