@@ -6,14 +6,12 @@ from functools import wraps
 from typing import Callable, List, TypeVar
 
 import requests
-from typing_extensions import ParamSpec
 from wandb_gql.client import RetryError
 
 from wandb import env
 from wandb.errors import CommError, Error
 
-_P = ParamSpec("_P")  # function parameter spec
-_R = TypeVar("_R")  # function return type
+_F = TypeVar("_F", bound=Callable)
 
 
 def parse_backend_error_messages(response: requests.Response) -> List[str]:
@@ -33,11 +31,11 @@ def parse_backend_error_messages(response: requests.Response) -> List[str]:
     return errors
 
 
-def normalize_exceptions(func: Callable[_P, _R]) -> Callable[_P, _R]:
+def normalize_exceptions(func: _F) -> _F:
     """Function decorator for catching common errors and re-raising as wandb.Error."""
 
     @wraps(func)
-    def wrapper(*args: _P.args, **kwargs: _P.kwargs) -> _R:
+    def wrapper(*args, **kwargs):
         message = "Whoa, you found a bug."
         try:
             return func(*args, **kwargs)
