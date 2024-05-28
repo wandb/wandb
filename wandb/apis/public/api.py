@@ -502,7 +502,7 @@ class Api:
         return "W&B Public Client {}".format(wandb.__version__)
 
     @property
-    def api_key(self) -> str | None:
+    def api_key(self) -> Optional[str]:
         # just use thread local api key if it's set
         if _thread_local_api_settings.api_key:
             return _thread_local_api_settings.api_key
@@ -519,7 +519,7 @@ class Api:
         return key
 
     @property
-    def default_entity(self) -> str | None:
+    def default_entity(self) -> Optional[str]:
         if self._default_entity is None:
             res = self._client.execute(self.DEFAULT_ENTITY_QUERY)
             self._default_entity = (res.get("viewer") or {}).get("entity")
