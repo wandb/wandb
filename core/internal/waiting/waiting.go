@@ -38,20 +38,10 @@ type Stopwatch interface {
 	Wait() <-chan struct{}
 }
 
-// StopwatchFactory produces stopwatches with the same countdown.
-type StopwatchFactory interface {
-	// New returns a new, reset stopwatch.
-	New() Stopwatch
-}
-
 func NewStopwatch(duration time.Duration) Stopwatch {
 	s := &realStopwatch{duration, &atomic.Int64{}}
 	s.Reset()
 	return s
-}
-
-func NewStopwatchFactory(duration time.Duration) StopwatchFactory {
-	return &realStopwatchFactory{duration}
 }
 
 type realDelay struct {
@@ -113,12 +103,4 @@ func (s *realStopwatch) Wait() <-chan struct{} {
 	}()
 
 	return ch
-}
-
-type realStopwatchFactory struct {
-	duration time.Duration
-}
-
-func (f *realStopwatchFactory) New() Stopwatch {
-	return NewStopwatch(f.duration)
 }

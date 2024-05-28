@@ -7,9 +7,6 @@ import (
 )
 
 // FakeStopwatch is a Stopwatch that tests can set to Done manually.
-//
-// It is also a StopwatchFactory by always returning itself
-// (without resetting).
 type FakeStopwatch struct {
 	sync.Mutex
 
@@ -48,7 +45,6 @@ func (fs *FakeStopwatch) SetDoneForever() {
 
 // Prove we implement the interface.
 var _ waiting.Stopwatch = &FakeStopwatch{}
-var _ waiting.StopwatchFactory = &FakeStopwatch{}
 
 func (fs *FakeStopwatch) IsDone() bool {
 	fs.Lock()
@@ -75,8 +71,4 @@ func (fs *FakeStopwatch) Wait() <-chan struct{} {
 	}
 
 	return fs.waitChan
-}
-
-func (fs *FakeStopwatch) New() waiting.Stopwatch {
-	return fs
 }
