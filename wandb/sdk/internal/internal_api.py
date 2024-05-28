@@ -2220,7 +2220,7 @@ class Api:
             response["upsertBucket"]["inserted"],
             server_messages,
         )
-    
+
     @normalize_exceptions
     def rewind_run(
         self,
@@ -2228,7 +2228,7 @@ class Api:
         entity: str,
         project: str,
         metric_name: str,
-        metric_value: float,        
+        metric_value: float,
         num_retries: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
@@ -2302,7 +2302,7 @@ class Api:
                 self.set_setting("entity", entity_obj["name"])
 
         return run_obj
-    
+
     @normalize_exceptions
     def get_run_info(
         self,
