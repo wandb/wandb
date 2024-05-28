@@ -12,7 +12,7 @@ else:
 
 
 _gym_version_lt_0_26: Optional[bool] = None
-_gymnasium_version_gt_0_29_1: Optional[bool] = None
+_gymnasium_version_lt_1_0_0: Optional[bool] = None
 
 _required_error_msg = (
     "Couldn't import the gymnasium python package, "
@@ -43,9 +43,9 @@ def monitor():
     )
 
     global _gym_version_lt_0_26
-    global _gymnasium_version_gt_0_29_1
+    global _gymnasium_version_lt_1_0_0
 
-    if _gym_version_lt_0_26 is None or _gymnasium_version_gt_0_29_1 is None:
+    if _gym_version_lt_0_26 is None or _gymnasium_version_lt_1_0_0 is None:
         if gym_lib == "gym":
             import gym
         else:
@@ -55,10 +55,10 @@ def monitor():
 
         gym_lib_version = parse_version(gym.__version__)
         _gym_version_lt_0_26 = gym_lib_version < parse_version("0.26.0")
-        _gymnasium_version_gt_0_29_1 = gym_lib_version > parse_version("0.29.1")
+        _gymnasium_version_lt_1_0_0 = gym_lib_version < parse_version("1.0.0")
 
     path = "path"  # Default path
-    if gym_lib == "gymnasium" and _gymnasium_version_gt_0_29_1:
+    if gym_lib == "gymnasium" and not _gymnasium_version_lt_1_0_0:
         vcr_recorder_attribute = "RecordVideo"
         wrappers = wandb.util.get_module(
             f"{gym_lib}.wrappers",
@@ -66,15 +66,18 @@ def monitor():
         )
         recorder = getattr(wrappers, vcr_recorder_attribute)
     else:
-        # Breaking change in gym 0.26.0
-        vcr_recorder_attribute = "ImageEncoder" if _gym_version_lt_0_26 else "VideoRecorder"
         vcr = wandb.util.get_module(
             f"{gym_lib}.wrappers.monitoring.video_recorder",
             required=_required_error_msg,
         )
-        recorder = getattr(vcr, vcr_recorder_attribute)
+        # Breaking change in gym 0.26.0
         if _gym_version_lt_0_26:
+            vcr_recorder_attribute = "ImageEncoder"
+            recorder = getattr(vcr, vcr_recorder_attribute)
             path = "output_path"  # Override path for older gym versions
+        else:
+            vcr_recorder_attribute = "VideoRecorder"
+            recorder = getattr(vcr, vcr_recorder_attribute)
 
     recorder.orig_close = recorder.close
 
@@ -94,7 +97,7 @@ def monitor():
         recorder.__del__ = del_
     recorder.close = close
 
-    if gym_lib == "gymnasium" and _gymnasium_version_gt_0_29_1:
+    if gym_lib == "gymnasium" and not _gymnasium_version_lt_1_0_0:
         wrapper_name = vcr_recorder_attribute
     else:
         wrapper_name = f"monitoring.video_recorder.{vcr_recorder_attribute}"
