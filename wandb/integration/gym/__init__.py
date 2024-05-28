@@ -55,7 +55,7 @@ def monitor():
 
         gym_lib_version = parse_version(gym.__version__)
         _gym_version_lt_0_26 = gym_lib_version < parse_version("0.26.0")
-        _gymnasium_version_lt_1_0_0 = gym_lib_version < parse_version("1.0.0")
+        _gymnasium_version_lt_1_0_0 = gym_lib_version < parse_version("1.0.0a1")
 
     path = "path"  # Default path
     if gym_lib == "gymnasium" and not _gymnasium_version_lt_1_0_0:
