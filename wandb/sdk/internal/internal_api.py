@@ -2266,6 +2266,8 @@ class Api:
         """
 
         mutation = gql(query_string)
+        
+        kwargs = {}
         if num_retries is not None:
             kwargs["num_retries"] = num_retries
 
