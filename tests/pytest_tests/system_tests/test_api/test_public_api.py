@@ -1,5 +1,6 @@
 import wandb
 
+
 def test_delete_summary_metric_w_no_lazyload(user, test_settings):
     run = wandb.init(settings=test_settings())
     runid = run.id
