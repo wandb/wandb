@@ -1007,7 +1007,7 @@ class Api:
         return self.artifacts(type_name, name, per_page=per_page)
 
     @normalize_exceptions
-    def artifacts(self, type_name: str, name: str, per_page: Optional[int] = 50):
+    def artifacts(self, type_name: str, name: str, per_page: Optional[int] = 50) -> public.Artifacts:
         """Return an `Artifacts` collection from the given parameters.
 
         Arguments:
