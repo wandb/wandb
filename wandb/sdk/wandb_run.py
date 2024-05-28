@@ -2603,6 +2603,14 @@ class Run:
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         assert self._backend and self._backend.interface
+
+        # get the server info before starting the defer state machine as
+        # it will stop communication with the server
+        server_info_handle = self._backend.interface.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=-1)
+        assert result
+        self._server_info_response = result.response.server_info_response
+
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
@@ -2611,6 +2619,7 @@ class Run:
         #     self._exit_code, settings=self._settings, printer=self._printer
         # )
 
+        # wait for the exit to complete
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
@@ -2628,15 +2637,10 @@ class Run:
 
         # dispatch all our final requests
 
-        server_info_handle = self._backend.interface.deliver_request_server_info()
         final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-
-        result = server_info_handle.wait(timeout=-1)
-        assert result
-        self._server_info_response = result.response.server_info_response
 
         result = sampled_history_handle.wait(timeout=-1)
         assert result
@@ -2957,6 +2961,7 @@ class Run:
             api.use_artifact(
                 artifact.id,
                 entity_name=r.entity,
+                project_name=r.project,
                 use_as=use_as or artifact_or_name,
             )
         else:

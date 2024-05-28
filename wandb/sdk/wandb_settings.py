@@ -388,6 +388,7 @@ class SettingsData:
     colab_url: str
     config_paths: Sequence[str]
     console: str
+    console_multipart: bool  # whether to produce multipart console log files
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -781,6 +782,7 @@ class Settings(SettingsData):
                 "hook": lambda x: self._convert_console(x),
                 "auto_hook": True,
             },
+            console_multipart={"value": False, "preprocessor": _str_as_bool},
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
