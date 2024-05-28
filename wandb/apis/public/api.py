@@ -1017,7 +1017,6 @@ class Api:
             name: (str) An artifact collection name. May be prefixed with entity/project.
             per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
-
         """
         entity, project, collection_name = self._parse_artifact_path(name)
         return public.Artifacts(
