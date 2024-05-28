@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import TYPE_CHECKING, Any, Dict, Optional, List
 
 import requests
 from wandb_gql import Client, gql
@@ -298,7 +298,7 @@ class Api:
         run_id: Optional[str] = None,
         project: Optional[str] = None,
         entity: Optional[str] = None,
-    ) -> public.Run:
+    ) -> "public.Run":
         """Create a new run.
 
         Arguments:
@@ -319,7 +319,7 @@ class Api:
         description: Optional[str] = "",
         width: Optional[str] = "readable",
         blocks: Optional["wandb.apis.reports.util.Block"] = None,
-    ) -> wandb.apis.reports.Report:
+    ) -> "wandb.apis.reports.Report":
         """Create a new report."""
         if entity == "":
             entity = self.default_entity or ""
@@ -332,12 +332,12 @@ class Api:
     def create_run_queue(
         self,
         name: str,
-        type: public.RunQueueResourceType,
+        type: "public.RunQueueResourceType",
         entity: Optional[str] = None,
-        prioritization_mode: Optional[public.RunQueuePrioritizationMode] = None,
+        prioritization_mode: Optional["public.RunQueuePrioritizationMode"] = None,
         config: Optional[dict] = None,
         template_variables: Optional[dict] = None,
-    ) -> public.RunQueue:
+    ) -> "public.RunQueue":
         """Create a new run queue (launch).
 
         Arguments:
@@ -441,7 +441,7 @@ class Api:
             _default_resource_config=config,
         )
 
-    def load_report(self, path: str) -> wandb.apis.reports.Report:
+    def load_report(self, path: str) -> "wandb.apis.reports.Report":
         """Get report at a given path.
 
         Arguments:
@@ -526,7 +526,7 @@ class Api:
         return self._default_entity
 
     @property
-    def viewer(self) -> public.User:
+    def viewer(self) -> "public.User":
         if self._viewer is None:
             self._viewer = public.User(
                 self._client, self._client.execute(self.VIEWER_QUERY).get("viewer")
@@ -689,7 +689,7 @@ class Api:
             )
         return self._projects[entity]
 
-    def project(self, name, entity=None) -> public.Project:
+    def project(self, name, entity=None) -> "public.Project":
         """Return the `Project` with the given name (and entity, if given)."""
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
@@ -738,7 +738,7 @@ class Api:
         """
         return public.Team.create(self, team, admin_username)
 
-    def team(self, team: str) -> public.Team:
+    def team(self, team: str) -> "public.Team":
         """Return the matching `Team` with the given name.
 
         Arguments:
@@ -746,7 +746,7 @@ class Api:
         """
         return public.Team(self.client, team)
 
-    def user(self, username_or_email: str) -> public.User:
+    def user(self, username_or_email: str) -> "public.User":
         """Return a user from a username or email address.
 
         Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
@@ -768,7 +768,7 @@ class Api:
             )
         return public.User(self._client, res["users"]["edges"][0]["node"])
 
-    def users(self, username_or_email: str) -> list[public.User]:
+    def users(self, username_or_email: str) -> List["public.User"]:
         """Return all users from a partial username or email address query.
 
         Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
@@ -937,7 +937,7 @@ class Api:
         return self._sweeps[path]
 
     @normalize_exceptions
-    def artifact_types(self, project: Optional[str] = None) -> public.ArtifactTypes:
+    def artifact_types(self, project: Optional[str] = None) -> "public.ArtifactTypes":
         """Return a collection of matching artifact types.
 
         Arguments:
@@ -949,7 +949,7 @@ class Api:
     @normalize_exceptions
     def artifact_type(
         self, type_name: str, project: Optional[str] = None
-    ) -> public.ArtifactType:
+    ) -> "public.ArtifactType":
         """Return the matching `ArtifactType`.
 
         Arguments:
@@ -962,7 +962,7 @@ class Api:
     @normalize_exceptions
     def artifact_collections(
         self, project_name: str, type_name: str, per_page: Optional[int] = 50
-    ) -> public.ArtifactCollections:
+    ) -> "public.ArtifactCollections":
         """Return a collection of matching artifact collections.
 
         Arguments:
@@ -979,7 +979,7 @@ class Api:
     @normalize_exceptions
     def artifact_collection(
         self, type_name: str, name: str
-    ) -> public.ArtifactCollection:
+    ) -> "public.ArtifactCollection":
         """Return a single artifact collection by type and parsing path in the form `entity/project/name`.
 
         Arguments:
@@ -1007,7 +1007,9 @@ class Api:
         return self.artifacts(type_name, name, per_page=per_page)
 
     @normalize_exceptions
-    def artifacts(self, type_name: str, name: str, per_page: Optional[int] = 50) -> public.Artifacts:
+    def artifacts(
+        self, type_name: str, name: str, per_page: Optional[int] = 50
+    ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
 
         Arguments:
