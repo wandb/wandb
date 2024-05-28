@@ -7,150 +7,208 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watcher"
 )
 
-func mkdir(t *testing.T, path string) {
-	require.NoError(t,
-		os.MkdirAll(
-			path,
-			syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IXUSR,
-		))
-}
-
-func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time {
-	mkdir(t, filepath.Dir(path))
-
-	require.NoError(t,
-		os.WriteFile(path, []byte(content), syscall.S_IRUSR|syscall.S_IWUSR))
-
-	info, err := os.Stat(path)
-	require.NoError(t, err)
-
-	return info.ModTime()
-}
-
-func writeFile(t *testing.T, path string, content string) {
-	_ = writeFileAndGetModTime(t, path, content)
-}
-
 func waitWithDeadline[S any](t *testing.T, c <-chan S, msg string) S {
+	t.Helper()
 	select {
 	case x := <-c:
 		return x
-	case <-time.After(5 * time.Second):
+	case <-time.After(time.Second):
 		t.Fatal("took too long: " + msg)
 		panic("unreachable")
 	}
 }
 
-func TestWatcher(t *testing.T) {
-	// The watcher implementation we rely on uses `time.Sleep()`, making for
-	// flaky and slow tests. The tests in this function are carefully designed
-	// to be fast and unlikely to flake.
-	//
-	// 1. We use a short polling period
-	// 2. The success path for each test is designed to finish quickly
-	// 3. Tests fail if they exceed a large deadline
-	//
-	// When the code is correct, these tests will complete very quickly,
-	// *especially* if running locally. In CI, `time.Sleep()` could take longer
-	// on a busy processor, but it's unlikely to reach (3) and flake.
-	//
-	// The downside of (3) is that if the code is *not* correct, then the
-	// tests take a long time to fail. This can be an annoying dev
-	// cycle for someone working on this package. So you should try to write
-	// bug-free code :)
+// testContext is a set of variables and functions available in all tests.
+type testContext struct {
+	Watcher          watcher.Watcher
+	PollingStopwatch *waitingtest.FakeStopwatch
+	WriteFile        func(slashPath, content string)
+	DeleteFile       func(slashPath string)
 
-	newTestWatcher := func() watcher.Watcher {
-		return watcher.New(watcher.Params{
-			PollingPeriod: 10 * time.Millisecond,
-		})
-	}
-	finishWithDeadline := func(t *testing.T, w watcher.Watcher) {
-		finished := make(chan struct{})
+	// AbsPath converts a slash-separated relative path to a correctly formatted
+	// path to a temporary file.
+	AbsPath func(slashPath string) string
+
+	// RelPath is like AbsPath but returns a path relative to the current
+	// working directory.
+	RelPath func(slashPath string) string
+
+	// LogID0 returns a function to pass to Watch() that records
+	// calls to itself.
+	LogID0 func(id string) func()
+
+	// LogID1 returns a function to pass to WatchTree() that records
+	// calls to itself.
+	LogID1 func(id string) func(path string)
+
+	// ExpectLoggedID fails the test if a LogID0 or LogID1 call has not
+	// occurred and does not occur within a timeout.
+	//
+	// The "slashPath" argument is the path given to the WatchTree callback
+	// or the empty string if this is a Watch callback.
+	ExpectLoggedID func(id, slashPath string)
+}
+
+type capturedFileCallback struct {
+	ID   string
+	Path string
+}
+
+// setupTest creates a testContext for writing Watcher tests.
+func setupTest(t *testing.T) testContext {
+	ctx := testContext{}
+
+	ctx.PollingStopwatch = waitingtest.NewFakeStopwatch()
+	ctx.Watcher = watcher.New(watcher.Params{
+		PollingStopwatch: ctx.PollingStopwatch,
+	})
+	t.Cleanup(func() {
+		done := make(chan struct{})
 
 		go func() {
-			w.Finish()
-			finished <- struct{}{}
+			ctx.Watcher.Finish()
+			done <- struct{}{}
 		}()
 
-		waitWithDeadline(t, finished, "expected Finish() to complete")
+		waitWithDeadline(t, done, "expected Finish to complete")
+	})
+
+	tmpdir := t.TempDir()
+	ctx.AbsPath = func(slashPath string) string {
+		t.Helper()
+		absPath, err := filepath.Abs(
+			filepath.Join(tmpdir, filepath.FromSlash(slashPath)),
+		)
+		require.NoError(t, err)
+		return absPath
+	}
+	ctx.RelPath = func(slashPath string) string {
+		t.Helper()
+
+		cwd, err := os.Getwd()
+		require.NoError(t, err)
+
+		relPath, err := filepath.Rel(cwd, ctx.AbsPath(slashPath))
+		require.NoError(t, err)
+
+		return relPath
 	}
 
-	t.Run("runs callback on file write", func(t *testing.T) {
-		t.Parallel()
-
-		onChangeChan := make(chan struct{})
-		file := filepath.Join(t.TempDir(), "file.txt")
-		t1 := writeFileAndGetModTime(t, file, "")
-
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
+	ctx.WriteFile = func(slashPath, content string) {
+		t.Helper()
+		path := ctx.AbsPath(slashPath)
 		require.NoError(t,
-			watcher.Watch(file, func() { onChangeChan <- struct{}{} }))
-		time.Sleep(100 * time.Millisecond) // see below
-		t2 := writeFileAndGetModTime(t, file, "xyz")
+			os.MkdirAll(filepath.Dir(path), os.ModePerm))
+		require.NoError(t,
+			os.WriteFile(
+				path,
+				[]byte(content),
+				syscall.S_IRUSR|syscall.S_IWUSR,
+			))
+	}
 
-		if t1 == t2 {
-			// We sleep before updating the file to try to increase the
-			// likelihood of the second write updating the file's ModTime.
-			//
-			// The ModTime (mtime) is sometimes not very precise, causing
-			// the file to look unchanged to the poll-based watcher that
-			// we use.
-			//
-			// Great blog post about it: https://apenwarr.ca/log/20181113
-			t.Skip("test ran too fast and mtime didn't change")
+	ctx.DeleteFile = func(slashPath string) {
+		t.Helper()
+		require.NoError(t, os.Remove(ctx.AbsPath(slashPath)))
+	}
+
+	idChan := make(chan capturedFileCallback)
+	ctx.LogID0 = func(id string) func() {
+		return func() { idChan <- capturedFileCallback{id, ""} }
+	}
+	ctx.LogID1 = func(id string) func(string) {
+		return func(path string) { idChan <- capturedFileCallback{id, path} }
+	}
+	ctx.ExpectLoggedID = func(id, slashPath string) {
+		t.Helper()
+
+		captured := waitWithDeadline(t, idChan,
+			"expected file callback to be called")
+
+		var expectedPath string
+		if slashPath == "" {
+			expectedPath = slashPath
+		} else {
+			expectedPath = ctx.AbsPath(slashPath)
 		}
 
-		waitWithDeadline(t, onChangeChan,
-			"expected file callback to be called")
-	})
+		if captured.ID != id || captured.Path != expectedPath {
+			t.Errorf(
+				"expected callback '%v' to be called with path '%v'"+
+					" but got callback '%v' with path '%v'",
+				id,
+				expectedPath,
+				captured.ID,
+				captured.Path,
+			)
+		}
+	}
 
-	t.Run("runs callback on new file in directory", func(t *testing.T) {
-		t.Parallel()
+	return ctx
+}
 
-		onChangeChan := make(chan string)
-		dir := filepath.Join(t.TempDir(), "dir")
-		file := filepath.Join(dir, "file.txt")
-		mkdir(t, dir)
+func TestWatcher(t *testing.T) {
+	t.Run("runs callback for new file", func(t *testing.T) {
+		ctx := setupTest(t)
 
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
 		require.NoError(t,
-			watcher.WatchDir(dir, func(s string) { onChangeChan <- s }))
-		writeFile(t, file, "")
+			ctx.Watcher.Watch(
+				ctx.RelPath("file.txt"),
+				ctx.LogID0("watch"),
+			))
+		ctx.WriteFile("file.txt", "")
+		ctx.PollingStopwatch.SetDone()
 
-		result := waitWithDeadline(t, onChangeChan,
-			"expected file callback to be called")
-		assert.Equal(t, result, file)
+		ctx.ExpectLoggedID("watch", "")
 	})
 
-	t.Run("fails if file does not exist", func(t *testing.T) {
-		t.Parallel()
+	t.Run("runs callback for modified file", func(t *testing.T) {
+		ctx := setupTest(t)
+		ctx.WriteFile("file.txt", "initial")
 
-		file := filepath.Join(t.TempDir(), "file.txt")
+		require.NoError(t,
+			ctx.Watcher.Watch(
+				ctx.RelPath("file.txt"),
+				ctx.LogID0("watch"),
+			))
+		ctx.WriteFile("file.txt", "modified")
+		ctx.PollingStopwatch.SetDone()
 
-		watcher := newTestWatcher()
-		defer finishWithDeadline(t, watcher)
-		err := watcher.Watch(file, func() {})
-
-		require.Error(t, err)
+		ctx.ExpectLoggedID("watch", "")
 	})
 
-	t.Run("fails if Watch is called after Finish", func(t *testing.T) {
-		t.Parallel()
+	t.Run("runs callback for deleted file", func(t *testing.T) {
+		ctx := setupTest(t)
+		ctx.WriteFile("file.txt", "content 1")
 
-		file := filepath.Join(t.TempDir(), "file.txt")
-		writeFile(t, file, "")
+		require.NoError(t,
+			ctx.Watcher.Watch(
+				ctx.RelPath("file.txt"),
+				ctx.LogID0("watch"),
+			))
+		ctx.DeleteFile("file.txt")
+		ctx.PollingStopwatch.SetDone()
 
-		watcher := newTestWatcher()
-		finishWithDeadline(t, watcher)
-		err := watcher.Watch(file, func() {})
+		ctx.ExpectLoggedID("watch", "")
+	})
 
-		require.ErrorContains(t, err, "tried to call Watch() after Finish()")
+	t.Run("runs callback for nested file in tree", func(t *testing.T) {
+		ctx := setupTest(t)
+		ctx.WriteFile("dir/unchanged.txt", "")
+
+		require.NoError(t,
+			ctx.Watcher.WatchTree(
+				ctx.RelPath("dir"),
+				ctx.LogID1("watch"),
+			))
+		ctx.WriteFile("dir/subdir/new.txt", "")
+		ctx.PollingStopwatch.SetDone()
+
+		ctx.ExpectLoggedID("watch", "dir/subdir/new.txt")
 	})
 }
