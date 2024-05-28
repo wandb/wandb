@@ -197,9 +197,16 @@ ignore-overlong-task-comments = true
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+ignore-decorators = [
+    # Allow undocumented @property descriptors for now.
+    # As of May 2024, many in the public API module(s) currently lack docs, or may plausibly have been intended
+    # for internal use only.  Consider removing this exemption in the future, when/if/as appropriate.
+    "property",
+]
+
 [tool.ruff.lint.per-file-ignores]
-# Ensure stricter docstring requirements for public API module(s)
-"!wandb/apis/public/api.py" = [  # Note: Strongly consider expanding to other public modules, too.
+# Ensure stricter docstring requirements for public API module(s).
+"!wandb/apis/public/api.py" = [  # Consider expanding to other `wandb.api.public` submodules as well.
     "D101",  # Require docstrings in public classes
     "D102",  # Require docstrings in public methods
     "D103",  # Require docstrings in public functions
