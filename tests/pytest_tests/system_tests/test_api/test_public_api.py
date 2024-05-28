@@ -1,6 +1,5 @@
 import wandb
 
-
 def test_delete_summary_metric_w_no_lazyload(user, test_settings):
     run = wandb.init(settings=test_settings())
     runid = run.id
@@ -14,9 +13,9 @@ def test_delete_summary_metric_w_no_lazyload(user, test_settings):
     try:
         del run.summary[metric]
         run.update()
-        # after deleting the metric, accessing it again should throw an error
+        # After deleting the metric, accessing it again should throw an error
         run.summary[metric]
-    except:
+    except KeyError:
         assert True
     else:
-        assert False
+        raise AssertionError("Metric was not deleted successfully.")
