@@ -995,7 +995,7 @@ def init(
             there, so make sure to create your account or team in the UI before
             starting to log runs.
             If you don't specify an entity, the run will be sent to your default
-            entity, which is usually your username. Change your default entity
+            entity. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
         config: (dict, argparse, absl.flags, str, optional)
