@@ -1054,7 +1054,6 @@ class SendManager:
                 program_path=self._settings.program or None,
                 repo=run.git.remote_url or None,
                 commit=run.git.commit or None,
-                rewind=self._settings.resume_from is not None,
             )
         # TODO: we don't want to create jobs in sweeps, since the
         #  executable doesn't appear to be consistent
