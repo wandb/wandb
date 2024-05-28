@@ -2220,24 +2220,26 @@ class Api:
     def rewind_run(
         self,
         run_name: str,
-        entity: str,
-        project: str,
         metric_name: str,
         metric_value: float,
+        program_path: Optional[str] = None,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
         num_retries: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
 
         Arguments:
             run_name (str): The name of the run to rewind
-            entity (str): The entity to scope this project to.
-            project (str): The name of the project
             metric_name (str): The name of the metric to rewind to
             metric_value (float): The value of the metric to rewind to
-            num_retries (int, optional): Number of retries
+            program_path (str, optional): Path to the program.            
+            entity (str, optional): The entity to scope this project to.
+            project (str, optional): The name of the project
+            num_retries (int, optional): Number of retries            
         """
         query_string = """
-        mutation RewindRun($runName: String!, $entity: String!, $project: String!, $metricName: String!, $metricValue: Float!) {
+        mutation RewindRun($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
             rewindRun(input: {runName: $runName, entityName: $entity, projectName: $project, metricName: $metricName, metricValue: $metricValue}) {
                 rewoundRun {
                     id
@@ -2268,11 +2270,13 @@ class Api:
 
         variable_values = {
             "runName": run_name,
-            "entityName": entity,
-            "projectName": project,
+            "entity": entity or self.settings("entity"),
+            "project": project or util.auto_project_name(program_path),
             "metricName": metric_name,
             "metricValue": metric_value,
         }
+
+        breakpoint()
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
         check_retry_fn = util.make_check_retry_fn(

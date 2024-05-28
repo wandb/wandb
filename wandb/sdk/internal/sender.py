@@ -1035,6 +1035,7 @@ class SendManager:
                 project=run.project or None,
                 metric_name=self._settings.resume_from.metric,
                 metric_value=self._settings.resume_from.value,
+                program_path=self._settings.program or None,
             )
             server_messages = None
             inserted = True
