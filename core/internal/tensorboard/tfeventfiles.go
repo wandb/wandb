@@ -39,7 +39,7 @@ func nextTFEventsFile(
 	}
 
 	next := ""
-	for _, entry := range entries[1:] {
+	for _, entry := range entries {
 		// TensorBoard sorts files using Python string comparison:
 		// https://github.com/tensorflow/tensorboard/blob/ae7d0b9250f5986dd0f0c238fcaf3c8d7f4312ca/tensorboard/backend/event_processing/directory_watcher.py#L208-L212
 		//
