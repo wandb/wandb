@@ -37,11 +37,6 @@ def monitor():
     if gym_lib is None:
         raise wandb.Error(_required_error_msg)
 
-    vcr = wandb.util.get_module(
-        f"{gym_lib}.wrappers.monitoring.video_recorder",
-        required=_required_error_msg,
-    )
-
     global _gym_version_lt_0_26
     global _gymnasium_version_lt_1_0_0
 
