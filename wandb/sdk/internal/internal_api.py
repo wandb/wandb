@@ -2038,7 +2038,6 @@ class Api:
         commit: Optional[str] = None,
         sweep_name: Optional[str] = None,
         summary_metrics: Optional[str] = None,
-        rewind: Optional[bool] = None,
         num_retries: Optional[int] = None,
     ) -> Tuple[dict, bool, Optional[List]]:
         """Update a run.
@@ -2062,7 +2061,6 @@ class Api:
             commit (str, optional): The Git SHA to associate the run with
             sweep_name (str, optional): The name of the sweep this run is a part of
             summary_metrics (str, optional): The JSON summary metrics
-            rewind (bool, optional): Whether to rewind the run
             num_retries (int, optional): Number of retries
         """
         query_string = """
@@ -2086,7 +2084,6 @@ class Api:
             $sweep: String,
             $tags: [String!],
             $summaryMetrics: JSONString,
-            $rewind: Boolean,
         ) {
             upsertBucket(input: {
                 id: $id,
@@ -2108,7 +2105,6 @@ class Api:
                 sweep: $sweep,
                 tags: $tags,
                 summaryMetrics: $summaryMetrics,
-                rewind: $rewind
             }) {
                 bucket {
                     id
@@ -2180,7 +2176,6 @@ class Api:
             "state": state,
             "sweep": sweep_name,
             "summaryMetrics": summary_metrics,
-            "rewind": rewind,
         }
 
         # retry conflict errors for 2 minutes, default to no_auth_retry
