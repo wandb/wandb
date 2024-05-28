@@ -101,11 +101,15 @@ func (d *FakeDelay) IsZero() bool {
 }
 
 func (d *FakeDelay) Wait() <-chan struct{} {
-	if d.IsZero() {
+	if d == nil {
 		return completedDelay()
 	}
 
 	d.mu.Lock()
+
+	if d.isZero {
+		return completedDelay()
+	}
 
 	if !d.allowsWait {
 		panic("tried to Wait() on a FakeDelay after the final Tick()")

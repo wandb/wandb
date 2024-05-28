@@ -70,7 +70,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 	sender := server.NewSender(
 		ctx,
 		cancel,
-		&server.SenderParams{
+		server.SenderParams{
 			Logger:              logger,
 			Settings:            settings.Proto,
 			Backend:             backend,

@@ -1435,6 +1435,65 @@ def test_change_artifact_collection_type(monkeypatch, wandb_init):
         assert artifact.type == "lucas_type"
 
 
+def test_save_artifact_sequence(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("sequence_name", "data")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+        artifact = run.use_artifact("sequence_name:latest")
+        collection = wandb.Api().artifact_collection("data", "sequence_name")
+        collection.description = "new description"
+        collection.name = "new_name"
+        collection.type = "new_type"
+        collection.tags = ["tag"]
+        collection.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        assert artifact.type == "new_type"
+        collection = artifact.collection
+        assert collection.type == "new_type"
+        assert collection.name == "new_name"
+        assert collection.description == "new description"
+        assert len(collection.tags) == 1 and collection.tags[0] == "tag"
+
+        collection.tags = ["new_tag"]
+        collection.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        collection = artifact.collection
+        assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
+
+
+def test_save_artifact_portfolio(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+        artifact.link("portfolio_name")
+        artifact.wait()
+
+        portfolio = wandb.Api().artifact_collection("data", "portfolio_name")
+        portfolio.description = "new description"
+        portfolio.name = "new_name"
+        with pytest.raises(ValueError):
+            portfolio.type = "new_type"
+        portfolio.tags = ["tag"]
+        portfolio.save()
+
+        port_artifact = run.use_artifact("new_name:v0")
+        portfolio = port_artifact.collection
+        assert portfolio.name == "new_name"
+        assert portfolio.description == "new description"
+        assert len(portfolio.tags) == 1 and portfolio.tags[0] == "tag"
+
+        portfolio.tags = ["new_tag"]
+        portfolio.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        portfolio = artifact.collection
+        assert len(portfolio.tags) == 1 and portfolio.tags[0] == "new_tag"
+
+
 def test_s3_storage_handler_load_path_missing_reference_allowed(
     monkeypatch, wandb_init, capsys
 ):
