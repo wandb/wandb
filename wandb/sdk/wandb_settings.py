@@ -1856,6 +1856,9 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_resume_logic()
+
+    def _handle_resume_logic(self) -> None:
 
         # handle auto resume logic
         if self.resume == "auto":
