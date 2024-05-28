@@ -2276,8 +2276,6 @@ class Api:
             "metricValue": metric_value,
         }
 
-        breakpoint()
-
         # retry conflict errors for 2 minutes, default to no_auth_retry
         check_retry_fn = util.make_check_retry_fn(
             check_fn=util.check_retry_conflict_or_gone,
