@@ -1859,7 +1859,6 @@ class Settings(SettingsData):
         self._handle_resume_logic()
 
     def _handle_resume_logic(self) -> None:
-
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):
