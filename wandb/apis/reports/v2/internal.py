@@ -264,7 +264,6 @@ class PanelBankSectionConfig(ReportAPIBaseModel):
     pinned: Optional[bool] = None
     panel_refs: LList[Ref] = Field(default_factory=list)
 
-
 class PanelGridCustomRunColors(ReportAPIBaseModel):
     ref: Ref = Field(default_factory=lambda: Ref)
 

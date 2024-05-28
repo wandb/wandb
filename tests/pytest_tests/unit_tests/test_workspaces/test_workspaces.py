@@ -30,7 +30,7 @@ if sys.version_info >= (3, 8):
 
         @classmethod
         def runset_settings(cls):
-            return ws.RunsetSettings(
+            return ws.RunSetSettings(
                 filters=[
                     ws.Metric("abc") > 1,
                     ws.Metric("def") < 2,
