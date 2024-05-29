@@ -105,17 +105,6 @@ def test_resume_allow_success(
         run.log({"acc": 10}, step=15, commit=True)
         run.finish()
 
-        # Wait for run metadata to finish uploading since resume logic relies on wandb-metadata.json being uploaded
-        api = Api()
-        api_run = api.run(f"{run.entity}/project/{run_id}")
-        metadata = None
-        tries = 0
-        while metadata is None and tries < 5:
-            metadata = api_run.metadata
-            time.sleep(1)
-            tries += 1
-        assert metadata is not None
-
         run = wandb_init(resume="allow", id=run_id, project="project")
         run.log({"acc": 10})
         run.finish()
@@ -127,17 +116,6 @@ def test_resume_never_failure(wandb_init):
     run = wandb_init(project="project")
     run_id = run.id
     run.finish()
-
-    # Wait for run metadata to finish uploading since resume logic relies on wandb-metadata.json being uploaded
-    api = Api()
-    api_run = api.run(f"{run.entity}/project/{run_id}")
-    metadata = None
-    tries = 0
-    while metadata is None and tries < 5:
-        metadata = api_run.metadata
-        time.sleep(1)
-        tries += 1
-    assert metadata is not None
 
     with pytest.raises(UsageError):
         wandb_init(resume="never", id=run_id, project="project")
