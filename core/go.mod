@@ -9,13 +9,11 @@ require (
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.6
-	github.com/radovskyb/watcher v1.0.7
 	github.com/segmentio/encoding v0.4.0
 	github.com/shirou/gopsutil/v3 v3.24.4
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0
 	github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635
-	golang.org/x/sync v0.7.0
 	golang.org/x/time v0.5.0
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -55,6 +53,7 @@ require (
 	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.25.0 // indirect
+	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/tools v0.21.0 // indirect
