@@ -92,7 +92,7 @@ def main():
     parser.add_argument("--test_variant", type=str, default="")
     parser.add_argument("--server_version", type=str, default="")
     parser.add_argument("--server_type", type=str, default="")
-    parser.add_argument("--client_version", type=str, default="")
+    parser.add_argument("--client_version", type=str, default=wandb.__version__)
     parser.add_argument("--client_type", type=str, default="")
     parser.add_argument("--num_sequential", type=int, default=1)
     parser.add_argument("--num_parallel", type=int, default=1)

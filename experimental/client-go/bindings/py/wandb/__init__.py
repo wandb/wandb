@@ -1,6 +1,6 @@
 """wandb library."""
 
-__version__ = "0.0.2.dev1"
+__version__ = "0.0.1.dev1+exp.go.py"
 
 from wandb.proto import wandb_internal_pb2 as pb2
 
