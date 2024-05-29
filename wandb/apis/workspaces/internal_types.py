@@ -9,6 +9,7 @@ from wandb_gql import gql
 
 import wandb
 
+# these types should have a 1-1 match with what's in FE
 
 class WorkspaceAPIBaseModel(BaseModel):
     model_config = ConfigDict(
@@ -20,57 +21,59 @@ class WorkspaceAPIBaseModel(BaseModel):
     )
     
 
+# This maps to a row in the views table
 class WorkspaceView(WorkspaceAPIBaseModel):
     entity: str
     project: str
     display_name: str
     name: str
     id: str
-    viewspec: WorkspaceViewSpec
+    spec: WorkspaceViewSpec
 
 
 class WorkspaceViewSpec(WorkspaceAPIBaseModel):
-    section: WorkspaceViewSpecSection # this gives us workspace settings
+    section: WorkspaceViewSpecSection # this gives us one part of workspace settings
     viz_expanded: bool = False
     library_expanded: bool = True
+    
     # do we really need the ref?
-    ref: Ref = Field(default_factory=Ref)
+    # ref: Ref = Field(default_factory=Ref)
 
 
-# maps to Config type in section.ts 
+# maps to Config type in src/util/section.ts 
 class WorkspaceViewSpecSection(WorkspaceAPIBaseModel):
     # omit type
-    name: Optional[str]
-    open_run_set: Optional[int]
-    open_viz: Optional[bool]
+    name: Optional[str] = Field(default=None)
+    open_run_set: Optional[int] = Field(default=None)
+    hide_run_sets: Optional[bool] = Field(default=None)
+    open_viz: Optional[bool] = Field(default=None)
     
-    # openRunSet
-    # hideRunSets
-    run_sets: LList[Runset] = Field(default_factory=lambda: [Runset()])
-    settings: Settings = Field(default_factory=Settings)
+    run_sets: Optional[List[Runset]] = Field(default=None)
+    settings: Optional[Settings] = Field(default=None)
 
     # this is intentionally dict because it has arbitrary keys (the run ids)
     custom_run_colors: dict
     
-    # panels
-    
+    panels = # todo typing
     panel_bank_config: PanelBankConfig 
     panel_bank_section_config: PanelBankSectionConfig
 
-
     # remove
-    ref: Ref = Field(default_factory=Ref)
+    # ref: Ref = Field(default_factory=Ref)
 
-
+# this maps to PanelBankConfig type in PanelBank/types.ts
 class PanelBankConfig(WorkspaceAPIBaseModel):
-    state: int = 0
-    # this gives us the workspace settings as well
+    state: int = 0 # todo - need to look into what this value needs to do
+    
+    # this gives us one part of the workspace settings
     settings: PanelBankConfigSettings = Field(default_factory=PanelBankConfigSettings)
+    
     sections: LList[PanelBankSectionConfig] = Field(
         default_factory=lambda: [PanelBankSectionConfig()]
     )
-    # todo - remove
-    ref: Optional[Ref] = None
+    
+    # remove
+    # ref: Optional[Ref] = None
 
     # Run keys are arbitrarily added here, so add some type checking for safety
     # All run keys have the shape (key:str, value:colour)
@@ -96,8 +99,7 @@ class PanelBankConfigSettings(WorkspaceAPIBaseModel):
     search_history: Optional[LList[Dict[Literal["query"], str]]] = None
     auto_expand_search_results: Optional[bool] = None
 
-# Maps to PanelBankSectionConfig in types.ts
-# Settings for 
+# Maps to PanelBankSectionConfig in PanelBank/types.ts 
 class PanelBankSectionConfig(WorkspaceAPIBaseModel):
     # __id__ 
     flow_config: FlowConfig = Field(default_factory=FlowConfig)
@@ -105,11 +107,11 @@ class PanelBankSectionConfig(WorkspaceAPIBaseModel):
     local_panel_settings: Settings = Field(default_factory=Settings)
     name: str = "Hidden Panels"
     panels: LList["PanelTypes"] = Field(default_factory=list)
-    sorted: int = 0
+    sorted: Literal[0, 1]  = 0
     pinned: bool = False
-    type: str = "flow"
-    # internal so can remove
-    ref: Optional[Ref] = None
+    type: Literal['grid', 'flow']  = "flow"
+    # remove
+    # ref: Optional[Ref] = None
 
 
 # Defaults coming from getDefaultPanelSectionConfig() and matches PanelBankFlowSectionConfig/types.ts
@@ -125,9 +127,12 @@ class FlowConfig(WorkspaceAPIBaseModel):
 # This maps to the DEFAULT EMPTY configs in panelsettings.ts and 
 class Settings(WorkspaceAPIBaseModel):
     ignore_outliers: bool = False
-    # local active ones are ignored
+    
+    # todo - local active logic
+    
     smoothing_type: str = "exponential"
     smoothing_weight: int = 0
+    
     # This was missing
     useRunsTableGroupingInPanels: bool = False
     
@@ -137,9 +142,11 @@ class Settings(WorkspaceAPIBaseModel):
     
     color_run_names: Optional[bool] = None
     max_runs: Optional[int] = None
-    point_visualization_method: Optional[
-        Literal["bucketing-gorilla", "sampling"]
-    ] = None
+    
+    # point_visualization_method: Optional[
+    #    Literal["bucketing-gorilla", "sampling"]
+    # ] = None
+    
     suppress_legends: Optional[bool] = None
     show_min_max_on_hover: Optional[bool] = None
     tooltip_number_of_runs: Optional[Literal["single", "default", "all_runs"]] = None

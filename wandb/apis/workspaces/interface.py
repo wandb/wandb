@@ -81,19 +81,21 @@ class Workspace(Base):
 
     entity: str
     project: str
-    # what about here
+    
     workspace_name: Annotated[str, Field("")]
-    # why not be explicit here
     workspace_sections: LList[WorkspaceSection] = Field(default_factory=list)
-    # why not be explicity here also since we also have runset_settings
     workspace_settings: WorkspaceSettings = Field(default_factory=WorkspaceSettings)
+    
     runset_settings: RunSetSettings = Field(default_factory=RunSetSettings)
 
+    # this maps to view.name
     _internal_name: str = Field("", init=False, repr=False)
+    # this maps to view.id
     _internal_id: str = Field("", init=False, repr=False)
 
     @classmethod
     def from_model(cls, model: internal.View):
+        # move to util
         # construct configs from disjoint parts of settings
         run_settings = {}
 
@@ -118,7 +120,7 @@ class Workspace(Base):
             project=model.project,
             name=model.display_name,
             workspace_sections=[
-                Section.from_model(s)
+                WorkspaceSection.from_model(s)
                 for s in model.viewspec.section.panel_bank_config.sections
             ],
             workspace_settings=WorkspaceSettings.from_model(model.viewspec.section.settings),
@@ -152,7 +154,7 @@ class Workspace(Base):
             display_name=self.name,
             name=self._internal_name,
             id=self._internal_id,
-            viewspec=internal.WorkspaceViewspec(
+            spec=internal.WorkspaceViewspec(
                 section=internal.ViewSpecSection(
                     panel_bank_config=internal.PanelBankConfig(
                         state=1,
@@ -273,11 +275,12 @@ class WorkspaceSection(Base):
         section_panel_settings (SectionPanelSettings): Settings for the panels in this section.
     """
 
+    # TODO - why don't we need to Field(default_factory) stuff?
     name: str
     panels: LList[PanelTypes] = Field(default_factory=list)
     
     is_open: bool = True  
-    is_sorted: SectionPanelSorting;# TODO - typing
+    # is_sorted: SectionPanelSorting;# TODO - typing
     is_pinned: bool = False
     
     layout_type: Literal['grid', 'flow'] = 'grid'
