@@ -79,3 +79,60 @@ func (l *library) SystemGetTopologyGpuSet(cpuNumber int) ([]Device, Return) {
 	ret = nvmlSystemGetTopologyGpuSet(uint32(cpuNumber), &count, &deviceArray[0])
 	return convertSlice[nvmlDevice, Device](deviceArray), ret
 }
+
+// nvml.SystemGetConfComputeCapabilities()
+func (l *library) SystemGetConfComputeCapabilities() (ConfComputeSystemCaps, Return) {
+	var capabilities ConfComputeSystemCaps
+	ret := nvmlSystemGetConfComputeCapabilities(&capabilities)
+	return capabilities, ret
+}
+
+// nvml.SystemGetConfComputeState()
+func SystemGetConfComputeState() (ConfComputeSystemState, Return) {
+	var state ConfComputeSystemState
+	ret := nvmlSystemGetConfComputeState(&state)
+	return state, ret
+}
+
+// nvml.SystemGetConfComputeGpusReadyState()
+func SystemGetConfComputeGpusReadyState() (uint32, Return) {
+	var isAcceptingWork uint32
+	ret := nvmlSystemGetConfComputeGpusReadyState(&isAcceptingWork)
+	return isAcceptingWork, ret
+}
+
+// nvml.SystemSetConfComputeGpusReadyState()
+func SystemSetConfComputeGpusReadyState(isAcceptingWork uint32) Return {
+	return nvmlSystemSetConfComputeGpusReadyState(isAcceptingWork)
+}
+
+// nvml.SystemSetNvlinkBwMode()
+func SystemSetNvlinkBwMode(nvlinkBwMode uint32) Return {
+	return nvmlSystemSetNvlinkBwMode(nvlinkBwMode)
+}
+
+// nvml.SystemGetNvlinkBwMode()
+func SystemGetNvlinkBwMode() (uint32, Return) {
+	var nvlinkBwMode uint32
+	ret := nvmlSystemGetNvlinkBwMode(&nvlinkBwMode)
+	return nvlinkBwMode, ret
+}
+
+// nvml.SystemGetConfComputeKeyRotationThresholdInfo()
+func (l *library) SystemGetConfComputeKeyRotationThresholdInfo() (ConfComputeGetKeyRotationThresholdInfo, Return) {
+	var keyRotationThresholdInfo ConfComputeGetKeyRotationThresholdInfo
+	ret := nvmlSystemGetConfComputeKeyRotationThresholdInfo(&keyRotationThresholdInfo)
+	return keyRotationThresholdInfo, ret
+}
+
+// nvml.SystemGetConfComputeSettings()
+func (l *library) SystemGetConfComputeSettings() (SystemConfComputeSettings, Return) {
+	var settings SystemConfComputeSettings
+	ret := nvmlSystemGetConfComputeSettings(&settings)
+	return settings, ret
+}
+
+// nvml.SystemSetConfComputeKeyRotationThresholdInfo()
+func (l *library) SystemSetConfComputeKeyRotationThresholdInfo(keyRotationThresholdInfo ConfComputeSetKeyRotationThresholdInfo) Return {
+	return nvmlSystemSetConfComputeKeyRotationThresholdInfo(&keyRotationThresholdInfo)
+}
