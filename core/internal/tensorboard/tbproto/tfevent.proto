@@ -8,9 +8,9 @@ option go_package = "github.com/wandb/wandb/core/internal/tensorboard/tbproto";
 //
 // We only include fields that are relevant to us.
 message TFEvent {
-    // Timestamp of the event.
-    double wall_time = 1;
+  // Timestamp of the event.
+  double wall_time = 1;
 
-    // Global step of the event.
-    int64 step = 2;
+  // Global step of the event.
+  int64 step = 2;
 }
