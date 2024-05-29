@@ -527,6 +527,7 @@ def test_resume_success(wandb_init, mock_run, backend_interface):
     while metadata is None and tries < 5:
         metadata = api_run.metadata
         time.sleep(1)
+        tries += 1
     assert metadata is not None
 
     resume_run = mock_run(
@@ -562,6 +563,7 @@ def test_resume_error_never(wandb_init, mock_run, backend_interface):
     while metadata is None and tries < 5:
         metadata = api_run.metadata
         time.sleep(1)
+        tries += 1
     assert metadata is not None
 
     resume_run = mock_run(

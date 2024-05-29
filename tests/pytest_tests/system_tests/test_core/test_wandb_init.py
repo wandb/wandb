@@ -113,6 +113,7 @@ def test_resume_allow_success(
         while metadata is None and tries < 5:
             metadata = api_run.metadata
             time.sleep(1)
+            tries += 1
         assert metadata is not None
 
         run = wandb_init(resume="allow", id=run_id, project="project")
@@ -135,6 +136,7 @@ def test_resume_never_failure(wandb_init):
     while metadata is None and tries < 5:
         metadata = api_run.metadata
         time.sleep(1)
+        tries += 1
     assert metadata is not None
 
     with pytest.raises(UsageError):
