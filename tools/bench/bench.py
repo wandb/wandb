@@ -2,6 +2,7 @@
 
 import argparse
 import multiprocessing
+import numpy
 import os
 from typing import List, Tuple
 
@@ -30,13 +31,16 @@ def run_one(args, n=0, m=0):
             for i in range(args.history_floats):
                 d[f"f_{i}"] = float(n + m + e + i)
             for i in range(args.history_ints):
-                d[f"i_{i}"] = n + m + e + i
+                d[f"n_{i}"] = n + m + e + i
             for i in range(args.history_strings):
                 d[f"s_{i}"] = str(n + m + e + i)
             for i in range(args.history_tables):
                 d[f"t_{i}"] = wandb.Table(
                     columns=["a", "b", "c", "d"], data=[[n + m, e, i, i + 1]]
                 )
+            for i in range(args.history_images):
+                d[f"i_{i}"] = wandb.Image(numpy.random.randint(255,
+                    size=(args.history_images_dim, args.history_images_dim, 3), dtype=numpy.uint8))
             run.log(d)
 
 
@@ -101,6 +105,8 @@ def main():
     parser.add_argument("--history_ints", type=int, default=0)
     parser.add_argument("--history_strings", type=int, default=0)
     parser.add_argument("--history_tables", type=int, default=0)
+    parser.add_argument("--history_images", type=int, default=0)
+    parser.add_argument("--history_images_dim", type=int, default=16)
     parser.add_argument(
         "--mode", type=str, default="online", choices=("online", "offline")
     )
