@@ -16,6 +16,7 @@ def test_delete_summary_metric_w_no_lazyload(user, test_settings):
         run.update()
         # After deleting the metric, accessing it again should throw an error
         run.summary[metric]
+        assert False
     except KeyError:
         assert True
     else:
