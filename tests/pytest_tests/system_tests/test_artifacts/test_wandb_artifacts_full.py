@@ -528,6 +528,46 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
     assert downloaded == art_dir / name_path
 
 
+@pytest.mark.wandb_core_failure(feature="path_prefix downloads")
+def test_log_and_download_with_path_prefix(wandb_init, tmp_path):
+    artifact = wandb.Artifact(name="test-artifact", type="dataset")
+    file_paths = [
+        tmp_path / "some-prefix" / "one.txt",
+        tmp_path / "some-prefix-two.txt",
+        tmp_path / "other-thing.txt",
+    ]
+
+    # Create files and add them to the artifact
+    for file_path in file_paths:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(f"Content of {file_path.name}")
+    artifact.add_dir(tmp_path)
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        logged_artifact = run.use_artifact("test-artifact:latest")
+        download_dir = Path(logged_artifact.download(path_prefix="some-prefix"))
+
+    # Check that the files with the prefix are downloaded
+    assert (download_dir / "some-prefix" / "one.txt").is_file()
+    assert (download_dir / "some-prefix-two.txt").is_file()
+
+    # Check that the file without the prefix is not downloaded
+    assert not (download_dir / "other-thing.txt").exists()
+    shutil.rmtree(download_dir)
+
+    with wandb_init() as run:
+        logged_artifact = run.use_artifact("test-artifact:latest")
+        download_dir = Path(logged_artifact.download(path_prefix="some-prefix/"))
+
+    # Only the file in the exact subdirectory should download.
+    assert (download_dir / "some-prefix" / "one.txt").is_file()
+    assert not (download_dir / "some-prefix-two.txt").exists()
+    assert not (download_dir / "other-thing.txt").exists()
+
+
 def test_retrieve_missing_artifact(logged_artifact):
     with pytest.raises(CommError, match="project 'bar' not found"):
         Api().artifact(f"foo/bar/{logged_artifact.name}")
