@@ -108,6 +108,8 @@ func (s *SentryClient) CaptureException(err error, tags observability.Tags) {
 
 	// Update the timestamp for the error
 	s.RecentErrors[hash] = now
+
+	// Send the error to sentry
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
