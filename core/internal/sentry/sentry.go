@@ -16,7 +16,7 @@ import (
 	"github.com/getsentry/sentry-go"
 )
 
-const sentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+const SentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
 
 type SentryClient struct {
 	Dsn          string
@@ -65,7 +65,7 @@ func New(disabled bool, commit string) *SentryClient {
 
 	// The DSN to use. If the DSN is not set, the client is effectively disabled.
 	if !disabled {
-		s.Dsn = sentryDsn
+		s.Dsn = SentryDsn
 	}
 
 	err := sentry.Init(sentry.ClientOptions{

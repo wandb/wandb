@@ -100,6 +100,7 @@ func main() {
 			ListenIPAddress: "127.0.0.1:0",
 			PortFilename:    *portFilename,
 			ParentPid:       *pid,
+			SentryClient:    sentryClient,
 		},
 	)
 	if err != nil {
