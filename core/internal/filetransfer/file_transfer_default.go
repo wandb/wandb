@@ -1,6 +1,7 @@
 package filetransfer
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"math"
@@ -93,6 +94,14 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, progressReader)
 	if err != nil {
 		return err
+	}
+	if task.Size == 0 {
+		// *Sometimes* on *some* platforms, req.Body is set to a non-nil io.Reader that
+		// would return 0 bytes if read, but net/http/Request.outgoingLength takes the
+		// presence of a body to indicate that length > 0 and "corrects" it to -1 to
+		// indicate unknown. If we don't fix it here we get 411 Length Required errors.
+		req.Body = io.NopCloser(bytes.NewReader([]byte{}))
+		task.Headers = append(task.Headers, "Content-Length:0")
 	}
 	for _, header := range task.Headers {
 		parts := strings.SplitN(header, ":", 2)
