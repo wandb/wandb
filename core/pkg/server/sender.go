@@ -812,7 +812,7 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	update, err := s.runSummary.Flatten()
+	update, err := s.runSummary.Flatten(s.metricSender.DefinedMetrics)
 	if err != nil {
 		s.logger.CaptureError("Error flattening run summary", err)
 		return

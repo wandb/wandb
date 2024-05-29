@@ -890,7 +890,7 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
-	items, err := h.runSummary.Flatten()
+	items, err := h.runSummary.Flatten(h.metricHandler.DefinedMetrics)
 	if err != nil {
 		h.logger.CaptureError("Error flattening run summary", err)
 		h.respond(record, response)

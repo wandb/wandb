@@ -12,9 +12,7 @@ import (
 )
 
 type RunSummary struct {
-	pathTree       *pathtree.PathTree
-	DefinedMetrics *map[string]*service.MetricRecord
-	GlobMetrics    *map[string]*service.MetricRecord
+	pathTree *pathtree.PathTree
 }
 
 func New() *RunSummary {
@@ -73,10 +71,6 @@ func (rs *RunSummary) ApplyUpdate(
 	}
 }
 
-// func (rs *RunSummary) matchAggregationType(value interface{}) runmetric.Aggregation {
-
-// }
-
 func updateAtPath(
 	tree pathtree.TreeData,
 	path []string,
@@ -131,7 +125,9 @@ func updateAtPath(
 // The order of the items is determined by the order of the tree traversal.
 // The tree traversal is depth-first but based on a map, so the order is not
 // guaranteed.
-func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
+func (rs *RunSummary) Flatten(
+	definedMetrics map[string]*service.MetricRecord,
+) ([]*service.SummaryItem, error) {
 	leaves := rs.pathTree.Flatten()
 
 	summary := make([]*service.SummaryItem, 0, len(leaves))
@@ -143,29 +139,45 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 				leaf,
 			)
 		}
-		fmt.Println("\n++Flatten")
-		fmt.Println(leaf.Value)
+		fmt.Println("\n\n++Flatten")
+		fmt.Println(definedMetrics)
+		fmt.Println(leaf.Path, leaf.Value)
 
-		// value, err := json.Marshal(leaf.Value)
-		// if err != nil {
-		// 	return nil, fmt.Errorf(
-		// 		"runhistory: failed to marshal value for item %v: %v",
-		// 		leaf, err,
-		// 	)
-		// }
+		var val interface{}
+		if pathLen == 1 {
+			switch leaf.Value.(type) {
+			case *Item[float64]:
+				// TODO: get aggregation type from definedMetrics
+				val = leaf.Value.(*Item[float64]).Latest
+			default:
+				fmt.Println("NONONONO")
+				val = leaf.Value
+			}
+		} else {
+			val = leaf.Value
+		}
 
-		// if pathLen == 1 {
-		// 	summary = append(summary, &service.SummaryItem{
-		// 		Key:       leaf.Path[0],
-		// 		ValueJson: string(value),
-		// 	})
-		// } else {
-		// 	summary = append(summary, &service.SummaryItem{
-		// 		NestedKey: leaf.Path,
-		// 		ValueJson: string(value),
-		// 	})
-		// }
+		value, err := json.Marshal(val)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"runhistory: failed to marshal value for item %v: %v",
+				leaf, err,
+			)
+		}
+
+		if pathLen == 1 {
+			summary = append(summary, &service.SummaryItem{
+				Key:       leaf.Path[0],
+				ValueJson: string(value),
+			})
+		} else {
+			summary = append(summary, &service.SummaryItem{
+				NestedKey: leaf.Path,
+				ValueJson: string(value),
+			})
+		}
 	}
+	fmt.Println(summary)
 	return summary, nil
 }
 
@@ -184,6 +196,7 @@ func (rs *RunSummary) Tree() pathtree.TreeData {
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
 	// TODO: this is wrong
+
 	return json.Marshal(rs.Tree())
 }
 
