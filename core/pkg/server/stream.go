@@ -148,6 +148,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Sentr
 		loopBackChan: make(chan *service.Record, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
 	}
 
 	// TODO: replace this with a logger that can be read by the user

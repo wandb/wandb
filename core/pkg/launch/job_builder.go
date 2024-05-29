@@ -529,7 +529,7 @@ func (j *JobBuilder) Build(
 
 	metadata, err := j.handleMetadataFile()
 	if err != nil {
-		j.logger.Debug("jobBuilder: error handling metadata file", err)
+		j.logger.Debug("jobBuilder: error handling metadata file", "error", err)
 		return nil, err
 	}
 
@@ -766,7 +766,7 @@ func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (str
 		if err == nil {
 			input_types[WandbConfigKey] = runConfigTypes
 		} else {
-			j.logger.Debug("jobBuilder: error inferring run config types", err)
+			j.logger.Debug("jobBuilder: error inferring run config types", "error", err)
 		}
 	}
 	metadata["input_types"] = input_types
@@ -822,7 +822,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 			request.GetExcludePaths(),
 		)
 		if err != nil {
-			j.logger.Error("jobBuilder: error creating file input from request", err)
+			j.logger.Error("jobBuilder: error creating file input from request", "error", err)
 			return
 		}
 		j.configFiles = append(j.configFiles, newInput)

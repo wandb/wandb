@@ -165,7 +165,7 @@ func (s *Server) Wait() {
 // Close closes the server
 func (s *Server) Close() {
 	if err := s.listener.Close(); err != nil {
-		slog.Error("failed to Close listener", err)
+		slog.Error("failed to Close listener", "error", err)
 	}
 	s.wg.Wait()
 	slog.Info("server is closed")
