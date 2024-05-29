@@ -9,6 +9,30 @@ type nvmlDevice struct {
 	Handle *_Ctype_struct_nvmlDevice_st
 }
 
+type PciInfoExt_v1 struct {
+	Version        uint32
+	Domain         uint32
+	Bus            uint32
+	Device         uint32
+	PciDeviceId    uint32
+	PciSubSystemId uint32
+	BaseClass      uint32
+	SubClass       uint32
+	BusId          [32]int8
+}
+
+type PciInfoExt struct {
+	Version        uint32
+	Domain         uint32
+	Bus            uint32
+	Device         uint32
+	PciDeviceId    uint32
+	PciSubSystemId uint32
+	BaseClass      uint32
+	SubClass       uint32
+	BusId          [32]int8
+}
+
 type PciInfo struct {
 	BusIdLegacy    [16]int8
 	Domain         uint32
@@ -70,6 +94,28 @@ type ProcessInfo struct {
 	ComputeInstanceId uint32
 }
 
+type ProcessDetail_v1 struct {
+	Pid                      uint32
+	UsedGpuMemory            uint64
+	GpuInstanceId            uint32
+	ComputeInstanceId        uint32
+	UsedGpuCcProtectedMemory uint64
+}
+
+type ProcessDetailList_v1 struct {
+	Version             uint32
+	Mode                uint32
+	NumProcArrayEntries uint32
+	ProcArray           *ProcessDetail_v1
+}
+
+type ProcessDetailList struct {
+	Version             uint32
+	Mode                uint32
+	NumProcArrayEntries uint32
+	ProcArray           *ProcessDetail_v1
+}
+
 type DeviceAttributes struct {
 	MultiprocessorCount       uint32
 	SharedCopyEngineCount     uint32
@@ -80,6 +126,10 @@ type DeviceAttributes struct {
 	GpuInstanceSliceCount     uint32
 	ComputeInstanceSliceCount uint32
 	MemorySizeMB              uint64
+}
+
+type C2cModeInfo_v1 struct {
+	IsC2cEnabled uint32
 }
 
 type RowRemapperHistogramValues struct {
@@ -147,6 +197,40 @@ type nvmlVgpuTypeId uint32
 
 type nvmlVgpuInstance uint32
 
+type VgpuHeterogeneousMode_v1 struct {
+	Version uint32
+	Mode    uint32
+}
+
+type VgpuHeterogeneousMode struct {
+	Version uint32
+	Mode    uint32
+}
+
+type VgpuPlacementId_v1 struct {
+	Version     uint32
+	PlacementId uint32
+}
+
+type VgpuPlacementId struct {
+	Version     uint32
+	PlacementId uint32
+}
+
+type VgpuPlacementList_v1 struct {
+	Version       uint32
+	PlacementSize uint32
+	Count         uint32
+	PlacementIds  *uint32
+}
+
+type VgpuPlacementList struct {
+	Version       uint32
+	PlacementSize uint32
+	Count         uint32
+	PlacementIds  *uint32
+}
+
 type VgpuInstanceUtilizationSample struct {
 	VgpuInstance uint32
 	TimeStamp    uint64
@@ -154,6 +238,34 @@ type VgpuInstanceUtilizationSample struct {
 	MemUtil      [8]byte
 	EncUtil      [8]byte
 	DecUtil      [8]byte
+}
+
+type VgpuInstanceUtilizationInfo_v1 struct {
+	TimeStamp    uint64
+	VgpuInstance uint32
+	Pad_cgo_0    [4]byte
+	SmUtil       [8]byte
+	MemUtil      [8]byte
+	EncUtil      [8]byte
+	DecUtil      [8]byte
+	JpgUtil      [8]byte
+	OfaUtil      [8]byte
+}
+
+type VgpuInstancesUtilizationInfo_v1 struct {
+	Version           uint32
+	SampleValType     uint32
+	VgpuInstanceCount uint32
+	LastSeenTimeStamp uint64
+	VgpuUtilArray     *VgpuInstanceUtilizationInfo_v1
+}
+
+type VgpuInstancesUtilizationInfo struct {
+	Version           uint32
+	SampleValType     uint32
+	VgpuInstanceCount uint32
+	LastSeenTimeStamp uint64
+	VgpuUtilArray     *VgpuInstanceUtilizationInfo_v1
 }
 
 type VgpuProcessUtilizationSample struct {
@@ -165,6 +277,33 @@ type VgpuProcessUtilizationSample struct {
 	MemUtil      uint32
 	EncUtil      uint32
 	DecUtil      uint32
+}
+
+type VgpuProcessUtilizationInfo_v1 struct {
+	ProcessName  [64]int8
+	TimeStamp    uint64
+	VgpuInstance uint32
+	Pid          uint32
+	SmUtil       uint32
+	MemUtil      uint32
+	EncUtil      uint32
+	DecUtil      uint32
+	JpgUtil      uint32
+	OfaUtil      uint32
+}
+
+type VgpuProcessesUtilizationInfo_v1 struct {
+	Version           uint32
+	VgpuProcessCount  uint32
+	LastSeenTimeStamp uint64
+	VgpuProcUtilArray *VgpuProcessUtilizationInfo_v1
+}
+
+type VgpuProcessesUtilizationInfo struct {
+	Version           uint32
+	VgpuProcessCount  uint32
+	LastSeenTimeStamp uint64
+	VgpuProcUtilArray *VgpuProcessUtilizationInfo_v1
 }
 
 type VgpuSchedulerParamsVgpuSchedDataWithARR struct {
@@ -192,7 +331,7 @@ type VgpuSchedulerLogEntry struct {
 type VgpuSchedulerLog struct {
 	EngineId        uint32
 	SchedulerPolicy uint32
-	IsEnabledARR    uint32
+	ArrMode         uint32
 	SchedulerParams [8]byte
 	EntriesCount    uint32
 	LogEntries      [200]VgpuSchedulerLogEntry
@@ -200,7 +339,7 @@ type VgpuSchedulerLog struct {
 
 type VgpuSchedulerGetState struct {
 	SchedulerPolicy uint32
-	IsEnabledARR    uint32
+	ArrMode         uint32
 	SchedulerParams [8]byte
 }
 
@@ -260,6 +399,32 @@ type ProcessUtilizationSample struct {
 	DecUtil   uint32
 }
 
+type ProcessUtilizationInfo_v1 struct {
+	TimeStamp uint64
+	Pid       uint32
+	SmUtil    uint32
+	MemUtil   uint32
+	EncUtil   uint32
+	DecUtil   uint32
+	JpgUtil   uint32
+	OfaUtil   uint32
+	Pad_cgo_0 [4]byte
+}
+
+type ProcessesUtilizationInfo_v1 struct {
+	Version             uint32
+	ProcessSamplesCount uint32
+	LastSeenTimeStamp   uint64
+	ProcUtilArray       *ProcessUtilizationInfo_v1
+}
+
+type ProcessesUtilizationInfo struct {
+	Version             uint32
+	ProcessSamplesCount uint32
+	LastSeenTimeStamp   uint64
+	ProcUtilArray       *ProcessUtilizationInfo_v1
+}
+
 type GridLicenseExpiry struct {
 	Year      uint32
 	Month     uint16
@@ -284,6 +449,40 @@ type GridLicensableFeatures struct {
 	IsGridLicenseSupported  int32
 	LicensableFeaturesCount uint32
 	GridLicensableFeatures  [3]GridLicensableFeature
+}
+
+type EccSramErrorStatus_v1 struct {
+	Version                 uint32
+	AggregateUncParity      uint64
+	AggregateUncSecDed      uint64
+	AggregateCor            uint64
+	VolatileUncParity       uint64
+	VolatileUncSecDed       uint64
+	VolatileCor             uint64
+	AggregateUncBucketL2    uint64
+	AggregateUncBucketSm    uint64
+	AggregateUncBucketPcie  uint64
+	AggregateUncBucketMcu   uint64
+	AggregateUncBucketOther uint64
+	BThresholdExceeded      uint32
+	Pad_cgo_0               [4]byte
+}
+
+type EccSramErrorStatus struct {
+	Version                 uint32
+	AggregateUncParity      uint64
+	AggregateUncSecDed      uint64
+	AggregateCor            uint64
+	VolatileUncParity       uint64
+	VolatileUncSecDed       uint64
+	VolatileCor             uint64
+	AggregateUncBucketL2    uint64
+	AggregateUncBucketSm    uint64
+	AggregateUncBucketPcie  uint64
+	AggregateUncBucketMcu   uint64
+	AggregateUncBucketOther uint64
+	BThresholdExceeded      uint32
+	Pad_cgo_0               [4]byte
 }
 
 type DeviceArchitecture uint32
@@ -408,14 +607,108 @@ type FBCSessionInfo struct {
 	AverageLatency uint32
 }
 
+type ConfComputeSystemCaps struct {
+	CpuCaps  uint32
+	GpusCaps uint32
+}
+
+type ConfComputeSystemState struct {
+	Environment  uint32
+	CcFeature    uint32
+	DevToolsMode uint32
+}
+
+type SystemConfComputeSettings_v1 struct {
+	Version      uint32
+	Environment  uint32
+	CcFeature    uint32
+	DevToolsMode uint32
+	MultiGpuMode uint32
+}
+
+type SystemConfComputeSettings struct {
+	Version      uint32
+	Environment  uint32
+	CcFeature    uint32
+	DevToolsMode uint32
+	MultiGpuMode uint32
+}
+
+type ConfComputeMemSizeInfo struct {
+	ProtectedMemSizeKib   uint64
+	UnprotectedMemSizeKib uint64
+}
+
+type ConfComputeGpuCertificate struct {
+	CertChainSize            uint32
+	AttestationCertChainSize uint32
+	CertChain                [4096]uint8
+	AttestationCertChain     [5120]uint8
+}
+
+type ConfComputeGpuAttestationReport struct {
+	IsCecAttestationReportPresent uint32
+	AttestationReportSize         uint32
+	CecAttestationReportSize      uint32
+	Nonce                         [32]uint8
+	AttestationReport             [8192]uint8
+	CecAttestationReport          [4096]uint8
+}
+
+type ConfComputeSetKeyRotationThresholdInfo_v1 struct {
+	Version              uint32
+	MaxAttackerAdvantage uint64
+}
+
+type ConfComputeSetKeyRotationThresholdInfo struct {
+	Version              uint32
+	MaxAttackerAdvantage uint64
+}
+
+type ConfComputeGetKeyRotationThresholdInfo_v1 struct {
+	Version           uint32
+	AttackerAdvantage uint64
+}
+
+type ConfComputeGetKeyRotationThresholdInfo struct {
+	Version           uint32
+	AttackerAdvantage uint64
+}
+
 type GpuFabricState byte
 
 type GpuFabricInfo struct {
-	ClusterUuid [16]int8
+	ClusterUuid [16]uint8
 	Status      uint32
-	PartitionId uint32
+	CliqueId    uint32
 	State       uint8
 	Pad_cgo_0   [3]byte
+}
+
+type GpuFabricInfo_v2 struct {
+	Version     uint32
+	ClusterUuid [16]uint8
+	Status      uint32
+	CliqueId    uint32
+	State       uint8
+	HealthMask  uint32
+}
+
+type GpuFabricInfoV struct {
+	Version     uint32
+	ClusterUuid [16]uint8
+	Status      uint32
+	CliqueId    uint32
+	State       uint8
+	HealthMask  uint32
+}
+
+type PowerScopeType byte
+
+type PowerValue_v2 struct {
+	Version      uint32
+	PowerScope   uint8
+	PowerValueMw uint32
 }
 
 type AffinityScope uint32
@@ -494,6 +787,23 @@ type GpuInstanceProfileInfo_v2 struct {
 	Name                [96]int8
 }
 
+type GpuInstanceProfileInfo_v3 struct {
+	Version             uint32
+	Id                  uint32
+	SliceCount          uint32
+	InstanceCount       uint32
+	MultiprocessorCount uint32
+	CopyEngineCount     uint32
+	DecoderCount        uint32
+	EncoderCount        uint32
+	JpegCount           uint32
+	OfaCount            uint32
+	MemorySizeMB        uint64
+	Name                [96]int8
+	Capabilities        uint32
+	Pad_cgo_0           [4]byte
+}
+
 type nvmlGpuInstanceInfo struct {
 	Device    nvmlDevice
 	Id        uint32
@@ -534,6 +844,21 @@ type ComputeInstanceProfileInfo_v2 struct {
 	SharedJpegCount       uint32
 	SharedOfaCount        uint32
 	Name                  [96]int8
+}
+
+type ComputeInstanceProfileInfo_v3 struct {
+	Version               uint32
+	Id                    uint32
+	SliceCount            uint32
+	InstanceCount         uint32
+	MultiprocessorCount   uint32
+	SharedCopyEngineCount uint32
+	SharedDecoderCount    uint32
+	SharedEncoderCount    uint32
+	SharedJpegCount       uint32
+	SharedOfaCount        uint32
+	Name                  [96]int8
+	Capabilities          uint32
 }
 
 type nvmlComputeInstanceInfo struct {

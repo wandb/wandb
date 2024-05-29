@@ -185,6 +185,7 @@ def _create_job(
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build(
+        api.api,
         dockerfile=dockerfile,
         build_context=build_context,
     )
@@ -338,7 +339,7 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            _, python_version = get_current_python_version()
+            python_version, _ = get_current_python_version()
 
     python_version = _clean_python_version(python_version)
 
