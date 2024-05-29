@@ -9,11 +9,11 @@ import "hash/crc32"
 // https://github.com/tensorflow/tensorboard/blob/ae7d0b9250f5986dd0f0c238fcaf3c8d7f4312ca/tensorboard/compat/tensorflow_stub/pywrap_tensorflow.py#L157-L165
 var crc32cTable = crc32.MakeTable(crc32.Castagnoli)
 
-// maskedCRC32C computes the "masked" CRC32-C checksum used in tfevents files.
+// MaskedCRC32C computes the "masked" CRC32-C checksum used in tfevents files.
 //
 // I don't know why it's done this way, but it comes from here:
 // https://github.com/tensorflow/tensorboard/blob/ae7d0b9250f5986dd0f0c238fcaf3c8d7f4312ca/tensorboard/compat/tensorflow_stub/pywrap_tensorflow.py#L39-L41
-func maskedCRC32C(data []byte) uint32 {
+func MaskedCRC32C(data []byte) uint32 {
 	checksum := crc32.Checksum(data, crc32cTable)
 	return ((checksum >> 15) | (checksum << 17)) + 0xA282EAD8
 }

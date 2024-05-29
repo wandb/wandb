@@ -75,7 +75,7 @@ func (s *TFEventReader) NextEvent(
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the header.
-	if maskedCRC32C(headerBytes) != headerCRC32 {
+	if MaskedCRC32C(headerBytes) != headerCRC32 {
 		return nil, fmt.Errorf(
 			"tensorboard: unexpected CRC-32C checksum for event header")
 	}
@@ -95,7 +95,7 @@ func (s *TFEventReader) NextEvent(
 	bytesRead += 4
 
 	// Check the CRC32 checksum of the event.
-	if maskedCRC32C(eventBytes) != eventCRC32 {
+	if MaskedCRC32C(eventBytes) != eventCRC32 {
 		return nil, fmt.Errorf(
 			"tensorboard: unexpected CRC-32C checksum for event")
 	}
@@ -157,18 +157,20 @@ func (s *TFEventReader) ensureBuffer(count uint64, onNewFile func(string)) bool 
 		)
 	}
 
-	success, err := s.readFromCurrent(count)
-
-	if success {
-		return true
-	}
-
-	if err != io.EOF {
+	logNonEOFError := func(err error) {
 		// We saw an error that wasn't EOF, so something is wrong.
 		s.logger.CaptureError(
 			"tensorboard: error reading current tfevents file",
 			err,
 		)
+	}
+
+	success, err := s.readFromCurrent(count)
+	if success {
+		return true
+	}
+	if err != io.EOF {
+		logNonEOFError(err)
 		return false
 	}
 
@@ -176,6 +178,15 @@ func (s *TFEventReader) ensureBuffer(count uint64, onNewFile func(string)) bool 
 		s.currentFile = nextFile
 		s.currentOffset = 0
 		onNewFile(s.currentFile)
+	}
+
+	success, err = s.readFromCurrent(count)
+	if success {
+		return true
+	}
+	if err != io.EOF {
+		logNonEOFError(err)
+		return false
 	}
 
 	return false
