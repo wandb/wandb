@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -52,6 +53,9 @@ type Connection struct {
 
 	// closed indicates if the outChan is closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.SentryClient
 }
 
 // NewConnection creates a new connection
@@ -59,16 +63,18 @@ func NewConnection(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
+	sentryClient *sentry.SentryClient,
 ) *Connection {
 
 	nc := &Connection{
-		ctx:     ctx,
-		cancel:  cancel,
-		conn:    conn,
-		id:      conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:  make(chan *service.ServerRequest, BufferSize),
-		outChan: make(chan *service.ServerResponse, BufferSize),
-		closed:  &atomic.Bool{},
+		ctx:          ctx,
+		cancel:       cancel,
+		conn:         conn,
+		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:       make(chan *service.ServerRequest, BufferSize),
+		outChan:      make(chan *service.ServerResponse, BufferSize),
+		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
 	}
 	return nc
 }
@@ -238,7 +244,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(settings, streamId)
+	nc.stream = NewStream(settings, streamId, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)

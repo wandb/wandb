@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -75,9 +76,12 @@ type Stream struct {
 
 	// closed indicates if the inChan and loopBackChan are closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.SentryClient
 }
 
-func streamLogger(settings *settings.Settings) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry.SentryClient) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -115,8 +119,8 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, opts)),
 		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(observability.CaptureMessage),
-		observability.WithCaptureException(observability.CaptureException),
+		observability.WithCaptureMessage(sentryClient.CaptureMessage),
+		observability.WithCaptureException(sentryClient.CaptureException),
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
@@ -132,12 +136,12 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string) *Stream {
+func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.SentryClient) *Stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       streamLogger(settings),
+		logger:       streamLogger(settings, sentryClient),
 		wg:           sync.WaitGroup{},
 		settings:     settings,
 		inChan:       make(chan *service.Record, BufferSize),

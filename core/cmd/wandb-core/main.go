@@ -9,8 +9,8 @@ import (
 	"runtime"
 	"runtime/trace"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/core/internal/processlib"
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -42,8 +42,8 @@ func main() {
 	}
 
 	// set up sentry reporting
-	observability.InitSentry(*disableAnalytics, commit)
-	defer sentry.Flush(2)
+	sentryClient := sentry.New(*disableAnalytics, commit)
+	defer sentryClient.Flush(2)
 
 	// store commit hash in context
 	ctx := context.Background()
