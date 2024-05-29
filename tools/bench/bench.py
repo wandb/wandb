@@ -2,12 +2,12 @@
 
 import argparse
 import multiprocessing
-import numpy
 import os
 from typing import List, Tuple
 
 import _load_profiles
 import _timing
+import numpy
 import wandb
 
 VERSION: str = "v1-2024-04-11-0"
@@ -39,8 +39,13 @@ def run_one(args, n=0, m=0):
                     columns=["a", "b", "c", "d"], data=[[n + m, e, i, i + 1]]
                 )
             for i in range(args.history_images):
-                d[f"i_{i}"] = wandb.Image(numpy.random.randint(255,
-                    size=(args.history_images_dim, args.history_images_dim, 3), dtype=numpy.uint8))
+                d[f"i_{i}"] = wandb.Image(
+                    numpy.random.randint(
+                        255,
+                        size=(args.history_images_dim, args.history_images_dim, 3),
+                        dtype=numpy.uint8,
+                    )
+                )
             run.log(d)
 
 
