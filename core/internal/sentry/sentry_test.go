@@ -29,7 +29,7 @@ func TestNew(t *testing.T) {
 				commit:   "commit",
 			},
 			want: &sentry.SentryClient{
-				DSN:    "some-dsn",
+				DSN:    sentry.SentryDSN,
 				Commit: "commit",
 			},
 		},
