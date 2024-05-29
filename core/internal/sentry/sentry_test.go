@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	sentrygo "github.com/getsentry/sentry-go"
+	"github.com/stretchr/testify/assert"
+
 	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -26,14 +29,14 @@ func TestNew(t *testing.T) {
 				commit:   "commit",
 			},
 			want: &sentry.SentryClient{
-				Dsn:    sentry.SentryDsn,
+				DSN:    "some-dsn",
 				Commit: "commit",
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := sentry.New(tt.args.disabled, tt.args.commit); got.Dsn != tt.want.Dsn || got.Commit != tt.want.Commit {
+			if got := sentry.New(tt.args.disabled, tt.args.commit); got.DSN != tt.want.DSN || got.Commit != tt.want.Commit {
 				t.Errorf("New() = %v, want %v", got, tt.want)
 			}
 		})
@@ -42,7 +45,7 @@ func TestNew(t *testing.T) {
 
 func TestSentryClient_CaptureException(t *testing.T) {
 	type fields struct {
-		Dsn          string
+		DSN          string
 		Commit       string
 		RecentErrors map[string]time.Time
 	}
@@ -59,7 +62,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureException",
 			fields: fields{
-				Dsn:          sentry.SentryDsn,
+				DSN:          "some-dsn",
 				Commit:       "commit",
 				RecentErrors: map[string]time.Time{},
 			},
@@ -73,7 +76,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionDuplicate",
 			fields: fields{
-				Dsn:          sentry.SentryDsn,
+				DSN:          "some-dsn",
 				Commit:       "commit",
 				RecentErrors: map[string]time.Time{},
 			},
@@ -87,7 +90,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionMultiple",
 			fields: fields{
-				Dsn:          sentry.SentryDsn,
+				DSN:          "some-dsn",
 				Commit:       "commit",
 				RecentErrors: map[string]time.Time{},
 			},
@@ -101,7 +104,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sc := &sentry.SentryClient{
-				Dsn:          tt.fields.Dsn,
+				DSN:          tt.fields.DSN,
 				Commit:       tt.fields.Commit,
 				RecentErrors: tt.fields.RecentErrors,
 			}
@@ -119,7 +122,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 
 func TestSentryClient_CaptureMessage(t *testing.T) {
 	type fields struct {
-		Dsn          string
+		DSN          string
 		Commit       string
 		RecentErrors map[string]time.Time
 	}
@@ -135,7 +138,7 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 		{
 			name: "TestCaptureMessage",
 			fields: fields{
-				Dsn:          sentry.SentryDsn,
+				DSN:          sentry.SentryDSN,
 				Commit:       "commit",
 				RecentErrors: map[string]time.Time{},
 			},
@@ -148,11 +151,45 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sc := &sentry.SentryClient{
-				Dsn:          tt.fields.Dsn,
+				DSN:          tt.fields.DSN,
 				Commit:       tt.fields.Commit,
 				RecentErrors: tt.fields.RecentErrors,
 			}
 			sc.CaptureMessage(tt.args.msg, tt.args.tags)
 		})
 	}
+}
+
+func TestRemoveBottomFrames(t *testing.T) {
+	// Mock event with stack trace containing frames to be removed
+	event := &sentrygo.Event{
+		Exception: []sentrygo.Exception{
+			{
+				Stacktrace: &sentrygo.Stacktrace{
+					Frames: []sentrygo.Frame{
+						{AbsPath: "/path/to/file1.go"},
+						{AbsPath: "/path/to/file2.go"},
+						{AbsPath: "/path/to/sentry.go"},
+						{AbsPath: "/path/to/logging.go"},
+					},
+				},
+			},
+		},
+	}
+
+	// Mock hint (not used in our function, so it can be nil)
+	hint := (*sentrygo.EventHint)(nil)
+
+	// Call the function under test
+	modifiedEvent := sentry.RemoveBottomFrames(event, hint)
+
+	// Validate the result: The last two frames should be preserved,
+	// as well as the first non-matching frame before the last two.
+	expectedFrames := []sentrygo.Frame{
+		{AbsPath: "/path/to/file1.go"},
+		{AbsPath: "/path/to/file2.go"},
+	}
+
+	actualFrames := modifiedEvent.Exception[0].Stacktrace.Frames
+	assert.Equal(t, expectedFrames, actualFrames, "The bottom-most sentry.go and logging.go frames should be removed")
 }

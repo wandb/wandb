@@ -16,10 +16,10 @@ import (
 	"github.com/getsentry/sentry-go"
 )
 
-const SentryDsn = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+const SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
 
 type SentryClient struct {
-	Dsn          string
+	DSN          string
 	Commit       string
 	mu           sync.Mutex
 	RecentErrors map[string]time.Time
@@ -27,9 +27,9 @@ type SentryClient struct {
 
 var recentErrorDuration = time.Minute * 5
 
-// removeBottomFrames modifies the stack trace by checking the file name of the bottom-most 3 frames
+// RemoveBottomFrames modifies the stack trace by checking the file name of the bottom-most 3 frames
 // and removing them if they are internal to core
-func removeBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
+func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Event {
 	for i, exception := range event.Exception {
 		if exception.Stacktrace == nil {
 			continue
@@ -65,15 +65,15 @@ func New(disabled bool, commit string) *SentryClient {
 
 	// The DSN to use. If the DSN is not set, the client is effectively disabled.
 	if !disabled {
-		s.Dsn = SentryDsn
+		s.DSN = SentryDSN
 	}
 
 	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              s.Dsn,
+		Dsn:              s.DSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
 		Dist:             s.Commit,
-		BeforeSend:       removeBottomFrames,
+		BeforeSend:       RemoveBottomFrames,
 	})
 
 	if err != nil {
@@ -81,7 +81,7 @@ func New(disabled bool, commit string) *SentryClient {
 	}
 
 	if !disabled {
-		slog.Debug("sentry.Init succeeded", "dsn", s.Dsn)
+		slog.Debug("sentry.Init succeeded", "dsn", s.DSN)
 	} else {
 		slog.Debug("sentry is disabled")
 	}
