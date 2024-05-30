@@ -14,10 +14,27 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
+- Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ### Fixed
 
+- Fix `define_metric` behavior for multiple metrics in `shared` mode by @dmitryduev in https://github.com/wandb/wandb/pull/7715
+- Correctly pass in project name to internal api from run while calling run.use_artifact() by @ibindlish in https://github.com/wandb/wandb/pull/7701
+- Correctly upload console output log files when resuming runs enabled with `console_multipart` setting by @kptkin in https://github.com/wandb/wandb/pull/7694 and @dmitryduev in
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
+- Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
+- Fix path parsing for artifacts with aliases containing forward slashes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7676
+
+### Changed
+
+- Option to change naming scheme for console output logs from `output.log` to `logs/YYYYMMDD_HHmmss.ms_output.log` by @kptkin in https://github.com/wandb/wandb/pull/7694
+- Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
+- Update order in api.runs() to ascending to prevent duplicate responses by @thanos-wandb https://github.com/wandb/wandb/pull/7675
+- Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586
+
+### Deprecated
+
+- Deprecated `ArtifactCollection.change_type()` in favor of `ArtifactCollection.save()` by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
 ## [0.17.0] - 2024-05-07
 

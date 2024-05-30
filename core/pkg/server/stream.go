@@ -9,16 +9,18 @@ import (
 	"path/filepath"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -74,9 +76,12 @@ type Stream struct {
 
 	// closed indicates if the inChan and loopBackChan are closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.Client
 }
 
-func streamLogger(settings *settings.Settings) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -114,8 +119,8 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, opts)),
 		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(observability.CaptureMessage),
-		observability.WithCaptureException(observability.CaptureException),
+		observability.WithCaptureMessage(sentryClient.CaptureMessage),
+		observability.WithCaptureException(sentryClient.CaptureException),
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
@@ -131,18 +136,19 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string) *Stream {
+func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Client) *Stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       streamLogger(settings),
+		logger:       streamLogger(settings, sentryClient),
 		wg:           sync.WaitGroup{},
 		settings:     settings,
 		inChan:       make(chan *service.Record, BufferSize),
 		loopBackChan: make(chan *service.Record, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
 	}
 
 	// TODO: replace this with a logger that can be read by the user
@@ -184,7 +190,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	mailbox := mailbox.NewMailbox()
 
 	s.handler = NewHandler(s.ctx,
-		&HandlerParams{
+		HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
@@ -201,17 +207,24 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	)
 
 	s.writer = NewWriter(s.ctx,
-		&WriterParams{
+		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
 			FwdChan:  make(chan *service.Record, BufferSize),
 		},
 	)
 
+	var outputFile string
+	if settings.Proto.GetConsoleMultipart().GetValue() {
+		outputFile = filepath.Join(
+			"logs",
+			fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
+		)
+	}
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
-		&SenderParams{
+		SenderParams{
 			Logger:              s.logger,
 			Settings:            s.settings.Proto,
 			Backend:             backendOrNil,
@@ -225,6 +238,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
 			Mailbox:             mailbox,
+			OutputFileName:      outputFile,
 		},
 	)
 

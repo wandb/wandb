@@ -1316,7 +1316,6 @@ def launch_sweep(
     "-u",
     metavar="(str)",
     default=None,
-    hidden=True,
     help="Local path or git repo uri to launch. If provided this command will "
     "create a job from the specified uri.",
 )

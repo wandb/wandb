@@ -630,13 +630,18 @@ class Api:
         entity = self.settings["entity"] or self.default_entity
         if path is None:
             return entity, project
+
+        path, colon, alias = path.partition(":")
+        full_alias = colon + alias
+
         parts = path.split("/")
         if len(parts) > 3:
             raise ValueError("Invalid artifact path: {}".format(path))
         elif len(parts) == 1:
-            return entity, project, path
+            return entity, project, path + full_alias
         elif len(parts) == 2:
-            return entity, parts[0], parts[1]
+            return entity, parts[0], parts[1] + full_alias
+        parts[-1] += full_alias
         return parts
 
     def projects(self, entity=None, per_page=200):
@@ -757,7 +762,7 @@ class Api:
         self,
         path: Optional[str] = None,
         filters: Optional[Dict[str, Any]] = None,
-        order: str = "-created_at",
+        order: str = "+created_at",
         per_page: int = 50,
         include_sweeps: bool = True,
     ):

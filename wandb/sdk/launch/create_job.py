@@ -185,6 +185,7 @@ def _create_job(
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build(
+        api.api,
         dockerfile=dockerfile,
         build_context=build_context,
     )
@@ -210,7 +211,7 @@ def _create_job(
         project_name=project,
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
-        metadata=metadata,
+        metadata={"_partial": True},
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
@@ -244,8 +245,7 @@ def _make_metadata_for_partial_job(
     entrypoint: Optional[str],
 ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     """Create metadata for partial jobs, return metadata and requirements."""
-    metadata = {"_partial": "v0"}
-
+    metadata = {}
     if job_type == "git":
         assert entrypoint is not None
         repo_metadata = _create_repo_metadata(
@@ -338,7 +338,7 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            _, python_version = get_current_python_version()
+            python_version, _ = get_current_python_version()
 
     python_version = _clean_python_version(python_version)
 
@@ -407,6 +407,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
         settings=settings,  # type: ignore
         verbose=True,
     )
+    job_builder._partial = True
     # never allow notebook runs
     job_builder._is_notebook_run = False
     # set run inputs and outputs to empty dicts
