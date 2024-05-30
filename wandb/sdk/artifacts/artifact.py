@@ -2086,7 +2086,22 @@ class Artifact:
             wandb.run.link_artifact(self, target_path, aliases)
 
     @normalize_exceptions
-    def unlink(self) -> None:
+    def unlink(self, target_path: str) -> None:
+        """Unlink this artifact from a portfolio (a promoted collection of artifacts).
+
+        Arguments:
+            target_path: The path to the portfolio inside a project.
+                The target path must adhere to one of the following
+                schemas `{portfolio}`, `{project}/{portfolio}` or
+                `{entity}/{project}/{portfolio}`.
+                To link the artifact to the Model Registry, rather than to a generic
+                portfolio inside a project, set `target_path` to the following
+                schema `{"model-registry"}/{Registered Model Name}` or
+                `{entity}/{"model-registry"}/{Registered Model Name}`.
+
+        Raises:
+            ArtifactNotLoggedError: If the artifact is not logged.
+        """
         # TODO
         raise NotImplementedError
 
