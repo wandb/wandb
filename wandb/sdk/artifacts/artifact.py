@@ -2085,6 +2085,11 @@ class Artifact:
         else:
             wandb.run.link_artifact(self, target_path, aliases)
 
+    @normalize_exceptions
+    def unlink(self) -> None:
+        # TODO
+        raise NotImplementedError
+
     def used_by(self) -> List[Run]:
         """Get a list of the runs that have used this artifact.
 
