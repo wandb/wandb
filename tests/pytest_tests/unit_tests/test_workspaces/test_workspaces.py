@@ -52,6 +52,12 @@ if sys.version_info >= (3, 8):
         __model__ = ws.Section
 
     @register_fixture
+    class SectionLayoutSettingsFactory(
+        CustomDataclassFactory[ws.SectionLayoutSettings]
+    ):
+        __model__ = ws.SectionLayoutSettings
+
+    @register_fixture
     class SectionPanelSettingsFactory(CustomDataclassFactory[ws.SectionPanelSettings]):
         __model__ = ws.SectionPanelSettings
 
@@ -60,6 +66,7 @@ factory_names = [
     "workspace_factory",
     "workspace_settings_factory",
     "section_factory",
+    "section_panel_settings_factory",
     "section_panel_settings_factory",
 ]
 

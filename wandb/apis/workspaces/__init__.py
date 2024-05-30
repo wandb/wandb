@@ -4,7 +4,7 @@ from .interface import (
     RunsetSettings,
     RunSettings,
     Section,
-    SectionPanelSettings,
+    SectionLayoutSettings,
     Workspace,
     WorkspaceSettings,
 )

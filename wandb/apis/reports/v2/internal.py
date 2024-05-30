@@ -19,6 +19,7 @@ from pydantic import (
     ConfigDict,
     Field,
     StringConstraints,
+    computed_field,
     root_validator,
     validator,
 )
@@ -213,13 +214,34 @@ class FlowConfig(ReportAPIBaseModel):
 
 
 class LocalPanelSettings(ReportAPIBaseModel):
-    x_axis: str = "_step"
-    smoothing_weight: int = 0
+    smoothing_weight: Annotated[float, Ge(0)] = 0
     smoothing_type: str = "exponential"
+    x_axis: str = "_step"
     ignore_outliers: bool = False
-    x_axis_active: bool = False
-    smoothing_active: bool = False
-    ref: Optional[Ref] = None
+    use_runs_table_grouping_in_panels: bool = True
+    x_axis_min: Optional[float] = None
+    x_axis_max: Optional[float] = None
+    color_run_names: Optional[bool] = None
+    max_runs: Optional[int] = None
+    point_visualization_method: Optional[Literal["bucketing-gorilla", "sampling"]] = (
+        None
+    )
+    suppress_legends: Optional[bool] = None
+    tooltip_number_of_runs: Optional[Literal["single", "default", "all_runs"]] = None
+
+    @computed_field
+    @property
+    def smoothing_active(self) -> bool:
+        return self.smoothing_type != "none" or self.smoothing_weight != 0
+
+    @computed_field
+    @property
+    def x_axis_active(self) -> bool:
+        return (
+            self.x_axis != "_step"
+            or self.x_axis_min is not None
+            or self.x_axis_max is not None
+        )
 
 
 class PanelBankConfigSectionsItem(ReportAPIBaseModel):

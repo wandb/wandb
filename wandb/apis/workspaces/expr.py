@@ -128,13 +128,13 @@ class BaseMetric:
         return f"{self.__class__.__name__}('{self.name}')"
 
     def to_key(self) -> Key:
-        name = FE_METRIC_NAME_MAP.get(self.name, self.name)
+        name = _convert_fe_to_be_metric_name(self.name)
         return Key(section=self.section, name=name)
 
     @classmethod
     def from_key(cls, key: Key) -> "BaseMetric":
         section = key.section
-        name = FE_METRIC_NAME_MAP.inv.get(key.name, key.name)
+        name = _convert_be_to_fe_metric_name(key.name)
         metric_cls = METRIC_TYPE_MAP.get(section, BaseMetric)
         return metric_cls(name)
 
@@ -231,7 +231,7 @@ class FilterExpr:
     @classmethod
     def create(cls, op: str, key: BaseMetric, value: Any):
         key_cls = key.__class__
-        mapped_name = FE_METRIC_NAME_MAP.inv.get(key.name, key.name)
+        mapped_name = _convert_be_to_fe_metric_name(key.name)
         new_key = key_cls(mapped_name)
 
         instance = cls.__new__(cls)
@@ -245,7 +245,7 @@ class FilterExpr:
 
     def to_model(self) -> Filters:
         section = self.key.section
-        name = FE_METRIC_NAME_MAP.get(self.key.name, self.key.name)
+        name = _convert_fe_to_be_metric_name(self.key.name)
 
         return Filters(
             op=self.op,
@@ -260,7 +260,7 @@ def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
         if filter.key is None:
             return None
         metric_cls = METRIC_TYPE_MAP.get(filter.key.section, BaseMetric)
-        mapped_name = FE_METRIC_NAME_MAP.inv.get(filter.key.name, filter.key.name)
+        mapped_name = _convert_be_to_fe_metric_name(filter.key.name)
         metric = metric_cls(mapped_name)
         return FilterExpr.create(filter.op, metric, filter.value)
 
@@ -279,7 +279,7 @@ def expression_tree_to_filters(tree: Dict[str, Any]) -> List[FilterExpr]:
 def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
     def parse_key(metric: BaseMetric) -> Key:
         section = metric.section
-        name = FE_METRIC_NAME_MAP.get(metric.name, metric.name)
+        name = _convert_fe_to_be_metric_name(metric.name)
         return Key(section=section, name=name)
 
     def parse_filter(filter: FilterExpr) -> Filters:
@@ -289,6 +289,14 @@ def filters_to_expression_tree(filters: List[FilterExpr]) -> Filters:
     return Filters(
         op="AND", filters=[parse_filter(f) for f in filters if f is not None]
     )
+
+
+def _convert_fe_to_be_metric_name(name: str) -> str:
+    return FE_METRIC_NAME_MAP.get(name, name)
+
+
+def _convert_be_to_fe_metric_name(name: str) -> str:
+    return FE_METRIC_NAME_MAP.inv.get(name, name)
 
 
 MetricType = Union[Metric, Summary, Config, Tags, KeysInfo]

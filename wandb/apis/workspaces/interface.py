@@ -15,16 +15,8 @@ from . import expr, internal
 dataclass_config = ConfigDict(validate_assignment=True, extra="forbid", slots=True)
 
 
-def is_not_all_none(v):
-    if v is None or v == "":
-        return False
-    if isinstance(v, Iterable) and not isinstance(v, str):
-        return any(v not in (None, "") for v in v)
-    return True
-
-
-def is_not_internal(k):
-    return not k.startswith("_")
+def is_internal(k):
+    return k.startswith("_")
 
 
 def should_show(v):
@@ -42,14 +34,14 @@ class Base:
         fields = (
             f"{k}={v!r}"
             for k, v in self.__dict__.items()
-            if (is_not_all_none(v) and is_not_internal(k)) or (should_show(v))
+            if (not is_internal(k)) or (should_show(v))
         )
         fields_str = ", ".join(fields)
         return f"{self.__class__.__name__}({fields_str})"
 
     def __rich_repr__(self):
         for k, v in self.__dict__.items():
-            if (is_not_all_none(v) and is_not_internal(k)) or (should_show(v)):
+            if (not is_internal(k)) or (should_show(v)):
                 yield k, v
 
     @property
@@ -61,8 +53,8 @@ class Base:
         return self._model.model_dump(by_alias=True, exclude_none=True)
 
 
-@dataclass
-class SectionPanelSettings(Base):
+@dataclass(config=dataclass_config, repr=False)
+class SectionLayoutSettings(Base):
     """Settings for a panels section, typically seen at the top right of the section in the UI.
 
     Args:
@@ -92,6 +84,41 @@ class SectionPanelSettings(Base):
         )
 
 
+@dataclass
+class SectionPanelSettings(Base):
+    # Axis settings
+    x_axis: str = "Step"
+    x_min: Optional[float] = None
+    x_max: Optional[float] = None
+
+    # Smoothing settings
+    smoothing_type: internal.SmoothingType = "none"
+    smoothing_weight: Annotated[float, Ge(0)] = 0
+
+    @classmethod
+    def from_model(cls, model: internal.LocalPanelSettings):
+        x_axis = expr._convert_be_to_fe_metric_name(model.x_axis)
+
+        return cls(
+            x_axis=x_axis,
+            x_min=model.x_axis_min,
+            x_max=model.x_axis_max,
+            smoothing_type=model.smoothing_type,
+            smoothing_weight=model.smoothing_weight,
+        )
+
+    def to_model(self):
+        x_axis = expr._convert_fe_to_be_metric_name(self.x_axis)
+
+        return internal.LocalPanelSettings(
+            x_axis=x_axis,
+            x_axis_min=self.x_min,
+            x_axis_max=self.x_max,
+            smoothing_type=self.smoothing_type,
+            smoothing_weight=self.smoothing_weight,
+        )
+
+
 @dataclass(config=dataclass_config, repr=False)
 class Section(Base):
     """Represents a section in a workspace.
@@ -99,38 +126,45 @@ class Section(Base):
     Args:
         name (str): The name of the section.
         panels (LList[PanelTypes]): A list of panels in the section.
-        collapsed (bool): Whether the section is collapsed.
+        is_open (bool): Whether the section is is_open.
         section_panel_settings (SectionPanelSettings): Settings for the panels in this section.
     """
 
     name: str
     panels: LList[PanelTypes] = Field(default_factory=list)
-    collapsed: bool = False
-    section_panel_settings: Optional[SectionPanelSettings] = None
+    is_open: bool = False
+    section_layout_settings: SectionLayoutSettings = Field(
+        default_factory=SectionLayoutSettings
+    )
+    section_panel_settings: SectionPanelSettings = Field(
+        default_factory=SectionPanelSettings
+    )
 
     @classmethod
     def from_model(cls, model: internal.PanelBankConfigSectionsItem):
         return cls(
             name=model.name,
             panels=[_lookup_panel(p) for p in model.panels],
-            collapsed=not model.is_open,
-            section_panel_settings=SectionPanelSettings.from_model(model.flow_config),
+            is_open=model.is_open,
+            section_layout_settings=SectionLayoutSettings.from_model(model.flow_config),
+            section_panel_settings=SectionPanelSettings.from_model(
+                model.local_panel_settings
+            ),
         )
 
     def to_model(self):
-        if (section_settings := self.section_panel_settings) is None:
-            section_settings = SectionPanelSettings()
-
-        section_settings_model = section_settings.to_model()
         panel_models = [p.to_model() for p in self.panels]
+        flow_config = self.section_layout_settings.to_model()
+        local_panel_settings = self.section_panel_settings.to_model()
 
         # Add warning that panel layout only works if they set section settings layout = "custom"
 
         return internal.PanelBankConfigSectionsItem(
             name=self.name,
             panels=panel_models,
-            is_open=not self.collapsed,
-            flow_config=section_settings_model,
+            is_open=self.is_open,
+            flow_config=flow_config,
+            local_panel_settings=local_panel_settings,
         )
 
 
@@ -159,9 +193,9 @@ class WorkspaceSettings(Base):
     """
 
     # Axis settings
-    x_axis: str = "_step"  # fix this to use name map in future
-    x_min: Optional[Annotated[float, Ge(0)]] = None
-    x_max: Optional[Annotated[float, Ge(0)]] = None
+    x_axis: str = "Step"
+    x_min: Optional[float] = None
+    x_max: Optional[float] = None
 
     # Smoothing settings
     smoothing_type: internal.SmoothingType = "none"
@@ -190,6 +224,7 @@ class WorkspaceSettings(Base):
 
     @classmethod
     def from_model(cls, model: internal.ViewspecSectionSettings):
+        x_axis = expr._convert_be_to_fe_metric_name(model.x_axis)
         point_viz_method = (
             "bucketing"
             if model.point_visualization_method == "bucketing-gorilla"
@@ -197,7 +232,7 @@ class WorkspaceSettings(Base):
         )
 
         return cls(
-            x_axis=model.x_axis,
+            x_axis=x_axis,
             x_min=model.x_axis_min,
             x_max=model.x_axis_max,
             smoothing_type=model.smoothing_type,
@@ -211,6 +246,7 @@ class WorkspaceSettings(Base):
         )
 
     def to_model(self):
+        x_axis = expr._convert_fe_to_be_metric_name(self.x_axis)
         point_viz_method = (
             "bucketing-gorilla"
             if self.point_visualization_method == "bucketing"
@@ -218,7 +254,7 @@ class WorkspaceSettings(Base):
         )
 
         return internal.ViewspecSectionSettings(
-            x_axis=self.x_axis,
+            x_axis=x_axis,
             x_axis_min=self.x_min,
             x_axis_max=self.x_max,
             smoothing_type=self.smoothing_type,
@@ -299,11 +335,11 @@ class Workspace(Base):
         # construct configs from disjoint parts of settings
         run_settings = {}
 
-        disabled_runs = model.viewspec.section.run_sets[0].selections.tree
+        disabled_runs = model.spec.section.run_sets[0].selections.tree
         for id in disabled_runs:
             run_settings[id] = RunSettings(disabled=True)
 
-        custom_run_colors = model.viewspec.section.custom_run_colors
+        custom_run_colors = model.spec.section.custom_run_colors
         for k, v in custom_run_colors.items():
             if k != "ref":
                 id = k
@@ -321,22 +357,22 @@ class Workspace(Base):
             name=model.display_name,
             sections=[
                 Section.from_model(s)
-                for s in model.viewspec.section.panel_bank_config.sections
+                for s in model.spec.section.panel_bank_config.sections
             ],
-            settings=WorkspaceSettings.from_model(model.viewspec.section.settings),
+            settings=WorkspaceSettings.from_model(model.spec.section.settings),
             runset_settings=RunsetSettings(
-                query=model.viewspec.section.run_sets[0].search.query,
-                regex_query=bool(model.viewspec.section.run_sets[0].search.is_regex),
+                query=model.spec.section.run_sets[0].search.query,
+                regex_query=bool(model.spec.section.run_sets[0].search.is_regex),
                 filters=expr.expression_tree_to_filters(
-                    model.viewspec.section.run_sets[0].filters
+                    model.spec.section.run_sets[0].filters
                 ),
                 groupby=[
                     expr.BaseMetric.from_key(v)
-                    for v in model.viewspec.section.run_sets[0].grouping
+                    for v in model.spec.section.run_sets[0].grouping
                 ],
                 order=[
                     expr.Ordering.from_key(s)
-                    for s in model.viewspec.section.run_sets[0].sort.keys
+                    for s in model.spec.section.run_sets[0].sort.keys
                 ],
                 run_settings=run_settings,
             ),
@@ -354,7 +390,8 @@ class Workspace(Base):
         missing_section_names = possible_missing_sections - base_section_names
 
         hidden_sections = [
-            Section(name, collapsed=True).to_model() for name in missing_section_names
+            Section(name=name, is_open=False).to_model()
+            for name in missing_section_names
         ]
 
         sections = base_sections + hidden_sections
@@ -365,7 +402,7 @@ class Workspace(Base):
             display_name=self.name,
             name=self._internal_name,
             id=self._internal_id,
-            viewspec=internal.WorkspaceViewspec(
+            spec=internal.WorkspaceViewspec(
                 section=internal.ViewspecSection(
                     panel_bank_config=internal.PanelBankConfig(
                         state=1,
@@ -414,7 +451,7 @@ class Workspace(Base):
 
         _, entity, project = parsed_url.path.split("/")
 
-        view = internal.get_view(entity, project, view_name)
+        view = internal.View.from_name(entity, project, view_name)
         return cls.from_model(view)
 
     @property
@@ -441,7 +478,7 @@ class Workspace(Base):
     ):
         """Save a workspace to W&B."""
         resp = internal.upsert_view2(self.to_model(), clone)
-        self._internal_name = internal._unworkspaceify(
+        self._internal_name = internal._from_workspace_view_name(
             resp["upsertView"]["view"]["name"]
         )
 

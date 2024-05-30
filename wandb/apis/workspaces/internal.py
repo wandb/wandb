@@ -36,13 +36,13 @@ class ViewspecSectionSettings(WorkspaceAPIBaseModel):
     x_axis: str = "_step"
     ignore_outliers: bool = False
     use_runs_table_grouping_in_panels: bool = True
-    x_axis_min: Optional[Annotated[float, Ge(0)]] = None
-    x_axis_max: Optional[Annotated[float, Ge(0)]] = None
+    x_axis_min: Optional[float] = None
+    x_axis_max: Optional[float] = None
     color_run_names: Optional[bool] = None
     max_runs: Optional[int] = None
-    point_visualization_method: Optional[
-        Literal["bucketing-gorilla", "sampling"]
-    ] = None
+    point_visualization_method: Optional[Literal["bucketing-gorilla", "sampling"]] = (
+        None
+    )
     suppress_legends: Optional[bool] = None
     tooltip_number_of_runs: Optional[Literal["single", "default", "all_runs"]] = None
 
@@ -90,7 +90,25 @@ class View(WorkspaceAPIBaseModel):
     display_name: str
     name: str
     id: str
-    viewspec: WorkspaceViewspec
+    spec: WorkspaceViewspec
+
+    @classmethod
+    def from_name(cls, entity: str, project: str, view_name: str) -> "View":
+        view_dict = get_view_dict(entity, project, view_name)
+
+        spec = view_dict["spec"]
+        display_name = view_dict["displayName"]
+        id = view_dict["id"]
+        parsed_spec = WorkspaceViewspec.model_validate_json(spec)
+
+        return cls(
+            entity=entity,
+            project=project,
+            display_name=display_name,
+            name=view_name,
+            id=id,
+            spec=parsed_spec,
+        )
 
 
 def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
@@ -102,6 +120,18 @@ def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
         ) {
             view {
             id
+            id
+            ...ViewFragmentMetadata2
+            __typename
+            }
+            inserted
+            __typename
+        }
+        }
+
+        fragment ViewFragmentMetadata2 on View {
+        id
+                id
             ...ViewFragmentMetadata2
             __typename
             }
@@ -113,6 +143,7 @@ def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
         fragment ViewFragmentMetadata2 on View {
         id
         name
+        name
         displayName
         type
         description
@@ -123,63 +154,20 @@ def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
             admin
             name
             __typename
-        }
-        updatedBy {
-            id
-            name
-            username
-            __typename
-        }
-        entityName
-        project {
-            id
-            name
-            entityName
-            readOnly
-            __typename
-        }
-        previewUrl
-        coverUrl
-        updatedAt
-        createdAt
-        starCount
-        starred
-        parentId
-        locked
-        viewCount
-        showcasedAt
-        alertSubscription {
-            id
-            __typename
-        }
-        accessTokens {
-            id
-            token
-            view {
-            id
-            __typename
-            }
-            type
-            emails
-            createdBy {
+                name
+        displayName
+        type
+        description
+        user {
             id
             username
-            email
+            photoUrl
+            admin
             name
             __typename
             }
-            createdAt
-            lastAccessedAt
-            revokedAt
-            projects {
-            id
-            name
-            entityName
-            __typename
-            }
-            __typename
-        }
-        __typename
+            inserted
+          }
         }
         """
     )
@@ -188,9 +176,9 @@ def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
 
     if clone or not (name := view.name):
         random_id = wandb.util.generate_id(11)
-        name = _workspaceify(random_id)
+        name = _to_workspace_view_name(random_id)
 
-    spec = view.viewspec.model_dump(by_alias=True, exclude_none=True)
+    spec = view.spec.model_dump(by_alias=True, exclude_none=True)
 
     # hack: We're re-using Report API objects.  In the Report API, the value here
     # is expected to be None, but for Workspaces it's expected to be []
@@ -218,7 +206,7 @@ def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
     return response
 
 
-def _get_view(entity: str, project: str, view_name: str) -> Dict[str, Any]:
+def get_view_dict(entity: str, project: str, view_name: str) -> Dict[str, Any]:
     # Use this query because it let you use view_name instead of id
     query = gql(
         """
@@ -247,7 +235,7 @@ def _get_view(entity: str, project: str, view_name: str) -> Dict[str, Any]:
             "entityName": entity,
             "projectName": project,
             "name": project,
-            "viewName": _workspaceify(view_name),
+            "viewName": _to_workspace_view_name(view_name),
         },
     )
 
@@ -261,27 +249,9 @@ def _get_view(entity: str, project: str, view_name: str) -> Dict[str, Any]:
         return view
 
 
-def get_view(entity: str, project: str, view_name: str) -> View:
-    view_dict = _get_view(entity, project, view_name)
-
-    spec = view_dict["spec"]
-    display_name = view_dict["displayName"]
-    id = view_dict["id"]
-    parsed_spec = WorkspaceViewspec.model_validate_json(spec)
-
-    return View(
-        entity=entity,
-        project=project,
-        display_name=display_name,
-        name=view_name,
-        id=id,
-        viewspec=parsed_spec,
-    )
-
-
-def _workspaceify(name: str) -> str:
+def _to_workspace_view_name(name: str) -> str:
     return f"nw-{name}-v"
 
 
-def _unworkspaceify(name: str) -> str:
+def _from_workspace_view_name(name: str) -> str:
     return name.replace("nw-", "").replace("-v", "")
