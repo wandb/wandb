@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/getsentry/sentry-go"
@@ -25,7 +24,6 @@ type Params struct {
 type Client struct {
 	DSN    string
 	Commit string
-	mu     sync.Mutex
 	Recent *lru.Cache
 }
 
@@ -100,9 +98,6 @@ func New(params Params) *Client {
 }
 
 func (s *Client) shouldCapture(err error) bool {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
 	// Generate a hash of the error message
 	h := md5.New()
 	h.Write([]byte(err.Error()))
