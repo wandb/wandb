@@ -55,7 +55,7 @@ type Connection struct {
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.SentryClient
+	sentryClient *sentry.Client
 }
 
 // NewConnection creates a new connection
@@ -63,7 +63,7 @@ func NewConnection(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
-	sentryClient *sentry.SentryClient,
+	sentryClient *sentry.Client,
 ) *Connection {
 
 	nc := &Connection{

@@ -16,13 +16,17 @@ import (
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
-const SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+type Params struct {
+	DSN     string
+	Commit  string
+	LRUSize int
+}
 
-type SentryClient struct {
-	DSN          string
-	Commit       string
-	mu           sync.Mutex
-	RecentErrors *lru.Cache
+type Client struct {
+	DSN    string
+	Commit string
+	mu     sync.Mutex
+	Recent *lru.Cache
 }
 
 var recentErrorDuration = time.Minute * 5
@@ -57,20 +61,21 @@ func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Eve
 }
 
 // New initializes the sentry client.
-func New(disabled bool, commit string) *SentryClient {
-	cache, err := lru.New(100) // Set the max size of the cache
+func New(params Params) *Client {
+	if params.LRUSize == 0 {
+		params.LRUSize = 100
+	}
+	cache, err := lru.New(params.LRUSize)
 	if err != nil {
 		slog.Error("failed to create LRU cache", "err", err)
 		return nil
 	}
-	s := &SentryClient{
-		Commit:       commit,
-		RecentErrors: cache,
-	}
 
-	// The DSN to use. If the DSN is not set, the client is effectively disabled.
-	if !disabled {
-		s.DSN = SentryDSN
+	// If the DSN is not set, the client is effectively disabled.
+	s := &Client{
+		DSN:    params.DSN,
+		Commit: params.Commit,
+		Recent: cache,
 	}
 
 	err = sentry.Init(sentry.ClientOptions{
@@ -85,7 +90,7 @@ func New(disabled bool, commit string) *SentryClient {
 		slog.Error("sentry.Init failed", "err", err)
 	}
 
-	if !disabled {
+	if s.DSN != "" {
 		slog.Debug("sentry.Init succeeded", "dsn", s.DSN)
 	} else {
 		slog.Debug("sentry is disabled")
@@ -94,8 +99,7 @@ func New(disabled bool, commit string) *SentryClient {
 	return s
 }
 
-// CaptureException captures an error and sends it to sentry.
-func (s *SentryClient) CaptureException(err error, tags observability.Tags) {
+func (s *Client) shouldCapture(err error) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -105,14 +109,22 @@ func (s *SentryClient) CaptureException(err error, tags observability.Tags) {
 	hash := hex.EncodeToString(h.Sum(nil))
 
 	now := time.Now()
-	if lastSent, exists := s.RecentErrors.Get(hash); exists {
+	if lastSent, exists := s.Recent.Get(hash); exists {
 		if now.Sub(lastSent.(time.Time)) < recentErrorDuration {
-			return // Skip sending the error if it's too recent
+			return false // Skip sending the error if it's too recent
 		}
 	}
 
 	// Update the timestamp for the error
-	s.RecentErrors.Add(hash, now)
+	s.Recent.Add(hash, now)
+	return true
+}
+
+// CaptureException captures an error and sends it to sentry.
+func (s *Client) CaptureException(err error, tags observability.Tags) {
+	if !s.shouldCapture(err) {
+		return
+	}
 
 	// Send the error to sentry
 	localHub := sentry.CurrentHub().Clone()
@@ -127,7 +139,11 @@ func (s *SentryClient) CaptureException(err error, tags observability.Tags) {
 }
 
 // CaptureMessage captures a message and sends it to sentry.
-func (s *SentryClient) CaptureMessage(msg string, tags observability.Tags) {
+func (s *Client) CaptureMessage(msg string, tags observability.Tags) {
+	if !s.shouldCapture(errors.New(msg)) {
+		return
+	}
+
 	localHub := sentry.CurrentHub().Clone()
 	localHub.ConfigureScope(func(scope *sentry.Scope) {
 		for k, v := range tags {
@@ -139,7 +155,7 @@ func (s *SentryClient) CaptureMessage(msg string, tags observability.Tags) {
 
 // Reraise captures an error and re-raises it.
 // Used to capture unexpected panics.
-func (s *SentryClient) Reraise(err any, tags observability.Tags) {
+func (s *Client) Reraise(err any, tags observability.Tags) {
 	if err != nil {
 		var e error
 		if errors.As(e, &err) {
@@ -154,7 +170,7 @@ func (s *SentryClient) Reraise(err any, tags observability.Tags) {
 }
 
 // Flush flushes the sentry client.
-func (s *SentryClient) Flush(timeout time.Duration) bool {
+func (s *Client) Flush(timeout time.Duration) bool {
 	hub := sentry.CurrentHub()
 	return hub.Flush(timeout)
 }

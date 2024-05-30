@@ -25,7 +25,7 @@ type ServerParams struct {
 	ListenIPAddress string
 	PortFilename    string
 	ParentPid       int
-	SentryClient    *sentry.SentryClient
+	SentryClient    *sentry.Client
 }
 
 // Server is the core server
@@ -41,7 +41,7 @@ type Server struct {
 	listener net.Listener
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.SentryClient
+	sentryClient *sentry.Client
 
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish

@@ -78,10 +78,10 @@ type Stream struct {
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.SentryClient
+	sentryClient *sentry.Client
 }
 
-func streamLogger(settings *settings.Settings, sentryClient *sentry.SentryClient) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -136,7 +136,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry.SentryClient
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.SentryClient) *Stream {
+func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Client) *Stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
