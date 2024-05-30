@@ -1092,7 +1092,7 @@ class Api:
         return artifact
 
     @normalize_exceptions
-    def job(self, name: str, path: Optional[str] = None) -> "public.Job":
+    def job(self, name: Optional[str], path: Optional[str] = None) -> "public.Job":
         """Return a `Job` from the given parameters.
 
         Arguments:
