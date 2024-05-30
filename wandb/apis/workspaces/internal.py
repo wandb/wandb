@@ -119,55 +119,11 @@ def upsert_view2(view: View, clone: bool = False) -> Dict[str, Any]:
             input: {id: $id, entityName: $entityName, projectName: $projectName, name: $name, displayName: $displayName, description: $description, type: $type, spec: $spec, parentId: $parentId, locked: $locked, previewUrl: $previewUrl, coverUrl: $coverUrl, showcasedAt: $showcasedAt, createdUsing: $createdUsing}
         ) {
             view {
-            id
-            id
-            ...ViewFragmentMetadata2
-            __typename
-            }
-            inserted
-            __typename
-        }
-        }
-
-        fragment ViewFragmentMetadata2 on View {
-        id
                 id
-            ...ViewFragmentMetadata2
-            __typename
-            }
-            inserted
-            __typename
-        }
-        }
-
-        fragment ViewFragmentMetadata2 on View {
-        id
-        name
-        name
-        displayName
-        type
-        description
-        user {
-            id
-            username
-            photoUrl
-            admin
-            name
-            __typename
                 name
-        displayName
-        type
-        description
-        user {
-            id
-            username
-            photoUrl
-            admin
-            name
-            __typename
             }
             inserted
-          }
+        }
         }
         """
     )
