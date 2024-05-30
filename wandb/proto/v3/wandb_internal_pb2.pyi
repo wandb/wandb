@@ -1457,22 +1457,39 @@ class TBRecord(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    LOG_DIR_FIELD_NUMBER: builtins.int
-    SAVE_FIELD_NUMBER: builtins.int
-    ROOT_DIR_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
-    log_dir: builtins.str
-    save: builtins.bool
-    root_dir: builtins.str
+    LOG_DIR_FIELD_NUMBER: builtins.int
+    ROOT_DIR_FIELD_NUMBER: builtins.int
+    SAVE_FIELD_NUMBER: builtins.int
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    log_dir: builtins.str
+    """The log directory to watch, such as "dir/logs/train" or
+    "dir/logs/validation".
+
+    This should be an absolute path.
+    """
+    root_dir: builtins.str
+    """An ancestor of log_dir, used to determine the run file path to which to
+    upload each log file.
+
+    TODO: document "namespacing" functionality (see tb_watcher.py in d9a1f69b4)
+
+    For example, if this is "dir/logs", then the file "dir/logs/train/tfevents"
+    is uploaded as "train/tfevents".
+
+    If this is a relative path or an empty string, it is joined with the
+    working directory of the internal process.
+    """
+    save: builtins.bool
+    """Whether to save tfevents files with the run."""
     def __init__(
         self,
         *,
-        log_dir: builtins.str = ...,
-        save: builtins.bool = ...,
-        root_dir: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        log_dir: builtins.str = ...,
+        root_dir: builtins.str = ...,
+        save: builtins.bool = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "log_dir", b"log_dir", "root_dir", b"root_dir", "save", b"save"]) -> None: ...
