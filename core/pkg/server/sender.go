@@ -450,13 +450,17 @@ func (s *Sender) sendJobFlush() {
 
 	output, err := s.runSummary.CloneTree()
 	if err != nil {
-		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		s.logger.Error(
+			"sender: sendJobFlush: failed to copy run summary", "error", err,
+		)
 		return
 	}
 
-	artifact, err := s.jobBuilder.Build(output)
+	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
-		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to build job artifact", "error", err,
+		)
 		return
 	}
 	if artifact == nil {
@@ -467,7 +471,9 @@ func (s *Sender) sendJobFlush() {
 		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(s.fwdChan); err != nil {
-		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to save job artifact", "error", err,
+		)
 	}
 }
 
