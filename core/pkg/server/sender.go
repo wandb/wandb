@@ -155,6 +155,10 @@ func NewSender(
 	params SenderParams,
 ) *Sender {
 
+	if params.OutputFileName == "" {
+		params.OutputFileName = LatestOutputFileName
+	}
+
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -446,13 +450,17 @@ func (s *Sender) sendJobFlush() {
 
 	output, err := s.runSummary.CloneTree()
 	if err != nil {
-		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		s.logger.Error(
+			"sender: sendJobFlush: failed to copy run summary", "error", err,
+		)
 		return
 	}
 
-	artifact, err := s.jobBuilder.Build(output)
+	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
-		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to build job artifact", "error", err,
+		)
 		return
 	}
 	if artifact == nil {
@@ -463,7 +471,9 @@ func (s *Sender) sendJobFlush() {
 		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(s.fwdChan); err != nil {
-		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to save job artifact", "error", err,
+		)
 	}
 }
 
@@ -984,7 +994,6 @@ func (s *Sender) uploadOutputFile() {
 	// filestream
 	// Ideally, the output content from the filestream would be converted
 	// to a file on the server side, but for now we do it here as well
-
 	record := &service.Record{
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
@@ -997,6 +1006,7 @@ func (s *Sender) uploadOutputFile() {
 			},
 		},
 	}
+
 	s.fwdRecord(record)
 }
 

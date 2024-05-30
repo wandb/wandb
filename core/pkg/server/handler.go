@@ -32,6 +32,7 @@ const (
 	DiffFileName         = "diff.patch"
 	RequirementsFileName = "requirements.txt"
 	ConfigFileName       = "config.yaml"
+	LatestOutputFileName = "output.log"
 )
 
 type HandlerParams struct {
@@ -1130,6 +1131,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		h.handleHistory(&service.HistoryRecord{
 			Item: items,
 		})
+		h.runHistory = runhistory.New()
 	}
 }
 
