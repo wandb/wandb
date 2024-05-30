@@ -115,12 +115,13 @@ func (s *TFEventReader) NextEvent(
 // ensureBuffer tries to read enough data into the buffer so that it
 // has at least count bytes.
 //
-// Each call only reads a single tfevents file---we assume that individual
-// events are not broken up across multiple files. When this starts reading
-// a new file, its path is passed to `onNewFile`.
+// When this starts reading a new file, its path is passed to `onNewFile`.
 //
 // It returns whether the buffer has the desired amount of data.
-func (s *TFEventReader) ensureBuffer(count uint64, onNewFile func(string)) bool {
+func (s *TFEventReader) ensureBuffer(
+	count uint64,
+	onNewFile func(string),
+) bool {
 	if uint64(len(s.buffer)) >= count {
 		return true
 	}
@@ -137,59 +138,50 @@ func (s *TFEventReader) ensureBuffer(count uint64, onNewFile func(string)) bool 
 		onNewFile(s.currentFile)
 	}
 
-	// Look for the next file before we read from the current file.
-	//
-	// We assume that after the next file is observed to exist, the current
-	// file will not be modified. Doing this in the opposite order would
-	// not work because between reaching the end of the current file and
-	// finding the next file, more events could have been written to the
-	// current file.
-	nextFile, err := nextTFEventsFile(
-		s.logDir,
-		s.currentFile,
-		s.fileFilter,
-	)
-	if err != nil {
-		s.logger.Warn(
-			"tensorboard: error while looking for next tfevents file",
-			"error",
-			err,
+	for {
+		// Look for the next file before we read from the current file.
+		//
+		// We assume that after the next file is observed to exist, the current
+		// file will not be modified. Doing this in the opposite order would
+		// not work because between reaching the end of the current file and
+		// finding the next file, more events could have been written to the
+		// current file.
+		nextFile, err := nextTFEventsFile(
+			s.logDir,
+			s.currentFile,
+			s.fileFilter,
 		)
-	}
+		if err != nil {
+			s.logger.Warn(
+				"tensorboard: error while looking for next tfevents file",
+				"error",
+				err,
+			)
+		}
 
-	logNonEOFError := func(err error) {
-		// We saw an error that wasn't EOF, so something is wrong.
-		s.logger.CaptureError(
-			"tensorboard: error reading current tfevents file",
-			err,
-		)
-	}
+		success, err := s.readFromCurrent(count)
 
-	success, err := s.readFromCurrent(count)
-	if success {
-		return true
-	}
-	if err != io.EOF {
-		logNonEOFError(err)
-		return false
-	}
+		if success {
+			return true
+		}
 
-	if nextFile != "" {
+		if err != nil && err != io.EOF {
+			// We saw an error that wasn't EOF, so something is wrong.
+			s.logger.CaptureError(
+				"tensorboard: error reading current tfevents file",
+				err,
+			)
+			return false
+		}
+
+		if nextFile == "" {
+			return false
+		}
+
 		s.currentFile = nextFile
 		s.currentOffset = 0
 		onNewFile(s.currentFile)
 	}
-
-	success, err = s.readFromCurrent(count)
-	if success {
-		return true
-	}
-	if err != io.EOF {
-		logNonEOFError(err)
-		return false
-	}
-
-	return false
 }
 
 // readFromCurrent reads into the buffer from the current tfevents file until

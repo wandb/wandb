@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,19 +27,25 @@ func encodeEvent(event *tbproto.TFEvent) []byte {
 	return data
 }
 
-var event1Bytes = encodeEvent(&tbproto.TFEvent{Step: 1})
-var event2Bytes = encodeEvent(&tbproto.TFEvent{Step: 2})
+var event1 = &tbproto.TFEvent{Step: 1}
+var event2 = &tbproto.TFEvent{Step: 2}
+var event3 = &tbproto.TFEvent{Step: 3}
 
 func TestReadsSequenceOfFiles(t *testing.T) {
 	tmpdir := t.TempDir()
 	require.NoError(t, os.WriteFile(
 		filepath.Join(tmpdir, "tfevents.1.hostname"),
-		event1Bytes,
+		slices.Concat(encodeEvent(event1), encodeEvent(event2)),
 		os.ModePerm,
 	))
 	require.NoError(t, os.WriteFile(
 		filepath.Join(tmpdir, "tfevents.2.hostname"),
-		event2Bytes,
+		[]byte{},
+		os.ModePerm,
+	))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(tmpdir, "tfevents.3.hostname"),
+		encodeEvent(event3),
 		os.ModePerm,
 	))
 	reader := tensorboard.NewTFEventReader(
@@ -47,15 +54,18 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 		observability.NewNoOpLogger(),
 	)
 
-	event1, err1 := reader.NextEvent(func(path string) {})
-	event2, err2 := reader.NextEvent(func(path string) {})
-	event3, err3 := reader.NextEvent(func(path string) {})
+	result1, err1 := reader.NextEvent(func(path string) {})
+	result2, err2 := reader.NextEvent(func(path string) {})
+	result3, err3 := reader.NextEvent(func(path string) {})
+	result4, err4 := reader.NextEvent(func(path string) {})
 
-	assert.NotNil(t, event1)
-	assert.NotNil(t, event2)
-	assert.Nil(t, event3)
+	assert.True(t, proto.Equal(event1, result1))
+	assert.True(t, proto.Equal(event2, result2))
+	assert.True(t, proto.Equal(event3, result3))
+	assert.Nil(t, result4)
 
 	assert.NoError(t, err1)
 	assert.NoError(t, err2)
 	assert.NoError(t, err3)
+	assert.NoError(t, err4)
 }

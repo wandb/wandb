@@ -65,10 +65,6 @@ func NewTBHandler(params Params) *TBHandler {
 
 // Handle begins processing the events in a TensorBoard logs directory.
 func (tb *TBHandler) Handle(record *service.TBRecord) {
-	if !record.Save {
-		return
-	}
-
 	shouldSave := record.Save
 	rootDir := record.GetRootDir()
 	if !filepath.IsAbs(rootDir) {
