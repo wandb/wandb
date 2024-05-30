@@ -104,6 +104,15 @@ perf = ["orjson"]
 importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
 reports = ["pydantic>=2.0.0"]
 
+# TODO: Remove git when workspaces pkg is public
+# workspaces = ["wandb-workspaces"]
+workspaces = [
+    "wandb_workspaces @ git+ssh://git@github.com/wandb/wandb-workspaces.git",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
