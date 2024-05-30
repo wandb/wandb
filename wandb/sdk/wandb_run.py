@@ -3018,8 +3018,7 @@ class Run:
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
-                Valid names can be in the following forms:
+            name: (str, optional) An artifact name. Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
