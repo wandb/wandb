@@ -1111,7 +1111,7 @@ class Api:
         return public.Job(self, name, path)
 
     @normalize_exceptions
-    def list_jobs(self, entity: str, project: str) -> List[dict[str, Any]]:
+    def list_jobs(self, entity: str, project: str) -> List[Dict[str, Any]]:
         """Return a list of jobs, if any, for the given entity and project.
 
         Arguments:
