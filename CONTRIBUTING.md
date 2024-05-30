@@ -251,6 +251,7 @@ pip install -U pre-commit
 
 To install all of our pre-commit hooks run:
 ```shell
+./core/scripts/code-checks.sh update
 pre-commit install
 ```
 
