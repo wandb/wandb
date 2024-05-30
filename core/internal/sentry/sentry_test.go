@@ -6,6 +6,7 @@ import (
 	"time"
 
 	sentrygo "github.com/getsentry/sentry-go"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wandb/wandb/core/internal/sentry"
@@ -47,7 +48,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 	type fields struct {
 		DSN          string
 		Commit       string
-		RecentErrors map[string]time.Time
+		RecentErrors *lru.Cache
 	}
 	type args struct {
 		errs []error
@@ -62,9 +63,12 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureException",
 			fields: fields{
-				DSN:          "some-dsn",
-				Commit:       "commit",
-				RecentErrors: map[string]time.Time{},
+				DSN:    "some-dsn",
+				Commit: "commit",
+				RecentErrors: func() *lru.Cache {
+					cache, _ := lru.New(1)
+					return cache
+				}(),
 			},
 			args: args{
 				errs: []error{errors.New("error")},
@@ -76,9 +80,12 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionDuplicate",
 			fields: fields{
-				DSN:          "some-dsn",
-				Commit:       "commit",
-				RecentErrors: map[string]time.Time{},
+				DSN:    "some-dsn",
+				Commit: "commit",
+				RecentErrors: func() *lru.Cache {
+					cache, _ := lru.New(2)
+					return cache
+				}(),
 			},
 			args: args{
 				errs: []error{errors.New("error"), errors.New("error")},
@@ -90,12 +97,32 @@ func TestSentryClient_CaptureException(t *testing.T) {
 		{
 			name: "TestCaptureExceptionMultiple",
 			fields: fields{
-				DSN:          "some-dsn",
-				Commit:       "commit",
-				RecentErrors: map[string]time.Time{},
+				DSN:    "some-dsn",
+				Commit: "commit",
+				RecentErrors: func() *lru.Cache {
+					cache, _ := lru.New(2)
+					return cache
+				}(),
 			},
 			args: args{
 				errs: []error{errors.New("error1"), errors.New("error2")},
+				tags: observability.Tags{},
+			},
+			numCaptures: 2,
+		},
+
+		{
+			name: "TestCaptureExceptionMultipleExceedsCache",
+			fields: fields{
+				DSN:    "some-dsn",
+				Commit: "commit",
+				RecentErrors: func() *lru.Cache {
+					cache, _ := lru.New(2)
+					return cache
+				}(),
+			},
+			args: args{
+				errs: []error{errors.New("error1"), errors.New("error2"), errors.New("error3")},
 				tags: observability.Tags{},
 			},
 			numCaptures: 2,
@@ -113,8 +140,8 @@ func TestSentryClient_CaptureException(t *testing.T) {
 				sc.CaptureException(err, tt.args.tags)
 			}
 
-			if len(sc.RecentErrors) != tt.numCaptures {
-				t.Errorf("CaptureException() = %v, want %v", len(sc.RecentErrors), tt.numCaptures)
+			if sc.RecentErrors.Len() != tt.numCaptures {
+				t.Errorf("CaptureException() = %v, want %v", sc.RecentErrors.Len(), tt.numCaptures)
 			}
 		})
 	}
@@ -151,9 +178,12 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sc := &sentry.SentryClient{
-				DSN:          tt.fields.DSN,
-				Commit:       tt.fields.Commit,
-				RecentErrors: tt.fields.RecentErrors,
+				DSN:    tt.fields.DSN,
+				Commit: tt.fields.Commit,
+				RecentErrors: func() *lru.Cache {
+					cache, _ := lru.New(1)
+					return cache
+				}(),
 			}
 			sc.CaptureMessage(tt.args.msg, tt.args.tags)
 		})

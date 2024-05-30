@@ -10,10 +10,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/getsentry/sentry-go"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
-
-	"github.com/getsentry/sentry-go"
 )
 
 const SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
@@ -22,7 +22,7 @@ type SentryClient struct {
 	DSN          string
 	Commit       string
 	mu           sync.Mutex
-	RecentErrors map[string]time.Time
+	RecentErrors *lru.Cache
 }
 
 var recentErrorDuration = time.Minute * 5
@@ -43,7 +43,7 @@ func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Eve
 		}
 		for j := framesLen - 1; j >= framesLen-3; j-- {
 			frame := frames[j]
-			// todo: think of a better way to do this without hard-coding the file names
+			// TODO: think of a better way to do this without hard-coding the file names
 			//  this is a hack to remove the bottom-most 3 frames that are internal to core
 			if strings.HasSuffix(frame.AbsPath, "sentry.go") || strings.HasSuffix(frame.AbsPath, "logging.go") {
 				frames = frames[:j]
@@ -58,9 +58,14 @@ func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Eve
 
 // New initializes the sentry client.
 func New(disabled bool, commit string) *SentryClient {
+	cache, err := lru.New(100) // Set the max size of the cache
+	if err != nil {
+		slog.Error("failed to create LRU cache", "err", err)
+		return nil
+	}
 	s := &SentryClient{
 		Commit:       commit,
-		RecentErrors: make(map[string]time.Time),
+		RecentErrors: cache,
 	}
 
 	// The DSN to use. If the DSN is not set, the client is effectively disabled.
@@ -68,7 +73,7 @@ func New(disabled bool, commit string) *SentryClient {
 		s.DSN = SentryDSN
 	}
 
-	err := sentry.Init(sentry.ClientOptions{
+	err = sentry.Init(sentry.ClientOptions{
 		Dsn:              s.DSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
@@ -100,14 +105,14 @@ func (s *SentryClient) CaptureException(err error, tags observability.Tags) {
 	hash := hex.EncodeToString(h.Sum(nil))
 
 	now := time.Now()
-	if lastSent, exists := s.RecentErrors[hash]; exists {
-		if now.Sub(lastSent) < recentErrorDuration {
+	if lastSent, exists := s.RecentErrors.Get(hash); exists {
+		if now.Sub(lastSent.(time.Time)) < recentErrorDuration {
 			return // Skip sending the error if it's too recent
 		}
 	}
 
 	// Update the timestamp for the error
-	s.RecentErrors[hash] = now
+	s.RecentErrors.Add(hash, now)
 
 	// Send the error to sentry
 	localHub := sentry.CurrentHub().Clone()
