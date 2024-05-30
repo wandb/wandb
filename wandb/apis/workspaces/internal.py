@@ -19,6 +19,12 @@ from wandb.apis.reports.v2.internal import (
     Runset,
 )
 
+CLIENT_SPEC_VERSION = -1
+SPEC_VERSION_KEY = "version"
+
+
+class SpecVersionError(Exception): ...
+
 
 class WorkspaceAPIBaseModel(BaseModel):
     model_config = ConfigDict(
@@ -201,8 +207,21 @@ def get_view_dict(entity: str, project: str, view_name: str) -> Dict[str, Any]:
         view = edges[0]["node"]
     except IndexError:
         raise ValueError(f"Workspace `{view_name}` not found in project `{project}`")
-    else:
-        return view
+
+    spec = json.loads(view["spec"])
+    spec_version = spec.get("version", -1)
+
+    if spec_version < CLIENT_SPEC_VERSION:
+        raise SpecVersionError(
+            f"Workspace {spec_version=} < {CLIENT_SPEC_VERSION=}, please upgrade the `wandb-workspace` package to the latest version."
+        )
+
+    if spec_version > CLIENT_SPEC_VERSION:
+        raise SpecVersionError(
+            f"Workspace {spec_version=} > {CLIENT_SPEC_VERSION=}, please visit the workspace in the web app to upgrade the workspace spec."
+        )
+
+    return view
 
 
 def _to_workspace_view_name(name: str) -> str:
