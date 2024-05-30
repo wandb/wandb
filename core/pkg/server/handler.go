@@ -1131,6 +1131,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		h.handleHistory(&service.HistoryRecord{
 			Item: items,
 		})
+		h.runHistory = runhistory.New()
 	}
 }
 

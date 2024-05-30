@@ -156,7 +156,7 @@ github.com/golang/mock/gomock
 # github.com/hashicorp/go-cleanhttp v0.5.2
 ## explicit; go 1.13
 github.com/hashicorp/go-cleanhttp
-# github.com/hashicorp/go-retryablehttp v0.7.6
+# github.com/hashicorp/go-retryablehttp v0.7.7
 ## explicit; go 1.19
 github.com/hashicorp/go-retryablehttp
 # github.com/jbenet/go-context v0.0.0-20150711004518-d14ea06fba99
