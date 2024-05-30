@@ -720,7 +720,9 @@ class Api:
             entity = self.settings["entity"] or self.default_entity
         return public.Project(self.client, entity, name, {})
 
-    def reports(self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50) -> "public.Reports":
+    def reports(
+        self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50
+    ) -> "public.Reports":
         """Get reports for a given project path.
 
         WARNING: This api is in beta and will likely change in a future release
