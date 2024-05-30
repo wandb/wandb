@@ -306,6 +306,9 @@ class Api:
                 default, so in general, you do not need to specify this and should only do so at your own risk.
             project: (str, optional) If given, the project of the new run.
             entity: (str, optional) If given, the entity of the new run.
+
+        Returns:
+            The newly created `Run`.
         """
         if entity is None:
             entity = self.default_entity
@@ -318,9 +321,21 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: Optional["wandb.apis.reports.util.Block"] = None,
+        blocks: Optional[List["wandb.apis.reports.util.Block"]] = None,
     ) -> "wandb.apis.reports.Report":
-        """Create a new report."""
+        """Create a new report.
+
+        Arguments:
+            project: (str) The project of the report.
+            entity: (str, optional) The entity of the report.
+            title: (str, optional) The title of the report.
+            description: (str, optional) The description of the report.
+            width: (str, optional) The width of the report.
+            blocks: (list[Block], optional) The blocks to create the report.
+
+        Returns:
+            The newly created `Report`.
+        """
         if entity == "":
             entity = self.default_entity or ""
         if blocks is None:
@@ -743,10 +758,13 @@ class Api:
 
         Arguments:
             team: (str) The name of the team.
+
+        Returns:
+            A `Team` object.
         """
         return public.Team(self.client, team)
 
-    def user(self, username_or_email: str) -> "public.User":
+    def user(self, username_or_email: str) -> Optional["public.User"]:
         """Return a user from a username or email address.
 
         Note: This function only works for Local Admins, if you are trying to get your own user object, please use `api.viewer`.
@@ -942,6 +960,9 @@ class Api:
 
         Arguments:
             project: (str, optional) If given, a project name or path to filter on.
+
+        Returns:
+            An iterable `ArtifactTypes` object.
         """
         entity, project = self._parse_project_path(project)
         return public.ArtifactTypes(self.client, entity, project)
@@ -955,6 +976,9 @@ class Api:
         Arguments:
             type_name: (str) The name of the artifact type to retrieve.
             project: (str, optional) If given, a project name or path to filter on.
+
+        Returns:
+            An `ArtifactType` object.
         """
         entity, project = self._parse_project_path(project)
         return public.ArtifactType(self.client, entity, project, type_name)
@@ -970,6 +994,9 @@ class Api:
             type_name: (str) The name of the artifact type to filter on.
             per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
+
+        Returns:
+            An iterable `ArtifactCollections` object.
         """
         entity, project = self._parse_project_path(project_name)
         return public.ArtifactCollections(
@@ -1017,6 +1044,9 @@ class Api:
             name: (str) An artifact collection name. May be prefixed with entity/project.
             per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
+
+        Returns:
+            An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
         return public.Artifacts(
