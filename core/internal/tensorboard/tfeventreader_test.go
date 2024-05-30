@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -30,16 +31,16 @@ var event2Bytes = encodeEvent(&tbproto.TFEvent{Step: 2})
 
 func TestReadsSequenceOfFiles(t *testing.T) {
 	tmpdir := t.TempDir()
-	os.WriteFile(
+	require.NoError(t, os.WriteFile(
 		filepath.Join(tmpdir, "tfevents.1.hostname"),
 		event1Bytes,
 		os.ModePerm,
-	)
-	os.WriteFile(
+	))
+	require.NoError(t, os.WriteFile(
 		filepath.Join(tmpdir, "tfevents.2.hostname"),
 		event2Bytes,
 		os.ModePerm,
-	)
+	))
 	reader := tensorboard.NewTFEventReader(
 		tmpdir,
 		tensorboard.TFEventsFileFilter{},
