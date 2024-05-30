@@ -4,6 +4,7 @@ import wandb
 
 @pytest.mark.wandb_core_only
 def test_mode_shared(user, relay_server, test_settings):
+    # test that history records are properly flushed
     metrics = [f"metric_{i}" for i in range(2)]
 
     with relay_server() as relay:
