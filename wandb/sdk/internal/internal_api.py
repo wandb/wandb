@@ -2226,7 +2226,7 @@ class Api:
         entity: Optional[str] = None,
         project: Optional[str] = None,
         num_retries: Optional[int] = None,
-    ) -> Tuple[dict, bool, Optional[List]]:
+    ) -> dict:
         """Update a run.
 
         Arguments:
