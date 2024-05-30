@@ -615,7 +615,7 @@ func (j *JobBuilder) Build(
 			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
 		}
 	}
-
+	aliases := append(j.aliases, "latest")
 	baseArtifact := &service.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),
 		Project:          j.settings.Project.Value,
@@ -623,7 +623,7 @@ func (j *JobBuilder) Build(
 		Name:             *name,
 		Metadata:         metadataString,
 		Type:             "job",
-		Aliases:          j.aliases,
+		Aliases:          aliases,
 		Finalize:         true,
 		ClientId:         utils.GenerateAlphanumericSequence(128),
 		SequenceClientId: utils.GenerateAlphanumericSequence(128),
