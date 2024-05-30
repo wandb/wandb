@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence
 
 import requests
 from wandb_gql import Client, gql
@@ -321,17 +321,17 @@ class Api:
         title: Optional[str] = "Untitled Report",
         description: Optional[str] = "",
         width: Optional[str] = "readable",
-        blocks: Optional[List["wandb.apis.reports.util.Block"]] = None,
+        blocks: Optional[Sequence["wandb.apis.reports.util.Block"]] = None,
     ) -> "wandb.apis.reports.Report":
         """Create a new report.
 
         Arguments:
-            project: (str) The project of the report.
-            entity: (str, optional) The entity of the report.
+            project: (str) The project for the report.
+            entity: (str, optional) The entity for the report.
             title: (str, optional) The title of the report.
             description: (str, optional) The description of the report.
-            width: (str, optional) The width of the report.
-            blocks: (list[Block], optional) The blocks to create the report.
+            width: (str, optional) The width of the report.  Allowed values are: "readable", "fixed", and "fluid".
+            blocks: (list[Block], optional) The blocks of the report.
 
         Returns:
             The newly created `Report`.
@@ -679,18 +679,19 @@ class Api:
         parts[-1] += full_alias
         return parts
 
-    def projects(self, entity=None, per_page=200):
+    def projects(
+        self, entity: Optional[str] = None, per_page: Optional[int] = 200
+    ) -> "public.Projects":
         """Get projects for a given entity.
 
         Arguments:
-            entity: (str) Name of the entity requested.  If None, will fall back to
+            entity: (str) Name of the entity requested.  If None, will fall back to the
                 default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
             per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
         Returns:
             A `Projects` object which is an iterable collection of `Project` objects.
-
         """
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
@@ -704,20 +705,29 @@ class Api:
             )
         return self._projects[entity]
 
-    def project(self, name, entity=None) -> "public.Project":
-        """Return the `Project` with the given name (and entity, if given)."""
+    def project(self, name: str, entity: Optional[str] = None) -> "public.Project":
+        """Return the `Project` with the given name (and entity, if given).
+
+        Arguments:
+            name: (str) The project name.
+            entity: (str) Name of the entity requested.  If None, will fall back to the
+                default entity passed to `Api`.  If no default entity, will raise a `ValueError`.
+
+        Returns:
+            A `Project` object.
+        """
         if entity is None:
             entity = self.settings["entity"] or self.default_entity
         return public.Project(self.client, entity, name, {})
 
-    def reports(self, path="", name=None, per_page=50):
+    def reports(self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50) -> "public.Reports":
         """Get reports for a given project path.
 
         WARNING: This api is in beta and will likely change in a future release
 
         Arguments:
             path: (str) path to project the report resides in, should be in the form: "entity/project"
-            name: (str) optional name of the report requested.
+            name: (str, optional) optional name of the report requested.
             per_page: (int) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
 
@@ -1080,12 +1090,15 @@ class Api:
         return artifact
 
     @normalize_exceptions
-    def job(self, name, path=None):
+    def job(self, name: str, path: Optional[str] = None) -> "public.Job":
         """Return a `Job` from the given parameters.
 
         Arguments:
             name: (str) The job name.
             path: (str, optional) If given, the root path in which to download the job artifact.
+
+        Returns:
+            A `Job` object.
         """
         if name is None:
             raise ValueError("You must specify name= to fetch a job.")
@@ -1096,12 +1109,15 @@ class Api:
         return public.Job(self, name, path)
 
     @normalize_exceptions
-    def list_jobs(self, entity, project):
+    def list_jobs(self, entity: str, project: str) -> List[dict[str, Any]]:
         """Return a list of jobs, if any, for the given entity and project.
 
         Arguments:
             entity: (str) The entity for the listed job(s).
             project: (str) The project for the listed job(s).
+
+        Returns:
+            A list of matching jobs.
         """
         if entity is None:
             raise ValueError("Specify an entity when listing jobs")
@@ -1182,6 +1198,9 @@ class Api:
                     name:version
                     name:alias
             type: (str, optional) The type of artifact
+
+        Returns:
+            True if the artifact version exists, False otherwise.
         """
         try:
             self.artifact(name, type)
@@ -1198,6 +1217,9 @@ class Api:
                 If entity or project is not specified, it will be inferred from the override params if populated.
                 Otherwise, entity will be pulled from the user settings and project will default to "uncategorized".
             type: (str) The type of artifact collection
+
+        Returns:
+            True if the artifact collection exists, False otherwise.
         """
         try:
             self.artifact_collection(type, name)
