@@ -59,7 +59,6 @@ from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
-    ArtifactStatusError,
     WaitTimeoutError,
 )
 from wandb.sdk.artifacts.staging import get_staging_dir

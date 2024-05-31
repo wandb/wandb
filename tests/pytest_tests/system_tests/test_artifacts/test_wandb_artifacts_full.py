@@ -11,10 +11,7 @@ import wandb
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
-from wandb.sdk.artifacts.exceptions import (
-    ArtifactFinalizedError,
-    WaitTimeoutError,
-)
+from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
