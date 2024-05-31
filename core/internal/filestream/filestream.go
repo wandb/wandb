@@ -196,6 +196,16 @@ func (fs *fileStream) Start(
 }
 
 func (fs *fileStream) StreamUpdate(update Update) {
+	defer func() {
+		if recoveredErr := recover(); recoveredErr != nil {
+			err, _ := recoveredErr.(error)
+			fs.logger.CaptureError(
+				"filestream: called StreamUpdate after Finish",
+				err,
+			)
+		}
+	}()
+
 	fs.logger.Debug("filestream: stream update", "update", update)
 	fs.processChan <- update
 }
