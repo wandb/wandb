@@ -3848,6 +3848,36 @@ class Api:
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
 
+    def update_artifact_metadata(
+        self, artifact_id: str, metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Set the metadata of the given artifact version."""
+        mutation = gql(
+            """
+        mutation UpdateArtifact(
+            $artifactID: ID!,
+            $metadata: JSONString,
+        ) {
+            updateArtifact(input: {
+                artifactID: $artifactID,
+                metadata: $metadata,
+            }) {
+                artifact {
+                    id
+                }
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "artifactID": artifact_id,
+                "metadata": json.dumps(metadata),
+            },
+        )
+        return response["updateArtifact"]["artifact"]
+
     def _resolve_client_id(
         self,
         client_id: str,

@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.28.0
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.28.0.
+
+### Features
+
+- Add a `Fiber` performance tracing & error reporting integration ([#795](https://github.com/getsentry/sentry-go/pull/795))
+- Add performance tracing to the `Echo` integration ([#722](https://github.com/getsentry/sentry-go/pull/722))
+- Add performance tracing to the `FastHTTP` integration ([#732](https://github.com/getsentry/sentry-go/pull/723))
+- Add performance tracing to the `Iris` integration ([#809](https://github.com/getsentry/sentry-go/pull/809))
+- Add performance tracing to the `Negroni` integration ([#808](https://github.com/getsentry/sentry-go/pull/808))
+- Add `FailureIssueThreshold` & `RecoveryThreshold` to `MonitorConfig` ([#775](https://github.com/getsentry/sentry-go/pull/775))
+- Use `errors.Unwrap()` to create exception groups ([#792](https://github.com/getsentry/sentry-go/pull/792))
+- Add support for matching on strings for `ClientOptions.IgnoreErrors` & `ClientOptions.IgnoreTransactions` ([#819](https://github.com/getsentry/sentry-go/pull/819))
+- Add `http.request.method` attribute for performance span data ([#786](https://github.com/getsentry/sentry-go/pull/786))
+- Accept `interface{}` for span data values ([#784](https://github.com/getsentry/sentry-go/pull/784))
+
+### Fixes
+
+- Fix missing stack trace for parsing error in `logrusentry` ([#689](https://github.com/getsentry/sentry-go/pull/689))
+
 ## 0.27.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.27.0.

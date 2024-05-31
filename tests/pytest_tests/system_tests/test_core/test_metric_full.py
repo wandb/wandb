@@ -1,4 +1,31 @@
 import pytest
+import wandb
+
+
+@pytest.mark.wandb_core_only
+def test_mode_shared(user, relay_server, test_settings):
+    # test that history records are properly flushed
+    metrics = [f"metric_{i}" for i in range(2)]
+
+    with relay_server() as relay:
+        run = wandb.init(settings=test_settings({"mode": "shared"}))
+        run.define_metric(name="metric_*", step_metric="train_step")
+
+        for train_step in range(3):
+            for metric in metrics:
+                run.log(
+                    {
+                        "train_step": train_step,
+                        metric: train_step * 2,
+                    }
+                )
+
+        run.finish()
+
+    # assert that relay.context.history["metric_i"] both have three NaN values
+    # because a history update should look like {"train_step": <step>, "metric_i": <value>}
+    for metric in metrics:
+        assert relay.context.history[metric].isnull().sum() == 3
 
 
 def test_metric_default(relay_server, wandb_init):

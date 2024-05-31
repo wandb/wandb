@@ -39,7 +39,6 @@ from wandb.sdk.internal import (
     datastore,
     file_stream,
     internal_api,
-    job_builder,
     sender_config,
     update,
 )
@@ -1481,9 +1480,7 @@ class SendManager:
             self._job_builder.disable = True
         elif use.partial.job_name:
             # job is partial, let job builder rebuild job, set job source dict
-            self._job_builder._partial_source = (
-                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
-            )
+            self._job_builder.set_partial_source_id(use.id)
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1659,7 +1656,8 @@ class SendManager:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        artifact = self._job_builder.build()
+
+        artifact = self._job_builder.build(api=self._api)
         if artifact is not None and self._run is not None:
             proto_artifact = self._interface._make_artifact(artifact)
             proto_artifact.run_id = self._run.run_id
