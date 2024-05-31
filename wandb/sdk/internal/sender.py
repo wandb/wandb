@@ -754,8 +754,8 @@ class SendManager:
             name=run.run_id,
         )
 
-        # No resume status = run does not exist; No runInfo = run exists but hasn't started (e.g. sweep)
-        if not resume_status or not resume_status.get("runInfo"):
+        # No resume status = run does not exist; No wandbConfig = run exists but hasn't been inited
+        if not resume_status or not resume_status.get("wandbConfig"):
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE

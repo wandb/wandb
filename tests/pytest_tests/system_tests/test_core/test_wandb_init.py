@@ -4,7 +4,7 @@ import time
 from unittest import mock
 
 import pytest
-from wandb.apis.public import Api
+from wandb import Api
 from wandb.errors import CommError, UsageError
 
 
