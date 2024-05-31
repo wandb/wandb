@@ -33,7 +33,7 @@ class Html(BatchableMedia):
         if data_is_path:
             assert isinstance(data, str)
             data_path = data
-            with open(data_path) as file:
+            with open(data_path, encoding="utf-8") as file:
                 self.html = file.read()
         elif isinstance(data, str):
             self.html = data
