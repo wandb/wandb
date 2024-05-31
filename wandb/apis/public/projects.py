@@ -22,23 +22,22 @@ class Projects(Paginator):
 
     QUERY = gql(
         """
-        query Projects($entity: String, $cursor: String, $perPage: Int = 50) {
-            models(entityName: $entity, after: $cursor, first: $perPage) {
-                edges {
-                    node {
+        query Projects($entity: String, $cursor: String, $perPage: Int = 50) {{
+            models(entityName: $entity, after: $cursor, first: $perPage) {{
+                edges {{
+                    node {{
                         ...ProjectFragment
-                    }
+                    }}
                     cursor
-                }
-                pageInfo {
+                }}
+                pageInfo {{
                     endCursor
                     hasNextPage
-                }
-            }
-        }
-        %s
-        """
-        % PROJECT_FRAGMENT
+                }}
+            }}
+        }}
+        {}
+        """.format(PROJECT_FRAGMENT)
     )
 
     def __init__(self, client, entity, per_page=50):
@@ -118,26 +117,25 @@ class Project(Attrs):
     def sweeps(self):
         query = gql(
             """
-            query GetSweeps($project: String!, $entity: String!) {
-                project(name: $project, entityName: $entity) {
+            query GetSweeps($project: String!, $entity: String!) {{
+                project(name: $project, entityName: $entity) {{
                     totalSweeps
-                    sweeps {
-                        edges {
-                            node {
+                    sweeps {{
+                        edges {{
+                            node {{
                                 ...SweepFragment
-                            }
+                            }}
                             cursor
-                        }
-                        pageInfo {
+                        }}
+                        pageInfo {{
                             endCursor
                             hasNextPage
-                        }
-                    }
-                }
-            }
-            %s
-            """
-            % public.SWEEP_FRAGMENT
+                        }}
+                    }}
+                }}
+            }}
+            {}
+            """.format(public.SWEEP_FRAGMENT)
         )
         variable_values = {"project": self.name, "entity": self.entity}
         ret = self.client.execute(query, variable_values)

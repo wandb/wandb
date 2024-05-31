@@ -388,6 +388,7 @@ class SettingsData:
     colab_url: str
     config_paths: Sequence[str]
     console: str
+    console_multipart: bool  # whether to produce multipart console log files
     credentials_file: str  # file path to write access tokens
     deployment: str
     disable_code: bool
@@ -782,6 +783,7 @@ class Settings(SettingsData):
                 "hook": lambda x: self._convert_console(x),
                 "auto_hook": True,
             },
+            console_multipart={"value": False, "preprocessor": _str_as_bool},
             credentials_file={
                 "value": credentials.DEFAULT_WANDB_CREDENTIALS_FILE,
                 "preprocessor": str,

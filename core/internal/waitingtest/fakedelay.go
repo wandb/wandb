@@ -2,6 +2,7 @@ package waitingtest
 
 import (
 	"sync"
+	"testing"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -52,8 +53,11 @@ func (d *FakeDelay) Tick(allowMoreWait bool) {
 // WaitAndTick invokes Tick after at least one goroutine invokes Wait.
 //
 // If there are already goroutines blocked in Wait, this unblocks them
-// immediately. This panics after a timeout.
-func (d *FakeDelay) WaitAndTick(allowMoreWait bool, timeout time.Duration) {
+// immediately. This fails the test after a timeout.
+func (d *FakeDelay) WaitAndTick(
+	t *testing.T,
+	allowMoreWait bool,
+	timeout time.Duration) {
 	d.mu.Lock()
 
 	success := make(chan struct{})
@@ -70,7 +74,7 @@ func (d *FakeDelay) WaitAndTick(allowMoreWait bool, timeout time.Duration) {
 	select {
 	case <-success:
 	case <-time.After(timeout):
-		panic("no Wait() after one second in WaitAndTick()")
+		t.Fatal("no Wait() after one second in WaitAndTick()")
 	}
 }
 
@@ -97,11 +101,15 @@ func (d *FakeDelay) IsZero() bool {
 }
 
 func (d *FakeDelay) Wait() <-chan struct{} {
-	if d.IsZero() {
+	if d == nil {
 		return completedDelay()
 	}
 
 	d.mu.Lock()
+
+	if d.isZero {
+		return completedDelay()
+	}
 
 	if !d.allowsWait {
 		panic("tried to Wait() on a FakeDelay after the final Tick()")
@@ -117,16 +125,8 @@ func (d *FakeDelay) Wait() <-chan struct{} {
 
 		d.numWaiting--
 
-		waitChan <- struct{}{}
 		close(waitChan)
 	}()
 
 	return waitChan
-}
-
-func completedDelay() <-chan struct{} {
-	ch := make(chan struct{}, 1)
-	ch <- struct{}{}
-	close(ch)
-	return ch
 }

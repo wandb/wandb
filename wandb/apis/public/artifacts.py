@@ -1,7 +1,9 @@
 """Public API: artifacts."""
 
 import json
-from typing import TYPE_CHECKING, Any, Mapping, Optional, Sequence
+import re
+from copy import copy
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
 
 from wandb_gql import Client, gql
 
@@ -10,6 +12,7 @@ from wandb.apis import public
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.paginator import Paginator
 from wandb.errors.term import termlog
+from wandb.sdk.lib import deprecate
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient, Run
@@ -65,16 +68,15 @@ class ArtifactTypes(Paginator):
             $entityName: String!,
             $projectName: String!,
             $cursor: String,
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactTypes(after: $cursor) {
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactTypes(after: $cursor) {{
                     ...ArtifactTypesFragment
-                }
-            }
-        }
-        %s
-    """
-        % ARTIFACTS_TYPES_FRAGMENT
+                }}
+            }}
+        }}
+        {}
+    """.format(ARTIFACTS_TYPES_FRAGMENT)
     )
 
     def __init__(
@@ -178,7 +180,7 @@ class ArtifactType:
             or response.get("project") is None
             or response["project"].get("artifactType") is None
         ):
-            raise ValueError("Could not find artifact type %s" % self.type)
+            raise ValueError("Could not find artifact type {}".format(self.type))
         self._attrs = response["project"]["artifactType"]
         return self._attrs
 
@@ -230,31 +232,32 @@ class ArtifactCollections(Paginator):
                 $projectName: String!,
                 $artifactTypeName: String!
                 $cursor: String,
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifactType(name: $artifactTypeName) {
-                        artifactCollections: %s(after: $cursor) {
-                            pageInfo {
+            ) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifactType(name: $artifactTypeName) {{
+                        artifactCollections: {}(after: $cursor) {{
+                            pageInfo {{
                                 endCursor
                                 hasNextPage
-                            }
+                            }}
                             totalCount
-                            edges {
-                                node {
+                            edges {{
+                                node {{
                                     id
                                     name
                                     description
                                     createdAt
-                                }
+                                }}
                                 cursor
-                            }
-                        }
-                    }
-                }
-            }
-        """
-            % artifact_collection_plural_edge_name(
-                server_supports_artifact_collections_gql_edges(client)
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+        """.format(
+                artifact_collection_plural_edge_name(
+                    server_supports_artifact_collections_gql_edges(client)
+                )
             )
         )
 
@@ -318,12 +321,16 @@ class ArtifactCollection:
         self.client = client
         self.entity = entity
         self.project = project
-        self.name = name
-        self.type = type
+        self._name = name
+        self._saved_name = name
+        self._type = type
+        self._saved_type = type
         self._attrs = attrs
-        if self._attrs is None:
-            self.load()
+        self.load()
         self._aliases = [a["node"]["alias"] for a in self._attrs["aliases"]["edges"]]
+        self._description = self._attrs["description"]
+        self._tags = [a["node"]["name"] for a in self._attrs["tags"]["edges"]]
+        self._saved_tags = copy(self._tags)
 
     @property
     def id(self):
@@ -336,8 +343,8 @@ class ArtifactCollection:
             self.client,
             self.entity,
             self.project,
-            self.name,
-            self.type,
+            self._saved_name,
+            self._saved_type,
             per_page=per_page,
         )
 
@@ -356,33 +363,45 @@ class ArtifactCollection:
             $artifactCollectionName: String!,
             $cursor: String,
             $perPage: Int = 1000
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifactCollection: %s(name: $artifactCollectionName) {
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactType(name: $artifactTypeName) {{
+                    artifactCollection: {}(name: $artifactCollectionName) {{
                         id
                         name
                         description
                         createdAt
-                        aliases(after: $cursor, first: $perPage){
-                            edges {
-                                node {
+                        tags {{
+                            edges {{
+                                node {{
+                                    id
+                                    name
+                                }}
+                            }}
+                        }}
+                        aliases(after: $cursor, first: $perPage){{
+                            edges {{
+                                node {{
                                     alias
-                                }
+                                }}
                                 cursor
-                            }
-                            pageInfo {
+                            }}
+                            pageInfo {{
                                 endCursor
                                 hasNextPage
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        """
-            % artifact_collection_edge_name(
-                server_supports_artifact_collections_gql_edges(self.client)
+                            }}
+                        }}
+                    }}
+                    artifactSequence(name: $artifactCollectionName) {{
+                        __typename
+                    }}
+                }}
+            }}
+        }}
+        """.format(
+                artifact_collection_edge_name(
+                    server_supports_artifact_collections_gql_edges(self.client)
+                )
             )
         )
         response = self.client.execute(
@@ -390,8 +409,8 @@ class ArtifactCollection:
             variable_values={
                 "entityName": self.entity,
                 "projectName": self.project,
-                "artifactTypeName": self.type,
-                "artifactCollectionName": self.name,
+                "artifactTypeName": self._saved_type,
+                "artifactCollectionName": self._saved_name,
             },
         )
         if (
@@ -400,19 +419,28 @@ class ArtifactCollection:
             or response["project"].get("artifactType") is None
             or response["project"]["artifactType"].get("artifactCollection") is None
         ):
-            raise ValueError("Could not find artifact type %s" % self.type)
-        self._attrs = response["project"]["artifactType"]["artifactCollection"]
+            raise ValueError("Could not find artifact type {}".format(self._saved_type))
+        sequence = response["project"]["artifactType"]["artifactSequence"]
+        self._is_sequence = (
+            sequence is not None and sequence["__typename"] == "ArtifactSequence"
+        )
+
+        if self._attrs is None:
+            self._attrs = response["project"]["artifactType"]["artifactCollection"]
         return self._attrs
 
     def change_type(self, new_type: str) -> None:
-        """Change the type of the artifact collection.
+        """Deprecated, change type directly with `save` instead."""
+        deprecate.deprecate(
+            field_name=deprecate.Deprecated.artifact_collection__change_type,
+            warning_message="ArtifactCollection.change_type(type) is deprecated, use ArtifactCollection.save() instead.",
+        )
 
-        Arguments:
-            new_type: The new collection type to use, freeform string.
-        """
         if not self.is_sequence():
             raise ValueError("Artifact collection needs to be a sequence")
-        termlog(f"Changing artifact collection type of " f"{self.type} to {new_type}")
+        termlog(
+            f"Changing artifact collection type of {self._saved_type} to {new_type}"
+        )
         template = """
             mutation MoveArtifactCollection(
                 $artifactSequenceID: ID!
@@ -439,34 +467,12 @@ class ArtifactCollection:
         }
         mutation = gql(template)
         self.client.execute(mutation, variable_values=variable_values)
-        self.type = new_type
+        self._saved_type = new_type
+        self._type = new_type
 
-    @normalize_exceptions
     def is_sequence(self) -> bool:
-        """Return True if this is a sequence."""
-        query = gql(
-            """
-            query FindSequence($entity: String!, $project: String!, $collection: String!, $type: String!) {
-                project(name: $project, entityName: $entity) {
-                    artifactType(name: $type) {
-                        __typename
-                        artifactSequence(name: $collection) {
-                            __typename
-                        }
-                    }
-                }
-            }
-            """
-        )
-        variables = {
-            "entity": self.entity,
-            "project": self.project,
-            "collection": self.name,
-            "type": self.type,
-        }
-        res = self.client.execute(query, variable_values=variables)
-        sequence = res["project"]["artifactType"]["artifactSequence"]
-        return sequence is not None and sequence["__typename"] == "ArtifactSequence"
+        """Return whether the artifact collection is a sequence."""
+        return self._is_sequence
 
     @normalize_exceptions
     def delete(self):
@@ -501,8 +507,238 @@ class ArtifactCollection:
             )
         self.client.execute(mutation, variable_values={"id": self.id})
 
+    @property
+    def description(self):
+        """A description of the artifact collection."""
+        return self._description
+
+    @description.setter
+    def description(self, description: Optional[str]) -> None:
+        self._description = description
+
+    @property
+    def tags(self):
+        """The tags associated with the artifact collection."""
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags: List[str]) -> None:
+        if any(not re.match(r"^[-\w]+([ ]+[-\w]+)*$", tag) for tag in tags):
+            raise ValueError(
+                "Tags must only contain alphanumeric characters or underscores separated by spaces or hyphens"
+            )
+        self._tags = tags
+
+    @property
+    def name(self):
+        """The name of the artifact collection."""
+        return self._name
+
+    @name.setter
+    def name(self, name: List[str]) -> None:
+        self._name = name
+
+    @property
+    def type(self):
+        """The type of the artifact collection."""
+        return self._type
+
+    @type.setter
+    def type(self, type: List[str]) -> None:
+        if not self.is_sequence():
+            raise ValueError(
+                "Type can only be changed if the artifact collection is a sequence."
+            )
+        self._type = type
+
+    def _update_collection(self):
+        mutation = gql("""
+            mutation UpdateArtifactCollection(
+                $artifactSequenceID: ID!
+                $name: String
+                $description: String
+            ) {
+                updateArtifactSequence(
+                input: {
+                    artifactSequenceID: $artifactSequenceID
+                    name: $name
+                    description: $description
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                }
+                }
+            }
+        """)
+
+        variable_values = {
+            "artifactSequenceID": self.id,
+            "name": self._name,
+            "description": self.description,
+        }
+        self.client.execute(mutation, variable_values=variable_values)
+        self._saved_name = self._name
+
+    def _update_collection_type(self):
+        type_mutation = gql("""
+            mutation MoveArtifactCollection(
+                $artifactSequenceID: ID!
+                $destinationArtifactTypeName: String!
+            ) {
+                moveArtifactSequence(
+                input: {
+                    artifactSequenceID: $artifactSequenceID
+                    destinationArtifactTypeName: $destinationArtifactTypeName
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                    __typename
+                }
+                }
+            }
+            """)
+
+        variable_values = {
+            "artifactSequenceID": self.id,
+            "destinationArtifactTypeName": self._type,
+        }
+        self.client.execute(type_mutation, variable_values=variable_values)
+        self._saved_type = self._type
+
+    def _update_portfolio(self):
+        mutation = gql("""
+            mutation UpdateArtifactPortfolio(
+                $artifactPortfolioID: ID!
+                $name: String
+                $description: String
+            ) {
+                updateArtifactPortfolio(
+                input: {
+                    artifactPortfolioID: $artifactPortfolioID
+                    name: $name
+                    description: $description
+                }
+                ) {
+                artifactCollection {
+                    id
+                    name
+                    description
+                }
+                }
+            }
+        """)
+        variable_values = {
+            "artifactPortfolioID": self.id,
+            "name": self._name,
+            "description": self.description,
+        }
+        self.client.execute(mutation, variable_values=variable_values)
+        self._saved_name = self._name
+
+    def _add_tags(self, tags_to_add):
+        add_mutation = gql(
+            """
+            mutation CreateArtifactCollectionTagAssignments(
+                $entityName: String!
+                $projectName: String!
+                $artifactCollectionName: String!
+                $tags: [TagInput!]!
+            ) {
+                createArtifactCollectionTagAssignments(
+                input: {
+                    entityName: $entityName
+                    projectName: $projectName
+                    artifactCollectionName: $artifactCollectionName
+                    tags: $tags
+                }
+                ) {
+                tags {
+                    id
+                    name
+                    tagCategoryName
+                }
+                }
+            }
+            """
+        )
+        self.client.execute(
+            add_mutation,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactCollectionName": self._saved_name,
+                "tags": [
+                    {
+                        "tagName": tag,
+                    }
+                    for tag in tags_to_add
+                ],
+            },
+        )
+
+    def _delete_tags(self, tags_to_delete):
+        delete_mutation = gql(
+            """
+            mutation DeleteArtifactCollectionTagAssignments(
+                $entityName: String!
+                $projectName: String!
+                $artifactCollectionName: String!
+                $tags: [TagInput!]!
+            ) {
+                deleteArtifactCollectionTagAssignments(
+                input: {
+                    entityName: $entityName
+                    projectName: $projectName
+                    artifactCollectionName: $artifactCollectionName
+                    tags: $tags
+                }
+                ) {
+                success
+                }
+            }
+            """
+        )
+        self.client.execute(
+            delete_mutation,
+            variable_values={
+                "entityName": self.entity,
+                "projectName": self.project,
+                "artifactCollectionName": self._saved_name,
+                "tags": [
+                    {
+                        "tagName": tag,
+                    }
+                    for tag in tags_to_delete
+                ],
+            },
+        )
+
+    def save(self) -> None:
+        """Persist any changes made to the artifact collection."""
+        if self.is_sequence():
+            self._update_collection()
+
+            if self._saved_type != self._type:
+                self._update_collection_type()
+        else:
+            self._update_portfolio()
+
+        tags_to_add = set(self._tags) - set(self._saved_tags)
+        tags_to_delete = set(self._saved_tags) - set(self._tags)
+        if len(tags_to_add) > 0:
+            self._add_tags(tags_to_add)
+        if len(tags_to_delete) > 0:
+            self._delete_tags(tags_to_delete)
+        self._saved_tags = copy(self._tags)
+
     def __repr__(self):
-        return f"<ArtifactCollection {self.name} ({self.type})>"
+        return f"<ArtifactCollection {self._name} ({self._type})>"
 
 
 class Artifacts(Paginator):
@@ -742,18 +978,17 @@ class ArtifactFiles(Paginator):
             $fileNames: [String!],
             $fileCursor: String,
             $fileLimit: Int = 50
-        ) {
-            project(name: $projectName, entityName: $entityName) {
-                artifactType(name: $artifactTypeName) {
-                    artifact(name: $artifactName) {
+        ) {{
+            project(name: $projectName, entityName: $entityName) {{
+                artifactType(name: $artifactTypeName) {{
+                    artifact(name: $artifactName) {{
                         ...ArtifactFilesFragment
-                    }
-                }
-            }
-        }
-        %s
-    """
-        % ARTIFACT_FILES_FRAGMENT
+                    }}
+                }}
+            }}
+        }}
+        {}
+    """.format(ARTIFACT_FILES_FRAGMENT)
     )
 
     def __init__(

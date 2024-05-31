@@ -20,6 +20,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sampler"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -29,10 +30,10 @@ import (
 const (
 	MetaFileName         = "wandb-metadata.json"
 	SummaryFileName      = "wandb-summary.json"
-	OutputFileName       = "output.log"
 	DiffFileName         = "diff.patch"
 	RequirementsFileName = "requirements.txt"
 	ConfigFileName       = "config.yaml"
+	LatestOutputFileName = "output.log"
 )
 
 type HandlerParams struct {
@@ -45,7 +46,7 @@ type HandlerParams struct {
 	MetricHandler     *MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
-	TBHandler         *TBHandler
+	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
 }
@@ -94,7 +95,7 @@ type Handler struct {
 	systemMonitor *monitor.SystemMonitor
 
 	// tbHandler is the tensorboard handler
-	tbHandler *TBHandler
+	tbHandler *tensorboard.TBHandler
 
 	// runfilesUploaderOrNil manages uploading a run's files
 	//
@@ -114,7 +115,7 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
-	params *HandlerParams,
+	params HandlerParams,
 ) *Handler {
 	return &Handler{
 		ctx:                   ctx,
@@ -225,7 +226,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
-		h.handleTBrecord(record)
+		h.handleTBrecord(x.Tbrecord)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -430,7 +431,6 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 			},
 		)
 	case service.DeferRequest_FLUSH_TB:
-		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -998,11 +998,8 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 	)
 }
 
-func (h *Handler) handleTBrecord(record *service.Record) {
-	err := h.tbHandler.Handle(record)
-	if err != nil {
-		h.logger.CaptureError("error handling tbrecord", err)
-	}
+func (h *Handler) handleTBrecord(record *service.TBRecord) {
+	h.tbHandler.Handle(record)
 }
 
 // The main entry point for history records.
@@ -1131,6 +1128,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		h.handleHistory(&service.HistoryRecord{
 			Item: items,
 		})
+		h.runHistory = runhistory.New()
 	}
 }
 

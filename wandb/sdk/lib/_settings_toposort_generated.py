@@ -90,6 +90,7 @@ _Setting = Literal[
     "colab_url",
     "config_paths",
     "console",
+    "console_multipart",
     "credentials_file",
     "deployment",
     "disable_code",

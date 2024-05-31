@@ -13,7 +13,7 @@ type Storage int
 
 const (
 	bufferSize              = 32
-	defaultConcurrencyLimit = 128
+	DefaultConcurrencyLimit = 128
 )
 
 type FileTransfer interface {
@@ -92,7 +92,7 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 	fm := fileTransferManager{
 		inChan:    make(chan *Task, bufferSize),
 		wg:        &sync.WaitGroup{},
-		semaphore: make(chan struct{}, defaultConcurrencyLimit),
+		semaphore: make(chan struct{}, DefaultConcurrencyLimit),
 	}
 
 	for _, opt := range opts {
@@ -112,7 +112,7 @@ func (fm *fileTransferManager) Start() {
 		for task := range fm.inChan {
 			// add a task to the wait group
 			fm.wg.Add(1)
-			fm.logger.Debug("fileTransfer: got task", "task", task)
+			fm.logger.Debug("fileTransfer: got task", "task", task.String())
 			// spin up a goroutine per task
 			go func(task *Task) {
 				// Acquire the semaphore

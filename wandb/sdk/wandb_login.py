@@ -6,7 +6,7 @@ This authenticates your machine to log data to your account.
 import enum
 import os
 import sys
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -112,11 +112,10 @@ class ApiKeyStatus(enum.Enum):
 
 class _WandbLogin:
     def __init__(self):
-        self.kwargs: Optional[Dict] = None
         self._settings: Optional[Settings] = None
         self._backend = None
-        self._silent = None
-        self._entity = None
+        self._silent: Optional[bool] = None
+        self._entity: Optional[str] = None
         self._wl = None
         self._key = None
         self._relogin = None
@@ -130,7 +129,8 @@ class _WandbLogin:
         host: Optional[str] = None,
         force: Optional[bool] = None,
         timeout: Optional[int] = None,
-    ):
+    ) -> None:
+        """Updates login-related settings on the global setup object."""
         self._relogin = relogin
 
         # built up login settings
@@ -152,7 +152,8 @@ class _WandbLogin:
         self._wl = wandb.setup(settings=login_settings)
         self._settings = self._wl.settings
 
-    def is_apikey_configured(self):
+    def is_apikey_configured(self) -> bool:
+        """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
 
     def use_identity_token(self):
@@ -161,13 +162,17 @@ class _WandbLogin:
     def set_backend(self, backend):
         self._backend = backend
 
-    def set_silent(self, silent: bool):
+    def set_silent(self, silent: bool) -> None:
         self._silent = silent
 
-    def set_entity(self, entity: str):
+    def set_entity(self, entity: str) -> None:
         self._entity = entity
 
-    def login(self):
+    def login(self) -> bool:
+        """Returns whether the user is logged in (i.e. an API key exists).
+
+        If the user is logged in, this also prints an informational message.
+        """
         apikey_configured = self.is_apikey_configured()
         if self._settings.relogin or self._relogin:
             apikey_configured = False
@@ -175,11 +180,12 @@ class _WandbLogin:
             return False
 
         if not self._silent:
-            self.login_display()
+            self._print_logged_in_message()
 
         return apikey_configured
 
-    def login_display(self):
+    def _print_logged_in_message(self) -> None:
+        """Prints a message telling the user they are logged in."""
         username = self._wl._get_username()
 
         if username:
@@ -203,7 +209,8 @@ class _WandbLogin:
             repeat=False,
         )
 
-    def configure_api_key(self, key):
+    def configure_api_key(self, key: str) -> None:
+        """Saves the API key and updates the the global setup object."""
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
                 "If you're specifying your api key in code, ensure this "
@@ -216,8 +223,14 @@ class _WandbLogin:
         self._key = key
 
     def update_session(
-        self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
+        self,
+        key: Optional[str],
+        status: ApiKeyStatus = ApiKeyStatus.VALID,
     ) -> None:
+        """Updates mode and API key settings on the global setup object.
+
+        If we're online, this also pulls in user settings from the server.
+        """
         _logger = wandb.setup()._get_logger()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
@@ -255,7 +268,8 @@ class _WandbLogin:
                 return None, ApiKeyStatus.OFFLINE
             return key, ApiKeyStatus.VALID
 
-    def prompt_api_key(self):
+    def prompt_api_key(self) -> None:
+        """Updates the global API key by prompting the user."""
         key, status = self._prompt_api_key()
         if status == ApiKeyStatus.NOTTY:
             directive = (
@@ -267,14 +281,6 @@ class _WandbLogin:
 
         self.update_session(key, status=status)
         self._key = key
-
-    def propogate_login(self):
-        # TODO(jhr): figure out if this is really necessary
-        if self._backend:
-            # TODO: calling this twice is gross, this deserves a refactor
-            # Make sure our backend picks up the new creds
-            # _ = self._backend.interface.communicate_login(key, anonymous)
-            pass
 
 
 def _login(
@@ -338,8 +344,5 @@ def _login(
 
     if not key:
         wlogin.prompt_api_key()
-
-    # make sure login credentials get to the backend
-    wlogin.propogate_login()
 
     return wlogin._key or False

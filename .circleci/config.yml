@@ -167,6 +167,32 @@ commands:
       - run: mkdir -p ~/.gnupg
       - codecov/upload: { flags: <<parameters.flags>> }
 
+  run-nox-tests:
+    description:
+      Helper command for the nox-tests-* jobs. Runs a nox session and uploads
+      tests artifacts.
+    parameters:
+      python: {type: string}
+      session: {type: string}
+      yea_shard: {type: string}
+      codecov_flags: {type: string}
+    steps:
+      - run:
+          name: Install Python dependencies
+          command: pip install -U nox pip uv
+          no_output_timeout: 5m
+
+      - run:
+          name: "Run nox session: <<parameters.session>>"
+          no_output_timeout: 10m
+          command: >
+            nox -s "<<parameters.session>>" --python <<parameters.python>>
+          environment:
+            YEA_SHARD: <<parameters.yea_shard>>
+
+      - upload_codecov: { flags: <<parameters.codecov_flags>> }
+      - save-test-results
+
   install_go:
     description: "Install Go with the specified version and system"
     parameters:
@@ -438,37 +464,103 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
-  nox-tests:
+  nox-tests-linux:
     parameters:
-      executor: { type: executor }
+      executor_name:
+        description:
+          Set to "local-testcontainer" to run using the local-testcontainer
+          executor. Defaults to "linux-python".
+        type: string
+        default: linux-python
       parallelism: { type: integer }
-      install_deps: { type: steps }
-      session: { type: string }
-      python: { type: string }
       codecov_flags: { type: string }
-
-    executor: <<parameters.executor>>
+      python: { type: string }
+      session: { type: string }
+      yea_shard:  # if running tests with yea, like functional_tests
+        default: ""
+        type: string
 
     parallelism: <<parameters.parallelism>>
+    executor:
+      name: <<parameters.executor_name>>
+      python: <<parameters.python>>
 
     steps:
       - checkout
-      - <<parameters.install_deps>>
+      - run:
+          name: Install system deps
+          command: apt-get update && apt-get install -y libsndfile1 ffmpeg
       - install_go
-      - run:
-          name: Install Python dependencies
-          command: pip install -U nox pip uv
-          no_output_timeout: 5m
+      - run-nox-tests:
+          codecov_flags: <<parameters.codecov_flags>>
+          python: <<parameters.python>>
+          session: <<parameters.session>>
+          yea_shard: <<parameters.yea_shard>>
 
+  nox-tests-macos:
+    parameters:
+      parallelism: { type: integer }
+      codecov_flags: { type: string }
+      python: { type: string }
+      session: { type: string }
+      yea_shard:  # if running tests with yea, like functional_tests
+        default: ""
+        type: string
+
+    parallelism: <<parameters.parallelism>>
+    executor: macos
+
+    steps:
+      - checkout
       - run:
-          name: "Run nox session: <<parameters.session>>"
-          no_output_timeout: 10m
+          name: Install system deps
+          command: brew install ffmpeg python@<<parameters.python>>
+      - install_go
+      - run-nox-tests:
+          codecov_flags: <<parameters.codecov_flags>>
+          python: <<parameters.python>>
+          session: <<parameters.session>>
+          yea_shard: <<parameters.yea_shard>>
+
+  nox-tests-win:
+    parameters:
+      parallelism: { type: integer }
+      codecov_flags: { type: string }
+      python: { type: string }
+      session: { type: string }
+      yea_shard:  # if running tests with yea, like functional_tests
+        default: ""
+        type: string
+
+    parallelism: <<parameters.parallelism>>
+    executor:
+      name: win/server-2019
+      size: large
+      shell: bash.exe
+
+    steps:
+      - checkout
+
+      # https://docs.python.org/3/using/windows.html#the-nuget-org-packages
+      - run:
+          name: Install Python
           command: >
-            nox -s "<<parameters.session>>" --python <<parameters.python>>
+            nuget.exe install python \
+              -Version <<parameters.python>> \
+              -ExcludeVersion \
+              -OutputDirectory "/c/nox-tests-python" &&
+            setx PATH '/c/nox-tests-python/python/tools;%PATH%'
 
-      - upload_codecov: { flags: <<parameters.codecov_flags>> }
+      - run:
+          name: Install system deps (ffmpeg)
+          command: choco install -y ffmpeg
 
-      - save-test-results
+      - install_go
+      - run-nox-tests:
+          codecov_flags: <<parameters.codecov_flags>>
+          python: <<parameters.python>>
+          session: <<parameters.session>>
+          yea_shard: <<parameters.yea_shard>>
 
   code-check:
     docker:
@@ -1227,48 +1319,34 @@ workflows:
           requires:
             - "slack-notify-on-start"
 
-      - tox-base:
+      - nox-tests-linux:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
+          parallelism: 1
 
           matrix:
             parameters:
-              shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
-              python_version_major: [3]
-              python_version_minor: [7]
+              yea_shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+              python: ["3.7"]
 
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
-
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
-          notify_on_failure: true
-
-      - tox-base:
+      - nox-tests-linux:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
+          parallelism: 1
 
           context: sdk-third-party-api
 
           matrix:
             parameters:
-              shard:
+              yea_shard:
                 # - "llm"  # TODO: needs review
                 - noml
                 - ray112
@@ -1285,25 +1363,7 @@ workflows:
                 - sb3
                 - tf
                 - lightning
-              python_version_major: [3]
-              python_version_minor: [9]
-
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-          tox_args: "tests/functional_tests"
-
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
-          notify_on_failure: true
+              python: ["3.9"]
 
       # build docker images for yea shards
       - sdk_docker:
@@ -1460,72 +1520,42 @@ workflows:
       #
       # Unit tests with pytest on Linux
       #
-      - nox-tests:
+      - nox-tests-linux:
           name: unit-tests-linux-<<matrix.python>>
           session: unit_tests
           codecov_flags: unit
+          parallelism: 4
 
           matrix:
             parameters:
               python: ["3.8", "3.12"]
 
-          parallelism: 4
-          executor:
-            name: linux-python
-            python: <<matrix.python>>
-
-          install_deps:
-            - run:
-                name: Install system deps
-                command: |
-                  apt-get update
-                  apt-get install -y libsndfile1 ffmpeg
-
       #
       # Unit tests with pytest on macOS
       #
-      # This differs from the Linux tests above only in:
-      #   - executor
-      #   - install_deps
-      #   - Python versions tested (Homebrew doesn't have 3.7)
-      #
-      # Unfortunately, CircleCI does not seem to provide a way to define
-      # the common part separately and reuse it.
-      #
-      - nox-tests:
+      - nox-tests-macos:
           name: unit-tests-macos-<<matrix.python>>
           session: unit_tests
           codecov_flags: unit
+          parallelism: 4
 
           matrix:
             parameters:
               python: ["3.9", "3.12"]
 
-          parallelism: 4
-          executor: macos
-
-          install_deps:
-            - run:
-                name: Install system deps
-                command: |
-                  brew install ffmpeg python@<<matrix.python>>
-
       #
       # Unit tests with pytest on Windows
       #
-      # This differs from the Linux tests above only in:
-      #   - executor
-      #   - install_deps
-      #
-      - nox-tests:
+      - nox-tests-win:
           name: unit-tests-win-<<matrix.python>>
           session: unit_tests
           codecov_flags: unit
+          parallelism: 4
 
           filters:
             branches:
               only:
-                # - main
+                - main
                 - /^release-.*/
                 - /^.*-ci-win$/
 
@@ -1533,27 +1563,15 @@ workflows:
             parameters:
               python: ["3.9", "3.12"]
 
-
-          parallelism: 4
-          executor:
-            name: win/server-2019
-            size: large
-            shell: bash.exe
-
-          install_deps:
-            - run:
-                name: Install system deps
-                command: |
-                  choco install -y ffmpeg \
-                    $( echo python<<matrix.python>> | tr -d . )
-
       #
       # System tests on Linux
       #
-      - nox-tests:
+      - nox-tests-linux:
           name: system-tests-linux-<<matrix.python>>
           session: system_tests
           codecov_flags: system
+          parallelism: 8
+          executor_name: local-testcontainer
 
           filters:
             branches:
@@ -1564,38 +1582,16 @@ workflows:
             parameters:
               python: ["3.8", "3.12"]
 
-          parallelism: 8
-          executor:
-            name: local-testcontainer
-            python: <<matrix.python>>
-
-          install_deps:
-            - run:
-                name: Install system deps
-                command: |
-                  apt-get update
-                  apt-get install -y libsndfile1 ffmpeg
-
-      - nox-tests:
+      - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
           session: notebook_tests
           codecov_flags: system
+          parallelism: 1
+          executor_name: local-testcontainer
 
           matrix:
             parameters:
               python: ["3.8", "3.12"]
-
-          parallelism: 1
-          executor:
-            name: local-testcontainer
-            python: <<matrix.python>>
-
-          install_deps:
-            - run:
-                name: Install system deps
-                command: |
-                  apt-get update
-                  apt-get install -y libsndfile1 ffmpeg
 
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
@@ -1621,83 +1617,40 @@ workflows:
       #
       # Functional tests with yea on Linux
       #
-      - tox-base:
+      - nox-tests-linux:
           name: "\
             func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
           parallelism: 4
 
           matrix:
             parameters:
-              shard: ["default", "artifacts", "launch"]
-              python_version_major: [3]
-              python_version_minor: [9]
-
-          toxenv: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-
-          tox_args: "tests/functional_tests"
-
-          coverage_dir: "\
-            func-\
-            base-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
-
-      - tox-base:
-          name: "\
-            func-tests-linux-\
-            <<matrix.shard>>-\
-            <<matrix.python_version_major>>-\
-            <<matrix.python_version_minor>>"
-
-          matrix:
-            parameters:
-              shard: [mitm, docs]
-              python_version_major: [3]
-              python_version_minor: [9]
-
-          toxenv: "\
-            func-\
-            <<matrix.shard>>-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>\
-            ,cover-func-linux-circle"
-
-          coverage_dir: "\
-            func-\
-            <<matrix.shard>>-py\
-            <<matrix.python_version_major>>\
-            <<matrix.python_version_minor>>"
-          codecov_flags: func
+              yea_shard: [default, artifacts, launch, mitm, docs]
+              python: ["3.9"]
 
       #
       # Functional tests with yea on Windows
       #
-      - win:
+      - nox-tests-win:
+          name: func-tests-win-default-<<matrix.python>>
+          session: functional_tests
+          yea_shard: default
+          codecov_flags: func
+          parallelism: 4
+
           filters:
             branches:
               only:
-                # - main
+                - main
                 - /^release-.*/
                 - /^.*-ci-win$/
+
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "func-default-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "func-base-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/functional_tests"
-          parallelism: 6
-          xdist: 1
+              python: ["3.9"]
 
       #
       # functional tests with different executors
