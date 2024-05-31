@@ -81,6 +81,7 @@ func NewFileStream(
 	}
 
 	fileStreamRetryClient := backend.NewClient(api.ClientOptions{
+		RetryPolicy:     filestream.RetryPolicy,
 		RetryMax:        int(settings.Proto.GetXFileStreamRetryMax().GetValue()),
 		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMinSeconds().GetValue()),
 		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
