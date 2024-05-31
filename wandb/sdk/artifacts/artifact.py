@@ -2117,6 +2117,7 @@ class Artifact:
             }
             """
         )
+        assert self._client is not None
         self._client.execute(
             mutation,
             variable_values={
