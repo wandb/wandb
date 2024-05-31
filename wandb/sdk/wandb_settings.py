@@ -388,6 +388,7 @@ class SettingsData:
     colab_url: str
     config_paths: Sequence[str]
     console: str
+    credentials_file: str  # file path to write access tokens
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -407,7 +408,6 @@ class SettingsData:
     heartbeat_seconds: int
     host: str
     identity_token_file: str  # file path to supply a jwt for authentication
-    credentials_file: str  # file path to write access tokens
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
@@ -782,6 +782,10 @@ class Settings(SettingsData):
                 "hook": lambda x: self._convert_console(x),
                 "auto_hook": True,
             },
+            credentials_file={
+                "value": credentials.DEFAULT_WANDB_CREDENTIALS_FILE,
+                "preprocessor": str,
+            },
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -817,10 +821,6 @@ class Settings(SettingsData):
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             identity_token_file={"value": None, "preprocessor": str},
-            credentials_file={
-                "value": credentials.DEFAULT_WANDB_CREDENTIALS_FILE,
-                "preprocessor": str,
-            },
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
