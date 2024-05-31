@@ -83,6 +83,12 @@ message Settings {
   // must be installed.
   google.protobuf.BoolValue _require_core = 36;
 
+  // file path to the jwt for authentication
+  google.protobuf.StringValue identity_token_file = 166;
+
+  // file path location to write credentials
+  google.protobuf.StringValue credentials_file = 167;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue _cli_only_mode = 4;

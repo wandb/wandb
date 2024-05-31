@@ -44,7 +44,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import retry
+from ..lib import retry, credentials
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
@@ -234,14 +234,19 @@ class Api:
         extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
+        extra_http_headers.update(_thread_local_api_settings.headers or {})
+
+        auth = None
+        if self.access_token is not None:
+            auth_header = {"Authorization": "Bearer " + self.access_token }
+            extra_http_headers.update(auth_header)
+        elif _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+
         proxies = self.settings("_proxies") or json.loads(
             self._environ.get("WANDB__PROXIES", "{}")
         )
 
-        auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("api", self.api_key or "")
-        extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
                 headers={
@@ -375,6 +380,16 @@ class Api:
         sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
         default_key: Optional[str] = self.default_settings.get("api_key")
         return env_key or key or sagemaker_key or default_key
+
+    @property
+    def access_token(self) -> Optional[str]:
+        token_file = self.settings("identity_token_file")
+        if token_file is None:
+            return None
+
+        base_url = self.settings("base_url")
+        credentials_file = self.settings("credentials_file")
+        return credentials.access_token(base_url, token_file, credentials_file)
 
     @property
     def api_url(self) -> str:
@@ -2565,14 +2580,21 @@ class Api:
             A tuple of the content length and the streaming response
         """
         check_httpclient_logger_handler()
+
+        http_headers = _thread_local_api_settings.headers or {}
+
         auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("user", self.api_key or "")
+        if self.access_token is not None:
+            auth_header = {"Authorization": "Bearer " + self.access_token }
+            http_headers.update(auth_header)
+        elif _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+
         response = requests.get(
             url,
             auth=auth,
             cookies=_thread_local_api_settings.cookies or {},
-            headers=_thread_local_api_settings.headers or {},
+            headers=http_headers,
             stream=True,
         )
         response.raise_for_status()
