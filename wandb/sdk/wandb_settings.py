@@ -43,7 +43,7 @@ from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
-from wandb.sdk.lib import filesystem, credentials
+from wandb.sdk.lib import credentials, filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -406,8 +406,8 @@ class SettingsData:
     git_root: str
     heartbeat_seconds: int
     host: str
-    identity_token_file: str # file path to supply a jwt for authentication
-    credentials_file: str # file path to write access tokens
+    identity_token_file: str  # file path to supply a jwt for authentication
+    credentials_file: str  # file path to write access tokens
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
@@ -817,7 +817,10 @@ class Settings(SettingsData):
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             identity_token_file={"value": None, "preprocessor": str},
-            credentials_file={"value": credentials.DEFAULT_WANDB_CREDENTIALS_FILE, "preprocessor": str},
+            credentials_file={
+                "value": credentials.DEFAULT_WANDB_CREDENTIALS_FILE,
+                "preprocessor": str,
+            },
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,

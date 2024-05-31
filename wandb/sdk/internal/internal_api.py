@@ -44,7 +44,7 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import retry, credentials
+from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
@@ -238,7 +238,7 @@ class Api:
 
         auth = None
         if self.access_token is not None:
-            auth_header = {"Authorization": "Bearer " + self.access_token }
+            auth_header = {"Authorization": "Bearer " + self.access_token}
             extra_http_headers.update(auth_header)
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
@@ -2585,7 +2585,7 @@ class Api:
 
         auth = None
         if self.access_token is not None:
-            auth_header = {"Authorization": "Bearer " + self.access_token }
+            auth_header = {"Authorization": "Bearer " + self.access_token}
             http_headers.update(auth_header)
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")

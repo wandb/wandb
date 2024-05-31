@@ -484,13 +484,15 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
 
+
 def get_credentials_file(
-        default: Optional[str] = None, env: Optional[Env] = None
+    default: Optional[str] = None, env: Optional[Env] = None
 ) -> Optional[str]:
     if env is None:
         env = os.environ
     credentials_file = env.get(CREDENTIALS_FILE, default)
     return credentials_file
+
 
 def strtobool(val: str) -> bool:
     """Convert a string representation of truth to true or false.
