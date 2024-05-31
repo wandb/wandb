@@ -1180,8 +1180,7 @@ class Api:
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
         """
-        # Pulling runInfo is required so that we can determine if a run has actually started
-        # Only pull args (arbitrary) because we just need to check whether runInfo is null
+        # Pulling wandbConfig.start_time is required so that we can determine if a run has actually started
         query = gql(
             """
         query RunResumeStatus($project: String, $entity: String, $name: String!) {
@@ -1205,9 +1204,7 @@ class Api:
                     eventsTail
                     config
                     tags
-                    runInfo {
-                        args
-                    }
+                    wandbConfig(keys: ["t"])
                 }
             }
         }
@@ -1222,6 +1219,7 @@ class Api:
                 "name": name,
             },
         )
+        print(response)
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
             return None

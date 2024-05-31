@@ -541,18 +541,18 @@ func (v *RunResumeStatusModelProject) GetBucket() *RunResumeStatusModelProjectBu
 
 // RunResumeStatusModelProjectBucketRun includes the requested fields of the GraphQL type Run.
 type RunResumeStatusModelProjectBucketRun struct {
-	Id               string                                       `json:"id"`
-	Name             string                                       `json:"name"`
-	SummaryMetrics   *string                                      `json:"summaryMetrics"`
-	DisplayName      *string                                      `json:"displayName"`
-	LogLineCount     *int                                         `json:"logLineCount"`
-	HistoryLineCount *int                                         `json:"historyLineCount"`
-	EventsLineCount  *int                                         `json:"eventsLineCount"`
-	HistoryTail      *string                                      `json:"historyTail"`
-	EventsTail       *string                                      `json:"eventsTail"`
-	Config           *string                                      `json:"config"`
-	Tags             []string                                     `json:"tags"`
-	RunInfo          *RunResumeStatusModelProjectBucketRunRunInfo `json:"runInfo"`
+	Id               string   `json:"id"`
+	Name             string   `json:"name"`
+	SummaryMetrics   *string  `json:"summaryMetrics"`
+	DisplayName      *string  `json:"displayName"`
+	LogLineCount     *int     `json:"logLineCount"`
+	HistoryLineCount *int     `json:"historyLineCount"`
+	EventsLineCount  *int     `json:"eventsLineCount"`
+	HistoryTail      *string  `json:"historyTail"`
+	EventsTail       *string  `json:"eventsTail"`
+	Config           *string  `json:"config"`
+	Tags             []string `json:"tags"`
+	WandbConfig      *string  `json:"wandbConfig"`
 }
 
 // GetId returns RunResumeStatusModelProjectBucketRun.Id, and is useful for accessing the field via an interface.
@@ -588,18 +588,8 @@ func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Co
 // GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
 
-// GetRunInfo returns RunResumeStatusModelProjectBucketRun.RunInfo, and is useful for accessing the field via an interface.
-func (v *RunResumeStatusModelProjectBucketRun) GetRunInfo() *RunResumeStatusModelProjectBucketRunRunInfo {
-	return v.RunInfo
-}
-
-// RunResumeStatusModelProjectBucketRunRunInfo includes the requested fields of the GraphQL type RunInfo.
-type RunResumeStatusModelProjectBucketRunRunInfo struct {
-	Args []string `json:"args"`
-}
-
-// GetArgs returns RunResumeStatusModelProjectBucketRunRunInfo.Args, and is useful for accessing the field via an interface.
-func (v *RunResumeStatusModelProjectBucketRunRunInfo) GetArgs() []string { return v.Args }
+// GetWandbConfig returns RunResumeStatusModelProjectBucketRun.WandbConfig, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetWandbConfig() *string { return v.WandbConfig }
 
 // RunResumeStatusModelProjectEntity includes the requested fields of the GraphQL type Entity.
 type RunResumeStatusModelProjectEntity struct {
@@ -1784,9 +1774,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			eventsTail
 			config
 			tags
-			runInfo {
-				args
-			}
+			wandbConfig(keys: ["t"])
 		}
 	}
 }

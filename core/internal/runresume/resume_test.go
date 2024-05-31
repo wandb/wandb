@@ -46,7 +46,7 @@ func TestAddOffset_UpdateExistingMap(t *testing.T) {
 	assert.Equal(t, 200, resumeState.FileStreamOffset[1], "AddOffset should update existing offset correctly")
 }
 
-func createBucketRawData(historyLineCount, eventsLineCount, logLineCount int, history, config, summary *string, tags []string, runInfo *gql.RunResumeStatusModelProjectBucketRunRunInfo) *gql.RunResumeStatusModelProjectBucketRun {
+func createBucketRawData(historyLineCount, eventsLineCount, logLineCount int, history, config, summary *string, tags []string, wandbConfig *string) *gql.RunResumeStatusModelProjectBucketRun {
 
 	return &gql.RunResumeStatusModelProjectBucketRun{
 		HistoryLineCount: &historyLineCount,
@@ -56,7 +56,7 @@ func createBucketRawData(historyLineCount, eventsLineCount, logLineCount int, hi
 		Config:           config,
 		SummaryMetrics:   summary,
 		Tags:             tags,
-		RunInfo:          runInfo,
+		WandbConfig:      wandbConfig,
 	}
 }
 
@@ -71,6 +71,7 @@ func TestUpdate(t *testing.T) {
 	invalidHistory := `["invalid_history"]`
 	invalidConfig := `{"_step": {"other": 2}}`
 	nullString := "null"
+	wandbConfigWithTelemetry := `{"_wandb": {"value": {"t": {"1": "asdasd"}}}}`
 
 	testCases := []struct {
 		name                string
@@ -96,7 +97,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "NeverResumeExistingRun",
 			resumeMode:    runresume.Never,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &gql.RunResumeStatusModelProjectBucketRunRunInfo{Args: nil}),
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -104,7 +105,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:               "MustResumeValidHistory",
 			resumeMode:         runresume.Must,
-			bucket:             createBucketRawData(1, 0, 0, &validHistory, &nullString, &nullString, nil, nil),
+			bucket:             createBucketRawData(1, 0, 0, &validHistory, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 2,
@@ -114,7 +115,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:               "MustResumeValidHistoryStep0",
 			resumeMode:         runresume.Must,
-			bucket:             createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, nil),
+			bucket:             createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 0,
@@ -123,7 +124,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:               "MustResumeValidHistoryStep0WithOneLine",
 			resumeMode:         runresume.Must,
-			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, &nullString, &nullString, nil, nil),
+			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectStartingStep: 1,
@@ -132,7 +133,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:                "MustResumeValidSummary",
 			resumeMode:          runresume.Must,
-			bucket:              createBucketRawData(0, 0, 0, &nullString, &nullString, &validSummary, nil, nil),
+			bucket:              createBucketRawData(0, 0, 0, &nullString, &nullString, &validSummary, nil, &wandbConfigWithTelemetry),
 			run:                 &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:       true,
 			expectSummaryUpdate: true,
@@ -141,7 +142,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:               "MustResumeValidConfig",
 			resumeMode:         runresume.Must,
-			bucket:             createBucketRawData(0, 0, 0, &nullString, &validConfig, &nullString, nil, nil),
+			bucket:             createBucketRawData(0, 0, 0, &nullString, &validConfig, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
 			expectConfigUpdate: true,
@@ -150,7 +151,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:             "MustResumeValidTags",
 			resumeMode:       runresume.Must,
-			bucket:           createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, []string{"tag1", "tag2"}, nil),
+			bucket:           createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, []string{"tag1", "tag2"}, &wandbConfigWithTelemetry),
 			run:              &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:    true,
 			expectTagsUpdate: true,
@@ -159,7 +160,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeInvalidHistoryResponse",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, &nullString, &nullString, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -167,7 +168,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeInvalidHistoryContent",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &invalidHistory, &nullString, &nullString, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &invalidHistory, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -175,7 +176,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeInvalidSummaryMetrics",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &invalidHistory, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &invalidHistory, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -183,7 +184,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeInvalidConfig",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistory, &nullString, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistory, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -191,7 +192,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeInvalidConfigContent",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistoryOrConfig, &nullString, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistoryOrConfig, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
 			expectError:   false,
@@ -199,7 +200,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeInvalidConfigNoContent",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidConfig, &nullString, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidConfig, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
 			expectError:   false,
@@ -207,7 +208,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeNullHistory",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, nil, &nullString, &nullString, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, nil, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -215,7 +216,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeNullConfig",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &validHistory, nil, nil, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &validHistory, nil, nil, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,
@@ -223,7 +224,7 @@ func TestUpdate(t *testing.T) {
 		{
 			name:          "MustResumeNullSummary",
 			resumeMode:    runresume.Must,
-			bucket:        createBucketRawData(0, 0, 0, &validHistory, &validConfig, nil, nil, nil),
+			bucket:        createBucketRawData(0, 0, 0, &validHistory, &validConfig, nil, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
 			expectError:   true,

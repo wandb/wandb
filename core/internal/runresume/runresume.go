@@ -62,9 +62,9 @@ func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
 
 func RunHasStarted(bucket *Bucket) bool {
 	// If bucket is nil, run doesn't exist yet
-	// If bucket is non-nil but RunInfo is nil, the run exists but hasn't started
+	// If bucket is non-nil but WandbConfig is nil, the run exists but hasn't started
 	// (e.g. a sweep run that was created ahead of time)
-	return bucket != nil && bucket.RunInfo != nil
+	return bucket != nil && bucket.GetWandbConfig() != nil
 }
 
 func (r *State) Update(
@@ -85,11 +85,11 @@ func (r *State) Update(
 	switch {
 	case !RunHasStarted(bucket) && r.resume != Must:
 		return nil, nil
-	case bucket == nil && r.resume == Must:
+	case !RunHasStarted(bucket) && r.resume == Must:
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'must' is not a valid option for resuming a run"+
-				" (%s/%s) that does not exist. Please check your inputs and"+
+				" (%s/%s) that has never been started. Please check your inputs and"+
 				" try again with a valid value for the `resume` argument.\n"+
 				"If you are trying to start a new run, please omit the"+
 				" `resume` argument or use `resume='allow'`",
@@ -102,7 +102,7 @@ func (r *State) Update(
 		err := fmt.Errorf(
 			"sender: Update: resume is 'must' for a run that does not exist")
 		return result, err
-	case bucket != nil && r.resume == Never:
+	case r.resume == Never && RunHasStarted(bucket):
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'never' is not a valid option for resuming a"+
