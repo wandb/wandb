@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Optional
+from typing import Any, Dict, Optional
 
 import requests
 from wandb_gql import Client, gql
@@ -32,11 +32,6 @@ from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
 from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.gql_request import GraphQLSession
-
-if TYPE_CHECKING:
-    import wandb.apis.reports
-    import wandb.apis.reports.util
-
 
 logger = logging.getLogger(__name__)
 
@@ -292,23 +287,6 @@ class Api:
             kwargs["entity"] = self.default_entity
         return public.Run.create(self, **kwargs)
 
-    def create_report(
-        self,
-        project: str,
-        entity: str = "",
-        title: Optional[str] = "Untitled Report",
-        description: Optional[str] = "",
-        width: Optional[str] = "readable",
-        blocks: Optional["wandb.apis.reports.util.Block"] = None,
-    ) -> "wandb.apis.reports.Report":
-        if entity == "":
-            entity = self.default_entity or ""
-        if blocks is None:
-            blocks = []
-        return wandb.apis.reports.Report(
-            project, entity, title, description, width, blocks
-        ).save()
-
     def create_run_queue(
         self,
         name: str,
@@ -420,22 +398,6 @@ class Api:
             _default_resource_config_id=config_id,
             _default_resource_config=config,
         )
-
-    def load_report(self, path: str) -> "wandb.apis.reports.Report":
-        """Get report at a given path.
-
-        Arguments:
-            path: (str) Path to the target report in the form `entity/project/reports/reportId`.
-                You can get this by copy-pasting the URL after your wandb url.  For example:
-                `megatruong/report-editing/reports/My-fabulous-report-title--VmlldzoxOTc1Njk0`
-
-        Returns:
-            A `BetaReport` object which represents the report at `path`
-
-        Raises:
-            wandb.Error if path is invalid
-        """
-        return wandb.apis.reports.Report.from_url(path)
 
     def create_user(self, email, admin=False):
         """Create a new user.
