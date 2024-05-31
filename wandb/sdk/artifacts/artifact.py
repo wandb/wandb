@@ -59,6 +59,7 @@ from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
+    ArtifactStatusError,
     WaitTimeoutError,
 )
 from wandb.sdk.artifacts.staging import get_staging_dir
@@ -2085,25 +2086,53 @@ class Artifact:
         else:
             wandb.run.link_artifact(self, target_path, aliases)
 
-    @normalize_exceptions
-    def unlink(self, target_path: str) -> None:
-        """Unlink this artifact from a portfolio (a promoted collection of artifacts).
-
-        Arguments:
-            target_path: The path to the portfolio inside a project.
-                The target path must adhere to one of the following
-                schemas `{portfolio}`, `{project}/{portfolio}` or
-                `{entity}/{project}/{portfolio}`.
-                To link the artifact to the Model Registry, rather than to a generic
-                portfolio inside a project, set `target_path` to the following
-                schema `{"model-registry"}/{Registered Model Name}` or
-                `{entity}/{"model-registry"}/{Registered Model Name}`.
+    def unlink(self) -> None:
+        """Unlink this artifact if it's currently lives in a portfolio (a promoted collection of artifacts).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+            ValueError: If the artifact is not a linked artifact.
         """
-        # TODO
-        raise NotImplementedError
+        self._ensure_logged("unlink")
+
+        # Fail early if this isn't a linked artifact to begin with
+        if not self._is_linked():
+            raise ValueError(
+                f"{self!r} is not a linked artifact. To delete it, use {self.delete.__qualname__!r} instead."
+            )
+
+        self._unlink()
+
+    @normalize_exceptions
+    def _unlink(self) -> None:
+        mutation = gql(
+            """
+            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+                unlinkArtifact(
+                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
+                ) {
+                    artifactID
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        self._client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioID": self.collection.id,
+            },
+        )
+
+    def _is_linked(self) -> bool:
+        """Return True if this is a linked artifact, i.e. a member of a "portfolio" collection of promoted artifacts."""
+        return (
+            (self.collection.id != self.source_collection.id)
+            and (not self.collection.is_sequence())
+            and self.source_collection.is_sequence()
+        )
 
     def used_by(self) -> List[Run]:
         """Get a list of the runs that have used this artifact.
