@@ -35,9 +35,7 @@ def write_credentials_file(base_url: str, token_file: str, credentials_file: str
         os.chmod(credentials_file, 0o600)
 
 
-def fetch_credentials(
-    base_url: str, token_file: str, credentials_file: str
-) -> dict:
+def fetch_credentials(base_url: str, token_file: str, credentials_file: str) -> dict:
     with open(credentials_file) as file:
         data = json.load(file)
         creds = data["credentials"][base_url]

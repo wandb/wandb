@@ -485,9 +485,7 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
     return val
 
 
-def get_credentials_file(
-    default: str, env: Optional[Env] = None
-) -> str:
+def get_credentials_file(default: str, env: Optional[Env] = None) -> str:
     if env is None:
         env = os.environ
     credentials_file = env.get(CREDENTIALS_FILE, default)
