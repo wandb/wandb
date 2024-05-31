@@ -11,7 +11,10 @@ import wandb
 from wandb import Api
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
-from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
+from wandb.sdk.artifacts.exceptions import (
+    ArtifactFinalizedError,
+    WaitTimeoutError,
+)
 from wandb.sdk.artifacts.staging import get_staging_dir
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
@@ -619,6 +622,37 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.source_project == collection.project
     assert linked_artifact.source_name.startswith(collection.name)
     assert linked_artifact.type == collection.type
+
+
+def test_unlink_artifact(logged_artifact, linked_artifact, api):
+    """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
+    # Consistency/assumption checks
+    assert logged_artifact.qualified_name != linked_artifact.qualified_name
+    assert logged_artifact.collection.id != linked_artifact.collection.id
+    assert logged_artifact.collection.is_sequence() is True
+    assert linked_artifact.collection.is_sequence() is False
+
+    # Pull these out now in case of state changes
+    logged_artifact_path = logged_artifact.qualified_name
+    linked_artifact_path = linked_artifact.qualified_name
+
+    linked_artifact.unlink()
+
+    # The original artifact should still be recoverable
+    recovered_artifact = api.artifact(logged_artifact_path)
+    assert recovered_artifact.qualified_name == logged_artifact_path
+
+    # The linked artifact should no longer be available
+    with pytest.raises(CommError):
+        _ = api.artifact(linked_artifact_path)
+
+    # Unlinking the original artifact should not be possible
+    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+        logged_artifact.unlink()
+
+    # ... and it should *still* be possible to recover the original artifact
+    recovered_artifact = api.artifact(logged_artifact_path)
+    assert recovered_artifact.qualified_name == logged_artifact_path
 
 
 def test_used_artifacts_preserve_original_project(
