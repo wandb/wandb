@@ -37,7 +37,7 @@ def write_credentials_file(base_url: str, token_file: str, credentials_file: str
 
 def fetch_credentials(
     base_url: str, token_file: str, credentials_file: str
-) -> Optional[dict]:
+) -> dict:
     with open(credentials_file) as file:
         data = json.load(file)
         creds = data["credentials"][base_url]
@@ -56,7 +56,7 @@ def fetch_credentials(
     return creds
 
 
-def create_access_token(base_url: str, token_file: str) -> Optional[dict]:
+def create_access_token(base_url: str, token_file: str) -> dict:
     try:
         with open(token_file) as file:
             token = file.read().strip()
@@ -79,9 +79,9 @@ def create_access_token(base_url: str, token_file: str) -> Optional[dict]:
             f"Failed to retrieve access token: {response.status_code}, {response.text}"
         )
 
-    data = response.json()
-    expires_at = datetime.utcnow() + timedelta(seconds=data["expires_in"])
-    data["expires_at"] = expires_at.strftime(_expires_at_fmt)
-    del data["expires_in"]
+    resp_json = response.json()
+    expires_at = datetime.utcnow() + timedelta(seconds=float(resp_json["expires_in"]))
+    resp_json["expires_at"] = expires_at.strftime(_expires_at_fmt)
+    del resp_json["expires_in"]
 
-    return data
+    return resp_json
