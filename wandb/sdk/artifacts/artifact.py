@@ -427,7 +427,7 @@ class Artifact:
 
         A collection is an ordered group of artifact versions.
         If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the the collection
+        collection will be returned rather than the collection
         that an artifact version originated from. The collection
         that an artifact originates from is known as the source sequence.
         """
