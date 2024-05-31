@@ -1047,7 +1047,8 @@ class SendManager:
 
         is_rewinding = bool(self._settings.resume_from)
         if is_rewinding:
-            server_run: dict = self._rewind_response
+            assert self._rewind_response
+            server_run = self._rewind_response
             server_messages = None
             inserted = True
         else:
