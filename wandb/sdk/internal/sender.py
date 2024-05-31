@@ -217,6 +217,7 @@ class SendManager:
     _record_exit: Optional["Record"]
     _exit_result: Optional["RunExitResult"]
     _resume_state: ResumeState
+    _rewind_response: Optional[Dict[str, Any]]
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
@@ -276,6 +277,7 @@ class SendManager:
 
         # State updated by resuming
         self._resume_state = ResumeState()
+        self._rewind_response = None
 
         # State added when run_exit is initiated and complete
         self._record_exit = None
@@ -891,13 +893,27 @@ class SendManager:
         self._run.forked = True
         self._run.starting_step = first_step
 
-    def _setup_rewind(self, server_run: dict):
+    def _load_rewind_state(self, run: "RunRecord"):
+        self._rewind_response = self._api.rewind_run(
+            run_name=run.run_id,
+            entity=run.entity or None,
+            project=run.project or None,
+            metric_name=self._settings.resume_from.metric,
+            metric_value=self._settings.resume_from.value,
+            program_path=self._settings.program or None,
+        )
+        self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
+        self._resume_state.config = json.loads(self._rewind_response.get("config", "{}"))
+
+    
+    def _setup_rewind(self):
         assert self._settings.resume_from
         assert self._settings.resume_from.metric == "_step"
         assert self._run
+        assert self._rewind_response
+
         first_step = int(self._settings.resume_from.value) + 1
         self._resume_state.step = first_step
-        self._resume_state.history = server_run.get("historyLineCount", 0)
         self._run.forked = True
         self._run.starting_step = first_step
 
@@ -959,6 +975,9 @@ class SendManager:
             if do_resume:
                 error = self._setup_resume(run)
 
+            elif do_rewind:
+                error = self._load_rewind_state(run)
+
         if error is not None:
             self._handle_error(record, error, run)
             return
@@ -991,9 +1010,6 @@ class SendManager:
 
         if do_fork:
             error = self._setup_fork(server_run)
-
-        if do_rewind:
-            error = self._setup_rewind(server_run)
 
         if error is not None:
             self._handle_error(record, error, run)
@@ -1028,15 +1044,9 @@ class SendManager:
         if self._resume_state and self._resume_state.tags and not run.tags:
             run.tags.extend(self._resume_state.tags)
 
-        if self._settings.resume_from is not None:
-            server_run = self._api.rewind_run(
-                run_name=run.run_id,
-                entity=run.entity or None,
-                project=run.project or None,
-                metric_name=self._settings.resume_from.metric,
-                metric_value=self._settings.resume_from.value,
-                program_path=self._settings.program or None,
-            )
+        is_rewinding = bool(self._settings.resume_from)
+        if  is_rewinding:
+            server_run = self._rewind_response
             server_messages = None
             inserted = True
         else:
@@ -1056,6 +1066,7 @@ class SendManager:
                 repo=run.git.remote_url or None,
                 commit=run.git.commit or None,
             )
+
         # TODO: we don't want to create jobs in sweeps, since the
         #  executable doesn't appear to be consistent
         if run.sweep_id:
@@ -1067,6 +1078,8 @@ class SendManager:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
+        elif is_rewinding:
+            self._setup_rewind()
         else:
             # If the user is not resuming, and we didn't insert on upsert_run then
             # it is likely that we are overwriting the run which we might want to
