@@ -383,12 +383,12 @@ class Api:
 
     @property
     def access_token(self) -> Optional[str]:
-        token_file = self.settings("identity_token_file")
+        token_file = self._environ.get(env.IDENTITY_TOKEN_FILE)
         if token_file is None:
             return None
 
         base_url = self.settings("base_url")
-        credentials_file = self.settings("credentials_file")
+        credentials_file = env.get_credentials_file(credentials.DEFAULT_WANDB_CREDENTIALS_FILE, self._environ)
         return credentials.access_token(base_url, token_file, credentials_file)
 
     @property
