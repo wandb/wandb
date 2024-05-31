@@ -1,0 +1,58 @@
+import re
+
+import pytest
+import wandb
+from wandb.testing.relay import TokenizedCircularPattern
+
+
+def match_log_line(user, project, run_id, status_code):
+    pattern = (
+        r"POST http://127\.0\.0\.1:\d+/files/"
+        + re.escape(user)
+        + "/"
+        + re.escape(project)
+        + "/"
+        + re.escape(run_id)
+        + r"/file_stream \(status: "
+        + re.escape(status_code)
+        + r"\): retrying in \d+\.\d+s \(\d+ left\)"
+    )
+    return re.compile(pattern)
+
+
+@pytest.mark.wandb_core_only
+@pytest.mark.parametrize("status_code", [429, 500])
+def test_retryable_codes(
+    status_code,
+    user,
+    test_settings,
+    relay_server,
+    inject_file_stream_response,
+    debug_logs,
+):
+    with relay_server() as relay:
+        run = wandb.init(
+            settings=test_settings({"_file_stream_retry_wait_min_seconds": 1})
+        )
+        relay.inject.append(
+            inject_file_stream_response(
+                run=run,
+                application_pattern=(
+                    TokenizedCircularPattern.APPLY_TOKEN
+                    + TokenizedCircularPattern.APPLY_TOKEN
+                    + TokenizedCircularPattern.STOP_TOKEN
+                ),
+                status=status_code,
+                body="transient error",
+            )
+        )
+        run.log({"acc": 1})
+        run.finish()
+
+    # get debug logs
+    with open(run.settings.log_symlink_internal) as f:
+        internal_log = f.read()
+        regex_pattern = match_log_line(user, run.project, run.id, str(status_code))
+        matches = regex_pattern.findall(internal_log)
+        # we should have 2 retries
+        assert len(matches) == 2
