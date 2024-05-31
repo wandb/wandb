@@ -41,6 +41,7 @@ type CoreLogger struct {
 	tags             Tags
 	captureException func(err error, tags Tags)
 	captureMessage   func(msg string, tags Tags)
+	reraise          func(err interface{}, tags Tags)
 }
 
 type CoreLoggerOption func(cl *CoreLogger)
@@ -54,6 +55,12 @@ func WithCaptureMessage(f func(msg string, tags Tags)) CoreLoggerOption {
 func WithCaptureException(f func(err error, tags Tags)) CoreLoggerOption {
 	return func(cl *CoreLogger) {
 		cl.captureException = f
+	}
+}
+
+func WithReraise(f func(err interface{}, tags Tags)) CoreLoggerOption {
+	return func(cl *CoreLogger) {
+		cl.reraise = f
 	}
 }
 
@@ -154,7 +161,7 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 // Reraise is used to capture unexpected panics with sentry and reraise them.
 func (cl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
-		Reraise(err, cl.tagsWithArgs(args...))
+		cl.reraise(err, cl.tagsWithArgs(args...))
 	}
 }
 
@@ -183,5 +190,6 @@ func NewNoOpLogger() *CoreLogger {
 		WithTags(Tags{}),
 		WithCaptureException(func(err error, tags Tags) {}),
 		WithCaptureMessage(func(msg string, tags Tags) {}),
+		WithReraise(func(err interface{}, tags Tags) {}),
 	)
 }
