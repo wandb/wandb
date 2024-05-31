@@ -3670,7 +3670,11 @@ class Run:
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
-        run_state_str = "Resuming run" if settings.resumed or settings.resume_from else "Syncing run"
+        run_state_str = (
+            "Resuming run"
+            if settings.resumed or settings.resume_from
+            else "Syncing run"
+        )
         run_name = settings.run_name
         if not run_name:
             return

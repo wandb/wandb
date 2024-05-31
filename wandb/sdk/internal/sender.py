@@ -902,9 +902,10 @@ class SendManager:
             program_path=self._settings.program or None,
         )
         self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
-        self._resume_state.config = json.loads(self._rewind_response.get("config", "{}"))
+        self._resume_state.config = json.loads(
+            self._rewind_response.get("config", "{}")
+        )
 
-    
     def _setup_rewind(self):
         assert self._settings.resume_from
         assert self._settings.resume_from.metric == "_step"
@@ -1044,7 +1045,7 @@ class SendManager:
             run.tags.extend(self._resume_state.tags)
 
         is_rewinding = bool(self._settings.resume_from)
-        if  is_rewinding:
+        if is_rewinding:
             server_run = self._rewind_response
             server_messages = None
             inserted = True
