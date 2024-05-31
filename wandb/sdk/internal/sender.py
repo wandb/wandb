@@ -893,6 +893,7 @@ class SendManager:
         self._run.starting_step = first_step
 
     def _load_rewind_state(self, run: "RunRecord"):
+        assert self._settings.resume_from
         self._rewind_response = self._api.rewind_run(
             run_name=run.run_id,
             entity=run.entity or None,
@@ -1046,7 +1047,7 @@ class SendManager:
 
         is_rewinding = bool(self._settings.resume_from)
         if is_rewinding:
-            server_run = self._rewind_response
+            server_run: dict = self._rewind_response            
             server_messages = None
             inserted = True
         else:
