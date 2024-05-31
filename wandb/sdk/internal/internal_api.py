@@ -388,7 +388,9 @@ class Api:
             return None
 
         base_url = self.settings("base_url")
-        credentials_file = env.get_credentials_file(credentials.DEFAULT_WANDB_CREDENTIALS_FILE, self._environ)
+        credentials_file = env.get_credentials_file(
+            credentials.DEFAULT_WANDB_CREDENTIALS_FILE, self._environ
+        )
         return credentials.access_token(base_url, token_file, credentials_file)
 
     @property
