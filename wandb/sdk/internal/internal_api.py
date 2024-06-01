@@ -1219,7 +1219,6 @@ class Api:
                 "name": name,
             },
         )
-        print(response)
 
         if "model" not in response or "bucket" not in (response["model"] or {}):
             return None
