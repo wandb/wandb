@@ -3,6 +3,7 @@ package runresume
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -62,9 +63,9 @@ func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
 
 func RunHasStarted(bucket *Bucket) bool {
 	// If bucket is nil, run doesn't exist yet
-	// If bucket is non-nil but WandbConfig is nil, the run exists but hasn't started
+	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
 	// (e.g. a sweep run that was created ahead of time)
-	return bucket != nil && bucket.GetWandbConfig() != nil
+	return bucket != nil && bucket.WandbConfig != nil && strings.Contains(*bucket.WandbConfig, `"t":`)
 }
 
 func (r *State) Update(

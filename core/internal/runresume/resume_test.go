@@ -71,7 +71,7 @@ func TestUpdate(t *testing.T) {
 	invalidHistory := `["invalid_history"]`
 	invalidConfig := `{"_step": {"other": 2}}`
 	nullString := "null"
-	wandbConfigWithTelemetry := `{"_wandb": {"value": {"t": {"1": "asdasd"}}}}`
+	wandbConfigWithTelemetry := `{"_wandb": {"value": {"t":{"1": "asdasd"}}}}`
 
 	testCases := []struct {
 		name                string
