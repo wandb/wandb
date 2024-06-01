@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 
 def test_log(relay_server, wandb_init):
     """Make sure log is generating history with subsecond resolution."""
@@ -26,7 +24,6 @@ def test_log(relay_server, wandb_init):
     assert all(0 <= history["_runtime"]) and all(history["_runtime"] <= after - before)
 
 
-@pytest.mark.xfail(reason="TODO: this test is non-deterministic and sometimes fails")
 def test_stats(relay_server, wandb_init):
     with relay_server() as relay:
         before = time.time()
