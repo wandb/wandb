@@ -165,29 +165,19 @@ class Runs(Paginator):
     def histories(
         self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
     ):
-        """Return history metrics for all runs that fit the conditions.
+        """Return sampled history metrics for all runs that fit the filters conditions.
 
         Arguments:
             samples : (int, optional) The number of samples to return per run
+            pandas : (bool, optional) Return a pandas dataframe
             keys : (list, optional) Only return metrics for specific keys
             x_axis : (str, optional) Use this metric as the xAxis defaults to _step
             stream : (str, optional) "default" for metrics, "system" for machine metrics
-            pandas : (bool, optional) Return a pandas dataframe
-
+    
         Returns:
-            pandas.DataFrame: If pandas=True returns a `pandas.DataFrame` of history metrics.
-            list of dicts: If pandas=False returns a list of dicts of history metrics.
+            pandas.DataFrame: If pandas=True, returns a `pandas.DataFrame` of history metrics indexed by run id.
+            list of dicts: If pandas=False, returns a list of dicts containing history metrics with a run_id key.
         """
-        if keys is not None and not isinstance(keys, list):
-            wandb.termerror("keys must be specified in a list")
-            return []
-        if keys is not None and len(keys) > 0 and not isinstance(keys[0], str):
-            wandb.termerror("keys argument must be a list of strings")
-            return []
-        if keys and stream != "default":
-            wandb.termerror("stream must be default when specifying keys")
-            return []
-
         all_histories = []
 
         for run in self:
