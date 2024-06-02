@@ -173,7 +173,7 @@ class Runs(Paginator):
             keys : (list, optional) Only return metrics for specific keys
             x_axis : (str, optional) Use this metric as the xAxis defaults to _step
             stream : (str, optional) "default" for metrics, "system" for machine metrics
-    
+
         Returns:
             pandas.DataFrame: If pandas=True, returns a `pandas.DataFrame` of history metrics indexed by run id.
             list of dicts: If pandas=False, returns a list of dicts containing history metrics with a run_id key.
