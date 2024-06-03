@@ -169,7 +169,6 @@ class Runs(Paginator):
             x_axis: str = "_step",
             format: Literal["default", "pandas"] = "default",
             stream: Literal["default", "system"] = "default"
-        self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
     ):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
