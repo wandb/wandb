@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -48,12 +49,14 @@ type SenderParams struct {
 	FileTransferManager filetransfer.FileTransferManager
 	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
+	TBHandler           *tensorboard.TBHandler
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
+	OutputFileName      string
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -91,6 +94,9 @@ type Sender struct {
 
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
+
+	// tbHandler integrates W&B with TensorBoard
+	tbHandler *tensorboard.TBHandler
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
@@ -142,14 +148,21 @@ type Sender struct {
 
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
+
+	// filename to write console output to
+	outputFileName string
 }
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	params *SenderParams,
+	params SenderParams,
 ) *Sender {
+
+	if params.OutputFileName == "" {
+		params.OutputFileName = LatestOutputFileName
+	}
 
 	s := &Sender{
 		ctx:                 ctx,
@@ -163,6 +176,7 @@ func NewSender(
 		fileTransferManager: params.FileTransferManager,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
+		tbHandler:           params.TBHandler,
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
@@ -179,6 +193,7 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
+		outputFileName: params.OutputFileName,
 	}
 
 	backendOrNil := params.Backend
@@ -441,13 +456,17 @@ func (s *Sender) sendJobFlush() {
 
 	output, err := s.runSummary.CloneTree()
 	if err != nil {
-		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		s.logger.Error(
+			"sender: sendJobFlush: failed to copy run summary", "error", err,
+		)
 		return
 	}
 
-	artifact, err := s.jobBuilder.Build(output)
+	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
-		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to build job artifact", "error", err,
+		)
 		return
 	}
 	if artifact == nil {
@@ -458,7 +477,9 @@ func (s *Sender) sendJobFlush() {
 		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(s.fwdChan); err != nil {
-		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to save job artifact", "error", err,
+		)
 	}
 }
 
@@ -478,6 +499,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_TB:
 		request.State++
+		s.tbHandler.Finish()
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
 		s.summaryDebouncer.Flush(s.streamSummary)
@@ -984,13 +1006,14 @@ func (s *Sender) uploadOutputFile() {
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
 					{
-						Path: OutputFileName,
+						Path: s.outputFileName,
 						Type: service.FilesItem_WANDB,
 					},
 				},
 			},
 		},
 	}
+
 	s.fwdRecord(record)
 }
 
@@ -1006,14 +1029,25 @@ func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRe
 		return
 	}
 
-	outputFile := filepath.Join(s.settings.GetFilesDir().GetValue(), OutputFileName)
-	// append line to file
-	if err := writeOutputToFile(outputFile, outputRaw.Line); err != nil {
-		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
-	}
-
 	if s.fileStream != nil {
 		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
+	}
+
+	// create a folder for the output file if it doesn't exist
+	fullFilePath := filepath.Join(s.settings.GetFilesDir().GetValue(), s.outputFileName)
+	logPath := filepath.Dir(fullFilePath)
+	// check if the directory exists
+	if _, err := os.Stat(logPath); os.IsNotExist(err) {
+		// create the directory
+		if err := os.MkdirAll(logPath, 0755); err != nil {
+			s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
+			return
+		}
+	}
+
+	// append line to file
+	if err := writeOutputToFile(fullFilePath, outputRaw.Line); err != nil {
+		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
 	}
 }
 

@@ -60,7 +60,7 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, params *WriterParams) *Writer {
+func NewWriter(ctx context.Context, params WriterParams) *Writer {
 	w := &Writer{
 		ctx:      ctx,
 		wg:       sync.WaitGroup{},
