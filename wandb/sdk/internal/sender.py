@@ -752,7 +752,6 @@ class SendManager:
             project_name=run.project,
             name=run.run_id,
         )
-        print(resume_status)
         # No resume status = run does not exist; No t key in wandbConfig = run exists but hasn't been inited
         if not resume_status or '"t":' not in resume_status.get("wandbConfig", ""):
             if self._settings.resume == "must":
