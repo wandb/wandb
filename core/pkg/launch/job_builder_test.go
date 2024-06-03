@@ -1,6 +1,7 @@
 package launch_test
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -74,6 +76,8 @@ func writeFile(t *testing.T, fdir string, fname string, content string) {
 
 func TestJobBuilderRepo(t *testing.T) {
 	t.Run("Build repo sourced job", func(t *testing.T) {
+		gql := gqlmock.NewMockClient()
+		ctx := context.Background()
 		metadata := map[string]interface{}{
 			"python": "3.11.2",
 			"git": map[string]interface{}{
@@ -98,7 +102,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com__path_to_train.py", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -124,6 +128,8 @@ func TestJobBuilderRepo(t *testing.T) {
 	})
 
 	t.Run("Build repo sourced notebook job", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		fdir := filepath.Join(os.TempDir(), "test")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
@@ -158,7 +164,7 @@ func TestJobBuilderRepo(t *testing.T) {
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-example.com_Untitled.ipynb", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -185,6 +191,8 @@ func TestJobBuilderRepo(t *testing.T) {
 }
 func TestJobBuilderArtifact(t *testing.T) {
 	t.Run("Build artifact sourced job", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		metadata := map[string]interface{}{
 			"python":   "3.11.2",
 			"codePath": "/path/to/train.py",
@@ -209,7 +217,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -235,6 +243,8 @@ func TestJobBuilderArtifact(t *testing.T) {
 	})
 
 	t.Run("Build artifact sourced notebook job", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		fdir := filepath.Join(os.TempDir(), "test")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
@@ -270,7 +280,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 			Type: "code",
 		}
 		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -297,6 +307,8 @@ func TestJobBuilderArtifact(t *testing.T) {
 }
 func TestJobBuilderImage(t *testing.T) {
 	t.Run("Build image sourced job", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		metadata := map[string]interface{}{
 			"docker": "testImage:testTag",
 			"python": "3.11.2",
@@ -316,7 +328,7 @@ func TestJobBuilderImage(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testImage", artifact.Name)
 		assert.Equal(t, "testProject", artifact.Project)
@@ -343,6 +355,8 @@ func TestJobBuilderImage(t *testing.T) {
 }
 func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		settings := &service.Settings{
 			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
@@ -352,23 +366,27 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			},
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Nil(t, artifact)
 	})
 
 	t.Run("Missing requirements file", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		fdir := filepath.Join(os.TempDir(), "test")
 		settings := &service.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
 	})
 
 	t.Run("Missing metadata file", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		fdir := filepath.Join(os.TempDir(), "test")
 		err := os.MkdirAll(fdir, 0777)
 		assert.Nil(t, err)
@@ -379,13 +397,15 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		}
 
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, artifact)
 		assert.NotNil(t, err)
 		assert.Contains(t, err.Error(), "wandb-metadata.json: no such file or directory")
 	})
 
 	t.Run("Missing python in metadata", func(t *testing.T) {
+		ctx := context.Background()
+		gql := gqlmock.NewMockClient()
 		metadata := map[string]interface{}{}
 		fdir := filepath.Join(os.TempDir(), "test")
 		err := os.MkdirAll(fdir, 0777)
@@ -399,141 +419,9 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifact, err := jobBuilder.Build(nil)
+		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, artifact)
 		assert.Nil(t, err)
-	})
-}
-
-func TestJobBuilderFromPartial(t *testing.T) {
-	t.Run("Build from partial", func(t *testing.T) {
-		metadata := map[string]interface{}{
-			"python": "3.11.2",
-		}
-
-		fdir := filepath.Join(os.TempDir(), "test")
-		err := os.MkdirAll(fdir, 0777)
-		assert.Nil(t, err)
-		writeRequirements(t, fdir)
-		writeWandbMetadata(t, fdir, metadata)
-
-		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
-			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
-			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
-			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
-			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
-		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobName",
-						SourceInfo: &service.JobSource{
-							XVersion:   "v0",
-							SourceType: "repo",
-							Runtime:    "3.11.2",
-							Source: &service.Source{
-								Git: &service.GitSource{
-									Entrypoint: []string{"a", "b"},
-									GitInfo: &service.GitInfo{
-										Commit: "1234567890",
-										Remote: "example.com",
-									},
-									Notebook:     false,
-									Dockerfile:   "Dockerfile",
-									BuildContext: "context",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		artifact, err := jobBuilder.Build(nil)
-		assert.Nil(t, err)
-		assert.Equal(t, "job-testJobName", artifact.Name)
-		assert.Equal(t, "testProject", artifact.Project)
-		assert.Equal(t, "testEntity", artifact.Entity)
-		assert.Equal(t, "testRunId", artifact.RunId)
-		assert.Equal(t, 2, len(artifact.Manifest.Contents))
-		assert.Equal(t, "dfc5b8caa82c6b45d41986c787ab6e56", artifact.Digest)
-		for _, content := range artifact.Manifest.Contents {
-			if content.Path == "wandb-job.json" {
-				jobFile, err := os.Open(content.LocalPath)
-				assert.Nil(t, err)
-				defer jobFile.Close()
-				assert.Nil(t, err)
-				data := make(map[string]interface{})
-				err = json.NewDecoder(jobFile).Decode(&data)
-				assert.Nil(t, err)
-				assert.Equal(t, "3.11.2", data["runtime"])
-				assert.Equal(t, "repo", data["source_type"])
-				assert.Equal(t, []interface{}([]interface{}{"a", "b"}), data["source"].(map[string]interface{})["entrypoint"])
-			}
-		}
-	})
-}
-
-func TestJobBuilderCodeJobFromPartial(t *testing.T) {
-	t.Run("Build code job from partial", func(t *testing.T) {
-		metadata := map[string]interface{}{
-			"python": "3.11.2",
-		}
-
-		fdir := filepath.Join(os.TempDir(), "test")
-		err := os.MkdirAll(fdir, 0777)
-		assert.Nil(t, err)
-		writeRequirements(t, fdir)
-		writeWandbMetadata(t, fdir, metadata)
-
-		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
-			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
-			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
-			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
-			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
-		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobName",
-						SourceInfo: &service.JobSource{
-							XVersion:   "0.17.0",
-							SourceType: "artifact",
-							Runtime:    "3.11.2",
-							Source: &service.Source{
-								Artifact: &service.ArtifactInfo{
-									Artifact:     "testArtifactId",
-									Entrypoint:   []string{"a", "b"},
-									Dockerfile:   "Dockerfile",
-									BuildContext: "context",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		artifact, err := jobBuilder.Build(map[string]interface{}{})
-		assert.Nil(t, err)
-		assert.Equal(t, "job-testJobName", artifact.Name)
-		assert.Equal(t, "testProject", artifact.Project)
-		assert.Equal(t, "testEntity", artifact.Entity)
-		assert.Equal(t, "testRunId", artifact.RunId)
-		assert.Equal(t, 2, len(artifact.Manifest.Contents))
-		assert.Equal(t, "f457273fd1b4bee4177ded847e048d48", artifact.Digest)
 	})
 }
 
@@ -573,93 +461,7 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.Equal(t, "job-testJobNameImage", jobBuilder.PartialJobSource.JobName)
-		assert.Equal(t, RepoSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
-		assert.Equal(t, RepoSourceType, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceType())
-		assert.Equal(t, "1234567890", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit().Commit)
-		assert.Equal(t, "example.com", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit().Remote)
-		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceImage())
-		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
-		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
-	})
-
-	t.Run("HandleUseArtifactRecord artifact type", func(t *testing.T) {
-		settings := &service.Settings{
-			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
-			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
-			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
-		}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobNameArtifact",
-						SourceInfo: &service.JobSource{
-							SourceType: "artifact",
-							Runtime:    "3.11.2",
-							Source: &service.Source{
-								Artifact: &service.ArtifactInfo{
-									Artifact:   "testArtifactId:v0",
-									Entrypoint: []string{"a", "b"},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.Equal(t, "job-testJobNameArtifact", jobBuilder.PartialJobSource.JobName)
-		assert.Equal(t, ArtifactSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
-		assert.Equal(t, ArtifactSourceType, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceType())
-		assert.Equal(t, "testArtifactId:v0", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
-		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit())
-		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceImage())
-		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
-	})
-
-	t.Run("HandleUseArtifactRecord image type", func(t *testing.T) {
-		settings := &service.Settings{
-			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
-			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
-			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
-		}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobNameImage",
-						SourceInfo: &service.JobSource{
-							SourceType: "image",
-							Runtime:    "3.11.2",
-							Source: &service.Source{
-								Image: &service.ImageSource{
-									Image: "testImage:v0",
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.Equal(t, "job-testJobNameImage", jobBuilder.PartialJobSource.JobName)
-		assert.Equal(t, ImageSourceType, jobBuilder.PartialJobSource.JobSourceInfo.SourceType)
-		assert.Equal(t, ImageSourceType, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceType())
-		assert.Equal(t, "testImage:v0", *jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceImage())
-		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceGit())
-		assert.Nil(t, jobBuilder.PartialJobSource.JobSourceInfo.Source.GetSourceArtifact())
-		assert.Equal(t, "3.11.2", *jobBuilder.PartialJobSource.JobSourceInfo.Runtime)
+		assert.Equal(t, "testID", *jobBuilder.PartialJobID)
 	})
 
 	t.Run("HandleUseArtifactRecord disabled when use non partial artifact job", func(t *testing.T) {
@@ -708,77 +510,6 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 		assert.True(t, jobBuilder.Disable)
 	})
 
-	t.Run("HandleUseArtifactRecord disables job builder when handling partial job indicating repo type without git info", func(t *testing.T) {
-		settings := &service.Settings{}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobNameImage",
-						SourceInfo: &service.JobSource{
-							SourceType: "repo",
-							Runtime:    "3.11.2",
-							Source:     &service.Source{},
-						},
-					},
-				},
-			},
-		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.True(t, jobBuilder.Disable)
-	})
-
-	t.Run("HandleUseArtifactRecord disables job builder when handling partial job indicating artifact type without artifact info", func(t *testing.T) {
-		settings := &service.Settings{}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobNameImage",
-						SourceInfo: &service.JobSource{
-							SourceType: "artifact",
-							Runtime:    "3.11.2",
-							Source:     &service.Source{},
-						},
-					},
-				},
-			},
-		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.True(t, jobBuilder.Disable)
-	})
-
-	t.Run("HandleUseArtifactRecord disables job builder when handling partial job indicating image type without image info", func(t *testing.T) {
-		settings := &service.Settings{}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
-					Id:   "testID",
-					Type: "job",
-					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
-						JobName: "job-testJobNameImage",
-						SourceInfo: &service.JobSource{
-							SourceType: "image",
-							Runtime:    "3.11.2",
-							Source:     &service.Source{},
-						},
-					},
-				},
-			},
-		}
-		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		jobBuilder.HandleUseArtifactRecord(artifactRecord)
-		assert.True(t, jobBuilder.Disable)
-	})
 }
 func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("GetSourceType job type specified repo", func(t *testing.T) {
@@ -968,6 +699,8 @@ func TestWandbConfigParameters(t *testing.T) {
 	// then inputs will be filtered to only include the parameters specified
 	// in the WandbConfigParametersRecord.
 
+	ctx := context.Background()
+	gql := gqlmock.NewMockClient()
 	metadata := map[string]interface{}{
 		"python": "3.11.2",
 		"git": map[string]interface{}{
@@ -1012,7 +745,7 @@ func TestWandbConfigParameters(t *testing.T) {
 		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
 		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
-	artifact, err := jobBuilder.Build(nil)
+	artifact, err := jobBuilder.Build(ctx, gql, nil)
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
@@ -1054,6 +787,8 @@ func TestConfigFileParameters(t *testing.T) {
 	// then inputs will be filtered to only include the parameters specified
 	// in the ConfigFileParametersRecord.
 
+	ctx := context.Background()
+	gql := gqlmock.NewMockClient()
 	metadata := map[string]interface{}{
 		"python": "3.11.2",
 		"git": map[string]interface{}{
@@ -1093,7 +828,7 @@ func TestConfigFileParameters(t *testing.T) {
 		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
 		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4"}}},
 	})
-	artifact, err := jobBuilder.Build(nil)
+	artifact, err := jobBuilder.Build(ctx, gql, nil)
 
 	assert.Nil(t, err)
 	var artifactMetadata map[string]interface{}
