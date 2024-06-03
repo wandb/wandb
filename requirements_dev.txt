@@ -8,6 +8,7 @@ Pillow
 pandas
 moviepy~=1.0.3
 imageio[ffmpeg]
+imageio-ffmpeg<=0.4.9  # Pin to avoid breaking changes in 0.5.0 released May 31
 matplotlib!=3.5.2
 soundfile
 rdkit; (sys_platform != 'darwin') or (sys_platform == 'darwin' and platform.machine != 'arm64')
