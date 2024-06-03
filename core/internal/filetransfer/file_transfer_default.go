@@ -39,6 +39,10 @@ func NewDefaultFileTransfer(
 	return fileTransfer
 }
 
+func (ft *DefaultFileTransfer) TransferType() FileTransferType {
+	return FileTransferTypeDefault
+}
+
 // Upload uploads a file to the server
 func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)

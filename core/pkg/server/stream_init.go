@@ -119,10 +119,12 @@ func NewFileTransferManager(
 		logger,
 		fileTransferStats,
 	)
+	fileTransfers := make(map[filetransfer.FileTransferType]filetransfer.FileTransfer)
+	fileTransfers[defaultFileTransfer.TransferType()] = defaultFileTransfer
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
 		filetransfer.WithSettings(settings.Proto),
-		filetransfer.WithFileTransfer(defaultFileTransfer),
+		filetransfer.WithFileTransfers(fileTransfers),
 		filetransfer.WithFileTransferStats(fileTransferStats),
 	)
 }
