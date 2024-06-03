@@ -5,7 +5,13 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Optional
+import sys
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 from wandb_gql import gql
 
