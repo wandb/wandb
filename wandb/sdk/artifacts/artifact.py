@@ -2086,18 +2086,19 @@ class Artifact:
             wandb.run.link_artifact(self, target_path, aliases)
 
     def unlink(self) -> None:
-        """Unlink this artifact if it's currently lives in a portfolio (a promoted collection of artifacts).
+        """Unlink this artifact if it is currently a member of a portfolio (a promoted collection of artifacts).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            ValueError: If the artifact is not a linked artifact.
+            ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
         """
         self._ensure_logged("unlink")
 
         # Fail early if this isn't a linked artifact to begin with
-        if not self._is_linked():
+        if self.collection.is_sequence():
             raise ValueError(
-                f"{self!r} is not a linked artifact. To delete it, use {self.delete.__qualname__!r} instead."
+                f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
+                f"To delete it, use {self.delete.__qualname__!r} instead."
             )
 
         self._unlink()
@@ -2124,14 +2125,6 @@ class Artifact:
                 "artifactID": self.id,
                 "artifactPortfolioID": self.collection.id,
             },
-        )
-
-    def _is_linked(self) -> bool:
-        """Return True if this is a linked artifact, i.e. a member of a "portfolio" collection of promoted artifacts."""
-        return (
-            (self.collection.id != self.source_collection.id)
-            and (not self.collection.is_sequence())
-            and self.source_collection.is_sequence()
         )
 
     def used_by(self) -> List[Run]:
