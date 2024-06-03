@@ -167,63 +167,79 @@ class Runs(Paginator):
 
         return objs
 
-    @normalize_exceptions
-    def histories(
-        self,
-        samples: int = 500,
-        keys: list = None,
-        x_axis: str = "_step",
-        format: Literal["default", "pandas"] = "default",
-        stream: Literal["default", "system"] = "default",
-    ):
-        """Return sampled history metrics for all runs that fit the filters conditions.
+@normalize_exceptions
+def histories(
+    self,
+    samples: int = 500,
+    keys: list = None,
+    x_axis: str = "_step",
+    format: Literal["default", "pandas", "polars"] = "default",
+    stream: Literal["default", "system"] = "default",
+):
+    """Return sampled history metrics for all runs that fit the filters conditions.
 
-        Arguments:
-            samples : (int, optional) The number of samples to return per run
-            keys : (list, optional) Only return metrics for specific keys
-            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
-            format : (str, optional) Format to return data in, options are "default", "pandas"
-            stream : (str, optional) "default" for metrics, "system" for machine metrics
+    Arguments:
+        samples : (int, optional) The number of samples to return per run
+        keys : (list, optional) Only return metrics for specific keys
+        x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+        format : (Literal, optional) Format to return data in, options are "default", "pandas", "polars"
+        stream : (Literal, optional) "default" for metrics, "system" for machine metrics
+    Returns:
+        pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics indexed by run id.
+        polars.DataFrame: If format="polars", returns a `polars.DataFrame` of history metrics indexed by run id.
+        list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
+    """
+    all_histories = []
 
-        Returns:
-            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics indexed by run id.
-            list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
-        """
-        all_histories = []
-
-        for run in self:
-            history_data = run.history(
-                samples=samples,
-                keys=keys,
-                x_axis=x_axis,
-                pandas=(format == "pandas"),
-                stream=stream,
-            )
-            if format == "pandas":
-                pandas_module = util.get_module("pandas")
-                if (
-                    pandas_module
-                    and isinstance(history_data, pandas_module.DataFrame)
-                    and not history_data.empty
-                ):
-                    history_data["run_id"] = run.id
-                    all_histories.append(history_data)
-            else:
-                if isinstance(history_data, list) and history_data:
-                    for entry in history_data:
-                        entry["run_id"] = run.id
-                    all_histories.extend(history_data)
-
+    for run in self:
+        history_data = run.history(
+            samples=samples,
+            keys=keys,
+            x_axis=x_axis,
+            pandas=(format == "pandas"),
+            stream=stream,
+        )
         if format == "pandas":
             pandas_module = util.get_module("pandas")
-            if pandas_module and all_histories:
-                combined_df = pandas_module.concat(all_histories)
-                combined_df.set_index("run_id", inplace=True)
-                return combined_df
-            else:
-                return pandas_module.DataFrame() if pandas_module else []
+            if (
+                pandas_module
+                and isinstance(history_data, pandas_module.DataFrame)
+                and not history_data.empty
+            ):
+                history_data["run_id"] = run.id
+                all_histories.append(history_data)
+        elif format == "polars":
+            polars_module = util.get_module("polars")
+            if (
+                polars_module
+                and isinstance(history_data, polars_module.DataFrame)
+                and not history_data.is_empty()
+            ):
+                history_data = history_data.with_column(polars_module.lit(run.id).alias("run_id"))
+                all_histories.append(history_data)
         else:
-            return all_histories
+            if isinstance(history_data, list) and history_data:
+                for entry in history_data:
+                    entry["run_id"] = run.id
+                all_histories.extend(history_data)
+
+    if format == "pandas":
+        pandas_module = util.get_module("pandas")
+        if pandas_module and all_histories:
+            combined_df = pandas_module.concat(all_histories)
+            combined_df.set_index("run_id", inplace=True)
+            return combined_df
+        else:
+            return pandas_module.DataFrame() if pandas_module else []
+    elif format == "polars":
+        polars_module = util.get_module("polars")
+        if polars_module and all_histories:
+            combined_df = polars_module.concat(all_histories)
+            return combined_df
+        else:
+            return polars_module.DataFrame() if polars_module else []
+    else:
+        return all_histories
 
     def __repr__(self):
         return f"<Runs {self.entity}/{self.project}>"
