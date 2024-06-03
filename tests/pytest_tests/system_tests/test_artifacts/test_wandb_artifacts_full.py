@@ -623,33 +623,29 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
 
 def test_unlink_artifact(logged_artifact, linked_artifact, api):
     """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
-    # Consistency/assumption checks
-    assert logged_artifact.qualified_name != linked_artifact.qualified_name
-    assert logged_artifact.collection.id != linked_artifact.collection.id
-    assert logged_artifact.collection.is_sequence() is True
-    assert linked_artifact.collection.is_sequence() is False
+    source_artifact = logged_artifact  # For readability
 
     # Pull these out now in case of state changes
-    logged_artifact_path = logged_artifact.qualified_name
+    source_artifact_path = source_artifact.qualified_name
     linked_artifact_path = linked_artifact.qualified_name
+
+    # Consistency/sanity checks in case of changes to upstream fixtures
+    assert source_artifact.qualified_name != linked_artifact.qualified_name
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is True
 
     linked_artifact.unlink()
 
-    # The original artifact should still be recoverable
-    recovered_artifact = api.artifact(logged_artifact_path)
-    assert recovered_artifact.qualified_name == logged_artifact_path
+    # Now the source artifact should still exist, the link should not
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is False
 
-    # The linked artifact should no longer be available
-    with pytest.raises(CommError):
-        _ = api.artifact(linked_artifact_path)
-
-    # Unlinking the original artifact should not be possible
+    # Unlinking the source artifact should not be possible
     with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
-        logged_artifact.unlink()
+        source_artifact.unlink()
 
-    # ... and it should *still* be possible to recover the original artifact
-    recovered_artifact = api.artifact(logged_artifact_path)
-    assert recovered_artifact.qualified_name == logged_artifact_path
+    # ... and the source artifact should *still* exist
+    assert api.artifact_exists(source_artifact_path) is True
 
 
 def test_used_artifacts_preserve_original_project(
