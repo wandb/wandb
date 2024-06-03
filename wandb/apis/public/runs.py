@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Literal
 
 from wandb_gql import gql
 
@@ -163,28 +163,34 @@ class Runs(Paginator):
 
     @normalize_exceptions
     def histories(
+            self,
+            samples: int = 500,
+            keys: list = None,
+            x_axis: str = "_step",
+            format: Literal["default", "pandas"] = "default",
+            stream: Literal["default", "system"] = "default"
         self, samples=500, keys=None, x_axis="_step", pandas=True, stream="default"
     ):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
         Arguments:
             samples : (int, optional) The number of samples to return per run
-            pandas : (bool, optional) Return a pandas dataframe
             keys : (list, optional) Only return metrics for specific keys
             x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+            format : (str, optional) Format to return data in, options are "default", "pandas"
             stream : (str, optional) "default" for metrics, "system" for machine metrics
 
         Returns:
-            pandas.DataFrame: If pandas=True, returns a `pandas.DataFrame` of history metrics indexed by run id.
-            list of dicts: If pandas=False, returns a list of dicts containing history metrics with a run_id key.
+            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics indexed by run id.
+            list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
         """
         all_histories = []
 
         for run in self:
             history_data = run.history(
-                samples=samples, keys=keys, x_axis=x_axis, pandas=pandas, stream=stream
+                samples=samples, keys=keys, x_axis=x_axis, pandas=(format == "pandas"), stream=stream
             )
-            if pandas:
+            if format == "pandas":
                 pandas_module = util.get_module("pandas")
                 if (
                     pandas_module
@@ -199,7 +205,7 @@ class Runs(Paginator):
                         entry["run_id"] = run.id
                     all_histories.extend(history_data)
 
-        if pandas:
+        if format == "pandas":
             pandas_module = util.get_module("pandas")
             if pandas_module and all_histories:
                 combined_df = pandas_module.concat(all_histories)
