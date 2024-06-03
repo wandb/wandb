@@ -2,7 +2,6 @@ import os
 import platform
 
 import pytest
-
 import wandb
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
