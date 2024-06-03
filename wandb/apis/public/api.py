@@ -15,7 +15,7 @@ import json
 import logging
 import os
 import urllib
-from typing import Any, Dict, List, Optional, Sequence
+from typing import Any, Dict, List, Optional
 
 import requests
 from wandb_gql import Client, gql
