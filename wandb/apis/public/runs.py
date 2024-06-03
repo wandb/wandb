@@ -5,7 +5,7 @@ import os
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional, Literal
+from typing import TYPE_CHECKING, Any, Dict, Literal, Mapping, Optional
 
 from wandb_gql import gql
 
@@ -163,12 +163,12 @@ class Runs(Paginator):
 
     @normalize_exceptions
     def histories(
-            self,
-            samples: int = 500,
-            keys: list = None,
-            x_axis: str = "_step",
-            format: Literal["default", "pandas"] = "default",
-            stream: Literal["default", "system"] = "default"
+        self,
+        samples: int = 500,
+        keys: list = None,
+        x_axis: str = "_step",
+        format: Literal["default", "pandas"] = "default",
+        stream: Literal["default", "system"] = "default",
     ):
         """Return sampled history metrics for all runs that fit the filters conditions.
 
@@ -187,7 +187,11 @@ class Runs(Paginator):
 
         for run in self:
             history_data = run.history(
-                samples=samples, keys=keys, x_axis=x_axis, pandas=(format == "pandas"), stream=stream
+                samples=samples,
+                keys=keys,
+                x_axis=x_axis,
+                pandas=(format == "pandas"),
+                stream=stream,
             )
             if format == "pandas":
                 pandas_module = util.get_module("pandas")
