@@ -2019,16 +2019,23 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
+        If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
+        source artifact is unaffected.
+
         Arguments:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
                 aliases.
+                This parameter is ignored if the artifact is linked (i.e. a member of a portfolio collection).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
         self._ensure_logged("delete")
-        self._delete(delete_aliases)
+        if self.collection.is_sequence():
+            self._delete(delete_aliases)
+        else:
+            self._unlink()
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
