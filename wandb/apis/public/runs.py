@@ -2,10 +2,10 @@
 
 import json
 import os
+import sys
 import tempfile
 import time
 import urllib
-import sys
 from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
 
 if sys.version_info >= (3, 8):
