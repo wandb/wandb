@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
@@ -151,6 +152,16 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 		sentryClient: sentryClient,
 	}
 
+	hostname, err := os.Hostname()
+	if err != nil {
+		// We log an error but continue anyway with an empty hostname string.
+		// Better behavior would be to inform the user and turn off any
+		// components that rely on the hostname, but it's not easy to do
+		// with our current code structure.
+		s.logger.CaptureError("could not get hostname", err)
+		hostname = ""
+	}
+
 	// TODO: replace this with a logger that can be read by the user
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
@@ -158,6 +169,12 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
+	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
+		OutputRecords: s.loopBackChan,
+		Logger:        s.logger,
+		Settings:      s.settings.Proto,
+		Hostname:      hostname,
+	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -197,7 +214,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 			OutChan:           make(chan *service.Result, BufferSize),
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
 			RunfilesUploader:  runfilesUploaderOrNil,
-			TBHandler:         NewTBHandler(fileWatcher, s.logger, s.settings.Proto, s.loopBackChan),
+			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
@@ -232,6 +249,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 			FileTransferManager: fileTransferManagerOrNil,
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
+			TBHandler:           tbHandler,
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
