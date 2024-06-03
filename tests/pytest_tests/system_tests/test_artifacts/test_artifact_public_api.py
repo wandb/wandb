@@ -2,6 +2,7 @@ import os
 import platform
 
 import pytest
+
 import wandb
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError
 
@@ -139,7 +140,7 @@ def test_artifact_delete_on_linked_artifact(user, api, sample_data):
 
     # Link the artifact
     source_art.link(portfolio)
-    linked_path = f"{source_art.entity}/{source_art.project}/{portfolio}"
+    linked_path = f"{source_art.entity}/{source_art.project}/{portfolio}:v0"
     linked_art = api.artifact(linked_path)
 
     # Sanity check
