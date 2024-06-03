@@ -171,8 +171,13 @@ select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
-    "D1",    # Allow missing docstrings.
-    "D417",  # Don't require descriptions for all arguments.
+    # pydocstyle rules: https://docs.astral.sh/ruff/rules/#pydocstyle-d
+    "D100",  # Allow missing docstrings in modules.
+    "D101",  # Allow missing docstrings in classes.
+    "D104",  # Allow missing docstrings in packages.
+    "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
+    "D106",  # Allow missing docstrings in nested classes.
+    "D107",  # Allow missing docstrings in __init__ methods.
     "UP022",
     "UP032", # Allow using format instead of f-string.
     "UP036",
@@ -192,7 +197,22 @@ ignore-overlong-task-comments = true
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+ignore-decorators = [
+    # Allow undocumented @property descriptors for now.
+    # As of May 2024, many in the public API module(s) currently lack docs, or may plausibly have been intended
+    # for internal use only.  Consider removing this exemption in the future, when/if/as appropriate.
+    "property",
+]
+
 [tool.ruff.lint.per-file-ignores]
+# Ensure stricter docstring requirements for public API module(s).
+"!wandb/apis/public/api.py" = [  # Consider expanding to other `wandb.api.public` submodules as well.
+    "D101",  # Require docstrings in public classes
+    "D102",  # Require docstrings in public methods
+    "D103",  # Require docstrings in public functions
+    "D417",  # Require descriptions for all arguments
+]
+
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
 "wandb/cli/cli.py" = ["C901"]
