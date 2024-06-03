@@ -329,7 +329,7 @@ class Agent:
             elif command_type == "resume":
                 result = self._command_run(command)
             else:
-                raise AgentError("No such command: %s" % command_type)
+                raise AgentError("No such command: {}".format(command_type))
             response["result"] = result
         except Exception:
             logger.exception("Exception while processing command: %s", command)
@@ -417,7 +417,7 @@ class Agent:
                     command_list += [c]
             logger.info(
                 "About to run command: {}".format(
-                    " ".join('"%s"' % c if " " in c else c for c in command_list)
+                    " ".join('"{}"'.format(c) if " " in c else c for c in command_list)
                 )
             )
             proc = AgentProcess(command=command_list, env=env)
@@ -468,7 +468,7 @@ class AgentApi:
 
     def command(self, command):
         command["origin"] = "local"
-        command["id"] = "local-%s" % self._command_id
+        command["id"] = "local-{}".format(self._command_id)
         self._command_id += 1
         resp_queue = self._multiproc_manager.Queue()
         command["resp_queue"] = resp_queue

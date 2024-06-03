@@ -23,6 +23,12 @@ func WithWriterSettings(settings *service.Settings) WriterOption {
 	}
 }
 
+type WriterParams struct {
+	Logger   *observability.CoreLogger
+	Settings *service.Settings
+	FwdChan  chan *service.Record
+}
+
 // Writer is responsible for writing messages to the append-only log.
 // It receives messages from the handler, processes them,
 // if the message is to be persisted it writes them to the log.
@@ -54,14 +60,13 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, logger *observability.CoreLogger, opts ...WriterOption) *Writer {
+func NewWriter(ctx context.Context, params WriterParams) *Writer {
 	w := &Writer{
-		ctx:    ctx,
-		logger: logger,
-		wg:     sync.WaitGroup{},
-	}
-	for _, opt := range opts {
-		opt(w)
+		ctx:      ctx,
+		wg:       sync.WaitGroup{},
+		logger:   params.Logger,
+		settings: params.Settings,
+		fwdChan:  params.FwdChan,
 	}
 	return w
 }

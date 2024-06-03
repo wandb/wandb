@@ -17,6 +17,7 @@ from core import hatch as hatch_core  # noqa: I001 E402
 
 _WANDB_BUILD_UNIVERSAL = "WANDB_BUILD_UNIVERSAL"
 _WANDB_BUILD_COVERAGE = "WANDB_BUILD_COVERAGE"
+_WANDB_BUILD_SKIP_APPLE = "WANDB_BUILD_SKIP_APPLE"
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
 
 
@@ -76,7 +77,9 @@ class CustomBuildHook(BuildHookInterface):
     def _include_apple_stats(self) -> bool:
         """Returns whether we should produce a wheel with apple_gpu_stats."""
         return (
-            not self._must_build_universal() and platform.system().lower() == "darwin"
+            not self._must_build_universal()
+            and not _get_env_bool(_WANDB_BUILD_SKIP_APPLE, default=False)
+            and platform.system().lower() == "darwin"
         )
 
     def _is_platform_wheel(self) -> bool:

@@ -110,7 +110,8 @@ class _Service:
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable.",
+                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    f"\n{context}",
                     context=context,
                 )
             if not os.path.isfile(fname):

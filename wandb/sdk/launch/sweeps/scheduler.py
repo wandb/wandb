@@ -668,6 +668,8 @@ class Scheduler(ABC):
         launch_config = copy.deepcopy(self._wandb_run.config.get("launch", {}))
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
+        if "run_config" not in launch_config["overrides"]:
+            launch_config["overrides"]["run_config"] = {}
         launch_config["overrides"]["run_config"].update(args["args_dict"])
 
         if macro_args:  # pipe in hyperparam args as params to launch

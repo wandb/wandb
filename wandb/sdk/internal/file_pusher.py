@@ -14,7 +14,7 @@ from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-    from wandb.sdk.artifacts.artifact_saver import SaveFn, SaveFnAsync
+    from wandb.sdk.artifacts.artifact_saver import SaveFn
     from wandb.sdk.internal import file_stream, internal_api
     from wandb.sdk.internal.settings_static import SettingsStatic
 
@@ -148,11 +148,8 @@ class FilePusher:
         manifest: "ArtifactManifest",
         artifact_id: str,
         save_fn: "SaveFn",
-        save_fn_async: "SaveFnAsync",
     ) -> None:
-        event = step_checksum.RequestStoreManifestFiles(
-            manifest, artifact_id, save_fn, save_fn_async
-        )
+        event = step_checksum.RequestStoreManifestFiles(manifest, artifact_id, save_fn)
         self._incoming_queue.put(event)
 
     def commit_artifact(

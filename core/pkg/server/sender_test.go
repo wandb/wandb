@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -43,14 +44,15 @@ const validCreateArtifactResponse = `{
 	}
 }`
 
-func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
+func makeSender(client graphql.Client, recordChan chan *service.Record, resultChan chan *service.Result) *server.Sender {
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&service.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
 	backend := server.NewBackend(logger, settings)
-	fileStream := server.NewFileStream(backend, logger, settings, nil)
+	fileStream := server.NewFileStream(
+		backend, logger, observability.NewPrinter(), settings, nil)
 	fileTransferManager := server.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
@@ -62,22 +64,24 @@ func makeSender(client graphql.Client, resultChan chan *service.Result) *server.
 		settings,
 		fileStream,
 		fileTransferManager,
+		watchertest.NewFakeWatcher(),
 		client,
 	)
 	sender := server.NewSender(
 		ctx,
 		cancel,
-		backend,
-		fileStream,
-		fileTransferManager,
-		logger,
-		runfilesUploader,
-		settings.Proto,
-		nil, /* peeker */
-		client,
-		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
-		server.WithSenderOutChannel(resultChan),
-		server.WithSenderMailbox(mailbox.NewMailbox()),
+		server.SenderParams{
+			Logger:              logger,
+			Settings:            settings.Proto,
+			Backend:             backend,
+			FileStream:          fileStream,
+			FileTransferManager: fileTransferManager,
+			RunfilesUploader:    runfilesUploader,
+			FwdChan:             recordChan,
+			OutChan:             resultChan,
+			Mailbox:             mailbox.NewMailbox(),
+			GraphqlClient:       client,
+		},
 	)
 	return sender
 }
@@ -89,7 +93,8 @@ func TestSendRun(t *testing.T) {
 		gqlmock.WithOpName("UpsertBucket"),
 		validUpsertBucketResponse,
 	)
-	sender := makeSender(mockGQL, make(chan *service.Result, 1))
+	outChan := make(chan *service.Result, 1)
+	sender := makeSender(mockGQL, make(chan *service.Record, 1), outChan)
 
 	run := &service.Record{
 		RecordType: &service.Record_Run{
@@ -111,7 +116,7 @@ func TestSendRun(t *testing.T) {
 	}
 
 	sender.SendRecord(run)
-	<-sender.GetOutboundChannel()
+	<-outChan
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
@@ -126,7 +131,8 @@ func TestSendRun(t *testing.T) {
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL, make(chan *service.Result, 1))
+	outChan := make(chan *service.Result, 1)
+	sender := makeSender(mockGQL, make(chan *service.Record, 1), outChan)
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &service.Record{
@@ -148,7 +154,7 @@ func TestSendLinkArtifact(t *testing.T) {
 		validLinkArtifactResponse,
 	)
 	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	<-outChan
 
 	requests := mockGQL.AllRequests()
 	assert.Len(t, requests, 1)
@@ -182,7 +188,7 @@ func TestSendLinkArtifact(t *testing.T) {
 		validLinkArtifactResponse,
 	)
 	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	<-outChan
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 2)
@@ -216,7 +222,7 @@ func TestSendLinkArtifact(t *testing.T) {
 		validLinkArtifactResponse,
 	)
 	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	<-outChan
 
 	requests = mockGQL.AllRequests()
 	assert.Len(t, requests, 3)
@@ -233,7 +239,7 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL, make(chan *service.Result, 1))
+	sender := makeSender(mockGQL, make(chan *service.Record, 1), make(chan *service.Result, 1))
 
 	useArtifact := &service.Record{
 		RecordType: &service.Record_UseArtifact{
@@ -282,7 +288,7 @@ func TestSendArtifact(t *testing.T) {
 		gqlmock.WithOpName("CreateArtifact"),
 		validCreateArtifactResponse,
 	)
-	sender := makeSender(mockGQL, make(chan *service.Result, 1))
+	sender := makeSender(mockGQL, make(chan *service.Record, 1), make(chan *service.Result, 1))
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	artifact := &service.Record{

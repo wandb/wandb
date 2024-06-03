@@ -6,8 +6,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
-from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -94,8 +94,11 @@ class ArtifactManifestEntry:
 
     @property
     def name(self) -> LogicalPath:
-        # TODO(hugh): add telemetry to see if anyone is still using this.
-        termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        """Deprecated; use `path` instead."""
+        deprecate(
+            field_name=Deprecated.artifactmanifestentry__name,
+            warning_message="ArtifactManifestEntry.name is deprecated, use .path instead.",
+        )
         return self.path
 
     def parent_artifact(self) -> "Artifact":

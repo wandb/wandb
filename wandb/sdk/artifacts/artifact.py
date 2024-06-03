@@ -70,6 +70,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
@@ -262,11 +263,12 @@ class Artifact:
                 "name": name,
             },
         )
-        attrs = response.get("project", {}).get("artifact")
-        if attrs is None:
-            raise ValueError(
-                f"Unable to fetch artifact with name {entity}/{project}/{name}"
-            )
+        project_attrs = response.get("project")
+        if not project_attrs:
+            raise ValueError(f"project '{project}' not found under entity '{entity}'")
+        attrs = project_attrs.get("artifact")
+        if not attrs:
+            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
         return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
@@ -1180,7 +1182,7 @@ class Artifact:
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
-            raise ValueError("Path is not a file: %s" % local_path)
+            raise ValueError("Path is not a file: {}".format(local_path))
 
         name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
@@ -1221,11 +1223,12 @@ class Artifact:
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: %s" % local_path)
+            raise ValueError("Path is not a directory: {}".format(local_path))
 
         termlog(
-            "Adding directory to artifact (%s)... "
-            % os.path.join(".", os.path.normpath(local_path)),
+            "Adding directory to artifact ({})... ".format(
+                os.path.join(".", os.path.normpath(local_path))
+            ),
             newline=False,
         )
         start_time = time.time()
@@ -1503,8 +1506,9 @@ class Artifact:
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         """Deprecated. Use `get_entry(name)`."""
-        termwarn(
-            "Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead."
+        deprecate(
+            field_name=Deprecated.artifact__get_path,
+            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 
@@ -1526,7 +1530,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: %s" % name)
+            raise KeyError("Path not contained in artifact: {}".format(name))
         entry._parent_artifact = self
         return entry
 
@@ -1937,11 +1941,11 @@ class Artifact:
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+            print("Warning: skipped verification of {} refs".format(ref_count))
 
     def file(self, root: Optional[str] = None) -> StrPath:
         """Download a single file artifact to the directory you specify with `root`.

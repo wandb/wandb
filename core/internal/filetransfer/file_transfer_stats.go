@@ -2,9 +2,9 @@ package filetransfer
 
 import (
 	"sync"
+	"sync/atomic"
 
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/proto"
 )
 
 // FileTransferStats reports file upload/download progress and totals.
@@ -21,43 +21,69 @@ type FileTransferStats interface {
 	// SetDone marks all uploads as finished.
 	SetDone()
 
-	// UpdateUploadStats updates the tr
+	// UpdateUploadStats updates the upload stats for a file.
 	UpdateUploadStats(newInfo FileUploadInfo)
 }
 
 type fileTransferStats struct {
-	*sync.Mutex
+	sync.Mutex
 
-	done bool
+	done *atomic.Bool
 
 	statsByPath map[string]FileUploadInfo
-	filesStats  *service.FilePusherStats
-	fileCounts  *service.FileCounts
+
+	uploadedBytes *atomic.Int64
+	totalBytes    *atomic.Int64
+	dedupedBytes  *atomic.Int64
+
+	wandbCount    *atomic.Int32
+	mediaCount    *atomic.Int32
+	artifactCount *atomic.Int32
+	otherCount    *atomic.Int32
 }
 
 func NewFileTransferStats() FileTransferStats {
 	return &fileTransferStats{
-		Mutex:       &sync.Mutex{},
+		done: &atomic.Bool{},
+
 		statsByPath: make(map[string]FileUploadInfo),
-		filesStats:  &service.FilePusherStats{},
-		fileCounts:  &service.FileCounts{},
+
+		uploadedBytes: &atomic.Int64{},
+		totalBytes:    &atomic.Int64{},
+		dedupedBytes:  &atomic.Int64{},
+
+		wandbCount:    &atomic.Int32{},
+		mediaCount:    &atomic.Int32{},
+		artifactCount: &atomic.Int32{},
+		otherCount:    &atomic.Int32{},
 	}
 }
 
 func (fts *fileTransferStats) GetFilesStats() *service.FilePusherStats {
-	return proto.Clone(fts.filesStats).(*service.FilePusherStats)
+	// NOTE: We don't lock, so these could be out of sync. For instance,
+	// TotalBytes could be less than UploadedBytes!
+	return &service.FilePusherStats{
+		UploadedBytes: fts.uploadedBytes.Load(),
+		TotalBytes:    fts.totalBytes.Load(),
+		DedupedBytes:  fts.dedupedBytes.Load(),
+	}
 }
 
 func (fts *fileTransferStats) GetFileCounts() *service.FileCounts {
-	return proto.Clone(fts.fileCounts).(*service.FileCounts)
+	return &service.FileCounts{
+		WandbCount:    fts.wandbCount.Load(),
+		MediaCount:    fts.mediaCount.Load(),
+		ArtifactCount: fts.artifactCount.Load(),
+		OtherCount:    fts.otherCount.Load(),
+	}
 }
 
 func (fts *fileTransferStats) IsDone() bool {
-	return fts.done
+	return fts.done.Load()
 }
 
 func (fts *fileTransferStats) SetDone() {
-	fts.done = true
+	fts.done.Store(true)
 }
 
 // FileUploadInfo is information about an in-progress file upload.
@@ -88,17 +114,17 @@ func (fts *fileTransferStats) UpdateUploadStats(newInfo FileUploadInfo) {
 }
 
 func (fts *fileTransferStats) addStats(info FileUploadInfo, mult int64) {
-	fts.filesStats.UploadedBytes += info.UploadedBytes * mult
-	fts.filesStats.TotalBytes += info.TotalBytes * mult
+	fts.uploadedBytes.Add(info.UploadedBytes * mult)
+	fts.totalBytes.Add(info.TotalBytes * mult)
 
 	switch info.FileKind {
 	default:
-		fts.fileCounts.OtherCount += int32(mult)
+		fts.otherCount.Add(int32(mult))
 	case RunFileKindWandb:
-		fts.fileCounts.WandbCount += int32(mult)
+		fts.wandbCount.Add(int32(mult))
 	case RunFileKindArtifact:
-		fts.fileCounts.ArtifactCount += int32(mult)
+		fts.artifactCount.Add(int32(mult))
 	case RunFileKindMedia:
-		fts.fileCounts.MediaCount += int32(mult)
+		fts.mediaCount.Add(int32(mult))
 	}
 }

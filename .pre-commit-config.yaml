@@ -1,15 +1,21 @@
 # Install pre-commit hooks via `pip install pre-commit && pre-commit install`
+
+# Exclude:
+#   * vendored code
+#   * generated protobuf files
+exclude: '^(wandb/vendor|core/vendor/)|\.pb\.go$|_pb2\.pyi?$'
+
 default_stages:
   - pre-push
 default_install_hook_types: [pre-push, pre-commit]
 repos:
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-    - id: clippy
-      args: ['--manifest-path=client/Cargo.toml', '--all', '--']
+  # - repo: https://github.com/doublify/pre-commit-rust
+  #   rev: v1.0
+  #   hooks:
+  #   - id: clippy
+  #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.3.7"
+    rev: "v0.4.4"
     hooks:
       - id: ruff
         args: [ --fix]
@@ -18,7 +24,6 @@ repos:
     rev: 1.16.0
     hooks:
       - id: blacken-docs
-        exclude: ^(wandb/vendor/)
   - repo: https://github.com/pre-commit/mirrors-clang-format
     rev: v18.1.3
     hooks:
@@ -30,7 +35,7 @@ repos:
       - id: check-merge-conflict
       - id: trailing-whitespace
         name: trailing-whitespace
-        exclude: ^(wandb/|tests/|src/)
+        exclude: ^(wandb/|tests/|src/|.bumpversion.*.cfg)
       - id: end-of-file-fixer
         name: end-of-file-fixer
         exclude: ^(wandb/|tests/|src/|.*_durations)
@@ -51,7 +56,7 @@ repos:
         name: check-toml
       - id: debug-statements
         name: debug-statements
-        exclude: ^(wandb/__init__.py)
+        exclude: ^wandb/__init__.py
       - id: forbid-submodules
         name: forbid-submodules
   - repo: local
@@ -84,7 +89,6 @@ repos:
         name: 'go-imports'
         entry: core/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
         language: 'script'
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests
@@ -118,7 +122,6 @@ repos:
         name: 'go-cyclo'
         entry: core/scripts/pre-commit-hooks/run-go-cyclo.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
         language: 'script'
         description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
         args:

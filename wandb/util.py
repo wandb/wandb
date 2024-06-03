@@ -44,7 +44,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     TextIO,
     Tuple,
     TypeVar,
@@ -544,50 +543,41 @@ def _numpy_generic_convert(obj: Any) -> Any:
     return obj
 
 
-def _find_all_matching_keys(
+def _sanitize_numpy_keys(
     d: Dict,
-    match_fn: Callable[[Any], bool],
-    visited: Optional[Set[int]] = None,
-    key_path: Tuple[Any, ...] = (),
-) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
-    """Recursively find all keys that satisfies a match function.
+    visited: Optional[Dict[int, Dict]] = None,
+) -> Tuple[Dict, bool]:
+    """Returns a dictionary where all NumPy keys are converted.
 
     Args:
-       d: The dict to search.
-       match_fn: The function to determine if the key is a match.
-       visited: Keep track of visited nodes so we dont recurse forever.
-       key_path: Keep track of all the keys to get to the current node.
+        d: The dictionary to sanitize.
 
-    Yields:
-       (key_path, key): The location where the key was found, and the key
+    Returns:
+        A sanitized dictionary, and a boolean indicating whether anything was
+        changed.
     """
+    out: Dict[Any, Any] = dict()
+    converted = False
+
+    # Work with recursive dictionaries: if a dictionary has already been
+    # converted, reuse its converted value to retain the recursive structure
+    # of the input.
     if visited is None:
-        visited = set()
-    me = id(d)
-    if me not in visited:
-        visited.add(me)
-        for key, value in d.items():
-            if match_fn(key):
-                yield key_path, key
-            if isinstance(value, dict):
-                yield from _find_all_matching_keys(
-                    value,
-                    match_fn,
-                    visited=visited,
-                    key_path=tuple(list(key_path) + [key]),
-                )
+        visited = {id(d): out}
+    elif id(d) in visited:
+        return visited[id(d)], False
+    visited[id(d)] = out
 
+    for key, value in d.items():
+        if isinstance(value, dict):
+            value, converted_value = _sanitize_numpy_keys(value, visited)
+            converted |= converted_value
+        if isinstance(key, np.generic):
+            key = _numpy_generic_convert(key)
+            converted = True
+        out[key] = value
 
-def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
-    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
-    if not np_keys:
-        return d, False
-    for key_path, key in np_keys:
-        ptr = d
-        for k in key_path:
-            ptr = ptr[k]
-        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
-    return d, True
+    return out, converted
 
 
 def json_friendly(  # noqa: C901
@@ -1923,3 +1913,12 @@ def get_core_path() -> str:
         )
 
     return str(bin_path)
+
+
+class NonOctalStringDumper(yaml.Dumper):
+    """Prevents strings containing non-octal values like "008" and "009" from being converted to numbers in in the yaml string saved as the sweep config."""
+
+    def represent_scalar(self, tag, value, style=None):
+        if tag == "tag:yaml.org,2002:str" and value.startswith("0") and len(value) > 1:
+            return super().represent_scalar(tag, value, style="'")
+        return super().represent_scalar(tag, value, style)

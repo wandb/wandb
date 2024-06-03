@@ -1,5 +1,4 @@
 import ast
-import asyncio
 import base64
 import datetime
 import functools
@@ -49,7 +48,7 @@ from ..lib import retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
-from .progress import AsyncProgress, Progress
+from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
@@ -121,13 +120,6 @@ if TYPE_CHECKING:
     SweepState = Literal["RUNNING", "PAUSED", "CANCELED", "FINISHED"]
     Number = Union[int, float]
 
-# This funny if/else construction is the simplest thing I've found that
-# works at runtime, satisfies Mypy, and gives autocomplete in VSCode:
-if TYPE_CHECKING:
-    import httpx
-else:
-    httpx = util.get_module("httpx")
-
 # class _MappingSupportsCopy(Protocol):
 #     def copy(self) -> "_MappingSupportsCopy": ...
 #     def keys(self) -> Iterable: ...
@@ -159,23 +151,6 @@ def check_httpclient_logger_handler() -> None:
     root_logger = logging.getLogger("wandb")
     if root_logger.handlers:
         httpclient_logger.addHandler(root_logger.handlers[0])
-
-
-def check_httpx_exc_retriable(exc: Exception) -> bool:
-    retriable_codes = (308, 408, 409, 429, 500, 502, 503, 504)
-    return (
-        isinstance(exc, (httpx.TimeoutException, httpx.NetworkError))
-        or (
-            isinstance(exc, httpx.HTTPStatusError)
-            and exc.response.status_code in retriable_codes
-        )
-        or (
-            isinstance(exc, httpx.HTTPStatusError)
-            and exc.response.status_code == 400
-            and "x-amz-meta-md5" in exc.request.headers
-            and "RequestTimeout" in str(exc.response.content)
-        )
-    )
 
 
 class _ThreadLocalData(threading.local):
@@ -286,10 +261,6 @@ class Api:
             )
         )
 
-        # httpx is an optional dependency, so we lazily instantiate the client
-        # only when we need it
-        self._async_httpx_client: Optional[httpx.AsyncClient] = None
-
         self.retry_callback = retry_callback
         self._retry_gql = retry.Retry(
             self.execute,
@@ -361,7 +332,7 @@ class Api:
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
-        self.client.transport.url = "%s/graphql" % self.settings("base_url")
+        self.client.transport.url = "{}/graphql".format(self.settings("base_url"))
 
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
         """Wrapper around execute that logs in cases of failure."""
@@ -2794,105 +2765,6 @@ class Api:
 
         return response
 
-    async def upload_file_async(
-        self,
-        url: str,
-        file: IO[bytes],
-        callback: Optional["ProgressFn"] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-    ) -> None:
-        """An async not-quite-equivalent version of `upload_file`.
-
-        Differences from `upload_file`:
-            - This method doesn't implement Azure uploads. (The Azure SDK supports
-              async, but it's nontrivial to use it here.) If the upload looks like
-              it's destined for Azure, this method will delegate to the sync impl.
-            - Consequently, this method doesn't return the response object.
-              (Because it might fall back to the sync impl, it would sometimes
-               return a `requests.Response` and sometimes an `httpx.Response`.)
-            - This method doesn't wrap retryable errors in `TransientError`.
-              It leaves that determination to the caller.
-        """
-        check_httpclient_logger_handler()
-        must_delegate = False
-
-        if httpx is None:
-            wandb.termwarn(  # type: ignore[unreachable]
-                "async file-uploads require `pip install wandb[async]`; falling back to sync implementation",
-                repeat=False,
-            )
-            must_delegate = True
-
-        if extra_headers is not None and "x-ms-blob-type" in extra_headers:
-            wandb.termwarn(
-                "async file-uploads don't support Azure; falling back to sync implementation",
-                repeat=False,
-            )
-            must_delegate = True
-
-        if must_delegate:
-            await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: self.upload_file_retry(
-                    url=url,
-                    file=file,
-                    callback=callback,
-                    extra_headers=extra_headers,
-                ),
-            )
-            return
-
-        if self._async_httpx_client is None:
-            self._async_httpx_client = httpx.AsyncClient()
-
-        progress = AsyncProgress(Progress(file, callback=callback))
-
-        try:
-            response = await self._async_httpx_client.put(
-                url=url,
-                content=progress,
-                headers={
-                    "Content-Length": str(len(progress)),
-                    **(extra_headers if extra_headers is not None else {}),
-                },
-            )
-            response.raise_for_status()
-        except Exception as e:
-            progress.rewind()
-            logger.error(f"upload_file_async exception {url}: {e}")
-            if isinstance(e, httpx.RequestError):
-                logger.error(f"upload_file_async request headers: {e.request.headers}")
-            if isinstance(e, httpx.HTTPStatusError):
-                logger.error(f"upload_file_async response body: {e.response.content!r}")
-            raise
-
-    async def upload_file_retry_async(
-        self,
-        url: str,
-        file: IO[bytes],
-        callback: Optional["ProgressFn"] = None,
-        extra_headers: Optional[Dict[str, str]] = None,
-        num_retries: int = 100,
-    ) -> None:
-        backoff = retry.FilteredBackoff(
-            filter=check_httpx_exc_retriable,
-            wrapped=retry.ExponentialBackoff(
-                initial_sleep=datetime.timedelta(seconds=1),
-                max_sleep=datetime.timedelta(seconds=60),
-                max_retries=num_retries,
-                timeout_at=datetime.datetime.now() + datetime.timedelta(days=7),
-            ),
-        )
-
-        await retry.retry_async(
-            backoff=backoff,
-            fn=self.upload_file_async,
-            url=url,
-            file=file,
-            callback=callback,
-            extra_headers=extra_headers,
-        )
-
     @normalize_exceptions
     def register_agent(
         self,
@@ -3039,9 +2911,10 @@ class Api:
                         parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
-                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution)."
-                            % parameter_name
+                            "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution).".format(
+                                parameter_name
+                            )
                         )
         return config
 
@@ -3144,7 +3017,9 @@ class Api:
 
         # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
         # This sanitizes them with a round trip pass through json to get a regular dict.
-        config_str = yaml.dump(json.loads(json.dumps(config)))
+        config_str = yaml.dump(
+            json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
+        )
 
         err: Optional[Exception] = None
         for mutation in mutations:
@@ -3887,6 +3762,36 @@ class Api:
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
 
+    def update_artifact_metadata(
+        self, artifact_id: str, metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Set the metadata of the given artifact version."""
+        mutation = gql(
+            """
+        mutation UpdateArtifact(
+            $artifactID: ID!,
+            $metadata: JSONString,
+        ) {
+            updateArtifact(input: {
+                artifactID: $artifactID,
+                metadata: $metadata,
+            }) {
+                artifact {
+                    id
+                }
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "artifactID": artifact_id,
+                "metadata": json.dumps(metadata),
+            },
+        )
+        return response["updateArtifact"]["artifact"]
+
     def _resolve_client_id(
         self,
         client_id: str,
@@ -4081,9 +3986,9 @@ class Api:
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
         if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-            raise Exception("Cannot pause %s sweep." % curr_state.lower())
+            raise Exception("Cannot pause {} sweep.".format(curr_state.lower()))
         elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-            raise Exception("Sweep already %s." % curr_state.lower())
+            raise Exception("Sweep already {}.".format(curr_state.lower()))
         sweep_id = s["id"]
         mutation = gql(
             """

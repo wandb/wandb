@@ -298,7 +298,6 @@ class SettingsData:
 
     _args: Sequence[str]
     _aws_lambda: bool
-    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _code_path_local: str
     _colab: bool
@@ -313,7 +312,6 @@ class SettingsData:
     _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
-    _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
     # file stream retry client configuration
@@ -390,6 +388,7 @@ class SettingsData:
     colab_url: str
     config_paths: Sequence[str]
     console: str
+    console_multipart: bool  # whether to produce multipart console log files
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -425,7 +424,6 @@ class SettingsData:
     # magic: Union[str, bool, dict]  # never used in code, deprecated
     mode: str
     notebook_name: str
-    problem: str
     program: str
     program_abspath: str
     program_relpath: str
@@ -621,10 +619,6 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
-            _async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate__async_upload_concurrency_limit,
-            },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
                 "auto_hook": True,
@@ -787,6 +781,7 @@ class Settings(SettingsData):
                 "hook": lambda x: self._convert_console(x),
                 "auto_hook": True,
             },
+            console_multipart={"value": False, "preprocessor": _str_as_bool},
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -862,7 +857,6 @@ class Settings(SettingsData):
             },
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
-            problem={"value": "fatal", "validator": self._validate_problem},
             program={
                 "hook": lambda x: self._get_program(x),
             },
@@ -1026,13 +1020,6 @@ class Settings(SettingsData):
         return True
 
     @staticmethod
-    def _validate_problem(value: str) -> bool:
-        choices: Set[str] = {"fatal", "warn", "silent"}
-        if value not in choices:
-            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
-        return True
-
-    @staticmethod
     def _validate_anonymous(value: str) -> bool:
         choices: Set[str] = {"allow", "must", "never", "false", "true"}
         if value not in choices:
@@ -1177,35 +1164,6 @@ class Settings(SettingsData):
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
-        return True
-
-    @staticmethod
-    def _validate__async_upload_concurrency_limit(value: int) -> bool:
-        if value <= 0:
-            raise UsageError("_async_upload_concurrency_limit must be positive")
-
-        try:
-            import resource  # not always available on Windows
-
-            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        except Exception:
-            # Couldn't get the open-file-limit for some reason,
-            # probably very platform-specific. Not a problem,
-            # we just won't use it to cap the concurrency.
-            pass
-        else:
-            if value > file_limit:
-                wandb.termwarn(
-                    (
-                        "_async_upload_concurrency_limit setting of"
-                        f" {value} exceeds this process's limit"
-                        f" on open files ({file_limit}); may cause file-upload failures."
-                        " Try decreasing _async_upload_concurrency_limit,"
-                        " or increasing your file limit with `ulimit -n`."
-                    ),
-                    repeat=False,
-                )
-
         return True
 
     @staticmethod
@@ -1783,9 +1741,6 @@ class Settings(SettingsData):
             settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            settings["_except_exit"] = True  # type: ignore
 
         if _logger is not None:
             _logger.info(

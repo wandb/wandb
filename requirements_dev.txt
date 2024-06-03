@@ -6,8 +6,8 @@ hypothesis-fspaths
 
 Pillow
 pandas
-moviepy
-imageio
+moviepy~=1.0.3
+imageio[ffmpeg]
 matplotlib!=3.5.2
 soundfile
 rdkit; (sys_platform != 'darwin') or (sys_platform == 'darwin' and platform.machine != 'arm64')
@@ -42,12 +42,9 @@ urllib3<2
 docker
 
 responses
-respx
 prometheus_client
 google-cloud-aiplatform
-aiohttp==3.9.0b0; python_version >= '3.12'
 
-.[async]
 .[perf]
 .[launch]
 .[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')

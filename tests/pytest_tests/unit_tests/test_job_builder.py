@@ -25,7 +25,7 @@ def make_proto_settings(**kwargs):
     return proto
 
 
-def test_build_repo_job(runner):
+def test_build_repo_job(runner, api):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
@@ -46,7 +46,11 @@ def test_build_repo_job(runner):
             )
         )
         job_builder = JobBuilder(settings)
-        artifact = job_builder.build()
+        artifact = job_builder.build(
+            api,
+            dockerfile="Dockerfile",
+            build_context="blah/",
+        )
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
             f"job-{remote_name}_blah_test.py"
@@ -55,8 +59,16 @@ def test_build_repo_job(runner):
         assert artifact._manifest.entries["wandb-job.json"]
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
+        with open(artifact._manifest.entries["wandb-job.json"].local_path) as f:
+            job_json = json.load(f)
+            source_json = job_json["source"]
+            assert source_json["git"]["remote"] == remote_name
+            assert source_json["git"]["commit"] == "testtestcommit"
+            assert source_json["dockerfile"] == "Dockerfile"
+            assert source_json["build_context"] == "blah/"
 
-def test_build_repo_notebook_job(runner, tmp_path, mocker):
+
+def test_build_repo_notebook_job(runner, tmp_path, api, mocker):
     remote_name = str_of_length(129)
     metadata = {
         "git": {"remote": remote_name, "commit": "testtestcommit"},
@@ -91,7 +103,7 @@ def test_build_repo_notebook_job(runner, tmp_path, mocker):
             )
         )
         job_builder = JobBuilder(settings)
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(
             f"job-{remote_name}_blah_test.ipynb"
@@ -102,7 +114,7 @@ def test_build_repo_notebook_job(runner, tmp_path, mocker):
         assert job_builder._is_notebook_run is True
 
 
-def test_build_artifact_job(runner):
+def test_build_artifact_job(runner, api):
     metadata = {
         "codePath": "blah/test.py",
         "args": ["--test", "test"],
@@ -125,7 +137,7 @@ def test_build_artifact_job(runner):
             "id": "testtest",
             "name": artifact_name,
         }
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(f"job-{artifact_name}")
         assert artifact.type == "job"
@@ -133,7 +145,7 @@ def test_build_artifact_job(runner):
         assert artifact._manifest.entries["requirements.frozen.txt"]
 
 
-def test_build_artifact_notebook_job(runner, tmp_path, mocker):
+def test_build_artifact_notebook_job(runner, tmp_path, mocker, api):
     metadata = {
         "program": "blah/test.ipynb",
         "args": ["--test", "test"],
@@ -169,7 +181,7 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker):
             "id": "testtest",
             "name": artifact_name,
         }
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(f"job-{artifact_name}")
         assert artifact.type == "job"
@@ -179,7 +191,13 @@ def test_build_artifact_notebook_job(runner, tmp_path, mocker):
 
 
 @pytest.mark.parametrize("verbose", [True, False])
-def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd, verbose):
+def test_build_artifact_notebook_job_no_program(
+    runner,
+    tmp_path,
+    capfd,
+    verbose,
+    api,
+):
     metadata = {
         "program": "blah/test.ipynb",
         "args": ["--test", "test"],
@@ -208,7 +226,7 @@ def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd, verbose
             "id": "testtest",
             "name": artifact_name,
         }
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
 
         assert not artifact
         out = capfd.readouterr().err
@@ -220,7 +238,13 @@ def test_build_artifact_notebook_job_no_program(runner, tmp_path, capfd, verbose
 
 
 @pytest.mark.parametrize("verbose", [True, False])
-def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd, verbose):
+def test_build_artifact_notebook_job_no_metadata(
+    runner,
+    tmp_path,
+    capfd,
+    verbose,
+    api,
+):
     artifact_name = str_of_length(129)
     with runner.isolated_filesystem():
         with open("requirements.txt", "w") as f:
@@ -241,7 +265,7 @@ def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd, verbos
             "id": "testtest",
             "name": artifact_name,
         }
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
 
         assert not artifact
         out = capfd.readouterr().err
@@ -254,7 +278,11 @@ def test_build_artifact_notebook_job_no_metadata(runner, tmp_path, capfd, verbos
 
 @pytest.mark.parametrize("verbose", [True, False])
 def test_build_artifact_notebook_job_no_program_metadata(
-    runner, tmp_path, capfd, verbose
+    runner,
+    tmp_path,
+    capfd,
+    verbose,
+    api,
 ):
     metadata = {
         "args": ["--test", "test"],
@@ -282,7 +310,7 @@ def test_build_artifact_notebook_job_no_program_metadata(
             "id": "testtest",
             "name": artifact_name,
         }
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
 
         assert not artifact
         out = capfd.readouterr().err
@@ -293,7 +321,7 @@ def test_build_artifact_notebook_job_no_program_metadata(
             assert _msg not in out
 
 
-def test_build_image_job(runner):
+def test_build_image_job(runner, api):
     image_name = str_of_length(129)
     metadata = {
         "program": "blah/test.py",
@@ -313,7 +341,7 @@ def test_build_image_job(runner):
             )
         )
         job_builder = JobBuilder(settings)
-        artifact = job_builder.build()
+        artifact = job_builder.build(api)
         assert artifact is not None
         assert artifact.name == make_artifact_name_safe(f"job-{image_name}")
         assert artifact.type == "job"
@@ -331,10 +359,10 @@ def test_set_disabled():
     assert job_builder.disable == "testtest"
 
 
-def test_no_metadata_file():
+def test_no_metadata_file(runner, api):
     settings = SettingsStatic(
         make_proto_settings(**{"files_dir": "./", "disable_job_creation": False})
     )
     job_builder = JobBuilder(settings)
-    artifact = job_builder.build()
+    artifact = job_builder.build(api)
     assert artifact is None

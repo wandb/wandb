@@ -13,13 +13,14 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/shared"
-	"github.com/wandb/wandb/core/internal/watcher2"
-	"github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/internal/waiting"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
@@ -70,6 +71,7 @@ func NewGraphQLClient(
 func NewFileStream(
 	backend *api.Backend,
 	logger *observability.CoreLogger,
+	printer *observability.Printer,
 	settings *settings.Settings,
 	peeker api.Peeker,
 ) filestream.FileStream {
@@ -90,8 +92,9 @@ func NewFileStream(
 	params := filestream.FileStreamParams{
 		Settings:  settings.Proto,
 		Logger:    logger,
+		Printer:   printer,
 		ApiClient: fileStreamRetryClient,
-		ClientId:  shared.ShortID(32),
+		ClientId:  utils.ShortID(32),
 	}
 
 	return filestream.NewFileStream(params)
@@ -130,6 +133,7 @@ func NewRunfilesUploader(
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
+	fileWatcher watcher.Watcher,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
@@ -139,7 +143,7 @@ func NewRunfilesUploader(
 		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
-		FileWatcher:  watcher2.New(watcher2.Params{Logger: logger}),
-		BatchWindow:  50 * time.Millisecond,
+		FileWatcher:  fileWatcher,
+		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
 	})
 }

@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
       - name: Setup git config
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -215,9 +216,6 @@ jobs:
           - windows-2019
           - macos-14
         use_core: [false, true]
-        exclude:
-          - os: windows-2019
-            use_core: true
     steps:
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -225,7 +223,7 @@ jobs:
           python-version: "3.10"
       - name: Install wandb from TestPyPI
         run: |
-          sleep 30
+          sleep 60
           python -m pip install --upgrade pip
           python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb==${{ github.event.inputs.version }}
       - name: Smoke-test wandb TestPyPI install
@@ -281,7 +279,7 @@ jobs:
           files: |
             wandb-${{ github.event.inputs.version }}.zip
             wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: false
+          draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:

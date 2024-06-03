@@ -41,6 +41,7 @@ type CoreLogger struct {
 	tags             Tags
 	captureException func(err error, tags Tags)
 	captureMessage   func(msg string, tags Tags)
+	reraise          func(err interface{}, tags Tags)
 }
 
 type CoreLoggerOption func(cl *CoreLogger)
@@ -54,6 +55,12 @@ func WithCaptureMessage(f func(msg string, tags Tags)) CoreLoggerOption {
 func WithCaptureException(f func(err error, tags Tags)) CoreLoggerOption {
 	return func(cl *CoreLogger) {
 		cl.captureException = f
+	}
+}
+
+func WithReraise(f func(err interface{}, tags Tags)) CoreLoggerOption {
+	return func(cl *CoreLogger) {
+		cl.reraise = f
 	}
 }
 
@@ -107,23 +114,10 @@ func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
 	}
 }
 
-// Fatal logs an error at the fatal level.
-func (cl *CoreLogger) Fatal(msg string, err error, args ...any) {
-	args = append(args, "error", err)
-	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
-}
-
-// FatalAndPanic logs an error at the fatal level and panics.
-func (cl *CoreLogger) FatalAndPanic(msg string, err error, args ...any) {
-	cl.Fatal(msg, err, args...)
-	if err != nil {
-		panic(err)
-	}
-}
-
 // CaptureFatal logs an error at the fatal level and sends it to sentry.
 func (cl *CoreLogger) CaptureFatal(msg string, err error, args ...any) {
 	// TODO: make sure this level is printed nicely
+	args = append(args, "error", err)
 	cl.Logger.Log(context.TODO(), LevelFatal, msg, args...)
 	if err != nil {
 		// send error to sentry:
@@ -167,7 +161,7 @@ func (cl *CoreLogger) CaptureInfo(msg string, args ...any) {
 // Reraise is used to capture unexpected panics with sentry and reraise them.
 func (cl *CoreLogger) Reraise(args ...any) {
 	if err := recover(); err != nil {
-		Reraise(err, cl.tagsWithArgs(args...))
+		cl.reraise(err, cl.tagsWithArgs(args...))
 	}
 }
 
@@ -196,5 +190,6 @@ func NewNoOpLogger() *CoreLogger {
 		WithTags(Tags{}),
 		WithCaptureException(func(err error, tags Tags) {}),
 		WithCaptureMessage(func(msg string, tags Tags) {}),
+		WithReraise(func(err interface{}, tags Tags) {}),
 	)
 }

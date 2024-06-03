@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -31,6 +32,9 @@ type Connection struct {
 	// ctx is the context for the connection
 	ctx context.Context
 
+	// cancel is the cancel function for the connection
+	cancel context.CancelFunc
+
 	// conn is the underlying connection
 	conn net.Conn
 
@@ -43,32 +47,34 @@ type Connection struct {
 	// outChan is the channel for outgoing messages
 	outChan chan *service.ServerResponse
 
-	// teardownChan is the channel for signaling teardown
-	teardownChan chan struct{}
-
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
 	stream *Stream
 
 	// closed indicates if the outChan is closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.Client
 }
 
 // NewConnection creates a new connection
 func NewConnection(
 	ctx context.Context,
+	cancel context.CancelFunc,
 	conn net.Conn,
-	teardown chan struct{},
+	sentryClient *sentry.Client,
 ) *Connection {
 
 	nc := &Connection{
 		ctx:          ctx,
+		cancel:       cancel,
 		conn:         conn,
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
-		teardownChan: teardown, // TODO: should we trigger teardown from a connection?
 		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
 	}
 	return nc
 }
@@ -99,30 +105,11 @@ func (nc *Connection) HandleConnection() {
 		wg.Done()
 	}()
 
-	// Force shutdown of connections on teardown.
-	// TODO(beta): refactor the connection code so this is not needed
-	// Why this is needed right now:
-	//   - client might have multiple open connections to core
-	//   - teardown usually is sent on a new connection
-	//   - teardown closes teardownChan but we have nothing to
-	//     force shutdown of other connections
-	wgTeardown := sync.WaitGroup{}
-	wgTeardown.Add(1)
-	teardownWatcherChan := make(chan interface{})
-	go func() {
-		select {
-		case <-nc.teardownChan:
-			nc.Close()
-			break
-		case <-teardownWatcherChan:
-			break
-		}
-		wgTeardown.Done()
-	}()
-
+	// context is cancelled when we receive a teardown message on any connection
+	// this will trigger all connections to close since they all share the same context
+	<-nc.ctx.Done()
+	nc.Close()
 	wg.Wait()
-	close(teardownWatcherChan)
-	wgTeardown.Wait()
 
 	slog.Info("connection closed", "id", nc.id)
 }
@@ -256,9 +243,8 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
-	// TODO: redo this function, to only init the stream and have the stream
-	//       handle the rest of the startup
-	nc.stream = NewStream(nc.ctx, settings, streamId)
+
+	nc.stream = NewStream(settings, streamId, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
@@ -285,7 +271,7 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
-	nc.stream.logger.CaptureInfo("core", nil)
+	nc.stream.logger.CaptureInfo("wandb-core", nil)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message
@@ -354,6 +340,8 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 // all streams
 func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
 	slog.Debug("handle teardown received", "id", nc.id)
-	close(nc.teardownChan)
+	// cancel the context to signal the server to shutdown
+	// this will trigger all the connections to close
+	nc.cancel()
 	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 }

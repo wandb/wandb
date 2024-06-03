@@ -112,6 +112,17 @@ def test_artifact_download(user, api, sample_data):
     assert os.listdir(path) == ["digits.h5"]
 
 
+def test_artifact_exists(user, api, sample_data):
+    assert api.artifact_exists("mnist:v0")
+    assert not api.artifact_exists("mnist:v2")
+    assert not api.artifact_exists("mnist-fake:v0")
+
+
+def test_artifact_collection_exists(user, api, sample_data):
+    assert api.artifact_collection_exists("mnist", "dataset")
+    assert not api.artifact_collection_exists("mnist-fake", "dataset")
+
+
 def test_artifact_delete(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
     # The artifact has aliases, so fail unless delete_aliases is set.
@@ -217,3 +228,40 @@ def test_artifact_save_norun_nosettings(user, assets_path):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
     artifact.save()
+
+
+def test_parse_artifact_path(user, api):
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias/with/slashes"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias/with/slashes"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias:with:colons"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias:with:colons"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias:with:colons/and/slashes"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias:with:colons/and/slashes"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "artifact:alias/with:colons:and/slashes"
+    )
+    assert path == "artifact:alias/with:colons:and/slashes"
+
+    entity, project, path = api._parse_artifact_path("entity/project/artifact")
+    assert entity == "entity" and project == "project" and path == "artifact"

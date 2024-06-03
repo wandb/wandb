@@ -31,7 +31,17 @@ func (OsFs) OpenFile(name string, flag int, perm os.FileMode) (fs.File, error) {
 func GetLoggerPath() (*os.File, error) {
 	osFs := OsFs{}
 	file, err := GetLoggerPathFS(osFs)
-	return file.(*os.File), err
+
+	if err != nil {
+		return nil, err
+	}
+
+	osfile, ok := file.(*os.File)
+	if !ok {
+		return nil, fmt.Errorf("file is not an *os.File")
+	}
+
+	return osfile, nil
 }
 
 // GetLoggerPathFS function with FileSystem parameter
@@ -52,7 +62,7 @@ func GetLoggerPathFS(fs FileSystem) (fs.File, error) {
 	}
 
 	timestamp := time.Now().Format("20060102_150405")
-	path := filepath.Join(dir, ".wandb", fmt.Sprintf("core-debug-%s.log", timestamp))
+	path := filepath.Join(dir, "wandb", "logs", fmt.Sprintf("core-debug-%s.log", timestamp))
 
 	if err := fs.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		return nil, fmt.Errorf("error creating log directory: %s", err)

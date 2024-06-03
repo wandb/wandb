@@ -6,14 +6,13 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/watcher2"
-	"github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -44,7 +43,7 @@ type uploader struct {
 	stateMu *sync.Mutex
 
 	// A watcher for 'live' mode files.
-	watcher watcher2.Watcher
+	watcher watcher.Watcher
 }
 
 func newUploader(params UploaderParams) *uploader {
@@ -65,19 +64,8 @@ func newUploader(params UploaderParams) *uploader {
 		watcher: params.FileWatcher,
 	}
 
-	if params.BatchWindow != 0 {
-		params.BatchDelayFunc = func() <-chan struct{} {
-			ch := make(chan struct{})
-			go func() {
-				<-time.After(params.BatchWindow)
-				ch <- struct{}{}
-			}()
-			return ch
-		}
-	}
-
 	uploader.uploadBatcher = newUploadBatcher(
-		params.BatchDelayFunc,
+		params.BatchDelay,
 		uploader.upload,
 	)
 
@@ -180,9 +168,6 @@ func (u *uploader) Finish() {
 	}
 	u.isFinished = true
 	u.stateMu.Unlock()
-
-	// Stop watching live files.
-	u.watcher.Finish()
 
 	// Flush any remaining upload batches.
 	u.uploadBatcher.Wait()

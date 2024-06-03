@@ -666,6 +666,14 @@ global___HistoryRecord = HistoryRecord
 
 @typing_extensions.final
 class HistoryItem(google.protobuf.message.Message):
+    """
+    HistoryItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -983,6 +991,14 @@ global___ConfigRecord = ConfigRecord
 
 @typing_extensions.final
 class ConfigItem(google.protobuf.message.Message):
+    """
+    ConfigItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -1044,6 +1060,14 @@ global___SummaryRecord = SummaryRecord
 
 @typing_extensions.final
 class SummaryItem(google.protobuf.message.Message):
+    """
+    SummaryItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -1483,22 +1507,39 @@ class TBRecord(google.protobuf.message.Message):
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
-    LOG_DIR_FIELD_NUMBER: builtins.int
-    SAVE_FIELD_NUMBER: builtins.int
-    ROOT_DIR_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
-    log_dir: builtins.str
-    save: builtins.bool
-    root_dir: builtins.str
+    LOG_DIR_FIELD_NUMBER: builtins.int
+    ROOT_DIR_FIELD_NUMBER: builtins.int
+    SAVE_FIELD_NUMBER: builtins.int
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
+    log_dir: builtins.str
+    """The log directory to watch, such as "dir/logs/train" or
+    "dir/logs/validation".
+
+    This should be an absolute path.
+    """
+    root_dir: builtins.str
+    """An ancestor of log_dir, used to determine the run file path to which to
+    upload each log file.
+
+    TODO: document "namespacing" functionality (see tb_watcher.py in d9a1f69b4)
+
+    For example, if this is "dir/logs", then the file "dir/logs/train/tfevents"
+    is uploaded as "train/tfevents".
+
+    If this is a relative path or an empty string, it is joined with the
+    working directory of the internal process.
+    """
+    save: builtins.bool
+    """Whether to save tfevents files with the run."""
     def __init__(
         self,
         *,
-        log_dir: builtins.str = ...,
-        save: builtins.bool = ...,
-        root_dir: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
+        log_dir: builtins.str = ...,
+        root_dir: builtins.str = ...,
+        save: builtins.bool = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "log_dir", b"log_dir", "root_dir", b"root_dir", "save", b"save"]) -> None: ...
@@ -2950,6 +2991,14 @@ global___SampledHistoryRequest = SampledHistoryRequest
 
 @typing_extensions.final
 class SampledHistoryItem(google.protobuf.message.Message):
+    """
+    SampledHistoryItem:
+
+    key and nested_key are mutually exclusive. Only one of them should be set.
+    key is supposedly more performant than nested_key, so nested_key should be
+    only used for nested keys.
+    """
+
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
     KEY_FIELD_NUMBER: builtins.int
@@ -3300,18 +3349,24 @@ class ArtifactInfo(google.protobuf.message.Message):
     ARTIFACT_FIELD_NUMBER: builtins.int
     ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
+    BUILD_CONTEXT_FIELD_NUMBER: builtins.int
+    DOCKERFILE_FIELD_NUMBER: builtins.int
     artifact: builtins.str
     @property
     def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
+    build_context: builtins.str
+    dockerfile: builtins.str
     def __init__(
         self,
         *,
         artifact: builtins.str = ...,
         entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
+        build_context: builtins.str = ...,
+        dockerfile: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["artifact", b"artifact", "build_context", b"build_context", "dockerfile", b"dockerfile", "entrypoint", b"entrypoint", "notebook", b"notebook"]) -> None: ...
 
 global___ArtifactInfo = ArtifactInfo
 
@@ -3340,20 +3395,26 @@ class GitSource(google.protobuf.message.Message):
     GIT_INFO_FIELD_NUMBER: builtins.int
     ENTRYPOINT_FIELD_NUMBER: builtins.int
     NOTEBOOK_FIELD_NUMBER: builtins.int
+    BUILD_CONTEXT_FIELD_NUMBER: builtins.int
+    DOCKERFILE_FIELD_NUMBER: builtins.int
     @property
     def git_info(self) -> global___GitInfo: ...
     @property
     def entrypoint(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     notebook: builtins.bool
+    build_context: builtins.str
+    dockerfile: builtins.str
     def __init__(
         self,
         *,
         git_info: global___GitInfo | None = ...,
         entrypoint: collections.abc.Iterable[builtins.str] | None = ...,
         notebook: builtins.bool = ...,
+        build_context: builtins.str = ...,
+        dockerfile: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["git_info", b"git_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["entrypoint", b"entrypoint", "git_info", b"git_info", "notebook", b"notebook"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["build_context", b"build_context", "dockerfile", b"dockerfile", "entrypoint", b"entrypoint", "git_info", b"git_info", "notebook", b"notebook"]) -> None: ...
 
 global___GitSource = GitSource
 
