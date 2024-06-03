@@ -13,6 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
+- Added `api.runs().histories()` to fetch history metrics for runs that meet specified conditions by @thanos-wandb in https://github.com/wandb/wandb/pull/7690
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 
