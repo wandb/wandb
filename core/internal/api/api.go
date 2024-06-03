@@ -106,6 +106,20 @@ type Request struct {
 	Headers map[string]string
 }
 
+func (req *Request) String() string {
+	s := "Request{"
+	s += "Method: " + req.Method + ", "
+	s += "Path: " + req.Path + ", "
+	s += "Body: " + string(req.Body) + ", "
+	s += "Headers: {"
+	for k, v := range req.Headers {
+		s += k + ": " + v + ", "
+	}
+	s += "}"
+	s += "}"
+	return s
+}
+
 type BackendOptions struct {
 	// The scheme and hostname for contacting the server, not including a final
 	// slash. For example, "http://localhost:8080".
