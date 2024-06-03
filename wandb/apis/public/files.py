@@ -152,6 +152,7 @@ class File(Attrs):
             root (str): Local directory to save the file.  Defaults to ".".
             exist_ok (boolean): If `True`, will not raise ValueError if file already
                 exists and will not re-download unless replace=True. Defaults to `False`.
+            api (Api, optional): If given, the `Api` instance used to download the file.
 
         Raises:
             `ValueError` if file already exists, replace=False and exist_ok=False.
