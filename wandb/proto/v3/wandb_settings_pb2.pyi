@@ -164,6 +164,7 @@ class Settings(google.protobuf.message.Message):
     RUN_URL_FIELD_NUMBER: builtins.int
     PROJECT_FIELD_NUMBER: builtins.int
     ENTITY_FIELD_NUMBER: builtins.int
+    _START_TIME_FIELD_NUMBER: builtins.int
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
     FILES_DIR_FIELD_NUMBER: builtins.int
@@ -206,7 +207,6 @@ class Settings(google.protobuf.message.Message):
     _SERVICE_TRANSPORT_FIELD_NUMBER: builtins.int
     _SERVICE_WAIT_FIELD_NUMBER: builtins.int
     _START_DATETIME_FIELD_NUMBER: builtins.int
-    _START_TIME_FIELD_NUMBER: builtins.int
     _STATS_PID_FIELD_NUMBER: builtins.int
     _STATS_SAMPLE_RATE_SECONDS_FIELD_NUMBER: builtins.int
     _STATS_SAMPLES_TO_AVERAGE_FIELD_NUMBER: builtins.int
@@ -343,6 +343,9 @@ class Settings(google.protobuf.message.Message):
     def entity(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The W&B entity, like a user or a team."""
     @property
+    def _start_time(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """The start time of the run in seconds since the Unix epoch."""
+    @property
     def log_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The directory for storing log files."""
     @property
@@ -359,9 +362,7 @@ class Settings(google.protobuf.message.Message):
         """Disable check for latest version of wandb, from pypi."""
     @property
     def _require_core(self) -> google.protobuf.wrappers_pb2.BoolValue:
-        """Indicate whether wandb-core is required, to use wandb-core the package
-        must be installed.
-        """
+        """Indicate whether wandb-core is to be used."""
     @property
     def _args(self) -> global___ListStringValue: ...
     @property
@@ -434,8 +435,6 @@ class Settings(google.protobuf.message.Message):
     def _service_wait(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
     def _start_datetime(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def _start_time(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
     def _stats_pid(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
     @property
@@ -673,6 +672,7 @@ class Settings(google.protobuf.message.Message):
         run_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         project: google.protobuf.wrappers_pb2.StringValue | None = ...,
         entity: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        _start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
         files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -715,7 +715,6 @@ class Settings(google.protobuf.message.Message):
         _service_transport: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _service_wait: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _start_datetime: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        _start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _stats_pid: google.protobuf.wrappers_pb2.Int32Value | None = ...,
         _stats_sample_rate_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _stats_samples_to_average: google.protobuf.wrappers_pb2.Int32Value | None = ...,

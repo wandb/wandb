@@ -2,6 +2,9 @@ syntax = "proto3";
 
 option go_package = "github.com/wandb/wandb/core/internal/tensorboard/tbproto";
 
+import "core/internal/tensorboard/tbproto/tensor.proto";
+
+
 // An Event proto written by TensorBoard into a tfevents file.
 //
 // https://github.com/tensorflow/tensorboard/blob/master/tensorboard/compat/proto/event.proto
@@ -11,7 +14,16 @@ message TFEvent {
   // Timestamp of the event.
   double wall_time = 1;
 
-  // Global step of the event.
+  // An event-specific "step" number, often used as the X axis in charts.
+  //
+  // The linked source documents this as "Global step of the event."
+  //
+  // The meaning of this seems to depend on the event itself. For example,
+  // a summary event with a single value tagged "epoch_learning_rate"
+  // may use the step as an epoch number, but a summary event for
+  // "evaluation_loss_vs_iterations" may use as an iteration number.
+  // Because of this, consecutive events in a tfevents file may have
+  // unrelated step numbers.
   int64 step = 2;
 
   oneof what {
@@ -58,10 +70,3 @@ message SummaryMetadata {
   // Data that associates a summary with a certain plugin.
   PluginData plugin_data = 1;
 }
-
-// Protocol buffer representing a TensorFlow tensor.
-//
-// https://github.com/tensorflow/tensorboard/blob/master/tensorboard/compat/proto/tensor.proto
-//
-// We only include fields that are relevant to us.
-message TensorProto {}

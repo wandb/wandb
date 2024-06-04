@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -44,10 +45,11 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 		return filepath.Join(tmpdir, filepath.FromSlash(slashPath))
 	}
 
-	settings := &service.Settings{}
+	settingsProto := &service.Settings{}
 	if opts.SlashFilesDir != "" {
-		settings.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
+		settingsProto.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
 	}
+	settings := settings.From(settingsProto)
 
 	handler := tensorboard.NewTBHandler(tensorboard.Params{
 		OutputRecords: outChan,

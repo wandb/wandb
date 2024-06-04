@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
@@ -76,9 +77,12 @@ type Stream struct {
 
 	// closed indicates if the inChan and loopBackChan are closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.Client
 }
 
-func streamLogger(settings *settings.Settings) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -116,8 +120,8 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, opts)),
 		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(observability.CaptureMessage),
-		observability.WithCaptureException(observability.CaptureException),
+		observability.WithCaptureMessage(sentryClient.CaptureMessage),
+		observability.WithCaptureException(sentryClient.CaptureException),
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
@@ -133,18 +137,29 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string) *Stream {
+func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Client) *Stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       streamLogger(settings),
+		logger:       streamLogger(settings, sentryClient),
 		wg:           sync.WaitGroup{},
 		settings:     settings,
 		inChan:       make(chan *service.Record, BufferSize),
 		loopBackChan: make(chan *service.Record, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		// We log an error but continue anyway with an empty hostname string.
+		// Better behavior would be to inform the user and turn off any
+		// components that rely on the hostname, but it's not easy to do
+		// with our current code structure.
+		s.logger.CaptureError("could not get hostname", err)
+		hostname = ""
 	}
 
 	// TODO: replace this with a logger that can be read by the user
@@ -154,6 +169,12 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
+	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
+		OutputRecords: s.loopBackChan,
+		Logger:        s.logger,
+		Settings:      s.settings,
+		Hostname:      hostname,
+	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -185,30 +206,15 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 
 	mailbox := mailbox.NewMailbox()
 
-	hostname, err := os.Hostname()
-	if err != nil {
-		// We log an error but continue anyway with an empty hostname string.
-		// Better behavior would be to inform the user and turn off any
-		// components that rely on the hostname, but it's not easy to do
-		// with our current code structure.
-		s.logger.CaptureError("could not get hostname", err)
-		hostname = ""
-	}
-
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
-			Logger:           s.logger,
-			Settings:         s.settings.Proto,
-			FwdChan:          make(chan *service.Record, BufferSize),
-			OutChan:          make(chan *service.Result, BufferSize),
-			SystemMonitor:    monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
-			RunfilesUploader: runfilesUploaderOrNil,
-			TBHandler: tensorboard.NewTBHandler(tensorboard.Params{
-				OutputRecords: s.loopBackChan,
-				Logger:        s.logger,
-				Settings:      s.settings.Proto,
-				Hostname:      hostname,
-			}),
+			Logger:            s.logger,
+			Settings:          s.settings.Proto,
+			FwdChan:           make(chan *service.Record, BufferSize),
+			OutChan:           make(chan *service.Result, BufferSize),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			RunfilesUploader:  runfilesUploaderOrNil,
+			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			RunSummary:        runsummary.New(),
 			MetricHandler:     NewMetricHandler(),
@@ -243,6 +249,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			FileTransferManager: fileTransferManagerOrNil,
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
+			TBHandler:           tbHandler,
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
