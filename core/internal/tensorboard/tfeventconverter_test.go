@@ -10,6 +10,8 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/proto"
 )
 
 func scalarValue(tag string, plugin string, value float32) *tbproto.Summary_Value {
@@ -81,6 +83,12 @@ func summaryEvent(
 	}
 }
 
+func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message) {
+	assert.True(t,
+		proto.Equal(expected, actual),
+		"Value is\n\t%v\nbut expected\n\t%v", actual, expected)
+}
+
 func TestConvertStepAndTimestamp(t *testing.T) {
 	converter := tensorboard.TFEventConverter{
 		Namespace: "train",
@@ -95,15 +103,21 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 3)
-	assert.Equal(t,
-		`nested_key:"train" nested_key:"global_step" value_json:"123"`,
-		result.Item[0].String())
-	assert.Equal(t,
-		`key:"_timestamp" value_json:"0.345"`,
-		result.Item[1].String())
-	assert.Equal(t,
-		`nested_key:"train" nested_key:"epoch_loss" value_json:"0.5"`,
-		result.Item[2].String())
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "global_step"},
+			ValueJson: "123",
+		},
+		result.Item[0])
+	assertProtoEqual(t,
+		&service.HistoryItem{Key: "_timestamp", ValueJson: "0.345"},
+		result.Item[1])
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "epoch_loss"},
+			ValueJson: "0.5",
+		},
+		result.Item[2])
 }
 
 func TestConvertScalar(t *testing.T) {
@@ -116,9 +130,12 @@ func TestConvertScalar(t *testing.T) {
 
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 3)
-	assert.Equal(t,
-		`nested_key:"train" nested_key:"epoch_loss" value_json:"0.5"`,
-		result.Item[2].String())
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "epoch_loss"},
+			ValueJson: "0.5",
+		},
+		result.Item[2])
 }
 
 func TestConvertTensor(t *testing.T) {
@@ -138,13 +155,28 @@ func TestConvertTensor(t *testing.T) {
 
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 5)
-	assert.Equal(t,
-		`nested_key:"train" nested_key:"point-five" value_json:"0.5"`,
-		result.Item[2].String())
-	assert.Equal(t,
-		`nested_key:"train" nested_key:"one-two" value_json:"[1,2]"`,
-		result.Item[3].String())
-	assert.Equal(t,
-		`nested_key:"train" nested_key:"three-four" value_json:"[3,4]"`,
-		result.Item[4].String())
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "point-five"},
+			ValueJson: "0.5",
+		},
+		result.Item[2])
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "point-five"},
+			ValueJson: "0.5",
+		},
+		result.Item[2])
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "one-two"},
+			ValueJson: "[1,2]",
+		},
+		result.Item[3])
+	assertProtoEqual(t,
+		&service.HistoryItem{
+			NestedKey: []string{"train", "three-four"},
+			ValueJson: "[3,4]",
+		},
+		result.Item[4])
 }
