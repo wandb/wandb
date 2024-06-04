@@ -719,3 +719,55 @@ def test_query_user_multiple(relay_server, inject_users):
         api = Api()
         assert api.user(email).email == email
         assert len(api.users(email)) == 2
+
+
+def test_runs_histories(inject_run, inject_history, relay_server):
+    # Inject the dummy run data
+    inject_response = [inject_run()]
+
+    # Inject dummy history data for each run
+    histories = [
+        [
+            {"_step": 1, "metric1": 0.1, "metric2": 0.2, "system_metric1": 10},
+            {"_step": 2, "metric1": 0.3, "metric2": 0.4, "system_metric1": 20},
+        ],
+        [
+            {"_step": 1, "metric1": 0.5, "metric2": 0.6, "system_metric1": 30},
+            {"_step": 2, "metric1": 0.7, "metric2": 0.8, "system_metric1": 40},
+        ],
+    ]
+
+    inject_responses = []
+    for history in histories:
+        inject_responses.append(inject_history(history=history, events=history))
+
+    inject_response.extend(inject_responses)
+
+    with relay_server(inject=inject_response):
+        api = Api()
+        runs = api.runs("test/test")
+
+        all_histories = runs.histories(samples=2, format="default")
+        assert len(all_histories) == 4
+        assert all_histories[0]["_step"] == 1
+        assert all_histories[0]["metric1"] == 0.1
+        assert all_histories[0]["metric2"] == 0.2
+        assert all_histories[0]["system_metric1"] == 10
+        assert all_histories[2]["_step"] == 1
+        assert all_histories[2]["metric1"] == 0.5
+        assert all_histories[2]["metric2"] == 0.6
+        assert all_histories[2]["system_metric1"] == 30
+
+        all_histories_pandas = runs.histories(samples=2, format="pandas")
+        assert all_histories_pandas.shape == (4, 5)
+        assert "_step" in all_histories_pandas.columns
+        assert "metric1" in all_histories_pandas.columns
+        assert "metric2" in all_histories_pandas.columns
+        assert "system_metric1" in all_histories_pandas.columns
+
+        all_histories_polars = runs.histories(samples=2, format="polars")
+        assert all_histories_polars.shape == (4, 5)
+        assert "_step" in all_histories_polars.columns
+        assert "metric1" in all_histories_polars.columns
+        assert "metric2" in all_histories_polars.columns
+        assert "system_metric1" in all_histories_polars.columns
