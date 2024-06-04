@@ -721,25 +721,86 @@ def test_query_user_multiple(relay_server, inject_users):
         assert len(api.users(email)) == 2
 
 
-def test_runs_histories(inject_run, inject_history, relay_server):
+def test_runs_histories(inject_run, inject_history, inject_graphql_response, relay_server):
     # Inject the dummy run data
-    inject_response = [inject_run()]
+    inject_response = [inject_run(id="test_1"), inject_run(id="test_2")]
+
+    # Inject the dummy project and run data required by the Runs class
+    body = {
+        "data": {
+            "project": {
+                "runCount": 2,
+                "runs": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test_1",
+                                "historyKeys": None,
+                                "sweepName": None,
+                                "state": "finished",
+                                "config": "{}",
+                                "systemMetrics": "{}",
+                                "summaryMetrics": "{}",
+                                "tags": [],
+                                "description": None,
+                                "notes": None,
+                                "createdAt": "2023-11-05T17:46:35",
+                                "heartbeatAt": "2023-11-05T17:46:36",
+                                "user": {
+                                    "name": "test",
+                                    "username": "test",
+                                },
+                            }
+                        },
+                        {
+                            "node": {
+                                "name": "test_2",
+                                "historyKeys": None,
+                                "sweepName": None,
+                                "state": "finished",
+                                "config": "{}",
+                                "systemMetrics": "{}",
+                                "summaryMetrics": "{}",
+                                "tags": [],
+                                "description": None,
+                                "notes": None,
+                                "createdAt": "2023-11-05T17:46:35",
+                                "heartbeatAt": "2023-11-05T17:46:36",
+                                "user": {
+                                    "name": "test",
+                                    "username": "test",
+                                },
+                            }
+                        },
+                    ],
+                    "pageInfo": {"endCursor": None, "hasNextPage": False},
+                },
+            },
+        },
+    }
+
+    inject_project_runs_response = inject_graphql_response(
+        body=json.dumps(body),
+        query_match_fn=lambda query, _: "query Runs(" in query,
+        application_pattern="1",
+    )
+
+    inject_response.append(inject_project_runs_response)
 
     # Inject dummy history data for each run
-    histories = [
-        [
-            {"_step": 1, "metric1": 0.1, "metric2": 0.2, "system_metric1": 10},
-            {"_step": 2, "metric1": 0.3, "metric2": 0.4, "system_metric1": 20},
-        ],
-        [
-            {"_step": 1, "metric1": 0.5, "metric2": 0.6, "system_metric1": 30},
-            {"_step": 2, "metric1": 0.7, "metric2": 0.8, "system_metric1": 40},
-        ],
+    history_run_1 = [
+        {"_step": 1, "metric1": 0.1, "metric2": 0.2, "system_metric1": 10},
+        {"_step": 2, "metric1": 0.3, "metric2": 0.4, "system_metric1": 20},
+    ]
+    history_run_2 = [
+        {"_step": 1, "metric1": 0.5, "metric2": 0.6, "system_metric1": 30},
+        {"_step": 2, "metric1": 0.7, "metric2": 0.8, "system_metric1": 40},
     ]
 
-    inject_responses = []
-    for history in histories:
-        inject_responses.append(inject_history(history=history, events=history))
+    inject_responses = [
+        inject_history(history=history_run_1, events=history_run_1),
+        inject_history(history=history_run_2, events=history_run_2)
+    ]
 
     inject_response.extend(inject_responses)
 
@@ -748,6 +809,7 @@ def test_runs_histories(inject_run, inject_history, relay_server):
         runs = api.runs("test/test")
 
         all_histories = runs.histories(samples=2, format="default")
+
         assert len(all_histories) == 4
         assert all_histories[0]["_step"] == 1
         assert all_histories[0]["metric1"] == 0.1
