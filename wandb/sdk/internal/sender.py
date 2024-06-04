@@ -915,6 +915,10 @@ class SendManager:
 
         first_step = int(self._settings.resume_from.value) + 1
         self._resume_state.step = first_step
+
+        # We set the fork flag here because rewind uses the forking 
+        # infrastructure under the hood. Setting `forked` here 
+        # ensures that run._step is properly set in the user process.
         self._run.forked = True
         self._run.starting_step = first_step
 
