@@ -1860,7 +1860,6 @@ class Settings(SettingsData):
         self._handle_resume_logic()
 
     def _handle_rewind_logic(self) -> None:
-        # handle rewind logic
         if self.resume_from is not None:
             if self.run_id is not None:
                 wandb.termwarn(
