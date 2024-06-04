@@ -296,7 +296,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			}
 
 			maybeRunPath, err := paths.Relative(f.Name)
-			if err != nil {
+			if err != nil || !maybeRunPath.IsLocal() {
 				u.logger.CaptureError(
 					"runfiles: CreateRunFiles returned unexpected file name",
 					err,

@@ -98,7 +98,7 @@ func (path RelativePath) IsLocal() bool {
 	return filepath.IsLocal(string(path))
 }
 
-// Crazy that in Go you can't write `&AbsolutePath(str)`.
+// Something that should exist in Go's standard library.
 func toPtr[T any](x T) *T {
 	return &x
 }
