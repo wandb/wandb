@@ -1080,11 +1080,23 @@ class SendManager:
 
         self._server_messages = server_messages or []
         self._run = run
+
+        if self._resume_state.resumed and is_rewinding:
+            # this should not ever be possible to hit, since we check for
+            # resumption above and raise an error if resumption is specified
+            # twice.
+            raise ValueError(
+                "Cannot attempt to rewind and resume a run - only one of "
+                "`resume` or `resume_from` can be specified."
+            )
+
         if self._resume_state.resumed:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
         elif is_rewinding:
+            # because is_rewinding is mutually exclusive with self._resume_state.resumed,
+            # this block will always execute if is_rewinding is set.
             self._setup_rewind()
         else:
             # If the user is not resuming, and we didn't insert on upsert_run then
