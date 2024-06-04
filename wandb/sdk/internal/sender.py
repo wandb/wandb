@@ -1035,6 +1035,7 @@ class SendManager:
             logger.info("updated run: %s", self._run.run_id)
 
     def _update_resume_state(self, is_rewinding: bool, inserted: bool):
+        assert self._run
         if self._resume_state.resumed:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
