@@ -72,15 +72,15 @@ func TestConvertValues(t *testing.T) {
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 4)
 	assert.Equal(t,
-		`nested_key:"global_step" value_json:"123"`,
+		`nested_key:"global_step"  value_json:"123"`,
 		result.Item[0].String())
 	assert.Equal(t,
-		`key:"_timestamp" value_json:"0.345"`,
+		`key:"_timestamp"  value_json:"0.345"`,
 		result.Item[1].String())
 	assert.Equal(t,
-		`nested_key:"train" nested_key:"epoch_loss" value_json:"0.5"`,
+		`nested_key:"train"  nested_key:"epoch_loss"  value_json:"0.5"`,
 		result.Item[2].String())
 	assert.Equal(t,
-		`nested_key:"train" nested_key:"epoch_histogram" value_json:"[0.1,0.2,0.3]"`,
+		`nested_key:"train"  nested_key:"epoch_histogram"  value_json:"[0.1,0.2,0.3]"`,
 		result.Item[3].String())
 }
