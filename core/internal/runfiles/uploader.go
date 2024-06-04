@@ -11,6 +11,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -28,10 +29,10 @@ type uploader struct {
 	uploadBatcher *uploadBatcher
 
 	// Files in the run's files directory that we know.
-	knownFiles map[string]*savedFile
+	knownFiles map[paths.RelativePath]*savedFile
 
 	// Files explicitly requested to be uploaded at the end of the run.
-	uploadAtEnd map[string]struct{}
+	uploadAtEnd map[paths.RelativePath]struct{}
 
 	// Whether 'Finish' was called.
 	isFinished bool
@@ -55,8 +56,8 @@ func newUploader(params UploaderParams) *uploader {
 		settings: params.Settings,
 		graphQL:  params.GraphQL,
 
-		knownFiles:  make(map[string]*savedFile),
-		uploadAtEnd: make(map[string]struct{}),
+		knownFiles:  make(map[paths.RelativePath]*savedFile),
+		uploadAtEnd: make(map[paths.RelativePath]struct{}),
 
 		uploadWG: &sync.WaitGroup{},
 		stateMu:  &sync.Mutex{},
@@ -83,23 +84,33 @@ func (u *uploader) Process(record *service.FilesRecord) {
 		return
 	}
 
-	nowFiles := make([]string, 0)
+	nowFiles := make([]paths.RelativePath, 0)
 
 	for _, file := range record.GetFiles() {
-		u.knownFile(file.GetPath()).
+		maybeRunPath, err := paths.Relative(file.GetPath())
+		if err != nil {
+			u.logger.CaptureError(
+				"runfiles: file path is not relative",
+				err,
+			)
+			continue
+		}
+		runPath := *maybeRunPath
+
+		u.knownFile(runPath).
 			SetCategory(filetransfer.RunFileKindFromProto(file.GetType()))
 
 		switch file.GetPolicy() {
 		case service.FilesItem_NOW:
-			nowFiles = append(nowFiles, file.GetPath())
+			nowFiles = append(nowFiles, runPath)
 
 		case service.FilesItem_LIVE:
 			// Upload live files both immediately and at the end.
-			nowFiles = append(nowFiles, file.GetPath())
-			u.uploadAtEnd[file.GetPath()] = struct{}{}
+			nowFiles = append(nowFiles, runPath)
+			u.uploadAtEnd[runPath] = struct{}{}
 
-			if err := u.watcher.Watch(u.toRealPath(file.GetPath()), func() {
-				u.uploadBatcher.Add([]string{file.GetPath()})
+			if err := u.watcher.Watch(u.toRealPath(string(runPath)), func() {
+				u.uploadBatcher.Add([]paths.RelativePath{runPath})
 			}); err != nil {
 				u.logger.CaptureError(
 					"runfiles: error watching file",
@@ -110,7 +121,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			}
 
 		case service.FilesItem_END:
-			u.uploadAtEnd[file.GetPath()] = struct{}{}
+			u.uploadAtEnd[runPath] = struct{}{}
 		}
 	}
 
@@ -128,16 +139,16 @@ func (u *uploader) toRealPath(path string) string {
 	return filepath.Join(u.settings.GetFilesDir(), path)
 }
 
-func (u *uploader) UploadNow(path string) {
+func (u *uploader) UploadNow(path paths.RelativePath) {
 	if !u.lockForOperation("UploadNow") {
 		return
 	}
 	defer u.stateMu.Unlock()
 
-	u.uploadBatcher.Add([]string{path})
+	u.uploadBatcher.Add([]paths.RelativePath{path})
 }
 
-func (u *uploader) UploadAtEnd(path string) {
+func (u *uploader) UploadAtEnd(path paths.RelativePath) {
 	if !u.lockForOperation("UploadAtEnd") {
 		return
 	}
@@ -152,12 +163,12 @@ func (u *uploader) UploadRemaining() {
 	}
 	defer u.stateMu.Unlock()
 
-	relativePaths := make([]string, 0, len(u.uploadAtEnd))
+	runPaths := make([]paths.RelativePath, 0, len(u.uploadAtEnd))
 	for k := range u.uploadAtEnd {
-		relativePaths = append(relativePaths, k)
+		runPaths = append(runPaths, k)
 	}
 
-	u.uploadBatcher.Add(relativePaths)
+	u.uploadBatcher.Add(runPaths)
 }
 
 func (u *uploader) Finish() {
@@ -189,13 +200,13 @@ func (u *uploader) FlushSchedulingForTest() {
 }
 
 // knownFile returns a savedFile or creates it if necessary.
-func (u *uploader) knownFile(runPath string) *savedFile {
+func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 	if u.knownFiles[runPath] == nil {
 		u.knownFiles[runPath] = newSavedFile(
 			u.fs,
 			u.ftm,
 			u.logger,
-			u.toRealPath(runPath),
+			u.toRealPath(string(runPath)),
 			runPath,
 		)
 	}
@@ -229,16 +240,21 @@ func (u *uploader) lockForOperation(method string) bool {
 //
 // This increments `uploadWG` and returns immediately. The wait group is
 // signalled as file uploads finish.
-func (u *uploader) upload(relativePaths []string) {
+func (u *uploader) upload(runPaths []paths.RelativePath) {
 	if u.settings.IsOffline() {
 		return
 	}
 
-	u.logger.Debug("runfiles: uploading files", "files", relativePaths)
+	u.logger.Debug("runfiles: uploading files", "files", runPaths)
 
-	relativePaths = u.filterNonExistingAndWarn(relativePaths)
-	relativePaths = u.filterIgnored(relativePaths)
-	u.uploadWG.Add(len(relativePaths))
+	runPaths = u.filterNonExistingAndWarn(runPaths)
+	runPaths = u.filterIgnored(runPaths)
+	u.uploadWG.Add(len(runPaths))
+
+	runPathStrings := make([]string, len(runPaths))
+	for i, path := range runPaths {
+		runPathStrings[i] = string(path)
+	}
 
 	go func() {
 		createRunFilesResponse, err := gql.CreateRunFiles(
@@ -247,24 +263,24 @@ func (u *uploader) upload(relativePaths []string) {
 			u.settings.GetEntity(),
 			u.settings.GetProject(),
 			u.settings.GetRunID(),
-			relativePaths,
+			runPathStrings,
 		)
 		if err != nil {
 			u.logger.CaptureError("runfiles: CreateRunFiles returned error", err)
-			u.uploadWG.Add(-len(relativePaths))
+			u.uploadWG.Add(-len(runPaths))
 			return
 		}
 
-		if len(createRunFilesResponse.CreateRunFiles.Files) != len(relativePaths) {
+		if len(createRunFilesResponse.CreateRunFiles.Files) != len(runPaths) {
 			u.logger.CaptureError(
 				"runfiles: CreateRunFiles returned unexpected number of files",
 				nil,
 				"expected",
-				len(relativePaths),
+				len(runPaths),
 				"actual",
 				len(createRunFilesResponse.CreateRunFiles.Files),
 			)
-			u.uploadWG.Add(-len(relativePaths))
+			u.uploadWG.Add(-len(runPaths))
 			return
 		}
 
@@ -279,8 +295,21 @@ func (u *uploader) upload(relativePaths []string) {
 				continue
 			}
 
+			maybeRunPath, err := paths.Relative(f.Name)
+			if err != nil {
+				u.logger.CaptureError(
+					"runfiles: CreateRunFiles returned unexpected file name",
+					err,
+					"response",
+					createRunFilesResponse,
+				)
+				u.uploadWG.Done()
+				continue
+			}
+			runPath := *maybeRunPath
+
 			u.scheduleUploadTask(
-				f.Name,
+				runPath,
 				*f.UploadUrl,
 				createRunFilesResponse.CreateRunFiles.UploadHeaders,
 			)
@@ -289,35 +318,39 @@ func (u *uploader) upload(relativePaths []string) {
 }
 
 // Warns for any non-existing files and returns a slice without them.
-func (u *uploader) filterNonExistingAndWarn(relativePaths []string) []string {
-	existingRelativePaths := make([]string, 0)
+func (u *uploader) filterNonExistingAndWarn(
+	runPaths []paths.RelativePath,
+) []paths.RelativePath {
+	existingPaths := make([]paths.RelativePath, 0)
 
-	for _, relativePath := range relativePaths {
-		localPath := u.toRealPath(relativePath)
+	for _, runPath := range runPaths {
+		realPath := u.toRealPath(string(runPath))
 
-		if _, err := os.Stat(localPath); os.IsNotExist(err) {
-			u.logger.Warn("runfiles: upload: file does not exist", "path", localPath)
+		if _, err := os.Stat(realPath); os.IsNotExist(err) {
+			u.logger.Warn("runfiles: upload: file does not exist", "path", realPath)
 		} else {
-			existingRelativePaths = append(existingRelativePaths, relativePath)
+			existingPaths = append(existingPaths, runPath)
 		}
 	}
 
-	return existingRelativePaths
+	return existingPaths
 }
 
 // Filters any paths that are ignored by the run settings.
-func (u *uploader) filterIgnored(relativePaths []string) []string {
-	includedPaths := make([]string, 0)
+func (u *uploader) filterIgnored(
+	runPaths []paths.RelativePath,
+) []paths.RelativePath {
+	includedPaths := make([]paths.RelativePath, 0)
 
 outerLoop:
-	for _, relativePath := range relativePaths {
+	for _, runPath := range runPaths {
 		for _, ignoreGlob := range u.settings.GetIgnoreGlobs() {
-			if matched, _ := filepath.Match(ignoreGlob, relativePath); matched {
+			if matched, _ := filepath.Match(ignoreGlob, string(runPath)); matched {
 				continue outerLoop
 			}
 		}
 
-		includedPaths = append(includedPaths, relativePath)
+		includedPaths = append(includedPaths, runPath)
 	}
 
 	return includedPaths
@@ -327,13 +360,13 @@ outerLoop:
 //
 // Decrements `uploadWG` when the task is complete or fails.
 func (u *uploader) scheduleUploadTask(
-	relativePath string,
+	runPath paths.RelativePath,
 	uploadURL string,
 	headers []string,
 ) {
 	u.stateMu.Lock()
 	defer u.stateMu.Unlock()
 
-	u.knownFile(relativePath).Upload(uploadURL, headers)
+	u.knownFile(runPath).Upload(uploadURL, headers)
 	u.uploadWG.Done()
 }
