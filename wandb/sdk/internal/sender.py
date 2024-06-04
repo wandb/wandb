@@ -1034,11 +1034,11 @@ class SendManager:
         else:
             logger.info("updated run: %s", self._run.run_id)
 
-    def _init_run(
+    def _init_run(  # noqa: C901
         self,
         run: "RunRecord",
         config_dict: Optional[sender_config.BackendConfigDict],
-    ) -> dict:  # noqa: C901
+    ) -> dict:
         # We subtract the previous runs runtime when resuming
         start_time = (
             run.start_time.ToMicroseconds() / 1e6
