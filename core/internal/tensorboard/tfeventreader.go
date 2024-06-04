@@ -7,6 +7,7 @@ import (
 	"os"
 	"slices"
 
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"google.golang.org/protobuf/proto"
@@ -20,13 +21,13 @@ type TFEventReader struct {
 	logger *observability.CoreLogger
 
 	buffer        []byte
-	logDir        string
-	currentFile   string
+	logDir        paths.AbsolutePath
+	currentFile   *paths.AbsolutePath
 	currentOffset int64
 }
 
 func NewTFEventReader(
-	logDir string,
+	logDir paths.AbsolutePath,
 	fileFilter TFEventsFileFilter,
 	logger *observability.CoreLogger,
 ) *TFEventReader {
@@ -47,11 +48,11 @@ func NewTFEventReader(
 //
 // New files encountered are passed to `onNewFile`.
 func (s *TFEventReader) NextEvent(
-	onNewFile func(string),
+	onNewFile func(paths.AbsolutePath),
 ) (*tbproto.TFEvent, error) {
 	// FORMAT: https://github.com/tensorflow/tensorboard/blob/f3f26b46981da5bd46a5bb93fcf02d9eb7608bc1/tensorboard/summary/writer/record_writer.py#L31-L40
 	//
-	// (everything little-endian)
+	// (all integers little-endian)
 	//   uint64      length
 	//   uint32      "masked CRC" of length
 	//   byte        data[length]
@@ -120,22 +121,22 @@ func (s *TFEventReader) NextEvent(
 // It returns whether the buffer has the desired amount of data.
 func (s *TFEventReader) ensureBuffer(
 	count uint64,
-	onNewFile func(string),
+	onNewFile func(paths.AbsolutePath),
 ) bool {
 	if uint64(len(s.buffer)) >= count {
 		return true
 	}
 
 	// If we haven't found the first file, try to find it.
-	if s.currentFile == "" {
+	if s.currentFile == nil {
 		var err error
-		s.currentFile, err = nextTFEventsFile(s.logDir, "", s.fileFilter)
+		s.currentFile, err = nextTFEventsFile(s.logDir, nil, s.fileFilter)
 
-		if err != nil || s.currentFile == "" {
+		if err != nil || s.currentFile == nil {
 			return false
 		}
 
-		onNewFile(s.currentFile)
+		onNewFile(*s.currentFile)
 	}
 
 	for {
@@ -174,13 +175,13 @@ func (s *TFEventReader) ensureBuffer(
 			return false
 		}
 
-		if nextFile == "" {
+		if nextFile == nil {
 			return false
 		}
 
 		s.currentFile = nextFile
 		s.currentOffset = 0
-		onNewFile(s.currentFile)
+		onNewFile(*s.currentFile)
 	}
 }
 
@@ -190,13 +191,13 @@ func (s *TFEventReader) ensureBuffer(
 // Returns true if the buffer has count bytes. Otherwise, returns false if it
 // reached EOF or another error while reading, and returns the error.
 func (s *TFEventReader) readFromCurrent(count uint64) (bool, error) {
-	file, err := os.Open(s.currentFile)
+	file, err := os.Open(s.currentFile.OrEmpty())
 	if err != nil {
 		return false, err
 	}
 	defer file.Close()
 
-	_, err = file.Seek(s.currentOffset, 0)
+	_, err = file.Seek(s.currentOffset, 0 /*offset is relative to origin*/)
 	if err != nil {
 		return false, err
 	}

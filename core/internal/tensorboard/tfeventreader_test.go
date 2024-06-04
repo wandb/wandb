@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -31,20 +32,26 @@ var event1 = &tbproto.TFEvent{Step: 1}
 var event2 = &tbproto.TFEvent{Step: 2}
 var event3 = &tbproto.TFEvent{Step: 3}
 
+func absoluteTmpdir(t *testing.T) paths.AbsolutePath {
+	p, err := paths.Absolute(t.TempDir())
+	require.NoError(t, err)
+	return *p
+}
+
 func TestReadsSequenceOfFiles(t *testing.T) {
-	tmpdir := t.TempDir()
+	tmpdir := absoluteTmpdir(t)
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpdir, "tfevents.1.hostname"),
+		filepath.Join(string(tmpdir), "tfevents.1.hostname"),
 		slices.Concat(encodeEvent(event1), encodeEvent(event2)),
 		os.ModePerm,
 	))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpdir, "tfevents.2.hostname"),
+		filepath.Join(string(tmpdir), "tfevents.2.hostname"),
 		[]byte{},
 		os.ModePerm,
 	))
 	require.NoError(t, os.WriteFile(
-		filepath.Join(tmpdir, "tfevents.3.hostname"),
+		filepath.Join(string(tmpdir), "tfevents.3.hostname"),
 		encodeEvent(event3),
 		os.ModePerm,
 	))
@@ -54,10 +61,10 @@ func TestReadsSequenceOfFiles(t *testing.T) {
 		observability.NewNoOpLogger(),
 	)
 
-	result1, err1 := reader.NextEvent(func(path string) {})
-	result2, err2 := reader.NextEvent(func(path string) {})
-	result3, err3 := reader.NextEvent(func(path string) {})
-	result4, err4 := reader.NextEvent(func(path string) {})
+	result1, err1 := reader.NextEvent(func(path paths.AbsolutePath) {})
+	result2, err2 := reader.NextEvent(func(path paths.AbsolutePath) {})
+	result3, err3 := reader.NextEvent(func(path paths.AbsolutePath) {})
+	result4, err4 := reader.NextEvent(func(path paths.AbsolutePath) {})
 
 	assert.True(t, proto.Equal(event1, result1))
 	assert.True(t, proto.Equal(event2, result2))
