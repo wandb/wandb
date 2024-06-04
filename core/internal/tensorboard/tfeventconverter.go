@@ -23,6 +23,12 @@ type TFEventConverter struct {
 	pluginNameByTag map[string]string
 }
 
+// tagAndJSON is a tag and a JSON representation of a value.
+type tagAndJSON struct {
+	tag  string
+	json string
+}
+
 // Convert returns a W&B history record corresponding to a TF event.
 //
 // Returns nil if there's no relevant history data in the event.
@@ -32,23 +38,22 @@ func (h *TFEventConverter) Convert(
 	logger *observability.CoreLogger,
 ) *service.HistoryRecord {
 	// Maps slash-separated tags to JSON values.
-	tagToJSON := make(map[string]string)
+	jsonData := make([]tagAndJSON, 0, len(event.GetSummary().GetValue()))
 
 	for _, value := range event.GetSummary().GetValue() {
 		tag := h.withNamespace(value.GetTag())
 
-		switch h.rememberPluginName(tag, value) {
-		case "scalars":
-			processScalars(tagToJSON, tag, value, logger)
+		if h.rememberPluginName(tag, value) == "scalars" {
+			jsonData = processScalars(jsonData, tag, value, logger)
 		}
 	}
 
-	if len(tagToJSON) == 0 {
+	if len(jsonData) == 0 {
 		return nil
 	}
 
 	return h.toHistoryRecord(
-		tagToJSON,
+		jsonData,
 		event.Step,
 		event.WallTime,
 	)
@@ -73,37 +78,39 @@ func (h *TFEventConverter) rememberPluginName(tag string, value *tbproto.Summary
 
 // processScalars processes a value associated to the "scalars" plugin.
 //
-// Returns whether the value was used successfully.
+// Takes ownership of the jsonData slice and returns the amended slice.
 func processScalars(
-	tagToJSON map[string]string,
+	jsonData []tagAndJSON,
 	tag string,
 	value *tbproto.Summary_Value,
 	logger *observability.CoreLogger,
-) bool {
+) []tagAndJSON {
 	switch value := value.GetValue().(type) {
 	case *tbproto.Summary_Value_SimpleValue:
-		tagToJSON[tag] = fmt.Sprintf("%v", value.SimpleValue)
-		return true
+		return append(jsonData,
+			tagAndJSON{
+				tag:  tag,
+				json: fmt.Sprintf("%v", value.SimpleValue),
+			})
 
 	case *tbproto.Summary_Value_Tensor:
 		str, err := toHistogramJSON(value.Tensor)
 
 		if err != nil {
 			logger.CaptureError("tensorboard: error serializing a tensor", err)
-			return false
+			return jsonData
 		} else {
-			tagToJSON[tag] = str
-			return true
+			return append(jsonData, tagAndJSON{tag: tag, json: str})
 		}
 
 	default:
-		return false
+		return jsonData
 	}
 }
 
 // toHistoryRecord creates a history record with the given data.
 func (h *TFEventConverter) toHistoryRecord(
-	tagToJSON map[string]string,
+	jsonData []tagAndJSON,
 	step int64,
 	timestamp float64,
 ) *service.HistoryRecord {
@@ -117,10 +124,10 @@ func (h *TFEventConverter) toHistoryRecord(
 		{Key: "_timestamp", ValueJson: fmt.Sprintf("%v", timestamp)},
 	}
 
-	for tag, valueJSON := range tagToJSON {
+	for _, tagAndJSON := range jsonData {
 		items = append(items, &service.HistoryItem{
-			NestedKey: strings.Split(tag, "/"),
-			ValueJson: valueJSON,
+			NestedKey: strings.Split(tagAndJSON.tag, "/"),
+			ValueJson: tagAndJSON.json,
 		})
 	}
 

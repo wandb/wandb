@@ -96,6 +96,7 @@ func numbersToHistogramJSON[T numeric](data []T) (string, error) {
 
 		return string(result), nil
 	default:
+		// TODO: implement numbersToHistogramJSON for >32 entries
 		return "", fmt.Errorf("numbersToHistogramJSON for >32 entries unimplemented")
 	}
 }

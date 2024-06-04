@@ -4,7 +4,6 @@ option go_package = "github.com/wandb/wandb/core/internal/tensorboard/tbproto";
 
 import "core/internal/tensorboard/tbproto/tensor.proto";
 
-
 // An Event proto written by TensorBoard into a tfevents file.
 //
 // https://github.com/tensorflow/tensorboard/blob/master/tensorboard/compat/proto/event.proto
