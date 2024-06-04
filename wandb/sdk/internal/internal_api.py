@@ -2237,6 +2237,27 @@ class Api:
             entity (str, optional): The entity to scope this project to.
             project (str, optional): The name of the project
             num_retries (int, optional): Number of retries
+
+        Returns:
+            A dict with the rewound run
+
+                {
+                    "id": "run_id",
+                    "name": "run_name",
+                    "displayName": "run_display_name",
+                    "description": "run_description",
+                    "config": "stringified_run_config_json",
+                    "sweepName": "run_sweep_name",
+                    "project": {
+                        "id": "project_id",
+                        "name": "project_name",
+                        "entity": {
+                            "id": "entity_id",
+                            "name": "entity_name"
+                        }
+                    },
+                    "historyLineCount": 100,
+                }
         """
         query_string = """
         mutation RewindRun($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
