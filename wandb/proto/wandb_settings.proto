@@ -65,6 +65,9 @@ message Settings {
   // The W&B entity, like a user or a team.
   google.protobuf.StringValue entity = 69;
 
+  // The start time of the run in seconds since the Unix epoch.
+  google.protobuf.DoubleValue _start_time = 41;
+
   // The directory for storing log files.
   google.protobuf.StringValue log_dir = 85;
 
@@ -79,8 +82,8 @@ message Settings {
 
   // Disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue _disable_update_check = 165;
-  // Indicate whether wandb-core is required, to use wandb-core the package
-  // must be installed.
+
+  // Indicate whether wandb-core is to be used.
   google.protobuf.BoolValue _require_core = 36;
 
   ListStringValue _args = 1;
@@ -119,7 +122,6 @@ message Settings {
   google.protobuf.StringValue _service_transport = 38;
   google.protobuf.DoubleValue _service_wait = 39;
   google.protobuf.StringValue _start_datetime = 40;
-  google.protobuf.DoubleValue _start_time = 41;
   google.protobuf.Int32Value _stats_pid = 42;
   google.protobuf.DoubleValue _stats_sample_rate_seconds = 43;
   google.protobuf.Int32Value _stats_samples_to_average = 44;
