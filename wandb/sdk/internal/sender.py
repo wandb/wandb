@@ -913,7 +913,7 @@ class SendManager:
         assert self._run
         assert self._rewind_response
 
-        first_step = int(self._settings.resume_from.value) + 1
+        first_step = int(self._settings.resume_from.value) 
         self._resume_state.step = first_step
 
         # We set the fork flag here because rewind uses the forking
