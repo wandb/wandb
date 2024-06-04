@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -48,6 +49,7 @@ type SenderParams struct {
 	FileTransferManager filetransfer.FileTransferManager
 	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
+	TBHandler           *tensorboard.TBHandler
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
 	RunSummary          *runsummary.RunSummary
@@ -92,6 +94,9 @@ type Sender struct {
 
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
+
+	// tbHandler integrates W&B with TensorBoard
+	tbHandler *tensorboard.TBHandler
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
@@ -171,6 +176,7 @@ func NewSender(
 		fileTransferManager: params.FileTransferManager,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
+		tbHandler:           params.TBHandler,
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
@@ -493,6 +499,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_TB:
 		request.State++
+		s.tbHandler.Finish()
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
 		s.summaryDebouncer.Flush(s.streamSummary)
