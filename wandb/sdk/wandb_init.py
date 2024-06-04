@@ -1155,8 +1155,10 @@ def init(
 
     kwargs = dict(locals())
 
-    num_resume_options_set = sum(
-        kwargs.get(k) is not None for k in ["fork_from", "resume", "resume_from"]
+    num_resume_options_set = (
+        (fork_from is not None)  # wrap
+        + (resume is not None)
+        + (resume_from is not None)
     )
     if num_resume_options_set > 1:
         raise ValueError(
