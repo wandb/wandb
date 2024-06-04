@@ -1,5 +1,6 @@
 import json
 import os
+import pathlib
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -7,7 +8,7 @@ import requests.utils
 
 from wandb.errors import AuthenticationError
 
-DEFAULT_WANDB_CREDENTIALS_FILE = os.path.expanduser("~/.config/wandb/credentials.json")
+DEFAULT_WANDB_CREDENTIALS_FILE = str(pathlib.Path("~/.config/wandb/credentials.json").expanduser())
 
 _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
@@ -18,7 +19,7 @@ def access_token(
     if not token_file:
         return None
 
-    if not os.path.exists(credentials_file):
+    if not pathlib.Path(credentials_file).exists():
         write_credentials_file(base_url, token_file, credentials_file)
 
     data = fetch_credentials(base_url, token_file, credentials_file)
@@ -36,18 +37,22 @@ def write_credentials_file(base_url: str, token_file: str, credentials_file: str
 
 
 def fetch_credentials(base_url: str, token_file: str, credentials_file: str) -> dict:
+    creds = {}
     with open(credentials_file) as file:
         data = json.load(file)
-        creds = data["credentials"][base_url]
+        if "credentials" in data and base_url in data["credentials"]:
+            creds = data["credentials"][base_url]
 
     expires_at = datetime.utcnow()
-    if creds is not None:
+    if "expires_at" in creds:
         expires_at = datetime.strptime(creds["expires_at"], _expires_at_fmt)
 
     if expires_at <= datetime.utcnow():
         creds = create_access_token(base_url, token_file)
         with open(credentials_file, "w") as file:
             data = json.load(file)
+            if "credentials" not in data:
+                data["credentials"] = {}
             data["credentials"][base_url] = creds
             json.dump(data, file, indent=4)
 
