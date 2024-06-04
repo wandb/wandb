@@ -13,7 +13,6 @@ message TensorProto {
   // Serialized raw content of the tensor.
   bytes tensor_content = 4;
 
-
   // Type specific representations that make it easy to create tensor protos in
   // all languages.  Only the representation corresponding to "dtype" can
   // be set.  The values hold the flattened representation of the tensor in
