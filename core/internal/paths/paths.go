@@ -21,7 +21,8 @@ import (
 
 // AbsolutePath is a cleaned, absolute path using the OS file separator.
 //
-// It does not end with a trailing slash.
+// It does not end with a trailing slash except if it is a root directory,
+// such as '/' on Unix or 'C:\' on Windows.
 type AbsolutePath string
 
 // RelativePath is a cleaned, relative path using the OS file separator.
