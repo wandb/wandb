@@ -20,6 +20,8 @@ import (
 )
 
 // AbsolutePath is a cleaned, absolute path using the OS file separator.
+//
+// It does not end with a trailing slash.
 type AbsolutePath string
 
 // RelativePath is a cleaned, relative path using the OS file separator.
@@ -27,6 +29,8 @@ type AbsolutePath string
 // The path is guaranteed non-empty. It may start with zero or more ".."
 // components, but it does not contain ".." in the middle or at the end.
 // It may just be ".".
+//
+// It does not end with a trailing slash.
 type RelativePath string
 
 // OrEmpty returns the path, or an empty string if the path is nil.
