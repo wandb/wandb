@@ -2233,8 +2233,8 @@ class Api:
             run_name (str): The name of the run to rewind
             metric_name (str): The name of the metric to rewind to
             metric_value (float): The value of the metric to rewind to
-            program_path (str, optional): Path to the program.
-            entity (str, optional): The entity to scope this project to.
+            program_path (str, optional): Path to the program
+            entity (str, optional): The entity to scope this project to
             project (str, optional): The name of the project
             num_retries (int, optional): Number of retries
 
