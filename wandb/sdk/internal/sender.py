@@ -1035,7 +1035,6 @@ class SendManager:
             logger.info("updated run: %s", self._run.run_id)
 
     def _update_resume_state(self, is_rewinding: bool, inserted: bool):
-
         if self._resume_state.resumed:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
@@ -1109,7 +1108,7 @@ class SendManager:
                 "Cannot attempt to rewind and resume a run - only one of "
                 "`resume` or `resume_from` can be specified."
             )
-        
+
         self._update_resume_state(is_rewinding, inserted)
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
