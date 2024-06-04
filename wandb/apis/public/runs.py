@@ -195,10 +195,16 @@ class Runs(Paginator):
         pl = None
 
         if format == "pandas":
-            pd = util.get_module("pandas", required="Logging dataframes requires pandas")
+            pd = util.get_module(
+                "pandas", required="Logging dataframes requires pandas"
+            )
         elif format == "polars":
-            pd = util.get_module("pandas", required="Exporting Polars DataFrame requires pandas")
-            pl = util.get_module("polars", required="Exporting Polars DataFrame requires polars")
+            pd = util.get_module(
+                "pandas", required="Exporting Polars DataFrame requires pandas"
+            )
+            pl = util.get_module(
+                "polars", required="Exporting Polars DataFrame requires polars"
+            )
 
         for run in self:
             history_data = run.history(
@@ -226,7 +232,9 @@ class Runs(Paginator):
                 if format == "polars" and pl:
                     combined_df.reset_index(inplace=True)
                     combined_df = pl.DataFrame(combined_df)
-                    combined_df = combined_df.with_columns([pl.col("run_id").cast(pl.Utf8)])
+                    combined_df = combined_df.with_columns(
+                        [pl.col("run_id").cast(pl.Utf8)]
+                    )
                 return combined_df
             else:
                 return pd.DataFrame() if pd else []
