@@ -667,10 +667,11 @@ class Run(Attrs):
             losses = [row["Loss"] for row in history]
             ```
 
-
         Arguments:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
-            page_size (int, optional): size of pages to fetch from the api
+            page_size (int, optional): size of pages to fetch from the api.
+            min_step (int, optional): the minimum number of pages to scan at a time.
+            max_step (int, optional): the maximum number of pages to scan at a time.
 
         Returns:
             An iterable collection over history records (dict).

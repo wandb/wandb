@@ -76,8 +76,6 @@ type fileStream struct {
 	path string
 
 	processChan  chan Update
-	transmitChan chan CollectorStateUpdate
-	feedbackChan chan map[string]interface{}
 	feedbackWait *sync.WaitGroup
 
 	// keep track of where we are streaming each file chunk
@@ -135,8 +133,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		printer:         params.Printer,
 		apiClient:       params.ApiClient,
 		processChan:     make(chan Update, BufferSize),
-		transmitChan:    make(chan CollectorStateUpdate, BufferSize),
-		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		feedbackWait:    &sync.WaitGroup{},
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
@@ -185,14 +181,9 @@ func (fs *fileStream) Start(
 		fs.offsetMap = maps.Clone(offsetMap)
 	}
 
-	go fs.loopProcess()
-	go fs.loopTransmit()
-
-	fs.feedbackWait.Add(1)
-	go func() {
-		defer fs.feedbackWait.Done()
-		fs.loopFeedback()
-	}()
+	transmitChan := fs.startProcessingUpdates(fs.processChan)
+	feedbackChan := fs.startTransmitting(transmitChan)
+	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
 }
 
 func (fs *fileStream) StreamUpdate(update Update) {
