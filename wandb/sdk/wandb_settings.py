@@ -1860,13 +1860,15 @@ class Settings(SettingsData):
         self._handle_resume_logic()
 
     def _handle_rewind_logic(self) -> None:
-        if self.resume_from is not None:
-            if self.run_id is not None:
-                wandb.termwarn(
-                    "You cannot specify both run_id and resume_from. "
-                    "Ignoring run_id."
-                )
-            self.update({"run_id": self.resume_from.run}, source=Source.INIT)
+        if self.resume_from is None:
+            return
+                
+        if self.run_id is not None:
+            wandb.termwarn(
+                "You cannot specify both run_id and resume_from. "
+                "Ignoring run_id."
+            )
+        self.update({"run_id": self.resume_from.run}, source=Source.INIT)
 
     def _handle_resume_logic(self) -> None:
         # handle auto resume logic
