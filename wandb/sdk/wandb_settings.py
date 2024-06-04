@@ -1859,7 +1859,7 @@ class Settings(SettingsData):
         self._handle_rewind_logic()
         self._handle_resume_logic()
 
-    def _handle_rewind_logic(self) -> None: 
+    def _handle_rewind_logic(self) -> None:
         # handle rewind logic
         if self.resume_from is not None:
             if self.run_id is not None:
@@ -1868,7 +1868,7 @@ class Settings(SettingsData):
                     "Ignoring run_id."
                 )
             self.update({"run_id": self.resume_from.run}, source=Source.INIT)
-       
+
     def _handle_resume_logic(self) -> None:
         # handle auto resume logic
         if self.resume == "auto":
@@ -1882,7 +1882,6 @@ class Settings(SettingsData):
                         "Tried to auto resume run with "
                         f"id {resume_run_id} but id {self.run_id} is set.",
                     )
-
 
         self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
         # persist our run id in case of failure
