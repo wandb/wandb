@@ -141,8 +141,10 @@ func TestConvertScalar(t *testing.T) {
 func TestConvertTensor(t *testing.T) {
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
 	doubleOneTwoBytes := bytes.NewBuffer([]byte{})
-	binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(1))
-	binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(2))
+	require.NoError(t,
+		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(1)))
+	require.NoError(t,
+		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(2)))
 
 	result := converter.Convert(
 		summaryEvent(123, 0.345,
