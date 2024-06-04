@@ -59,10 +59,10 @@ class SettingsStatic(SettingsData):
                 else:
                     value = None
             object.__setattr__(self, key, value)
-            
+
         if len(forks_specified) > 1:
             raise ValueError(
-                f"Only one of fork_from or resume_from can be specified, not both"
+                "Only one of fork_from or resume_from can be specified, not both"
             )
 
     def __setattr__(self, name: str, value: object) -> None:
