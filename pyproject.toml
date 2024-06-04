@@ -102,8 +102,7 @@ launch = [
 models = ["cloudpickle"]
 perf = ["orjson"]
 importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
-reports = ["pydantic>=2.0.0"]
-
+workspaces = ["wandb-workspaces"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"

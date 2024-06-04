@@ -127,6 +127,7 @@ func (h *TFEventConverter) toHistoryRecord(
 	return &service.HistoryRecord{Item: items}
 }
 
+// withNamespace prefixes the key with the namespace, if there is one.
 func (h *TFEventConverter) withNamespace(key string) string {
 	if h.Namespace == "" {
 		return key
