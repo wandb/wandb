@@ -1038,7 +1038,7 @@ class SendManager:
         self,
         run: "RunRecord",
         config_dict: Optional[sender_config.BackendConfigDict],
-    ) -> dict:
+    ) -> dict:  # noqa: C901
         # We subtract the previous runs runtime when resuming
         start_time = (
             run.start_time.ToMicroseconds() / 1e6
@@ -1096,7 +1096,7 @@ class SendManager:
                 self._run.runtime = self._resume_state.wandb_runtime
         elif is_rewinding:
             # because is_rewinding is mutually exclusive with self._resume_state.resumed,
-            # this block will always execute if is_rewinding is set.
+            # this block will always execute if is_rewinding is set
             self._setup_rewind()
         else:
             # If the user is not resuming, and we didn't insert on upsert_run then
