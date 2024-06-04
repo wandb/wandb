@@ -2227,7 +2227,7 @@ class Api:
         project: Optional[str] = None,
         num_retries: Optional[int] = None,
     ) -> dict:
-        """Update a run.
+        """Rewinds a run to a previous state.
 
         Arguments:
             run_name (str): The name of the run to rewind
