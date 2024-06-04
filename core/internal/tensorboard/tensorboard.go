@@ -92,8 +92,7 @@ func NewTBHandler(params Params) *TBHandler {
 
 // Handle begins processing the events in a TensorBoard logs directory.
 func (tb *TBHandler) Handle(record *service.TBRecord) error {
-	shouldSave := record.Save
-
+	// Make log_dir absolute.
 	maybeLogDir, err := paths.Absolute(record.LogDir)
 	if err != nil {
 		return fmt.Errorf(
@@ -103,14 +102,11 @@ func (tb *TBHandler) Handle(record *service.TBRecord) error {
 	}
 	logDir := *maybeLogDir
 
-	if err := tb.updateRootDirFromLogDir(logDir); err != nil {
-		return fmt.Errorf("tensorboard: failed when updating root dir: %v", err)
-	}
-
-	var maybeRootDir *paths.AbsolutePath
+	// Make root_dir absolute, if set.
+	var explicitRootDir *paths.AbsolutePath
 	if record.GetRootDir() != "" {
 		var err error
-		maybeRootDir, err = paths.Absolute(record.GetRootDir())
+		explicitRootDir, err = paths.Absolute(record.GetRootDir())
 		if err != nil {
 			return fmt.Errorf(
 				"tensorboard: cannot make rootDir %v absolute: %v",
@@ -119,6 +115,12 @@ func (tb *TBHandler) Handle(record *service.TBRecord) error {
 		}
 	}
 
+	// Update the inferred root directory.
+	if err := tb.updateRootDirFromLogDir(logDir); err != nil {
+		return err
+	}
+
+	// Create the event stream.
 	stream := NewTFEventStream(
 		logDir,
 		tb.fileReadDelay,
@@ -133,39 +135,76 @@ func (tb *TBHandler) Handle(record *service.TBRecord) error {
 	tb.streams = append(tb.streams, stream)
 	tb.mu.Unlock()
 
+	tb.startStream(stream, logDir, explicitRootDir, record.Save)
+
+	return nil
+}
+
+// startStream starts to process tfevents files.
+//
+// The stream should not already be started.
+func (tb *TBHandler) startStream(
+	stream *tfEventStream,
+	logDir paths.AbsolutePath,
+	explicitRootDir *paths.AbsolutePath,
+	shouldSave bool,
+) {
 	tb.wg.Add(1)
 	go func() {
 		defer tb.wg.Done()
 
+		// We may have to wait a short time for the root directory if
+		// it is not set explicitly.
 		var rootDir paths.AbsolutePath
-		if maybeRootDir != nil {
-			rootDir = *maybeRootDir
+		if explicitRootDir != nil {
+			rootDir = *explicitRootDir
 		} else {
-			rootDir = tb.waitForRootDir()
+			inferredRootDir, err := tb.inferRootDir()
+
+			if err != nil {
+				tb.logger.CaptureError(
+					"tensorboard: failed to infer root directory",
+					err,
+				)
+				return
+			}
+
+			rootDir = *inferredRootDir
 		}
 
-		tb.convertToRunHistory(
-			stream.Events(),
+		stream.Start()
+		tb.watch(
+			stream,
 			tb.getNamespace(logDir, rootDir),
+			rootDir,
+			shouldSave,
 		)
 	}()
+}
 
-	tb.wg.Add(1)
+// watch consumes the TF event stream, uploading tfevents files
+// and logging events to the run.
+func (tb *TBHandler) watch(
+	stream *tfEventStream,
+	namespace string,
+	rootDir paths.AbsolutePath,
+	save bool,
+) {
+	wg := &sync.WaitGroup{}
+
+	wg.Add(1)
 	go func() {
-		defer tb.wg.Done()
-
-		var rootDir paths.AbsolutePath
-		if maybeRootDir != nil {
-			rootDir = *maybeRootDir
-		} else {
-			rootDir = tb.waitForRootDir()
-		}
-
-		tb.saveFiles(stream.Files(), shouldSave, rootDir)
+		defer wg.Done()
+		tb.convertToRunHistory(stream.Events(), namespace)
 	}()
 
-	stream.Start()
-	return nil
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		tb.saveFiles(stream.Files(), save, rootDir)
+	}()
+
+	wg.Wait()
 }
 
 func (tb *TBHandler) Finish() {
@@ -201,7 +240,10 @@ func (tb *TBHandler) updateRootDirFromLogDir(
 
 		rootDir, err := paths.Absolute(longestPrefix)
 		if err != nil {
-			return err
+			return fmt.Errorf(
+				"tensorboard: error while inferring root dir: %v",
+				err,
+			)
 		}
 
 		tb.rootDir = rootDir
@@ -211,17 +253,35 @@ func (tb *TBHandler) updateRootDirFromLogDir(
 	return nil
 }
 
-// waitForRootDir blocks until rootDir is set.
-func (tb *TBHandler) waitForRootDir() paths.AbsolutePath {
-	tb.rootDirCond.L.Lock()
-	defer tb.rootDirCond.L.Unlock()
+// inferRootDir blocks until rootDir is set.
+//
+// After a timeout, this just returns the current working directory.
+func (tb *TBHandler) inferRootDir() (*paths.AbsolutePath, error) {
+	resultChan := make(chan paths.AbsolutePath, 1)
+	go func() {
+		tb.rootDirCond.L.Lock()
+		defer tb.rootDirCond.L.Unlock()
 
-	// TODO: What if we're stuck here and need to finish?
-	for tb.rootDir == nil {
-		tb.rootDirCond.Wait()
+		for tb.rootDir == nil {
+			tb.rootDirCond.Wait()
+		}
+
+		resultChan <- *tb.rootDir
+	}()
+
+	// The root directory can be inferred after at least two log directories
+	// are identified. Often this is a "train" and a "validate" directory.
+	//
+	// We get those directories by spying on TensorBoard internals via
+	// monkeypatching in Python (!?), so we don't control it and don't
+	// know whether it will or will not emit more than one. If it doesn't,
+	// then we just default to the current working directory as a root.
+	select {
+	case result := <-resultChan:
+		return &result, nil
+	case <-time.After(10 * time.Second):
+		return paths.CWD()
 	}
-
-	return *tb.rootDir
 }
 
 func (tb *TBHandler) convertToRunHistory(
