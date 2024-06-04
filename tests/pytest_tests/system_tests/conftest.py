@@ -1017,15 +1017,3 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
-
-
-@pytest.fixture(scope="function")
-def debug_logs():
-    with unittest.mock.patch.dict(
-        os.environ,
-        {
-            "WANDB_DEBUG": "true",
-            "WANDB_CORE_DEBUG": "true",
-        },
-    ):
-        yield

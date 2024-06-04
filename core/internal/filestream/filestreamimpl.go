@@ -240,13 +240,13 @@ func (fs *fileStream) send(
 	case err != nil:
 		return fmt.Errorf(
 			"filestream: error making HTTP request: %v. request: %v. response: %v",
-			req.String(),
+			req,
 			resp,
 			err,
 		)
 	case resp == nil:
 		// Sometimes resp and err can both be nil in retryablehttp's Client.
-		return fmt.Errorf("filestream: nil response and nil error for request %v", req.String())
+		return fmt.Errorf("filestream: nil response and nil error for request %v", req)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.

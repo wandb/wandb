@@ -28,11 +28,20 @@ def test_retryable_codes(
     test_settings,
     relay_server,
     inject_file_stream_response,
-    debug_logs,
+    monkeypatch,
 ):
+    # turn on debug logs
+    monkeypatch.setenv("WANDB_DEBUG", "true")
+    monkeypatch.setenv("WANDB_CORE_DEBUG", "true")
+
     with relay_server() as relay:
         run = wandb.init(
-            settings=test_settings({"_file_stream_retry_wait_min_seconds": 1})
+            settings=test_settings(
+                {
+                    "_file_stream_retry_wait_min_seconds": 1,
+                    "_disable_machine_info": True,
+                }
+            )
         )
         relay.inject.append(
             inject_file_stream_response(
