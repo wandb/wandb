@@ -907,7 +907,7 @@ class SendManager:
             self._rewind_response.get("config", "{}")
         )
 
-    def _setup_rewind(self):
+    def _install_rewind_state(self):
         assert self._settings.resume_from
         assert self._settings.resume_from.metric == "_step"
         assert self._run
@@ -1034,7 +1034,27 @@ class SendManager:
         else:
             logger.info("updated run: %s", self._run.run_id)
 
-    def _init_run(  # noqa: C901
+    def _update_resume_state(self, is_rewinding: bool, inserted: bool):
+
+        if self._resume_state.resumed:
+            self._run.resumed = True
+            if self._resume_state.wandb_runtime is not None:
+                self._run.runtime = self._resume_state.wandb_runtime
+        elif is_rewinding:
+            # because is_rewinding is mutually exclusive with self._resume_state.resumed,
+            # this block will always execute if is_rewinding is set
+            self._install_rewind_state()
+        else:
+            # If the user is not resuming, and we didn't insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
+
+    def _init_run(
         self,
         run: "RunRecord",
         config_dict: Optional[sender_config.BackendConfigDict],
@@ -1089,24 +1109,8 @@ class SendManager:
                 "Cannot attempt to rewind and resume a run - only one of "
                 "`resume` or `resume_from` can be specified."
             )
-
-        if self._resume_state.resumed:
-            self._run.resumed = True
-            if self._resume_state.wandb_runtime is not None:
-                self._run.runtime = self._resume_state.wandb_runtime
-        elif is_rewinding:
-            # because is_rewinding is mutually exclusive with self._resume_state.resumed,
-            # this block will always execute if is_rewinding is set
-            self._setup_rewind()
-        else:
-            # If the user is not resuming, and we didn't insert on upsert_run then
-            # it is likely that we are overwriting the run which we might want to
-            # prevent in the future.  This could be a false signal since an upsert_run
-            # message which gets retried in the network could also show up as not
-            # inserted.
-            if not inserted:
-                # no need to flush this, it will get updated eventually
-                self._telemetry_obj.feature.maybe_run_overwrite = True
+        
+        self._update_resume_state(is_rewinding, inserted)
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
