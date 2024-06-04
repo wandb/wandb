@@ -721,7 +721,9 @@ def test_query_user_multiple(relay_server, inject_users):
         assert len(api.users(email)) == 2
 
 
-def test_runs_histories(inject_run, inject_history, inject_graphql_response, relay_server):
+def test_runs_histories(
+    inject_run, inject_history, inject_graphql_response, relay_server
+):
     # Inject the dummy run data
     inject_response = [inject_run(id="test_1"), inject_run(id="test_2")]
 
@@ -799,7 +801,7 @@ def test_runs_histories(inject_run, inject_history, inject_graphql_response, rel
 
     inject_responses = [
         inject_history(history=history_run_1, events=history_run_1),
-        inject_history(history=history_run_2, events=history_run_2)
+        inject_history(history=history_run_2, events=history_run_2),
     ]
 
     inject_response.extend(inject_responses)
