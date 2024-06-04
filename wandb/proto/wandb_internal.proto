@@ -493,10 +493,28 @@ message LinkArtifactRecord {
  * TBRecord: store tb locations
  */
 message TBRecord {
-  string log_dir = 1;
-  bool save = 2;
-  string root_dir = 3;
   _RecordInfo _info = 200;
+
+  // The log directory to watch, such as "dir/logs/train" or
+  // "dir/logs/validation".
+  //
+  // This should be an absolute path.
+  string log_dir = 1;
+
+  // An ancestor of log_dir, used to determine the run file path to which to
+  // upload each log file.
+  //
+  // TODO: document "namespacing" functionality (see tb_watcher.py in d9a1f69b4)
+  //
+  // For example, if this is "dir/logs", then the file "dir/logs/train/tfevents"
+  // is uploaded as "train/tfevents".
+  //
+  // If this is a relative path or an empty string, it is joined with the
+  // working directory of the internal process.
+  string root_dir = 3;
+
+  // Whether to save tfevents files with the run.
+  bool save = 2;
 }
 
 message TBResult {}

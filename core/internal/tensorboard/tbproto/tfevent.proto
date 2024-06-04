@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+option go_package = "github.com/wandb/wandb/core/internal/tensorboard/tbproto";
+
+// An Event proto written by TensorBoard into a tfevents file.
+//
+// https://github.com/tensorflow/tensorboard/blob/master/tensorboard/compat/proto/event.proto
+//
+// We only include fields that are relevant to us.
+message TFEvent {
+  // Timestamp of the event.
+  double wall_time = 1;
+
+  // Global step of the event.
+  int64 step = 2;
+}
