@@ -148,6 +148,6 @@ def test_token_file_not_found(tmp_path: Path):
     token_file = str(tmp_path / "jwt.txt")
     credentials_file = str(tmp_path / "credentials.json")
 
-    with responses.RequestsMock() as rsps:
+    with responses.RequestsMock():
         with pytest.raises(FileNotFoundError):
             access_token(base_url, token_file, credentials_file)
