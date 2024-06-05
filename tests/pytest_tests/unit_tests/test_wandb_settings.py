@@ -494,7 +494,7 @@ def test_credentials_file_env():
 
     s = Settings()
     s._apply_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
-    assert s.credentials_file == "tmp/credentials.json"
+    assert s.credentials_file == "/tmp/credentials.json"
 
 
 def test_quiet():

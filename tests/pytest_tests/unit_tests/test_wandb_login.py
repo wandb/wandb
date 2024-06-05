@@ -1,13 +1,17 @@
+import json
 import os
 import platform
 import queue
 import sys
 import tempfile
 import threading
+from datetime import datetime, timedelta
+from pathlib import Path
 from unittest import mock
 
 import pytest
 import wandb
+from wandb.sdk.lib.credentials import _expires_at_fmt
 
 
 @pytest.fixture
@@ -156,9 +160,19 @@ def test_login_invalid_key():
             wandb.login(verify=True)
 
 
-def test_login_with_token_file():
-    token_file = "jwt.txt"
-    with mock.patch.dict("os.environ", WANDB_IDENTITY_TOKEN_FILE=token_file):
+def test_login_with_token_file(tmp_path: Path):
+    token_file = str(tmp_path / "jwt.txt")
+    credentials_file = str(tmp_path / "credentials.json")
+    base_url = "https://api.wandb.ai"
+
+    with open(token_file, "w") as f:
+        f.write("eyaksdcmlasfm")
+
+    expires_at = datetime.now() + timedelta(days=5)
+    data = {"credentials": { base_url: {"access_token": "wb_at_ksdfmlaskfm", "expires_at": expires_at.strftime(_expires_at_fmt)}}}
+    with open(credentials_file, "w") as f:
+        json.dump(data, f)
+
+    with mock.patch.dict("os.environ", WANDB_IDENTITY_TOKEN_FILE=token_file, WANDB_CREDENTIALS_FILE=credentials_file):
         wandb.login()
-        api = wandb.Api()
-        assert api.settings["token_file"] == token_file
+        assert wandb.api.is_authenticated
