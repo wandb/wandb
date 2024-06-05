@@ -655,11 +655,11 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
-            # Retry filestream requests for 1 day before dropping chunk (how do we recover?)
-            # retry_count = seconds_in_1_day / max_retry_time + num_retries_until_max_60_sec
-            #             = 86400 / 60 + ceil(log2(60/2))
-            #             = 1440 + 5
-            _file_stream_retry_max={"value": 1445, "preprocessor": int},
+            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
+            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
+            #             = 7200 / 60 + ceil(log2(60/2))
+            #             = 120 + 5
+            _file_stream_retry_max={"value": 125, "preprocessor": int},
             _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": float},
             _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": float},
             # A 3 minute timeout for all filestream post requests
