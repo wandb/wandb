@@ -155,6 +155,7 @@ def test_login_invalid_key():
         with pytest.raises(wandb.errors.AuthenticationError):
             wandb.login(verify=True)
 
+
 def test_login_with_token_file():
     token_file = "jwt.txt"
     with mock.patch.dict("os.environ", WANDB_IDENTITY_TOKEN_FILE=token_file):

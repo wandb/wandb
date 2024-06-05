@@ -18,8 +18,7 @@ _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 def access_token(
     base_url: str, token_file: str, credentials_file: str
 ) -> Optional[str]:
-    """
-    Retrieve the access token from the credentials file or create a new one if necessary.
+    """Retrieve the access token from the credentials file or create a new one if necessary.
 
     Args:
         base_url (str): The base URL of the server
@@ -40,8 +39,7 @@ def access_token(
 
 
 def _write_credentials_file(base_url: str, token_file: str, credentials_file: str):
-    """
-    Write the credentials file with the access token obtained from the server.
+    """Write the credentials file with the access token obtained from the server.
 
     Args:
         base_url (str): The base URL of the server.
@@ -58,8 +56,7 @@ def _write_credentials_file(base_url: str, token_file: str, credentials_file: st
 
 
 def _fetch_credentials(base_url: str, token_file: str, credentials_file: str) -> dict:
-    """
-    Fetch the credentials from the credentials file. Refresh the token if it has expired.
+    """Fetch the credentials from the credentials file. Refresh the token if it has expired.
 
     Args:
         base_url (str): The base URL of the server.
@@ -91,8 +88,7 @@ def _fetch_credentials(base_url: str, token_file: str, credentials_file: str) ->
 
 
 def _create_access_token(base_url: str, token_file: str) -> dict:
-    """
-    Create a new access token using the token file.
+    """Create a new access token using the token file.
 
     Args:
         base_url (str): The base URL of the server.
