@@ -241,14 +241,24 @@ async def test_upload_file(mocker):
         assert e.content == "Destination s3a://bucket/key is not a valid s3 URI."
 
 
+@pytest.mark.parametrize(
+    "arn, partition, raises",
+    [
+        ("arn:aws:iam::123456789012:user/JohnDoe", "aws", False),
+        ("arn:aws-cn:iam::123456789012:user/JohnDoe", "aws-cn", False),
+        ("arn:aws-us-gov:iam::123456789012:user/JohnDoe", "aws-us-gov", False),
+        ("arn:aws-iso:iam::123456789012:user/JohnDoe", "aws-iso", False),
+        ("arn:aws:imail:123456789012:user/JohnDoe", None, True),
+    ],
+)
 @pytest.mark.asyncio
-async def test_get_partition(mocker):
+async def test_get_partition(mocker, arn, partition, raises):
     client = MagicMock()
     session = MagicMock()
     session.client.return_value = client
     client.get_caller_identity.return_value = {
         "Account": "123456789012",
-        "Arn": "arn:aws:iam::123456789012:user/JohnDoe",
+        "Arn": arn,
     }
 
     async def _mock_get_session(*args, **kwargs):
@@ -259,5 +269,13 @@ async def test_get_partition(mocker):
         _mock_get_session,
     )
     environment = _get_environment()
-    part = await environment.get_partition()
-    assert part == "aws"
+    if not raises:
+        part = await environment.get_partition()
+        assert part == partition
+    else:
+        with pytest.raises(LaunchError) as e:
+            await environment.get_partition()
+        assert (
+            f"Could not set partition for AWS environment. ARN {arn} is not valid."
+            in str(e.value)
+        )
