@@ -73,11 +73,12 @@ func Test_SymlinksFile(t *testing.T) {
 	ctx := setupTest(t, testOptions{SlashFilesDir: "runfiles"})
 	ctx.TouchFile("logs/train/events.out.tfevents.123.hostname")
 
-	ctx.Handler.Handle(&service.TBRecord{
-		LogDir:  ctx.Path("logs/train"),
-		RootDir: ctx.Path("logs"),
-		Save:    true,
-	})
+	require.NoError(t,
+		ctx.Handler.Handle(&service.TBRecord{
+			LogDir:  ctx.Path("logs/train"),
+			RootDir: ctx.Path("logs"),
+			Save:    true,
+		}))
 	ctx.Handler.Finish()
 
 	assert.FileExists(t,
