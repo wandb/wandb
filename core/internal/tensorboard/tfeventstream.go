@@ -24,9 +24,6 @@ type tfEventStream struct {
 
 	done chan struct{}
 	wg   sync.WaitGroup
-
-	// startMu prevents races between Start and Stop.
-	startMu sync.Mutex
 }
 
 func NewTFEventStream(
@@ -66,10 +63,7 @@ func (s *tfEventStream) emitFilePath(path paths.AbsolutePath) {
 
 // Stop reads all remaining events and stops after reaching EOF.
 func (s *tfEventStream) Stop() {
-	s.startMu.Lock()
 	close(s.done)
-	s.startMu.Unlock()
-
 	s.wg.Wait()
 
 	close(s.files)
@@ -80,16 +74,6 @@ func (s *tfEventStream) Stop() {
 //
 // A no-op if called after Stop.
 func (s *tfEventStream) Start() {
-	s.startMu.Lock()
-	defer s.startMu.Unlock()
-
-	// Avoid starting if we're already stopped.
-	select {
-	case <-s.done:
-		return
-	default:
-	}
-
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()

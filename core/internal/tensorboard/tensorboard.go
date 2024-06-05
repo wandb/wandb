@@ -31,6 +31,14 @@ import (
 // TBHandler saves TensorBoard data with the run.
 type TBHandler struct {
 	mu sync.Mutex
+
+	// startWG is done after all streams are started.
+	//
+	// This is used to ensure that all tfevents are read even if
+	// Finish() is called immediately after Handle().
+	startWG sync.WaitGroup
+
+	// wg is done after all work is done.
 	wg sync.WaitGroup
 
 	outChan       chan<- *service.Record
@@ -150,6 +158,7 @@ func (tb *TBHandler) startStream(
 	shouldSave bool,
 ) {
 	tb.wg.Add(1)
+	tb.startWG.Add(1)
 	go func() {
 		defer tb.wg.Done()
 
@@ -166,6 +175,7 @@ func (tb *TBHandler) startStream(
 					"tensorboard: failed to infer root directory",
 					err,
 				)
+				tb.startWG.Done()
 				return
 			}
 
@@ -173,6 +183,8 @@ func (tb *TBHandler) startStream(
 		}
 
 		stream.Start()
+		tb.startWG.Done()
+
 		tb.watch(
 			stream,
 			tb.getNamespace(logDir, rootDir),
@@ -208,6 +220,8 @@ func (tb *TBHandler) watch(
 }
 
 func (tb *TBHandler) Finish() {
+	tb.startWG.Wait()
+
 	for _, stream := range tb.streams {
 		stream.Stop()
 	}
