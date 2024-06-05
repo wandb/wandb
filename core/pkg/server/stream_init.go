@@ -81,9 +81,20 @@ func NewFileStream(
 	}
 
 	fileStreamRetryClient := backend.NewClient(api.ClientOptions{
-		RetryMax:        int(settings.Proto.GetXFileStreamRetryMax().GetValue()),
-		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMinSeconds().GetValue()),
-		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
+		// Keep retrying for roughly 1 day.
+		//
+		// This limit is intentionally large---we want to successfully recover
+		// if the backend temporarily goes down. Of course this may also land
+		// us in a doomed retry loop in some situations. In this case, we would
+		// like users to stop the run manually through the UI or by killing the
+		// process (i.e. the user should make the decision that the run is doomed
+		// not us).
+		//
+		// The math assumes retries use an exponential backoff (they do).
+		RetryMax:     24 * 60,
+		RetryWaitMin: time.Second,
+		RetryWaitMax: time.Minute,
+
 		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXFileStreamTimeoutSeconds().GetValue()),
 		ExtraHeaders:    fileStreamHeaders,
 		NetworkPeeker:   peeker,

@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Next ID: 168
 message Settings {
-  reserved 12, 94;
+  reserved 12, 94, 147, 148, 149;
 
   // The W&B API key.
   //
@@ -218,9 +218,6 @@ message Settings {
   google.protobuf.StringValue _jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;
   ListStringValue _stats_disk_paths = 146;
-  google.protobuf.Int32Value _file_stream_retry_max = 147;
-  google.protobuf.DoubleValue _file_stream_retry_wait_min_seconds = 148;
-  google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
   google.protobuf.Int32Value _file_transfer_retry_max = 150;
   google.protobuf.DoubleValue _file_transfer_retry_wait_min_seconds = 151;
   google.protobuf.DoubleValue _file_transfer_retry_wait_max_seconds = 152;

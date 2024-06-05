@@ -314,11 +314,8 @@ class SettingsData:
     _disable_machine_info: bool  # Disable automatic machine info collection
     _executable: str
     _extra_http_headers: Mapping[str, str]
-    # file stream retry client configuration
-    _file_stream_retry_max: int  # max number of retries
-    _file_stream_retry_wait_min_seconds: float  # min wait time between retries
-    _file_stream_retry_wait_max_seconds: float  # max wait time between retries
-    _file_stream_timeout_seconds: float  # timeout for individual HTTP requests
+    # timeout for individual HTTP requests for filestream
+    _file_stream_timeout_seconds: float
     # file transfer retry client configuration
     _file_transfer_retry_max: int
     _file_transfer_retry_wait_min_seconds: float
@@ -655,13 +652,6 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
-            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-            #             = 7200 / 60 + ceil(log2(60/2))
-            #             = 120 + 5
-            _file_stream_retry_max={"value": 125, "preprocessor": int},
-            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": float},
             # A 3 minute timeout for all filestream post requests
             _file_stream_timeout_seconds={"value": 180, "preprocessor": float},
             _file_transfer_retry_max={"value": 20, "preprocessor": int},
