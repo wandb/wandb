@@ -239,3 +239,25 @@ async def test_upload_file(mocker):
     with pytest.raises(LaunchError) as e:
         await environment.upload_file("source_file", "s3a://bucket/key")
         assert e.content == "Destination s3a://bucket/key is not a valid s3 URI."
+
+
+@pytest.mark.asyncio
+async def test_get_partition(mocker):
+    client = MagicMock()
+    session = MagicMock()
+    session.client.return_value = client
+    client.get_caller_identity.return_value = {
+        "Account": "123456789012",
+        "Arn": "arn:aws",
+    }
+
+    async def _mock_get_session(*args, **kwargs):
+        return session
+
+    mocker.patch(
+        "wandb.sdk.launch.environment.aws_environment.AwsEnvironment.get_session",
+        _mock_get_session,
+    )
+    environment = _get_environment()
+    part = await environment.get_partition()
+    assert part == "aws"
