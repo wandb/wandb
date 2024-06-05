@@ -823,7 +823,6 @@ class RelayServer:
             connection = request.environ["werkzeug.socket"]  # Get the socket object
             connection.shutdown(socket.SHUT_RDWR)
             connection.close()
-            raise ConnectionResetError("Connection reset by peer")
 
         if self.verbose:
             print("*****************")
