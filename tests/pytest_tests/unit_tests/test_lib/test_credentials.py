@@ -2,7 +2,10 @@ import json
 from datetime import datetime, timedelta
 from pathlib import Path
 
+import pytest
 import responses
+
+from wandb import errors
 from wandb.sdk.lib.credentials import _expires_at_fmt, access_token
 
 
@@ -14,7 +17,6 @@ def write_credentials(data: dict, credentials_file: str):
 def write_token(token_file: str):
     with open(token_file, "w") as f:
         f.write("eykldfkma94wp4rm")
-
 
 def test_write_credentials(tmp_path: Path):
     base_url = "http://localhost"
@@ -120,3 +122,29 @@ def test_write_credentials_other_base_url(tmp_path: Path):
             assert creds
             other_creds = data["credentials"][other_base_url]
             assert other_creds
+
+
+def test_token_expired(tmp_path: Path):
+    base_url = "http://localhost"
+    credentials_file = str(tmp_path / "credentials.json")
+
+    token_file = str(tmp_path / "jwt.txt")
+    write_token(token_file)
+
+    with responses.RequestsMock() as rsps:
+        rsps.add(responses.POST, base_url + "/oidc/token", json={'error': 'Token expired'}, status=401)
+
+        with pytest.raises(errors.AuthenticationError):
+            access_token(base_url, token_file, credentials_file)
+
+
+def test_token_file_not_found(tmp_path: Path):
+    base_url = "http://localhost"
+    token_file = str(tmp_path / "jwt.txt")
+    credentials_file = str(tmp_path / "credentials.json")
+
+    with responses.RequestsMock() as rsps:
+        with pytest.raises(FileNotFoundError):
+            access_token(base_url, token_file, credentials_file)
+
+
