@@ -16,18 +16,6 @@ const (
 	DefaultConcurrencyLimit = 128
 )
 
-type FileTransferType string
-
-const (
-	FileTransferTypeDefault = FileTransferType("Default")
-)
-
-type FileTransfer interface {
-	Upload(task *Task) error
-	Download(task *Task) error
-	TransferType() FileTransferType
-}
-
 // A manager of asynchronous file upload tasks.
 type FileTransferManager interface {
 	// Asynchronously begins the main loop of the file transfer manager.
@@ -46,7 +34,7 @@ type fileTransferManager struct {
 	inChan chan *Task
 
 	// fileTransfers is the map of fileTransfer uploader/downloaders
-	fileTransfers map[FileTransferType]FileTransfer
+	fileTransfers *FileTransfers
 
 	// fileTransferStats keeps track of upload/download statistics
 	fileTransferStats FileTransferStats
@@ -81,7 +69,7 @@ func WithSettings(settings *service.Settings) FileTransferManagerOption {
 	}
 }
 
-func WithFileTransfers(fileTransfers map[FileTransferType]FileTransfer) FileTransferManagerOption {
+func WithFileTransfers(fileTransfers *FileTransfers) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
 		fm.fileTransfers = fileTransfers
 	}
@@ -181,12 +169,12 @@ func (fm *fileTransferManager) Close() {
 
 // Uploads or downloads a file.
 func (fm *fileTransferManager) transfer(task *Task) error {
-	var err error
-	// TODO: hardcoding to use default file transfer until more transfers are implemented
-	fileTransfer := fm.fileTransfers[FileTransferTypeDefault]
+	fileTransfer := fm.fileTransfers.GetFileTransferForTask(task)
 	if fileTransfer == nil {
-		return fmt.Errorf("file transfer default not found")
+		return fmt.Errorf("file transfer not found for task")
 	}
+
+	var err error
 	switch task.Type {
 	case UploadTask:
 		err = fileTransfer.Upload(task)

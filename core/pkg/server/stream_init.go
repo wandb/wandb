@@ -113,14 +113,11 @@ func NewFileTransferManager(
 	fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMaxSeconds().GetValue())
 	fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.Proto.GetXFileTransferTimeoutSeconds().GetValue())
 	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-	defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
+	fileTransfers := filetransfer.NewFileTransfers(
 		fileTransferRetryClient,
 		logger,
 		fileTransferStats,
 	)
-	fileTransfers := make(map[filetransfer.FileTransferType]filetransfer.FileTransfer)
-	fileTransfers[defaultFileTransfer.TransferType()] = defaultFileTransfer
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
 		filetransfer.WithSettings(settings.Proto),
