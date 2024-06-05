@@ -41,7 +41,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 167
+// Next ID: 168
 message Settings {
   reserved 12, 94;
 
@@ -87,10 +87,10 @@ message Settings {
   google.protobuf.BoolValue _require_core = 36;
 
   // file path to the jwt for authentication
-  google.protobuf.StringValue identity_token_file = 167;
+  google.protobuf.StringValue identity_token_file = 168;
 
   // file path location to write credentials
-  google.protobuf.StringValue credentials_file = 168;
+  google.protobuf.StringValue credentials_file = 169;
 
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
@@ -183,6 +183,7 @@ message Settings {
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
   RunMoment fork_from = 164;
+  RunMoment resume_from = 167;
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
   google.protobuf.StringValue run_job_type = 108;
