@@ -69,12 +69,12 @@ GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
 )
 
 S3_URI_RE = re.compile(r"s3://([^/]+)(/(.*))?")
-ARN_PARTITION_RE = re.compile(r"^arn:([^:]+):[^:]*:[^:]*:[^:]*:[^:]*$")
 GCS_URI_RE = re.compile(r"gs://([^/]+)(?:/(.*))?")
 AZURE_BLOB_REGEX = re.compile(
     r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
 )
 
+ARN_PARTITION_RE = re.compile(r"^arn:([^:]+):[^:]*:[^:]*:[^:]*:[^:]*$")
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 

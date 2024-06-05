@@ -248,7 +248,7 @@ async def test_get_partition(mocker):
     session.client.return_value = client
     client.get_caller_identity.return_value = {
         "Account": "123456789012",
-        "Arn": "arn:aws",
+        "Arn": "arn:aws:iam::123456789012:user/JohnDoe",
     }
 
     async def _mock_get_session(*args, **kwargs):
