@@ -24,6 +24,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/artifacts"
@@ -48,6 +49,7 @@ type SenderParams struct {
 	FileTransferManager filetransfer.FileTransferManager
 	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
+	TBHandler           *tensorboard.TBHandler
 	GraphqlClient       graphql.Client
 	Peeker              *observability.Peeker
 	RunSummary          *runsummary.RunSummary
@@ -92,6 +94,9 @@ type Sender struct {
 
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
+
+	// tbHandler integrates W&B with TensorBoard
+	tbHandler *tensorboard.TBHandler
 
 	// RunRecord is the run record
 	// TODO: remove this and use properly updated settings
@@ -171,6 +176,7 @@ func NewSender(
 		fileTransferManager: params.FileTransferManager,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
+		tbHandler:           params.TBHandler,
 		networkPeeker:       params.Peeker,
 		graphqlClient:       params.GraphqlClient,
 		mailbox:             params.Mailbox,
@@ -450,13 +456,17 @@ func (s *Sender) sendJobFlush() {
 
 	output, err := s.runSummary.CloneTree()
 	if err != nil {
-		s.logger.Error("sender: sendJobFlush: failed to copy run summary", "error", err)
+		s.logger.Error(
+			"sender: sendJobFlush: failed to copy run summary", "error", err,
+		)
 		return
 	}
 
-	artifact, err := s.jobBuilder.Build(output)
+	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
-		s.logger.Error("sender: sendDefer: failed to build job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to build job artifact", "error", err,
+		)
 		return
 	}
 	if artifact == nil {
@@ -467,7 +477,9 @@ func (s *Sender) sendJobFlush() {
 		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(s.fwdChan); err != nil {
-		s.logger.Error("sender: sendDefer: failed to save job artifact", "error", err)
+		s.logger.Error(
+			"sender: sendDefer: failed to save job artifact", "error", err,
+		)
 	}
 }
 
@@ -487,6 +499,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_TB:
 		request.State++
+		s.tbHandler.Finish()
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_SUM:
 		s.summaryDebouncer.Flush(s.streamSummary)
