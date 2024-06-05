@@ -25,6 +25,9 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	client.setClientHeaders(retryableReq)
 	client.setAuthHeaders(retryableReq)
 
+	// Prevent the connection from being re-used in case of an error.
+	retryableReq.Close = true
+
 	return client.sendToWandbBackend(retryableReq)
 }
 

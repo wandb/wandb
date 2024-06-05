@@ -2,6 +2,7 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -107,17 +108,13 @@ type Request struct {
 }
 
 func (req *Request) String() string {
-	s := "Request{"
-	s += "Method: " + req.Method + ", "
-	s += "Path: " + req.Path + ", "
-	s += "Body: " + string(req.Body) + ", "
-	s += "Headers: {"
-	for k, v := range req.Headers {
-		s += k + ": " + v + ", "
-	}
-	s += "}"
-	s += "}"
-	return s
+	return fmt.Sprintf(
+		"Request{Method: %s, Path: %s, Body: %s, Headers: %v}",
+		req.Method,
+		req.Path,
+		string(req.Body),
+		req.Headers,
+	)
 }
 
 type BackendOptions struct {

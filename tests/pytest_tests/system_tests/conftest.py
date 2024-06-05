@@ -990,6 +990,30 @@ def inject_file_stream_response(base_url, user):
 
 
 @pytest.fixture(scope="function")
+def inject_file_stream_connection_reset(base_url, user):
+    def helper(
+        run,
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        application_pattern: str = "1",
+    ) -> InjectedResponse:
+        return InjectedResponse(
+            method="POST",
+            url=(
+                urllib.parse.urljoin(
+                    base_url,
+                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
+                )
+            ),
+            application_pattern=TokenizedCircularPattern(application_pattern),
+            body=body or ConnectionResetError("Connection reset by peer"),
+            status=status,
+        )
+
+    yield helper
+
+
+@pytest.fixture(scope="function")
 def inject_graphql_response(base_url, user):
     def helper(
         body: Union[str, Exception] = "{}",
@@ -1017,15 +1041,3 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
-
-
-@pytest.fixture(scope="function")
-def debug_logs():
-    with unittest.mock.patch.dict(
-        os.environ,
-        {
-            "WANDB_DEBUG": "true",
-            "WANDB_CORE_DEBUG": "true",
-        },
-    ):
-        yield

@@ -26,57 +26,75 @@ type FsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-// loopProcess ingests the processChan to process incoming data into
-// FS requests.
-func (fs *fileStream) loopProcess() {
-	// Close the output channel at the end.
-	defer close(fs.transmitChan)
+// startProcessingUpdates asynchronously ingests updates.
+//
+// This returns a channel of actual work to perform to update the filestream's
+// next request.
+func (fs *fileStream) startProcessingUpdates(
+	updates <-chan Update,
+) <-chan CollectorStateUpdate {
+	stateUpdates := make(chan CollectorStateUpdate)
 
-	fs.logger.Debug("filestream: open", "path", fs.path)
+	go func() {
+		defer close(stateUpdates)
 
-	for update := range fs.processChan {
-		err := update.Apply(UpdateContext{
-			ModifyRequest: func(csu CollectorStateUpdate) {
-				fs.transmitChan <- csu
-			},
+		fs.logger.Debug("filestream: open", "path", fs.path)
 
-			Settings: fs.settings,
-			ClientID: fs.clientId,
+		for update := range updates {
+			err := update.Apply(UpdateContext{
+				ModifyRequest: func(csu CollectorStateUpdate) {
+					stateUpdates <- csu
+				},
 
-			Logger:  fs.logger,
-			Printer: fs.printer,
-		})
+				Settings: fs.settings,
+				ClientID: fs.clientId,
 
-		if err != nil {
-			fs.logFatalAndStopWorking(err)
-			break
+				Logger:  fs.logger,
+				Printer: fs.printer,
+			})
+
+			if err != nil {
+				fs.logFatalAndStopWorking(err)
+				break
+			}
 		}
-	}
 
-	// Flush input channel if we exited early.
-	for range fs.processChan {
-	}
+		// Flush input channel if we exited early.
+		for range updates {
+		}
+	}()
+
+	return stateUpdates
 }
 
-// loopTransmit sends updates in the transmitChan to the backend.
+// startTransmitting makes requests to the filestream API.
+//
+// It ingests a channel of updates and outputs a channel of API responses.
 //
 // Updates are batched to reduce the total number of HTTP requests.
 // An empty "heartbeat" request is sent when there are no updates for too long,
 // guaranteeing that a request is sent at least once every period specified
 // by `heartbeatStopwatch`.
-func (fs *fileStream) loopTransmit() {
-	// Close the output channel at the end.
-	defer close(fs.feedbackChan)
+func (fs *fileStream) startTransmitting(
+	stateUpdates <-chan CollectorStateUpdate,
+) <-chan map[string]any {
+	// Output channel of responses.
+	feedback := make(chan map[string]any)
+
+	// Internal channel of actual requests to make.
+	transmissions := make(chan *FsTransmitData)
 
 	state := CollectorState{}
-
-	transmissions := make(chan *FsTransmitData)
 
 	transmitWG := &sync.WaitGroup{}
 	transmitWG.Add(1)
 	go func() {
-		defer transmitWG.Done()
-		fs.sendAll(transmissions, fs.feedbackChan)
+		defer func() {
+			close(feedback)
+			transmitWG.Done()
+		}()
+
+		fs.sendAll(transmissions, feedback)
 	}()
 
 	// Periodically send heartbeats.
@@ -92,36 +110,51 @@ func (fs *fileStream) loopTransmit() {
 		fs.sendHeartbeats(stopHearbeat, transmissions)
 	}()
 
-	// Batch and send updates.
-	//
-	// We try to batch updates that happen in quick succession by waiting a
-	// short time after receiving an update.
-	for firstUpdate := range fs.transmitChan {
-		firstUpdate.Apply(&state)
-		fs.collectBatch(&state, fs.transmitChan)
+	go func() {
+		// Batch and send updates.
+		//
+		// We try to batch updates that happen in quick succession by waiting a
+		// short time after receiving an update.
+		for firstUpdate := range stateUpdates {
+			firstUpdate.Apply(&state)
+			fs.collectBatch(&state, stateUpdates)
 
-		fs.heartbeatStopwatch.Reset()
-		data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
-		if hasData {
-			transmissions <- data
+			fs.heartbeatStopwatch.Reset()
+			data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
+			if hasData {
+				transmissions <- data
+			}
 		}
-	}
 
-	// Stop sending heartbeats.
-	close(stopHearbeat)
-	heartbeatWG.Wait()
+		// Stop sending heartbeats.
+		close(stopHearbeat)
+		heartbeatWG.Wait()
 
-	// Send final transmission.
-	data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
-	transmissions <- data
-	close(transmissions)
-	transmitWG.Wait()
+		// Send final transmission.
+		data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
+		transmissions <- data
+		close(transmissions)
+		transmitWG.Wait()
+	}()
+
+	return feedback
 }
 
-// loopFeedback consumes the feedbackChan to process feedback from the backend.
-func (fs *fileStream) loopFeedback() {
-	for range fs.feedbackChan {
-	}
+// startProcessingFeedback processes feedback from the filestream API.
+//
+// This increments the wait group and decrements it after completing
+// all work.
+func (fs *fileStream) startProcessingFeedback(
+	feedback <-chan map[string]any,
+	wg *sync.WaitGroup,
+) {
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		for range feedback {
+		}
+	}()
 }
 
 func (fs *fileStream) sendHeartbeats(
@@ -207,13 +240,13 @@ func (fs *fileStream) send(
 	case err != nil:
 		return fmt.Errorf(
 			"filestream: error making HTTP request: %v. request: %v. response: %v",
-			req.String(),
+			req,
 			resp,
 			err,
 		)
 	case resp == nil:
 		// Sometimes resp and err can both be nil in retryablehttp's Client.
-		return fmt.Errorf("filestream: nil response and nil error for request %v", req.String())
+		return fmt.Errorf("filestream: nil response and nil error for request %v", req)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
