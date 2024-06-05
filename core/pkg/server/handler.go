@@ -60,9 +60,11 @@ type Handler struct {
 	// settings is the settings for the handler
 	settings *service.Settings
 
-	// clientID is used to allow multiple writers to log to the same run.
+	// clientID is an ID for this process.
 	//
-	// This is relevant in "shared" mode.
+	// This identifies the process that uploaded a set of metrics when
+	// running in "shared" mode, where there may be multiple writers for
+	// the same run.
 	clientID string
 
 	// logger is the logger for the handler
