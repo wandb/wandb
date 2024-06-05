@@ -20,7 +20,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
@@ -94,7 +93,6 @@ func NewFileStream(
 		Logger:    logger,
 		Printer:   printer,
 		ApiClient: fileStreamRetryClient,
-		ClientId:  utils.ShortID(32),
 	}
 
 	return filestream.NewFileStream(params)
