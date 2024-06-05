@@ -16,6 +16,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 - Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
+- Added new Workspace API for programatically editing W&B Workspaces https://github.com/wandb/wandb/pull/7728
 
 ### Fixed
 
@@ -33,6 +34,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
 - Update order in api.runs() to ascending to prevent duplicate responses by @thanos-wandb https://github.com/wandb/wandb/pull/7675
 - Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586
+- Break out Reports and Workspace code into new `wandb-workspaces pkg` by @andrewtruong in https://github.com/wandb/wandb/pull/7728
 
 ### Deprecated
 
