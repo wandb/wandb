@@ -18,7 +18,6 @@ type UpdateContext struct {
 	ModifyRequest func(CollectorStateUpdate)
 
 	Settings *service.Settings
-	ClientID string
 
 	Logger  *observability.CoreLogger
 	Printer *observability.Printer
