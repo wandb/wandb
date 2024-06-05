@@ -15,6 +15,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
+- Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
 - Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
 
 ### Fixed
@@ -25,6 +26,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 - Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
 - Fix path parsing for artifacts with aliases containing forward slashes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7676
+- Add missing docstrings for any public methods in `Api` class by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7713
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
 
 ### Changed
