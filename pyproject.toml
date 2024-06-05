@@ -21,10 +21,10 @@ dependencies = [
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
     "setuptools",
-    "protobuf>=3.12.0,!=4.21.0,<5; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
+    "protobuf>=3.12.0,!=4.21.0,<6; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,<6; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<6; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<6; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
     "platformdirs",
