@@ -925,6 +925,7 @@ def wandb_init(user, test_settings, request):
         save_code: Optional[bool] = None,
         id: Optional[str] = None,
         fork_from: Optional[str] = None,
+        resume_from: Optional[str] = None,
         settings: Union[
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
