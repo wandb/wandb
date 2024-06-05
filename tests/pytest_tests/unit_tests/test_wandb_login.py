@@ -169,10 +169,21 @@ def test_login_with_token_file(tmp_path: Path):
         f.write("eyaksdcmlasfm")
 
     expires_at = datetime.now() + timedelta(days=5)
-    data = {"credentials": { base_url: {"access_token": "wb_at_ksdfmlaskfm", "expires_at": expires_at.strftime(_expires_at_fmt)}}}
+    data = {
+        "credentials": {
+            base_url: {
+                "access_token": "wb_at_ksdfmlaskfm",
+                "expires_at": expires_at.strftime(_expires_at_fmt),
+            }
+        }
+    }
     with open(credentials_file, "w") as f:
         json.dump(data, f)
 
-    with mock.patch.dict("os.environ", WANDB_IDENTITY_TOKEN_FILE=token_file, WANDB_CREDENTIALS_FILE=credentials_file):
+    with mock.patch.dict(
+        "os.environ",
+        WANDB_IDENTITY_TOKEN_FILE=token_file,
+        WANDB_CREDENTIALS_FILE=credentials_file,
+    ):
         wandb.login()
         assert wandb.api.is_authenticated
