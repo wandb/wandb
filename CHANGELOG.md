@@ -34,7 +34,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
 - Update order in api.runs() to ascending to prevent duplicate responses by @thanos-wandb https://github.com/wandb/wandb/pull/7675
 - Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586
-- Break out Reports and Workspace code into new `wandb-workspaces` pkg by @andrewtruong in https://github.com/wandb/wandb/pull/7728
 
 ### Deprecated
 
