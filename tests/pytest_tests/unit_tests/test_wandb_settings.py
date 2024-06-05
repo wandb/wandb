@@ -13,6 +13,7 @@ from click.testing import CliRunner
 from wandb.errors import UsageError
 from wandb.sdk import wandb_settings
 from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
+from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
@@ -480,6 +481,18 @@ def test_ignore_globs_env():
         "bar",
     )
 
+def test_token_file_env():
+    s = Settings()
+    s._apply_env_vars({"WANDB_IDENTITY_TOKEN_FILE": "jwt.txt"})
+    assert s.identity_token_file == ("jwt.txt")
+
+def test_credentials_file_env():
+    s = Settings()
+    assert s.credentials_file == DEFAULT_WANDB_CREDENTIALS_FILE
+
+    s = Settings()
+    s._apply_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
+    assert s.credentials_file == "tmp/credentials.json"
 
 def test_quiet():
     s = Settings()
@@ -801,7 +814,6 @@ def test_resume_fname(test_settings):
         os.path.join(".", "wandb", "wandb-resume.json")
     )
 
-
 @pytest.mark.skip(reason="CircleCI still lets you write to root_dir")
 def test_non_writable_root_dir(capsys):
     with CliRunner().isolated_filesystem():
@@ -970,7 +982,6 @@ def test_setup_offline(test_settings):
     assert wandb.setup(settings=login_settings)._instance._get_entity() is None
     assert wandb.setup(settings=login_settings)._instance._load_viewer() is None
 
-
 def test_disable_machine_info(test_settings):
     settings = test_settings()
     attrs = (
@@ -997,7 +1008,6 @@ def test_silent_env_run(mock_run, test_settings):
         settings._apply_env_vars(os.environ)
         run = mock_run(settings=settings)
         assert run._settings.silent is True
-
 
 def test_is_instance_recursive():
     # Test with simple types
