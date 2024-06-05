@@ -16,6 +16,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 - Added the ability to overwite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
+- Added basic TensorBoard support when running with `wandb.require("core")` by @timoffex in https://github.com/wandb/wandb/pull/7725
+  - The TensorBoard tab in W&B will work.
+  - Charts show up in W&B, possibly better than when running without core.
+  - Not all types of data are supported yet. Unsupported data is not shown in charts.
 
 ### Fixed
 
