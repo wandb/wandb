@@ -20,7 +20,6 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
@@ -95,7 +94,6 @@ func NewFileStream(
 		Logger:    logger,
 		Printer:   printer,
 		ApiClient: fileStreamRetryClient,
-		ClientId:  utils.ShortID(32),
 	}
 
 	return filestream.NewFileStream(params)
@@ -114,8 +112,7 @@ func NewFileTransferManager(
 	fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMaxSeconds().GetValue())
 	fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.Proto.GetXFileTransferTimeoutSeconds().GetValue())
 	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-	defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
+	fileTransfers := filetransfer.NewFileTransfers(
 		fileTransferRetryClient,
 		logger,
 		fileTransferStats,
@@ -123,7 +120,7 @@ func NewFileTransferManager(
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
 		filetransfer.WithSettings(settings.Proto),
-		filetransfer.WithFileTransfer(defaultFileTransfer),
+		filetransfer.WithFileTransfers(fileTransfers),
 		filetransfer.WithFileTransferStats(fileTransferStats),
 	)
 }
