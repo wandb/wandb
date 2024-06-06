@@ -311,16 +311,20 @@ func (tb *TBHandler) convertToRunHistory(
 			"namespace", namespace,
 		)
 
-		if history := converter.Convert(event, tb.logger); history != nil {
-			tb.sendHistoryRecord(history)
+		if request := converter.ConvertNext(event, tb.logger); request != nil {
+			tb.sendHistoryRequest(request)
 		}
 	}
 }
 
-func (tb *TBHandler) sendHistoryRecord(history *service.HistoryRecord) {
+func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) {
 	tb.outChan <- &service.Record{
-		RecordType: &service.Record_History{
-			History: history,
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_PartialHistory{
+					PartialHistory: request,
+				},
+			},
 		},
 
 		// Don't persist the record to the transaction log---

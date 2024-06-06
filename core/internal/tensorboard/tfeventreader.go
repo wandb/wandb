@@ -129,10 +129,9 @@ func (s *TFEventReader) ensureBuffer(
 
 	// If we haven't found the first file, try to find it.
 	if s.currentFile == nil {
-		var err error
-		s.currentFile, err = nextTFEventsFile(s.logDir, nil, s.fileFilter)
+		s.currentFile = s.nextTFEventsFile()
 
-		if err != nil || s.currentFile == nil {
+		if s.currentFile == nil {
 			return false
 		}
 
@@ -147,18 +146,7 @@ func (s *TFEventReader) ensureBuffer(
 		// not work because between reaching the end of the current file and
 		// finding the next file, more events could have been written to the
 		// current file.
-		nextFile, err := nextTFEventsFile(
-			s.logDir,
-			s.currentFile,
-			s.fileFilter,
-		)
-		if err != nil {
-			s.logger.Warn(
-				"tensorboard: error while looking for next tfevents file",
-				"error",
-				err,
-			)
-		}
+		nextFile := s.nextTFEventsFile()
 
 		success, err := s.readFromCurrent(count)
 
@@ -183,6 +171,27 @@ func (s *TFEventReader) ensureBuffer(
 		s.currentOffset = 0
 		onNewFile(*s.currentFile)
 	}
+}
+
+// nextTFEventsFile finds the tfevents file that comes after the current one.
+//
+// Returns nil if there is no next file yet.
+func (s *TFEventReader) nextTFEventsFile() *paths.AbsolutePath {
+	nextFile, err := nextTFEventsFile(
+		s.logDir,
+		s.currentFile,
+		s.fileFilter,
+	)
+
+	if err != nil {
+		s.logger.Warn(
+			"tensorboard: error while looking for next tfevents file",
+			"error",
+			err,
+		)
+	}
+
+	return nextFile
 }
 
 // readFromCurrent reads into the buffer from the current tfevents file until

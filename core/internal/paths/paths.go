@@ -88,9 +88,9 @@ func Absolute(path string) (*AbsolutePath, error) {
 func Relative(path string) (*RelativePath, error) {
 	if filepath.IsAbs(path) {
 		return nil, fmt.Errorf("path is not relative: %s", path)
-	} else {
-		return toPtr(RelativePath(filepath.Clean(path))), nil
 	}
+
+	return toPtr(RelativePath(filepath.Clean(path))), nil
 }
 
 // RelativeTo returns an equivalent path that is relative to the given path.
