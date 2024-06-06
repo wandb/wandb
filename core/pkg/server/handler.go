@@ -1007,7 +1007,9 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 }
 
 func (h *Handler) handleTBrecord(record *service.TBRecord) {
-	h.tbHandler.Handle(record)
+	if err := h.tbHandler.Handle(record); err != nil {
+		h.logger.CaptureError("handler: failed to handle TB record", err)
+	}
 }
 
 // The main entry point for history records.

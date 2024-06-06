@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/wandb/wandb/core/internal/paths"
 )
 
 // nextTFEventsFile returns the tfevents file that comes after the given one.
@@ -23,19 +25,19 @@ import (
 //
 // This returns an error if the directory doesn't exist.
 func nextTFEventsFile(
-	dir string,
-	path string,
+	dir paths.AbsolutePath,
+	path *paths.AbsolutePath,
 	filter TFEventsFileFilter,
-) (string, error) {
-	name := filepath.Base(path)
+) (*paths.AbsolutePath, error) {
+	name := []rune(filepath.Base(path.OrEmpty()))
 
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(string(dir))
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(entries) == 0 {
-		return "", fmt.Errorf("tensorboard: directory is empty")
+		return nil, fmt.Errorf("tensorboard: directory is empty")
 	}
 
 	next := ""
@@ -53,7 +55,7 @@ func nextTFEventsFile(
 		// In practice it's not clear this will matter, since tfevents file
 		// names are probably ASCII other than the "hostname" portion which
 		// could be arbitrary.
-		if slices.Compare([]rune(entry.Name()), []rune(name)) <= 0 {
+		if slices.Compare([]rune(entry.Name()), name) <= 0 {
 			continue
 		}
 
@@ -69,10 +71,10 @@ func nextTFEventsFile(
 	}
 
 	if next == "" {
-		return "", nil
+		return nil, nil
 	}
 
-	return filepath.Join(dir, next), nil
+	return paths.Absolute(filepath.Join(string(dir), next))
 }
 
 // TFEventsFileFilter is the information necessary to select related
