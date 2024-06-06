@@ -25,6 +25,7 @@ import (
 // NewBackend returns a Backend or nil if we're offline.
 func NewBackend(
 	logger *observability.CoreLogger,
+	printer *observability.Printer,
 	settings *settings.Settings,
 ) *api.Backend {
 	if settings.IsOffline() {
@@ -38,6 +39,7 @@ func NewBackend(
 	return api.New(api.BackendOptions{
 		BaseURL: baseURL,
 		Logger:  logger.Logger,
+		Printer: printer,
 		APIKey:  settings.GetAPIKey(),
 	})
 }
@@ -54,6 +56,7 @@ func NewGraphQLClient(
 	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
 
 	httpClient := backend.NewClient(api.ClientOptions{
+		RateLimitDomain: "GraphQL",
 		RetryPolicy:     clients.CheckRetry,
 		RetryMax:        int(settings.Proto.GetXGraphqlRetryMax().GetValue()),
 		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMinSeconds().GetValue()),
@@ -80,6 +83,7 @@ func NewFileStream(
 	}
 
 	fileStreamRetryClient := backend.NewClient(api.ClientOptions{
+		RateLimitDomain: "Filestream",
 		RetryPolicy:     filestream.RetryPolicy,
 		RetryMax:        int(settings.Proto.GetXFileStreamRetryMax().GetValue()),
 		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMinSeconds().GetValue()),

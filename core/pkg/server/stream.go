@@ -166,7 +166,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, settings)
+	backendOrNil := NewBackend(s.logger, terminalPrinter, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{

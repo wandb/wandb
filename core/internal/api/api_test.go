@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func TestSend(t *testing.T) {
@@ -101,7 +102,13 @@ func newClient(
 	baseURL, err := url.Parse(baseURLString)
 	require.NoError(t, err)
 
-	backend := api.New(api.BackendOptions{BaseURL: baseURL})
+	opts.RateLimitDomain = "test"
+
+	backend := api.New(api.BackendOptions{
+		BaseURL: baseURL,
+		Logger:  observability.NewNoOpLogger().Logger,
+		Printer: observability.NewPrinter(),
+	})
 	return backend.NewClient(opts)
 }
 

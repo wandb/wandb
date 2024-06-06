@@ -5,6 +5,9 @@ import (
 )
 
 type Peeker interface {
+	// Peek inspects the request and response.
+	//
+	// If it reads the response body, it must replace it.
 	Peek(*http.Request, *http.Response)
 }
 

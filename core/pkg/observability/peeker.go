@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -26,8 +25,6 @@ func (p *Peeker) Read() []*service.HttpResponse {
 
 	return responses
 }
-
-var _ api.Peeker = &Peeker{}
 
 func (p *Peeker) Peek(_ *http.Request, resp *http.Response) {
 	if resp == nil || resp.Body == nil {

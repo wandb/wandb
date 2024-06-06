@@ -10,16 +10,21 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 const (
 	// Don't go slower than 1 request per 10 seconds.
+	//
+	// If the server says to go slower than this, it's not your server. Run.
 	minRequestsPerSecond = 0.1
 
-	// Don't go faster than 2^16 requests per second.
+	// Don't go faster than 2^10 requests per second.
 	//
 	// This is an arbitrary limit that the client is never expected to hit.
-	maxRequestsPerSecond = 65536
+	// It's set low enough so that the rate limit estimation code can
+	// converge quickly.
+	maxRequestsPerSecond = 1024
 
 	// Don't send more than 10 requests at a time.
 	maxBurst = 10
@@ -38,6 +43,9 @@ type Backend struct {
 	// Note that these are only useful for debugging, and not helpful to a
 	// user. There's no guarantee that all logs are made at the Debug level.
 	logger *slog.Logger
+
+	// A printer for writing to the user's console.
+	printer *observability.Printer
 
 	// API key for backend requests.
 	apiKey string
@@ -125,6 +133,9 @@ type BackendOptions struct {
 	// Logger for HTTP operations.
 	Logger *slog.Logger
 
+	// A printer for sending feedback to the user.
+	Printer *observability.Printer
+
 	// W&B API key.
 	APIKey string
 }
@@ -134,14 +145,33 @@ type BackendOptions struct {
 // The `baseURL` is the scheme and hostname for contacting the server, not
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
+	// Fail early on missing parameters.
+	switch {
+	case opts.Logger == nil:
+		panic("api: nil Logger not allowed")
+	case opts.Printer == nil:
+		panic("api: nil Printer not allowed")
+	}
+
 	return &Backend{
 		baseURL: opts.BaseURL,
 		logger:  opts.Logger,
+		printer: opts.Printer,
 		apiKey:  opts.APIKey,
 	}
 }
 
 type ClientOptions struct {
+	// A callback that runs on every HTTP response.
+	NetworkPeeker Peeker
+
+	// A human-readable string identifying the rate-limit used for this client.
+	//
+	// W&B has at least two independent rate limits: "filestream" and
+	// "GraphQL". This string should help the user look up any limit they're
+	// hitting in the documentation.
+	RateLimitDomain string
+
 	// Maximum number of retries to make for retryable requests.
 	RetryMax int
 
@@ -170,15 +200,14 @@ type ClientOptions struct {
 	// In particular, they are not sent if using this client to send
 	// arbitrary HTTP requests.
 	ExtraHeaders map[string]string
-
-	// Allows the client to peek at the network traffic, can preform any action
-	// on the request and response. Need to make sure that the response body is
-	// available to read by later stages.
-	NetworkPeeker Peeker
 }
 
 // Creates a new [Client] for making requests to the [Backend].
 func (backend *Backend) NewClient(opts ClientOptions) Client {
+	if opts.RateLimitDomain == "" {
+		panic("api: RateLimitDomain not set")
+	}
+
 	retryableHTTP := retryablehttp.NewClient()
 	retryableHTTP.Backoff = clients.ExponentialBackoffWithJitter
 	retryableHTTP.RetryMax = opts.RetryMax
@@ -207,8 +236,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.HTTPClient.Transport =
 		NewPeekingTransport(
 			opts.NetworkPeeker,
-			NewRateLimitedTransport(retryableHTTP.HTTPClient.Transport),
-		)
+			NewRateLimitedTransport(
+				opts.RateLimitDomain,
+				retryableHTTP.HTTPClient.Transport,
+				backend.printer))
 
 	return &clientImpl{
 		backend:       backend,
