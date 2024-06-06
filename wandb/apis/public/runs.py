@@ -185,61 +185,78 @@ class Runs(Paginator):
             format : (Literal, optional) Format to return data in, options are "default", "pandas", "polars"
             stream : (Literal, optional) "default" for metrics, "system" for machine metrics
         Returns:
-            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics indexed by run id.
-            polars.DataFrame: If format="polars", returns a `polars.DataFrame` of history metrics indexed by run id.
+            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics.
+            polars.DataFrame: If format="polars", returns a `polars.DataFrame` of history metrics.
             list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
         """
-        all_histories = []
+        if format not in ("default", "pandas", "polars"):
+            raise ValueError(
+                f"Invalid format: {format}. Must be one of 'default', 'pandas', 'polars'"
+            )
 
-        pd = None
-        pl = None
+        histories = []
+
+        if format == "default":
+            for run in self:
+                history_data = run.history(
+                    samples=samples,
+                    keys=keys,
+                    x_axis=x_axis,
+                    pandas=False,
+                    stream=stream,
+                )
+                if not history_data:
+                    continue
+                for entry in history_data:
+                    entry["run_id"] = run.id
+                histories.extend(history_data)
+
+            return histories
 
         if format == "pandas":
             pd = util.get_module(
-                "pandas", required="Logging dataframes requires pandas"
+                "pandas", required="Exporting pandas DataFrame requires pandas"
             )
-        elif format == "polars":
-            pd = util.get_module(
-                "pandas", required="Exporting Polars DataFrame requires pandas"
-            )
+            for run in self:
+                history_data = run.history(
+                    samples=samples,
+                    keys=keys,
+                    x_axis=x_axis,
+                    pandas=False,
+                    stream=stream,
+                )
+                df = pd.DataFrame.from_records(history_data)
+                df["run_id"] = run.id
+                histories.append(df)
+            combined_df = pd.concat(histories)
+            combined_df.sort_values("run_id", inplace=True)
+            combined_df.reset_index(drop=True, inplace=True)
+            # sort columns for consistency
+            combined_df = combined_df[(sorted(combined_df.columns))]
+            print(combined_df.shape)
+
+            return combined_df
+
+        if format == "polars":
             pl = util.get_module(
-                "polars", required="Exporting Polars DataFrame requires polars"
+                "polars", required="Exporting polars DataFrame requires polars"
             )
+            for run in self:
+                history_data = run.history(
+                    samples=samples,
+                    keys=keys,
+                    x_axis=x_axis,
+                    pandas=False,
+                    stream=stream,
+                )
+                df = pl.from_records(history_data)
+                df = df.with_columns(pl.lit(run.id).alias("run_id"))
+                histories.append(df)
+            combined_df = pl.concat(histories, how="align")
+            # sort columns for consistency
+            combined_df = combined_df.select(sorted(combined_df.columns)).sort("run_id")
 
-        for run in self:
-            history_data = run.history(
-                samples=samples,
-                keys=keys,
-                x_axis=x_axis,
-                pandas=(format in ["pandas", "polars"]),
-                stream=stream,
-            )
-
-            if format in ["pandas", "polars"] and pd:
-                if isinstance(history_data, pd.DataFrame) and not history_data.empty:
-                    history_data["run_id"] = run.id
-                    all_histories.append(history_data)
-            elif format == "default":
-                if isinstance(history_data, list) and history_data:
-                    for entry in history_data:
-                        entry["run_id"] = run.id
-                    all_histories.extend(history_data)
-
-        if format in ["pandas", "polars"]:
-            if pd and all_histories:
-                combined_df = pd.concat(all_histories)
-                combined_df.set_index("run_id", inplace=True)
-                if format == "polars" and pl:
-                    combined_df.reset_index(inplace=True)
-                    combined_df = pl.DataFrame(combined_df)
-                    combined_df = combined_df.with_columns(
-                        [pl.col("run_id").cast(pl.Utf8)]
-                    )
-                return combined_df
-            else:
-                return pd.DataFrame() if pd else []
-        else:
-            return all_histories
+            return combined_df
 
     def __repr__(self):
         return f"<Runs {self.entity}/{self.project}>"
@@ -663,9 +680,9 @@ class Run(Attrs):
         else:
             lines = self._full_history(samples=samples, stream=stream)
         if pandas:
-            pandas = util.get_module("pandas")
-            if pandas:
-                lines = pandas.DataFrame.from_records(lines)
+            pd = util.get_module("pandas")
+            if pd:
+                lines = pd.DataFrame.from_records(lines)
             else:
                 print("Unable to load pandas, call history with pandas=False")
         return lines

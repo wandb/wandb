@@ -775,13 +775,14 @@ def test_runs_histories(
             "_step": 1,
             "metric1": 0.1,
             "metric2": 0.2,
+            "metric3": 0.3,  # test for different shape
             "system_metric1": 10,
             "run_id": "test_1",
         },
         {
             "_step": 2,
-            "metric1": 0.3,
-            "metric2": 0.4,
+            "metric1": 0.4,
+            "metric2": 0.5,
             "system_metric1": 20,
             "run_id": "test_1",
         },
@@ -802,22 +803,25 @@ def test_runs_histories(
         assert all_histories[0]["_step"] == 1
         assert all_histories[0]["metric1"] == 0.1
         assert all_histories[0]["metric2"] == 0.2
+        assert all_histories[0]["metric3"] == 0.3
         assert all_histories[0]["system_metric1"] == 10
         assert all_histories[1]["_step"] == 2
-        assert all_histories[1]["metric1"] == 0.3
-        assert all_histories[1]["metric2"] == 0.4
+        assert all_histories[1]["metric1"] == 0.4
+        assert all_histories[1]["metric2"] == 0.5
         assert all_histories[1]["system_metric1"] == 20
 
         all_histories_pandas = runs.histories(samples=2, format="pandas")
-        assert all_histories_pandas.shape == (2, 4)
+        assert all_histories_pandas.shape == (2, 6)
         assert "_step" in all_histories_pandas.columns
         assert "metric1" in all_histories_pandas.columns
         assert "metric2" in all_histories_pandas.columns
+        assert "metric3" in all_histories_pandas.columns
         assert "system_metric1" in all_histories_pandas.columns
 
         all_histories_polars = runs.histories(samples=2, format="polars")
-        assert all_histories_polars.shape == (2, 5)
+        assert all_histories_polars.shape == (2, 6)
         assert "_step" in all_histories_polars.columns
         assert "metric1" in all_histories_polars.columns
         assert "metric2" in all_histories_polars.columns
+        assert "metric3" in all_histories_polars.columns
         assert "system_metric1" in all_histories_polars.columns
