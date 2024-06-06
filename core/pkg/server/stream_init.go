@@ -53,15 +53,29 @@ func NewGraphQLClient(
 	}
 	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
 
-	httpClient := backend.NewClient(api.ClientOptions{
+	opts := api.ClientOptions{
 		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        int(settings.Proto.GetXGraphqlRetryMax().GetValue()),
-		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMinSeconds().GetValue()),
-		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
-		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXGraphqlTimeoutSeconds().GetValue()),
+		RetryMax:        api.DefaultRetryMax,
+		RetryWaitMin:    api.DefaultRetryWaitMin,
+		RetryWaitMax:    api.DefaultRetryWaitMax,
+		NonRetryTimeout: api.DefaultNonRetryTimeout,
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
-	})
+	}
+	if retryMax := settings.Proto.GetXGraphqlRetryMax(); retryMax != nil {
+		opts.RetryMax = int(retryMax.GetValue())
+	}
+	if retryWaitMin := settings.Proto.GetXGraphqlRetryWaitMinSeconds(); retryWaitMin != nil {
+		opts.RetryWaitMin = clients.SecondsToDuration(retryWaitMin.GetValue())
+	}
+	if retryWaitMax := settings.Proto.GetXGraphqlRetryWaitMaxSeconds(); retryWaitMax != nil {
+		opts.RetryWaitMax = clients.SecondsToDuration(retryWaitMax.GetValue())
+	}
+	if timeout := settings.Proto.GetXGraphqlTimeoutSeconds(); timeout != nil {
+		opts.NonRetryTimeout = clients.SecondsToDuration(timeout.GetValue())
+	}
+
+	httpClient := backend.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
 
 	return graphql.NewClient(endpoint, httpClient)
@@ -120,16 +134,30 @@ func NewFileTransferManager(
 	fileTransferRetryClient := retryablehttp.NewClient()
 	fileTransferRetryClient.Logger = logger
 	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
-	fileTransferRetryClient.RetryMax = int(settings.Proto.GetXFileTransferRetryMax().GetValue())
-	fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMinSeconds().GetValue())
-	fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMaxSeconds().GetValue())
-	fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.Proto.GetXFileTransferTimeoutSeconds().GetValue())
+	fileTransferRetryClient.RetryMax = filetransfer.DefaultRetryMax
+	fileTransferRetryClient.RetryWaitMin = filetransfer.DefaultRetryWaitMin
+	fileTransferRetryClient.RetryWaitMax = filetransfer.DefaultRetryWaitMax
+	fileTransferRetryClient.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
 	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
 	fileTransfers := filetransfer.NewFileTransfers(
 		fileTransferRetryClient,
 		logger,
 		fileTransferStats,
 	)
+
+	if retryMax := settings.Proto.GetXFileTransferRetryMax(); retryMax != nil {
+		fileTransferRetryClient.RetryMax = int(retryMax.GetValue())
+	}
+	if retryWaitMin := settings.Proto.GetXFileTransferRetryWaitMinSeconds(); retryWaitMin != nil {
+		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(retryWaitMin.GetValue())
+	}
+	if retryWaitMax := settings.Proto.GetXFileTransferRetryWaitMaxSeconds(); retryWaitMax != nil {
+		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(retryWaitMax.GetValue())
+	}
+	if timeout := settings.Proto.GetXFileTransferTimeoutSeconds(); timeout != nil {
+		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(timeout.GetValue())
+	}
+
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
 		filetransfer.WithSettings(settings.Proto),
