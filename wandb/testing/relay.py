@@ -737,11 +737,6 @@ class RelayServer:
                 resp = injected_response.to_dict()
 
                 if isinstance(resp["body"], ConnectionResetError):
-                    # connection = request.environ[
-                    #     "werkzeug.socket"
-                    # ]  # Get the socket object
-                    # connection.shutdown(socket.SHUT_RDWR)
-                    # connection.close()
                     return None
 
                 mocked_responses.add(**resp)
