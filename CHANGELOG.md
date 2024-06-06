@@ -15,7 +15,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
-- Added the ability to overwite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
+- Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
+- Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
 
 ### Fixed
 
