@@ -6,11 +6,13 @@
 package tensorboard
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -64,15 +66,31 @@ func NewTBHandler(params Params) *TBHandler {
 }
 
 // Handle begins processing the events in a TensorBoard logs directory.
-func (tb *TBHandler) Handle(record *service.TBRecord) {
+func (tb *TBHandler) Handle(record *service.TBRecord) error {
 	shouldSave := record.Save
-	rootDir := record.GetRootDir()
-	if !filepath.IsAbs(rootDir) {
-		rootDir = filepath.Clean(filepath.Join(tb.workingDir, rootDir))
+
+	maybeRootDir, err := paths.Absolute(record.RootDir)
+	if err != nil {
+		return fmt.Errorf(
+			"tensorboard: cannot make rootDir %v absolute: %v",
+			record.RootDir,
+			err,
+		)
 	}
+	rootDir := *maybeRootDir
+
+	maybeLogDir, err := paths.Absolute(record.LogDir)
+	if err != nil {
+		return fmt.Errorf(
+			"tensorboard: cannot make logDir %v absolute: %v",
+			record.LogDir,
+			err,
+		)
+	}
+	logDir := *maybeLogDir
 
 	stream := NewTFEventStream(
-		record.LogDir,
+		logDir,
 		tb.fileReadDelay,
 		TFEventsFileFilter{
 			StartTimeSec: int64(tb.settings.XStartTime.GetValue()),
@@ -104,6 +122,7 @@ func (tb *TBHandler) Handle(record *service.TBRecord) {
 	}()
 
 	stream.Start()
+	return nil
 }
 
 func (tb *TBHandler) Finish() {
@@ -122,50 +141,43 @@ func (tb *TBHandler) Finish() {
 //
 // The `rootDir` must an absolute path that is an ancestor of `path`.
 // It is used to compute the filename to use when saving the file to the run.
-func (tb *TBHandler) saveFile(path string, rootDir string) {
+func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	tb.logger.Debug(
-		"tensorboard: update",
+		"tensorboard: saving file",
 		"path", path,
 		"rootDir", rootDir,
 	)
 
-	// Get the absolute and relative versions of the path.
-	absolutePath, err := filepath.Abs(path)
-	if err != nil {
-		tb.logger.CaptureError(
-			"tensorboard: error getting absolute path", err,
-			"path", path)
-		return
-	}
-	relativePath, err := filepath.Rel(rootDir, absolutePath)
+	maybeRelPath, err := path.RelativeTo(rootDir)
 	if err != nil {
 		tb.logger.CaptureError(
 			"tensorboard: error getting relative path", err,
 			"rootDir", rootDir,
-			"path", absolutePath)
+			"path", path)
 		return
 	}
+	relPath := *maybeRelPath
 
-	if !filepath.IsLocal(relativePath) {
+	if !relPath.IsLocal() {
 		tb.logger.CaptureError(
 			"tensorboard: file is not under TB root", nil,
 			"rootDir", rootDir,
-			"path", absolutePath,
+			"path", path,
 		)
 		return
 	}
 
 	// Symlink the file.
-	targetPath := filepath.Join(tb.settings.GetFilesDir().GetValue(), relativePath)
+	targetPath := filepath.Join(tb.settings.GetFilesDir().GetValue(), string(relPath))
 	if err := os.MkdirAll(filepath.Dir(targetPath), os.ModePerm); err != nil {
 		tb.logger.Error("tensorboard: error creating directory",
 			"directory", filepath.Dir(targetPath),
 			"error", err)
 		return
 	}
-	if err := os.Symlink(absolutePath, targetPath); err != nil {
+	if err := os.Symlink(string(path), targetPath); err != nil {
 		tb.logger.Error("tensorboard: error creating symlink",
-			"target", absolutePath,
+			"target", path,
 			"symlink", targetPath,
 			"error", err)
 		return
@@ -176,7 +188,7 @@ func (tb *TBHandler) saveFile(path string, rootDir string) {
 		RecordType: &service.Record_Files{
 			Files: &service.FilesRecord{
 				Files: []*service.FilesItem{
-					{Policy: service.FilesItem_END, Path: relativePath},
+					{Policy: service.FilesItem_END, Path: string(relPath)},
 				},
 			},
 		},
