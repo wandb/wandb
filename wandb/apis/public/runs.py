@@ -6,7 +6,7 @@ import sys
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -171,7 +171,7 @@ class Runs(Paginator):
     def histories(
         self,
         samples: int = 500,
-        keys: list = None,
+        keys: Optional[List[str]] = None,
         x_axis: str = "_step",
         format: Literal["default", "pandas", "polars"] = "default",
         stream: Literal["default", "system"] = "default",
@@ -180,7 +180,7 @@ class Runs(Paginator):
 
         Arguments:
             samples : (int, optional) The number of samples to return per run
-            keys : (list, optional) Only return metrics for specific keys
+            keys : (list[str], optional) Only return metrics for specific keys
             x_axis : (str, optional) Use this metric as the xAxis defaults to _step
             format : (Literal, optional) Format to return data in, options are "default", "pandas", "polars"
             stream : (Literal, optional) "default" for metrics, "system" for machine metrics
