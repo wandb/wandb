@@ -17,6 +17,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
 - Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
 - Added new Workspace API for programatically editing W&B Workspaces https://github.com/wandb/wandb/pull/7728
+- Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
 
 ### Fixed
 
