@@ -47,7 +47,6 @@ func (fs *fileStream) startProcessingUpdates(
 				},
 
 				Settings: fs.settings,
-				ClientID: fs.clientId,
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
