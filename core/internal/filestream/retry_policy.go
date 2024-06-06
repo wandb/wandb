@@ -39,5 +39,6 @@ func RetryPolicy(
 	// if resp != nil and err == nil, retryablehttp's base policy is to retry
 	// if the status code is 429, 5xx, or invalid. We want to be extra cautious
 	// and retry in other remaining cases as well.
+	// TODO: consider moving this logic from the retryablehttp package to here.
 	return retryablehttp.ErrorPropagatedRetryPolicy(ctx, resp, err)
 }
