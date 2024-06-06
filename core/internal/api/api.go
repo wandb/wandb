@@ -2,6 +2,7 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -104,6 +105,16 @@ type Request struct {
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
 	Headers map[string]string
+}
+
+func (req *Request) String() string {
+	return fmt.Sprintf(
+		"Request{Method: %s, Path: %s, Body: %s, Headers: %v}",
+		req.Method,
+		req.Path,
+		string(req.Body),
+		req.Headers,
+	)
 }
 
 type BackendOptions struct {
