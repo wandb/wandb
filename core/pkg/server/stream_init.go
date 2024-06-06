@@ -79,14 +79,28 @@ func NewFileStream(
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 	}
 
-	fileStreamRetryClient := backend.NewClient(api.ClientOptions{
-		RetryMax:        int(settings.Proto.GetXFileStreamRetryMax().GetValue()),
-		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMinSeconds().GetValue()),
-		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
-		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXFileStreamTimeoutSeconds().GetValue()),
+	opts := api.ClientOptions{
+		RetryMax:        filestream.DefaultRetryMax,
+		RetryWaitMin:    filestream.DefaultRetryWaitMin,
+		RetryWaitMax:    filestream.DefaultRetryWaitMax,
+		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:    fileStreamHeaders,
 		NetworkPeeker:   peeker,
-	})
+	}
+	if retryMax := settings.Proto.GetXFileStreamRetryMax(); retryMax != nil {
+		opts.RetryMax = int(retryMax.GetValue())
+	}
+	if retryWaitMin := settings.Proto.GetXFileStreamRetryWaitMinSeconds(); retryWaitMin != nil {
+		opts.RetryWaitMin = clients.SecondsToDuration(retryWaitMin.GetValue())
+	}
+	if retryWaitMax := settings.Proto.GetXFileStreamRetryWaitMaxSeconds(); retryWaitMax != nil {
+		opts.RetryWaitMax = clients.SecondsToDuration(retryWaitMax.GetValue())
+	}
+	if timeout := settings.Proto.GetXFileStreamTimeoutSeconds(); timeout != nil {
+		opts.NonRetryTimeout = clients.SecondsToDuration(timeout.GetValue())
+	}
+
+	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
 		Settings:  settings.Proto,
