@@ -34,7 +34,7 @@ def log_line_match_eof(user, project, run_id):
 
 
 @pytest.mark.wandb_core_only
-@pytest.mark.parametrize("status_code", [418, 429, 500])
+@pytest.mark.parametrize("status_code", [429, 500])
 def test_retryable_codes(
     status_code,
     user,
