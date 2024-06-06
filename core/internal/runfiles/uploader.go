@@ -251,9 +251,9 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 	runPaths = u.filterIgnored(runPaths)
 	u.uploadWG.Add(len(runPaths))
 
-	runPathStrings := make([]string, len(runPaths))
+	runSlashPaths := make([]string, len(runPaths))
 	for i, path := range runPaths {
-		runPathStrings[i] = string(path)
+		runSlashPaths[i] = filepath.ToSlash(string(path))
 	}
 
 	go func() {
@@ -263,7 +263,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			u.settings.GetEntity(),
 			u.settings.GetProject(),
 			u.settings.GetRunID(),
-			runPathStrings,
+			runSlashPaths,
 		)
 		if err != nil {
 			u.logger.CaptureError("runfiles: CreateRunFiles returned error", err)
@@ -295,7 +295,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 				continue
 			}
 
-			maybeRunPath, err := paths.Relative(f.Name)
+			maybeRunPath, err := paths.Relative(filepath.FromSlash(f.Name))
 			if err != nil || !maybeRunPath.IsLocal() {
 				u.logger.CaptureError(
 					"runfiles: CreateRunFiles returned unexpected file name",
