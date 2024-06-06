@@ -60,6 +60,13 @@ type Handler struct {
 	// settings is the settings for the handler
 	settings *service.Settings
 
+	// clientID is an ID for this process.
+	//
+	// This identifies the process that uploaded a set of metrics when
+	// running in "shared" mode, where there may be multiple writers for
+	// the same run.
+	clientID string
+
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
 
@@ -123,6 +130,7 @@ func NewHandler(
 		terminalPrinter:       params.TerminalPrinter,
 		logger:                params.Logger,
 		settings:              params.Settings,
+		clientID:              utils.ShortID(32),
 		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
@@ -1025,7 +1033,17 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		Key:       "_runtime",
 		ValueJson: fmt.Sprintf("%f", runtime),
 	})
-	if !h.settings.GetXShared().GetValue() {
+
+	// When running in "shared" mode, there can be multiple writers to the same
+	// run (for example running on different machines). In that case, the
+	// backend determines the step, and the client ID identifies which metrics
+	// came from the same writer. Otherwise, we must set the step explicitly.
+	if h.settings.GetXShared().GetValue() {
+		history.Item = append(history.Item, &service.HistoryItem{
+			Key:       "_client_id",
+			ValueJson: fmt.Sprintf(`"%s"`, h.clientID),
+		})
+	} else {
 		history.Item = append(history.Item, &service.HistoryItem{
 			Key:       "_step",
 			ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum()),
