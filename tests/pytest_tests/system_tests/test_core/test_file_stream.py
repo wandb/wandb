@@ -83,7 +83,6 @@ def test_retryable_codes(
 
 
 @pytest.mark.wandb_core_only
-# @pytest.mark.parametrize("status_code", [400, 401, 403, 404, 409, 410])
 @pytest.mark.parametrize(
     "status_code, name",
     [
