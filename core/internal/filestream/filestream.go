@@ -100,8 +100,6 @@ type fileStream struct {
 	// to prove the run is still alive.
 	heartbeatStopwatch waiting.Stopwatch
 
-	clientId string
-
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
@@ -113,7 +111,6 @@ type FileStreamParams struct {
 	Printer            *observability.Printer
 	ApiClient          api.Client
 	MaxItemsPerPush    int
-	ClientId           string
 	DelayProcess       waiting.Delay
 	HeartbeatStopwatch waiting.Stopwatch
 }
@@ -152,11 +149,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 
 	if params.MaxItemsPerPush > 0 {
 		fs.maxItemsPerPush = params.MaxItemsPerPush
-	}
-
-	// TODO: this should become the default
-	if fs.settings.GetXShared().GetValue() && params.ClientId != "" {
-		fs.clientId = params.ClientId
 	}
 
 	return fs

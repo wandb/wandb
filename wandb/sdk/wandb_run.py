@@ -706,6 +706,12 @@ class Run:
                 "step": self._settings.fork_from.value,
             }
 
+        if self._settings.resume_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.resume_from.run,
+                "step": self._settings.resume_from.value,
+            }
+
         self._config._update(config, ignore_locked=True)
 
         if sweep_config:
@@ -3664,7 +3670,11 @@ class Run:
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
-        run_state_str = "Resuming run" if settings.resumed else "Syncing run"
+        run_state_str = (
+            "Resuming run"
+            if settings.resumed or settings.resume_from
+            else "Syncing run"
+        )
         run_name = settings.run_name
         if not run_name:
             return
