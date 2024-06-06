@@ -23,6 +23,12 @@ const (
 
 	// Don't send more than 10 requests at a time.
 	maxBurst = 10
+
+	// Default retry settings.
+	DefaultRetryMax        = 20
+	DefaultRetryWaitMin    = 2 * time.Second
+	DefaultRetryWaitMax    = 60 * time.Second
+	DefaultNonRetryTimeout = 30 * time.Second
 )
 
 // The W&B backend server.

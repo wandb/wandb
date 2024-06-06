@@ -655,19 +655,14 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
-            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-            #             = 7200 / 60 + ceil(log2(60/2))
-            #             = 120 + 5
-            _file_stream_retry_max={"value": 125, "preprocessor": int},
-            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": float},
-            # A 3 minute timeout for all filestream post requests
-            _file_stream_timeout_seconds={"value": 180, "preprocessor": float},
-            _file_transfer_retry_max={"value": 20, "preprocessor": int},
-            _file_transfer_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": float},
-            _file_transfer_timeout_seconds={"value": 0, "preprocessor": float},
+            _file_stream_retry_max={"preprocessor": int},
+            _file_stream_retry_wait_min_seconds={"preprocessor": float},
+            _file_stream_retry_wait_max_seconds={"preprocessor": float},
+            _file_stream_timeout_seconds={"preprocessor": float},
+            _file_transfer_retry_max={"preprocessor": int},
+            _file_transfer_retry_wait_min_seconds={"preprocessor": float},
+            _file_transfer_retry_wait_max_seconds={"preprocessor": float},
+            _file_transfer_timeout_seconds={"preprocessor": float},
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
@@ -676,10 +671,10 @@ class Settings(SettingsData):
                 "hook": lambda _: bool(self._network_buffer),
                 "auto_hook": True,
             },
-            _graphql_retry_max={"value": 20, "preprocessor": int},
-            _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": float},
-            _graphql_timeout_seconds={"value": 30.0, "preprocessor": float},
+            _graphql_retry_max={"preprocessor": int},
+            _graphql_retry_wait_min_seconds={"preprocessor": float},
+            _graphql_retry_wait_max_seconds={"preprocessor": float},
+            _graphql_timeout_seconds={"preprocessor": float},
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
