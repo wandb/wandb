@@ -825,3 +825,32 @@ def test_runs_histories(
         assert "metric2" in all_histories_polars.columns
         assert "metric3" in all_histories_polars.columns
         assert "system_metric1" in all_histories_polars.columns
+
+
+def test_runs_histories_empty(inject_graphql_response, relay_server):
+    # Inject the dummy project and run data required by the Runs class
+    body = {
+        "data": {
+            "project": {
+                "runCount": 1,
+                "runs": {
+                    "edges": [],
+                    "pageInfo": {"endCursor": None, "hasNextPage": False},
+                },
+            },
+        },
+    }
+
+    inject_project_runs_response = inject_graphql_response(
+        body=json.dumps(body),
+        query_match_fn=lambda query, _: "query Runs(" in query,
+        application_pattern="1",
+    )
+
+    with relay_server(inject=[inject_project_runs_response]):
+        api = Api()
+        runs = api.runs("test/test")
+
+        assert not runs.histories(format="default")  # empty list
+        for format in ("pandas", "polars"):
+            assert runs.histories(samples=2, format=format).shape == (0, 0)
