@@ -225,9 +225,13 @@ class Runs(Paginator):
                     pandas=False,
                     stream=stream,
                 )
+                if not history_data:
+                    continue
                 df = pd.DataFrame.from_records(history_data)
                 df["run_id"] = run.id
                 histories.append(df)
+            if not histories:
+                return pd.DataFrame()
             combined_df = pd.concat(histories)
             combined_df.sort_values("run_id", inplace=True)
             combined_df.reset_index(drop=True, inplace=True)
@@ -249,9 +253,13 @@ class Runs(Paginator):
                     pandas=False,
                     stream=stream,
                 )
+                if not history_data:
+                    continue
                 df = pl.from_records(history_data)
                 df = df.with_columns(pl.lit(run.id).alias("run_id"))
                 histories.append(df)
+            if not histories:
+                return pl.DataFrame()
             combined_df = pl.concat(histories, how="align")
             # sort columns for consistency
             combined_df = combined_df.select(sorted(combined_df.columns)).sort("run_id")
