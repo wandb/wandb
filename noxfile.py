@@ -578,7 +578,7 @@ def _generate_proto_go(session: nox.Session) -> None:
 
 
 @nox.session(name="proto-python", tags=["proto"], python="3.9")
-@nox.parametrize("pb", [3, 4])
+@nox.parametrize("pb", [3, 4, 5])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
@@ -601,8 +601,13 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.install("mypy-protobuf~=3.5.0")
         session.install("grpcio~=1.50.0")
         session.install("grpcio-tools~=1.50.0")
+    elif pb == 5:
+        session.install("protobuf~=5.27.0")
+        session.install("mypy-protobuf~=3.6.0")
+        session.install("grpcio~=1.64.1")
+        session.install("grpcio-tools~=1.64.1")
     else:
-        session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
+        session.error("Invalid protobuf version given. `pb` must be 3, 4, or 5.")
 
     session.install("packaging")
 

@@ -216,6 +216,7 @@ class SendManager:
     _record_exit: Optional["Record"]
     _exit_result: Optional["RunExitResult"]
     _resume_state: ResumeState
+    _rewind_response: Optional[Dict[str, Any]]
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
@@ -275,6 +276,7 @@ class SendManager:
 
         # State updated by resuming
         self._resume_state = ResumeState()
+        self._rewind_response = None
 
         # State added when run_exit is initiated and complete
         self._record_exit = None
@@ -890,6 +892,36 @@ class SendManager:
         self._run.forked = True
         self._run.starting_step = first_step
 
+    def _load_rewind_state(self, run: "RunRecord"):
+        assert self._settings.resume_from
+        self._rewind_response = self._api.rewind_run(
+            run_name=run.run_id,
+            entity=run.entity or None,
+            project=run.project or None,
+            metric_name=self._settings.resume_from.metric,
+            metric_value=self._settings.resume_from.value,
+            program_path=self._settings.program or None,
+        )
+        self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
+        self._resume_state.config = json.loads(
+            self._rewind_response.get("config", "{}")
+        )
+
+    def _install_rewind_state(self):
+        assert self._settings.resume_from
+        assert self._settings.resume_from.metric == "_step"
+        assert self._run
+        assert self._rewind_response
+
+        first_step = int(self._settings.resume_from.value) + 1
+        self._resume_state.step = first_step
+
+        # We set the fork flag here because rewind uses the forking
+        # infrastructure under the hood. Setting `forked` here
+        # ensures that run._step is properly set in the user process.
+        self._run.forked = True
+        self._run.starting_step = first_step
+
     def _handle_error(
         self,
         record: "Record",
@@ -926,13 +958,16 @@ class SendManager:
             self._config_save(config_value_dict)
 
         do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_rewind = self._settings.resume_from is not None and is_wandb_init
         do_resume = bool(self._settings.resume)
 
-        if do_fork and do_resume:
+        num_resume_options_set = sum([do_fork, do_rewind, do_resume])
+        if num_resume_options_set > 1:
             error = wandb_internal_pb2.ErrorInfo()
             error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
             error.message = (
-                "You cannot use `resume` and `fork_from` together. Please choose one."
+                "Multiple resume options specified. "
+                "Please specify only one of `fork_from`, `resume`, or `resume_from`."
             )
             self._handle_error(record, error, run)
 
@@ -944,6 +979,9 @@ class SendManager:
 
             if do_resume:
                 error = self._setup_resume(run)
+
+            elif do_rewind:
+                error = self._load_rewind_state(run)
 
         if error is not None:
             self._handle_error(record, error, run)
@@ -996,6 +1034,26 @@ class SendManager:
         else:
             logger.info("updated run: %s", self._run.run_id)
 
+    def _update_resume_state(self, is_rewinding: bool, inserted: bool):
+        assert self._run
+        if self._resume_state.resumed:
+            self._run.resumed = True
+            if self._resume_state.wandb_runtime is not None:
+                self._run.runtime = self._resume_state.wandb_runtime
+        elif is_rewinding:
+            # because is_rewinding is mutually exclusive with self._resume_state.resumed,
+            # this block will always execute if is_rewinding is set
+            self._install_rewind_state()
+        else:
+            # If the user is not resuming, and we didn't insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
+
     def _init_run(
         self,
         run: "RunRecord",
@@ -1011,22 +1069,30 @@ class SendManager:
         if self._resume_state and self._resume_state.tags and not run.tags:
             run.tags.extend(self._resume_state.tags)
 
-        server_run, inserted, server_messages = self._api.upsert_run(
-            name=run.run_id,
-            entity=run.entity or None,
-            project=run.project or None,
-            group=run.run_group or None,
-            job_type=run.job_type or None,
-            display_name=run.display_name or None,
-            notes=run.notes or None,
-            tags=run.tags[:] or None,
-            config=config_dict or None,
-            sweep_name=run.sweep_id or None,
-            host=run.host or None,
-            program_path=self._settings.program or None,
-            repo=run.git.remote_url or None,
-            commit=run.git.commit or None,
-        )
+        is_rewinding = bool(self._settings.resume_from)
+        if is_rewinding:
+            assert self._rewind_response
+            server_run = self._rewind_response
+            server_messages = None
+            inserted = True
+        else:
+            server_run, inserted, server_messages = self._api.upsert_run(
+                name=run.run_id,
+                entity=run.entity or None,
+                project=run.project or None,
+                group=run.run_group or None,
+                job_type=run.job_type or None,
+                display_name=run.display_name or None,
+                notes=run.notes or None,
+                tags=run.tags[:] or None,
+                config=config_dict or None,
+                sweep_name=run.sweep_id or None,
+                host=run.host or None,
+                program_path=self._settings.program or None,
+                repo=run.git.remote_url or None,
+                commit=run.git.commit or None,
+            )
+
         # TODO: we don't want to create jobs in sweeps, since the
         #  executable doesn't appear to be consistent
         if run.sweep_id:
@@ -1034,19 +1100,17 @@ class SendManager:
 
         self._server_messages = server_messages or []
         self._run = run
-        if self._resume_state.resumed:
-            self._run.resumed = True
-            if self._resume_state.wandb_runtime is not None:
-                self._run.runtime = self._resume_state.wandb_runtime
-        else:
-            # If the user is not resuming, and we didn't insert on upsert_run then
-            # it is likely that we are overwriting the run which we might want to
-            # prevent in the future.  This could be a false signal since an upsert_run
-            # message which gets retried in the network could also show up as not
-            # inserted.
-            if not inserted:
-                # no need to flush this, it will get updated eventually
-                self._telemetry_obj.feature.maybe_run_overwrite = True
+
+        if self._resume_state.resumed and is_rewinding:
+            # this should not ever be possible to hit, since we check for
+            # resumption above and raise an error if resumption is specified
+            # twice.
+            raise ValueError(
+                "Cannot attempt to rewind and resume a run - only one of "
+                "`resume` or `resume_from` can be specified."
+            )
+
+        self._update_resume_state(is_rewinding, inserted)
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
