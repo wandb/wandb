@@ -237,7 +237,6 @@ class Runs(Paginator):
             combined_df.reset_index(drop=True, inplace=True)
             # sort columns for consistency
             combined_df = combined_df[(sorted(combined_df.columns))]
-            print(combined_df.shape)
 
             return combined_df
 
