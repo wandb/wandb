@@ -1141,8 +1141,8 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		items, err := h.runHistory.Flatten()
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
-			msg := "Failed to process history record, skipping syncing."
-			h.terminalPrinter.Write(msg)
+			h.terminalPrinter.Write(
+				"Failed to process history record, skipping syncing.")
 			return
 		}
 		h.handleHistory(&service.HistoryRecord{
@@ -1206,11 +1206,10 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			items, err := h.runHistory.Flatten()
 			if err != nil {
 				h.logger.CaptureError("Error flattening run history", err)
-				msg := fmt.Sprintf(
-					"Failed to process history record, for step %d, skipping...",
+				h.terminalPrinter.Writef(
+					"Failed to process history record for step %d, skipping...",
 					h.runHistory.GetStep(),
 				)
-				h.terminalPrinter.Write(msg)
 				return
 			}
 			history := &service.HistoryRecord{
