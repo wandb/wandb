@@ -46,6 +46,8 @@ type Task struct {
 
 	// This can be used to cancel the file upload or download if it is no longer needed.
 	Context context.Context
+
+	Reference *string
 }
 
 func (ut *Task) SetProgressCallback(callback func(int, int)) {

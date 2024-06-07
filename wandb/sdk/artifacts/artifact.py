@@ -1728,12 +1728,13 @@ class Artifact:
             path_prefix,  # type: ignore
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
-        self._download(
-            root=root,
-            allow_missing_references=allow_missing_references,
-            skip_cache=skip_cache,
-            path_prefix=path_prefix,
-        )
+        # self._download(
+        #     root=root,
+        #     allow_missing_references=allow_missing_references,
+        #     skip_cache=skip_cache,
+        #     path_prefix=path_prefix,
+        # )
+        print("commented out _download")
         result = handle.wait(timeout=-1)
 
         if result is None:

@@ -127,11 +127,6 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				if _, ok := nameToScheduledTime[filePath]; ok {
 					continue
 				}
-				// Reference artifacts will temporarily be handled by the python user process
-				if entry.Ref != nil {
-					numDone++
-					continue
-				}
 				node := edge.GetNode()
 				if node == nil {
 					return fmt.Errorf("error reading entry from fetched file urls")
@@ -154,10 +149,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						continue
 					}
 					task := &filetransfer.Task{
-						FileKind: filetransfer.RunFileKindArtifact,
-						Type:     filetransfer.DownloadTask,
-						Path:     downloadLocalPath,
-						Url:      *entry.DownloadURL,
+						FileKind:  filetransfer.RunFileKindArtifact,
+						Type:      filetransfer.DownloadTask,
+						Path:      downloadLocalPath,
+						Url:       *entry.DownloadURL,
+						Reference: entry.Ref,
 					}
 					task.SetCompletionCallback(
 						func(t *filetransfer.Task) {
