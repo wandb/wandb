@@ -564,6 +564,8 @@ class Run(Attrs):
         config = {}
         for k, v in self.config.items():
             config[k] = {"value": v, "desc": None}
+        for k, v in self.rawconfig.items():
+            config[k] = {"value": v, "desc": None}
         return json.dumps(config)
 
     def _exec(self, query, **kwargs):
