@@ -19,7 +19,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
@@ -85,12 +84,11 @@ type Handler struct {
 	// runHistory is the current active history entry being updated
 	runHistory *runhistory.RunHistory
 
-	// samplers is the map of samplers for all the history metrics that are
-	// being tracked, the result of the samplers will be used to display the
-	// the sparkline in the terminal
+	// runHistorySampler tracks samples of all metrics in the run's history.
 	//
-	// TODO: currently only values that can be cast to float32 are supported
-	samplers map[string]*sampler.ReservoirSampler[float32]
+	// This is used to display the sparkline in the terminal at the end of
+	// the run.
+	runHistorySampler *runhistory.RunHistorySampler
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *MetricHandler
@@ -135,6 +133,7 @@ func NewHandler(
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
 		runSummary:            params.RunSummary,
+		runHistorySampler:     runhistory.NewRunHistorySampler(),
 		metricHandler:         params.MetricHandler,
 		fileTransferStats:     params.FileTransferStats,
 		runfilesUploaderOrNil: params.RunfilesUploader,
@@ -1067,7 +1066,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		history.Item = append(history.Item, items...)
 	}
 
-	h.sampleHistory(history)
+	h.runHistorySampler.SampleNext(history)
 
 	record := &service.Record{
 		RecordType: &service.Record_History{
@@ -1344,52 +1343,13 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 // sampled values. It is used to display a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
 func (h *Handler) handleRequestSampledHistory(record *service.Record) {
-	response := &service.Response{}
-
-	if h.samplers != nil {
-		var items []*service.SampledHistoryItem
-		for key, sampler := range h.samplers {
-			values := sampler.Sample()
-			item := &service.SampledHistoryItem{
-				Key:         key,
-				ValuesFloat: values,
-			}
-			items = append(items, item)
-		}
-
-		response.ResponseType = &service.Response_SampledHistoryResponse{
+	h.respond(record, &service.Response{
+		ResponseType: &service.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &service.SampledHistoryResponse{
-				Item: items,
+				Item: h.runHistorySampler.Get(),
 			},
-		}
-	}
-
-	h.respond(record, response)
-}
-
-// sample history items and update the samplers map before flushing the history
-// record as these values are finalized for the current step
-func (h *Handler) sampleHistory(history *service.HistoryRecord) {
-	// initialize the samplers map if it doesn't exist
-	if h.samplers == nil {
-		h.samplers = make(map[string]*sampler.ReservoirSampler[float32])
-	}
-
-	for _, item := range history.GetItem() {
-		var value float32
-		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
-			// ignore items that cannot be parsed as float32
-			continue
-		}
-
-		// create a new sampler if it doesn't exist
-		if _, ok := h.samplers[item.Key]; !ok {
-			h.samplers[item.Key] = sampler.NewReservoirSampler[float32](48, 0.0005)
-		}
-
-		// add the new value to the sampler
-		h.samplers[item.Key].Add(value)
-	}
+		},
+	})
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
