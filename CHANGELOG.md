@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.1] - 2024-06-07
+
 ### Added
 
 - Added `api.runs().histories()` to fetch history metrics for runs that meet specified conditions by @thanos-wandb in https://github.com/wandb/wandb/pull/7690
