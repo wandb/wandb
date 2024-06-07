@@ -25,7 +25,10 @@ type TFEventConverter struct {
 
 // tagAndJSON is a tag and a JSON representation of a value.
 type tagAndJSON struct {
-	tag  string
+	// tag is a '/'-separated key for the metric.
+	tag string
+
+	// json is a JSON-encoded value for the metric that's understood by W&B.
 	json string
 }
 
