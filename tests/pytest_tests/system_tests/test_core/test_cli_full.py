@@ -128,7 +128,6 @@ def test_pull(runner, wandb_init):
         ),
     ],
 )
-@pytest.mark.wandb_core_failure(feature="tensorboard")
 def test_sync_tensorboard(
     runner,
     relay_server,
@@ -186,7 +185,6 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
         assert "wandb: ERROR Nothing to sync." in result.output
 
 
-@pytest.mark.wandb_core_failure(feature="tensorboard")
 def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
         "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
