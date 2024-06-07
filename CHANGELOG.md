@@ -11,11 +11,15 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.1] - 2024-06-07
+
 ### Added
 
+- Added `api.runs().histories()` to fetch history metrics for runs that meet specified conditions by @thanos-wandb in https://github.com/wandb/wandb/pull/7690
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
-- Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step https://github.com/wandb/wandb/pull/7711
+- Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step by @dannygoldstein in https://github.com/wandb/wandb/pull/7711
+- Added new Workspace API for programatically editing W&B Workspaces by @andrewtruong in https://github.com/wandb/wandb/pull/7728
 - Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
 - Added basic TensorBoard support when running with `wandb.require("core")` by @timoffex in https://github.com/wandb/wandb/pull/7725
   - The TensorBoard tab in W&B will work.
@@ -26,11 +30,12 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Fix `define_metric` behavior for multiple metrics in `shared` mode by @dmitryduev in https://github.com/wandb/wandb/pull/7715
 - Correctly pass in project name to internal api from run while calling run.use_artifact() by @ibindlish in https://github.com/wandb/wandb/pull/7701
-- Correctly upload console output log files when resuming runs enabled with `console_multipart` setting by @kptkin in https://github.com/wandb/wandb/pull/7694 and @dmitryduev in
+- Correctly upload console output log files when resuming runs enabled with `console_multipart` setting by @kptkin in https://github.com/wandb/wandb/pull/7694 and @dmitryduev in https://github.com/wandb/wandb/pull/7697
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 - Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
 - Fix path parsing for artifacts with aliases containing forward slashes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7676
 - Add missing docstrings for any public methods in `Api` class by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7713
+- Correctly add latest alias to jobs built by the job builder @KyleGoyette https://github.com/wandb/wandb/pull/7727
 
 ### Changed
 

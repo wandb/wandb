@@ -256,7 +256,7 @@ class RunStatusChecker:
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
-            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            wait_time = max(timeout - time_elapsed, 0)
             join_requested = self._join_event.wait(timeout=wait_time)
 
     def check_network_status(self) -> None:
@@ -318,19 +318,19 @@ class RunStatusChecker:
             for msg in internal_messages.messages.warning:
                 wandb.termwarn(msg)
 
-            try:
-                self._loop_check_status(
-                    lock=self._internal_messages_lock,
-                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                    timeout=1,
-                    request=self._interface.deliver_internal_messages,
-                    process=_process_internal_messages,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._internal_messages_lock,
-                    self._internal_messages_handle,
-                )
+        try:
+            self._loop_check_status(
+                lock=self._internal_messages_lock,
+                set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+                timeout=1,
+                request=self._interface.deliver_internal_messages,
+                process=_process_internal_messages,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._internal_messages_lock,
+                self._internal_messages_handle,
+            )
 
     def stop(self) -> None:
         self._join_event.set()
