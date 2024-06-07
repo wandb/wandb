@@ -40,7 +40,11 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
-			Write("Skipped uploading summary data that exceeded size limit.")
+			Writef(
+				"Skipped uploading summary data that exceeded"+
+					" size limit (%d > %d).",
+				len(line),
+				maxFileLineBytes)
 	} else {
 		ctx.ModifyRequest(&collectorSummaryUpdate{
 			newSummary: string(line),

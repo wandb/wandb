@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/wandb/wandb/core/internal/sentry"
 )
 
 const (
@@ -23,6 +25,7 @@ type ServerParams struct {
 	ListenIPAddress string
 	PortFilename    string
 	ParentPid       int
+	SentryClient    *sentry.Client
 }
 
 // Server is the core server
@@ -36,6 +39,9 @@ type Server struct {
 
 	// listener is the underlying listener
 	listener net.Listener
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.Client
 
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
@@ -62,11 +68,12 @@ func NewServer(
 	}
 
 	s := &Server{
-		ctx:       ctx,
-		cancel:    cancel,
-		listener:  listener,
-		wg:        sync.WaitGroup{},
-		parentPid: params.ParentPid,
+		ctx:          ctx,
+		cancel:       cancel,
+		listener:     listener,
+		wg:           sync.WaitGroup{},
+		parentPid:    params.ParentPid,
+		sentryClient: params.SentryClient,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -141,7 +148,7 @@ func (s *Server) serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				nc := NewConnection(s.ctx, s.cancel, conn)
+				nc := NewConnection(s.ctx, s.cancel, conn, s.sentryClient)
 				nc.HandleConnection()
 				s.wg.Done()
 			}()
@@ -158,7 +165,7 @@ func (s *Server) Wait() {
 // Close closes the server
 func (s *Server) Close() {
 	if err := s.listener.Close(); err != nil {
-		slog.Error("failed to Close listener", err)
+		slog.Error("failed to Close listener", "error", err)
 	}
 	s.wg.Wait()
 	slog.Info("server is closed")

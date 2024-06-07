@@ -54,7 +54,7 @@ func (j *JobBuilder) generateConfigFileSchema(
 	path := filepath.Join(j.settings.FilesDir.GetValue(), LAUNCH_MANAGED_CONFIGS_DIR, configFile.relpath)
 	config, err := deserializeConfig(path)
 	if err != nil {
-		j.logger.Error("jobBuilder: error creating runconfig from config file", err)
+		j.logger.Error("jobBuilder: error creating runconfig from config file", "error", err)
 		return data_types.TypeRepresentation{}
 	}
 	return data_types.ResolveTypes(config.filterTree(
