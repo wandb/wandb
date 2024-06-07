@@ -43,7 +43,11 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
-			Write("Skipped uploading run.log() data that exceeded size limit.")
+			Writef(
+				"Skipped uploading run.log() data that exceeded"+
+					" size limit (%d > %d).",
+				len(line),
+				maxFileLineBytes)
 	} else {
 		ctx.ModifyRequest(&collectorHistoryUpdate{
 			lines: []string{string(line)},
