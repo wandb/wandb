@@ -2614,11 +2614,6 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # this message is confusing, we should remove it
-        # self._footer_exit_status_info(
-        #     self._exit_code, settings=self._settings, printer=self._printer
-        # )
-
         # wait for the exit to complete
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
@@ -3785,26 +3780,6 @@ class Run:
             settings=settings,
             printer=printer,
         )
-
-    @staticmethod
-    def _footer_exit_status_info(
-        exit_code: Optional[int],
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if settings.silent:
-            return
-
-        status = "(success)." if not exit_code else f"(failed {exit_code})."
-        info = [
-            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
-        ]
-
-        if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort()} to abort syncing.")
-
-        printer.display(f'{" ".join(info)}')
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
     @staticmethod
