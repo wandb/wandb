@@ -172,7 +172,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
 		OutputRecords: s.loopBackChan,
 		Logger:        s.logger,
-		Settings:      s.settings.Proto,
+		Settings:      s.settings,
 		Hostname:      hostname,
 	})
 	var graphqlClientOrNil graphql.Client

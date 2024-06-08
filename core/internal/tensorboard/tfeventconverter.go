@@ -32,14 +32,17 @@ type tagAndJSON struct {
 	json string
 }
 
-// Convert returns a W&B history record corresponding to a TF event.
+// ConvertNext returns a W&B history record corresponding to a TF event.
+//
+// This should be called on events in the order they are read from
+// tfevents files.
 //
 // Returns nil if there's no relevant history data in the event.
 // Errors are logged via the logger and the corresponding data is ignored.
-func (h *TFEventConverter) Convert(
+func (h *TFEventConverter) ConvertNext(
 	event *tbproto.TFEvent,
 	logger *observability.CoreLogger,
-) *service.HistoryRecord {
+) *service.PartialHistoryRequest {
 	// Maps slash-separated tags to JSON values.
 	jsonData := make([]tagAndJSON, 0, len(event.GetSummary().GetValue()))
 
@@ -55,7 +58,7 @@ func (h *TFEventConverter) Convert(
 		return nil
 	}
 
-	return h.toHistoryRecord(
+	return h.toHistoryRequest(
 		jsonData,
 		event.Step,
 		event.WallTime,
@@ -111,12 +114,12 @@ func processScalars(
 	}
 }
 
-// toHistoryRecord creates a history record with the given data.
-func (h *TFEventConverter) toHistoryRecord(
+// toHistoryRequest creates a history update with the given data.
+func (h *TFEventConverter) toHistoryRequest(
 	jsonData []tagAndJSON,
 	step int64,
 	timestamp float64,
-) *service.HistoryRecord {
+) *service.PartialHistoryRequest {
 	items := []*service.HistoryItem{
 		// The "global_step" key is magic that W&B automatically uses
 		// as the X axis in charts.
@@ -134,7 +137,14 @@ func (h *TFEventConverter) toHistoryRecord(
 		})
 	}
 
-	return &service.HistoryRecord{Item: items}
+	return &service.PartialHistoryRequest{
+		Item: items,
+
+		// Setting "Flush" indicates that the event should be uploaded as
+		// its own history row, rather than combined with future events.
+		// Future events may contain new values for the same keys.
+		Action: &service.HistoryAction{Flush: true},
+	}
 }
 
 // withNamespace prefixes the key with the namespace, if there is one.

@@ -25,6 +25,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step by @dannygoldstein in https://github.com/wandb/wandb/pull/7711
 - Added new Workspace API for programatically editing W&B Workspaces by @andrewtruong in https://github.com/wandb/wandb/pull/7728
 - Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
+- Added basic TensorBoard support when running with `wandb.require("core")` by @timoffex in https://github.com/wandb/wandb/pull/7725
+  - The TensorBoard tab in W&B will work.
+  - Charts show up in W&B, possibly better than when running without core.
+  - Not all types of data are supported yet. Unsupported data is not shown in charts.
 
 ### Fixed
 

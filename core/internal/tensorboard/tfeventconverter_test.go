@@ -94,7 +94,7 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 		Namespace: "train",
 	}
 
-	result := converter.Convert(
+	result := converter.ConvertNext(
 		summaryEvent(
 			123, 0.345,
 			scalarValue("epoch_loss", "scalars", 0.5)),
@@ -123,7 +123,7 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 func TestConvertScalar(t *testing.T) {
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
 
-	result := converter.Convert(
+	result := converter.ConvertNext(
 		summaryEvent(123, 0.345, scalarValue("epoch_loss", "scalars", 0.5)),
 		observability.NewNoOpLogger(),
 	)
@@ -146,7 +146,7 @@ func TestConvertTensor(t *testing.T) {
 	require.NoError(t,
 		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(2)))
 
-	result := converter.Convert(
+	result := converter.ConvertNext(
 		summaryEvent(123, 0.345,
 			tensorValue("point-five", "scalars", 0.5),
 			tensorValueBytes("one-two", "scalars",
