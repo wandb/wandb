@@ -243,6 +243,15 @@ class Run:
         settings.sync_file.value = str(sync_dir / ("run-" + run_id + ".wandb"))
         settings.log_internal.value = str(log_dir / "debug-internal.log")
         settings.files_dir.value = str(files_dir)
+
+        settings._file_stream_retry_max.value = 1445
+        settings._file_stream_retry_wait_min_seconds.value = 2
+        settings._file_stream_retry_wait_max_seconds.value = 60
+        settings._file_stream_timeout_seconds.value = 180
+        settings._file_transfer_retry_max.value = 20
+        settings._file_transfer_retry_wait_min_seconds.value = 2
+        settings._file_transfer_retry_wait_max_seconds.value = 60
+
         os.makedirs(sync_dir)
         os.makedirs(log_dir)
         os.makedirs(files_dir)

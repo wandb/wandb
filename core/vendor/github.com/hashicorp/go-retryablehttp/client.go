@@ -485,9 +485,11 @@ func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bo
 // why it decided to retry or not.
 func ErrorPropagatedRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	// do not retry on context.Canceled or context.DeadlineExceeded
+	/*
 	if ctx.Err() != nil {
 		return false, ctx.Err()
 	}
+	*/
 
 	return baseRetryPolicy(resp, err)
 }
@@ -669,7 +671,9 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 	var shouldRetry bool
 	var doErr, respErr, checkErr, prepareErr error
 
-	for i := 0; ; i++ {
+	var i int
+	var code int
+	for i = 0; ; i++ {
 		doErr, respErr, prepareErr = nil, nil, nil
 		attempt++
 
@@ -736,6 +740,7 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 		}
 
 		if !shouldRetry {
+			code = 1
 			break
 		}
 
@@ -743,6 +748,8 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 		// we're breaking out
 		remain := c.RetryMax - i
 		if remain <= 0 {
+			code = 2
+			fmt.Printf("DEBUG retryMax:%+v remain:%+v\n", c.RetryMax, remain)
 			break
 		}
 
@@ -781,6 +788,7 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 		if c.PrepareRetry != nil {
 			if err := c.PrepareRetry(req.Request); err != nil {
 				prepareErr = err
+				code = 3
 				break
 			}
 		}
@@ -821,6 +829,9 @@ func (c *Client) Do(req *Request) (*http.Response, error) {
 			req.Method, redactURL(req.URL), attempt)
 	}
 
+	fmt.Printf("DEBUG doerr:%+v respErr:%+v checkErr:%+v prepErr:%+v shouldretry:%+v resp:%+v status:%+v attempt:%+v i:%+v code:%+v\n", doErr, respErr, checkErr, prepareErr, shouldRetry,
+		resp, resp.StatusCode, attempt, i, code)
+	// if doErr == nil && respErr == nil && checkErr == nil && prepareErr == nil && !shouldRetry {
 	return nil, fmt.Errorf("%s %s giving up after %d attempt(s): %w",
 		req.Method, redactURL(req.URL), attempt, err)
 }
