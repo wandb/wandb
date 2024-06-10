@@ -19,7 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/internal/sampler"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -45,7 +45,7 @@ type HandlerParams struct {
 	MetricHandler     *MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
-	TBHandler         *TBHandler
+	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
 }
@@ -58,6 +58,13 @@ type Handler struct {
 
 	// settings is the settings for the handler
 	settings *service.Settings
+
+	// clientID is an ID for this process.
+	//
+	// This identifies the process that uploaded a set of metrics when
+	// running in "shared" mode, where there may be multiple writers for
+	// the same run.
+	clientID string
 
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
@@ -77,12 +84,11 @@ type Handler struct {
 	// runHistory is the current active history entry being updated
 	runHistory *runhistory.RunHistory
 
-	// samplers is the map of samplers for all the history metrics that are
-	// being tracked, the result of the samplers will be used to display the
-	// the sparkline in the terminal
+	// runHistorySampler tracks samples of all metrics in the run's history.
 	//
-	// TODO: currently only values that can be cast to float32 are supported
-	samplers map[string]*sampler.ReservoirSampler[float32]
+	// This is used to display the sparkline in the terminal at the end of
+	// the run.
+	runHistorySampler *runhistory.RunHistorySampler
 
 	// metricHandler is the metric handler for the stream
 	metricHandler *MetricHandler
@@ -94,7 +100,7 @@ type Handler struct {
 	systemMonitor *monitor.SystemMonitor
 
 	// tbHandler is the tensorboard handler
-	tbHandler *TBHandler
+	tbHandler *tensorboard.TBHandler
 
 	// runfilesUploaderOrNil manages uploading a run's files
 	//
@@ -122,10 +128,12 @@ func NewHandler(
 		terminalPrinter:       params.TerminalPrinter,
 		logger:                params.Logger,
 		settings:              params.Settings,
+		clientID:              utils.ShortID(32),
 		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
 		runSummary:            params.RunSummary,
+		runHistorySampler:     runhistory.NewRunHistorySampler(),
 		metricHandler:         params.MetricHandler,
 		fileTransferStats:     params.FileTransferStats,
 		runfilesUploaderOrNil: params.RunfilesUploader,
@@ -225,7 +233,7 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
-		h.handleTBrecord(record)
+		h.handleTBrecord(x.Tbrecord)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
@@ -430,7 +438,6 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 			},
 		)
 	case service.DeferRequest_FLUSH_TB:
-		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
@@ -998,10 +1005,9 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 	)
 }
 
-func (h *Handler) handleTBrecord(record *service.Record) {
-	err := h.tbHandler.Handle(record)
-	if err != nil {
-		h.logger.CaptureError("error handling tbrecord", err)
+func (h *Handler) handleTBrecord(record *service.TBRecord) {
+	if err := h.tbHandler.Handle(record); err != nil {
+		h.logger.CaptureError("handler: failed to handle TB record", err)
 	}
 }
 
@@ -1028,7 +1034,17 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		Key:       "_runtime",
 		ValueJson: fmt.Sprintf("%f", runtime),
 	})
-	if !h.settings.GetXShared().GetValue() {
+
+	// When running in "shared" mode, there can be multiple writers to the same
+	// run (for example running on different machines). In that case, the
+	// backend determines the step, and the client ID identifies which metrics
+	// came from the same writer. Otherwise, we must set the step explicitly.
+	if h.settings.GetXShared().GetValue() {
+		history.Item = append(history.Item, &service.HistoryItem{
+			Key:       "_client_id",
+			ValueJson: fmt.Sprintf(`"%s"`, h.clientID),
+		})
+	} else {
 		history.Item = append(history.Item, &service.HistoryItem{
 			Key:       "_step",
 			ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum()),
@@ -1050,7 +1066,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 		history.Item = append(history.Item, items...)
 	}
 
-	h.sampleHistory(history)
+	h.runHistorySampler.SampleNext(history)
 
 	record := &service.Record{
 		RecordType: &service.Record_History{
@@ -1124,8 +1140,8 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 		items, err := h.runHistory.Flatten()
 		if err != nil {
 			h.logger.CaptureError("Error flattening run history", err)
-			msg := "Failed to process history record, skipping syncing."
-			h.terminalPrinter.Write(msg)
+			h.terminalPrinter.Write(
+				"Failed to process history record, skipping syncing.")
 			return
 		}
 		h.handleHistory(&service.HistoryRecord{
@@ -1189,11 +1205,10 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			items, err := h.runHistory.Flatten()
 			if err != nil {
 				h.logger.CaptureError("Error flattening run history", err)
-				msg := fmt.Sprintf(
-					"Failed to process history record, for step %d, skipping...",
+				h.terminalPrinter.Writef(
+					"Failed to process history record for step %d, skipping...",
 					h.runHistory.GetStep(),
 				)
-				h.terminalPrinter.Write(msg)
 				return
 			}
 			history := &service.HistoryRecord{
@@ -1328,52 +1343,13 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 // sampled values. It is used to display a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
 func (h *Handler) handleRequestSampledHistory(record *service.Record) {
-	response := &service.Response{}
-
-	if h.samplers != nil {
-		var items []*service.SampledHistoryItem
-		for key, sampler := range h.samplers {
-			values := sampler.Sample()
-			item := &service.SampledHistoryItem{
-				Key:         key,
-				ValuesFloat: values,
-			}
-			items = append(items, item)
-		}
-
-		response.ResponseType = &service.Response_SampledHistoryResponse{
+	h.respond(record, &service.Response{
+		ResponseType: &service.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &service.SampledHistoryResponse{
-				Item: items,
+				Item: h.runHistorySampler.Get(),
 			},
-		}
-	}
-
-	h.respond(record, response)
-}
-
-// sample history items and update the samplers map before flushing the history
-// record as these values are finalized for the current step
-func (h *Handler) sampleHistory(history *service.HistoryRecord) {
-	// initialize the samplers map if it doesn't exist
-	if h.samplers == nil {
-		h.samplers = make(map[string]*sampler.ReservoirSampler[float32])
-	}
-
-	for _, item := range history.GetItem() {
-		var value float32
-		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
-			// ignore items that cannot be parsed as float32
-			continue
-		}
-
-		// create a new sampler if it doesn't exist
-		if _, ok := h.samplers[item.Key]; !ok {
-			h.samplers[item.Key] = sampler.NewReservoirSampler[float32](48, 0.0005)
-		}
-
-		// add the new value to the sampler
-		h.samplers[item.Key].Add(value)
-	}
+		},
+	})
 }
 
 func (h *Handler) GetRun() *service.RunRecord {

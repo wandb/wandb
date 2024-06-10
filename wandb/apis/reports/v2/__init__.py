@@ -1,20 +1,8 @@
-import os
-from inspect import cleandoc
+import wandb
 
-from .... import termlog
-from . import blocks, panels
-from .blocks import *  # noqa
-from .interface import (
-    GradientPoint,
-    InlineCode,
-    InlineLatex,
-    Layout,
-    Link,
-    ParallelCoordinatesPlotColumn,
-    Report,
-    Runset,
-    RunsetGroup,
-    RunsetGroupKey,
-)
-from .metrics import *  # noqa
-from .panels import *  # noqa
+try:
+    from wandb_workspaces.reports.v2 import *  # noqa: F403
+except ImportError:
+    wandb.termerror(
+        "Failed to import wandb_workspaces.  To edit reports programatically, please install it using `pip install wandb[workspaces]`."
+    )
