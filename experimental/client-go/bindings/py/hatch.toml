@@ -1,0 +1,22 @@
+[version]
+path = "wandb/__init__.py"
+
+[build.hooks.custom]
+path = "hatch_build.py"
+
+[build]
+include = [
+    "wandb/py.typed",
+    "package_readme.md",
+    "wandb/**/*.py",
+    "wandb/**/*.sh",
+]
+
+[build.targets.sdist]
+include = [
+    "core",
+    "wandb/py.typed",
+    "package_readme.md",
+    "wandb/**/*.py",
+    "wandb/**/*.sh",
+]

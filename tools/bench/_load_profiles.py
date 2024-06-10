@@ -37,6 +37,15 @@ PROFILES = {
         },
         "variants": ALL_VARIANTS,
     },
+    "v1-images": {
+        "all": {
+            "history_images": 10,
+            "history_images_dim": 16,
+            "num_parallel": 10,
+            "num_history": 50,
+        },
+        "variants": ALL_VARIANTS,
+    },
 }
 
 

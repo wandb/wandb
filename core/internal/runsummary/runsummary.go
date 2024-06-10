@@ -34,7 +34,12 @@ func (rs *RunSummary) ApplyChangeRecord(
 
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 	for _, item := range summaryRecord.GetUpdate() {
-		update, err := json.Unmarshal([]byte(item.GetValueJson()))
+		data := []byte(item.GetValueJson())
+		// For now, lets not handle non json data
+		if len(data) == 0 {
+			continue
+		}
+		update, err := json.Unmarshal(data)
 		if err != nil {
 			onError(err)
 			continue
