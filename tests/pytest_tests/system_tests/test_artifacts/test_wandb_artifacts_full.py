@@ -621,6 +621,33 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.type == collection.type
 
 
+def test_unlink_artifact(logged_artifact, linked_artifact, api):
+    """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
+    source_artifact = logged_artifact  # For readability
+
+    # Pull these out now in case of state changes
+    source_artifact_path = source_artifact.qualified_name
+    linked_artifact_path = linked_artifact.qualified_name
+
+    # Consistency/sanity checks in case of changes to upstream fixtures
+    assert source_artifact.qualified_name != linked_artifact.qualified_name
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is True
+
+    linked_artifact.unlink()
+
+    # Now the source artifact should still exist, the link should not
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is False
+
+    # Unlinking the source artifact should not be possible
+    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+        source_artifact.unlink()
+
+    # ... and the source artifact should *still* exist
+    assert api.artifact_exists(source_artifact_path) is True
+
+
 def test_used_artifacts_preserve_original_project(
     wandb_init, user, api, logged_artifact
 ):

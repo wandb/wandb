@@ -52,16 +52,16 @@ Status legend:
 - 🚧: In Development: The feature is available but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
-| Category    | Feature           | Status          |
-|-------------|-------------------|-----------------|
-| Experiments |                   |                 |
+| Category    | Feature           | Status           |
+|-------------|-------------------|------------------|
+| Experiments |                   |                  |
 |             | `init`            | ✅[^E.1]         |
 |             | `log`             | ✅               |
 |             | `log_artifact`    | ✅               |
 |             | `log_code`        | ✅               |
 |             | `config`          | ✅               |
 |             | `summary`         | ✅               |
-|             | `define_metric`   | 🚧[^E.5]        |
+|             | `define_metric`   | 🚧[^E.5]         |
 |             | `tags`            | ✅               |
 |             | `notes`           | ✅               |
 |             | `name`            | ✅               |
@@ -77,27 +77,26 @@ Status legend:
 |             | offline mode      | ✅               |
 |             | disabled mode     | ✅               |
 |             | multiprocessing   | ✅               |
-|             | TensorBoard sync  | ❌[^E.1]         |
+|             | TensorBoard sync  | 🚧[^E.1]         |
 |             | console logging   | ✅[^E.8]         |
 |             | system metrics    | ✅[^E.9]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
-|             | Settings          | 🚧[^E.12]       |
-| Login       |                   |                 |
+|             | Settings          | 🚧[^E.12]        |
+| Login       |                   |                  |
 |             | default entity    | ✅               |
 |             | team entity       | ✅               |
-|             | service account   | 🚧              |
-| CLI         |                   |                 |
+|             | service account   | 🚧               |
+| CLI         |                   |                  |
 |             | `sync`            | ✅[^E.1][^CLI.1] |
-|             | `<other commands>`| 🚧[^CLI.2]      |
+|             | `<other commands>`| 🚧[^CLI.2]       |
 | Artifacts   |                   | ✅               |
 |             | caching           | ✅               |
 |             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
 
-[^E.1]: `sync_tensorboard` only uploads `tfevent` files to W&B (unverified);
-    the metrics will not be logged in native W&B charts.
+[^E.1]: `sync_tensorboard` uploads `tfevent` files to W&B, so the TensorBoard tab works, but only some types of metrics appear in native W&B charts.
 [^E.5]: `define_metric` only supports default summary.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.

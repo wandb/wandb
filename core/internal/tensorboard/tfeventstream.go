@@ -1,9 +1,9 @@
 package tensorboard
 
 import (
-	"path/filepath"
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -20,14 +20,14 @@ type tfEventStream struct {
 
 	reader *TFEventReader
 	events chan *tbproto.TFEvent
-	files  chan string
+	files  chan paths.AbsolutePath
 
 	done chan struct{}
 	wg   sync.WaitGroup
 }
 
 func NewTFEventStream(
-	logDir string,
+	logDir paths.AbsolutePath,
 	readDelay waiting.Delay,
 	fileFilter TFEventsFileFilter,
 	logger *observability.CoreLogger,
@@ -39,7 +39,7 @@ func NewTFEventStream(
 		reader: NewTFEventReader(logDir, fileFilter, logger),
 
 		events: make(chan *tbproto.TFEvent),
-		files:  make(chan string),
+		files:  make(chan paths.AbsolutePath),
 
 		done: make(chan struct{}),
 	}
@@ -53,28 +53,12 @@ func (s *tfEventStream) Events() <-chan *tbproto.TFEvent {
 // Files returns the channel of tfevents file paths.
 //
 // The emitted paths are always absolute.
-func (s *tfEventStream) Files() <-chan string {
+func (s *tfEventStream) Files() <-chan paths.AbsolutePath {
 	return s.files
 }
 
-func (s *tfEventStream) emitFilePath(path string) {
-	var absPath string
-
-	if filepath.IsAbs(path) {
-		absPath = path
-	} else {
-		var err error
-		absPath, err = filepath.Abs(path)
-		if err != nil {
-			s.logger.CaptureError(
-				"tensorboard: failed to make path absolute",
-				err,
-			)
-			return
-		}
-	}
-
-	s.files <- absPath
+func (s *tfEventStream) emitFilePath(path paths.AbsolutePath) {
+	s.files <- path
 }
 
 // Stop reads all remaining events and stops after reaching EOF.
@@ -87,6 +71,8 @@ func (s *tfEventStream) Stop() {
 }
 
 // Start begins reading files and pushing to the output channel.
+//
+// A no-op if called after Stop.
 func (s *tfEventStream) Start() {
 	s.wg.Add(1)
 	go func() {
@@ -96,6 +82,13 @@ func (s *tfEventStream) Start() {
 }
 
 func (s *tfEventStream) loop() {
+	// Whether we're in the final stage where we read all remaining events.
+	//
+	// Stop() may be invoked while we're asleep, during which time more events
+	// may have been written. As soon as Stop() is invoked, we wake up and
+	// flush all remaining events before exiting the loop.
+	isFinishing := false
+
 	for {
 		event, err := s.reader.NextEvent(s.emitFilePath /*onNewFile*/)
 		if err != nil {
@@ -106,13 +99,17 @@ func (s *tfEventStream) loop() {
 			return
 		}
 
-		// NOTE: We only exit the loop after there are no more events to read.
 		if event == nil {
+			if isFinishing {
+				return
+			}
+
 			select {
 			case <-s.readDelay.Wait():
 				continue
 			case <-s.done:
-				return
+				isFinishing = true
+				continue
 			}
 		}
 
