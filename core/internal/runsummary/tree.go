@@ -101,17 +101,17 @@ func (n *Node) UpdateStats(path []string, value interface{}, summary SummaryType
 
 	// we only need to convert the value to float64 if it is an int or float:
 	var update float64
-	switch value.(type) {
+	switch value := value.(type) {
 	case int:
-		update = float64(value.(int))
+		update = float64(value)
 	case int32:
-		update = float64(value.(int32))
+		update = float64(value)
 	case int64:
-		update = float64(value.(int64))
+		update = float64(value)
 	case float32:
-		update = float64(value.(float32))
+		update = float64(value)
 	case float64:
-		update = value.(float64)
+		update = value
 	default:
 		// TODO: handle other types, just do latest probably
 		return nil
