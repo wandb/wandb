@@ -76,8 +76,6 @@ type fileStream struct {
 	path string
 
 	processChan  chan Update
-	transmitChan chan CollectorStateUpdate
-	feedbackChan chan map[string]interface{}
 	feedbackWait *sync.WaitGroup
 
 	// keep track of where we are streaming each file chunk
@@ -102,8 +100,6 @@ type fileStream struct {
 	// to prove the run is still alive.
 	heartbeatStopwatch waiting.Stopwatch
 
-	clientId string
-
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
@@ -115,7 +111,6 @@ type FileStreamParams struct {
 	Printer            *observability.Printer
 	ApiClient          api.Client
 	MaxItemsPerPush    int
-	ClientId           string
 	DelayProcess       waiting.Delay
 	HeartbeatStopwatch waiting.Stopwatch
 }
@@ -135,8 +130,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		printer:         params.Printer,
 		apiClient:       params.ApiClient,
 		processChan:     make(chan Update, BufferSize),
-		transmitChan:    make(chan CollectorStateUpdate, BufferSize),
-		feedbackChan:    make(chan map[string]interface{}, BufferSize),
 		feedbackWait:    &sync.WaitGroup{},
 		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
@@ -156,11 +149,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 
 	if params.MaxItemsPerPush > 0 {
 		fs.maxItemsPerPush = params.MaxItemsPerPush
-	}
-
-	// TODO: this should become the default
-	if fs.settings.GetXShared().GetValue() && params.ClientId != "" {
-		fs.clientId = params.ClientId
 	}
 
 	return fs
@@ -185,14 +173,9 @@ func (fs *fileStream) Start(
 		fs.offsetMap = maps.Clone(offsetMap)
 	}
 
-	go fs.loopProcess()
-	go fs.loopTransmit()
-
-	fs.feedbackWait.Add(1)
-	go func() {
-		defer fs.feedbackWait.Done()
-		fs.loopFeedback()
-	}()
+	transmitChan := fs.startProcessingUpdates(fs.processChan)
+	feedbackChan := fs.startTransmitting(transmitChan)
+	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
 }
 
 func (fs *fileStream) StreamUpdate(update Update) {
