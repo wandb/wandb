@@ -6,6 +6,7 @@ hypothesis-fspaths
 
 Pillow
 pandas
+polars
 moviepy~=1.0.3
 imageio[ffmpeg]
 matplotlib!=3.5.2

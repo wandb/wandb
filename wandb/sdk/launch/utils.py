@@ -74,6 +74,7 @@ AZURE_BLOB_REGEX = re.compile(
     r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
 )
 
+ARN_PARTITION_RE = re.compile(r"^arn:([^:]+):[^:]*:[^:]*:[^:]*:[^:]*$")
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 

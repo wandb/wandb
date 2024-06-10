@@ -489,14 +489,38 @@ message LinkArtifactRecord {
   _RecordInfo _info = 200;
 }
 
-/*
- * TBRecord: store tb locations
- */
+// Indicates a directory of TensorBoard tfevents files to sync with the run.
 message TBRecord {
-  string log_dir = 1;
-  bool save = 2;
-  string root_dir = 3;
   _RecordInfo _info = 200;
+
+  // A directory containing tfevents files to watch.
+  //
+  // This may be an absolute or relative path.
+  string log_dir = 1;
+
+  // An optional path to an ancestor of `log_dir` used for namespacing.
+  //
+  // This may be an absolute or relative path.
+  //
+  // If set, then each event from tfevents files under `log_dir` is
+  // prefixed by the file's path relative to this directory. Additionally,
+  // if `save` is true, then each file's upload path is also its path
+  // relative to `root_dir`.
+  //
+  // For example, with `root_dir` set as "tb/logs" and `log_dir` as
+  // "tb/logs/train":
+  //
+  // * Files are uploaded to "train/events.out.tfevents"
+  // * A tfevents value tagged "epoch_loss" is logged as "train/epoch_loss"
+  //
+  // If this is unset, then it is inferred using unspecified rules.
+  string root_dir = 3;
+
+  // Whether to save tfevents files with the run.
+  //
+  // When true, this uploads the tfevents files, enabling the "TensorBoard"
+  // tab in W&B.
+  bool save = 2;
 }
 
 message TBResult {}

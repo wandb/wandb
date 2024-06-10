@@ -17,14 +17,14 @@ import filelock
 import polars as pl
 import requests
 import urllib3
+import wandb_workspaces.reports.v1 as wr
 import yaml
 from wandb_gql import gql
+from wandb_workspaces.reports.v1 import Report
 
 import wandb
-import wandb.apis.reports as wr
 from wandb.apis.public import ArtifactCollection, Run
 from wandb.apis.public.files import File
-from wandb.apis.reports import Report
 from wandb.util import coalesce, remove_keys_with_none_values
 
 from . import validation

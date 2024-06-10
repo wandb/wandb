@@ -946,6 +946,7 @@ def init(
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
     fork_from: Optional[str] = None,
+    resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled]:
     r"""Start a new run to track and log to W&B.
@@ -995,7 +996,7 @@ def init(
             there, so make sure to create your account or team in the UI before
             starting to log runs.
             If you don't specify an entity, the run will be sent to your default
-            entity, which is usually your username. Change your default entity
+            entity. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
         config: (dict, argparse, absl.flags, str, optional)
@@ -1154,9 +1155,15 @@ def init(
 
     kwargs = dict(locals())
 
-    # convert fork_from into a version that can be passed to settings
-    if fork_from is not None and resume is not None:
-        raise ValueError("Cannot specify both `fork_from` and `resume`")
+    num_resume_options_set = (
+        (fork_from is not None)  # wrap
+        + (resume is not None)
+        + (resume_from is not None)
+    )
+    if num_resume_options_set > 1:
+        raise ValueError(
+            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
+        )
 
     try:
         wi = _WandbInit()

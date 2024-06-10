@@ -17,15 +17,6 @@ type HistoryUpdate struct {
 func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 	items := slices.Clone(u.Record.Item)
 
-	// when logging to the same run with multiple writers, we need to
-	// add a client id to the history record
-	if ctx.ClientID != "" {
-		items = append(items, &service.HistoryItem{
-			Key:       "_client_id",
-			ValueJson: fmt.Sprintf(`"%s"`, ctx.ClientID),
-		})
-	}
-
 	rh := runhistory.New()
 	rh.ApplyChangeRecord(
 		items,
@@ -52,7 +43,11 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
-			Write("Skipped uploading run.log() data that exceeded size limit.")
+			Writef(
+				"Skipped uploading run.log() data that exceeded"+
+					" size limit (%d > %d).",
+				len(line),
+				maxFileLineBytes)
 	} else {
 		ctx.ModifyRequest(&collectorHistoryUpdate{
 			lines: []string{string(line)},
