@@ -13,14 +13,13 @@ import (
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/internal/watcher2"
-	"github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
@@ -54,15 +53,29 @@ func NewGraphQLClient(
 	}
 	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
 
-	httpClient := backend.NewClient(api.ClientOptions{
+	opts := api.ClientOptions{
 		RetryPolicy:     clients.CheckRetry,
-		RetryMax:        int(settings.Proto.GetXGraphqlRetryMax().GetValue()),
-		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMinSeconds().GetValue()),
-		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXGraphqlRetryWaitMaxSeconds().GetValue()),
-		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXGraphqlTimeoutSeconds().GetValue()),
+		RetryMax:        api.DefaultRetryMax,
+		RetryWaitMin:    api.DefaultRetryWaitMin,
+		RetryWaitMax:    api.DefaultRetryWaitMax,
+		NonRetryTimeout: api.DefaultNonRetryTimeout,
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
-	})
+	}
+	if retryMax := settings.Proto.GetXGraphqlRetryMax(); retryMax != nil {
+		opts.RetryMax = int(retryMax.GetValue())
+	}
+	if retryWaitMin := settings.Proto.GetXGraphqlRetryWaitMinSeconds(); retryWaitMin != nil {
+		opts.RetryWaitMin = clients.SecondsToDuration(retryWaitMin.GetValue())
+	}
+	if retryWaitMax := settings.Proto.GetXGraphqlRetryWaitMaxSeconds(); retryWaitMax != nil {
+		opts.RetryWaitMax = clients.SecondsToDuration(retryWaitMax.GetValue())
+	}
+	if timeout := settings.Proto.GetXGraphqlTimeoutSeconds(); timeout != nil {
+		opts.NonRetryTimeout = clients.SecondsToDuration(timeout.GetValue())
+	}
+
+	httpClient := backend.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
 
 	return graphql.NewClient(endpoint, httpClient)
@@ -80,21 +93,35 @@ func NewFileStream(
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 	}
 
-	fileStreamRetryClient := backend.NewClient(api.ClientOptions{
-		RetryMax:        int(settings.Proto.GetXFileStreamRetryMax().GetValue()),
-		RetryWaitMin:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMinSeconds().GetValue()),
-		RetryWaitMax:    clients.SecondsToDuration(settings.Proto.GetXFileStreamRetryWaitMaxSeconds().GetValue()),
-		NonRetryTimeout: clients.SecondsToDuration(settings.Proto.GetXFileStreamTimeoutSeconds().GetValue()),
+	opts := api.ClientOptions{
+		RetryPolicy:     filestream.RetryPolicy,
+		RetryMax:        filestream.DefaultRetryMax,
+		RetryWaitMin:    filestream.DefaultRetryWaitMin,
+		RetryWaitMax:    filestream.DefaultRetryWaitMax,
+		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:    fileStreamHeaders,
 		NetworkPeeker:   peeker,
-	})
+	}
+	if retryMax := settings.Proto.GetXFileStreamRetryMax(); retryMax != nil {
+		opts.RetryMax = int(retryMax.GetValue())
+	}
+	if retryWaitMin := settings.Proto.GetXFileStreamRetryWaitMinSeconds(); retryWaitMin != nil {
+		opts.RetryWaitMin = clients.SecondsToDuration(retryWaitMin.GetValue())
+	}
+	if retryWaitMax := settings.Proto.GetXFileStreamRetryWaitMaxSeconds(); retryWaitMax != nil {
+		opts.RetryWaitMax = clients.SecondsToDuration(retryWaitMax.GetValue())
+	}
+	if timeout := settings.Proto.GetXFileStreamTimeoutSeconds(); timeout != nil {
+		opts.NonRetryTimeout = clients.SecondsToDuration(timeout.GetValue())
+	}
+
+	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
 		Settings:  settings.Proto,
 		Logger:    logger,
 		Printer:   printer,
 		ApiClient: fileStreamRetryClient,
-		ClientId:  utils.ShortID(32),
 	}
 
 	return filestream.NewFileStream(params)
@@ -108,21 +135,34 @@ func NewFileTransferManager(
 	fileTransferRetryClient := retryablehttp.NewClient()
 	fileTransferRetryClient.Logger = logger
 	fileTransferRetryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
-	fileTransferRetryClient.RetryMax = int(settings.Proto.GetXFileTransferRetryMax().GetValue())
-	fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMinSeconds().GetValue())
-	fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(settings.Proto.GetXFileTransferRetryWaitMaxSeconds().GetValue())
-	fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(settings.Proto.GetXFileTransferTimeoutSeconds().GetValue())
+	fileTransferRetryClient.RetryMax = filetransfer.DefaultRetryMax
+	fileTransferRetryClient.RetryWaitMin = filetransfer.DefaultRetryWaitMin
+	fileTransferRetryClient.RetryWaitMax = filetransfer.DefaultRetryWaitMax
+	fileTransferRetryClient.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
 	fileTransferRetryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-	defaultFileTransfer := filetransfer.NewDefaultFileTransfer(
+	fileTransfers := filetransfer.NewFileTransfers(
 		fileTransferRetryClient,
 		logger,
 		fileTransferStats,
 	)
+
+	if retryMax := settings.Proto.GetXFileTransferRetryMax(); retryMax != nil {
+		fileTransferRetryClient.RetryMax = int(retryMax.GetValue())
+	}
+	if retryWaitMin := settings.Proto.GetXFileTransferRetryWaitMinSeconds(); retryWaitMin != nil {
+		fileTransferRetryClient.RetryWaitMin = clients.SecondsToDuration(retryWaitMin.GetValue())
+	}
+	if retryWaitMax := settings.Proto.GetXFileTransferRetryWaitMaxSeconds(); retryWaitMax != nil {
+		fileTransferRetryClient.RetryWaitMax = clients.SecondsToDuration(retryWaitMax.GetValue())
+	}
+	if timeout := settings.Proto.GetXFileTransferTimeoutSeconds(); timeout != nil {
+		fileTransferRetryClient.HTTPClient.Timeout = clients.SecondsToDuration(timeout.GetValue())
+	}
+
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
 		filetransfer.WithSettings(settings.Proto),
-		filetransfer.WithFileTransfer(defaultFileTransfer),
+		filetransfer.WithFileTransfers(fileTransfers),
 		filetransfer.WithFileTransferStats(fileTransferStats),
 	)
 }
@@ -133,6 +173,7 @@ func NewRunfilesUploader(
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
 	fileTransfer filetransfer.FileTransferManager,
+	fileWatcher watcher.Watcher,
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
@@ -142,7 +183,7 @@ func NewRunfilesUploader(
 		FileStream:   fileStream,
 		FileTransfer: fileTransfer,
 		GraphQL:      graphQL,
-		FileWatcher:  watcher2.New(watcher2.Params{Logger: logger}),
+		FileWatcher:  fileWatcher,
 		BatchDelay:   waiting.NewDelay(50 * time.Millisecond),
 	})
 }

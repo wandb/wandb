@@ -3,8 +3,9 @@ package runfiles
 import (
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/pkg/filestream"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
@@ -20,7 +21,7 @@ type savedFile struct {
 	realPath string
 
 	// The path to the file relative to the run's files directory.
-	runPath string
+	runPath paths.RelativePath
 
 	// The kind of file this is.
 	category filetransfer.RunFileKind
@@ -50,7 +51,7 @@ func newSavedFile(
 	ftm filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
 	realPath string,
-	runPath string,
+	runPath paths.RelativePath,
 ) *savedFile {
 	return &savedFile{
 		fs:       fs,
@@ -102,7 +103,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 		FileKind: f.category,
 		Type:     filetransfer.UploadTask,
 		Path:     f.realPath,
-		Name:     f.runPath,
+		Name:     string(f.runPath),
 		Url:      uploadURL,
 		Headers:  uploadHeaders,
 	}
@@ -121,7 +122,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
 	if task.Err == nil {
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
-			RelativePath: f.runPath,
+			RelativePath: string(f.runPath),
 		})
 	}
 

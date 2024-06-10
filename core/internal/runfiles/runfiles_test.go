@@ -11,16 +11,17 @@ import (
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/filetransfertest"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
-	"github.com/wandb/wandb/core/internal/watcher2test"
-	"github.com/wandb/wandb/core/pkg/filestream"
-	"github.com/wandb/wandb/core/pkg/filestreamtest"
+	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -58,11 +59,17 @@ func writeEmptyFile(t *testing.T, path string) {
 	)
 }
 
+func rel(t *testing.T, path string) paths.RelativePath {
+	relPath, err := paths.Relative(path)
+	require.NoError(t, err)
+	return *relPath
+}
+
 func TestUploader(t *testing.T) {
 	var fakeFileStream *filestreamtest.FakeFileStream
 	var fakeFileTransfer *filetransfertest.FakeFileTransferManager
 	var mockGQLClient *gqlmock.MockClient
-	var fakeFileWatcher *watcher2test.FakeWatcher
+	var fakeFileWatcher *watchertest.FakeWatcher
 	var uploader Uploader
 
 	// Optional batch delay to use in the uploader.
@@ -101,7 +108,7 @@ func TestUploader(t *testing.T) {
 
 		mockGQLClient = gqlmock.NewMockClient()
 
-		fakeFileWatcher = watcher2test.NewFakeWatcher()
+		fakeFileWatcher = watchertest.NewFakeWatcher()
 
 		uploader = NewUploader(runfilestest.WithTestDefaults(UploaderParams{
 			Ctx:          context.Background(),
@@ -205,7 +212,7 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
-			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
@@ -216,7 +223,7 @@ func TestUploader(t *testing.T) {
 		func(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 
-			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -228,7 +235,7 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/xyz/file.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "xyz", "file.txt"))
 
-			uploader.UploadNow(filepath.Join("subdir", "xyz", "file.txt"))
+			uploader.UploadNow(rel(t, filepath.Join("subdir", "xyz", "file.txt")))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -240,7 +247,7 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
-			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -252,7 +259,7 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
-			uploader.UploadNow(filepath.Join("subdir", "test.txt"))
+			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
 			uploader.Finish()
 
 			assert.Equal(t,
@@ -370,7 +377,7 @@ func TestUploader(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test-file2"))
 
 			uploader.UploadAtEnd("test-file1")
-			uploader.UploadAtEnd(filepath.Join("subdir", "test-file2"))
+			uploader.UploadAtEnd(rel(t, filepath.Join("subdir", "test-file2")))
 			uploader.UploadRemaining()
 			uploader.Finish()
 

@@ -4,7 +4,6 @@ These tests execute the real user flow exposed by the
 `wandb.sdk.launch.inputs.manage` module.
 """
 
-import os
 import time
 
 import pytest
@@ -31,6 +30,7 @@ def test_config():
     }
 
 
+@pytest.mark.wandb_core_only
 def test_manage_config_file(
     test_settings,
     wandb_init,
@@ -45,11 +45,6 @@ def test_manage_config_file(
     have the config file saved in its files and the job should have the config
     file schema.
     """
-    # This is a short term hack to avoid running this test without wandb core
-    # enabled. Long term this should controlled with a pytest marker.
-    core = os.environ.get("WANDB__REQUIRE_CORE", "false")
-    if core.lower() != "true":
-        return
     monkeypatch.chdir(tmp_path)
     config_str = yaml.dump(test_config)
 
@@ -75,7 +70,7 @@ def test_manage_config_file(
         run_api_object = api.run(run.path)
         poll = 1
         while poll < 8:
-            file = run_api_object.file("configs/config.yaml")
+            file = run_api_object.file("_wandb_configs/config.yaml")
             if file.size == len(config_str):
                 break
             time.sleep(poll)
@@ -121,12 +116,12 @@ def test_manage_config_file(
                         "wb_type": "typedDict",
                     }
                 },
-                "@wandb.config": {"params": {"type_map": {}}, "wb_type": "typedDict"},
             },
             "output_types": {"wb_type": "unknown"},
         }
 
 
+@pytest.mark.wandb_core_only
 def test_manage_wandb_config(
     test_settings,
     wandb_init,
@@ -137,9 +132,6 @@ def test_manage_wandb_config(
     If `manage_wandb_config` is called and a job is created then the job should
     have the wandb config schema saved in its metadata.
     """
-    core = os.environ.get("WANDB__REQUIRE_CORE", "false")
-    if core.lower() != "true":
-        return
     settings = test_settings()
     settings.update(
         {

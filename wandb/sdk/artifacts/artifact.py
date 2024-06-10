@@ -427,7 +427,7 @@ class Artifact:
 
         A collection is an ordered group of artifact versions.
         If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the the collection
+        collection will be returned rather than the collection
         that an artifact version originated from. The collection
         that an artifact originates from is known as the source sequence.
         """
@@ -1182,7 +1182,7 @@ class Artifact:
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
-            raise ValueError("Path is not a file: %s" % local_path)
+            raise ValueError("Path is not a file: {}".format(local_path))
 
         name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
@@ -1223,11 +1223,12 @@ class Artifact:
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: %s" % local_path)
+            raise ValueError("Path is not a directory: {}".format(local_path))
 
         termlog(
-            "Adding directory to artifact (%s)... "
-            % os.path.join(".", os.path.normpath(local_path)),
+            "Adding directory to artifact ({})... ".format(
+                os.path.join(".", os.path.normpath(local_path))
+            ),
             newline=False,
         )
         start_time = time.time()
@@ -1529,7 +1530,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: %s" % name)
+            raise KeyError("Path not contained in artifact: {}".format(name))
         entry._parent_artifact = self
         return entry
 
@@ -1940,11 +1941,11 @@ class Artifact:
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+            print("Warning: skipped verification of {} refs".format(ref_count))
 
     def file(self, root: Optional[str] = None) -> StrPath:
         """Download a single file artifact to the directory you specify with `root`.
@@ -2018,16 +2019,23 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
+        If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
+        source artifact is unaffected.
+
         Arguments:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
                 aliases.
+                This parameter is ignored if the artifact is linked (i.e. a member of a portfolio collection).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
         self._ensure_logged("delete")
-        self._delete(delete_aliases)
+        if self.collection.is_sequence():
+            self._delete(delete_aliases)
+        else:
+            self._unlink()
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
@@ -2060,13 +2068,13 @@ class Artifact:
 
         Arguments:
             target_path: The path to the portfolio inside a project.
-            The target path must adhere to one of the following
-            schemas `{portfolio}`, `{project}/{portfolio}` or
-            `{entity}/{project}/{portfolio}`.
-            To link the artifact to the Model Registry, rather than to a generic
-            portfolio inside a project, set `target_path` to the following
-            schema `{"model-registry"}/{Registered Model Name}` or
-            `{entity}/{"model-registry"}/{Registered Model Name}`.
+                The target path must adhere to one of the following
+                schemas `{portfolio}`, `{project}/{portfolio}` or
+                `{entity}/{project}/{portfolio}`.
+                To link the artifact to the Model Registry, rather than to a generic
+                portfolio inside a project, set `target_path` to the following
+                schema `{"model-registry"}/{Registered Model Name}` or
+                `{entity}/{"model-registry"}/{Registered Model Name}`.
             aliases: A list of strings that uniquely identifies the artifact inside the
                 specified portfolio.
 
@@ -2083,6 +2091,48 @@ class Artifact:
                 run.link_artifact(self, target_path, aliases)
         else:
             wandb.run.link_artifact(self, target_path, aliases)
+
+    def unlink(self) -> None:
+        """Unlink this artifact if it is currently a member of a portfolio (a promoted collection of artifacts).
+
+        Raises:
+            ArtifactNotLoggedError: If the artifact is not logged.
+            ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
+        """
+        self._ensure_logged("unlink")
+
+        # Fail early if this isn't a linked artifact to begin with
+        if self.collection.is_sequence():
+            raise ValueError(
+                f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
+                f"To delete it, use {self.delete.__qualname__!r} instead."
+            )
+
+        self._unlink()
+
+    @normalize_exceptions
+    def _unlink(self) -> None:
+        mutation = gql(
+            """
+            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+                unlinkArtifact(
+                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
+                ) {
+                    artifactID
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        assert self._client is not None
+        self._client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioID": self.collection.id,
+            },
+        )
 
     def used_by(self) -> List[Run]:
         """Get a list of the runs that have used this artifact.

@@ -332,7 +332,7 @@ class Api:
 
     def relocate(self) -> None:
         """Ensure the current api points to the right server."""
-        self.client.transport.url = "%s/graphql" % self.settings("base_url")
+        self.client.transport.url = "{}/graphql".format(self.settings("base_url"))
 
     def execute(self, *args: Any, **kwargs: Any) -> "_Response":
         """Wrapper around execute that logs in cases of failure."""
@@ -2217,6 +2217,113 @@ class Api:
         )
 
     @normalize_exceptions
+    def rewind_run(
+        self,
+        run_name: str,
+        metric_name: str,
+        metric_value: float,
+        program_path: Optional[str] = None,
+        entity: Optional[str] = None,
+        project: Optional[str] = None,
+        num_retries: Optional[int] = None,
+    ) -> dict:
+        """Rewinds a run to a previous state.
+
+        Arguments:
+            run_name (str): The name of the run to rewind
+            metric_name (str): The name of the metric to rewind to
+            metric_value (float): The value of the metric to rewind to
+            program_path (str, optional): Path to the program
+            entity (str, optional): The entity to scope this project to
+            project (str, optional): The name of the project
+            num_retries (int, optional): Number of retries
+
+        Returns:
+            A dict with the rewound run
+
+                {
+                    "id": "run_id",
+                    "name": "run_name",
+                    "displayName": "run_display_name",
+                    "description": "run_description",
+                    "config": "stringified_run_config_json",
+                    "sweepName": "run_sweep_name",
+                    "project": {
+                        "id": "project_id",
+                        "name": "project_name",
+                        "entity": {
+                            "id": "entity_id",
+                            "name": "entity_name"
+                        }
+                    },
+                    "historyLineCount": 100,
+                }
+        """
+        query_string = """
+        mutation RewindRun($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
+            rewindRun(input: {runName: $runName, entityName: $entity, projectName: $project, metricName: $metricName, metricValue: $metricValue}) {
+                rewoundRun {
+                    id
+                    name
+                    displayName
+                    description
+                    config
+                    sweepName
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+                    historyLineCount
+                }
+            }
+        }
+        """
+
+        mutation = gql(query_string)
+
+        kwargs = {}
+        if num_retries is not None:
+            kwargs["num_retries"] = num_retries
+
+        variable_values = {
+            "runName": run_name,
+            "entity": entity or self.settings("entity"),
+            "project": project or util.auto_project_name(program_path),
+            "metricName": metric_name,
+            "metricValue": metric_value,
+        }
+
+        # retry conflict errors for 2 minutes, default to no_auth_retry
+        check_retry_fn = util.make_check_retry_fn(
+            check_fn=util.check_retry_conflict_or_gone,
+            check_timedelta=datetime.timedelta(minutes=2),
+            fallback_retry_fn=util.no_retry_auth,
+        )
+
+        response = self.gql(
+            mutation,
+            variable_values=variable_values,
+            check_retry_fn=check_retry_fn,
+            **kwargs,
+        )
+
+        run_obj: Dict[str, Dict[str, Dict[str, str]]] = response.get(
+            "rewindRun", {}
+        ).get("rewoundRun", {})
+        project_obj: Dict[str, Dict[str, str]] = run_obj.get("project", {})
+        if project_obj:
+            self.set_setting("project", project_obj["name"])
+            entity_obj = project_obj.get("entity", {})
+            if entity_obj:
+                self.set_setting("entity", entity_obj["name"])
+
+        return run_obj
+
+    @normalize_exceptions
     def get_run_info(
         self,
         entity: str,
@@ -2911,9 +3018,10 @@ class Api:
                         parameter["distribution"] = "uniform"
                     else:
                         raise ValueError(
-                            "Parameter %s is ambiguous, please specify bounds as both floats (for a float_"
-                            "uniform distribution) or ints (for an int_uniform distribution)."
-                            % parameter_name
+                            "Parameter {} is ambiguous, please specify bounds as both floats (for a float_"
+                            "uniform distribution) or ints (for an int_uniform distribution).".format(
+                                parameter_name
+                            )
                         )
         return config
 
@@ -3016,7 +3124,9 @@ class Api:
 
         # Silly, but attr-dicts like EasyDicts don't serialize correctly to yaml.
         # This sanitizes them with a round trip pass through json to get a regular dict.
-        config_str = yaml.dump(json.loads(json.dumps(config)))
+        config_str = yaml.dump(
+            json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
+        )
 
         err: Optional[Exception] = None
         for mutation in mutations:
@@ -3759,6 +3869,36 @@ class Api:
             response["updateArtifactManifest"]["artifactManifest"]["file"],
         )
 
+    def update_artifact_metadata(
+        self, artifact_id: str, metadata: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Set the metadata of the given artifact version."""
+        mutation = gql(
+            """
+        mutation UpdateArtifact(
+            $artifactID: ID!,
+            $metadata: JSONString,
+        ) {
+            updateArtifact(input: {
+                artifactID: $artifactID,
+                metadata: $metadata,
+            }) {
+                artifact {
+                    id
+                }
+            }
+        }
+        """
+        )
+        response = self.gql(
+            mutation,
+            variable_values={
+                "artifactID": artifact_id,
+                "metadata": json.dumps(metadata),
+            },
+        )
+        return response["updateArtifact"]["artifact"]
+
     def _resolve_client_id(
         self,
         client_id: str,
@@ -3953,9 +4093,9 @@ class Api:
         s = self.sweep(sweep=sweep, entity=entity, project=project, specs="{}")
         curr_state = s["state"].upper()
         if state == "PAUSED" and curr_state not in ("PAUSED", "RUNNING"):
-            raise Exception("Cannot pause %s sweep." % curr_state.lower())
+            raise Exception("Cannot pause {} sweep.".format(curr_state.lower()))
         elif state != "RUNNING" and curr_state not in ("RUNNING", "PAUSED", "PENDING"):
-            raise Exception("Sweep already %s." % curr_state.lower())
+            raise Exception("Sweep already {}.".format(curr_state.lower()))
         sweep_id = s["id"]
         mutation = gql(
             """

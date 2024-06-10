@@ -243,6 +243,8 @@ message Deprecated {
   bool artifactmanifestentry__name =
       12;                            // wandb.sdk.artifacts.artifact_manifest_entry.ArtifactManifestEntry.name() called
   bool api__artifact_versions = 13;  // wandb.Api().artifact_versions(...) called
+  bool artifact_collection__change_type =
+      14;  // wandb.sdk.artifact_collection.ArtifactCollection.change_type(...) called
 }
 
 message Issues {

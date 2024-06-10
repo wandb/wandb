@@ -55,7 +55,9 @@ class SystemInfo:
         )
         program_absolute = os.path.join(root, program_relative)
         if not os.path.exists(program_absolute):
-            logger.warning("unable to save code -- can't find %s" % program_absolute)
+            logger.warning(
+                "unable to save code -- can't find {}".format(program_absolute)
+            )
             return None
         saved_program = os.path.join(self.settings.files_dir, "code", program_relative)
         self.saved_program = program_relative  # type: ignore
@@ -120,7 +122,7 @@ class SystemInfo:
             subprocess.CalledProcessError,
             subprocess.TimeoutExpired,
         ) as e:
-            logger.error("Error generating diff: %s" % e)
+            logger.error("Error generating diff: {}".format(e))
         logger.debug("Saving git patches done")
 
     def _probe_git(self, data: Dict[str, Any]) -> Dict[str, Any]:

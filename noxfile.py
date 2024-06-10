@@ -1,10 +1,11 @@
 import os
 import pathlib
+import platform
 import re
 import shutil
 import time
 from contextlib import contextmanager
-from typing import Callable, List
+from typing import Callable, Dict, List, Optional, Tuple
 
 import nox
 
@@ -41,18 +42,52 @@ def install_wandb(session: nox.Session):
         install_timed(session, "--force-reinstall", ".")
 
 
+def get_session_file_name(session: nox.Session) -> str:
+    """Returns the session name transformed to be usable in a file name."""
+    return re.sub(r"[\(\)=\"\'\.]", "_", session.name)
+
+
+def site_packages_dir(session: nox.Session) -> pathlib.Path:
+    """Returns the site-packages directory of the current session's venv."""
+    # https://stackoverflow.com/a/66191790/2640146
+    if platform.system() == "Windows":
+        return pathlib.Path(session.virtualenv.location, "Lib", "site-packages")
+    else:
+        return pathlib.Path(
+            session.virtualenv.location,
+            "lib",
+            f"python{session.python}",
+            "site-packages",
+        )
+
+
+def get_circleci_splits(session: nox.Session) -> Optional[Tuple[int, int]]:
+    """Returns the test splitting arguments from our CircleCI config.
+
+    When using test splitting, CircleCI sets the CIRCLE_NODE_TOTAL and
+    CIRCLE_NODE_INDEX environment variables to indicate which group of
+    tests we should run.
+
+    This returns (index, total), with 0 <= index < total, if the variables
+    are set. Otherwise, returns (0, 0).
+    """
+    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
+    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
+
+    if circle_node_total and circle_node_index:
+        return (int(circle_node_index), int(circle_node_total))
+
+    return (0, 0)
+
+
 def run_pytest(
     session: nox.Session,
     paths: List[str],
 ) -> None:
-    # Session name, transformed to be usable in a file name.
-    session_file_name = re.sub(r"[\(\)=\"\'\.]", "_", session.name)
+    session_file_name = get_session_file_name(session)
 
     pytest_opts = []
     pytest_env = {
-        "WANDB__NETWORK_BUFFER": "1000",
-        "WANDB_ERROR_REPORTING": "false",
-        "WANDB_CORE_ERROR_REPORTING": "false",
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
@@ -73,10 +108,8 @@ def run_pytest(
     pytest_opts.append("-n=auto")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
-    # These environment variables come from CircleCI.
-    circle_node_total = session.env.get("CIRCLE_NODE_TOTAL")
-    circle_node_index = session.env.get("CIRCLE_NODE_INDEX")
-    if circle_node_total and circle_node_index:
+    (circle_node_index, circle_node_total) = get_circleci_splits(session)
+    if circle_node_total > 0:
         pytest_opts.append(f"--splits={circle_node_total}")
         pytest_opts.append(f"--group={int(circle_node_index) + 1}")
 
@@ -84,22 +117,8 @@ def run_pytest(
     # We set "--cov-report=" to suppress terminal output.
     pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
 
-    # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
-    _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
-    pycovfile = _NOX_PYTEST_COVERAGE_DIR / (".coverage-" + session_file_name)
-
-    # Enable Go code coverage collection.
-    _NOX_GO_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
-    gocovdir = _NOX_GO_COVERAGE_DIR / session_file_name
-    gocovdir.mkdir(exist_ok=True)
-
-    # We must pass an absolute directory to GOCOVERDIR because we cannot
-    # assume the working directory of the Go process!
-    pytest_env["GOCOVERDIR"] = str(gocovdir.absolute())
-    pytest_env["COVERAGE_FILE"] = str(pycovfile)
-
-    session.log(f"Storing Python coverage in {pycovfile}")
-    session.log(f"Storing Go coverage in {gocovdir}")
+    pytest_env.update(python_coverage_env(session))
+    pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
 
     session.run(
@@ -108,6 +127,88 @@ def run_pytest(
         *paths,
         env=pytest_env,
         include_outer_env=False,
+    )
+
+
+def run_yea(
+    session: nox.Session,
+    shard: str,
+    require_core: bool,
+    yeadoc: bool,
+    paths: List[str],
+) -> None:
+    """Runs tests using yea-wandb.
+
+    yea is a custom test runner that allows running scripts and asserting on
+    their outputs and side effects.
+
+    Args:
+        session: The current nox session.
+        shard: The "--shard" argument to pass to yea. Only tests that declare
+            a matching shard run.
+        require_core: Whether to require("core") for the test.
+        yeadoc: Whether to pass the "--yeadoc" argument to yea to make it scan
+            for docstring tests.
+        paths: The test paths to run or ["--all"].
+    """
+    yea_opts = [
+        "--strict",
+        *["--shard", shard],
+        "--mitm",
+    ]
+
+    if yeadoc:
+        yea_opts.append("--yeadoc")
+
+    yea_env = {
+        "YEACOV_SOURCE": str(site_packages_dir(session) / "wandb"),
+        "USERNAME": session.env.get("USERNAME"),
+        "PATH": session.env.get("PATH"),
+        "WANDB_API_KEY": session.env.get("WANDB_API_KEY"),
+        "WANDB__REQUIRE_CORE": str(require_core),
+        # Set the _network_buffer setting to 1000 to increase the likelihood
+        # of triggering flow control logic.
+        "WANDB__NETWORK_BUFFER": "1000",
+        # Disable writing to Sentry.
+        "WANDB_ERROR_REPORTING": "false",
+        "WANDB_CORE_ERROR_REPORTING": "false",
+    }
+
+    # is the version constraint needed?
+    install_timed(
+        session,
+        "yea-wandb==0.9.20",
+        "pip",  # used by yea to install per-test dependencies
+    )
+
+    (circle_node_index, circle_node_total) = get_circleci_splits(session)
+    if circle_node_total > 0:
+        yea_opts.append(f"--splits={circle_node_total}")
+        yea_opts.append(f"--group={int(circle_node_index) + 1}")
+
+    # yea invokes Python 'coverage'
+    yea_env.update(python_coverage_env(session))
+    yea_env.update(go_coverage_env(session))
+    session.notify("coverage")
+
+    session.run(
+        "yea",
+        *yea_opts,
+        "run",
+        *paths,
+        env=yea_env,
+        include_outer_env=False,
+    )
+
+    # yea always puts test results into test-results/junit-yea.xml, so we
+    # give the file a unique name after to avoid conflicts when other sessions
+    # also invoke yea.
+    os.rename(
+        pathlib.Path("test-results", "junit-yea.xml"),
+        pathlib.Path(
+            "test-results",
+            f"junit-yea-{get_session_file_name(session)}.xml",
+        ),
     )
 
 
@@ -196,6 +297,36 @@ def notebook_tests(session: nox.Session) -> None:
             session.posargs
             or [
                 "tests/pytest_tests/system_tests/test_notebooks",
+            ]
+        ),
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("core", [False, True], ["no_wandb_core", "wandb_core"])
+def functional_tests(session: nox.Session, core: bool) -> None:
+    """Runs functional tests using yea.
+
+    The yea shard must be specified using the YEA_SHARD environment variable.
+    The test paths to run may be specified via positional arguments.
+    """
+    shard = session.env.get("YEA_SHARD")
+    if not shard:
+        session.error("No YEA_SHARD environment variable specified")
+
+    session.log(f"Using YEA_SHARD={shard}")
+
+    install_wandb(session)
+    run_yea(
+        session,
+        shard=shard,
+        require_core=core,
+        yeadoc=True,
+        paths=(
+            session.posargs
+            or [
+                "tests/functional_tests",
+                "tests/standalone_tests",
             ]
         ),
     )
@@ -447,7 +578,7 @@ def _generate_proto_go(session: nox.Session) -> None:
 
 
 @nox.session(name="proto-python", tags=["proto"], python="3.9")
-@nox.parametrize("pb", [3, 4])
+@nox.parametrize("pb", [3, 4, 5])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
 
@@ -470,14 +601,26 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.install("mypy-protobuf~=3.5.0")
         session.install("grpcio~=1.50.0")
         session.install("grpcio-tools~=1.50.0")
+    elif pb == 5:
+        session.install("protobuf~=5.27.0")
+        session.install("mypy-protobuf~=3.6.0")
+        session.install("grpcio~=1.64.1")
+        session.install("grpcio-tools~=1.64.1")
     else:
-        session.error("Invalid protobuf version given. `pb` must be 3 or 4.")
+        session.error("Invalid protobuf version given. `pb` must be 3, 4, or 5.")
 
     session.install("packaging")
-    session.install(".")
 
     with session.chdir("wandb/proto"):
-        session.run("python", "wandb_internal_codegen.py")
+        session.run("python", "wandb_generate_proto.py")
+
+
+@nox.session(name="generate-deprecated", tags=["proto"], python="3.9")
+def generate_deprecated_class_definition(session: nox.Session) -> None:
+    session.install("-e", ".")
+
+    with session.chdir("wandb/proto"):
+        session.run("python", "wandb_generate_deprecated.py")
 
 
 def _ensure_no_diff(
@@ -584,6 +727,40 @@ def mypy_report(session: nox.Session) -> None:
     )
 
 
+def python_coverage_env(session: nox.Session) -> Dict[str, str]:
+    """Returns environment variables configuring Python coverage output.
+
+    Configures the 'coverage' tool https://coverage.readthedocs.io/en/latest/
+    to be usable with the "coverage" session.
+
+    Both yea and pytest invoke coverage; for pytest it is via the pytest-cov
+    package.
+    """
+    # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
+    _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
+    pycovfile = _NOX_PYTEST_COVERAGE_DIR / (
+        ".coverage-" + get_session_file_name(session)
+    )
+
+    # Always pass an absolute path; we cannot assume the working
+    # directory of the process.
+    return {"COVERAGE_FILE": str(pycovfile.absolute())}
+
+
+def go_coverage_env(session: nox.Session) -> Dict[str, str]:
+    """Returns environment variables configuring Go coverage output.
+
+    Intended for use with the "coverage" session.
+    """
+    _NOX_GO_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
+    gocovdir = _NOX_GO_COVERAGE_DIR / get_session_file_name(session)
+    gocovdir.mkdir(exist_ok=True)
+
+    # We must pass an absolute directory to GOCOVERDIR because we cannot
+    # assume the working directory of the Go process!
+    return {"GOCOVERDIR": str(gocovdir.absolute())}
+
+
 @nox.session(default=False)
 def coverage(session: nox.Session) -> None:
     """Combines coverage outputs from test sessions.
@@ -599,8 +776,11 @@ def coverage(session: nox.Session) -> None:
 
     # https://coverage.readthedocs.io/en/latest/cmd.html#combining-data-files-coverage-combine
     py_directories = list(_NOX_PYTEST_COVERAGE_DIR.iterdir())
-    session.run("coverage", "combine", *py_directories)
-    session.run("coverage", "xml")
+    if len(py_directories) > 0:
+        session.run("coverage", "combine", *py_directories)
+        session.run("coverage", "xml")
+    else:
+        session.warn("No Python coverage found.")
     shutil.rmtree(_NOX_PYTEST_COVERAGE_DIR, ignore_errors=True)
 
     ###########################################################

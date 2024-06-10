@@ -1,8 +1,5 @@
 # wandb-core: A New Backend for the W&B SDK
 
-[![PyPI version](https://badge.fury.io/py/wandb-core.svg)](https://badge.fury.io/py/wandb-core)
-[![PyPI - License](https://img.shields.io/pypi/l/wandb-core)]()
-
 ## Introduction
 
 Good News, Everyone! We've developed a new and improved backend for the W&B SDK that is
@@ -10,8 +7,7 @@ more performant, versatile, and robust.
 
 ## Getting Started
 
-To start using [`wandb-core`](https://pypi.org/project/wandb-core/), run
-`wandb.require("core")` in your script before starting any runs:
+To start using the new backend, add `wandb.require("core")` to your script after importing `wandb`:
 
 ```python
 import wandb
@@ -19,7 +15,7 @@ import wandb
 wandb.require("core")
 ```
 
-Note: ensure you have `wandb>=0.17`.
+Note: ensure you have `wandb>=0.17.0`.
 
 ### Platform Compatibility
 
@@ -42,7 +38,7 @@ To revert to the old SDK backend, remove `wandb.require("core")` from your scrip
 
 ## Contributing
 
-Your contributions are welcome! Check our [contributing guide](docs/contributing.md) for instructions on setting up your development environment and contributing to the project.
+Your contributions are welcome! Please follow our [contributing guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more details.
 
 ## Feedback and Bug Reporting
 We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug reports, is invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
@@ -56,16 +52,16 @@ Status legend:
 - 🚧: In Development: The feature is available but may be unstable or incomplete.
 - ❌: Not Available: The feature is not yet available.
 
-| Category    | Feature           | Status          |
-|-------------|-------------------|-----------------|
-| Experiments |                   |                 |
+| Category    | Feature           | Status           |
+|-------------|-------------------|------------------|
+| Experiments |                   |                  |
 |             | `init`            | ✅[^E.1]         |
 |             | `log`             | ✅               |
 |             | `log_artifact`    | ✅               |
 |             | `log_code`        | ✅               |
 |             | `config`          | ✅               |
 |             | `summary`         | ✅               |
-|             | `define_metric`   | 🚧[^E.5]        |
+|             | `define_metric`   | 🚧[^E.5]         |
 |             | `tags`            | ✅               |
 |             | `notes`           | ✅               |
 |             | `name`            | ✅               |
@@ -86,23 +82,21 @@ Status legend:
 |             | system metrics    | ✅[^E.9]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
-|             | Settings          | 🚧[^E.12]       |
-| Login       |                   |                 |
+|             | Settings          | 🚧[^E.12]        |
+| Login       |                   |                  |
 |             | default entity    | ✅               |
 |             | team entity       | ✅               |
-|             | service account   | 🚧              |
-| CLI         |                   |                 |
+|             | service account   | 🚧               |
+| CLI         |                   |                  |
 |             | `sync`            | ✅[^E.1][^CLI.1] |
-|             | `<other commands>`| 🚧[^CLI.2]      |
+|             | `<other commands>`| 🚧[^CLI.2]       |
 | Artifacts   |                   | ✅               |
-|             | caching           | ❌               |
+|             | caching           | ✅               |
 |             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
-|             | Sweeps on Launch  | 🚧[^L.1]         |
 
-[^E.1]: `sync_tensorboard` only uploads `tfevent` files to W&B, but
-    metrics will not be logged in native W&B charts.
+[^E.1]: `sync_tensorboard` uploads `tfevent` files to W&B, so the TensorBoard tab works, but only some types of metrics appear in native W&B charts.
 [^E.5]: `define_metric` only supports default summary.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
@@ -111,4 +105,3 @@ Status legend:
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-[^L.1]: Sweeps on Launch requires verification.
