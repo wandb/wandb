@@ -24,7 +24,7 @@ func New() *RunSummary {
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{pathTree: pathtree.NewFrom(tree)}
+	return &RunSummary{pathTree: pathtree.NewFrom(tree), stats: NewNode()}
 }
 
 // Updates and/or removes values from the configuration tree.
