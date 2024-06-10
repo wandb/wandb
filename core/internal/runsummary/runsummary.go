@@ -13,10 +13,14 @@ import (
 
 type RunSummary struct {
 	pathTree *pathtree.PathTree
+	stats    *Node
 }
 
 func New() *RunSummary {
-	return &RunSummary{pathTree: pathtree.New()}
+	return &RunSummary{
+		pathTree: pathtree.New(),
+		stats:    NewNode(),
+	}
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
@@ -43,6 +47,9 @@ func (rs *RunSummary) ApplyChangeRecord(
 			Path:  keyPath(item),
 			Value: update,
 		})
+		// update the stats
+		fmt.Printf("runsummary: update stats for %v, %+v\n", keyPath(item), update)
+		rs.stats.UpdateStats(keyPath(item), update, Latest)
 	}
 	rs.pathTree.ApplyUpdate(updates, onError)
 
@@ -53,6 +60,12 @@ func (rs *RunSummary) ApplyChangeRecord(
 		})
 	}
 	rs.pathTree.ApplyRemove(removes)
+
+	for k, v := range rs.stats.nodes {
+		if v.leaf != nil {
+			fmt.Printf("runsummary: stats node %v stats: %v\n", k, v.leaf.Stats)
+		}
+	}
 }
 
 // Flatten the summary tree into a slice of SummaryItems.

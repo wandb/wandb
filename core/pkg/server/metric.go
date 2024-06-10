@@ -2,6 +2,7 @@ package server
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/internal/corelib"
@@ -53,6 +54,15 @@ func addMetric(arg interface{}, key string, target *map[string]*service.MetricRe
 // createMatchingGlobMetric check if a key matches a glob pattern, if it does create a new defined metric
 // based on the glob metric and return it.
 func (mh *MetricHandler) createMatchingGlobMetric(key string) *service.MetricRecord {
+
+	fmt.Printf("metricHandler: %v\n", *mh)
+	for pattern, globMetric := range mh.globMetrics {
+		fmt.Printf("    pattern: %v, globMetric: %v\n", pattern, *globMetric)
+	}
+	for pattern, definedMetric := range mh.definedMetrics {
+		fmt.Printf("    pattern: %v, definedMetric: %v\n", pattern, *definedMetric)
+	}
+
 	for pattern, globMetric := range mh.globMetrics {
 		if match, err := filepath.Match(pattern, key); err != nil {
 			// h.logger.CaptureError("error matching metric", err)
