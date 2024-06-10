@@ -4325,30 +4325,38 @@ func (x *LinkArtifactRecord) GetXInfo() *XRecordInfo {
 	return nil
 }
 
-// TBRecord: store tb locations
+// Indicates a directory of TensorBoard tfevents files to sync with the run.
 type TBRecord struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
 	XInfo *XRecordInfo `protobuf:"bytes,200,opt,name=_info,json=Info,proto3" json:"_info,omitempty"`
-	// The log directory to watch, such as "dir/logs/train" or
-	// "dir/logs/validation".
+	// A directory containing tfevents files to watch.
 	//
-	// This should be an absolute path.
+	// This may be an absolute or relative path.
 	LogDir string `protobuf:"bytes,1,opt,name=log_dir,json=logDir,proto3" json:"log_dir,omitempty"`
-	// An ancestor of log_dir, used to determine the run file path to which to
-	// upload each log file.
+	// An optional path to an ancestor of `log_dir` used for namespacing.
 	//
-	// TODO: document "namespacing" functionality (see tb_watcher.py in d9a1f69b4)
+	// This may be an absolute or relative path.
 	//
-	// For example, if this is "dir/logs", then the file "dir/logs/train/tfevents"
-	// is uploaded as "train/tfevents".
+	// If set, then each event from tfevents files under `log_dir` is
+	// prefixed by the file's path relative to this directory. Additionally,
+	// if `save` is true, then each file's upload path is also its path
+	// relative to `root_dir`.
 	//
-	// If this is a relative path or an empty string, it is joined with the
-	// working directory of the internal process.
+	// For example, with `root_dir` set as "tb/logs" and `log_dir` as
+	// "tb/logs/train":
+	//
+	// * Files are uploaded to "train/events.out.tfevents"
+	// * A tfevents value tagged "epoch_loss" is logged as "train/epoch_loss"
+	//
+	// If this is unset, then it is inferred using unspecified rules.
 	RootDir string `protobuf:"bytes,3,opt,name=root_dir,json=rootDir,proto3" json:"root_dir,omitempty"`
 	// Whether to save tfevents files with the run.
+	//
+	// When true, this uploads the tfevents files, enabling the "TensorBoard"
+	// tab in W&B.
 	Save bool `protobuf:"varint,2,opt,name=save,proto3" json:"save,omitempty"`
 }
 
