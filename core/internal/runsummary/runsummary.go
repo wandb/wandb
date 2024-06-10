@@ -49,7 +49,10 @@ func (rs *RunSummary) ApplyChangeRecord(
 		})
 		// update the stats
 		fmt.Printf("runsummary: update stats for %v, %+v\n", keyPath(item), update)
-		rs.stats.UpdateStats(keyPath(item), update, Latest)
+		err = rs.stats.UpdateStats(keyPath(item), update, Latest)
+		if err != nil {
+			onError(err)
+		}
 	}
 	rs.pathTree.ApplyUpdate(updates, onError)
 
