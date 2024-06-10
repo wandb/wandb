@@ -1,22 +1,20 @@
+import pytest
 import wandb
 
 
-def test_delete_summary_metric_w_no_lazyload(user, test_settings):
-    run = wandb.init(settings=test_settings())
-    runid = run.id
+def test_delete_summary_metric_w_no_lazyload(wandb_init):
+    run = wandb_init(project="test")
+    run_id = run.id
 
     metric = "test_val"
     for i in range(10):
-        wandb.log({metric: i})
+        run.log({metric: i})
     run.finish()
 
-    run = wandb.Api().run(f"uncategorized/{runid}")
-    try:
-        del run.summary[metric]
-        run.update()
-        # After deleting the metric, accessing it again should throw an error
-        run.summary[metric]
-    except KeyError:
-        assert True
-    else:
-        raise AssertionError("Metric was not deleted successfully.")
+    run = wandb.Api().run(f"test/{run_id}")
+    del run.summary[metric]
+    run.update()
+
+    # pytest.raises to expect a KeyError when accessing the deleted metric
+    with pytest.raises(KeyError):
+        _ = run.summary[metric]
