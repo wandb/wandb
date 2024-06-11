@@ -1298,6 +1298,7 @@ def launch_sweep(
         obj_id=sweep_obj_id,  # if resuming
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
+        template_variable_values=scheduler_args.get("template_variables", None),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information

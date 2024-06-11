@@ -3036,6 +3036,7 @@ class Api:
         project: Optional[str] = None,
         entity: Optional[str] = None,
         state: Optional[str] = None,
+        template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
@@ -3048,6 +3049,7 @@ class Api:
             project (str): project to use
             entity (str): entity to use
             state (str): state
+            template_variable_values (dict): template variable values
         """
         project_query = """
             project {
@@ -3095,11 +3097,11 @@ class Api:
         mutation_4 = gql(
             mutation_str.replace(
                 "$controller: JSONString,",
-                "$controller: JSONString,$launchScheduler: JSONString,",
+                "$controller: JSONString,$launchScheduler: JSONString, $templateVariableValues: JSONString,",
             )
             .replace(
                 "controller: $controller,",
-                "controller: $controller,launchScheduler: $launchScheduler,",
+                "controller: $controller,launchScheduler: $launchScheduler,templateVariableValues: $templateVariableValues,",
             )
             .replace("_PROJECT_QUERY_", project_query)
         )
@@ -3143,6 +3145,11 @@ class Api:
                 }
                 if state:
                     variables["state"] = state
+
+                if template_variable_values:
+                    variables["templateVariableValues"] = json.dumps(
+                        template_variable_values
+                    )
 
                 response = self.gql(
                     mutation,
