@@ -13,6 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
+- Fix "UnicodeDecodeError: 'charmap'" when opening HTML files on Windows by specifying UTF-8 encoding by @KilnOfTheSecondFlame in https://github.com/wandb/wandb/pull/7730
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
 
 ## [0.17.1] - 2024-06-07
