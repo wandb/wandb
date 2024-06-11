@@ -50,10 +50,10 @@ type CollectorStateUpdate interface {
 	Apply(*CollectorState)
 }
 
-// Consume produces an API request and resets buffers.
+// MakeRequest moves buffered data into an API request and returns it.
 //
 // Returns a boolean that's true if the request is non-empty.
-func (s *CollectorState) Consume(isDone bool) (*FsTransmitData, bool) {
+func (s *CollectorState) MakeRequest(isDone bool) (*FsTransmitData, bool) {
 	files := make(map[string]FsTransmitFileData)
 	addLines := func(chunkType ChunkTypeEnum, lineNum int, lines []string) {
 		if len(lines) == 0 {

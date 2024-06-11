@@ -120,7 +120,7 @@ func (fs *fileStream) startTransmitting(
 			fs.collectBatch(&state, stateUpdates)
 
 			fs.heartbeatStopwatch.Reset()
-			data, hasData := state.Consume(false /*isDone*/)
+			data, hasData := state.MakeRequest(false /*isDone*/)
 			if hasData {
 				transmissions <- data
 			}
@@ -131,7 +131,7 @@ func (fs *fileStream) startTransmitting(
 		heartbeatWG.Wait()
 
 		// Send final transmission.
-		data, _ := state.Consume(true /*isDone*/)
+		data, _ := state.MakeRequest(true /*isDone*/)
 		transmissions <- data
 		close(transmissions)
 		transmitWG.Wait()
