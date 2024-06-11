@@ -15,6 +15,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Fix "UnicodeDecodeError: 'charmap'" when opening HTML files on Windows by specifying UTF-8 encoding by @KilnOfTheSecondFlame in https://github.com/wandb/wandb/pull/7730
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
+- Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
 
 ## [0.17.1] - 2024-06-07
 
@@ -39,7 +40,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
 - Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
 - Fix path parsing for artifacts with aliases containing forward slashes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7676
-- Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
 - Add missing docstrings for any public methods in `Api` class by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7713
 - Correctly add latest alias to jobs built by the job builder @KyleGoyette https://github.com/wandb/wandb/pull/7727
 
