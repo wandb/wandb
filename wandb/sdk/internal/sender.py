@@ -754,14 +754,14 @@ class SendManager:
             project_name=run.project,
             name=run.run_id,
         )
-
-        if not resume_status:
+        # No resume status = run does not exist; No t key in wandbConfig = run exists but hasn't been inited
+        if not resume_status or '"t":' not in resume_status.get("wandbConfig", ""):
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = (
                     "You provided an invalid value for the `resume` argument."
-                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that has not been initialized."
                     " Please check your inputs and try again with a valid run ID."
                     " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
                 )
