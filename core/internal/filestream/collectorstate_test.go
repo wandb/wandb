@@ -38,9 +38,7 @@ func TestConsume_Done_SetsExitCode(t *testing.T) {
 
 func TestConsume_SetsLatestSummary(t *testing.T) {
 	state := filestream.CollectorState{
-		Buffer: filestream.TransmitChunk{
-			LatestSummary: "xyz",
-		},
+		LatestSummary: "xyz",
 	}
 
 	data, hasData := state.Consume(false)
