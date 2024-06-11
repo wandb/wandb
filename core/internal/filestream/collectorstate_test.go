@@ -8,9 +8,9 @@ import (
 )
 
 func TestConsume_Empty_NoData(t *testing.T) {
-	state := &filestream.CollectorState{}
+	state := filestream.CollectorState{}
 
-	data, hasData := state.Consume(filestream.FileStreamOffsetMap{}, false)
+	data, hasData := state.Consume(false)
 
 	assert.False(t, hasData)
 	assert.Zero(t, *data)
@@ -19,13 +19,13 @@ func TestConsume_Empty_NoData(t *testing.T) {
 func TestConsume_Done_SetsExitCode(t *testing.T) {
 	intZero := int32(0)
 	boolTrue := true
-	state := &filestream.CollectorState{
+	state := filestream.CollectorState{
 		ExitCode: &intZero,
 		Complete: &boolTrue,
 	}
 
-	dataNotDone, hasDataNotDone := state.Consume(filestream.FileStreamOffsetMap{}, false)
-	dataFinal, hasDataFinal := state.Consume(filestream.FileStreamOffsetMap{}, true)
+	dataNotDone, hasDataNotDone := state.Consume(false)
+	dataFinal, hasDataFinal := state.Consume(true)
 
 	assert.False(t, hasDataNotDone)
 	assert.Nil(t, dataNotDone.Exitcode)
@@ -37,13 +37,13 @@ func TestConsume_Done_SetsExitCode(t *testing.T) {
 }
 
 func TestConsume_SetsLatestSummary(t *testing.T) {
-	state := &filestream.CollectorState{
+	state := filestream.CollectorState{
 		Buffer: filestream.TransmitChunk{
 			LatestSummary: "xyz",
 		},
 	}
 
-	data, hasData := state.Consume(filestream.FileStreamOffsetMap{}, false)
+	data, hasData := state.Consume(false)
 
 	assert.True(t, hasData)
 	assert.Equal(t,

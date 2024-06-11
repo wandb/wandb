@@ -16,6 +16,19 @@ type CollectorState struct {
 	Complete *bool
 }
 
+func NewCollectorState(initialOffsets FileStreamOffsetMap) CollectorState {
+	state := CollectorState{}
+
+	if initialOffsets != nil {
+		state.Buffer.HistoryLineNum = initialOffsets[HistoryChunk]
+		state.Buffer.EventsLineNum = initialOffsets[EventsChunk]
+		state.Buffer.ConsoleLogLineNum = initialOffsets[OutputChunk]
+		state.Buffer.SummaryLineNum = initialOffsets[SummaryChunk]
+	}
+
+	return state
+}
+
 // CollectorStateUpdate is a mutation to a CollectorState.
 type CollectorStateUpdate interface {
 	// Apply modifies the collector state.
@@ -25,13 +38,10 @@ type CollectorStateUpdate interface {
 // Consume turns the buffered data into an API request, resetting buffers.
 //
 // Returns a boolean that's true if the request is non-empty.
-func (s *CollectorState) Consume(
-	offsets FileStreamOffsetMap,
-	isDone bool,
-) (*FsTransmitData, bool) {
+func (s *CollectorState) Consume(isDone bool) (*FsTransmitData, bool) {
 	transmitData := FsTransmitData{}
 
-	hasData := s.Buffer.Write(&transmitData, offsets)
+	hasData := s.Buffer.FlushInto(&transmitData)
 	if isDone {
 		transmitData.Exitcode = s.ExitCode
 		transmitData.Complete = s.Complete
