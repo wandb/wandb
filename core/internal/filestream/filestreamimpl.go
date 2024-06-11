@@ -83,8 +83,6 @@ func (fs *fileStream) startTransmitting(
 	// Internal channel of actual requests to make.
 	transmissions := make(chan *FsTransmitData)
 
-	state := CollectorState{}
-
 	transmitWG := &sync.WaitGroup{}
 	transmitWG.Add(1)
 	go func() {
@@ -110,6 +108,8 @@ func (fs *fileStream) startTransmitting(
 	}()
 
 	go func() {
+		state := CollectorState{}
+
 		// Batch and send updates.
 		//
 		// We try to batch updates that happen in quick succession by waiting a
