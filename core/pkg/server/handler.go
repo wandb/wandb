@@ -1076,6 +1076,8 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 	h.fwdRecord(record)
 
+	fmt.Printf("\n\n%+v\n\n", h.metricHandler.definedMetrics)
+
 	// TODO add an option to disable summary (this could be quite expensive)
 	if h.runSummary == nil {
 		return

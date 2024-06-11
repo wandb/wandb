@@ -11,20 +11,41 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+type MatchRules struct {
+	rules map[string]SummaryType
+}
+
+func NewMatchRules() MatchRules {
+	return MatchRules{rules: make(map[string]SummaryType)}
+}
+
+func (mr *MatchRules) getSummaryType(path []string) SummaryType {
+	if len(path) == 0 {
+		return None
+	}
+	return mr.rules[path[0]]
+}
+
 type RunSummary struct {
-	pathTree *pathtree.PathTree
-	stats    *Node
+	pathTree   *pathtree.PathTree
+	stats      *Node
+	matchRules MatchRules
 }
 
 func New() *RunSummary {
 	return &RunSummary{
-		pathTree: pathtree.New(),
-		stats:    NewNode(),
+		pathTree:   pathtree.New(),
+		stats:      NewNode(),
+		matchRules: NewMatchRules(),
 	}
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{pathTree: pathtree.NewFrom(tree), stats: NewNode()}
+	return &RunSummary{
+		pathTree:   pathtree.NewFrom(tree),
+		stats:      NewNode(),
+		matchRules: NewMatchRules(),
+	}
 }
 
 // Updates and/or removes values from the configuration tree.
@@ -43,16 +64,21 @@ func (rs *RunSummary) ApplyChangeRecord(
 			onError(err)
 			continue
 		}
+		// update the stats
+		fmt.Printf("runsummary: update stats for %v, %+v\n", keyPath(item), update)
+		st := rs.matchRules.getSummaryType(keyPath(item))
+		err = rs.stats.UpdateStats(keyPath(item), update, st)
+		if err != nil {
+			onError(err)
+		}
+		// TODO: pick the right stats type for the update
+
+		// store the update
 		updates = append(updates, &pathtree.PathItem{
 			Path:  keyPath(item),
 			Value: update,
 		})
-		// update the stats
-		fmt.Printf("runsummary: update stats for %v, %+v\n", keyPath(item), update)
-		err = rs.stats.UpdateStats(keyPath(item), update, Latest)
-		if err != nil {
-			onError(err)
-		}
+
 	}
 	rs.pathTree.ApplyUpdate(updates, onError)
 
@@ -61,9 +87,16 @@ func (rs *RunSummary) ApplyChangeRecord(
 		removes = append(removes, &pathtree.PathItem{
 			Path: keyPath(item),
 		})
+		// remove the stats
+		fmt.Printf("runsummary: remove stats for %v\n", keyPath(item))
+		err := rs.stats.DeleteNode(keyPath(item))
+		if err != nil {
+			onError(err)
+		}
 	}
 	rs.pathTree.ApplyRemove(removes)
 
+	// TODO: rm this debug
 	for k, v := range rs.stats.nodes {
 		if v.leaf != nil {
 			fmt.Printf("runsummary: stats node %v stats: %v\n", k, v.leaf.Stats)

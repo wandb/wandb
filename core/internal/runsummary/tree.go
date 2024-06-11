@@ -1,6 +1,9 @@
 package runsummary
 
-import "sync"
+import (
+	"errors"
+	"sync"
+)
 
 // Stats struct to hold statistical data
 type Stats struct {
@@ -83,6 +86,32 @@ func (n *Node) GetOrCreateNode(path []string) (*Node, error) {
 	}
 
 	return current, nil
+}
+
+// DeleteNode deletes a node at a given path
+func (n *Node) DeleteNode(path []string) error {
+	if len(path) == 0 {
+		return errors.New("cannot delete root node")
+	}
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	current := n
+	for i, p := range path {
+		if current.nodes[p] == nil {
+			return errors.New("path not found")
+		}
+
+		// If it's the last element in the path, delete it
+		if i == len(path)-1 {
+			delete(current.nodes, p)
+			return nil
+		}
+
+		current = current.nodes[p]
+	}
+
+	return nil
 }
 
 // UpdateStats updates or initializes the stats at the given path
