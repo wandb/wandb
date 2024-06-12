@@ -10,6 +10,7 @@ from wandb.apis.public import Api
 def test_agent_basic(wandb_init):
     sweep_ids = []
     sweep_configs = []
+    sweep_resumed = []
 
     sweep_config = {
         "name": "My Sweep",
@@ -21,6 +22,7 @@ def test_agent_basic(wandb_init):
         run = wandb_init()
         sweep_ids.append(run.sweep_id)
         sweep_configs.append(dict(run.config))
+        sweep_resumed.append(run.resumed)
         run.finish()
 
     sweep_id = wandb.sweep(sweep_config)
@@ -30,6 +32,7 @@ def test_agent_basic(wandb_init):
     assert len(sweep_ids) == len(sweep_configs) == 1
     assert sweep_ids[0] == sweep_id
     assert sweep_configs[0] == {"a": 1}
+    assert sweep_resumed[0] is False
 
 
 def test_agent_config_merge(wandb_init):
