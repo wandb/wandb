@@ -61,7 +61,9 @@ def run_parallel(args):
 
 def setup(args):
     if args.core == "true":
-        wandb.require("core")
+        os.environ["WANDB__REQUIRE_CORE"] = "true"
+    elif args.core == "false":
+        os.environ["WANDB__REQUIRE_CORE"] = "false"
 
 
 def teardown(args):
