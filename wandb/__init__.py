@@ -214,9 +214,12 @@ from .analytics import Sentry as _Sentry
 if "dev" in __version__:
     import os
 
+    # disable error reporting in dev versions for the python client
     os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
         "WANDB_ERROR_REPORTING", "false"
     )
+    # turn on wandb-core for dev versions
+    os.environ["WANDB__REQUIRE_CORE"] = os.environ.get("WANDB__REQUIRE_CORE", "true")
 
 _sentry = _Sentry()
 _sentry.setup()
