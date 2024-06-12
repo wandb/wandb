@@ -1,5 +1,7 @@
 package filestream
 
+import "github.com/wandb/wandb/core/internal/sparselist"
+
 // CollectorState is the filestream's buffered data.
 type CollectorState struct {
 	HistoryLineNum int      // Line number where to append run history.
@@ -8,10 +10,11 @@ type CollectorState struct {
 	EventsLineNum int      // Line number where to append run system metrics.
 	EventsLines   []string // Lines to append to run system metrics.
 
-	ConsoleLogLineNum int      // Line number where to append console output.
-	ConsoleLogLines   []string // Lines to append to console output.
+	// Lines to update in the run's console logs file.
+	ConsoleLogUpdates  sparselist.SparseList[string]
+	ConsoleLogNextLine int // First untouched line in the console output file.
 
-	SummaryLineNum int    // Line number where to append the run summary.
+	SummaryLineNum int    // Line number where to write the run summary.
 	LatestSummary  string // The run's updated summary, or the empty string.
 
 	// UploadedFiles are files for which uploads have finished.
@@ -37,7 +40,7 @@ func NewCollectorState(initialOffsets FileStreamOffsetMap) CollectorState {
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
 		state.EventsLineNum = initialOffsets[EventsChunk]
-		state.ConsoleLogLineNum = initialOffsets[OutputChunk]
+		state.ConsoleLogNextLine = initialOffsets[OutputChunk]
 		state.SummaryLineNum = initialOffsets[SummaryChunk]
 	}
 
@@ -73,13 +76,27 @@ func (s *CollectorState) MakeRequest(isDone bool) (*FsTransmitData, bool) {
 	s.EventsLineNum += len(s.EventsLines)
 	s.EventsLines = nil
 
-	addLines(OutputChunk, s.ConsoleLogLineNum, s.ConsoleLogLines)
-	s.ConsoleLogLineNum += len(s.ConsoleLogLines)
-	s.ConsoleLogLines = nil
+	if s.ConsoleLogUpdates.Len() > 0 {
+		// We can only upload one run of lines at a time, unfortunately.
+		run := s.ConsoleLogUpdates.ToRuns()[0]
+		files[chunkFilename[OutputChunk]] = FsTransmitFileData{
+			Offset:  run.Start,
+			Content: run.Items,
+		}
+
+		for i := run.Start; i < run.Start+len(run.Items); i++ {
+			s.ConsoleLogUpdates.Delete(i)
+		}
+	}
 
 	if s.LatestSummary != "" {
+		// We always write to the same line in the summary file.
+		//
+		// The reason this isn't always line 0 is for compatibility with old
+		// runs where we appended to the summary file. In that case, we want
+		// to update the last line, since all other lines are ignored. This
+		// applies to resumed runs.
 		addLines(SummaryChunk, s.SummaryLineNum, []string{s.LatestSummary})
-		s.SummaryLineNum += 1
 		s.LatestSummary = ""
 	}
 

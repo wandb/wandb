@@ -50,5 +50,9 @@ type collectorLogsUpdate struct {
 }
 
 func (u *collectorLogsUpdate) Apply(state *CollectorState) {
-	state.ConsoleLogLines = append(state.ConsoleLogLines, u.line)
+	state.ConsoleLogUpdates.Put(
+		state.ConsoleLogNextLine,
+		u.line,
+	)
+	state.ConsoleLogNextLine += 1
 }
