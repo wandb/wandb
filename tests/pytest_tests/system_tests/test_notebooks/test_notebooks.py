@@ -175,7 +175,7 @@ def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 8
+    assert len(displayed_html) == 9
     assert run_id in displayed_html[2]
     assert "Run history:" in displayed_html[5]
 
@@ -198,7 +198,7 @@ def test_mocked_notebook_run_display(wandb_init, mocked_ipython):
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 8
+    assert len(displayed_html) == 9
     assert "<iframe" in displayed_html[5]
 
 
@@ -220,7 +220,7 @@ def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_i
         print(f"[{i}]: {html}")
     assert wandb.jupyter.__IFrame is None
     # if versions are different this will fail (make sure you are up-to-date with master)
-    assert len(displayed_html) == 8
+    assert len(displayed_html) == 9
     assert "<iframe" in displayed_html[2]
     run_uri = f"{user}/uncategorized/runs/{run_id}"
     magic.wandb(run_uri)
