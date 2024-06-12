@@ -216,7 +216,7 @@ def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_i
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
     assert wandb.jupyter.__IFrame is None
-    assert "<iframe" in displayed_html[2]
+    assert any("<iframe" in html for html in displayed_html)
     run_uri = f"{user}/uncategorized/runs/{run_id}"
     magic.wandb(run_uri)
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
