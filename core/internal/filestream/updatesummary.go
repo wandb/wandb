@@ -59,5 +59,5 @@ type collectorSummaryUpdate struct {
 }
 
 func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
-	state.Buffer.LatestSummary = u.newSummary
+	state.LatestSummary = u.newSummary
 }

@@ -3,7 +3,6 @@ package filestream
 
 import (
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 
@@ -78,9 +77,6 @@ type fileStream struct {
 	processChan  chan Update
 	feedbackWait *sync.WaitGroup
 
-	// keep track of where we are streaming each file chunk
-	offsetMap FileStreamOffsetMap
-
 	// settings is the settings for the filestream
 	settings *service.Settings
 
@@ -131,7 +127,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		apiClient:       params.ApiClient,
 		processChan:     make(chan Update, BufferSize),
 		feedbackWait:    &sync.WaitGroup{},
-		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
@@ -169,12 +164,8 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	if offsetMap != nil {
-		fs.offsetMap = maps.Clone(offsetMap)
-	}
-
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
-	feedbackChan := fs.startTransmitting(transmitChan)
+	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
 }
 

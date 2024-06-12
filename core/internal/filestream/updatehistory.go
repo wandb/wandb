@@ -62,6 +62,5 @@ type collectorHistoryUpdate struct {
 }
 
 func (u *collectorHistoryUpdate) Apply(state *CollectorState) {
-	state.Buffer.HistoryLines =
-		append(state.Buffer.HistoryLines, u.lines...)
+	state.HistoryLines = append(state.HistoryLines, u.lines...)
 }

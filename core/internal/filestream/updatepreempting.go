@@ -23,6 +23,6 @@ func (u *PreemptingUpdate) Apply(ctx UpdateContext) error {
 type collectorPreemptingUpdate struct{}
 
 func (u *collectorPreemptingUpdate) Apply(state *CollectorState) {
-	state.Buffer.HasPreempting = true
-	state.Buffer.Preempting = true
+	state.HasPreempting = true
+	state.Preempting = true
 }

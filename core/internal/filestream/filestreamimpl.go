@@ -76,6 +76,7 @@ func (fs *fileStream) startProcessingUpdates(
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
 	stateUpdates <-chan CollectorStateUpdate,
+	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
 	// Output channel of responses.
 	feedback := make(chan map[string]any)
@@ -108,7 +109,7 @@ func (fs *fileStream) startTransmitting(
 	}()
 
 	go func() {
-		state := CollectorState{}
+		state := NewCollectorState(initialOffsets)
 
 		// Batch and send updates.
 		//
@@ -119,7 +120,7 @@ func (fs *fileStream) startTransmitting(
 			fs.collectBatch(&state, stateUpdates)
 
 			fs.heartbeatStopwatch.Reset()
-			data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
+			data, hasData := state.MakeRequest(false /*isDone*/)
 			if hasData {
 				transmissions <- data
 			}
@@ -130,7 +131,7 @@ func (fs *fileStream) startTransmitting(
 		heartbeatWG.Wait()
 
 		// Send final transmission.
-		data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
+		data, _ := state.MakeRequest(true /*isDone*/)
 		transmissions <- data
 		close(transmissions)
 		transmitWG.Wait()
