@@ -1,6 +1,7 @@
 [package]
-name = "wandb_core"
-version = "0.17.0"
+# name = "wandb"
+name = "wandbrs"
+version = "0.18.0"
 edition = "2021"
 
 [lib]

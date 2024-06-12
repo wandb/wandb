@@ -37,7 +37,7 @@ pub fn init(settings: Option<settings::Settings>) -> run::Run {
 /// the `lib.name` setting in the `Cargo.toml`, else Python will not be able to
 /// import the module.
 #[pymodule]
-fn wandb_core(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
+fn wandbrs(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
     // TODO: this doesn't work
     let _guard = sentry::init(
         "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.sentry.io/4506068829470720",
