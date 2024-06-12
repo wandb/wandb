@@ -9,6 +9,7 @@ type SessionParams struct {
 	CoreBinary []byte
 	Address    string
 	Settings   *settings.SettingsWrap
+	PidParent  int
 }
 
 type SessionOption func(*SessionParams)
@@ -28,5 +29,11 @@ func WithCoreAddress(address string) SessionOption {
 func WithSettings(baseSettings *settings.SettingsWrap) SessionOption {
 	return func(s *SessionParams) {
 		s.Settings = baseSettings
+	}
+}
+
+func WithPidParent(pidParent int) SessionOption {
+	return func(s *SessionParams) {
+		s.PidParent = pidParent
 	}
 }

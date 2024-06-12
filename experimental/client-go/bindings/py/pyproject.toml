@@ -1,0 +1,53 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "wandb"
+dynamic = ["version"]
+description = "A CLI and library for interacting with the Weights & Biases API."
+authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
+# readme = "package_readme.md"
+# license = { file = "LICENSE" }
+requires-python = ">=3.7"
+dependencies = [
+    "protobuf>=3.12.0,!=4.21.0,<5; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
+    "setuptools",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Logging",
+    "Topic :: System :: Monitoring",
+]
+
+
+#[project.scripts]
+#wandb = "wandb.cli.cli:cli"
+#wb = "wandb.cli.cli:cli"
+
+[project.urls]
+"Source" = "https://github.com/wandb/wandb"
+"Bug Reports" = "https://github.com/wandb/wandb/issues"
+"Documentation" = "https://docs.wandb.ai/"
+
+[tool.setuptools]
+zip-safe = false
+packages = ["wandb"]
+package-dir = { "wandb" = "wandb" }
