@@ -4146,9 +4146,9 @@ class Run:
             return
 
         printer.display(
-            'Enable the new W&B implementation with `wandb.require("core")`.'
-            " This will become opt-out starting with version 0.18.0."
-            " https://wandb.me/wandb-core.",
+            "The new W&B backend becomes opt-out in version 0.18.0;",
+            ' try it out with `wandb.require("core")`!'
+            " See https://wandb.me/wandb-core for more information.",
             level="warn",
         )
 
