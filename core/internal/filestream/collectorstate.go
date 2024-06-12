@@ -11,7 +11,7 @@ type CollectorState struct {
 	ConsoleLogLineNum int      // Line number where to append console output.
 	ConsoleLogLines   []string // Lines to append to console output.
 
-	SummaryLineNum int    // Line number where to append the run summary.
+	SummaryLineNum int    // Line number where to write the run summary.
 	LatestSummary  string // The run's updated summary, or the empty string.
 
 	// UploadedFiles are files for which uploads have finished.
@@ -78,8 +78,13 @@ func (s *CollectorState) MakeRequest(isDone bool) (*FsTransmitData, bool) {
 	s.ConsoleLogLines = nil
 
 	if s.LatestSummary != "" {
+		// We always write to the same line in the summary file.
+		//
+		// The reason this isn't always line 0 is for compatibility with old
+		// runs where we appended to the summary file. In that case, we want
+		// to update the last line, since all other lines are ignored. This
+		// applies to resumed runs.
 		addLines(SummaryChunk, s.SummaryLineNum, []string{s.LatestSummary})
-		s.SummaryLineNum += 1
 		s.LatestSummary = ""
 	}
 
