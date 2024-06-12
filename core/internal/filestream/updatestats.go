@@ -67,6 +67,5 @@ type collectorStatsUpdate struct {
 }
 
 func (u *collectorStatsUpdate) Apply(state *CollectorState) {
-	state.Buffer.EventsLines =
-		append(state.Buffer.EventsLines, u.lines...)
+	state.EventsLines = append(state.EventsLines, u.lines...)
 }
