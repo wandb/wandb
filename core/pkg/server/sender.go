@@ -1298,7 +1298,7 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 
 func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
 	if s.store == nil {
-		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
+		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue())
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
 			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)

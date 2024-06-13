@@ -80,7 +80,7 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic("writer: startStore: error creating store", err)
@@ -90,7 +90,7 @@ func (w *Writer) startStore() {
 	go func() {
 		for record := range w.storeChan {
 			if err = w.store.Write(record); err != nil {
-				w.logger.Error("writer: startStore: error storing record", "error", err)
+				w.logger.CaptureError("writer: startStore: error storing record", err)
 			}
 		}
 
