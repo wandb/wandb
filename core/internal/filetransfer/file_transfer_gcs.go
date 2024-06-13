@@ -6,7 +6,6 @@ import (
 	"net/url"
 	"os"
 	"path"
-	"path/filepath"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -124,7 +123,8 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			}
 			defer r.Close()
 
-			localPath := filepath.Join(task.Path, objName)
+			ext, _ := strings.CutPrefix(objName, objectName)
+			localPath := task.Path + ext
 			dir := path.Dir(localPath)
 
 			// Check if the directory already exists
