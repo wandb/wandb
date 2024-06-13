@@ -880,6 +880,13 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
+@click.option(
+    "--prior_run",
+    "-R",
+    "prior_runs",
+    multiple=True,
+    default=None,
+)
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
 @display_error
@@ -897,6 +904,7 @@ def sweep(
     cancel,
     pause,
     resume,
+    prior_runs,
     config_yaml_or_sweep_id,
 ):
     state_args = "stop", "cancel", "pause", "resume"
@@ -1038,6 +1046,7 @@ def sweep(
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
+        prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
 
@@ -1104,6 +1113,13 @@ def sweep(
     default=None,
     help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
 )
+@click.option(
+    "--prior_run",
+    "-R",
+    "prior_runs",
+    multiple=True,
+    default=None,
+)
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
@@ -1114,6 +1130,7 @@ def launch_sweep(
     queue,
     config,
     resume_id,
+    prior_runs,
 ):
     api = _get_cling_api()
     env = os.environ
@@ -1298,6 +1315,7 @@ def launch_sweep(
         obj_id=sweep_obj_id,  # if resuming
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
+        prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
