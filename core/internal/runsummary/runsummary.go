@@ -23,10 +23,27 @@ func New() *RunSummary {
 	}
 }
 
+func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
+	stats := NewNode()
+	for k, v := range tree {
+		if subtree, ok := v.(pathtree.TreeData); ok {
+			stats.nodes[k] = statsTreeFromPathTree(subtree)
+		} else {
+			stats.nodes[k] = &Node{
+				leaf: &Leaf{
+					Stats:   &Stats{},
+					Summary: Latest,
+				},
+			}
+		}
+	}
+	return stats
+}
+
 func NewFrom(tree pathtree.TreeData) *RunSummary {
 	return &RunSummary{
 		pathTree: pathtree.NewFrom(tree),
-		stats:    NewNode(),
+		stats:    statsTreeFromPathTree(tree),
 	}
 }
 
@@ -38,7 +55,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 	for _, item := range summaryRecord.GetUpdate() {
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
@@ -47,7 +63,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 			continue
 		}
 		// update the stats
-		fmt.Printf("runsummary: update stats for %v, %+v\n", keyPath(item), update)
 		// st := rs.matchRules.getSummaryType(keyPath(item))
 		st := Latest
 		err = rs.stats.UpdateStats(keyPath(item), update, st)
@@ -71,7 +86,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 			Path: keyPath(item),
 		})
 		// remove the stats
-		fmt.Printf("runsummary: remove stats for %v\n", keyPath(item))
 		err := rs.stats.DeleteNode(keyPath(item))
 		if err != nil {
 			onError(err)
