@@ -11,40 +11,22 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-type MatchRules struct {
-	rules map[string]SummaryType
-}
-
-func NewMatchRules() MatchRules {
-	return MatchRules{rules: make(map[string]SummaryType)}
-}
-
-func (mr *MatchRules) getSummaryType(path []string) SummaryType {
-	if len(path) == 0 {
-		return None
-	}
-	return mr.rules[path[0]]
-}
-
 type RunSummary struct {
-	pathTree   *pathtree.PathTree
-	stats      *Node
-	matchRules MatchRules
+	pathTree *pathtree.PathTree
+	stats    *Node
 }
 
 func New() *RunSummary {
 	return &RunSummary{
-		pathTree:   pathtree.New(),
-		stats:      NewNode(),
-		matchRules: NewMatchRules(),
+		pathTree: pathtree.New(),
+		stats:    NewNode(),
 	}
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
 	return &RunSummary{
-		pathTree:   pathtree.NewFrom(tree),
-		stats:      NewNode(),
-		matchRules: NewMatchRules(),
+		pathTree: pathtree.NewFrom(tree),
+		stats:    NewNode(),
 	}
 }
 
@@ -66,7 +48,8 @@ func (rs *RunSummary) ApplyChangeRecord(
 		}
 		// update the stats
 		fmt.Printf("runsummary: update stats for %v, %+v\n", keyPath(item), update)
-		st := rs.matchRules.getSummaryType(keyPath(item))
+		// st := rs.matchRules.getSummaryType(keyPath(item))
+		st := Latest
 		err = rs.stats.UpdateStats(keyPath(item), update, st)
 		if err != nil {
 			onError(err)
