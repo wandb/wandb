@@ -19,7 +19,10 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 		u.Record,
 		func(err error) {
 			ctx.Logger.CaptureError(
-				"filestream: failed to apply summary record", err)
+				fmt.Errorf(
+					"filestream: failed to apply summary record: %v",
+					err,
+				))
 		},
 	)
 
