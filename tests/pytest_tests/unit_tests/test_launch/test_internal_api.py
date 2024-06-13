@@ -119,10 +119,7 @@ def test_upsert_sweep(monkeypatch):
             "increment": {"values": [0.1, 0.2, 0.3]},
         },
     }
-    upsert_kwargs = {
-        "config": sweep_config,
-        "prior_runs": run_ids
-    }
+    upsert_kwargs = {"config": sweep_config, "prior_runs": run_ids}
     resp = _api.api.upsert_sweep(**upsert_kwargs)
 
     assert resp == (mock_sweep_name, [])
@@ -130,4 +127,7 @@ def test_upsert_sweep(monkeypatch):
     call_kwargs = _api.api.gql.call_args.kwargs
     assert "$priorRunsFilters: JSONString" in call_args[0]
     assert "priorRunsFilters: $priorRunsFilters" in call_args[0]
-    assert call_kwargs["variable_values"]["priorRunsFilters"] == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
+    assert (
+        call_kwargs["variable_values"]["priorRunsFilters"]
+        == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
+    )
