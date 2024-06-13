@@ -100,20 +100,7 @@ func (cl *CoreLogger) SetTags(tags Tags) {
 	}
 }
 
-// CaptureError1 logs an error and sends it to Sentry.
-func (cl *CoreLogger) CaptureError1(err error, args ...any) {
-	cl.Logger.Error(err.Error(), args...)
-
-	if cl.captureException != nil {
-		cl.captureException(err, cl.tagsWithArgs(args...))
-	}
-}
-
 // CaptureError logs an error and sends it to Sentry.
-//
-// Deprecated: Use CaptureError1 instead, combining the 'msg' and 'err'
-// arguments using `fmt.Errorf`. This way, the context added by the message
-// is also visible in Sentry.
 func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
 	args = append(args, "error", err)
 	cl.Logger.Error(msg, args...)
