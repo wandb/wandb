@@ -57,8 +57,11 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 
 	stat, err := file.Stat()
 	if err != nil {
-		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
-		return err
+		return fmt.Errorf(
+			"file transfer: upload: error when stat-ing %s: %v",
+			task.Path,
+			err,
+		)
 	}
 
 	// Don't try to upload directories.
