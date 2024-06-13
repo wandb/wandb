@@ -101,11 +101,10 @@ func (cl *CoreLogger) SetTags(tags Tags) {
 }
 
 // CaptureError logs an error and sends it to Sentry.
-func (cl *CoreLogger) CaptureError(msg string, err error, args ...any) {
-	args = append(args, "error", err)
-	cl.Logger.Error(msg, args...)
+func (cl *CoreLogger) CaptureError(err error, args ...any) {
+	cl.Logger.Error(err.Error(), args...)
 
-	if err != nil && cl.captureException != nil {
+	if cl.captureException != nil {
 		cl.captureException(err, cl.tagsWithArgs(args...))
 	}
 }

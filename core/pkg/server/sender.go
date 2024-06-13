@@ -691,7 +691,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		// resumed config and apply updates on top of it.
 		s.runConfig.ApplyChangeRecord(run.Config,
 			func(err error) {
-				s.logger.CaptureError("Error updating run config", err)
+				s.logger.CaptureError(
+					fmt.Errorf("error updating run config: %v", err))
 			})
 
 		proto.Merge(s.telemetry, run.Telemetry)
@@ -741,7 +742,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
 		} else {
 			// this should never happen
-			s.logger.CaptureError("sender: sendRun: no mailbox slot", nil)
+			s.logger.CaptureError(errors.New("sender: sendRun: no mailbox slot"))
 		}
 
 		data, err := gql.UpsertBucket(
@@ -827,7 +828,8 @@ func (s *Sender) streamSummary() {
 
 	update, err := s.runSummary.Flatten()
 	if err != nil {
-		s.logger.CaptureError("Error flattening run summary", err)
+		s.logger.CaptureError(
+			fmt.Errorf("error flattening run summary: %v", err))
 		return
 	}
 
@@ -842,7 +844,8 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	s.runSummary.ApplyChangeRecord(
 		summary,
 		func(err error) {
-			s.logger.CaptureError("Error updating run summary", err)
+			s.logger.CaptureError(
+				fmt.Errorf("error updating run summary: %v", err))
 		},
 	)
 
@@ -966,7 +969,8 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	if configRecord != nil {
 		s.runConfig.ApplyChangeRecord(configRecord,
 			func(err error) {
-				s.logger.CaptureError("Error updating run config", err)
+				s.logger.CaptureError(
+					fmt.Errorf("error updating run config: %v", err))
 			})
 	}
 	s.configDebouncer.SetNeedsDebounce()
@@ -1077,8 +1081,11 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		&alert.WaitDuration,
 	)
 	if err != nil {
-		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: sendAlert: failed to notify scriptable run alert: %v",
+				err,
+			))
 	} else {
 		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
 	}
@@ -1186,7 +1193,11 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
 	err := downloader.Download()
 	if err != nil {
-		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"senderError: downloadArtifact: failed to download artifact: %v",
+				err,
+			))
 		response.ErrorMessage = err.Error()
 	}
 
@@ -1271,8 +1282,11 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 		switch {
 		case err != nil:
 			// if there is an error, we don't know if the run should stop
-			err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
-			s.logger.CaptureError("sender received error", err)
+			s.logger.CaptureError(
+				fmt.Errorf(
+					"sender: sendStopStatus: failed to get run stopped status: %v",
+					err,
+				))
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: false,
 			}
@@ -1303,7 +1317,11 @@ func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadR
 		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue())
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
+			s.logger.CaptureError(
+				fmt.Errorf(
+					"sender: sendSenderRead: failed to create store: %v",
+					err,
+				))
 			return
 		}
 		s.store = store
@@ -1328,7 +1346,11 @@ func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadR
 			return
 		}
 		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			s.logger.CaptureError(
+				fmt.Errorf(
+					"sender: sendSenderRead: failed to read record: %v",
+					err,
+				))
 			return
 		}
 	}
@@ -1341,8 +1363,11 @@ func (s *Sender) getServerInfo() {
 
 	data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
 	if err != nil {
-		err = fmt.Errorf("sender: getServerInfo: failed to get server info: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: getServerInfo: failed to get server info: %v",
+				err,
+			))
 		return
 	}
 	s.serverInfo = data.GetServerInfo()
