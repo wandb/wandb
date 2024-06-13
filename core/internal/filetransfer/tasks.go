@@ -47,7 +47,14 @@ type Task struct {
 	// This can be used to cancel the file upload or download if it is no longer needed.
 	Context context.Context
 
+	// Reference to the artifact being transfered
 	Reference *string
+
+	// VersionId is the version of the file we want to download
+	VersionId interface{}
+
+	// Digest is the checksum to ensure the correct files are being downloaded
+	Digest string
 }
 
 func (ut *Task) SetProgressCallback(callback func(int, int)) {

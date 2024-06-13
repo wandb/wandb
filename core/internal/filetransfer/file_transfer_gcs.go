@@ -2,14 +2,16 @@ package filetransfer
 
 import (
 	"context"
-	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"cloud.google.com/go/storage"
 	"github.com/wandb/wandb/core/pkg/observability"
+	"google.golang.org/api/iterator"
 )
 
 // GCSFileTransfer uploads or downloads files to/from GCS
@@ -35,7 +37,7 @@ func NewGCSFileTransfer(
 	ctx := context.Background()
 	client, err := storage.NewClient(ctx)
 	if err != nil {
-		// TODO: Handle error.
+		logger.CaptureError("gcs file transfer: error creating new gcs client", err)
 		return nil
 	}
 
@@ -57,70 +59,114 @@ func (ft *GCSFileTransfer) Upload(task *Task) error {
 
 // Download downloads a file from the server
 func (ft *GCSFileTransfer) Download(task *Task) error {
-	ft.logger.Debug("gcs reference file transfer: downloading file", "path", task.Path, "url", task.Url, "ref", task.Reference)
+	ft.logger.Debug("gcs file transfer: downloading file", "path", task.Path, "url", task.Url, "ref", task.Reference)
 	reference := *task.Reference
-	println("reference: ", reference)
-	uriParts := strings.SplitN(reference[len("gs://"):], "/", 2)
-	if len(uriParts) != 2 {
-		return fmt.Errorf("invalid gsutil URI: %s", reference)
+
+	uriParts, err := url.Parse(reference)
+	if err != nil {
+		ft.logger.CaptureError("gcs file transfer: download: error parsing reference", err, "reference", reference)
+		return err
 	}
-	bucketName := uriParts[0]
-	objectName := uriParts[1]
+	if uriParts.Scheme != "gs" {
+		ft.logger.CaptureError("gcs file transfer: download: invalid gsutil URI", err, "reference", reference)
+		return err
+	}
+	bucketName := uriParts.Host
+	objectName := strings.TrimPrefix(uriParts.Path, "/")
 
 	// Get the bucket and the object
 	bucket := ft.client.Bucket(bucketName)
-	object := bucket.Object(objectName)
+	var objects []*storage.ObjectHandle
 
-	// object can also be a folder
-	r, err := object.NewReader(ft.ctx)
-	if err != nil {
-		// TODO: handle error
-		return nil
-	}
-	defer r.Close()
-
-	dir := path.Dir(task.Path)
-
-	println("directory: ", dir)
-
-	// Check if the directory already exists
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		// Directory doesn't exist, create it
-		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-			// Handle the error if it occurs
+	switch {
+	case task.Digest == reference:
+		// If not using checksum, get all objects under the reference
+		query := &storage.Query{Prefix: objectName}
+		it := bucket.Objects(ft.ctx, query)
+		for {
+			objAttrs, err := it.Next()
+			if err == iterator.Done {
+				break
+			}
+			if err != nil {
+				ft.logger.CaptureError("gcs file transfer: download: error while iterating through objects in gcs bucket", err, "reference", reference)
+				return nil
+			}
+			object := bucket.Object(objAttrs.Name)
+			objects = append(objects, object)
+		}
+	case task.VersionId != nil:
+		object := bucket.Object(objectName).Generation(int64(task.VersionId.(float64)))
+		objects = append(objects, object)
+	default:
+		object := bucket.Object(objectName)
+		bucketAttrs, err := bucket.Attrs(ft.ctx)
+		if err != nil {
+			ft.logger.CaptureError("gcs file transfer: download: unable to fetch bucket attributes", err, "reference", reference)
 			return err
 		}
-	} else if err != nil {
-		// Handle other errors that may occur while checking directory existence
-		return err
-	}
-
-	// // TODO: redo it to use the progress writer, to track the download progress
-	// resp, err := ft.client.Get(task.Url)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// open the file for writing and defer closing it
-	file, err := os.Create(task.Path)
-	if err != nil {
-		return err
-	}
-	defer func(file *os.File) {
-		if err := file.Close(); err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
+		if bucketAttrs.Etag != task.Digest {
+			ft.logger.CaptureError("gcs file transfer: download: digest/etag mismatch", err, "reference", reference, "etag", bucketAttrs.Etag, "digest", task.Digest)
+			return err
 		}
-	}(file)
+		objects = append(objects, object)
+	}
 
-	// defer func(file io.ReadCloser) {
-	// 	if err := file.Close(); err != nil {
-	// 		ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
-	// 	}
-	// }(resp.Body)
+	c := make(chan error)
+	for _, object := range objects {
+		go func(obj *storage.ObjectHandle) {
+			objName := obj.ObjectName()
+			r, err := obj.NewReader(ft.ctx)
+			if err != nil {
+				ft.logger.CaptureError("gcs file transfer: download: unable to create reader", err, "reference", reference, "versionId", task.VersionId, "object", objName)
+				c <- err
+				return
+			}
+			defer r.Close()
 
-	_, err = io.Copy(file, r)
-	if err != nil {
-		return err
+			localPath := filepath.Join(task.Path, objName)
+			dir := path.Dir(localPath)
+
+			// Check if the directory already exists
+			if _, err := os.Stat(dir); os.IsNotExist(err) {
+				// Directory doesn't exist, create it
+				if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+					// Handle the error if it occurs
+					c <- err
+					return
+				}
+			} else if err != nil {
+				// Handle other errors that may occur while checking directory existence
+				c <- err
+				return
+			}
+
+			// open the file for writing and defer closing it
+			file, err := os.Create(localPath)
+			if err != nil {
+				c <- err
+				return
+			}
+			defer func(file *os.File) {
+				if err := file.Close(); err != nil {
+					ft.logger.CaptureError("gcs file transfer: download: error closing file", err, "path", localPath)
+				}
+			}(file)
+
+			_, err = io.Copy(file, r)
+			if err != nil {
+				ft.logger.CaptureError("gcs file transfer: download: error copying file", err, "reference", reference, "object", objName)
+				c <- err
+				return
+			}
+			c <- nil
+		}(object)
+	}
+	for range objects {
+		err := <-c
+		if err != nil {
+			ft.logger.CaptureError("gcs file transfer: download: error when downloading reference", err, "reference", reference)
+		}
 	}
 	return nil
 }

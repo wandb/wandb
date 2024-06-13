@@ -1,6 +1,8 @@
 package filetransfer
 
 import (
+	"net/url"
+
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -34,5 +36,15 @@ func NewFileTransfers(
 
 // Returns the appropriate fileTransfer depending on task
 func (ft *FileTransfers) GetFileTransferForTask(task *Task) FileTransfer {
-	return ft.GCSReference
+	if task.Reference != nil {
+		reference := *task.Reference
+
+		uriParts, err := url.Parse(reference)
+		if err != nil {
+			return ft.Default
+		} else if uriParts.Scheme == "gs" {
+			return ft.GCSReference
+		}
+	}
+	return ft.Default
 }

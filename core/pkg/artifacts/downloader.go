@@ -154,6 +154,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						Path:      downloadLocalPath,
 						Url:       *entry.DownloadURL,
 						Reference: entry.Ref,
+						Digest:    entry.Digest,
+					}
+					versionId, ok := entry.Extra["versionID"]
+					if ok {
+						task.VersionId = versionId
 					}
 					task.SetCompletionCallback(
 						func(t *filetransfer.Task) {
