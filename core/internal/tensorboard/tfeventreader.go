@@ -157,9 +157,10 @@ func (s *TFEventReader) ensureBuffer(
 		if err != nil && err != io.EOF {
 			// We saw an error that wasn't EOF, so something is wrong.
 			s.logger.CaptureError(
-				"tensorboard: error reading current tfevents file",
-				err,
-			)
+				fmt.Errorf(
+					"tensorboard: error reading current tfevents file: %v",
+					err,
+				))
 			return false
 		}
 

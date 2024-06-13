@@ -117,10 +117,12 @@ func (fm *fileTransferManager) Start() {
 
 				if task.Err != nil {
 					fm.logger.CaptureError(
-						"filetransfer: uploader: error uploading",
-						task.Err,
-						"path", task.Path, "url", task.Url,
-					)
+						fmt.Errorf(
+							"filetransfer: uploader: error uploading path=%s url=%s: %v",
+							task.Path,
+							task.Url,
+							task.Err,
+						))
 				}
 
 				// Execute the callback.
@@ -181,8 +183,8 @@ func (fm *fileTransferManager) transfer(task *Task) error {
 	case DownloadTask:
 		err = fileTransfer.Download(task)
 	default:
-		err = fmt.Errorf("unknown task type")
-		fm.logger.CaptureFatalAndPanic("fileTransfer", err)
+		fm.logger.CaptureFatalAndPanic(
+			fmt.Errorf("fileTransfer: unknown task type: %v", task.Type))
 	}
 	return err
 }

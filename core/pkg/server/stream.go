@@ -159,7 +159,8 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 		// Better behavior would be to inform the user and turn off any
 		// components that rely on the hostname, but it's not easy to do
 		// with our current code structure.
-		s.logger.CaptureError("could not get hostname", err)
+		s.logger.CaptureError(
+			fmt.Errorf("stream: could not get hostname: %v", err))
 		hostname = ""
 	}
 

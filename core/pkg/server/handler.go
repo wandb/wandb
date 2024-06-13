@@ -240,11 +240,11 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
 	case nil:
-		err := fmt.Errorf("handler: handleRecord: record type is nil")
-		h.logger.CaptureFatalAndPanic("error handling record", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handler: handleRecord: record type is nil"))
 	default:
-		err := fmt.Errorf("handler: handleRecord: unknown record type %T", x)
-		h.logger.CaptureFatalAndPanic("error handling record", err)
+		h.logger.CaptureFatalAndPanic(
+			fmt.Errorf("handler: handleRecord: unknown record type %T", x))
 	}
 }
 
@@ -321,11 +321,11 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_JobInput:
 		h.handleRequestJobInput(record)
 	case nil:
-		err := fmt.Errorf("handler: handleRequest: request type is nil")
-		h.logger.CaptureFatalAndPanic("error handling request", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handler: handleRequest: request type is nil"))
 	default:
-		err := fmt.Errorf("handler: handleRequest: unknown request type %T", x)
-		h.logger.CaptureFatalAndPanic("error handling request", err)
+		h.logger.CaptureFatalAndPanic(
+			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
 	}
 }
 
@@ -377,7 +377,8 @@ func (h *Handler) handleStepMetric(key string) {
 	metric, err := runmetric.AddMetric(key, key, &h.metricHandler.DefinedMetrics)
 
 	if err != nil {
-		h.logger.CaptureError("error adding metric to map", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error adding metric to map: %v", err))
 		return
 	}
 
@@ -399,19 +400,23 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 	switch {
 	case metric.GetGlobName() != "":
 		if _, err := runmetric.AddMetric(metric, metric.GetGlobName(), &h.metricHandler.GlobMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error adding metric to map: %v", err))
 			return
 		}
 		h.fwdRecord(record)
 	case metric.GetName() != "":
 		if _, err := runmetric.AddMetric(metric, metric.GetName(), &h.metricHandler.DefinedMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error adding metric to map: %v", err))
 			return
 		}
 		h.handleStepMetric(metric.GetStepMetric())
 		h.fwdRecord(record)
 	default:
-		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
+		h.logger.CaptureError(
+			fmt.Errorf("invalid metric"),
+			"metric", metric)
 	}
 }
 
@@ -457,8 +462,8 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_END:
 		h.fileTransferStats.SetDone()
 	default:
-		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
-		h.logger.CaptureError("unknown defer state", err)
+		h.logger.CaptureError(
+			fmt.Errorf("handleDefer: unknown defer state %v", request.State))
 	}
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
@@ -582,8 +587,8 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
-		err := fmt.Errorf("handleRunStart: failed to clone run")
-		h.logger.CaptureFatalAndPanic("error handling run start", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
 
@@ -776,12 +781,14 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, err := mo.Marshal(request)
 	if err != nil {
-		h.logger.CaptureError("error marshalling metadata", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error marshalling metadata: %v", err))
 		return
 	}
 	filePath := filepath.Join(h.settings.GetFilesDir().GetValue(), MetaFileName)
 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-		h.logger.CaptureError("error writing metadata file", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error writing metadata file: %v", err))
 		return
 	}
 
@@ -900,7 +907,8 @@ func (h *Handler) handleRequestGetSummary(record *service.Record) {
 
 	items, err := h.runSummary.Flatten()
 	if err != nil {
-		h.logger.CaptureError("Error flattening run summary", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error flattening run summary: %v", err))
 		h.respond(record, response)
 		return
 	}
@@ -992,7 +1000,8 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 	h.runSummary.ApplyChangeRecord(
 		summary,
 		func(err error) {
-			h.logger.CaptureError("Error updating run summary", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error updating run summary: %v", err))
 		},
 	)
 
@@ -1009,7 +1018,8 @@ func (h *Handler) handleSummary(record *service.Record, summary *service.Summary
 
 func (h *Handler) handleTBrecord(record *service.TBRecord) {
 	if err := h.tbHandler.Handle(record); err != nil {
-		h.logger.CaptureError("handler: failed to handle TB record", err)
+		h.logger.CaptureError(
+			fmt.Errorf("handler: failed to handle TB record: %v", err))
 	}
 }
 
@@ -1136,14 +1146,16 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 	// Append the history items from the request to the current history record.
 	h.runHistory.ApplyChangeRecord(request.GetItem(),
 		func(err error) {
-			h.logger.CaptureError("Error updating run history", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error updating run history: %v", err))
 		})
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
 		items, err := h.runHistory.Flatten()
 		if err != nil {
-			h.logger.CaptureError("Error flattening run history", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error flattening run history: %v", err))
 			h.terminalPrinter.Write(
 				"Failed to process history record, skipping syncing.")
 			return
@@ -1208,7 +1220,8 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 		if step > current {
 			items, err := h.runHistory.Flatten()
 			if err != nil {
-				h.logger.CaptureError("Error flattening run history", err)
+				h.logger.CaptureError(
+					fmt.Errorf("error flattening run history: %v", err))
 				h.terminalPrinter.Writef(
 					"Failed to process history record for step %d, skipping...",
 					h.runHistory.GetStep(),
@@ -1236,7 +1249,8 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// Append the history items from the request to the current history record.
 	h.runHistory.ApplyChangeRecord(request.GetItem(),
 		func(err error) {
-			h.logger.CaptureError("Error updating run history", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error updating run history: %v", err))
 		})
 
 	// Flush the history record and start to collect a new one with
@@ -1244,7 +1258,8 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	if (request.GetStep() == nil && request.GetAction() == nil) || request.GetAction().GetFlush() {
 		items, err := h.runHistory.Flatten()
 		if err != nil {
-			h.logger.CaptureError("Error flattening run history", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error flattening run history: %v", err))
 			msg := fmt.Sprintf(
 				"Failed to process history record, for step %d, skipping...",
 				h.runHistory.GetStep(),
@@ -1324,7 +1339,8 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 		fmt.Printf("  value: %v\n", value)
 		v, err := json.Marshal(value)
 		if err != nil {
-			h.logger.CaptureError("error marshalling step metric value", err)
+			h.logger.CaptureError(
+				fmt.Errorf("error marshalling step metric value: %v", err))
 			return nil
 		}
 		item := []*service.HistoryItem{
@@ -1336,7 +1352,8 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 		h.runHistory.ApplyChangeRecord(
 			item,
 			func(err error) {
-				h.logger.CaptureError("Error updating run history", err)
+				h.logger.CaptureError(
+					fmt.Errorf("error updating run history: %v", err))
 			},
 		)
 		return item[0]

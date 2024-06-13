@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.28.1
+
+The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.28.1.
+
+### Bug Fixes
+
+- Implement `http.ResponseWriter` to hook into various parts of the response process ([#837](https://github.com/getsentry/sentry-go/pull/837))
+
 ## 0.28.0
 
 The Sentry SDK team is happy to announce the immediate availability of Sentry Go SDK v0.28.0.
@@ -17,7 +25,7 @@ The Sentry SDK team is happy to announce the immediate availability of Sentry Go
 - Add `http.request.method` attribute for performance span data ([#786](https://github.com/getsentry/sentry-go/pull/786))
 - Accept `interface{}` for span data values ([#784](https://github.com/getsentry/sentry-go/pull/784))
 
-### Fixes
+### Bug Fixes
 
 - Fix missing stack trace for parsing error in `logrusentry` ([#689](https://github.com/getsentry/sentry-go/pull/689))
 

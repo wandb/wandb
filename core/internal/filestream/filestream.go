@@ -186,7 +186,7 @@ func (fs *fileStream) Close() {
 // when we can't guarantee correctness, in which case we stop uploading
 // data but continue to save it to disk to avoid data loss.
 func (fs *fileStream) logFatalAndStopWorking(err error) {
-	fs.logger.CaptureFatal("filestream: fatal error", err)
+	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
 		fs.printer.Write(
