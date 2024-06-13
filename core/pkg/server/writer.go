@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 
@@ -83,7 +84,8 @@ func (w *Writer) startStore() {
 	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
-		w.logger.CaptureFatalAndPanic("writer: startStore: error creating store", err)
+		w.logger.CaptureFatalAndPanic(
+			fmt.Errorf("writer: startStore: error creating store: %v", err))
 	}
 
 	w.wg.Add(1)

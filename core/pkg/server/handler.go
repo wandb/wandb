@@ -239,11 +239,11 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
 	case nil:
-		err := fmt.Errorf("handler: handleRecord: record type is nil")
-		h.logger.CaptureFatalAndPanic("error handling record", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handler: handleRecord: record type is nil"))
 	default:
-		err := fmt.Errorf("handler: handleRecord: unknown record type %T", x)
-		h.logger.CaptureFatalAndPanic("error handling record", err)
+		h.logger.CaptureFatalAndPanic(
+			fmt.Errorf("handler: handleRecord: unknown record type %T", x))
 	}
 }
 
@@ -320,11 +320,11 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_JobInput:
 		h.handleRequestJobInput(record)
 	case nil:
-		err := fmt.Errorf("handler: handleRequest: request type is nil")
-		h.logger.CaptureFatalAndPanic("error handling request", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handler: handleRequest: request type is nil"))
 	default:
-		err := fmt.Errorf("handler: handleRequest: unknown request type %T", x)
-		h.logger.CaptureFatalAndPanic("error handling request", err)
+		h.logger.CaptureFatalAndPanic(
+			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
 	}
 }
 
@@ -580,8 +580,8 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
-		err := fmt.Errorf("handleRunStart: failed to clone run")
-		h.logger.CaptureFatalAndPanic("error handling run start", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
 
