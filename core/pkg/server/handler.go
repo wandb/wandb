@@ -396,7 +396,7 @@ func (h *Handler) handleStepMetric(key string) {
 func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
 	// metric can have a glob name or a name
 	// TODO: replace glob-name/name with one-of field
-	fmt.Printf("metric: %v\n", metric)
+	// fmt.Printf("metric: %v\n", metric)
 	switch {
 	case metric.GetGlobName() != "":
 		if _, err := runmetric.AddMetric(metric, metric.GetGlobName(), &h.metricHandler.GlobMetrics); err != nil {
@@ -1316,11 +1316,11 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
 
 	// check if history item matches a defined metric or a glob metric
-	fmt.Printf("item: %v\n", item)
+	// fmt.Printf("item: %v\n", item)
 	metric := h.matchHistoryItemMetric(item)
 
 	key := metric.GetStepMetric()
-	fmt.Printf(" key: %v, metric: %v\n", key, metric)
+	// fmt.Printf(" key: %v, metric: %v\n", key, metric)
 	// check if step metric is defined and if it needs to be synced
 	if !(metric.GetOptions().GetStepSync() && key != "") {
 		return nil

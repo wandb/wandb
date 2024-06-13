@@ -115,7 +115,7 @@ func (n *Node) DeleteNode(path []string) error {
 }
 
 // UpdateStats updates or initializes the stats at the given path
-func (n *Node) UpdateStats(path []string, value interface{}, summary SummaryType) error {
+func (n *Node) UpdateStats(path []string, value interface{}) error {
 	node, err := n.GetOrCreateNode(path)
 	if err != nil {
 		return err
@@ -124,7 +124,6 @@ func (n *Node) UpdateStats(path []string, value interface{}, summary SummaryType
 	if node.leaf == nil {
 		node.leaf = &Leaf{
 			Stats:   &Stats{},
-			Summary: summary,
 		}
 	}
 
@@ -148,4 +147,28 @@ func (n *Node) UpdateStats(path []string, value interface{}, summary SummaryType
 
 	node.leaf.Stats.Update(update)
 	return nil
+}
+
+func (n *Node) GetStat(path []string, summary SummaryType) (float64, error) {
+	node, err := n.GetOrCreateNode(path)
+	if err != nil {
+		return 0, err
+	}
+
+	if node.leaf == nil {
+		return 0, errors.New("no stats found")
+	}
+
+	switch summary {
+	case Latest:
+		return node.leaf.Stats.Latest, nil
+	case Min:
+		return node.leaf.Stats.Min, nil
+	case Max:
+		return node.leaf.Stats.Max, nil
+	case Mean:
+		return node.leaf.Stats.Mean, nil
+	default:
+		return 0, errors.New("invalid summary type")
+	}
 }
