@@ -181,8 +181,8 @@ func (fm *fileTransferManager) transfer(task *Task) error {
 	case DownloadTask:
 		err = fileTransfer.Download(task)
 	default:
-		err = fmt.Errorf("unknown task type")
-		fm.logger.CaptureFatalAndPanic("fileTransfer", err)
+		fm.logger.CaptureFatalAndPanic(
+			fmt.Errorf("fileTransfer: unknown task type: %v", task.Type))
 	}
 	return err
 }

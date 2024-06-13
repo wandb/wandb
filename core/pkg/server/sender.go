@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -243,11 +244,11 @@ func (s *Sender) respond(record *service.Record, response any) {
 	case *service.RunUpdateResult:
 		s.respondRunUpdate(record, x)
 	case nil:
-		err := fmt.Errorf("sender: respond: nil response")
-		s.logger.CaptureFatalAndPanic("sender: respond: nil response", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: respond: nil response"))
 	default:
-		err := fmt.Errorf("sender: respond: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: respond: unexpected type", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: respond: unexpected type %T", x))
 	}
 }
 
@@ -343,11 +344,11 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
 	case nil:
-		err := fmt.Errorf("sender: sendRecord: nil RecordType")
-		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendRecord: nil RecordType"))
 	default:
-		err := fmt.Errorf("sender: sendRecord: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: sendRecord: unexpected type", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendRecord: unexpected type %T", x))
 	}
 }
 
@@ -375,11 +376,11 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
 	case nil:
-		err := fmt.Errorf("sender: sendRequest: nil RequestType")
-		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendRequest: nil RequestType"))
 	default:
-		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendRequest: unexpected type %T", x))
 	}
 }
 
@@ -559,8 +560,8 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		// cancel tells the stream to close the loopback and input channels
 		s.cancel()
 	default:
-		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
-		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendDefer: unexpected state %v", request.State))
 	}
 }
 
@@ -598,7 +599,8 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 	}
 	err := linker.Link()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendLinkArtifact: link failure: %v", err))
 	}
 
 	// why is this here?
@@ -699,8 +701,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			var ok bool
 			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 			if !ok {
-				err := fmt.Errorf("failed to clone RunRecord")
-				s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+				s.logger.CaptureFatalAndPanic(
+					errors.New("sender: sendRun: failed to clone RunRecord"))
 			}
 
 			if err := s.checkAndUpdateResumeState(record); err != nil {
@@ -1057,8 +1059,8 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendAlert: RunRecord not set")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendAlert: RunRecord not set"))
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
