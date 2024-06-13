@@ -1087,7 +1087,7 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 	h.fwdRecord(record)
 
-	fmt.Printf("\n\n%+v\n\n", h.metricHandler.DefinedMetrics)
+	// fmt.Printf("\n\n%+v\n\n", h.metricHandler.DefinedMetrics)
 
 	// TODO add an option to disable summary (this could be quite expensive)
 	if h.runSummary == nil {
@@ -1336,7 +1336,7 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
 	if value, ok := h.runSummary.Tree()[key]; ok {
-		fmt.Printf("  value: %v\n", value)
+		// fmt.Printf("  value: %v\n", value)
 		v, err := json.Marshal(value)
 		if err != nil {
 			h.logger.CaptureError(

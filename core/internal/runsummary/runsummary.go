@@ -80,25 +80,25 @@ func (rs *RunSummary) GetSummary(path []string) (SummaryType, error) {
 		// fmt.Printf("    kp: %v, pattern: %v\n", kp, pattern)
 		if pattern == name {
 			summary := definedMetric.GetSummary()
-			fmt.Printf("    found defined metric. summary: %v\n", summary)
+			// fmt.Printf("    found defined metric. summary: %v\n", summary)
 			if summary.GetMax() {
-				fmt.Printf("+++    requested max summary for metric %v\n", name)
+				// fmt.Printf("+++    requested max summary for metric %v\n", name)
 				return Max, nil
 			}
 			if summary.GetMin() {
-				fmt.Printf("+++    requested min summary for metric %v\n", name)
+				// fmt.Printf("+++    requested min summary for metric %v\n", name)
 				return Min, nil
 			}
 			if summary.GetMean() {
-				fmt.Printf("+++    requested mean summary for metric %v\n", name)
+				// fmt.Printf("+++    requested mean summary for metric %v\n", name)
 				return Mean, nil
 			}
 			if summary.GetNone() {
-				fmt.Printf("+++    requested none summary for metric %v\n", name)
+				// fmt.Printf("+++    requested none summary for metric %v\n", name)
 				return None, nil
 			}
 			if summary.GetLast() {
-				fmt.Printf("+++    requested last summary for metric %v\n", name)
+				// fmt.Printf("+++    requested last summary for metric %v\n", name)
 				return Latest, nil
 			}
 		}
@@ -109,25 +109,25 @@ func (rs *RunSummary) GetSummary(path []string) (SummaryType, error) {
 		if match, err := filepath.Match(pattern, name); err == nil {
 			if match {
 				summary := globMetric.GetSummary()
-				fmt.Printf("    found glob metric. summary: %v\n", summary)
+				// fmt.Printf("    found glob metric. summary: %v\n", summary)
 				if summary.GetMax() {
-					fmt.Printf("---    requested max summary for metric %v\n", name)
+					// fmt.Printf("---    requested max summary for metric %v\n", name)
 					return Max, nil
 				}
 				if summary.GetMin() {
-					fmt.Printf("---    requested min summary for metric %v\n", name)
+					// fmt.Printf("---    requested min summary for metric %v\n", name)
 					return Min, nil
 				}
 				if summary.GetMean() {
-					fmt.Printf("---    requested mean summary for metric %v\n", name)
+					// fmt.Printf("---    requested mean summary for metric %v\n", name)
 					return Mean, nil
 				}
 				if summary.GetNone() {
-					fmt.Printf("---    requested none summary for metric %v\n", name)
+					// fmt.Printf("---    requested none summary for metric %v\n", name)
 					return None, nil
 				}
 				if summary.GetLast() {
-					fmt.Printf("---    requested last summary for metric %v\n", name)
+					// fmt.Printf("---    requested last summary for metric %v\n", name)
 					return Latest, nil
 				}
 			}
@@ -135,7 +135,7 @@ func (rs *RunSummary) GetSummary(path []string) (SummaryType, error) {
 	}
 
 	// if no match is found, return Latest
-	fmt.Printf("+++    requested last summary for metric %v\n", name)
+	// fmt.Printf("+++    requested last summary for metric %v\n", name)
 	return Latest, nil
 }
 
@@ -150,7 +150,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 	// handle updates
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 	for _, item := range summaryRecord.GetUpdate() {
-		fmt.Printf(">>> key: %v\n", item.GetKey())
+		// fmt.Printf(">>> key: %v\n", item.GetKey())
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
 		if err != nil {
 			onError(err)
@@ -164,8 +164,8 @@ func (rs *RunSummary) ApplyChangeRecord(
 			continue
 		}
 		// get the summary type for the item
-		fmt.Printf("      mh: %v\n", *rs.mh)
-		fmt.Printf("      update: %v\n", update)
+		// fmt.Printf("      mh: %v\n", *rs.mh)
+		// fmt.Printf("      update: %v\n", update)
 
 		st, err := rs.GetSummary(kp)
 		if err != nil {
@@ -179,9 +179,9 @@ func (rs *RunSummary) ApplyChangeRecord(
 		}
 
 		// get the requested stat for the item
-		fmt.Printf("+++    requested stat for metric %v: %v\n", kp, st)
+		// fmt.Printf("+++    requested stat for metric %v: %v\n", kp, st)
 		update, err = rs.stats.GetStat(kp, st)
-		fmt.Printf("      update: %v\n", update)
+		// fmt.Printf("      update: %v\n", update)
 		if err != nil {
 			onError(err)
 			continue

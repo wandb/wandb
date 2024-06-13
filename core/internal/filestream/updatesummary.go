@@ -14,8 +14,8 @@ type SummaryUpdate struct {
 }
 
 func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
-	fmt.Println("filestream: SummaryUpdate.Apply")
-	fmt.Printf("filestream: SummaryUpdate.Apply: %v\n", *u)
+	// fmt.Println("filestream: SummaryUpdate.Apply")
+	// fmt.Printf("filestream: SummaryUpdate.Apply: %v\n", *u)
 	rs := runsummary.New(runsummary.Params{})
 	rs.ApplyChangeRecord(
 		u.Record,
