@@ -886,6 +886,7 @@ def sync(
     "prior_runs",
     multiple=True,
     default=None,
+    help="ID of an existing run to add to this sweep",
 )
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
@@ -1119,6 +1120,7 @@ def sweep(
     "prior_runs",
     multiple=True,
     default=None,
+    help="ID of an existing run to add to this sweep",
 )
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
