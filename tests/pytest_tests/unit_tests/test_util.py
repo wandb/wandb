@@ -78,7 +78,6 @@ def test_jsonify_enum():
         B = 2
 
     data, converted = util.json_friendly(TestEnum.A)
-    print(data, converted)
     assert data == "A"
     assert converted
 
