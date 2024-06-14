@@ -23,7 +23,10 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		func(err error) {
 			// TODO: maybe we should shut down filestream if this fails?
 			ctx.Logger.CaptureError(
-				"filestream: failed to apply history record", err)
+				fmt.Errorf(
+					"filestream: failed to apply history record: %v",
+					err,
+				))
 		},
 	)
 	line, err := rh.Serialize()

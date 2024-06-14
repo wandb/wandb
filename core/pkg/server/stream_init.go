@@ -33,7 +33,8 @@ func NewBackend(
 
 	baseURL, err := url.Parse(settings.Proto.GetBaseUrl().GetValue())
 	if err != nil {
-		logger.CaptureFatalAndPanic("sender: failed to parse base URL", err)
+		logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: failed to parse base URL: %v", err))
 	}
 	return api.New(api.BackendOptions{
 		BaseURL: baseURL,

@@ -1,6 +1,7 @@
 import colorsys
 import contextlib
 import dataclasses
+import enum
 import functools
 import gzip
 import importlib
@@ -637,6 +638,8 @@ def json_friendly(  # noqa: C901
     elif isinstance(obj, set):
         # set is not json serializable, so we convert it to tuple
         obj = tuple(obj)
+    elif isinstance(obj, enum.Enum):
+        obj = obj.name
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
