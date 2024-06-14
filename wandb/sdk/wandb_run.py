@@ -2759,7 +2759,7 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
                 # TODO:
-                # tel.feature.metric_summary_type = summary
+                tel.feature.metric_summary_type = summary
         # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
