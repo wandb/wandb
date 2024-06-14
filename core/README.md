@@ -60,7 +60,7 @@ Status legend:
 |             | `log_code`        | ✅               |
 |             | `config`          | ✅               |
 |             | `summary`         | ✅               |
-|             | `define_metric`   | 🚧[^E.5]         |
+|             | `define_metric`   | ✅[^E.5]         |
 |             | `tags`            | ✅               |
 |             | `notes`           | ✅               |
 |             | `name`            | ✅               |
@@ -96,7 +96,7 @@ Status legend:
 | Launch      |                   | ✅               |
 
 [^E.1]: `sync_tensorboard` uploads `tfevent` files to W&B, so the TensorBoard tab works, but only some types of metrics appear in native W&B charts.
-[^E.5]: `define_metric` only supports default summary.
+[^E.5]: Missing full nested key summary support.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
 [^E.12]: Unsupported settings:
