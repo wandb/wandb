@@ -76,14 +76,13 @@ func (fs *fileStream) startProcessingUpdates(
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
 	stateUpdates <-chan CollectorStateUpdate,
+	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
 	// Output channel of responses.
 	feedback := make(chan map[string]any)
 
 	// Internal channel of actual requests to make.
 	transmissions := make(chan *FsTransmitData)
-
-	state := CollectorState{}
 
 	transmitWG := &sync.WaitGroup{}
 	transmitWG.Add(1)
@@ -110,6 +109,8 @@ func (fs *fileStream) startTransmitting(
 	}()
 
 	go func() {
+		state := NewCollectorState(initialOffsets)
+
 		// Batch and send updates.
 		//
 		// We try to batch updates that happen in quick succession by waiting a
@@ -119,7 +120,7 @@ func (fs *fileStream) startTransmitting(
 			fs.collectBatch(&state, stateUpdates)
 
 			fs.heartbeatStopwatch.Reset()
-			data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
+			data, hasData := state.MakeRequest(false /*isDone*/)
 			if hasData {
 				transmissions <- data
 			}
@@ -130,7 +131,7 @@ func (fs *fileStream) startTransmitting(
 		heartbeatWG.Wait()
 
 		// Send final transmission.
-		data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
+		data, _ := state.MakeRequest(true /*isDone*/)
 		transmissions <- data
 		close(transmissions)
 		transmitWG.Wait()
@@ -253,14 +254,16 @@ func (fs *fileStream) send(
 
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError("filestream: error closing response body", err)
+			fs.logger.CaptureError(
+				fmt.Errorf("filestream: error closing response body: %v", err))
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError("json decode error", err)
+		fs.logger.CaptureError(
+			fmt.Errorf("filestream: json decode error: %v", err))
 	}
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)

@@ -5,7 +5,7 @@ go 1.22.3
 require (
 	github.com/Khan/genqlient v0.7.0
 	github.com/NVIDIA/go-nvml v0.12.4-0
-	github.com/getsentry/sentry-go v0.28.0
+	github.com/getsentry/sentry-go v0.28.1
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
@@ -18,7 +18,7 @@ require (
 	github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635
 	golang.org/x/sync v0.7.0
 	golang.org/x/time v0.5.0
-	google.golang.org/protobuf v1.34.1
+	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
 )
 

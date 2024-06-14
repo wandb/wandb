@@ -28,11 +28,10 @@ func (u *LogsUpdate) Apply(ctx UpdateContext) error {
 		line = fmt.Sprintf("ERROR %s %s", t, u.Record.Line)
 	default:
 		ctx.Logger.CaptureError(
-			fmt.Sprintf(
+			fmt.Errorf(
 				"filestream: unexpected logs output type %v",
 				u.Record.OutputType,
 			),
-			nil,
 		)
 
 		return nil
@@ -50,5 +49,5 @@ type collectorLogsUpdate struct {
 }
 
 func (u *collectorLogsUpdate) Apply(state *CollectorState) {
-	state.Buffer.ConsoleLogLines = append(state.Buffer.ConsoleLogLines, u.line)
+	state.ConsoleLogLines = append(state.ConsoleLogLines, u.line)
 }
