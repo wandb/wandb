@@ -137,7 +137,7 @@ class WandbStoragePolicy(StoragePolicy):
             auth = None
             http_headers = _thread_local_api_settings.headers or {}
             if self._api.access_token is not None:
-                http_headers["Authorization"] = "Bearer " + self._api.access_token
+                http_headers["Authorization"] = f"Bearer {self._api.access_token}"
             elif _thread_local_api_settings.cookies is None:
                 auth = ("api", self._api.api_key or "")
 

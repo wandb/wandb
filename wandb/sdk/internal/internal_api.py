@@ -239,7 +239,7 @@ class Api:
 
         auth = None
         if self.access_token is not None:
-            extra_http_headers["Authorization"] = "Bearer " + self.access_token
+            extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
@@ -2710,7 +2710,7 @@ class Api:
 
         auth = None
         if self.access_token is not None:
-            http_headers["Authorization"] = "Bearer " + self.access_token
+            http_headers["Authorization"] = f"Bearer {self.access_token}"
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
