@@ -490,7 +490,7 @@ def test_token_file_env():
 
 def test_credentials_file_env():
     s = Settings()
-    assert s.credentials_file == DEFAULT_WANDB_CREDENTIALS_FILE
+    assert s.credentials_file == str(DEFAULT_WANDB_CREDENTIALS_FILE)
 
     s = Settings()
     s._apply_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})

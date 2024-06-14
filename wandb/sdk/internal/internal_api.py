@@ -11,6 +11,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -37,7 +38,7 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import CommError, UnsupportedError, UsageError, AuthenticationError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
@@ -238,8 +239,7 @@ class Api:
 
         auth = None
         if self.access_token is not None:
-            auth_header = {"Authorization": "Bearer " + self.access_token}
-            extra_http_headers.update(auth_header)
+            extra_http_headers["Authorization"] = "Bearer " + self.access_token
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
@@ -383,9 +383,25 @@ class Api:
 
     @property
     def access_token(self) -> Optional[str]:
-        token_file = self._environ.get(env.IDENTITY_TOKEN_FILE)
-        if token_file is None:
+        """
+        Retrieves an access token for authentication.
+
+        This function attempts to exchange an identity token for a temporary access token from the server, and save it
+        to the credentials file. It uses the path to the identity token as defined in the environment variables. If the
+        environment variable is not set, it returns None.
+
+        Returns:
+            Optional[str]: The access token if available, otherwise None if no identity token is supplied.
+        Raises:
+            AuthenticationError: If the path to the identity token is not found.
+        """
+        token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
+        if not token_file_str:
             return None
+
+        token_file = Path(token_file_str)
+        if not token_file.exists():
+            raise AuthenticationError(f"Identity token file not found: {token_file}")
 
         base_url = self.settings("base_url")
         credentials_file = env.get_credentials_file(
@@ -2694,8 +2710,7 @@ class Api:
 
         auth = None
         if self.access_token is not None:
-            auth_header = {"Authorization": "Bearer " + self.access_token}
-            http_headers.update(auth_header)
+            http_headers["Authorization"] = "Bearer " + self.access_token
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 

@@ -86,10 +86,10 @@ message Settings {
   // Indicate whether wandb-core is to be used.
   google.protobuf.BoolValue _require_core = 36;
 
-  // file path to the jwt for authentication
+  // Path to file containing an identity token for authentication.
   google.protobuf.StringValue identity_token_file = 168;
 
-  // file path location to write credentials
+  // Path to file for writing temporary access tokens.
   google.protobuf.StringValue credentials_file = 169;
 
   ListStringValue _args = 1;

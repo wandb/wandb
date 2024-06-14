@@ -368,10 +368,10 @@ class Settings(google.protobuf.message.Message):
         """Indicate whether wandb-core is to be used."""
     @property
     def identity_token_file(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """file path to the jwt for authentication"""
+        """Path to file containing an identity token for authentication."""
     @property
     def credentials_file(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """file path location to write credentials"""
+        """Path to file for writing temporary access tokens."""
     @property
     def _args(self) -> global___ListStringValue: ...
     @property

@@ -1,6 +1,6 @@
 import json
 import os
-import pathlib
+from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -8,43 +8,38 @@ import requests.utils
 
 from wandb.errors import AuthenticationError
 
-DEFAULT_WANDB_CREDENTIALS_FILE = str(
-    pathlib.Path("~/.config/wandb/credentials.json").expanduser()
-)
+DEFAULT_WANDB_CREDENTIALS_FILE = Path("~/.config/wandb/credentials.json").expanduser()
 
 _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 
 def access_token(
-    base_url: str, token_file: str, credentials_file: str
-) -> Optional[str]:
-    """Retrieve the access token from the credentials file or create a new one if necessary.
+    base_url: str, token_file: Path, credentials_file: Path
+) -> str:
+    """Retrieve an access token from the credentials file. If no access token exists, create a new one by exchanging the identity token from the token file, and save it to the credentials file.
 
     Args:
         base_url (str): The base URL of the server
-        token_file (str): The path to the token file.
-        credentials_file (str): The path to the credentials file.
+        token_file (pathlib.Path): The path to the file containing the identity token
+        credentials_file (pathlib.Path): The path to file used to save temporary access tokens
 
     Returns:
-        Optional[str]: The access token if available, otherwise None.
+        str: The access token
     """
-    if not token_file:
-        return None
-
-    if not pathlib.Path(credentials_file).exists():
+    if not credentials_file.exists():
         _write_credentials_file(base_url, token_file, credentials_file)
 
     data = _fetch_credentials(base_url, token_file, credentials_file)
     return data["access_token"]
 
 
-def _write_credentials_file(base_url: str, token_file: str, credentials_file: str):
-    """Write the credentials file with the access token obtained from the server.
+def _write_credentials_file(base_url: str, token_file: Path, credentials_file: Path):
+    """Obtain an access token from the server and write it to the credentials file.
 
     Args:
-        base_url (str): The base URL of the server.
-        token_file (str): The path to the token file.
-        credentials_file (str): The path to the credentials file.
+        base_url (str): The base URL of the server
+        token_file (pathlib.Path): The path to the file containing the identity token
+        credentials_file (pathlib.Path): The path to file used to save temporary access tokens
     """
     credentials = _create_access_token(base_url, token_file)
     data = {"credentials": {base_url: credentials}}
@@ -55,13 +50,13 @@ def _write_credentials_file(base_url: str, token_file: str, credentials_file: st
         os.chmod(credentials_file, 0o600)
 
 
-def _fetch_credentials(base_url: str, token_file: str, credentials_file: str) -> dict:
-    """Fetch the credentials from the credentials file. Refresh the token if it has expired.
+def _fetch_credentials(base_url: str, token_file: Path, credentials_file: Path) -> dict:
+    """Fetch the access token from the credentials file. If the access token has expired, fetch a new one from the server and save it to the credentials file.
 
     Args:
-        base_url (str): The base URL of the server.
-        token_file (str): The path to the token file.
-        credentials_file (str): The path to the credentials file.
+        base_url (str): The base URL of the server
+        token_file (pathlib.Path): The path to the file containing the identity token
+        credentials_file (pathlib.Path): The path to file used to save temporary access tokens
 
     Returns:
         dict: The credentials including the access token.
@@ -87,15 +82,15 @@ def _fetch_credentials(base_url: str, token_file: str, credentials_file: str) ->
     return creds
 
 
-def _create_access_token(base_url: str, token_file: str) -> dict:
-    """Create a new access token using the token file.
+def _create_access_token(base_url: str, token_file: Path) -> dict:
+    """Exchange the identity token from the token file for an access token from the server
 
     Args:
         base_url (str): The base URL of the server.
-        token_file (str): The path to the token file.
+        token_file (pathlib.Path): The path to the file containing the identity token
 
     Returns:
-        dict: The access token and its metadata.
+        dict: The access token and its expiration.
 
     Raises:
         FileNotFoundError: If the token file is not found.
@@ -106,9 +101,9 @@ def _create_access_token(base_url: str, token_file: str) -> dict:
         with open(token_file) as file:
             token = file.read().strip()
     except FileNotFoundError as e:
-        raise FileNotFoundError(f"Token file not found: {token_file}") from e
+        raise FileNotFoundError(f"Identity token file not found: {token_file}") from e
     except OSError as e:
-        raise OSError(f"Failed to read the token file: {token_file}") from e
+        raise OSError(f"Failed to read the identity token from file: {token_file}") from e
 
     url = f"{base_url}/oidc/token"
     data = {

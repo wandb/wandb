@@ -786,7 +786,7 @@ class Settings(SettingsData):
             },
             console_multipart={"value": False, "preprocessor": _str_as_bool},
             credentials_file={
-                "value": credentials.DEFAULT_WANDB_CREDENTIALS_FILE,
+                "value": str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE),
                 "preprocessor": str,
             },
             deployment={

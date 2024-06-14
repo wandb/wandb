@@ -352,9 +352,9 @@ type Settings struct {
 	XDisableUpdateCheck *wrapperspb.BoolValue `protobuf:"bytes,165,opt,name=_disable_update_check,json=DisableUpdateCheck,proto3" json:"_disable_update_check,omitempty"`
 	// Indicate whether wandb-core is to be used.
 	XRequireCore *wrapperspb.BoolValue `protobuf:"bytes,36,opt,name=_require_core,json=RequireCore,proto3" json:"_require_core,omitempty"`
-	// file path to the jwt for authentication
+	// Path to file containing an identity token for authentication.
 	IdentityTokenFile *wrapperspb.StringValue `protobuf:"bytes,168,opt,name=identity_token_file,json=identityTokenFile,proto3" json:"identity_token_file,omitempty"`
-	// file path location to write credentials
+	// Path to file for writing temporary access tokens.
 	CredentialsFile                  *wrapperspb.StringValue  `protobuf:"bytes,169,opt,name=credentials_file,json=credentialsFile,proto3" json:"credentials_file,omitempty"`
 	XArgs                            *ListStringValue         `protobuf:"bytes,1,opt,name=_args,json=Args,proto3" json:"_args,omitempty"`
 	XAwsLambda                       *wrapperspb.BoolValue    `protobuf:"bytes,2,opt,name=_aws_lambda,json=AwsLambda,proto3" json:"_aws_lambda,omitempty"`
