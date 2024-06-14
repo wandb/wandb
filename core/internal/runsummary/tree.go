@@ -49,14 +49,9 @@ const (
 	None
 )
 
-type Leaf struct {
-	Stats   *Stats
-	Summary SummaryType
-}
-
 // Node represents a dictionary or a stats holder
 type Node struct {
-	leaf  *Leaf
+	stats *Stats
 	nodes map[string]*Node
 	mu    sync.Mutex // Guard access to the map
 }
@@ -121,10 +116,8 @@ func (n *Node) UpdateStats(path []string, value interface{}) error {
 		return err
 	}
 
-	if node.leaf == nil {
-		node.leaf = &Leaf{
-			Stats: &Stats{},
-		}
+	if node.stats == nil {
+		node.stats = &Stats{}
 	}
 
 	// we only need to convert the value to float64 if it is an int or float:
@@ -145,7 +138,7 @@ func (n *Node) UpdateStats(path []string, value interface{}) error {
 		return nil
 	}
 
-	node.leaf.Stats.Update(update)
+	node.stats.Update(update)
 	return nil
 }
 
@@ -155,19 +148,19 @@ func (n *Node) GetStat(path []string, summary SummaryType) (float64, error) {
 		return 0, err
 	}
 
-	if node.leaf == nil {
+	if node.stats == nil {
 		return 0, errors.New("no stats found")
 	}
 
 	switch summary {
 	case Latest:
-		return node.leaf.Stats.Latest, nil
+		return node.stats.Latest, nil
 	case Min:
-		return node.leaf.Stats.Min, nil
+		return node.stats.Min, nil
 	case Max:
-		return node.leaf.Stats.Max, nil
+		return node.stats.Max, nil
 	case Mean:
-		return node.leaf.Stats.Mean, nil
+		return node.stats.Mean, nil
 	default:
 		return 0, errors.New("invalid summary type")
 	}

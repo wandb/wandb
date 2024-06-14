@@ -44,10 +44,7 @@ func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
 			stats.nodes[k] = statsTreeFromPathTree(subtree)
 		} else {
 			stats.nodes[k] = &Node{
-				leaf: &Leaf{
-					Stats:   &Stats{},
-					Summary: Latest,
-				},
+				stats: &Stats{},
 			}
 		}
 	}
