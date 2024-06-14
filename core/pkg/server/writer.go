@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 
@@ -21,6 +22,12 @@ func WithWriterSettings(settings *service.Settings) WriterOption {
 	return func(w *Writer) {
 		w.settings = settings
 	}
+}
+
+type WriterParams struct {
+	Logger   *observability.CoreLogger
+	Settings *service.Settings
+	FwdChan  chan *service.Record
 }
 
 // Writer is responsible for writing messages to the append-only log.
@@ -54,14 +61,13 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, logger *observability.CoreLogger, opts ...WriterOption) *Writer {
+func NewWriter(ctx context.Context, params WriterParams) *Writer {
 	w := &Writer{
-		ctx:    ctx,
-		logger: logger,
-		wg:     sync.WaitGroup{},
-	}
-	for _, opt := range opts {
-		opt(w)
+		ctx:      ctx,
+		wg:       sync.WaitGroup{},
+		logger:   params.Logger,
+		settings: params.Settings,
+		fwdChan:  params.FwdChan,
 	}
 	return w
 }
@@ -75,22 +81,28 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
-		w.logger.CaptureFatalAndPanic("writer: startStore: error creating store", err)
+		w.logger.CaptureFatalAndPanic(
+			fmt.Errorf("writer: startStore: error creating store: %v", err))
 	}
 
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
 			if err = w.store.Write(record); err != nil {
-				w.logger.Error("writer: startStore: error storing record", "error", err)
+				w.logger.CaptureError(
+					fmt.Errorf(
+						"writer: startStore: error storing record: %v",
+						err,
+					))
 			}
 		}
 
 		if err = w.store.Close(); err != nil {
-			w.logger.CaptureError("writer: startStore: error closing store", err)
+			w.logger.CaptureError(
+				fmt.Errorf("writer: startStore: error closing store: %v", err))
 		}
 		w.wg.Done()
 	}()

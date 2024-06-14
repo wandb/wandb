@@ -3,7 +3,7 @@ package runfilestest
 import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/watcher2test"
+	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -19,7 +19,7 @@ func WithTestDefaults(params runfiles.UploaderParams) runfiles.UploaderParams {
 	}
 
 	if params.FileWatcher == nil {
-		params.FileWatcher = watcher2test.NewFakeWatcher()
+		params.FileWatcher = watchertest.NewFakeWatcher()
 	}
 
 	return params

@@ -1,4 +1,3 @@
-import base64
 import functools
 import itertools
 import json
@@ -53,7 +52,7 @@ logger = logging.getLogger(__name__)
 
 class Chunk(NamedTuple):
     filename: str
-    data: Any
+    data: str
 
 
 class DefaultFilePolicy:
@@ -227,7 +226,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
+    def process_chunks(self, chunks: List[Chunk]) -> List["ProcessedChunk"]:
         r"""Process chunks.
 
         Args:
@@ -298,18 +297,6 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             }
             ret.append(processed_chunk)
         return ret
-
-
-class BinaryFilePolicy(DefaultFilePolicy):
-    def __init__(self) -> None:
-        super().__init__()
-        self._offset: int = 0
-
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":
-        data = b"".join([c.data for c in chunks])
-        enc = base64.b64encode(data).decode("ascii")
-        self._offset += len(data)
-        return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
 
 class FileStreamApi:
@@ -520,7 +507,7 @@ class FileStreamApi:
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
-            logger.exception("dropped chunk %s" % response)
+            logger.exception("dropped chunk {}".format(response))
             self._dropped_chunks += 1
         else:
             parsed: Optional[dict] = None
@@ -585,12 +572,12 @@ class FileStreamApi:
     def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename: str, data: Any) -> None:
+    def push(self, filename: str, data: str) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
-            filename: Name of file that this is a chunk of.
-            data: File data.
+            filename: Name of file to append to.
+            data: Text to append to the file.
         """
         self._queue.put(Chunk(filename, data))
 

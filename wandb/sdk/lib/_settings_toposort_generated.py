@@ -13,7 +13,6 @@ else:
 _Setting = Literal[
     "_args",
     "_aws_lambda",
-    "_async_upload_concurrency_limit",
     "_cli_only_mode",
     "_code_path_local",
     "_colab",
@@ -25,7 +24,6 @@ _Setting = Literal[
     "_disable_update_check",
     "_disable_viewer",
     "_disable_machine_info",
-    "_except_exit",
     "_executable",
     "_extra_http_headers",
     "_file_stream_retry_max",
@@ -92,6 +90,7 @@ _Setting = Literal[
     "colab_url",
     "config_paths",
     "console",
+    "console_multipart",
     "deployment",
     "disable_code",
     "disable_git",
@@ -104,6 +103,7 @@ _Setting = Literal[
     "files_dir",
     "force",
     "fork_from",
+    "resume_from",
     "git_commit",
     "git_remote",
     "git_remote_url",
@@ -126,7 +126,6 @@ _Setting = Literal[
     "login_timeout",
     "mode",
     "notebook_name",
-    "problem",
     "program",
     "program_abspath",
     "program_relpath",
@@ -179,7 +178,6 @@ _Setting = Literal[
 ]
 
 SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
-    "_async_upload_concurrency_limit",
     "_service_wait",
     "_stats_sample_rate_seconds",
     "_stats_samples_to_average",
@@ -189,7 +187,6 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "console",
     "job_source",
     "mode",
-    "problem",
     "project",
     "run_id",
     "start_method",

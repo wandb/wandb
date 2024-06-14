@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="./docs/README_images/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
-  <img src="./docs/README_images/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo-dark.svg#gh-dark-mode-only" width="600" alt="Weights & Biases" />
+  <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
 <p align='center'>
@@ -26,64 +26,64 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
 <p align='center'>
 <a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/experiments-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/experiments-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/experiments-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/experiments-light.svg" width="14.0%">
   <img alt="Weights and Biases Experiments" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/report-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/report-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/report-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/report-light.svg" width="14.0%">
   <img alt="Weights and Biases Reports" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/artifacts-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/artifacts-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/artifacts-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/artifacts-light.svg" width="14.0%">
   <img alt="Weights and Biases Artifacts" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/tables-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/tables-light.svg" width="14.0%">
   <img alt="Weights and Biases Tables" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/sweeps-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/sweeps-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/sweeps-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/sweeps-light.svg" width="14.0%">
   <img alt="Weights and Biases Sweeps" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/launch-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/launch-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/launch-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/launch-light.svg" width="14.0%">
   <img alt="Weights and Biases Launch" src="">
 </picture>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/models-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/models-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/models-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/models-light.svg" width="14.0%">
   <img alt="Weights and Biases Model Management" src="">
 </picture>
 </a>
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/prompts-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/prompts-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/prompts-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/prompts-light.svg" width="14.0%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 <a target="_blank" href="https://github.com/wandb/weave">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./docs/README_images/Product_Icons_dark_background/weave-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./docs/README_images/Product_Icons_light/weave-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/weave-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/weave-light.svg" width="14.0%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </p>
@@ -130,7 +130,7 @@ for i in range(10):
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
 
 <p align='center'>
-<img src="./docs/README_images/wandb_demo_experiments.gif" width="100%">
+<img src="./assets/wandb_demo_experiments.gif" width="100%">
 </p>
 <p align = "center">
 Example W&B Dashboard that shows Runs from an Experiment.
@@ -143,7 +143,7 @@ Example W&B Dashboard that shows Runs from an Experiment.
 Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects. For more information on how to integrate W&B with the framework of your choice, see the [Integrations chapter](https://docs.wandb.ai/guides/integrations) in the W&B Developer Guide.
 
 <!-- <p align='center'>
-<img src="./docs/README_images/integrations.png" width="100%" />
+<img src="./assets/integrations.png" width="100%" />
 </p> -->
 
 <details>

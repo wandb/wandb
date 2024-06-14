@@ -567,7 +567,7 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
         subprocess.Popen(command)
         # wait for the server to start
         server_is_up = check_server_health(
-            base_url=base_url, endpoint=app_health_endpoint, num_retries=30
+            base_url=base_url, endpoint=app_health_endpoint, num_retries=120
         )
         if not server_is_up:
             return False
@@ -579,7 +579,7 @@ def spin_wandb_server(settings: WandbServerSettings) -> bool:
         )
 
     return check_server_health(
-        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
+        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=20
     )
 
 
@@ -925,6 +925,7 @@ def wandb_init(user, test_settings, request):
         save_code: Optional[bool] = None,
         id: Optional[str] = None,
         fork_from: Optional[str] = None,
+        resume_from: Optional[str] = None,
         settings: Union[
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
@@ -984,6 +985,30 @@ def inject_file_stream_response(base_url, user):
             body=body,
             status=status,
             application_pattern=TokenizedCircularPattern(application_pattern),
+        )
+
+    yield helper
+
+
+@pytest.fixture(scope="function")
+def inject_file_stream_connection_reset(base_url, user):
+    def helper(
+        run,
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        application_pattern: str = "1",
+    ) -> InjectedResponse:
+        return InjectedResponse(
+            method="POST",
+            url=(
+                urllib.parse.urljoin(
+                    base_url,
+                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
+                )
+            ),
+            application_pattern=TokenizedCircularPattern(application_pattern),
+            body=body or ConnectionResetError("Connection reset by peer"),
+            status=status,
         )
 
     yield helper

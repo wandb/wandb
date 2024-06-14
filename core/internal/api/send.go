@@ -25,6 +25,13 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 	client.setClientHeaders(retryableReq)
 	client.setAuthHeaders(retryableReq)
 
+	// Prevent the connection from being re-used in case of an error.
+	// TODO: There is an unlikely scenario when an attempt to reuse the connection
+	// will result in not retrying an otherwise retryable request.
+	// This is safe, however leads to a small performance hit and resource waste.
+	// We are being extra cautious here, but this should be revisited.
+	retryableReq.Close = true
+
 	return client.sendToWandbBackend(retryableReq)
 }
 
@@ -65,7 +72,15 @@ func (client *clientImpl) sendToWandbBackend(
 ) (*http.Response, error) {
 	client.setClientHeaders(req)
 	client.setAuthHeaders(req)
-	return client.send(req)
+
+	resp, err := client.send(req)
+
+	// This is a bug that happens with retryablehttp sometimes.
+	if err == nil && resp == nil {
+		return nil, fmt.Errorf("api: nil error and nil response")
+	}
+
+	return resp, err
 }
 
 // Sends any HTTP request.

@@ -198,6 +198,10 @@ message Feature {
   bool lightning_fabric_logger = 60;     // Using Lightning Fabric logger
   bool set_step_log = 61;                // step was set in wandb.log
   bool set_summary = 62;                 // summary was set by the user
+  bool metric_summary = 63;              // summary arg passed to define_metric
+  bool metric_goal = 64;                 // goal arg passed to define_metric
+  bool metric_hidden = 65;               // hidden arg passed to define_metric
+  bool metric_step_sync = 66;            // step_sync arg passed to define_metric
 }
 
 message Env {
@@ -235,6 +239,12 @@ message Deprecated {
   bool init__config_exclude_keys = 8;   // wandb.init(config_exclude_keys=...) called
   bool keras_callback__save_model = 9;  // wandb.keras.WandbCallback(save_model=True) called
   bool langchain_tracer = 10;           // wandb.integration.langchain.WandbTracer called
+  bool artifact__get_path = 11;         // wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
+  bool artifactmanifestentry__name =
+      12;                            // wandb.sdk.artifacts.artifact_manifest_entry.ArtifactManifestEntry.name() called
+  bool api__artifact_versions = 13;  // wandb.Api().artifact_versions(...) called
+  bool artifact_collection__change_type =
+      14;  // wandb.sdk.artifact_collection.ArtifactCollection.change_type(...) called
 }
 
 message Issues {

@@ -2,6 +2,7 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -22,6 +23,12 @@ const (
 
 	// Don't send more than 10 requests at a time.
 	maxBurst = 10
+
+	// Default retry settings.
+	DefaultRetryMax        = 20
+	DefaultRetryWaitMin    = 2 * time.Second
+	DefaultRetryWaitMax    = 60 * time.Second
+	DefaultNonRetryTimeout = 30 * time.Second
 )
 
 // The W&B backend server.
@@ -52,6 +59,8 @@ type Backend struct {
 // gracefully, and respecting rate-limit response headers.
 type Client interface {
 	// Sends an HTTP request to the W&B backend.
+	//
+	// It is guaranteed that the response is non-nil unless there is an error.
 	Send(*Request) (*http.Response, error)
 
 	// Sends an arbitrary HTTP request.
@@ -60,6 +69,8 @@ type Client interface {
 	// then use to make requests to the backend, like GraphQL. If the request
 	// URL matches the backend's base URL, there's special handling as in
 	// Send().
+	//
+	// It is guaranteed that the response is non-nil unless there is an error.
 	Do(*http.Request) (*http.Response, error)
 }
 
@@ -100,6 +111,16 @@ type Request struct {
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
 	Headers map[string]string
+}
+
+func (req *Request) String() string {
+	return fmt.Sprintf(
+		"Request{Method: %s, Path: %s, Body: %s, Headers: %v}",
+		req.Method,
+		req.Path,
+		string(req.Body),
+		req.Headers,
+	)
 }
 
 type BackendOptions struct {

@@ -298,7 +298,6 @@ class SettingsData:
 
     _args: Sequence[str]
     _aws_lambda: bool
-    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _code_path_local: str
     _colab: bool
@@ -313,7 +312,6 @@ class SettingsData:
     _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
-    _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
     # file stream retry client configuration
@@ -390,6 +388,7 @@ class SettingsData:
     colab_url: str
     config_paths: Sequence[str]
     console: str
+    console_multipart: bool  # whether to produce multipart console log files
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -402,6 +401,7 @@ class SettingsData:
     files_dir: str
     force: bool
     fork_from: Optional[RunMoment]
+    resume_from: Optional[RunMoment]
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -425,7 +425,6 @@ class SettingsData:
     # magic: Union[str, bool, dict]  # never used in code, deprecated
     mode: str
     notebook_name: str
-    problem: str
     program: str
     program_abspath: str
     program_relpath: str
@@ -621,10 +620,6 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
-            _async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate__async_upload_concurrency_limit,
-            },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
                 "auto_hook": True,
@@ -660,19 +655,14 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
-            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-            #             = 7200 / 60 + ceil(log2(60/2))
-            #             = 120 + 5
-            _file_stream_retry_max={"value": 125, "preprocessor": int},
-            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": float},
-            # A 3 minute timeout for all filestream post requests
-            _file_stream_timeout_seconds={"value": 180, "preprocessor": float},
-            _file_transfer_retry_max={"value": 20, "preprocessor": int},
-            _file_transfer_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _file_transfer_retry_wait_max_seconds={"value": 60, "preprocessor": float},
-            _file_transfer_timeout_seconds={"value": 0, "preprocessor": float},
+            _file_stream_retry_max={"preprocessor": int},
+            _file_stream_retry_wait_min_seconds={"preprocessor": float},
+            _file_stream_retry_wait_max_seconds={"preprocessor": float},
+            _file_stream_timeout_seconds={"preprocessor": float},
+            _file_transfer_retry_max={"preprocessor": int},
+            _file_transfer_retry_wait_min_seconds={"preprocessor": float},
+            _file_transfer_retry_wait_max_seconds={"preprocessor": float},
+            _file_transfer_timeout_seconds={"preprocessor": float},
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
@@ -681,10 +671,10 @@ class Settings(SettingsData):
                 "hook": lambda _: bool(self._network_buffer),
                 "auto_hook": True,
             },
-            _graphql_retry_max={"value": 20, "preprocessor": int},
-            _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": float},
-            _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": float},
-            _graphql_timeout_seconds={"value": 30.0, "preprocessor": float},
+            _graphql_retry_max={"preprocessor": int},
+            _graphql_retry_wait_min_seconds={"preprocessor": float},
+            _graphql_retry_wait_max_seconds={"preprocessor": float},
+            _graphql_timeout_seconds={"preprocessor": float},
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
@@ -787,6 +777,7 @@ class Settings(SettingsData):
                 "hook": lambda x: self._convert_console(x),
                 "auto_hook": True,
             },
+            console_multipart={"value": False, "preprocessor": _str_as_bool},
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -816,6 +807,10 @@ class Settings(SettingsData):
             },
             force={"preprocessor": _str_as_bool},
             fork_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
+            resume_from={
                 "value": None,
                 "preprocessor": _runmoment_preprocessor,
             },
@@ -862,7 +857,6 @@ class Settings(SettingsData):
             },
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
-            problem={"value": "fatal", "validator": self._validate_problem},
             program={
                 "hook": lambda x: self._get_program(x),
             },
@@ -1026,13 +1020,6 @@ class Settings(SettingsData):
         return True
 
     @staticmethod
-    def _validate_problem(value: str) -> bool:
-        choices: Set[str] = {"fatal", "warn", "silent"}
-        if value not in choices:
-            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
-        return True
-
-    @staticmethod
     def _validate_anonymous(value: str) -> bool:
         choices: Set[str] = {"allow", "must", "never", "false", "true"}
         if value not in choices:
@@ -1177,35 +1164,6 @@ class Settings(SettingsData):
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
-        return True
-
-    @staticmethod
-    def _validate__async_upload_concurrency_limit(value: int) -> bool:
-        if value <= 0:
-            raise UsageError("_async_upload_concurrency_limit must be positive")
-
-        try:
-            import resource  # not always available on Windows
-
-            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        except Exception:
-            # Couldn't get the open-file-limit for some reason,
-            # probably very platform-specific. Not a problem,
-            # we just won't use it to cap the concurrency.
-            pass
-        else:
-            if value > file_limit:
-                wandb.termwarn(
-                    (
-                        "_async_upload_concurrency_limit setting of"
-                        f" {value} exceeds this process's limit"
-                        f" on open files ({file_limit}); may cause file-upload failures."
-                        " Try decreasing _async_upload_concurrency_limit,"
-                        " or increasing your file limit with `ulimit -n`."
-                    ),
-                    repeat=False,
-                )
-
         return True
 
     @staticmethod
@@ -1783,9 +1741,6 @@ class Settings(SettingsData):
             settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            settings["_except_exit"] = True  # type: ignore
 
         if _logger is not None:
             _logger.info(
@@ -1896,7 +1851,20 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_rewind_logic()
+        self._handle_resume_logic()
 
+    def _handle_rewind_logic(self) -> None:
+        if self.resume_from is None:
+            return
+
+        if self.run_id is not None:
+            wandb.termwarn(
+                "You cannot specify both run_id and resume_from. " "Ignoring run_id."
+            )
+        self.update({"run_id": self.resume_from.run}, source=Source.INIT)
+
+    def _handle_resume_logic(self) -> None:
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):
@@ -1909,6 +1877,7 @@ class Settings(SettingsData):
                         "Tried to auto resume run with "
                         f"id {resume_run_id} but id {self.run_id} is set.",
                     )
+
         self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
         # persist our run id in case of failure
         # check None for mypy

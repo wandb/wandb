@@ -1,68 +1,118 @@
 package observability
 
 import (
-	"bytes"
-	"io"
-	"net/http"
+	"fmt"
 	"sync"
-
-	"github.com/wandb/wandb/core/pkg/service"
+	"time"
 )
 
-type Printer[T any] struct {
-	messages []T
-	mutex    sync.Mutex
+// Printer stores console messages to display to the user.
+type Printer struct {
+	sync.Mutex
+	messages []string
+
+	// For rate-limited messages, this is the next time a message may be sent.
+	rateLimits map[string]time.Time
+
+	// getNow allows stubbing out [time.Now] in tests.
+	getNow func() time.Time
 }
 
-func NewPrinter[T any]() *Printer[T] {
-	return &Printer[T]{}
+func NewPrinter() *Printer {
+	printer := &Printer{
+		rateLimits: make(map[string]time.Time),
+		getNow:     time.Now,
+	}
+
+	// Occasionally clean up the rateLimits map.
+	go func() {
+		for {
+			<-time.After(time.Minute)
+
+			printer.Lock()
+			now := printer.getNow()
+			for msg, blockUntil := range printer.rateLimits {
+				if now.After(blockUntil) {
+					delete(printer.rateLimits, msg)
+				}
+			}
+			printer.Unlock()
+		}
+	}()
+
+	return printer
 }
 
-func (p *Printer[T]) Write(message T) {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
-	p.messages = append(p.messages, message)
-}
+// Read returns all buffered messages and clears the buffer.
+func (p *Printer) Read() []string {
+	p.Lock()
+	defer p.Unlock()
 
-func (p *Printer[T]) Read() []T {
-	p.mutex.Lock()
-	defer p.mutex.Unlock()
 	polledMessages := p.messages
-	p.messages = make([]T, 0)
+	p.messages = make([]string, 0)
+
 	return polledMessages
 }
 
-// Peeker is a type that can be used to inspect the response of an HTTP request.
-// It is used to communicate back to the user about the http responses.
+// Write adds a message to the console.
+func (p *Printer) Write(message string) {
+	p.Lock()
+	defer p.Unlock()
+	p.messages = append(p.messages, message)
+}
+
+// Writef adds a Sprintf-formatted message to the console.
+func (p *Printer) Writef(format string, args ...any) {
+	p.Lock()
+	defer p.Unlock()
+	p.messages = append(p.messages, fmt.Sprintf(format, args...))
+}
+
+// AtMostEvery allows rate-limiting how often a message is printed.
 //
-// Note: this is a temporary implementation, until we redo our communication of
-// to the user about the status of the service.
-type Peeker struct {
-	*Printer[*service.HttpResponse]
-}
-
-func NewPeeker() *Peeker {
-	return &Peeker{
-		Printer: NewPrinter[*service.HttpResponse](),
+// Usage:
+//
+//	printer.
+//		AtMostEvery(time.Minute).
+//		Writef("Got number %d", dynamicNumber)
+//
+// The format string is used as the key for rate limiting. In the
+// above example, the statement may run with different values of
+// `dynamicNumber`, but a message will only be printed once a minute.
+//
+// Note, this doesn't affect regular `printer.Write(message)` calls.
+// The duration is only checked when `AtMostEvery()` is used.
+//
+// This should always be used with the same duration. If the duration
+// changes, the message is blocked until its last duration completes.
+func (p *Printer) AtMostEvery(duration time.Duration) writeDSL {
+	return writeDSL{
+		printer:         p,
+		rateLimitPeriod: duration,
 	}
 }
 
-func (p *Peeker) Peek(_ *http.Request, resp *http.Response) {
-	if resp == nil || resp.Body == nil {
-		return
+type writeDSL struct {
+	printer         *Printer
+	rateLimitPeriod time.Duration
+}
+
+// See [Printer.Writef].
+func (dsl writeDSL) Writef(format string, args ...any) {
+	dsl.printer.Lock()
+	defer dsl.printer.Unlock()
+
+	if dsl.rateLimitPeriod > 0 {
+		blockUntil := dsl.printer.rateLimits[format]
+
+		now := dsl.printer.getNow()
+		if now.Before(blockUntil) {
+			return
+		}
+
+		dsl.printer.rateLimits[format] = now.Add(dsl.rateLimitPeriod)
 	}
 
-	// If the status code is not a success code (2xx), we need to send the response to
-	// the user so they can see what happened.
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// We need to read the response body to send it to the user
-		buf, _ := io.ReadAll(resp.Body)
-		p.Printer.Write(&service.HttpResponse{
-			HttpStatusCode:   int32(resp.StatusCode),
-			HttpResponseText: string(buf),
-		})
-		// Restore the body so it can be read again
-		reader := io.NopCloser(bytes.NewReader(buf))
-		resp.Body = reader
-	}
+	dsl.printer.messages = append(dsl.printer.messages,
+		fmt.Sprintf(format, args...))
 }

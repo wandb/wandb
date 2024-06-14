@@ -51,14 +51,22 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			ft.logger.CaptureError("file transfer: upload: error closing file", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: upload: error closing file %s: %v",
+					task.Path,
+					err,
+				))
 		}
 	}(file)
 
 	stat, err := file.Stat()
 	if err != nil {
-		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
-		return err
+		return fmt.Errorf(
+			"file transfer: upload: error when stat-ing %s: %v",
+			task.Path,
+			err,
+		)
 	}
 
 	// Don't try to upload directories.
@@ -109,10 +117,6 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	if err != nil {
 		return err
 	}
-	// TODO: why would we get an empty response?
-	if resp == nil {
-		return fmt.Errorf("file transfer: upload: response is nil")
-	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
 	}
@@ -149,13 +153,22 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 	}
 	defer func(file *os.File) {
 		if err := file.Close(); err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: download: error closing file %s: %v",
+					task.Path,
+					err,
+				))
 		}
 	}(file)
 
 	defer func(file io.ReadCloser) {
 		if err := file.Close(); err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: download: error closing response reader: %v",
+					err,
+				))
 		}
 	}(resp.Body)
 
