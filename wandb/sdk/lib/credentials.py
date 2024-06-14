@@ -1,8 +1,7 @@
 import json
 import os
-from pathlib import Path
 from datetime import datetime, timedelta
-from typing import Optional
+from pathlib import Path
 
 import requests.utils
 
@@ -13,9 +12,7 @@ DEFAULT_WANDB_CREDENTIALS_FILE = Path("~/.config/wandb/credentials.json").expand
 _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 
-def access_token(
-    base_url: str, token_file: Path, credentials_file: Path
-) -> str:
+def access_token(base_url: str, token_file: Path, credentials_file: Path) -> str:
     """Retrieve an access token from the credentials file. If no access token exists, create a new one by exchanging the identity token from the token file, and save it to the credentials file.
 
     Args:
@@ -83,7 +80,7 @@ def _fetch_credentials(base_url: str, token_file: Path, credentials_file: Path) 
 
 
 def _create_access_token(base_url: str, token_file: Path) -> dict:
-    """Exchange the identity token from the token file for an access token from the server
+    """Exchange the identity token from the token file for an access token from the server.
 
     Args:
         base_url (str): The base URL of the server.
@@ -103,7 +100,9 @@ def _create_access_token(base_url: str, token_file: Path) -> dict:
     except FileNotFoundError as e:
         raise FileNotFoundError(f"Identity token file not found: {token_file}") from e
     except OSError as e:
-        raise OSError(f"Failed to read the identity token from file: {token_file}") from e
+        raise OSError(
+            f"Failed to read the identity token from file: {token_file}"
+        ) from e
 
     url = f"{base_url}/oidc/token"
     data = {
