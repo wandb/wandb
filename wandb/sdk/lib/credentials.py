@@ -13,12 +13,17 @@ _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 
 def access_token(base_url: str, token_file: Path, credentials_file: Path) -> str:
-    """Retrieve an access token from the credentials file. If no access token exists, create a new one by exchanging the identity token from the token file, and save it to the credentials file.
+    """Retrieve an access token from the credentials file.
+
+    If no access token exists, create a new one by exchanging the identity
+    token from the token file, and save it to the credentials file.
 
     Args:
         base_url (str): The base URL of the server
-        token_file (pathlib.Path): The path to the file containing the identity token
-        credentials_file (pathlib.Path): The path to file used to save temporary access tokens
+        token_file (pathlib.Path): The path to the file containing the
+        identity token
+        credentials_file (pathlib.Path): The path to file used to save
+        temporary access tokens
 
     Returns:
         str: The access token
@@ -35,8 +40,10 @@ def _write_credentials_file(base_url: str, token_file: Path, credentials_file: P
 
     Args:
         base_url (str): The base URL of the server
-        token_file (pathlib.Path): The path to the file containing the identity token
-        credentials_file (pathlib.Path): The path to file used to save temporary access tokens
+        token_file (pathlib.Path): The path to the file containing the
+        identity token
+        credentials_file (pathlib.Path): The path to file used to save
+        temporary access tokens
     """
     credentials = _create_access_token(base_url, token_file)
     data = {"credentials": {base_url: credentials}}
@@ -48,12 +55,17 @@ def _write_credentials_file(base_url: str, token_file: Path, credentials_file: P
 
 
 def _fetch_credentials(base_url: str, token_file: Path, credentials_file: Path) -> dict:
-    """Fetch the access token from the credentials file. If the access token has expired, fetch a new one from the server and save it to the credentials file.
+    """Fetch the access token from the credentials file.
+
+    If the access token has expired, fetch a new one from the server and save it
+    to the credentials file.
 
     Args:
         base_url (str): The base URL of the server
-        token_file (pathlib.Path): The path to the file containing the identity token
-        credentials_file (pathlib.Path): The path to file used to save temporary access tokens
+        token_file (pathlib.Path): The path to the file containing the
+        identity token
+        credentials_file (pathlib.Path): The path to file used to save
+        temporary access tokens
 
     Returns:
         dict: The credentials including the access token.
@@ -80,11 +92,13 @@ def _fetch_credentials(base_url: str, token_file: Path, credentials_file: Path) 
 
 
 def _create_access_token(base_url: str, token_file: Path) -> dict:
-    """Exchange the identity token from the token file for an access token from the server.
+    """Exchange the identity token from the token file for an access token from
+       the server.
 
     Args:
         base_url (str): The base URL of the server.
-        token_file (pathlib.Path): The path to the file containing the identity token
+        token_file (pathlib.Path): The path to the file containing the
+        identity token
 
     Returns:
         dict: The access token and its expiration.

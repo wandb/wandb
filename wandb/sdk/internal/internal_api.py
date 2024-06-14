@@ -383,15 +383,16 @@ class Api:
 
     @property
     def access_token(self) -> Optional[str]:
-        """
-        Retrieves an access token for authentication.
+        """Retrieves an access token for authentication.
 
-        This function attempts to exchange an identity token for a temporary access token from the server, and save it
-        to the credentials file. It uses the path to the identity token as defined in the environment variables. If the
-        environment variable is not set, it returns None.
+        This function attempts to exchange an identity token for a temporary
+        access token from the server, and save it to the credentials file.
+        It uses the path to the identity token as defined in the environment
+        variables. If the environment variable is not set, it returns None.
 
         Returns:
-            Optional[str]: The access token if available, otherwise None if no identity token is supplied.
+            Optional[str]: The access token if available, otherwise None if
+            no identity token is supplied.
         Raises:
             AuthenticationError: If the path to the identity token is not found.
         """

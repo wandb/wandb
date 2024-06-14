@@ -156,7 +156,7 @@ class _WandbLogin:
         """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
 
-    def use_identity_token(self):
+    def should_use_identity_token(self):
         return self._settings.identity_token_file is not None
 
     def set_backend(self, backend):
@@ -330,7 +330,7 @@ def _login(
         )
         return False
 
-    if wlogin.use_identity_token():
+    if wlogin.should_use_identity_token():
         return True
 
     # perform a login

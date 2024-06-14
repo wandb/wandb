@@ -486,9 +486,11 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
 
 
 def get_credentials_file(default: str, env: Optional[Env] = None) -> Path:
-    """Retrieves the file path for the credentials file used to save temporary access tokens.
+    """Retrieves the file path for the credentials file used to save temporary
+       access tokens.
 
-    The credentials file path can be set via an environment variable, otherwise the default path is used.
+    The credentials file path can be set via an environment variable, otherwise
+    the default path is used.
     """
     if env is None:
         env = os.environ
