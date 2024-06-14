@@ -2,7 +2,6 @@ package runmetric
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -25,7 +24,7 @@ func NewMetricHandler() *MetricHandler {
 // based on the glob metric and return it.
 func (mh *MetricHandler) CreateMatchingGlobMetric(key string) *service.MetricRecord {
 
-	fmt.Printf("metricHandler: %v\n", *mh)
+	// fmt.Printf("metricHandler: %v\n", *mh)
 	// for pattern, globMetric := range mh.globMetrics {
 	// 	fmt.Printf("    pattern: %v, globMetric: %v\n", pattern, *globMetric)
 	// }

@@ -1051,53 +1051,54 @@ type Feature struct {
 	SetRunTags          bool `protobuf:"varint,18,opt,name=set_run_tags,json=setRunTags,proto3" json:"set_run_tags,omitempty"`                          // user sets run name via wandb.run.tags = ...
 	SetConfigItem       bool `protobuf:"varint,19,opt,name=set_config_item,json=setConfigItem,proto3" json:"set_config_item,omitempty"`                 // users set key in run config via run.config.key
 	// or run.config["key"]
-	Launch                  bool `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                      // run is created through wandb launch
-	TorchProfilerTrace      bool `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                  // wandb.profiler.torch_trace_handler() called
-	Sb3                     bool `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                            // Using stable_baselines3 integration
-	Service                 bool `protobuf:"varint,23,opt,name=service,proto3" json:"service,omitempty"`                                                                    // Using wandb service internal process
-	InitReturnRun           bool `protobuf:"varint,24,opt,name=init_return_run,json=initReturnRun,proto3" json:"init_return_run,omitempty"`                                 // wandb.init() called in the same process returning previous run
-	LightgbmWandbCallback   bool `protobuf:"varint,25,opt,name=lightgbm_wandb_callback,json=lightgbmWandbCallback,proto3" json:"lightgbm_wandb_callback,omitempty"`         // lightgbm callback used
-	LightgbmLogSummary      bool `protobuf:"varint,26,opt,name=lightgbm_log_summary,json=lightgbmLogSummary,proto3" json:"lightgbm_log_summary,omitempty"`                  // lightgbm log summary used
-	CatboostWandbCallback   bool `protobuf:"varint,27,opt,name=catboost_wandb_callback,json=catboostWandbCallback,proto3" json:"catboost_wandb_callback,omitempty"`         // catboost callback used
-	CatboostLogSummary      bool `protobuf:"varint,28,opt,name=catboost_log_summary,json=catboostLogSummary,proto3" json:"catboost_log_summary,omitempty"`                  // catboost log summary used
-	TensorboardLog          bool `protobuf:"varint,29,opt,name=tensorboard_log,json=tensorboardLog,proto3" json:"tensorboard_log,omitempty"`                                // wandb.tensorflow.log or wandb.tensorboard.log used
-	EstimatorHook           bool `protobuf:"varint,30,opt,name=estimator_hook,json=estimatorHook,proto3" json:"estimator_hook,omitempty"`                                   // wandb.tensorflow.WandbHook used
-	XgboostWandbCallback    bool `protobuf:"varint,31,opt,name=xgboost_wandb_callback,json=xgboostWandbCallback,proto3" json:"xgboost_wandb_callback,omitempty"`            // xgboost callback used
-	XgboostOldWandbCallback bool `protobuf:"varint,32,opt,name=xgboost_old_wandb_callback,json=xgboostOldWandbCallback,proto3" json:"xgboost_old_wandb_callback,omitempty"` // xgboost old callback used (to be depreciated)
-	Attach                  bool `protobuf:"varint,33,opt,name=attach,proto3" json:"attach,omitempty"`                                                                      // attach to a run in another process
-	TensorboardPatch        bool `protobuf:"varint,34,opt,name=tensorboard_patch,json=tensorboardPatch,proto3" json:"tensorboard_patch,omitempty"`                          // wandb.tensorboard.patch(...)
-	TensorboardSync         bool `protobuf:"varint,35,opt,name=tensorboard_sync,json=tensorboardSync,proto3" json:"tensorboard_sync,omitempty"`                             // wandb.init(sync_tensorboard=True)
-	KfpWandbLog             bool `protobuf:"varint,36,opt,name=kfp_wandb_log,json=kfpWandbLog,proto3" json:"kfp_wandb_log,omitempty"`                                       // wandb.integration.kfp.wandb_log
-	MaybeRunOverwrite       bool `protobuf:"varint,37,opt,name=maybe_run_overwrite,json=maybeRunOverwrite,proto3" json:"maybe_run_overwrite,omitempty"`                     // Run might have been overwritten
-	KerasMetricsLogger      bool `protobuf:"varint,38,opt,name=keras_metrics_logger,json=kerasMetricsLogger,proto3" json:"keras_metrics_logger,omitempty"`                  // Keras WandbMetricsLogger used
-	KerasModelCheckpoint    bool `protobuf:"varint,39,opt,name=keras_model_checkpoint,json=kerasModelCheckpoint,proto3" json:"keras_model_checkpoint,omitempty"`            // Keras WandbModelCheckpoint used
-	KerasWandbEvalCallback  bool `protobuf:"varint,40,opt,name=keras_wandb_eval_callback,json=kerasWandbEvalCallback,proto3" json:"keras_wandb_eval_callback,omitempty"`    // Keras WandbEvalCallback used
-	FlowControlOverflow     bool `protobuf:"varint,41,opt,name=flow_control_overflow,json=flowControlOverflow,proto3" json:"flow_control_overflow,omitempty"`               // Hit flow control threshold
-	Sync                    bool `protobuf:"varint,42,opt,name=sync,proto3" json:"sync,omitempty"`                                                                          // Run was synced with wandb sync
-	FlowControlDisabled     bool `protobuf:"varint,43,opt,name=flow_control_disabled,json=flowControlDisabled,proto3" json:"flow_control_disabled,omitempty"`               // Flow control disabled by user
-	FlowControlCustom       bool `protobuf:"varint,44,opt,name=flow_control_custom,json=flowControlCustom,proto3" json:"flow_control_custom,omitempty"`                     // Flow control customized by user
-	ServiceDisabled         bool `protobuf:"varint,45,opt,name=service_disabled,json=serviceDisabled,proto3" json:"service_disabled,omitempty"`                             // Service disabled by user
-	OpenMetrics             bool `protobuf:"varint,46,opt,name=open_metrics,json=openMetrics,proto3" json:"open_metrics,omitempty"`                                         // Consuming metrics from an OpenMetrics endpoint
-	UltralyticsYolov8       bool `protobuf:"varint,47,opt,name=ultralytics_yolov8,json=ultralyticsYolov8,proto3" json:"ultralytics_yolov8,omitempty"`                       // Ultralytics YOLOv8 integration callbacks used
-	ImporterMlflow          bool `protobuf:"varint,48,opt,name=importer_mlflow,json=importerMlflow,proto3" json:"importer_mlflow,omitempty"`                                // Using Import API for MLFlow
-	SyncTfevents            bool `protobuf:"varint,49,opt,name=sync_tfevents,json=syncTfevents,proto3" json:"sync_tfevents,omitempty"`                                      // Using wandb sync for tfevent files
-	AsyncUploads            bool `protobuf:"varint,50,opt,name=async_uploads,json=asyncUploads,proto3" json:"async_uploads,omitempty"`                                      // Async file uploads enabled by user
-	OpenaiAutolog           bool `protobuf:"varint,51,opt,name=openai_autolog,json=openaiAutolog,proto3" json:"openai_autolog,omitempty"`                                   // OpenAI autolog used
-	LangchainTracer         bool `protobuf:"varint,52,opt,name=langchain_tracer,json=langchainTracer,proto3" json:"langchain_tracer,omitempty"`                             // Langchain wandb tracer callback used
-	CohereAutolog           bool `protobuf:"varint,53,opt,name=cohere_autolog,json=cohereAutolog,proto3" json:"cohere_autolog,omitempty"`                                   // Cohere autolog used
-	HfPipelineAutolog       bool `protobuf:"varint,54,opt,name=hf_pipeline_autolog,json=hfPipelineAutolog,proto3" json:"hf_pipeline_autolog,omitempty"`                     // HuggingFace Autologging
-	Core                    bool `protobuf:"varint,55,opt,name=core,proto3" json:"core,omitempty"`                                                                          // Using wandb core internal process
-	LibC                    bool `protobuf:"varint,56,opt,name=lib_c,json=libC,proto3" json:"lib_c,omitempty"`                                                              // Using c wandb library
-	LibCpp                  bool `protobuf:"varint,57,opt,name=lib_cpp,json=libCpp,proto3" json:"lib_cpp,omitempty"`                                                        // Using cpp wandb library
-	OpenaiFinetuning        bool `protobuf:"varint,58,opt,name=openai_finetuning,json=openaiFinetuning,proto3" json:"openai_finetuning,omitempty"`                          // Using openai finetuning WandbLogger
-	DiffusersAutolog        bool `protobuf:"varint,59,opt,name=diffusers_autolog,json=diffusersAutolog,proto3" json:"diffusers_autolog,omitempty"`                          // Using Diffusers autologger
-	LightningFabricLogger   bool `protobuf:"varint,60,opt,name=lightning_fabric_logger,json=lightningFabricLogger,proto3" json:"lightning_fabric_logger,omitempty"`         // Using Lightning Fabric logger
-	SetStepLog              bool `protobuf:"varint,61,opt,name=set_step_log,json=setStepLog,proto3" json:"set_step_log,omitempty"`                                          // step was set in wandb.log
-	SetSummary              bool `protobuf:"varint,62,opt,name=set_summary,json=setSummary,proto3" json:"set_summary,omitempty"`                                            // summary was set by the user
-	MetricSummary           bool `protobuf:"varint,63,opt,name=metric_summary,json=metricSummary,proto3" json:"metric_summary,omitempty"`                                   // summary arg passed to define_metric
-	MetricGoal              bool `protobuf:"varint,64,opt,name=metric_goal,json=metricGoal,proto3" json:"metric_goal,omitempty"`                                            // goal arg passed to define_metric
-	MetricHidden            bool `protobuf:"varint,65,opt,name=metric_hidden,json=metricHidden,proto3" json:"metric_hidden,omitempty"`                                      // hidden arg passed to define_metric
-	MetricStepSync          bool `protobuf:"varint,66,opt,name=metric_step_sync,json=metricStepSync,proto3" json:"metric_step_sync,omitempty"`                              // step_sync arg passed to define_metric
+	Launch                  bool   `protobuf:"varint,20,opt,name=launch,proto3" json:"launch,omitempty"`                                                                      // run is created through wandb launch
+	TorchProfilerTrace      bool   `protobuf:"varint,21,opt,name=torch_profiler_trace,json=torchProfilerTrace,proto3" json:"torch_profiler_trace,omitempty"`                  // wandb.profiler.torch_trace_handler() called
+	Sb3                     bool   `protobuf:"varint,22,opt,name=sb3,proto3" json:"sb3,omitempty"`                                                                            // Using stable_baselines3 integration
+	Service                 bool   `protobuf:"varint,23,opt,name=service,proto3" json:"service,omitempty"`                                                                    // Using wandb service internal process
+	InitReturnRun           bool   `protobuf:"varint,24,opt,name=init_return_run,json=initReturnRun,proto3" json:"init_return_run,omitempty"`                                 // wandb.init() called in the same process returning previous run
+	LightgbmWandbCallback   bool   `protobuf:"varint,25,opt,name=lightgbm_wandb_callback,json=lightgbmWandbCallback,proto3" json:"lightgbm_wandb_callback,omitempty"`         // lightgbm callback used
+	LightgbmLogSummary      bool   `protobuf:"varint,26,opt,name=lightgbm_log_summary,json=lightgbmLogSummary,proto3" json:"lightgbm_log_summary,omitempty"`                  // lightgbm log summary used
+	CatboostWandbCallback   bool   `protobuf:"varint,27,opt,name=catboost_wandb_callback,json=catboostWandbCallback,proto3" json:"catboost_wandb_callback,omitempty"`         // catboost callback used
+	CatboostLogSummary      bool   `protobuf:"varint,28,opt,name=catboost_log_summary,json=catboostLogSummary,proto3" json:"catboost_log_summary,omitempty"`                  // catboost log summary used
+	TensorboardLog          bool   `protobuf:"varint,29,opt,name=tensorboard_log,json=tensorboardLog,proto3" json:"tensorboard_log,omitempty"`                                // wandb.tensorflow.log or wandb.tensorboard.log used
+	EstimatorHook           bool   `protobuf:"varint,30,opt,name=estimator_hook,json=estimatorHook,proto3" json:"estimator_hook,omitempty"`                                   // wandb.tensorflow.WandbHook used
+	XgboostWandbCallback    bool   `protobuf:"varint,31,opt,name=xgboost_wandb_callback,json=xgboostWandbCallback,proto3" json:"xgboost_wandb_callback,omitempty"`            // xgboost callback used
+	XgboostOldWandbCallback bool   `protobuf:"varint,32,opt,name=xgboost_old_wandb_callback,json=xgboostOldWandbCallback,proto3" json:"xgboost_old_wandb_callback,omitempty"` // xgboost old callback used (to be depreciated)
+	Attach                  bool   `protobuf:"varint,33,opt,name=attach,proto3" json:"attach,omitempty"`                                                                      // attach to a run in another process
+	TensorboardPatch        bool   `protobuf:"varint,34,opt,name=tensorboard_patch,json=tensorboardPatch,proto3" json:"tensorboard_patch,omitempty"`                          // wandb.tensorboard.patch(...)
+	TensorboardSync         bool   `protobuf:"varint,35,opt,name=tensorboard_sync,json=tensorboardSync,proto3" json:"tensorboard_sync,omitempty"`                             // wandb.init(sync_tensorboard=True)
+	KfpWandbLog             bool   `protobuf:"varint,36,opt,name=kfp_wandb_log,json=kfpWandbLog,proto3" json:"kfp_wandb_log,omitempty"`                                       // wandb.integration.kfp.wandb_log
+	MaybeRunOverwrite       bool   `protobuf:"varint,37,opt,name=maybe_run_overwrite,json=maybeRunOverwrite,proto3" json:"maybe_run_overwrite,omitempty"`                     // Run might have been overwritten
+	KerasMetricsLogger      bool   `protobuf:"varint,38,opt,name=keras_metrics_logger,json=kerasMetricsLogger,proto3" json:"keras_metrics_logger,omitempty"`                  // Keras WandbMetricsLogger used
+	KerasModelCheckpoint    bool   `protobuf:"varint,39,opt,name=keras_model_checkpoint,json=kerasModelCheckpoint,proto3" json:"keras_model_checkpoint,omitempty"`            // Keras WandbModelCheckpoint used
+	KerasWandbEvalCallback  bool   `protobuf:"varint,40,opt,name=keras_wandb_eval_callback,json=kerasWandbEvalCallback,proto3" json:"keras_wandb_eval_callback,omitempty"`    // Keras WandbEvalCallback used
+	FlowControlOverflow     bool   `protobuf:"varint,41,opt,name=flow_control_overflow,json=flowControlOverflow,proto3" json:"flow_control_overflow,omitempty"`               // Hit flow control threshold
+	Sync                    bool   `protobuf:"varint,42,opt,name=sync,proto3" json:"sync,omitempty"`                                                                          // Run was synced with wandb sync
+	FlowControlDisabled     bool   `protobuf:"varint,43,opt,name=flow_control_disabled,json=flowControlDisabled,proto3" json:"flow_control_disabled,omitempty"`               // Flow control disabled by user
+	FlowControlCustom       bool   `protobuf:"varint,44,opt,name=flow_control_custom,json=flowControlCustom,proto3" json:"flow_control_custom,omitempty"`                     // Flow control customized by user
+	ServiceDisabled         bool   `protobuf:"varint,45,opt,name=service_disabled,json=serviceDisabled,proto3" json:"service_disabled,omitempty"`                             // Service disabled by user
+	OpenMetrics             bool   `protobuf:"varint,46,opt,name=open_metrics,json=openMetrics,proto3" json:"open_metrics,omitempty"`                                         // Consuming metrics from an OpenMetrics endpoint
+	UltralyticsYolov8       bool   `protobuf:"varint,47,opt,name=ultralytics_yolov8,json=ultralyticsYolov8,proto3" json:"ultralytics_yolov8,omitempty"`                       // Ultralytics YOLOv8 integration callbacks used
+	ImporterMlflow          bool   `protobuf:"varint,48,opt,name=importer_mlflow,json=importerMlflow,proto3" json:"importer_mlflow,omitempty"`                                // Using Import API for MLFlow
+	SyncTfevents            bool   `protobuf:"varint,49,opt,name=sync_tfevents,json=syncTfevents,proto3" json:"sync_tfevents,omitempty"`                                      // Using wandb sync for tfevent files
+	AsyncUploads            bool   `protobuf:"varint,50,opt,name=async_uploads,json=asyncUploads,proto3" json:"async_uploads,omitempty"`                                      // Async file uploads enabled by user
+	OpenaiAutolog           bool   `protobuf:"varint,51,opt,name=openai_autolog,json=openaiAutolog,proto3" json:"openai_autolog,omitempty"`                                   // OpenAI autolog used
+	LangchainTracer         bool   `protobuf:"varint,52,opt,name=langchain_tracer,json=langchainTracer,proto3" json:"langchain_tracer,omitempty"`                             // Langchain wandb tracer callback used
+	CohereAutolog           bool   `protobuf:"varint,53,opt,name=cohere_autolog,json=cohereAutolog,proto3" json:"cohere_autolog,omitempty"`                                   // Cohere autolog used
+	HfPipelineAutolog       bool   `protobuf:"varint,54,opt,name=hf_pipeline_autolog,json=hfPipelineAutolog,proto3" json:"hf_pipeline_autolog,omitempty"`                     // HuggingFace Autologging
+	Core                    bool   `protobuf:"varint,55,opt,name=core,proto3" json:"core,omitempty"`                                                                          // Using wandb core internal process
+	LibC                    bool   `protobuf:"varint,56,opt,name=lib_c,json=libC,proto3" json:"lib_c,omitempty"`                                                              // Using c wandb library
+	LibCpp                  bool   `protobuf:"varint,57,opt,name=lib_cpp,json=libCpp,proto3" json:"lib_cpp,omitempty"`                                                        // Using cpp wandb library
+	OpenaiFinetuning        bool   `protobuf:"varint,58,opt,name=openai_finetuning,json=openaiFinetuning,proto3" json:"openai_finetuning,omitempty"`                          // Using openai finetuning WandbLogger
+	DiffusersAutolog        bool   `protobuf:"varint,59,opt,name=diffusers_autolog,json=diffusersAutolog,proto3" json:"diffusers_autolog,omitempty"`                          // Using Diffusers autologger
+	LightningFabricLogger   bool   `protobuf:"varint,60,opt,name=lightning_fabric_logger,json=lightningFabricLogger,proto3" json:"lightning_fabric_logger,omitempty"`         // Using Lightning Fabric logger
+	SetStepLog              bool   `protobuf:"varint,61,opt,name=set_step_log,json=setStepLog,proto3" json:"set_step_log,omitempty"`                                          // step was set in wandb.log
+	SetSummary              bool   `protobuf:"varint,62,opt,name=set_summary,json=setSummary,proto3" json:"set_summary,omitempty"`                                            // summary was set by the user
+	MetricSummary           bool   `protobuf:"varint,63,opt,name=metric_summary,json=metricSummary,proto3" json:"metric_summary,omitempty"`                                   // summary arg passed to define_metric
+	MetricGoal              bool   `protobuf:"varint,64,opt,name=metric_goal,json=metricGoal,proto3" json:"metric_goal,omitempty"`                                            // goal arg passed to define_metric
+	MetricHidden            bool   `protobuf:"varint,65,opt,name=metric_hidden,json=metricHidden,proto3" json:"metric_hidden,omitempty"`                                      // hidden arg passed to define_metric
+	MetricStepSync          bool   `protobuf:"varint,66,opt,name=metric_step_sync,json=metricStepSync,proto3" json:"metric_step_sync,omitempty"`                              // step_sync arg passed to define_metric
+	MetricSummaryType       string `protobuf:"bytes,67,opt,name=metric_summary_type,json=metricSummaryType,proto3" json:"metric_summary_type,omitempty"`                      // requested summary type for define_metric
 }
 
 func (x *Feature) Reset() {
@@ -1592,6 +1593,13 @@ func (x *Feature) GetMetricStepSync() bool {
 		return x.MetricStepSync
 	}
 	return false
+}
+
+func (x *Feature) GetMetricSummaryType() string {
+	if x != nil {
+		return x.MetricSummaryType
+	}
+	return ""
 }
 
 type Env struct {
@@ -2248,7 +2256,7 @@ var file_wandb_proto_wandb_telemetry_proto_rawDesc = []byte{
 	0x6e, 0x73, 0x66, 0x6f, 0x72, 0x6d, 0x65, 0x72, 0x73, 0x18, 0x68, 0x20, 0x01, 0x28, 0x08, 0x52,
 	0x13, 0x63, 0x75, 0x72, 0x61, 0x74, 0x65, 0x64, 0x54, 0x72, 0x61, 0x6e, 0x73, 0x66, 0x6f, 0x72,
 	0x6d, 0x65, 0x72, 0x73, 0x12, 0x16, 0x0a, 0x06, 0x6f, 0x72, 0x6a, 0x73, 0x6f, 0x6e, 0x18, 0x69,
-	0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x6f, 0x72, 0x6a, 0x73, 0x6f, 0x6e, 0x22, 0xd3, 0x13, 0x0a,
+	0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x6f, 0x72, 0x6a, 0x73, 0x6f, 0x6e, 0x22, 0x83, 0x14, 0x0a,
 	0x07, 0x46, 0x65, 0x61, 0x74, 0x75, 0x72, 0x65, 0x12, 0x14, 0x0a, 0x05, 0x77, 0x61, 0x74, 0x63,
 	0x68, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x05, 0x77, 0x61, 0x74, 0x63, 0x68, 0x12, 0x16,
 	0x0a, 0x06, 0x66, 0x69, 0x6e, 0x69, 0x73, 0x68, 0x18, 0x02, 0x20, 0x01, 0x28, 0x08, 0x52, 0x06,
@@ -2406,7 +2414,10 @@ var file_wandb_proto_wandb_telemetry_proto_rawDesc = []byte{
 	0x69, 0x63, 0x48, 0x69, 0x64, 0x64, 0x65, 0x6e, 0x12, 0x28, 0x0a, 0x10, 0x6d, 0x65, 0x74, 0x72,
 	0x69, 0x63, 0x5f, 0x73, 0x74, 0x65, 0x70, 0x5f, 0x73, 0x79, 0x6e, 0x63, 0x18, 0x42, 0x20, 0x01,
 	0x28, 0x08, 0x52, 0x0e, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x53, 0x74, 0x65, 0x70, 0x53, 0x79,
-	0x6e, 0x63, 0x22, 0xa7, 0x03, 0x0a, 0x03, 0x45, 0x6e, 0x76, 0x12, 0x18, 0x0a, 0x07, 0x6a, 0x75,
+	0x6e, 0x63, 0x12, 0x2e, 0x0a, 0x13, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x5f, 0x73, 0x75, 0x6d,
+	0x6d, 0x61, 0x72, 0x79, 0x5f, 0x74, 0x79, 0x70, 0x65, 0x18, 0x43, 0x20, 0x01, 0x28, 0x09, 0x52,
+	0x11, 0x6d, 0x65, 0x74, 0x72, 0x69, 0x63, 0x53, 0x75, 0x6d, 0x6d, 0x61, 0x72, 0x79, 0x54, 0x79,
+	0x70, 0x65, 0x22, 0xa7, 0x03, 0x0a, 0x03, 0x45, 0x6e, 0x76, 0x12, 0x18, 0x0a, 0x07, 0x6a, 0x75,
 	0x70, 0x79, 0x74, 0x65, 0x72, 0x18, 0x01, 0x20, 0x01, 0x28, 0x08, 0x52, 0x07, 0x6a, 0x75, 0x70,
 	0x79, 0x74, 0x65, 0x72, 0x12, 0x16, 0x0a, 0x06, 0x6b, 0x61, 0x67, 0x67, 0x6c, 0x65, 0x18, 0x02,
 	0x20, 0x01, 0x28, 0x08, 0x52, 0x06, 0x6b, 0x61, 0x67, 0x67, 0x6c, 0x65, 0x12, 0x18, 0x0a, 0x07,

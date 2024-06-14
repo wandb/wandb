@@ -3,6 +3,7 @@ package runsummary
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	// TODO: use simplejsonext for now until we replace the usage of json with
 	// protocol buffer and proto json marshaler
@@ -66,40 +67,38 @@ func NewFrom(tree pathtree.TreeData) *RunSummary {
 //
 // It first checked the concrete metrics and then the glob metrics.
 // The first match wins. If no match is found, it returns Latest.
-func (rs *RunSummary) GetSummary(path []string) (SummaryType, error) {
+func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 	// look for a matching rule
-	// TODO: for now we only support top level keys.
-	// For nested keys, we always return Latest.
-	if len(path) != 1 {
-		return Latest, nil
-	}
+	// TODO: properly implement dot notation for nested keys,
+	// see test_metric_full.py::test_metric_dotted for an example
+	name := strings.Join(path, ".")
 
-	name := path[0]
+	types := make([]SummaryType, 0)
 
 	for pattern, definedMetric := range rs.mh.DefinedMetrics {
 		// fmt.Printf("    kp: %v, pattern: %v\n", kp, pattern)
 		if pattern == name {
 			summary := definedMetric.GetSummary()
 			// fmt.Printf("    found defined metric. summary: %v\n", summary)
+			if summary.GetNone() {
+				// fmt.Printf("+++    requested none summary for metric %v\n", name)
+				return []SummaryType{None}
+			}
 			if summary.GetMax() {
 				// fmt.Printf("+++    requested max summary for metric %v\n", name)
-				return Max, nil
+				types = append(types, Max)
 			}
 			if summary.GetMin() {
 				// fmt.Printf("+++    requested min summary for metric %v\n", name)
-				return Min, nil
+				types = append(types, Min)
 			}
 			if summary.GetMean() {
 				// fmt.Printf("+++    requested mean summary for metric %v\n", name)
-				return Mean, nil
-			}
-			if summary.GetNone() {
-				// fmt.Printf("+++    requested none summary for metric %v\n", name)
-				return None, nil
+				types = append(types, Mean)
 			}
 			if summary.GetLast() {
 				// fmt.Printf("+++    requested last summary for metric %v\n", name)
-				return Latest, nil
+				types = append(types, Latest)
 			}
 		}
 	}
@@ -109,34 +108,32 @@ func (rs *RunSummary) GetSummary(path []string) (SummaryType, error) {
 		if match, err := filepath.Match(pattern, name); err == nil {
 			if match {
 				summary := globMetric.GetSummary()
+				if summary.GetNone() {
+					// fmt.Printf("---    requested none summary for metric %v\n", name)
+					return []SummaryType{None}
+				}
 				// fmt.Printf("    found glob metric. summary: %v\n", summary)
 				if summary.GetMax() {
 					// fmt.Printf("---    requested max summary for metric %v\n", name)
-					return Max, nil
+					types = append(types, Max)
 				}
 				if summary.GetMin() {
 					// fmt.Printf("---    requested min summary for metric %v\n", name)
-					return Min, nil
+					types = append(types, Min)
 				}
 				if summary.GetMean() {
 					// fmt.Printf("---    requested mean summary for metric %v\n", name)
-					return Mean, nil
-				}
-				if summary.GetNone() {
-					// fmt.Printf("---    requested none summary for metric %v\n", name)
-					return None, nil
+					types = append(types, Mean)
 				}
 				if summary.GetLast() {
 					// fmt.Printf("---    requested last summary for metric %v\n", name)
-					return Latest, nil
+					types = append(types, Latest)
 				}
 			}
 		}
 	}
 
-	// if no match is found, return Latest
-	// fmt.Printf("+++    requested last summary for metric %v\n", name)
-	return Latest, nil
+	return types
 }
 
 // Updates and/or removes values from the configuration tree.
@@ -149,6 +146,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 ) {
 	// handle updates
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
+
 	for _, item := range summaryRecord.GetUpdate() {
 		// fmt.Printf(">>> key: %v\n", item.GetKey())
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
@@ -167,24 +165,46 @@ func (rs *RunSummary) ApplyChangeRecord(
 		// fmt.Printf("      mh: %v\n", *rs.mh)
 		// fmt.Printf("      update: %v\n", update)
 
-		st, err := rs.GetSummary(kp)
-		if err != nil {
-			onError(err)
+		st := rs.GetSummaryTypes(kp)
+
+		// skip if None in the summary type slice
+		if len(st) == 1 && st[0] == None {
 			continue
 		}
 
-		// skip if requested summary type is None
-		if st == None {
-			continue
-		}
-
-		// get the requested stat for the item
+		// get the requested stats for the item
 		// fmt.Printf("+++    requested stat for metric %v: %v\n", kp, st)
-		update, err = rs.stats.GetStat(kp, st)
-		// fmt.Printf("      update: %v\n", update)
-		if err != nil {
-			onError(err)
-			continue
+		updateMap := make(map[string]interface{})
+		for s := range st {
+			upd, err := rs.stats.GetStat(kp, st[s])
+			if err != nil {
+				onError(err)
+				continue
+			}
+
+			switch st[s] {
+			case Max:
+				updateMap["max"] = upd
+			case Min:
+				updateMap["min"] = upd
+			case Mean:
+				updateMap["mean"] = upd
+			case Latest:
+				updateMap["last"] = upd
+			}
+		}
+
+		if len(updateMap) > 0 {
+			// update summaryRecord with the new value
+			jsonValue, err := json.Marshal(updateMap)
+			if err != nil {
+				onError(err)
+				continue
+			}
+			item.ValueJson = string(jsonValue)
+
+			// update the value to be stored in the tree
+			update = updateMap
 		}
 
 		// store the update
@@ -193,13 +213,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 			Value: update,
 		})
 
-		// update summaryRecord with the new value
-		jsonValue, err := json.Marshal(update)
-		if err != nil {
-			onError(err)
-			continue
-		}
-		item.ValueJson = string(jsonValue)
 	}
 	rs.pathTree.ApplyUpdate(updates, onError)
 
@@ -216,13 +229,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 		}
 	}
 	rs.pathTree.ApplyRemove(removes)
-
-	// TODO: rm this debug
-	// for k, v := range rs.stats.nodes {
-	// 	if v.leaf != nil {
-	// 		fmt.Printf("runsummary: stats node %v stats: %v\n", k, v.leaf.Stats)
-	// 	}
-	// }
 }
 
 // Flatten the summary tree into a slice of SummaryItems.

@@ -123,7 +123,7 @@ func (n *Node) UpdateStats(path []string, value interface{}) error {
 
 	if node.leaf == nil {
 		node.leaf = &Leaf{
-			Stats:   &Stats{},
+			Stats: &Stats{},
 		}
 	}
 

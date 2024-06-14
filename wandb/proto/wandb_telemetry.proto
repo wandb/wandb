@@ -202,6 +202,7 @@ message Feature {
   bool metric_goal = 64;                 // goal arg passed to define_metric
   bool metric_hidden = 65;               // hidden arg passed to define_metric
   bool metric_step_sync = 66;            // step_sync arg passed to define_metric
+  string metric_summary_type = 67;       // requested summary type for define_metric
 }
 
 message Env {
