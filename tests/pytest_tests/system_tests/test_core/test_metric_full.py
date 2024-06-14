@@ -257,7 +257,6 @@ def test_metric_sync_step(relay_server, wandb_init):
     summary = relay.context.get_run_summary(run_id)
     history = relay.context.get_run_history(run_id)
     metrics = relay.context.get_run_metrics(run_id)
-    telemetry = relay.context.get_run_telemetry(run_id)
 
     assert summary["val"] == {"min": 2}
     assert summary["val2"] == 8
@@ -275,6 +274,7 @@ def test_metric_sync_step(relay_server, wandb_init):
     assert metrics and len(metrics) == 2
     # metric in telemetry options
     # TODO: fix thi in core:
+    # telemetry = relay.context.get_run_telemetry(run_id)
     # assert telemetry and 7 in telemetry.get("3", [])
 
 
