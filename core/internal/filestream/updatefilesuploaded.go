@@ -22,6 +22,6 @@ type collectorFilesUploadedUpdate struct {
 }
 
 func (u *collectorFilesUploadedUpdate) Apply(state *CollectorState) {
-	state.Buffer.UploadedFiles =
-		append(state.Buffer.UploadedFiles, u.relativePaths...)
+	state.UploadedFiles =
+		append(state.UploadedFiles, u.relativePaths...)
 }

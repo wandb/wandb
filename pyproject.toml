@@ -205,11 +205,11 @@ ignore-decorators = [
 
 [tool.ruff.lint.per-file-ignores]
 # Ensure stricter docstring requirements for public API module(s).
-"!wandb/apis/public/api.py" = [  # Consider expanding to other `wandb.api.public` submodules as well.
-    "D101",  # Require docstrings in public classes
-    "D102",  # Require docstrings in public methods
-    "D103",  # Require docstrings in public functions
-    "D417",  # Require descriptions for all arguments
+"!wandb/apis/public/api.py" = [ # Consider expanding to other `wandb.api.public` submodules as well.
+    "D101", # Require docstrings in public classes
+    "D102", # Require docstrings in public methods
+    "D103", # Require docstrings in public functions
+    "D417", # Require descriptions for all arguments
 ]
 
 "**/__init__.py" = ["E402", "F401"]
@@ -222,9 +222,13 @@ ignore-decorators = [
 "wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
-"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "D", "E", "F", "N", "UP026"]
+
+# Don't require docstrings on test functions.
+"tests/**" = ["D"]
+
+"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "E", "F", "N", "UP026"]
 "tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
-"tests/functional_tests/t0_main/metaflow/**" = ["D", "N806"]
+"tests/functional_tests/t0_main/metaflow/**" = ["N806"]
 
 
 [tool.mypy]

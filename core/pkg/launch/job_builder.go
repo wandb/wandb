@@ -623,7 +623,7 @@ func (j *JobBuilder) Build(
 		Name:             *name,
 		Metadata:         metadataString,
 		Type:             "job",
-		Aliases:          j.aliases,
+		Aliases:          append(j.aliases, "latest"),
 		Finalize:         true,
 		ClientId:         utils.GenerateAlphanumericSequence(128),
 		SequenceClientId: utils.GenerateAlphanumericSequence(128),

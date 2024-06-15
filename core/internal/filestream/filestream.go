@@ -3,7 +3,6 @@ package filestream
 
 import (
 	"fmt"
-	"maps"
 	"sync"
 	"time"
 
@@ -78,9 +77,6 @@ type fileStream struct {
 	processChan  chan Update
 	feedbackWait *sync.WaitGroup
 
-	// keep track of where we are streaming each file chunk
-	offsetMap FileStreamOffsetMap
-
 	// settings is the settings for the filestream
 	settings *service.Settings
 
@@ -100,8 +96,6 @@ type fileStream struct {
 	// to prove the run is still alive.
 	heartbeatStopwatch waiting.Stopwatch
 
-	clientId string
-
 	// A channel that is closed if there is a fatal error.
 	deadChan     chan struct{}
 	deadChanOnce *sync.Once
@@ -113,7 +107,6 @@ type FileStreamParams struct {
 	Printer            *observability.Printer
 	ApiClient          api.Client
 	MaxItemsPerPush    int
-	ClientId           string
 	DelayProcess       waiting.Delay
 	HeartbeatStopwatch waiting.Stopwatch
 }
@@ -134,7 +127,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		apiClient:       params.ApiClient,
 		processChan:     make(chan Update, BufferSize),
 		feedbackWait:    &sync.WaitGroup{},
-		offsetMap:       make(FileStreamOffsetMap),
 		maxItemsPerPush: defaultMaxItemsPerPush,
 		deadChanOnce:    &sync.Once{},
 		deadChan:        make(chan struct{}),
@@ -152,11 +144,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 
 	if params.MaxItemsPerPush > 0 {
 		fs.maxItemsPerPush = params.MaxItemsPerPush
-	}
-
-	// TODO: this should become the default
-	if fs.settings.GetXShared().GetValue() && params.ClientId != "" {
-		fs.clientId = params.ClientId
 	}
 
 	return fs
@@ -177,12 +164,8 @@ func (fs *fileStream) Start(
 		runID,
 	)
 
-	if offsetMap != nil {
-		fs.offsetMap = maps.Clone(offsetMap)
-	}
-
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
-	feedbackChan := fs.startTransmitting(transmitChan)
+	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)
 	fs.startProcessingFeedback(feedbackChan, fs.feedbackWait)
 }
 
@@ -203,7 +186,7 @@ func (fs *fileStream) Close() {
 // when we can't guarantee correctness, in which case we stop uploading
 // data but continue to save it to disk to avoid data loss.
 func (fs *fileStream) logFatalAndStopWorking(err error) {
-	fs.logger.CaptureFatal("filestream: fatal error", err)
+	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
 		fs.printer.Write(

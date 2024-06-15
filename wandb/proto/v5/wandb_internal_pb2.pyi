@@ -1506,9 +1506,7 @@ global___LinkArtifactRecord = LinkArtifactRecord
 
 @typing.final
 class TBRecord(google.protobuf.message.Message):
-    """
-    TBRecord: store tb locations
-    """
+    """Indicates a directory of TensorBoard tfevents files to sync with the run."""
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -1517,25 +1515,34 @@ class TBRecord(google.protobuf.message.Message):
     ROOT_DIR_FIELD_NUMBER: builtins.int
     SAVE_FIELD_NUMBER: builtins.int
     log_dir: builtins.str
-    """The log directory to watch, such as "dir/logs/train" or
-    "dir/logs/validation".
+    """A directory containing tfevents files to watch.
 
-    This should be an absolute path.
+    This may be an absolute or relative path.
     """
     root_dir: builtins.str
-    """An ancestor of log_dir, used to determine the run file path to which to
-    upload each log file.
+    """An optional path to an ancestor of `log_dir` used for namespacing.
 
-    TODO: document "namespacing" functionality (see tb_watcher.py in d9a1f69b4)
+    This may be an absolute or relative path.
 
-    For example, if this is "dir/logs", then the file "dir/logs/train/tfevents"
-    is uploaded as "train/tfevents".
+    If set, then each event from tfevents files under `log_dir` is
+    prefixed by the file's path relative to this directory. Additionally,
+    if `save` is true, then each file's upload path is also its path
+    relative to `root_dir`.
 
-    If this is a relative path or an empty string, it is joined with the
-    working directory of the internal process.
+    For example, with `root_dir` set as "tb/logs" and `log_dir` as
+    "tb/logs/train":
+
+    * Files are uploaded to "train/events.out.tfevents"
+    * A tfevents value tagged "epoch_loss" is logged as "train/epoch_loss"
+
+    If this is unset, then it is inferred using unspecified rules.
     """
     save: builtins.bool
-    """Whether to save tfevents files with the run."""
+    """Whether to save tfevents files with the run.
+
+    When true, this uploads the tfevents files, enabling the "TensorBoard"
+    tab in W&B.
+    """
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(

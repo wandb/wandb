@@ -691,7 +691,7 @@ class RelayServer:
     def relay(
         self,
         request: "flask.Request",
-    ) -> Union["responses.Response", "requests.Response"]:
+    ) -> Union["responses.Response", "requests.Response", None]:
         # replace the relay url with the real backend url (self.base_url)
         url = (
             urllib.parse.urlparse(request.url)
@@ -720,22 +720,29 @@ class RelayServer:
             # where are we in the application pattern?
             should_apply = injected_response.application_pattern.should_apply()
             # check if an injected response matches the request
-            if injected_response == prepared_relayed_request:
-                if self.verbose:
-                    print("*****************")
-                    print("INJECTING RESPONSE:")
-                    print(injected_response.to_dict())
-                    print("*****************")
-                # rotate the injection pattern
-                injected_response.application_pattern.next()
-                # TODO: allow access to the request object when making the mocked response
-                if should_apply:
-                    with responses.RequestsMock() as mocked_responses:
-                        # do the actual injection
-                        mocked_responses.add(**injected_response.to_dict())
-                        relayed_response = self.session.send(prepared_relayed_request)
+            if injected_response != prepared_relayed_request or not should_apply:
+                continue
 
-                        return relayed_response
+            if self.verbose:
+                print("*****************")
+                print("INJECTING RESPONSE:")
+                print(injected_response.to_dict())
+                print("*****************")
+            # rotate the injection pattern
+            injected_response.application_pattern.next()
+
+            # TODO: allow access to the request object when making the mocked response
+            with responses.RequestsMock() as mocked_responses:
+                # do the actual injection
+                resp = injected_response.to_dict()
+
+                if isinstance(resp["body"], ConnectionResetError):
+                    return None
+
+                mocked_responses.add(**resp)
+                relayed_response = self.session.send(prepared_relayed_request)
+
+                return relayed_response
 
         # normal case: no injected response matches the request
         relayed_response = self.session.send(prepared_relayed_request)
@@ -802,8 +809,16 @@ class RelayServer:
 
     def file_stream(self, path) -> Mapping[str, str]:
         request = flask.request
+
         with Timer() as timer:
             relayed_response = self.relay(request)
+
+        # simulate connection reset by peer
+        if relayed_response is None:
+            connection = request.environ["werkzeug.socket"]  # Get the socket object
+            connection.shutdown(socket.SHUT_RDWR)
+            connection.close()
+
         if self.verbose:
             print("*****************")
             print("FILE STREAM REQUEST:")

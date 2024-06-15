@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -44,10 +45,11 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 		return filepath.Join(tmpdir, filepath.FromSlash(slashPath))
 	}
 
-	settings := &service.Settings{}
+	settingsProto := &service.Settings{}
 	if opts.SlashFilesDir != "" {
-		settings.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
+		settingsProto.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
 	}
+	settings := settings.From(settingsProto)
 
 	handler := tensorboard.NewTBHandler(tensorboard.Params{
 		OutputRecords: outChan,
@@ -73,11 +75,12 @@ func Test_SymlinksFile(t *testing.T) {
 	ctx := setupTest(t, testOptions{SlashFilesDir: "runfiles"})
 	ctx.TouchFile("logs/train/events.out.tfevents.123.hostname")
 
-	ctx.Handler.Handle(&service.TBRecord{
-		LogDir:  ctx.Path("logs/train"),
-		RootDir: ctx.Path("logs"),
-		Save:    true,
-	})
+	require.NoError(t,
+		ctx.Handler.Handle(&service.TBRecord{
+			LogDir:  ctx.Path("logs/train"),
+			RootDir: ctx.Path("logs"),
+			Save:    true,
+		}))
 	ctx.Handler.Finish()
 
 	assert.FileExists(t,

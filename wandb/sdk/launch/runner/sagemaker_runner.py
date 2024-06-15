@@ -179,7 +179,10 @@ class SageMakerRunner(AbstractRunner):
         caller_id = client.get_caller_identity()
         account_id = caller_id["Account"]
         _logger.info(f"Using account ID {account_id}")
-        role_arn = get_role_arn(given_sagemaker_args, self.backend_config, account_id)
+        partition = await self.environment.get_partition()
+        role_arn = get_role_arn(
+            given_sagemaker_args, self.backend_config, account_id, partition
+        )
 
         # Create a sagemaker client to launch the job.
         sagemaker_client = session.client("sagemaker")
@@ -405,7 +408,10 @@ async def launch_sagemaker_job(
 
 
 def get_role_arn(
-    sagemaker_args: Dict[str, Any], backend_config: Dict[str, Any], account_id: str
+    sagemaker_args: Dict[str, Any],
+    backend_config: Dict[str, Any],
+    account_id: str,
+    partition: str,
 ) -> str:
     """Get the role arn from the sagemaker args or the backend config."""
     role_arn = sagemaker_args.get("RoleArn") or sagemaker_args.get("role_arn")
@@ -416,7 +422,7 @@ def get_role_arn(
             "AWS sagemaker require a string RoleArn set this by adding a `RoleArn` key to the sagemaker"
             "field of resource_args"
         )
-    if role_arn.startswith("arn:aws:iam::"):
+    if role_arn.startswith(f"arn:{partition}:iam::"):
         return role_arn  # type: ignore
 
-    return f"arn:aws:iam::{account_id}:role/{role_arn}"
+    return f"arn:{partition}:iam::{account_id}:role/{role_arn}"

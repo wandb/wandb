@@ -19,7 +19,10 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 		u.Record,
 		func(err error) {
 			ctx.Logger.CaptureError(
-				"filestream: failed to apply summary record", err)
+				fmt.Errorf(
+					"filestream: failed to apply summary record: %v",
+					err,
+				))
 		},
 	)
 
@@ -40,7 +43,11 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 		)
 		ctx.Printer.
 			AtMostEvery(time.Minute).
-			Write("Skipped uploading summary data that exceeded size limit.")
+			Writef(
+				"Skipped uploading summary data that exceeded"+
+					" size limit (%d > %d).",
+				len(line),
+				maxFileLineBytes)
 	} else {
 		ctx.ModifyRequest(&collectorSummaryUpdate{
 			newSummary: string(line),
@@ -55,5 +62,5 @@ type collectorSummaryUpdate struct {
 }
 
 func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
-	state.Buffer.LatestSummary = u.newSummary
+	state.LatestSummary = u.newSummary
 }

@@ -47,7 +47,6 @@ func (fs *fileStream) startProcessingUpdates(
 				},
 
 				Settings: fs.settings,
-				ClientID: fs.clientId,
 
 				Logger:  fs.logger,
 				Printer: fs.printer,
@@ -77,14 +76,13 @@ func (fs *fileStream) startProcessingUpdates(
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
 	stateUpdates <-chan CollectorStateUpdate,
+	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
 	// Output channel of responses.
 	feedback := make(chan map[string]any)
 
 	// Internal channel of actual requests to make.
 	transmissions := make(chan *FsTransmitData)
-
-	state := CollectorState{}
 
 	transmitWG := &sync.WaitGroup{}
 	transmitWG.Add(1)
@@ -111,6 +109,8 @@ func (fs *fileStream) startTransmitting(
 	}()
 
 	go func() {
+		state := NewCollectorState(initialOffsets)
+
 		// Batch and send updates.
 		//
 		// We try to batch updates that happen in quick succession by waiting a
@@ -120,7 +120,7 @@ func (fs *fileStream) startTransmitting(
 			fs.collectBatch(&state, stateUpdates)
 
 			fs.heartbeatStopwatch.Reset()
-			data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
+			data, hasData := state.MakeRequest(false /*isDone*/)
 			if hasData {
 				transmissions <- data
 			}
@@ -131,7 +131,7 @@ func (fs *fileStream) startTransmitting(
 		heartbeatWG.Wait()
 
 		// Send final transmission.
-		data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
+		data, _ := state.MakeRequest(true /*isDone*/)
 		transmissions <- data
 		close(transmissions)
 		transmitWG.Wait()
@@ -238,10 +238,14 @@ func (fs *fileStream) send(
 
 	switch {
 	case err != nil:
-		return fmt.Errorf("filestream: error making HTTP request: %v", err)
+		return fmt.Errorf(
+			"filestream: error making HTTP request: %v. got response: %v",
+			err,
+			resp,
+		)
 	case resp == nil:
 		// Sometimes resp and err can both be nil in retryablehttp's Client.
-		return fmt.Errorf("filestream: nil response and nil error")
+		return fmt.Errorf("filestream: nil response and nil error for request to %v", req.Path)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
@@ -250,14 +254,16 @@ func (fs *fileStream) send(
 
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError("filestream: error closing response body", err)
+			fs.logger.CaptureError(
+				fmt.Errorf("filestream: error closing response body: %v", err))
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError("json decode error", err)
+		fs.logger.CaptureError(
+			fmt.Errorf("filestream: json decode error: %v", err))
 	}
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)
