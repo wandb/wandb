@@ -92,8 +92,7 @@ def _fetch_credentials(base_url: str, token_file: Path, credentials_file: Path) 
 
 
 def _create_access_token(base_url: str, token_file: Path) -> dict:
-    """Exchange the identity token from the token file for an access token from
-       the server.
+    """Exchange an identity token for an access token from the server.
 
     Args:
         base_url (str): The base URL of the server.
