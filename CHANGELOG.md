@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.2] - 2024-06-17
+
 ### Added
 
 - Add prior runs when creating a sweep from the CLI by @TimH98 in https://github.com/wandb/wandb/pull/7803
