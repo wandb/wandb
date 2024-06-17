@@ -1,4 +1,4 @@
-//go:build linux && !libwandb_core
+//go:build linux && nomusl && !libwandb_core
 
 package monitor
 
