@@ -14,7 +14,7 @@ type SummaryUpdate struct {
 }
 
 func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
-	rs := runsummary.New()
+	rs := runsummary.New(runsummary.Params{})
 	rs.ApplyChangeRecord(
 		u.Record,
 		func(err error) {
