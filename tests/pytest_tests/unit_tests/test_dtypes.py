@@ -801,7 +801,6 @@ def test_table_typing_numpy():
     table.add_data(np.array([42, 42], dtype=np.uintp))
     table.add_data(np.array([42, 42], dtype=np.float32))
     table.add_data(np.array([42, 42], dtype=np.float64))
-    table.add_data(np.array([42, 42], dtype=np.float_))
     table.add_data(np.array([42, 42], dtype=np.complex64))
     table.add_data(np.array([42, 42], dtype=np.complex128))
 
@@ -880,8 +879,6 @@ def test_table_typing_pandas():
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float32))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float64))
-    table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float_))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex64))
     table.add_data(42)
