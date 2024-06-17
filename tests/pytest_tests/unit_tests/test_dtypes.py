@@ -761,10 +761,6 @@ def test_table_typing_numpy():
     table.add_data(np.complex64(42))
     table.add_data(np.complex128(42))
 
-    if np.__version__.startswith("1."):
-        table.add_data(np.float_(42))
-        table.add_data(np.complex_(42))
-
     # Booleans
     table = wandb.Table(columns=["A"], dtype=[BooleanType])
     table.add_data(None)
