@@ -1087,8 +1087,6 @@ func (h *Handler) handleHistory(history *service.HistoryRecord) {
 	}
 	h.fwdRecord(record)
 
-	// fmt.Printf("\n\n%+v\n\n", h.metricHandler.DefinedMetrics)
-
 	// TODO add an option to disable summary (this could be quite expensive)
 	if h.runSummary == nil {
 		return
@@ -1316,11 +1314,9 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
 
 	// check if history item matches a defined metric or a glob metric
-	// fmt.Printf("item: %v\n", item)
 	metric := h.matchHistoryItemMetric(item)
 
 	key := metric.GetStepMetric()
-	// fmt.Printf(" key: %v, metric: %v\n", key, metric)
 	// check if step metric is defined and if it needs to be synced
 	if !(metric.GetOptions().GetStepSync() && key != "") {
 		return nil

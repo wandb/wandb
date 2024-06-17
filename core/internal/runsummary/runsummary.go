@@ -73,57 +73,43 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 	types := make([]SummaryType, 0)
 
 	for pattern, definedMetric := range rs.mh.DefinedMetrics {
-		// fmt.Printf("    kp: %v, pattern: %v\n", kp, pattern)
 		if pattern == name {
 			summary := definedMetric.GetSummary()
-			// fmt.Printf("    found defined metric. summary: %v\n", summary)
 			if summary.GetNone() {
-				// fmt.Printf("+++    requested none summary for metric %v\n", name)
 				return []SummaryType{None}
 			}
 			if summary.GetMax() {
-				// fmt.Printf("+++    requested max summary for metric %v\n", name)
 				types = append(types, Max)
 			}
 			if summary.GetMin() {
-				// fmt.Printf("+++    requested min summary for metric %v\n", name)
 				types = append(types, Min)
 			}
 			if summary.GetMean() {
-				// fmt.Printf("+++    requested mean summary for metric %v\n", name)
 				types = append(types, Mean)
 			}
 			if summary.GetLast() {
-				// fmt.Printf("+++    requested last summary for metric %v\n", name)
 				types = append(types, Latest)
 			}
 		}
 	}
 	for pattern, globMetric := range rs.mh.GlobMetrics {
-		// fmt.Printf("    kp: %v, pattern: %v\n", kp, pattern)
 		// match the key against the glob pattern:
 		if match, err := filepath.Match(pattern, name); err == nil {
 			if match {
 				summary := globMetric.GetSummary()
 				if summary.GetNone() {
-					// fmt.Printf("---    requested none summary for metric %v\n", name)
 					return []SummaryType{None}
 				}
-				// fmt.Printf("    found glob metric. summary: %v\n", summary)
 				if summary.GetMax() {
-					// fmt.Printf("---    requested max summary for metric %v\n", name)
 					types = append(types, Max)
 				}
 				if summary.GetMin() {
-					// fmt.Printf("---    requested min summary for metric %v\n", name)
 					types = append(types, Min)
 				}
 				if summary.GetMean() {
-					// fmt.Printf("---    requested mean summary for metric %v\n", name)
 					types = append(types, Mean)
 				}
 				if summary.GetLast() {
-					// fmt.Printf("---    requested last summary for metric %v\n", name)
 					types = append(types, Latest)
 				}
 			}
@@ -145,7 +131,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
 
 	for _, item := range summaryRecord.GetUpdate() {
-		// fmt.Printf(">>> key: %v\n", item.GetKey())
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
 		if err != nil {
 			onError(err)
@@ -159,9 +144,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 			continue
 		}
 		// get the summary type for the item
-		// fmt.Printf("      mh: %v\n", *rs.mh)
-		// fmt.Printf("      update: %v\n", update)
-
 		st := rs.GetSummaryTypes(kp)
 
 		// skip if None in the summary type slice
@@ -170,7 +152,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 		}
 
 		// get the requested stats for the item
-		// fmt.Printf("+++    requested stat for metric %v: %v\n", kp, st)
 		updateMap := make(map[string]interface{})
 		for s := range st {
 			upd, err := rs.stats.GetStat(kp, st[s])
