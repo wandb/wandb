@@ -717,6 +717,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		config, _ := s.serializeConfig(runconfig.FormatJson)
+		fmt.Println("config", config)
 
 		var tags []string
 		tags = append(tags, run.Tags...)
