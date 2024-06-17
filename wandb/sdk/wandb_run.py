@@ -6,6 +6,7 @@ import json
 import logging
 import numbers
 import os
+import pathlib
 import re
 import sys
 import threading
@@ -42,7 +43,6 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.proto.wandb_internal_pb2 import (
-    JobInfoResponse,
     MetricRecord,
     PollExitResponse,
     Result,
@@ -207,6 +207,15 @@ class RunStatusChecker:
         self._network_status_thread.start()
         self._internal_messages_thread.start()
 
+    @staticmethod
+    def _abandon_status_check(
+        lock: threading.Lock,
+        handle: Optional[MailboxHandle],
+    ):
+        with lock:
+            if handle:
+                handle.abandon()
+
     def _loop_check_status(
         self,
         *,
@@ -247,7 +256,7 @@ class RunStatusChecker:
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
-            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            wait_time = max(timeout - time_elapsed, 0)
             join_requested = self._join_event.wait(timeout=wait_time)
 
     def check_network_status(self) -> None:
@@ -265,13 +274,19 @@ class RunStatusChecker:
                         )
                     )
 
-        self._loop_check_status(
-            lock=self._network_status_lock,
-            set_handle=lambda x: setattr(self, "_network_status_handle", x),
-            timeout=self._retry_polling_interval,
-            request=self._interface.deliver_network_status,
-            process=_process_network_status,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._network_status_lock,
+                set_handle=lambda x: setattr(self, "_network_status_handle", x),
+                timeout=self._retry_polling_interval,
+                request=self._interface.deliver_network_status,
+                process=_process_network_status,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._network_status_lock,
+                self._network_status_handle,
+            )
 
     def check_stop_status(self) -> None:
         def _process_stop_status(result: Result) -> None:
@@ -283,13 +298,19 @@ class RunStatusChecker:
                     thread.interrupt_main()
                     return
 
-        self._loop_check_status(
-            lock=self._stop_status_lock,
-            set_handle=lambda x: setattr(self, "_stop_status_handle", x),
-            timeout=self._stop_polling_interval,
-            request=self._interface.deliver_stop_status,
-            process=_process_stop_status,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._stop_status_lock,
+                set_handle=lambda x: setattr(self, "_stop_status_handle", x),
+                timeout=self._stop_polling_interval,
+                request=self._interface.deliver_stop_status,
+                process=_process_stop_status,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._stop_status_lock,
+                self._stop_status_handle,
+            )
 
     def check_internal_messages(self) -> None:
         def _process_internal_messages(result: Result) -> None:
@@ -297,25 +318,34 @@ class RunStatusChecker:
             for msg in internal_messages.messages.warning:
                 wandb.termwarn(msg)
 
-        self._loop_check_status(
-            lock=self._internal_messages_lock,
-            set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-            timeout=1,
-            request=self._interface.deliver_internal_messages,
-            process=_process_internal_messages,
-        )
+        try:
+            self._loop_check_status(
+                lock=self._internal_messages_lock,
+                set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+                timeout=1,
+                request=self._interface.deliver_internal_messages,
+                process=_process_internal_messages,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._internal_messages_lock,
+                self._internal_messages_handle,
+            )
 
     def stop(self) -> None:
         self._join_event.set()
-        with self._stop_status_lock:
-            if self._stop_status_handle:
-                self._stop_status_handle.abandon()
-        with self._network_status_lock:
-            if self._network_status_handle:
-                self._network_status_handle.abandon()
-        with self._internal_messages_lock:
-            if self._internal_messages_handle:
-                self._internal_messages_handle.abandon()
+        self._abandon_status_check(
+            self._stop_status_lock,
+            self._stop_status_handle,
+        )
+        self._abandon_status_check(
+            self._network_status_lock,
+            self._network_status_handle,
+        )
+        self._abandon_status_check(
+            self._internal_messages_lock,
+            self._internal_messages_handle,
+        )
 
     def join(self) -> None:
         self.stop()
@@ -327,8 +357,7 @@ class RunStatusChecker:
 class _run_decorator:  # noqa: N801
     _is_attaching: str = ""
 
-    class Dummy:
-        ...
+    class Dummy: ...
 
     @classmethod
     def _attach(cls, func: Callable) -> Callable:
@@ -531,7 +560,6 @@ class Run:
     _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
-    _job_info: Optional["JobInfoResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
     _server_info_response: Optional[ServerInfoResponse]
@@ -642,7 +670,6 @@ class Run:
         self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
-        self._job_info = None
 
         # Initialize telemetry object
         self._telemetry_obj = telemetry.TelemetryRecord()
@@ -672,6 +699,18 @@ class Run:
             config[wandb_key]["code_path"] = LogicalPath(
                 os.path.join("code", self._settings.program_relpath)
             )
+
+        if self._settings.fork_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.fork_from.run,
+                "step": self._settings.fork_from.value,
+            }
+
+        if self._settings.resume_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.resume_from.run,
+                "step": self._settings.resume_from.value,
+            }
 
         self._config._update(config, ignore_locked=True)
 
@@ -734,7 +773,7 @@ class Run:
             and self._settings.launch_config_path
             and os.path.exists(self._settings.launch_config_path)
         ):
-            self._save(self._settings.launch_config_path)
+            self.save(self._settings.launch_config_path)
             with open(self._settings.launch_config_path) as fp:
                 launch_config = json.loads(fp.read())
             if launch_config.get("overrides", {}).get("artifacts") is not None:
@@ -1385,6 +1424,8 @@ class Run:
 
     @_run_decorator._noop_on_finish()
     def _summary_update_callback(self, summary_record: SummaryRecord) -> None:
+        with telemetry.context(run=self) as tel:
+            tel.feature.set_summary = True
         if self._backend and self._backend.interface:
             self._backend.interface.publish_summary(summary_record)
 
@@ -1395,6 +1436,10 @@ class Run:
         # self._printer.display(line)
 
     def _summary_get_current_summary_callback(self) -> Dict[str, Any]:
+        if self._is_finished:
+            # TODO: WB-18420: fetch summary from backend and stage it before run is finished
+            wandb.termwarn("Summary data not available in finished run")
+            return {}
         if not self._backend or not self._backend.interface:
             return {}
         handle = self._backend.interface.deliver_get_summary()
@@ -1787,7 +1832,7 @@ class Run:
             import wandb
 
             run = wandb.init()
-            run.log({"pr": wandb.plots.precision_recall(y_test, y_probas, labels)})
+            run.log({"pr": wandb.plot.pr_curve(y_test, y_probas, labels)})
             ```
 
             ### 3D Object
@@ -1811,6 +1856,10 @@ class Run:
             ValueError: if invalid data is passed
 
         """
+        if step is not None:
+            with telemetry.context(run=self) as tel:
+                tel.feature.set_step_log = True
+
         if sync is not None:
             deprecate.deprecate(
                 field_name=deprecate.Deprecated.run__log_sync,
@@ -1831,20 +1880,56 @@ class Run:
     @_run_decorator._attach
     def save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
+        glob_str: Optional[Union[str, os.PathLike]] = None,
+        base_path: Optional[Union[str, os.PathLike]] = None,
         policy: "PolicyName" = "live",
     ) -> Union[bool, List[str]]:
-        """Ensure all files matching `glob_str` are synced to wandb with the policy specified.
+        """Sync one or more files to W&B.
+
+        Relative paths are relative to the current working directory.
+
+        A Unix glob, such as "myfiles/*", is expanded at the time `save` is
+        called regardless of the `policy`. In particular, new files are not
+        picked up automatically.
+
+        A `base_path` may be provided to control the directory structure of
+        uploaded files. It should be a prefix of `glob_str`, and the directory
+        structure beneath it is preserved. It's best understood through
+        examples:
+
+        ```
+        wandb.save("these/are/myfiles/*")
+        # => Saves files in a "these/are/myfiles/" folder in the run.
+
+        wandb.save("these/are/myfiles/*", base_path="these")
+        # => Saves files in an "are/myfiles/" folder in the run.
+
+        wandb.save("/User/username/Documents/run123/*.txt")
+        # => Saves files in a "run123/" folder in the run. See note below.
+
+        wandb.save("/User/username/Documents/run123/*.txt", base_path="/User")
+        # => Saves files in a "username/Documents/run123/" folder in the run.
+
+        wandb.save("files/*/saveme.txt")
+        # => Saves each "saveme.txt" file in an appropriate subdirectory
+        #    of "files/".
+        ```
+
+        Note: when given an absolute path or glob and no `base_path`, one
+        directory level is preserved as in the example above.
 
         Arguments:
-            glob_str: (string) a relative or absolute path to a unix glob or regular
-                path.  If this isn't specified the method is a noop.
-            base_path: (string) the base path to run the glob relative to
-            policy: (string) one of `live`, `now`, or `end`
-                - live: upload the file as it changes, overwriting the previous version
-                - now: upload the file once now
-                - end: only upload file when the run ends
+            glob_str: A relative or absolute path or Unix glob.
+            base_path: A path to use to infer a directory structure; see examples.
+            policy: One of `live`, `now`, or `end`.
+                * live: upload the file as it changes, overwriting the previous version
+                * now: upload the file once now
+                * end: upload file when the run ends
+
+        Returns:
+            Paths to the symlinks created for the matched files.
+
+            For historical reasons, this may return a boolean in legacy code.
         """
         if glob_str is None:
             # noop for historical reasons, run.save() may be called in legacy code
@@ -1857,77 +1942,131 @@ class Run:
             )
             return True
 
-        return self._save(glob_str, base_path, policy)
+        if isinstance(glob_str, bytes):
+            # Preserved for backward compatibility: allow bytes inputs.
+            glob_str = glob_str.decode("utf-8")
+        if isinstance(glob_str, str) and (
+            glob_str.startswith("gs://") or glob_str.startswith("s3://")
+        ):
+            # Provide a better error message for a common misuse.
+            wandb.termlog(f"{glob_str} is a cloud storage url, can't save file to W&B.")
+            return []
+        # NOTE: We use PurePath instead of Path because WindowsPath doesn't
+        # like asterisks and errors out in resolve(). It also makes logical
+        # sense: globs aren't real paths, they're just path-like strings.
+        glob_path = pathlib.PurePath(glob_str)
+        resolved_glob_path = pathlib.PurePath(os.path.abspath(glob_path))
+
+        if base_path is not None:
+            base_path = pathlib.Path(base_path)
+        elif not glob_path.is_absolute():
+            base_path = pathlib.Path(".")
+        else:
+            # Absolute glob paths with no base path get special handling.
+            wandb.termwarn(
+                "Saving files without folders. If you want to preserve "
+                "subdirectories pass base_path to wandb.save, i.e. "
+                'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
+                repeat=False,
+            )
+            base_path = resolved_glob_path.parent.parent
+
+        if policy not in ("live", "end", "now"):
+            raise ValueError(
+                'Only "live", "end" and "now" policies are currently supported.'
+            )
+
+        resolved_base_path = pathlib.PurePath(os.path.abspath(base_path))
+
+        return self._save(
+            resolved_glob_path,
+            resolved_base_path,
+            policy,
+        )
 
     def _save(
         self,
-        glob_str: Optional[str] = None,
-        base_path: Optional[str] = None,
-        policy: "PolicyName" = "live",
-    ) -> Union[bool, List[str]]:
-        if policy not in ("live", "end", "now"):
-            raise ValueError(
-                'Only "live" "end" and "now" policies are currently supported.'
-            )
-        if isinstance(glob_str, bytes):
-            glob_str = glob_str.decode("utf-8")
-        if not isinstance(glob_str, str):
-            raise ValueError("Must call wandb.save(glob_str) with glob_str a str")
+        glob_path: pathlib.PurePath,
+        base_path: pathlib.PurePath,
+        policy: "PolicyName",
+    ) -> List[str]:
+        # Can't use is_relative_to() because that's added in Python 3.9,
+        # but we support down to Python 3.7.
+        if not str(glob_path).startswith(str(base_path)):
+            raise ValueError("Glob may not walk above the base path")
 
-        if base_path is None:
-            if os.path.isabs(glob_str):
-                base_path = os.path.dirname(glob_str)
-                wandb.termwarn(
-                    "Saving files without folders. If you want to preserve "
-                    "sub directories pass base_path to wandb.save, i.e. "
-                    'wandb.save("/mnt/folder/file.h5", base_path="/mnt")',
-                    repeat=False,
-                )
-            else:
-                base_path = "."
-        wandb_glob_str = GlobStr(os.path.relpath(glob_str, base_path))
-        if ".." + os.sep in wandb_glob_str:
-            raise ValueError("globs can't walk above base_path")
+        if glob_path == base_path:
+            raise ValueError("Glob cannot be the same as the base path")
+
+        relative_glob = glob_path.relative_to(base_path)
+        if relative_glob.parts[0] == "*":
+            raise ValueError("Glob may not start with '*' relative to the base path")
+        relative_glob_str = GlobStr(str(relative_glob))
 
         with telemetry.context(run=self) as tel:
             tel.feature.save = True
 
-        if glob_str.startswith("gs://") or glob_str.startswith("s3://"):
-            wandb.termlog(
-                "%s is a cloud storage url, can't save file to wandb." % glob_str
-            )
-            return []
-        files = glob.glob(os.path.join(self._settings.files_dir, wandb_glob_str))
-        warn = False
-        if len(files) == 0 and "*" in wandb_glob_str:
-            warn = True
-        for path in glob.glob(glob_str):
-            file_name = os.path.relpath(path, base_path)
-            abs_path = os.path.abspath(path)
-            wandb_path = os.path.join(self._settings.files_dir, file_name)
-            filesystem.mkdir_exists_ok(os.path.dirname(wandb_path))
-            # We overwrite symlinks because namespaces can change in Tensorboard
-            if os.path.islink(wandb_path) and abs_path != os.readlink(wandb_path):
-                os.remove(wandb_path)
-                os.symlink(abs_path, wandb_path)
-            elif not os.path.exists(wandb_path):
-                os.symlink(abs_path, wandb_path)
-            files.append(wandb_path)
-        if warn:
-            file_str = "%i file" % len(files)
-            if len(files) > 1:
+        # Files in the files directory matched by the glob, including old and
+        # new ones.
+        globbed_files = set(
+            pathlib.Path(
+                self._settings.files_dir,
+            ).glob(relative_glob_str)
+        )
+
+        had_symlinked_files = len(globbed_files) > 0
+        is_star_glob = "*" in relative_glob_str
+
+        # The base_path may itself be a glob, so we can't do
+        #     base_path.glob(relative_glob_str)
+        for path_str in glob.glob(str(base_path / relative_glob_str)):
+            source_path = pathlib.Path(path_str).absolute()
+
+            # We can't use relative_to() because base_path may be a glob.
+            relative_path = pathlib.Path(*source_path.parts[len(base_path.parts) :])
+
+            target_path = pathlib.Path(self._settings.files_dir, relative_path)
+            globbed_files.add(target_path)
+
+            # If the file is already where it needs to be, don't create a symlink.
+            if source_path.resolve() == target_path.resolve():
+                continue
+
+            target_path.parent.mkdir(parents=True, exist_ok=True)
+
+            # Delete the symlink if it exists.
+            try:
+                target_path.unlink()
+            except FileNotFoundError:
+                # In Python 3.8, we would pass missing_ok=True, but as of now
+                # we support down to Python 3.7.
+                pass
+
+            target_path.symlink_to(source_path)
+
+        # Inform users that new files aren't detected automatically.
+        if not had_symlinked_files and is_star_glob:
+            file_str = f"{len(globbed_files)} file"
+            if len(globbed_files) > 1:
                 file_str += "s"
             wandb.termwarn(
-                (
-                    "Symlinked %s into the W&B run directory, "
-                    "call wandb.save again to sync new files."
-                )
-                % file_str
+                f"Symlinked {file_str} into the W&B run directory, "
+                "call wandb.save again to sync new files."
             )
-        files_dict: FilesDict = dict(files=[(wandb_glob_str, policy)])
+
+        files_dict: FilesDict = {
+            "files": [
+                (
+                    GlobStr(str(f.relative_to(self._settings.files_dir))),
+                    policy,
+                )
+                for f in globbed_files
+            ]
+        }
         if self._backend and self._backend.interface:
             self._backend.interface.publish_files(files_dict)
-        return files
+
+        return [str(f) for f in globbed_files]
 
     @_run_decorator._attach
     def restore(
@@ -2259,16 +2398,17 @@ class Run:
         if self._settings._offline:
             return
         if self._backend and self._backend.interface:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=30)
-            if not version_result:
-                version_handle.abandon()
-                return
-            self._check_version = version_result.response.check_version_response
-            logger.info(f"got version response {self._check_version}")
+            if not self._settings._disable_update_check:
+                logger.info("communicating current version")
+                version_handle = self._backend.interface.deliver_check_version(
+                    current_version=wandb.__version__
+                )
+                version_result = version_handle.wait(timeout=30)
+                if not version_result:
+                    version_handle.abandon()
+                else:
+                    self._check_version = version_result.response.check_version_response
+                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -2343,12 +2483,20 @@ class Run:
         self._telemetry_obj_active = True
         self._telemetry_flush()
 
+        self._detect_and_apply_job_inputs()
+
         # object is about to be returned to the user, don't let them modify it
         self._freeze()
 
         if not self._settings.resume:
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
+
+    def _detect_and_apply_job_inputs(self) -> None:
+        """If the user has staged launch inputs, apply them to the run."""
+        from wandb.sdk.launch.inputs.internal import StagedLaunchInputs
+
+        StagedLaunchInputs().apply(self)
 
     def _make_job_source_reqs(self) -> Tuple[List[str], Dict[str, Any], Dict[str, Any]]:
         from wandb.util import working_set
@@ -2455,14 +2603,18 @@ class Run:
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         assert self._backend and self._backend.interface
+
+        # get the server info before starting the defer state machine as
+        # it will stop communication with the server
+        server_info_handle = self._backend.interface.deliver_request_server_info()
+        result = server_info_handle.wait(timeout=-1)
+        assert result
+        self._server_info_response = result.response.server_info_response
+
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # this message is confusing, we should remove it
-        # self._footer_exit_status_info(
-        #     self._exit_code, settings=self._settings, printer=self._printer
-        # )
-
+        # wait for the exit to complete
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
         poll_exit_handle = self._backend.interface.deliver_poll_exit()
@@ -2480,16 +2632,10 @@ class Run:
 
         # dispatch all our final requests
 
-        server_info_handle = self._backend.interface.deliver_request_server_info()
         final_summary_handle = self._backend.interface.deliver_get_summary()
         sampled_history_handle = (
             self._backend.interface.deliver_request_sampled_history()
         )
-        job_info_handle = self._backend.interface.deliver_request_job_info()
-
-        result = server_info_handle.wait(timeout=-1)
-        assert result
-        self._server_info_response = result.response.server_info_response
 
         result = sampled_history_handle.wait(timeout=-1)
         assert result
@@ -2498,10 +2644,6 @@ class Run:
         result = final_summary_handle.wait(timeout=-1)
         assert result
         self._final_summary = result.response.get_summary_response
-
-        result = job_info_handle.wait(timeout=-1)
-        assert result
-        self._job_info = result.response.job_info_response
 
         if self._backend:
             self._backend.cleanup()
@@ -2525,7 +2667,6 @@ class Run:
             server_info_response=self._server_info_response,
             check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
-            job_info=self._job_info,
             reporter=self._reporter,
             quiet=self._quiet,
             settings=self._settings,
@@ -2614,12 +2755,23 @@ class Run:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_summary = True
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
             valid_goal = {"min", "max"}
             if goal_cleaned not in valid_goal:
                 raise wandb.Error(f"Unhandled define_metric() arg: goal: {goal}")
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_goal = True
+        if hidden:
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_hidden = True
+        if step_sync:
+            with telemetry.context(run=self) as tel:
+                tel.feature.metric_step_sync = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2804,6 +2956,7 @@ class Run:
             api.use_artifact(
                 artifact.id,
                 entity_name=r.entity,
+                project_name=r.project,
                 use_as=use_as or artifact_or_name,
             )
         else:
@@ -2866,8 +3019,7 @@ class Run:
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
-                Valid names can be in the following forms:
+            name: (str, optional) An artifact name. Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
@@ -3082,13 +3234,13 @@ class Run:
             )
         if entity and artifact._source_entity and entity != artifact._source_entity:
             raise ValueError(
-                f"Artifact {artifact.name} is owned by entity '{entity}'; it can't be "
-                f"moved to '{artifact._source_entity}'"
+                f"Artifact {artifact.name} is owned by entity "
+                f"'{artifact._source_entity}'; it can't be moved to '{entity}'"
             )
         if project and artifact._source_project and project != artifact._source_project:
             raise ValueError(
-                f"Artifact {artifact.name} exists in project '{project}'; it can't be "
-                f"moved to '{artifact._source_project}'"
+                f"Artifact {artifact.name} exists in project "
+                f"'{artifact._source_project}'; it can't be moved to '{project}'"
             )
 
     def _prepare_artifact(
@@ -3215,8 +3367,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert "model" in str(
-            artifact.type.lower()
+        assert (
+            "model" in str(artifact.type.lower())
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3308,8 +3460,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert "model" in str(
-                artifact.type.lower()
+            assert (
+                "model" in str(artifact.type.lower())
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
@@ -3513,7 +3665,11 @@ class Run:
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
-        run_state_str = "Resuming run" if settings.resumed else "Syncing run"
+        run_state_str = (
+            "Resuming run"
+            if settings.resumed or settings.resume_from
+            else "Syncing run"
+        )
         run_name = settings.run_name
         if not run_name:
             return
@@ -3567,7 +3723,7 @@ class Run:
     # FOOTER
     # ------------------------------------------------------------------------------
     # Note: All the footer methods are static methods since we want to share the printing logic
-    # with the service execution path that doesn't have acess to the run instance
+    # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _footer(
         sampled_history: Optional["SampledHistoryResponse"] = None,
@@ -3576,7 +3732,6 @@ class Run:
         server_info_response: Optional[ServerInfoResponse] = None,
         check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
-        job_info: Optional["JobInfoResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
         *,
@@ -3593,7 +3748,6 @@ class Run:
 
         Run._footer_sync_info(
             poll_exit_response=poll_exit_response,
-            job_info=job_info,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3601,6 +3755,11 @@ class Run:
         Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
         Run._footer_version_check_info(
             check_version=check_version_response,
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
+        Run._footer_notify_wandb_core(
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3626,26 +3785,6 @@ class Run:
             settings=settings,
             printer=printer,
         )
-
-    @staticmethod
-    def _footer_exit_status_info(
-        exit_code: Optional[int],
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if settings.silent:
-            return
-
-        status = "(success)." if not exit_code else f"(failed {exit_code})."
-        info = [
-            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
-        ]
-
-        if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort()} to abort syncing.")
-
-        printer.display(f'{" ".join(info)}')
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
     @staticmethod
@@ -3778,7 +3917,6 @@ class Run:
     @staticmethod
     def _footer_sync_info(
         poll_exit_response: Optional[PollExitResponse] = None,
-        job_info: Optional["JobInfoResponse"] = None,
         quiet: Optional[bool] = None,
         *,
         settings: "Settings",
@@ -3798,13 +3936,12 @@ class Run:
         else:
             info = []
             if settings.run_name and settings.run_url:
-                info = [
-                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
-                ]
-            if job_info and job_info.version and job_info.sequenceId:
-                link = f"{settings.project_url}/jobs/{job_info.sequenceId}/version_details/{job_info.version}"
                 info.append(
-                    f"{printer.emoji('lightning')} View job at {printer.link(link)}",
+                    f"{printer.emoji('rocket')} View run {printer.name(settings.run_name)} at: {printer.link(settings.run_url)}"
+                )
+            if settings.project_url:
+                info.append(
+                    f"{printer.emoji('star')} View project at: {printer.link(settings.project_url)}"
                 )
             if poll_exit_response and poll_exit_response.file_counts:
                 logger.info("logging synced files")
@@ -3874,11 +4011,11 @@ class Run:
 
         # Render summary if available
         if summary:
-            final_summary = {
-                item.key: json.loads(item.value_json)
-                for item in summary.item
-                if not item.key.startswith("_")
-            }
+            final_summary = {}
+            for item in summary.item:
+                if item.key.startswith("_") or len(item.nested_key) > 0:
+                    continue
+                final_summary[item.key] = json.loads(item.value_json)
 
             logger.info("rendering summary")
             summary_rows = []
@@ -3996,6 +4133,24 @@ class Run:
         package_problem = check_version.delete_message or check_version.yank_message
         if package_problem and check_version.upgrade_message:
             printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_notify_wandb_core(
+        *,
+        quiet: Optional[bool] = None,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        """Prints a message advertising the upcoming core release."""
+        if quiet or settings._require_core:
+            return
+
+        printer.display(
+            "The new W&B backend becomes opt-out in version 0.18.0;"
+            ' try it out with `wandb.require("core")`!'
+            " See https://wandb.me/wandb-core for more information.",
+            level="warn",
+        )
 
     @staticmethod
     def _footer_reporter_warn_err(

@@ -109,7 +109,6 @@ def launch_add(
 
     return _launch_add(
         api,
-        uri,
         job,
         config,
         template_variables,
@@ -134,7 +133,6 @@ def launch_add(
 
 def _launch_add(
     api: Api,
-    uri: Optional[str],
     job: Optional[str],
     config: Optional[Dict[str, Any]],
     template_variables: Optional[dict],
@@ -156,7 +154,7 @@ def _launch_add(
     priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
-        uri,
+        None,
         job,
         api,
         name,

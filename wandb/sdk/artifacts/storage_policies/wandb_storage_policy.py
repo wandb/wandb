@@ -1,6 +1,8 @@
 """WandB storage policy."""
+
 import hashlib
 import math
+import os
 import shutil
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 from urllib.parse import quote
@@ -13,6 +15,7 @@ from wandb.sdk.artifacts.artifact_file_cache import (
     ArtifactFileCache,
     get_artifact_file_cache,
 )
+from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handlers.azure_handler import AzureHandler
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
@@ -260,7 +263,7 @@ class WandbStoragePolicy(StoragePolicy):
             return math.ceil(file_size / S3_MAX_PART_NUMBERS)
         return default_chunk_size
 
-    def store_file_sync(
+    def store_file(
         self,
         artifact_id: str,
         artifact_manifest_id: str,
@@ -298,7 +301,7 @@ class WandbStoragePolicy(StoragePolicy):
                     hex_digests[part_number] = hex_digest
                     part_number += 1
 
-        resp = preparer.prepare_sync(
+        resp = preparer.prepare(
             {
                 "artifactID": artifact_id,
                 "artifactManifestID": artifact_manifest_id,
@@ -315,7 +318,6 @@ class WandbStoragePolicy(StoragePolicy):
             return True
         if entry.local_path is None:
             return False
-
         extra_headers = {
             header.split(":", 1)[0]: header.split(":", 1)[1]
             for header in (resp.upload_headers or {})
@@ -345,46 +347,6 @@ class WandbStoragePolicy(StoragePolicy):
 
         return False
 
-    async def store_file_async(
-        self,
-        artifact_id: str,
-        artifact_manifest_id: str,
-        entry: "ArtifactManifestEntry",
-        preparer: "StepPrepare",
-        progress_callback: Optional["progress.ProgressFn"] = None,
-    ) -> bool:
-        """Async equivalent to `store_file_sync`."""
-        resp = await preparer.prepare_async(
-            {
-                "artifactID": artifact_id,
-                "artifactManifestID": artifact_manifest_id,
-                "name": entry.path,
-                "md5": entry.digest,
-            }
-        )
-
-        entry.birth_artifact_id = resp.birth_artifact_id
-        if resp.upload_url is None:
-            return True
-        if entry.local_path is None:
-            return False
-
-        with open(entry.local_path, "rb") as file:
-            # This fails if we don't send the first byte before the signed URL expires.
-            await self._api.upload_file_retry_async(
-                resp.upload_url,
-                file,
-                progress_callback,
-                extra_headers={
-                    header.split(":", 1)[0]: header.split(":", 1)[1]
-                    for header in (resp.upload_headers or {})
-                },
-            )
-
-        self._write_cache(entry)
-
-        return False
-
     def _write_cache(self, entry: "ArtifactManifestEntry") -> None:
         if entry.local_path is None:
             return
@@ -394,9 +356,16 @@ class WandbStoragePolicy(StoragePolicy):
             B64MD5(entry.digest),
             entry.size if entry.size is not None else 0,
         )
-        if not hit:
-            try:
+
+        staging_dir = get_staging_dir()
+        try:
+            if not entry.skip_cache and not hit:
                 with cache_open("wb") as f, open(entry.local_path, "rb") as src:
                     shutil.copyfileobj(src, f)
-            except OSError as e:
-                termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")
+            if entry.local_path.startswith(staging_dir):
+                # Delete staged files here instead of waiting till
+                # all the files are uploaded
+                os.chmod(entry.local_path, 0o600)
+                os.remove(entry.local_path)
+        except OSError as e:
+            termwarn(f"Failed to cache {entry.local_path}, ignoring {e}")

@@ -1,4 +1,5 @@
 """Define plots used by multiple sklearn model classes."""
+
 from warnings import simplefilter
 
 import numpy as np

@@ -1,4 +1,5 @@
 """Artifact manifest v1."""
+
 from typing import Any, Dict, Mapping, Optional
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
@@ -19,7 +20,7 @@ class ArtifactManifestV1(ArtifactManifest):
     ) -> "ArtifactManifestV1":
         if manifest_json["version"] != cls.version():
             raise ValueError(
-                "Expected manifest version 1, got %s" % manifest_json["version"]
+                "Expected manifest version 1, got {}".format(manifest_json["version"])
             )
 
         storage_policy_name = manifest_json["storagePolicy"]
@@ -36,6 +37,7 @@ class ArtifactManifestV1(ArtifactManifest):
                 size=val.get("size"),
                 extra=val.get("extra"),
                 local_path=val.get("local_path"),
+                skip_cache=val.get("skip_cache"),
             )
             for name, val in manifest_json["contents"].items()
         }

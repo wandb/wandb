@@ -18,7 +18,7 @@ if [ ! -f "schemas/schema-latest.graphql" ]; then
     echo "ERROR: Not generating graphql as there is no schema-latest."
     exit 1
 fi
-go run github.com/Khan/genqlient genqlient.yaml
+go run $BASE/cmd/generate_gql genqlient.yaml
 
 
 # - Bump version in case of a schema change with --schema-change flag.

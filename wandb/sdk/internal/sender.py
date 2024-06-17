@@ -39,7 +39,6 @@ from wandb.sdk.internal import (
     datastore,
     file_stream,
     internal_api,
-    job_builder,
     sender_config,
     update,
 )
@@ -115,6 +114,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
                 "ref": content.ref if content.ref else None,
                 "size": content.size if content.size is not None else None,
                 "local_path": content.local_path if content.local_path else None,
+                "skip_cache": content.skip_cache,
                 "extra": {
                     extra.key: json.loads(extra.value_json) for extra in content.extra
                 },
@@ -216,6 +216,7 @@ class SendManager:
     _record_exit: Optional["Record"]
     _exit_result: Optional["RunExitResult"]
     _resume_state: ResumeState
+    _rewind_response: Optional[Dict[str, Any]]
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
@@ -275,6 +276,7 @@ class SendManager:
 
         # State updated by resuming
         self._resume_state = ResumeState()
+        self._rewind_response = None
 
         # State added when run_exit is initiated and complete
         self._record_exit = None
@@ -326,7 +328,6 @@ class SendManager:
             # ignore_globs=(),
             _sync=True,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
         record_q: Queue[Record] = queue.Queue()
@@ -733,18 +734,7 @@ class SendManager:
             )
         self._respond_result(result)
 
-    def send_request_job_info(self, record: "Record") -> None:
-        """Respond to a request for a job link."""
-        result = proto_util._result_from_record(record)
-        result.response.job_info_response.sequenceId = (
-            self._job_builder._job_seq_id or ""
-        )
-        result.response.job_info_response.version = (
-            self._job_builder._job_version_alias or ""
-        )
-        self._respond_result(result)
-
-    def _maybe_setup_resume(
+    def _setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """Queries the backend for a run; fail if the settings are incompatible."""
@@ -764,14 +754,14 @@ class SendManager:
             project_name=run.project,
             name=run.run_id,
         )
-
-        if not resume_status:
+        # No resume status = run does not exist; No t key in wandbConfig = run exists but hasn't been inited
+        if not resume_status or '"t":' not in resume_status.get("wandbConfig", ""):
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = (
                     "You provided an invalid value for the `resume` argument."
-                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that has not been initialized."
                     " Please check your inputs and try again with a valid run ID."
                     " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
                 )
@@ -818,7 +808,9 @@ class SendManager:
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume (%s) " % run.run_id
+                error.message = "resume='must' but could not resume ({}) ".format(
+                    run.run_id
+                )
                 return error
 
         # TODO: Do we need to restore config / summary?
@@ -834,7 +826,7 @@ class SendManager:
         self._resume_state.summary = summary
         self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: %s" % self._resume_state)
+        logger.info("configured resuming with: {}".format(self._resume_state))
         return None
 
     def _telemetry_get_framework(self) -> str:
@@ -890,13 +882,67 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
+    def _setup_fork(self, server_run: dict):
+        assert self._settings.fork_from
+        assert self._settings.fork_from.metric == "_step"
+        assert self._run
+        first_step = int(self._settings.fork_from.value) + 1
+        self._resume_state.step = first_step
+        self._resume_state.history = server_run.get("historyLineCount", 0)
+        self._run.forked = True
+        self._run.starting_step = first_step
+
+    def _load_rewind_state(self, run: "RunRecord"):
+        assert self._settings.resume_from
+        self._rewind_response = self._api.rewind_run(
+            run_name=run.run_id,
+            entity=run.entity or None,
+            project=run.project or None,
+            metric_name=self._settings.resume_from.metric,
+            metric_value=self._settings.resume_from.value,
+            program_path=self._settings.program or None,
+        )
+        self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
+        self._resume_state.config = json.loads(
+            self._rewind_response.get("config", "{}")
+        )
+
+    def _install_rewind_state(self):
+        assert self._settings.resume_from
+        assert self._settings.resume_from.metric == "_step"
+        assert self._run
+        assert self._rewind_response
+
+        first_step = int(self._settings.resume_from.value) + 1
+        self._resume_state.step = first_step
+
+        # We set the fork flag here because rewind uses the forking
+        # infrastructure under the hood. Setting `forked` here
+        # ensures that run._step is properly set in the user process.
+        self._run.forked = True
+        self._run.starting_step = first_step
+
+    def _handle_error(
+        self,
+        record: "Record",
+        error: "wandb_internal_pb2.ErrorInfo",
+        run: "RunRecord",
+    ) -> None:
+        if record.control.req_resp or record.control.mailbox_slot:
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(run)
+            result.run_result.error.CopyFrom(error)
+            self._respond_result(result)
+        else:
+            logger.error("Got error in async mode: %s", error.message)
+
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.ToMicroseconds() // 1e6
+        self._start_time = int(run.start_time.ToMicroseconds() // 1e6)
 
         # update telemetry
         if run.telemetry:
@@ -911,21 +957,34 @@ class SendManager:
             config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
+        do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_rewind = self._settings.resume_from is not None and is_wandb_init
+        do_resume = bool(self._settings.resume)
+
+        num_resume_options_set = sum([do_fork, do_rewind, do_resume])
+        if num_resume_options_set > 1:
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "Multiple resume options specified. "
+                "Please specify only one of `fork_from`, `resume`, or `resume_from`."
+            )
+            self._handle_error(record, error, run)
+
         if is_wandb_init:
             # Ensure we have a project to query for status
             if run.project == "":
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
-            error = self._maybe_setup_resume(run)
+
+            if do_resume:
+                error = self._setup_resume(run)
+
+            elif do_rewind:
+                error = self._load_rewind_state(run)
 
         if error is not None:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
+            self._handle_error(record, error, run)
             return
 
         # Save the resumed config
@@ -945,18 +1004,21 @@ class SendManager:
             self._config_save(config_value_dict)
 
         try:
-            self._init_run(run, config_value_dict)
+            server_run = self._init_run(run, config_value_dict)
         except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                error = ProtobufErrorHandler.from_exception(e)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
+            error = ProtobufErrorHandler.from_exception(e)
+            self._handle_error(record, error, run)
             return
 
         assert self._run  # self._run is configured in _init_run()
+
+        if do_fork:
+            error = self._setup_fork(server_run)
+
+        if error is not None:
+            self._handle_error(record, error, run)
+            return
 
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
@@ -972,11 +1034,31 @@ class SendManager:
         else:
             logger.info("updated run: %s", self._run.run_id)
 
+    def _update_resume_state(self, is_rewinding: bool, inserted: bool):
+        assert self._run
+        if self._resume_state.resumed:
+            self._run.resumed = True
+            if self._resume_state.wandb_runtime is not None:
+                self._run.runtime = self._resume_state.wandb_runtime
+        elif is_rewinding:
+            # because is_rewinding is mutually exclusive with self._resume_state.resumed,
+            # this block will always execute if is_rewinding is set
+            self._install_rewind_state()
+        else:
+            # If the user is not resuming, and we didn't insert on upsert_run then
+            # it is likely that we are overwriting the run which we might want to
+            # prevent in the future.  This could be a false signal since an upsert_run
+            # message which gets retried in the network could also show up as not
+            # inserted.
+            if not inserted:
+                # no need to flush this, it will get updated eventually
+                self._telemetry_obj.feature.maybe_run_overwrite = True
+
     def _init_run(
         self,
         run: "RunRecord",
         config_dict: Optional[sender_config.BackendConfigDict],
-    ) -> None:
+    ) -> dict:
         # We subtract the previous runs runtime when resuming
         start_time = (
             run.start_time.ToMicroseconds() / 1e6
@@ -987,22 +1069,30 @@ class SendManager:
         if self._resume_state and self._resume_state.tags and not run.tags:
             run.tags.extend(self._resume_state.tags)
 
-        server_run, inserted, server_messages = self._api.upsert_run(
-            name=run.run_id,
-            entity=run.entity or None,
-            project=run.project or None,
-            group=run.run_group or None,
-            job_type=run.job_type or None,
-            display_name=run.display_name or None,
-            notes=run.notes or None,
-            tags=run.tags[:] or None,
-            config=config_dict or None,
-            sweep_name=run.sweep_id or None,
-            host=run.host or None,
-            program_path=self._settings.program or None,
-            repo=run.git.remote_url or None,
-            commit=run.git.commit or None,
-        )
+        is_rewinding = bool(self._settings.resume_from)
+        if is_rewinding:
+            assert self._rewind_response
+            server_run = self._rewind_response
+            server_messages = None
+            inserted = True
+        else:
+            server_run, inserted, server_messages = self._api.upsert_run(
+                name=run.run_id,
+                entity=run.entity or None,
+                project=run.project or None,
+                group=run.run_group or None,
+                job_type=run.job_type or None,
+                display_name=run.display_name or None,
+                notes=run.notes or None,
+                tags=run.tags[:] or None,
+                config=config_dict or None,
+                sweep_name=run.sweep_id or None,
+                host=run.host or None,
+                program_path=self._settings.program or None,
+                repo=run.git.remote_url or None,
+                commit=run.git.commit or None,
+            )
+
         # TODO: we don't want to create jobs in sweeps, since the
         #  executable doesn't appear to be consistent
         if run.sweep_id:
@@ -1010,19 +1100,17 @@ class SendManager:
 
         self._server_messages = server_messages or []
         self._run = run
-        if self._resume_state.resumed:
-            self._run.resumed = True
-            if self._resume_state.wandb_runtime is not None:
-                self._run.runtime = self._resume_state.wandb_runtime
-        else:
-            # If the user is not resuming, and we didn't insert on upsert_run then
-            # it is likely that we are overwriting the run which we might want to
-            # prevent in the future.  This could be a false signal since an upsert_run
-            # message which gets retried in the network could also show up as not
-            # inserted.
-            if not inserted:
-                # no need to flush this, it will get updated eventually
-                self._telemetry_obj.feature.maybe_run_overwrite = True
+
+        if self._resume_state.resumed and is_rewinding:
+            # this should not ever be possible to hit, since we check for
+            # resumption above and raise an error if resumption is specified
+            # twice.
+            raise ValueError(
+                "Cannot attempt to rewind and resume a run - only one of "
+                "`resume` or `resume_from` can be specified."
+            )
+
+        self._update_resume_state(is_rewinding, inserted)
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -1061,6 +1149,7 @@ class SendManager:
             self._run.sweep_id = sweep_id
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
+        return server_run
 
     def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller
@@ -1414,9 +1503,7 @@ class SendManager:
             self._job_builder.disable = True
         elif use.partial.job_name:
             # job is partial, let job builder rebuild job, set job source dict
-            self._job_builder._partial_source = (
-                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
-            )
+            self._job_builder.set_partial_source_id(use.id)
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1592,7 +1679,8 @@ class SendManager:
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        artifact = self._job_builder.build()
+
+        artifact = self._job_builder.build(api=self._api)
         if artifact is not None and self._run is not None:
             proto_artifact = self._interface._make_artifact(artifact)
             proto_artifact.run_id = self._run.run_id

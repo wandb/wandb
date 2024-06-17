@@ -1,5 +1,10 @@
 package filetransfer
 
+import (
+	"context"
+	"fmt"
+)
+
 type TaskType int
 
 const (
@@ -9,6 +14,9 @@ const (
 
 // Task is a task to upload/download a file
 type Task struct {
+	// FileKind is the category of file being uploaded or downloaded
+	FileKind RunFileKind
+
 	// Type is the type of task (upload or download)
 	Type TaskType
 
@@ -35,6 +43,9 @@ type Task struct {
 
 	// ProgressCallback is a callback to execute on progress updates
 	ProgressCallback func(int, int)
+
+	// This can be used to cancel the file upload or download if it is no longer needed.
+	Context context.Context
 }
 
 func (ut *Task) SetProgressCallback(callback func(int, int)) {
@@ -43,4 +54,11 @@ func (ut *Task) SetProgressCallback(callback func(int, int)) {
 
 func (ut *Task) SetCompletionCallback(callback func(*Task)) {
 	ut.CompletionCallback = callback
+}
+
+func (ut *Task) String() string {
+	return fmt.Sprintf(
+		"Task{FileKind: %d, Type: %d, Path: %s, Name: %s, Url: %s, Size: %d}",
+		ut.FileKind, ut.Type, ut.Path, ut.Name, ut.Url, ut.Size,
+	)
 }

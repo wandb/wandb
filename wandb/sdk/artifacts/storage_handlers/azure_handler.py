@@ -1,4 +1,5 @@
 """Azure storage handler."""
+
 from pathlib import PurePosixPath
 from types import ModuleType
 from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union

@@ -1,6 +1,6 @@
-import base64
 import functools
 import itertools
+import json
 import logging
 import os
 import queue
@@ -52,12 +52,13 @@ logger = logging.getLogger(__name__)
 
 class Chunk(NamedTuple):
     filename: str
-    data: Any
+    data: str
 
 
 class DefaultFilePolicy:
     def __init__(self, start_chunk_id: int = 0) -> None:
         self._chunk_id = start_chunk_id
+        self.has_debug_log = False
 
     def process_chunks(
         self, chunks: List[Chunk]
@@ -65,6 +66,21 @@ class DefaultFilePolicy:
         chunk_id = self._chunk_id
         self._chunk_id += len(chunks)
         return {"offset": chunk_id, "content": [c.data for c in chunks]}
+
+    # TODO: this is very inefficient, this is meant for temporary debugging and will be removed in future releases
+    def _debug_log(self, data: Any):
+        if self.has_debug_log or not os.environ.get("WANDB_DEBUG_FILESTREAM_LOG"):
+            return
+
+        loaded = json.loads(data)
+        if not isinstance(loaded, dict):
+            return
+
+        # get key size and convert to MB
+        key_sizes = [(k, len(json.dumps(v))) for k, v in loaded.items()]
+        key_msg = [f"{k}: {v/1048576:.5f} MB" for k, v in key_sizes]
+        wandb.termerror(f"Step: {loaded['_step']} | {key_msg}", repeat=False)
+        self.has_debug_log = True
 
 
 class JsonlFilePolicy(DefaultFilePolicy):
@@ -81,6 +97,7 @@ class JsonlFilePolicy(DefaultFilePolicy):
                 )
                 wandb.termerror(msg, repeat=False)
                 wandb._sentry.message(msg, repeat=False)
+                self._debug_log(chunk.data)
             else:
                 chunk_data.append(chunk.data)
 
@@ -99,6 +116,7 @@ class SummaryFilePolicy(DefaultFilePolicy):
             )
             wandb.termerror(msg, repeat=False)
             wandb._sentry.message(msg, repeat=False)
+            self._debug_log(data)
             return False
         return {"offset": 0, "content": [data]}
 
@@ -208,7 +226,7 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
         prefix += token + " "
         return prefix, rest
 
-    def process_chunks(self, chunks: List) -> List["ProcessedChunk"]:
+    def process_chunks(self, chunks: List[Chunk]) -> List["ProcessedChunk"]:
         r"""Process chunks.
 
         Args:
@@ -279,18 +297,6 @@ class CRDedupeFilePolicy(DefaultFilePolicy):
             }
             ret.append(processed_chunk)
         return ret
-
-
-class BinaryFilePolicy(DefaultFilePolicy):
-    def __init__(self) -> None:
-        super().__init__()
-        self._offset: int = 0
-
-    def process_chunks(self, chunks: List[Chunk]) -> "ProcessedBinaryChunk":
-        data = b"".join([c.data for c in chunks])
-        enc = base64.b64encode(data).decode("ascii")
-        self._offset += len(data)
-        return {"offset": self._offset, "content": enc, "encoding": "base64"}
 
 
 class FileStreamApi:
@@ -501,7 +507,7 @@ class FileStreamApi:
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
-            logger.exception("dropped chunk %s" % response)
+            logger.exception("dropped chunk {}".format(response))
             self._dropped_chunks += 1
         else:
             parsed: Optional[dict] = None
@@ -566,12 +572,12 @@ class FileStreamApi:
     def enqueue_preempting(self) -> None:
         self._queue.put(self.Preempting())
 
-    def push(self, filename: str, data: Any) -> None:
+    def push(self, filename: str, data: str) -> None:
         """Push a chunk of a file to the streaming endpoint.
 
         Arguments:
-            filename: Name of file that this is a chunk of.
-            data: File data.
+            filename: Name of file to append to.
+            data: Text to append to the file.
         """
         self._queue.put(Chunk(filename, data))
 

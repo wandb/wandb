@@ -177,9 +177,7 @@ class Media(WBValue):
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
 
             if artifact_entry_url is None or self.is_bound():
-                assert (
-                    self.is_bound()
-                ), "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
+                assert self.is_bound(), "Value of type {} must be bound to a run with bind_to_run() before being serialized to JSON.".format(
                     type(self).__name__
                 )
 
@@ -221,8 +219,7 @@ class Media(WBValue):
 
                     # if not, check to see if there is a source artifact for this object
                     if (
-                        self._artifact_source
-                        is not None
+                        self._artifact_source is not None
                         # and self._artifact_source.artifact != artifact
                     ):
                         default_root = self._artifact_source.artifact._default_root()
@@ -292,7 +289,7 @@ class BatchableMedia(Media):
 
 
 def _numpy_arrays_to_lists(
-    payload: Union[dict, Sequence, "np.ndarray"]
+    payload: Union[dict, Sequence, "np.ndarray"],
 ) -> Union[Sequence, dict, str, int, float, bool]:
     # Casts all numpy arrays to lists so we don't convert them to histograms, primarily for Plotly
 

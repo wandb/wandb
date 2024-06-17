@@ -1,16 +1,20 @@
-# GraphQL changes need extra scrutiny
+# GraphQL
 /wandb/sdk/internal/internal_api.py @wandb/sdk-team
-# Changing interfaces need extra scrutiny
+# Changing public interfaces
 /tests/pytest_tests/unit_tests/test_library_public.py @wandb/sdk-team
-# Adding or removing dependencies needs extra scrutiny
+/wandb/__init__.py @wandb/sdk-team
+# Packaging and releasing-related files
 /pyproject.toml @wandb/sdk-team
 /setup.py @wandb/sdk-team
-# core changes need extra scrutiny during the initial rollout
+/CHANGELOG.md @wandb/sdk-team
+/MANIFEST.in @wandb/sdk-team
+# wandb-core backend. TODO: relax after initial roll-out
 /core/ @wandb/sdk-team
-# CircleCI configuration changes need extra scrutiny
+# CircleCI configuration
 /.circleci @wandb/sdk-team
-# GitHub configuration changes need extra scrutiny
+# GitHub configuration
 /.github @wandb/sdk-team
+
 
 # ML Workflows team
 /core/pkg/artifacts/ @wandb/mlw-team

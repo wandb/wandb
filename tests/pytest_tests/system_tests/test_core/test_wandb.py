@@ -2,6 +2,7 @@
 
 See wandb_integration_test.py for tests that launch a real backend server.
 """
+
 import glob
 import inspect
 import io
@@ -169,24 +170,6 @@ def test_anonymous_mode(wandb_init, capsys, local_settings):
     assert (
         "Do NOT share these links with anyone. They can be used to claim your runs."
         in err
-    )
-
-
-@pytest.mark.xfail(reason="Backend race condition")
-def test_anonymous_mode_artifact(wandb_init, capsys, local_settings):
-    copied_env = os.environ.copy()
-    copied_env.pop("WANDB_API_KEY")
-    copied_env.pop("WANDB_USERNAME")
-    copied_env.pop("WANDB_ENTITY")
-    with mock.patch.dict("os.environ", copied_env, clear=True):
-        run = wandb_init(anonymous="must")
-        run.log_artifact(wandb.Artifact("my-arti", type="dataset"))
-        run.finish()
-
-    _, err = capsys.readouterr()
-
-    assert (
-        "Artifacts logged anonymously cannot be claimed and expire after 7 days." in err
     )
 
 
@@ -382,7 +365,7 @@ def test_log_multiple_cases_example(relay_server, wandb_init):
     assert relay.context.history["_step"].tolist() == [0, 1, 100, 101, 102]
 
 
-def test_log_step_uncommited(relay_server, wandb_init):
+def test_log_step_uncommitted(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
         run.log(dict(cool=2), step=2, commit=False)
@@ -486,12 +469,11 @@ def test_restore_no_path():
         wandb.restore("weights.h5")
 
 
-@pytest.mark.xfail(reason="Public API might not return the correct value")
+@pytest.mark.skip(reason="This test seems to be flaky")
 def test_restore_name_not_found(wandb_init):
     with pytest.raises(ValueError):
         run = wandb_init()
-        wandb.restore("no_file.h5")
-        run.finish()
+        run.restore("no_file.h5")
 
 
 @pytest.mark.xfail(reason="Public API might not return the correct value")

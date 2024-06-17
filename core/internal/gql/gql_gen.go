@@ -552,6 +552,7 @@ type RunResumeStatusModelProjectBucketRun struct {
 	EventsTail       *string  `json:"eventsTail"`
 	Config           *string  `json:"config"`
 	Tags             []string `json:"tags"`
+	WandbConfig      *string  `json:"wandbConfig"`
 }
 
 // GetId returns RunResumeStatusModelProjectBucketRun.Id, and is useful for accessing the field via an interface.
@@ -587,6 +588,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Co
 // GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
 
+// GetWandbConfig returns RunResumeStatusModelProjectBucketRun.WandbConfig, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetWandbConfig() *string { return v.WandbConfig }
+
 // RunResumeStatusModelProjectEntity includes the requested fields of the GraphQL type Entity.
 type RunResumeStatusModelProjectEntity struct {
 	Id   string `json:"id"`
@@ -606,6 +610,30 @@ type RunResumeStatusResponse struct {
 
 // GetModel returns RunResumeStatusResponse.Model, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusResponse) GetModel() *RunResumeStatusModelProject { return v.Model }
+
+// RunStoppedStatusProject includes the requested fields of the GraphQL type Project.
+type RunStoppedStatusProject struct {
+	Run *RunStoppedStatusProjectRun `json:"run"`
+}
+
+// GetRun returns RunStoppedStatusProject.Run, and is useful for accessing the field via an interface.
+func (v *RunStoppedStatusProject) GetRun() *RunStoppedStatusProjectRun { return v.Run }
+
+// RunStoppedStatusProjectRun includes the requested fields of the GraphQL type Run.
+type RunStoppedStatusProjectRun struct {
+	Stopped *bool `json:"stopped"`
+}
+
+// GetStopped returns RunStoppedStatusProjectRun.Stopped, and is useful for accessing the field via an interface.
+func (v *RunStoppedStatusProjectRun) GetStopped() *bool { return v.Stopped }
+
+// RunStoppedStatusResponse is returned by RunStoppedStatus on success.
+type RunStoppedStatusResponse struct {
+	Project *RunStoppedStatusProject `json:"project"`
+}
+
+// GetProject returns RunStoppedStatusResponse.Project, and is useful for accessing the field via an interface.
+func (v *RunStoppedStatusResponse) GetProject() *RunStoppedStatusProject { return v.Project }
 
 // ServerInfoResponse is returned by ServerInfo on success.
 type ServerInfoResponse struct {
@@ -648,6 +676,34 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetLatestVersionString() st
 func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceString() string {
 	return v.VersionOnThisInstanceString
 }
+
+// UpdateArtifactResponse is returned by UpdateArtifact on success.
+type UpdateArtifactResponse struct {
+	UpdateArtifact *UpdateArtifactUpdateArtifactUpdateArtifactPayload `json:"updateArtifact"`
+}
+
+// GetUpdateArtifact returns UpdateArtifactResponse.UpdateArtifact, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactResponse) GetUpdateArtifact() *UpdateArtifactUpdateArtifactUpdateArtifactPayload {
+	return v.UpdateArtifact
+}
+
+// UpdateArtifactUpdateArtifactUpdateArtifactPayload includes the requested fields of the GraphQL type UpdateArtifactPayload.
+type UpdateArtifactUpdateArtifactUpdateArtifactPayload struct {
+	Artifact UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact `json:"artifact"`
+}
+
+// GetArtifact returns UpdateArtifactUpdateArtifactUpdateArtifactPayload.Artifact, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactUpdateArtifactUpdateArtifactPayload) GetArtifact() UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact {
+	return v.Artifact
+}
+
+// UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact includes the requested fields of the GraphQL type Artifact.
+type UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact struct {
+	Id string `json:"id"`
+}
+
+// GetId returns UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact.Id, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact) GetId() string { return v.Id }
 
 type UploadPartsInput struct {
 	PartNumber int64  `json:"partNumber"`
@@ -1094,6 +1150,34 @@ func (v *__RunResumeStatusInput) GetEntity() *string { return v.Entity }
 // GetName returns __RunResumeStatusInput.Name, and is useful for accessing the field via an interface.
 func (v *__RunResumeStatusInput) GetName() string { return v.Name }
 
+// __RunStoppedStatusInput is used internally by genqlient
+type __RunStoppedStatusInput struct {
+	EntityName  *string `json:"entityName"`
+	ProjectName *string `json:"projectName"`
+	RunId       string  `json:"runId"`
+}
+
+// GetEntityName returns __RunStoppedStatusInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__RunStoppedStatusInput) GetEntityName() *string { return v.EntityName }
+
+// GetProjectName returns __RunStoppedStatusInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectName }
+
+// GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
+func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
+
+// __UpdateArtifactInput is used internally by genqlient
+type __UpdateArtifactInput struct {
+	ArtifactID string  `json:"artifactID"`
+	Metadata   *string `json:"metadata"`
+}
+
+// GetArtifactID returns __UpdateArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetMetadata returns __UpdateArtifactInput.Metadata, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactInput) GetMetadata() *string { return v.Metadata }
+
 // __UpsertBucketInput is used internally by genqlient
 type __UpsertBucketInput struct {
 	Id             *string  `json:"id"`
@@ -1215,13 +1299,13 @@ query ArtifactFileURLs ($id: ID!, $cursor: String, $perPage: Int) {
 `
 
 func ArtifactFileURLs(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	id string,
 	cursor *string,
 	perPage *int,
 ) (*ArtifactFileURLsResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ArtifactFileURLs",
 		Query:  ArtifactFileURLs_Operation,
 		Variables: &__ArtifactFileURLsInput{
@@ -1230,18 +1314,18 @@ func ArtifactFileURLs(
 			PerPage: perPage,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ArtifactFileURLsResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ArtifactFileURLsResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ArtifactManifest.
@@ -1258,29 +1342,29 @@ query ArtifactManifest ($artifact_id: ID!) {
 `
 
 func ArtifactManifest(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	artifact_id string,
 ) (*ArtifactManifestResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ArtifactManifest",
 		Query:  ArtifactManifest_Operation,
 		Variables: &__ArtifactManifestInput{
 			Artifact_id: artifact_id,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ArtifactManifestResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ArtifactManifestResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by ClientIDMapping.
@@ -1293,29 +1377,29 @@ query ClientIDMapping ($clientID: ID!) {
 `
 
 func ClientIDMapping(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	clientID string,
 ) (*ClientIDMappingResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ClientIDMapping",
 		Query:  ClientIDMapping_Operation,
 		Variables: &__ClientIDMappingInput{
 			ClientID: clientID,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data ClientIDMappingResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ClientIDMappingResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CommitArtifact.
@@ -1331,29 +1415,29 @@ mutation CommitArtifact ($artifactID: ID!) {
 `
 
 func CommitArtifact(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	artifactID string,
 ) (*CommitArtifactResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CommitArtifact",
 		Query:  CommitArtifact_Operation,
 		Variables: &__CommitArtifactInput{
 			ArtifactID: artifactID,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CommitArtifactResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CommitArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateArtifact.
@@ -1374,8 +1458,8 @@ mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactT
 `
 
 func CreateArtifact(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	entityName string,
 	projectName string,
 	artifactTypeName string,
@@ -1391,7 +1475,7 @@ func CreateArtifact(
 	clientID string,
 	sequenceClientID string,
 ) (*CreateArtifactResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateArtifact",
 		Query:  CreateArtifact_Operation,
 		Variables: &__CreateArtifactInput{
@@ -1411,18 +1495,18 @@ func CreateArtifact(
 			SequenceClientID:       sequenceClientID,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateArtifactResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateArtifactFiles.
@@ -1445,12 +1529,12 @@ mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $
 `
 
 func CreateArtifactFiles(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	artifactFiles []CreateArtifactFileSpecInput,
 	storageLayout ArtifactStorageLayout,
 ) (*CreateArtifactFilesResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateArtifactFiles",
 		Query:  CreateArtifactFiles_Operation,
 		Variables: &__CreateArtifactFilesInput{
@@ -1458,18 +1542,18 @@ func CreateArtifactFiles(
 			StorageLayout: storageLayout,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateArtifactFilesResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateArtifactFilesResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateArtifactManifest.
@@ -1489,8 +1573,8 @@ mutation CreateArtifactManifest ($artifactID: ID!, $baseArtifactID: ID, $name: S
 `
 
 func CreateArtifactManifest(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	artifactID string,
 	baseArtifactID *string,
 	name string,
@@ -1501,7 +1585,7 @@ func CreateArtifactManifest(
 	manifestType ArtifactManifestType,
 	includeUpload bool,
 ) (*CreateArtifactManifestResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateArtifactManifest",
 		Query:  CreateArtifactManifest_Operation,
 		Variables: &__CreateArtifactManifestInput{
@@ -1516,18 +1600,18 @@ func CreateArtifactManifest(
 			IncludeUpload:  includeUpload,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateArtifactManifestResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateArtifactManifestResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by CreateRunFiles.
@@ -1545,14 +1629,14 @@ mutation CreateRunFiles ($entity: String!, $project: String!, $run: String!, $fi
 `
 
 func CreateRunFiles(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	entity string,
 	project string,
 	run string,
 	files []string,
 ) (*CreateRunFilesResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "CreateRunFiles",
 		Query:  CreateRunFiles_Operation,
 		Variables: &__CreateRunFilesInput{
@@ -1562,18 +1646,18 @@ func CreateRunFiles(
 			Files:   files,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data CreateRunFilesResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ CreateRunFilesResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by LinkArtifact.
@@ -1586,8 +1670,8 @@ mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $p
 `
 
 func LinkArtifact(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	artifactPortfolioName string,
 	entityName string,
 	projectName string,
@@ -1595,7 +1679,7 @@ func LinkArtifact(
 	clientId *string,
 	artifactId *string,
 ) (*LinkArtifactResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "LinkArtifact",
 		Query:  LinkArtifact_Operation,
 		Variables: &__LinkArtifactInput{
@@ -1607,18 +1691,18 @@ func LinkArtifact(
 			ArtifactId:            artifactId,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data LinkArtifactResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ LinkArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by NotifyScriptableRunAlert.
@@ -1631,8 +1715,8 @@ mutation NotifyScriptableRunAlert ($entityName: String!, $projectName: String!, 
 `
 
 func NotifyScriptableRunAlert(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	entityName string,
 	projectName string,
 	runName string,
@@ -1641,7 +1725,7 @@ func NotifyScriptableRunAlert(
 	severity *AlertSeverity,
 	waitDuration *int64,
 ) (*NotifyScriptableRunAlertResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "NotifyScriptableRunAlert",
 		Query:  NotifyScriptableRunAlert_Operation,
 		Variables: &__NotifyScriptableRunAlertInput{
@@ -1654,18 +1738,18 @@ func NotifyScriptableRunAlert(
 			WaitDuration: waitDuration,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data NotifyScriptableRunAlertResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ NotifyScriptableRunAlertResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by RunResumeStatus.
@@ -1690,19 +1774,20 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			eventsTail
 			config
 			tags
+			wandbConfig(keys: ["t"])
 		}
 	}
 }
 `
 
 func RunResumeStatus(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	project *string,
 	entity *string,
 	name string,
 ) (*RunResumeStatusResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "RunResumeStatus",
 		Query:  RunResumeStatus_Operation,
 		Variables: &__RunResumeStatusInput{
@@ -1711,18 +1796,59 @@ func RunResumeStatus(
 			Name:    name,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data RunResumeStatusResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ RunResumeStatusResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
+}
+
+// The query or mutation executed by RunStoppedStatus.
+const RunStoppedStatus_Operation = `
+query RunStoppedStatus ($entityName: String, $projectName: String, $runId: String!) {
+	project(name: $projectName, entityName: $entityName) {
+		run(name: $runId) {
+			stopped
+		}
+	}
+}
+`
+
+func RunStoppedStatus(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName *string,
+	projectName *string,
+	runId string,
+) (*RunStoppedStatusResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "RunStoppedStatus",
+		Query:  RunStoppedStatus_Operation,
+		Variables: &__RunStoppedStatusInput{
+			EntityName:  entityName,
+			ProjectName: projectName,
+			RunId:       runId,
+		},
+	}
+	var err_ error
+
+	var data_ RunStoppedStatusResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
 }
 
 // The query or mutation executed by ServerInfo.
@@ -1740,25 +1866,64 @@ query ServerInfo {
 `
 
 func ServerInfo(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 ) (*ServerInfoResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "ServerInfo",
 		Query:  ServerInfo_Operation,
 	}
-	var err error
+	var err_ error
 
-	var data ServerInfoResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ServerInfoResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
+}
+
+// The query or mutation executed by UpdateArtifact.
+const UpdateArtifact_Operation = `
+mutation UpdateArtifact ($artifactID: ID!, $metadata: JSONString) {
+	updateArtifact(input: {artifactID:$artifactID,metadata:$metadata}) {
+		artifact {
+			id
+		}
+	}
+}
+`
+
+func UpdateArtifact(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactID string,
+	metadata *string,
+) (*UpdateArtifactResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "UpdateArtifact",
+		Query:  UpdateArtifact_Operation,
+		Variables: &__UpdateArtifactInput{
+			ArtifactID: artifactID,
+			Metadata:   metadata,
+		},
+	}
+	var err_ error
+
+	var data_ UpdateArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
 }
 
 // The query or mutation executed by UpsertBucket.
@@ -1787,8 +1952,8 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 `
 
 func UpsertBucket(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	id *string,
 	name *string,
 	project *string,
@@ -1809,7 +1974,7 @@ func UpsertBucket(
 	tags []string,
 	summaryMetrics *string,
 ) (*UpsertBucketResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "UpsertBucket",
 		Query:  UpsertBucket_Operation,
 		Variables: &__UpsertBucketInput{
@@ -1834,18 +1999,18 @@ func UpsertBucket(
 			SummaryMetrics: summaryMetrics,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data UpsertBucketResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ UpsertBucketResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by UseArtifact.
@@ -1860,14 +2025,14 @@ mutation UseArtifact ($entityName: String!, $projectName: String!, $runName: Str
 `
 
 func UseArtifact(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 	entityName string,
 	projectName string,
 	runName string,
 	artifactID string,
 ) (*UseArtifactResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "UseArtifact",
 		Query:  UseArtifact_Operation,
 		Variables: &__UseArtifactInput{
@@ -1877,18 +2042,18 @@ func UseArtifact(
 			ArtifactID:  artifactID,
 		},
 	}
-	var err error
+	var err_ error
 
-	var data UseArtifactResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ UseArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }
 
 // The query or mutation executed by Viewer.
@@ -1910,23 +2075,23 @@ query Viewer {
 `
 
 func Viewer(
-	ctx context.Context,
-	client graphql.Client,
+	ctx_ context.Context,
+	client_ graphql.Client,
 ) (*ViewerResponse, error) {
-	req := &graphql.Request{
+	req_ := &graphql.Request{
 		OpName: "Viewer",
 		Query:  Viewer_Operation,
 	}
-	var err error
+	var err_ error
 
-	var data ViewerResponse
-	resp := &graphql.Response{Data: &data}
+	var data_ ViewerResponse
+	resp_ := &graphql.Response{Data: &data_}
 
-	err = client.MakeRequest(
-		ctx,
-		req,
-		resp,
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
 	)
 
-	return &data, err
+	return &data_, err_
 }

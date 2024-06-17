@@ -1,4 +1,5 @@
 """Abstract Scheduler class."""
+
 import asyncio
 import base64
 import copy
@@ -157,7 +158,9 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
-        self._polling_sleep = polling_sleep or DEFAULT_POLLING_SLEEP
+        self._polling_sleep = (
+            polling_sleep if polling_sleep is not None else DEFAULT_POLLING_SLEEP
+        )
         self._project_queue = project_queue
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages
@@ -407,7 +410,7 @@ class Scheduler(ABC):
         return count
 
     def _try_load_executable(self) -> bool:
-        """Check existance of valid executable for a run.
+        """Check existence of valid executable for a run.
 
         logs and returns False when job is unreachable
         """
@@ -422,7 +425,7 @@ class Scheduler(ABC):
                 return False
             return True
         elif self._kwargs.get("image_uri"):
-            # TODO(gst): check docker existance? Use registry in launch config?
+            # TODO(gst): check docker existence? Use registry in launch config?
             return True
         else:
             return False
@@ -610,7 +613,7 @@ class Scheduler(ABC):
                     f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
                 )
                 run_state = RunState.FAILED
-            else:  # first time we get unknwon state
+            else:  # first time we get unknown state
                 run_state = RunState.UNKNOWN
         except (AttributeError, ValueError):
             wandb.termwarn(
@@ -667,6 +670,8 @@ class Scheduler(ABC):
         launch_config = copy.deepcopy(self._wandb_run.config.get("launch", {}))
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
+        if "run_config" not in launch_config["overrides"]:
+            launch_config["overrides"]["run_config"] = {}
         launch_config["overrides"]["run_config"].update(args["args_dict"])
 
         if macro_args:  # pipe in hyperparam args as params to launch

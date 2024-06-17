@@ -80,6 +80,14 @@ def test_gql_410(
         run.finish()
 
 
+def test_send_wandb_config_start_time_on_init(wandb_init, relay_server):
+    with relay_server() as relay:
+        run = wandb_init(project="test")
+        run.finish()
+        config = relay.context.config[run.id]
+        assert config.get("_wandb", {}).get("value", {}).get("t") is not None
+
+
 def test_resume_no_metadata(relay_server, wandb_init):
     run = wandb_init(project="test")
     run_id = run.id
@@ -117,6 +125,11 @@ def test_resume_never_failure(wandb_init):
 
     with pytest.raises(UsageError):
         wandb_init(resume="never", id=run_id, project="project")
+
+
+def test_resume_must_failure(wandb_init):
+    with pytest.raises(UsageError):
+        wandb_init(resume="must", project="project")
 
 
 def test_resume_auto_failure(wandb_init, tmp_path):

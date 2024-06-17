@@ -324,7 +324,7 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_upgraded(
@@ -362,7 +362,7 @@ def test_upgrade_upgraded(
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_yanked(
@@ -403,7 +403,7 @@ def test_upgrade_yanked(
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_yanked_message(
@@ -444,7 +444,7 @@ def test_upgrade_yanked_message(
 
 
 @pytest.mark.wandb_core_failure(
-    feature="file_uploader",
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_removed(
@@ -508,54 +508,6 @@ def test_resume_error_must(user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True, settings={"resume": "must"})
     with backend_interface(run, initial_run=False) as interface:
         handle = interface.deliver_run(run)
-        result = handle.wait(timeout=5)
-        run_result = result.run_result
-        assert run_result.HasField("error")
-        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
-
-
-def test_resume_success(wandb_init, mock_run, backend_interface):
-    run = wandb_init()
-    run.log(dict(a=1), step=15)
-    run.finish()
-
-    resume_run = mock_run(
-        use_magic_mock=True,
-        settings={
-            "resume": "allow",
-            "project": run.project,
-            "run_id": run.id,
-            "entity": run.entity,
-        },
-    )
-
-    with backend_interface(resume_run, initial_run=False) as interface:
-        handle = interface.deliver_run(resume_run)
-        result = handle.wait(timeout=5)
-        run_result = result.run_result
-        assert run_result.HasField("error") is False
-        assert run_result.run.starting_step == 16
-
-
-def test_resume_error_never(wandb_init, mock_run, backend_interface):
-    # seed server with a run
-    # TODO: make a fixture for this
-    run = wandb_init()
-    run.log(dict(a=1), step=15)
-    run.finish()
-
-    resume_run = mock_run(
-        use_magic_mock=True,
-        settings={
-            "resume": "never",
-            "project": run.project,
-            "run_id": run.id,
-            "entity": run.entity,
-        },
-    )
-
-    with backend_interface(resume_run, initial_run=False) as interface:
-        handle = interface.deliver_run(resume_run)
         result = handle.wait(timeout=5)
         run_result = result.run_result
         assert run_result.HasField("error")

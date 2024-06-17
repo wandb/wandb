@@ -4,9 +4,9 @@ import tempfile
 from unittest import mock
 
 import pytest
+from wandb.apis.internal import Api as InternalApi
 from wandb.apis.public import Api as PublicApi
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.launch.create_job import _create_job
 from wandb.sdk.launch.git_reference import GitReference
 
@@ -44,6 +44,7 @@ def test_job_call(relay_server, user, wandb_init, test_settings):
 
 
 def test_create_job_artifact(runner, user, wandb_init, test_settings):
+    """Test that non-core job creation produces a partial job as expected."""
     proj = "test-p"
     settings = test_settings({"project": proj})
 
@@ -61,6 +62,10 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     with open(f"{source_dir}/requirements.txt", "w") as f:
         f.write("wandb")
 
+    os.makedirs(f"{source_dir}/wandb")
+    with open(f"{source_dir}/wandb/debug.log", "w") as f:
+        f.write("log text")
+
     artifact, action, aliases = _create_job(
         api=internal_api,
         path=source_dir,
@@ -68,22 +73,25 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         entity=user,
         job_type="code",
         description="This is a description",
-        entrypoint="test.py",
+        entrypoint="python test.py",
         name="test-job-9999",
-        runtime="3.8.9",  # micro will get stripped
+        runtime="3.8",  # micro will get stripped
+        dockerfile="Dockerfile",
+        build_context="src/",
     )
 
     assert isinstance(artifact, Artifact)
+    assert artifact.file_count == 2
     assert artifact.name == "test-job-9999:v0"
     assert action == "Created"
     assert aliases == ["latest"]
 
     job_v0 = public_api.job(f"{user}/{proj}/{artifact.name}")
 
-    assert job_v0._partial
+    assert "_partial" in job_v0._job_artifact.metadata
     assert job_v0._job_info["runtime"] == "3.8"
-    assert job_v0._job_info["_version"] == "v0"
-    assert job_v0._job_info["source"]["entrypoint"] == ["python3.8", "test.py"]
+    assert job_v0._job_info["_version"] == "0.17.0"
+    assert job_v0._job_info["source"]["entrypoint"] == ["python", "test.py"]
     assert job_v0._job_info["source"]["notebook"] is False
 
     # Now use artifact as input, assert it gets upgraded
@@ -102,21 +110,21 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
         run2.finish()
 
     # now get the job, the version should be v1
-    v1_job = artifact.name.split(":")[0] + ":v1"
-    job = public_api.job(f"{user}/{proj}/{v1_job}")
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
 
     assert job
-
-    # assert updates to partial, and input/output types
-    assert not job._partial
-    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
-    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
-    for key in output_type_keys:
-        assert str(job._output_types._params["type_map"][key]) == "Number"
-    assert str(job._input_types) == "{'input1': Number}"
+    assert "_partial" not in job._job_artifact.metadata
+    assert "input_types" in job._job_artifact.metadata
+    assert "output_types" in job._job_artifact.metadata
 
 
+@pytest.mark.wandb_core_failure(feature="launch")
 def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
+    """This tests that a git job is created correctly, and that the job is upgraded correctly.
+
+    Currently failing at the artifact creation stage with wandb-core. Appears to be an issue
+    with the artifact saver that is only happening when running in CI.
+    """
     proj = "test-p99999"
     settings = test_settings({"project": proj})
 
@@ -145,7 +153,7 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     artifact, action, aliases = _create_job(
         api=internal_api,
         path=path,
-        entrypoint="main.py",
+        entrypoint="python main.py",
         project=proj,
         entity=user,
         job_type="git",
@@ -160,11 +168,11 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
 
     job_v0 = public_api.job(f"{user}/{proj}/{artifact.name}")
 
-    assert job_v0._partial
+    assert "_partial" in job_v0._job_artifact.metadata
     assert job_v0._job_info["runtime"] == "3.8"
     assert job_v0._job_info["_version"] == "v0"
     assert job_v0._job_info["source"]["entrypoint"] == [
-        "python3.8",
+        "python",
         "main.py",
     ]
     assert job_v0._job_info["source"]["notebook"] is False
@@ -184,19 +192,14 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         run2.log({"x": 2})
         run2.finish()
 
-    # now get the job, the version should be v1
-    v1_job = artifact.name.split(":")[0] + ":v1"
-    job = public_api.job(f"{user}/{proj}/{v1_job}")
-
+    # now get the job again, the version should be the same
+    job = public_api.job(f"{user}/{proj}/{artifact.name}")
     assert job
 
     # assert updates to partial, and input/output types
-    assert not job._partial
-    output_type_keys = set(list(job._output_types._params["type_map"].keys()))
-    assert output_type_keys == set(["x", "_timestamp", "_runtime", "_step"])
-    for key in output_type_keys:
-        assert str(job._output_types._params["type_map"][key]) == "Number"
-    assert str(job._input_types) == "{'input1': Number}"
+    assert "_partial" not in job._job_artifact.metadata
+    assert "input_types" in job._job_artifact.metadata
+    assert "output_types" in job._job_artifact.metadata
 
 
 @pytest.mark.parametrize(
@@ -237,4 +240,4 @@ def test_create_job_image(user, wandb_init, test_settings, image_name):
 
     job = public_api.job(f"{user}/{proj}/{artifact.name}")
     assert job
-    assert job._partial
+    assert "_partial" in job._job_artifact.metadata

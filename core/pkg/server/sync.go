@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"sync"
 
@@ -27,15 +27,15 @@ type SyncService struct {
 type SyncServiceOption func(*SyncService)
 
 func NewSyncService(ctx context.Context, opts ...SyncServiceOption) *SyncService {
-	sync := &SyncService{
+	syncService := &SyncService{
 		ctx:    ctx,
 		wg:     sync.WaitGroup{},
 		inChan: make(chan *service.Record),
 	}
 	for _, opt := range opts {
-		opt(sync)
+		opt(syncService)
 	}
-	return sync
+	return syncService
 }
 
 func WithSyncServiceOverwrite(overwrite *service.SyncOverwrite) SyncServiceOption {
@@ -161,7 +161,7 @@ func (s *SyncService) Flush() {
 	}
 	s.Close()
 	if s.flushCallback == nil {
-		s.logger.CaptureError("Flush without callback", fmt.Errorf("flushing sync service"))
+		s.logger.CaptureError(errors.New("flush without callback"))
 		return
 	}
 	s.flushCallback(s.syncErr)

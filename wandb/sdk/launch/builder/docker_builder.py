@@ -1,4 +1,5 @@
 """Implementation of the docker builder."""
+
 import logging
 import os
 from typing import Any, Dict, Optional
@@ -6,26 +7,21 @@ from typing import Any, Dict, Optional
 import wandb
 import wandb.docker as docker
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
-from wandb.sdk.launch.builder.build import registry_from_uri
+from wandb.sdk.launch.builder.abstract import AbstractBuilder, registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchDockerError, LaunchError
+from ..registry.anon import AnonynmousRegistry
 from ..registry.local_registry import LocalRegistry
 from ..utils import (
     LOG_PREFIX,
     event_loop_thread_exec,
     warn_failed_packages_from_build_logs,
 )
-from .build import (
-    _WANDB_DOCKERFILE_NAME,
-    _create_docker_build_ctx,
-    generate_dockerfile,
-    image_tag_from_dockerfile_and_source,
-    validate_docker_installation,
-)
+from .build import _WANDB_DOCKERFILE_NAME, validate_docker_installation
+from .context_manager import BuildContextManager
 
 _logger = logging.getLogger(__name__)
 
@@ -39,7 +35,6 @@ class DockerBuilder(AbstractBuilder):
     """
 
     builder_type = "docker"
-    base_image = "python:3.8"
     target_platform = "linux/amd64"
 
     def __init__(
@@ -100,6 +95,8 @@ class DockerBuilder(AbstractBuilder):
         """Login to the registry."""
         if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
+        elif isinstance(self.registry, AnonynmousRegistry):
+            _logger.info(f"{LOG_PREFIX}Anonymous registry, skipping login.")
         else:
             username, password = await self.registry.get_username_password()
             login = event_loop_thread_exec(docker.login)
@@ -120,17 +117,11 @@ class DockerBuilder(AbstractBuilder):
         await self.verify()
         await self.login()
 
-        dockerfile_str = generate_dockerfile(
-            launch_project=launch_project,
-            entry_point=entrypoint,
-            runner_type=launch_project.resource,
-            builder_type="docker",
-            dockerfile=launch_project.override_dockerfile,
-        )
-
-        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
-
+        build_context_manager = BuildContextManager(launch_project=launch_project)
+        build_ctx_path, image_tag = build_context_manager.create_build_context("docker")
+        dockerfile = os.path.join(build_ctx_path, _WANDB_DOCKERFILE_NAME)
         repository = None if not self.registry else await self.registry.get_repo_uri()
+
         # if repo is set, use the repo name as the image name
         if repository:
             image_uri = f"{repository}:{image_tag}"
@@ -148,9 +139,6 @@ class DockerBuilder(AbstractBuilder):
         _logger.info(
             f"image {image_uri} does not already exist in repository, building."
         )
-
-        build_ctx_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-        dockerfile = os.path.join(build_ctx_path, _WANDB_DOCKERFILE_NAME)
         try:
             output = await event_loop_thread_exec(docker.build)(
                 tags=[image_uri],

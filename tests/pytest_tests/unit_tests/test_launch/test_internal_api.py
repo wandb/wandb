@@ -97,3 +97,37 @@ def test_push_to_run_queue_by_name(monkeypatch):
         "runSpec": "{}",
         "priority": 2,
     }
+
+
+def test_upsert_sweep(monkeypatch):
+    _api = internal.Api()
+    mock_sweep_name = "test-sweep"
+    mock_gql_response = {"upsertSweep": {"sweep": {"name": mock_sweep_name}}}
+    _api.api.gql = MagicMock(return_value=mock_gql_response)
+    monkeypatch.setattr(wandb.sdk.internal.internal_api, "gql", lambda x: x)
+
+    run_ids = ["abc", "def"]
+    sweep_config = {
+        "job": "fake-job:v1",
+        "method": "bayes",
+        "metric": {
+            "name": "loss_metric",
+            "goal": "minimize",
+        },
+        "parameters": {
+            "epochs": {"value": 1},
+            "increment": {"values": [0.1, 0.2, 0.3]},
+        },
+    }
+    upsert_kwargs = {"config": sweep_config, "prior_runs": run_ids}
+    resp = _api.api.upsert_sweep(**upsert_kwargs)
+
+    assert resp == (mock_sweep_name, [])
+    call_args = _api.api.gql.call_args[0]
+    call_kwargs = _api.api.gql.call_args.kwargs
+    assert "$priorRunsFilters: JSONString" in call_args[0]
+    assert "priorRunsFilters: $priorRunsFilters" in call_args[0]
+    assert (
+        call_kwargs["variable_values"]["priorRunsFilters"]
+        == '{"$or": [{"name": "abc"}, {"name": "def"}]}'
+    )

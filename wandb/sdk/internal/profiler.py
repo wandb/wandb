@@ -1,4 +1,5 @@
 """Integration with pytorch profiler."""
+
 import os
 
 import wandb

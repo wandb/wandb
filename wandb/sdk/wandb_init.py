@@ -7,6 +7,7 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
+
 import copy
 import json
 import logging
@@ -14,7 +15,6 @@ import os
 import platform
 import sys
 import tempfile
-import traceback
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
@@ -193,12 +193,6 @@ class _WandbInit:
 
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
-
-        # when using launch, we don't want to reuse the same run id from the singleton
-        # since users might launch multiple runs in the same process
-        # TODO(kdg): allow users to control this via launch settings
-        if settings.launch and singleton is not None:
-            settings.update({"run_id": None}, source=Source.INIT)
 
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
@@ -560,7 +554,7 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
+    def init(self) -> Union[Run, RunDisabled]:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
@@ -658,9 +652,6 @@ class _WandbInit:
 
             if self.settings.launch:
                 tel.feature.launch = True
-
-            if self.settings._async_upload_concurrency_limit:
-                tel.feature.async_uploads = True
 
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
                 setattr(tel.imports_init, module_name, True)
@@ -828,7 +819,7 @@ class _WandbInit:
             and self.settings.launch_config_path
             and os.path.exists(self.settings.launch_config_path)
         ):
-            run._save(self.settings.launch_config_path)
+            run.save(self.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
@@ -846,13 +837,6 @@ class _WandbInit:
         run._on_start()
         logger.info("run started, returning control to user process")
         return run
-
-
-def getcaller() -> None:
-    if not logger:
-        return None
-    src, line, func, stack = logger.findCaller(stack_info=True)
-    print("Problem at:", src, line, func)
 
 
 def _attach(
@@ -961,8 +945,10 @@ def init(
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
+    fork_from: Optional[str] = None,
+    resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Union[Run, RunDisabled]:
     r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
@@ -1010,7 +996,7 @@ def init(
             there, so make sure to create your account or team in the UI before
             starting to log runs.
             If you don't specify an entity, the run will be sent to your default
-            entity, which is usually your username. Change your default entity
+            entity. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
         config: (dict, argparse, absl.flags, str, optional)
@@ -1122,6 +1108,10 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
+        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to fork a new run from. Creates a new run that picks up
+            logging history from the specified run at the specified moment. The target run must
+            be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
 
     Examples:
     ### Set where the run is logged
@@ -1164,52 +1154,33 @@ def init(
     wandb._assert_is_user_process()
 
     kwargs = dict(locals())
-    error_seen = None
-    except_exit = None
-    run: Optional[Union[Run, RunDisabled]] = None
+
+    num_resume_options_set = (
+        (fork_from is not None)  # wrap
+        + (resume is not None)
+        + (resume_from is not None)
+    )
+    if num_resume_options_set > 1:
+        raise ValueError(
+            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
+        )
+
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
-        assert wi.settings
-        except_exit = wi.settings._except_exit
-        try:
-            run = wi.init()
-            except_exit = wi.settings._except_exit
-        except (KeyboardInterrupt, Exception) as e:
-            if not isinstance(e, KeyboardInterrupt):
-                wandb._sentry.exception(e)
-            if not (
-                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
-            ):
-                getcaller()
-            assert logger
-            if wi.settings.problem == "fatal":
-                raise
-            if wi.settings.problem == "warn":
-                pass
-            # TODO(jhr): figure out how to make this RunDummy
-            run = None
-    except Error as e:
-        if logger is not None:
-            logger.exception(str(e))
-        raise e
+        return wi.init()
+
     except KeyboardInterrupt as e:
-        assert logger
-        logger.warning("interrupted", exc_info=e)
-        raise e
+        if logger is not None:
+            logger.warning("interrupted", exc_info=e)
+
+        raise
+
     except Exception as e:
-        error_seen = e
-        traceback.print_exc()
-        assert logger
-        logger.error("error", exc_info=e)
+        if logger is not None:
+            logger.exception("error in wandb.init()", exc_info=e)
+
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
-        wandb._sentry.exception(e)
-        # reraise(*sys.exc_info())
-    finally:
-        if error_seen:
-            if except_exit:
-                wandb.termerror("Abnormal program exit")
-                os._exit(1)
-            raise Error("An unexpected error occurred") from error_seen
-    return run
+        wandb._sentry.reraise(e)
+        raise AssertionError()  # unreachable

@@ -12,7 +12,6 @@ from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
-from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
@@ -133,8 +132,8 @@ class LocalContainerRunner(AbstractRunner):
         docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
 
         # When running against local port, need to swap to local docker host
@@ -148,15 +147,14 @@ class LocalContainerRunner(AbstractRunner):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
         if launch_project.docker_image:
-            if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
-                try:
-                    pull_docker_image(image_uri)
-                except Exception as e:
-                    wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
-                    if not docker_image_exists(image_uri):
-                        raise LaunchError(
-                            f"Failed to pull docker image {image_uri} with error: {e}"
-                        )
+            try:
+                pull_docker_image(image_uri)
+            except Exception as e:
+                wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
+                if not docker_image_exists(image_uri):
+                    raise LaunchError(
+                        f"Failed to pull docker image {image_uri} with error: {e}"
+                    )
 
             assert launch_project.docker_image == image_uri
 

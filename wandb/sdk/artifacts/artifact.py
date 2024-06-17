@@ -1,4 +1,5 @@
 """Artifact class."""
+
 import atexit
 import concurrent.futures
 import contextlib
@@ -7,6 +8,8 @@ import multiprocessing.dummy
 import os
 import re
 import shutil
+import stat
+import sys
 import tempfile
 import time
 from copy import copy
@@ -28,6 +31,12 @@ from typing import (
     Union,
     cast,
 )
+
+if sys.version_info < (3, 8):
+    from typing_extensions import Literal
+else:
+    from typing import Literal
+
 from urllib.parse import urlparse
 
 import requests
@@ -61,6 +70,7 @@ from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, retry, runid, telemetry
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
@@ -216,10 +226,14 @@ class Artifact:
         attrs = response.get("artifact")
         if attrs is None:
             return None
-        entity = attrs["artifactSequence"]["project"]["entityName"]
-        project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        entity_name = ""
+        project_name = ""
+        if attr_project:
+            entity_name = attr_project["entityName"]
+            project_name = attr_project["name"]
         name = "{}:v{}".format(attrs["artifactSequence"]["name"], attrs["versionIndex"])
-        return cls._from_attrs(entity, project, name, attrs, client)
+        return cls._from_attrs(entity_name, project_name, name, attrs, client)
 
     @classmethod
     def _from_name(
@@ -249,11 +263,12 @@ class Artifact:
                 "name": name,
             },
         )
-        attrs = response.get("project", {}).get("artifact")
-        if attrs is None:
-            raise ValueError(
-                f"Unable to fetch artifact with name {entity}/{project}/{name}"
-            )
+        project_attrs = response.get("project")
+        if not project_attrs:
+            raise ValueError(f"project '{project}' not found under entity '{entity}'")
+        attrs = project_attrs.get("artifact")
+        if not attrs:
+            raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
         return cls._from_attrs(entity, project, name, attrs, client)
 
     @classmethod
@@ -275,7 +290,9 @@ class Artifact:
         aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == entity
             and alias["artifactCollection"]["project"]["name"] == project
             and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
@@ -284,8 +301,12 @@ class Artifact:
         ]
         assert len(version_aliases) == 1
         artifact._version = version_aliases[0]
-        artifact._source_entity = attrs["artifactSequence"]["project"]["entityName"]
-        artifact._source_project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        artifact._source_entity = ""
+        artifact._source_project = ""
+        if attr_project:
+            artifact._source_entity = attr_project["entityName"]
+            artifact._source_project = attr_project["name"]
         artifact._source_name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -406,7 +427,7 @@ class Artifact:
 
         A collection is an ordered group of artifact versions.
         If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the the collection
+        collection will be returned rather than the collection
         that an artifact version originated from. The collection
         that an artifact originates from is known as the source sequence.
         """
@@ -852,8 +873,12 @@ class Artifact:
         if attrs is None:
             raise ValueError(f"Unable to fetch artifact with id {artifact_id}")
         self._id = artifact_id
-        self._entity = attrs["artifactSequence"]["project"]["entityName"]
-        self._project = attrs["artifactSequence"]["project"]["name"]
+        attr_project = attrs["artifactSequence"]["project"]
+        self._entity = ""
+        self._project = ""
+        if attr_project:
+            self._entity = attr_project["entityName"]
+            self._project = attr_project["name"]
         self._name = "{}:v{}".format(
             attrs["artifactSequence"]["name"], attrs["versionIndex"]
         )
@@ -872,7 +897,9 @@ class Artifact:
         self._aliases = [
             alias["alias"]
             for alias in attrs["aliases"]
-            if alias["artifactCollection"]["project"]["entityName"] == self._entity
+            if alias["artifactCollection"]
+            and alias["artifactCollection"]["project"]
+            and alias["artifactCollection"]["project"]["entityName"] == self._entity
             and alias["artifactCollection"]["project"]["name"] == self._project
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
@@ -1122,13 +1149,15 @@ class Artifact:
             )
             raise e
 
-        self.add_file(path, name=name)
+        self.add_file(path, name=name, policy="immutable", skip_cache=True)
 
     def add_file(
         self,
         local_path: str,
         name: Optional[str] = None,
         is_tmp: Optional[bool] = False,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1138,6 +1167,10 @@ class Artifact:
                 to the basename of the file.
             is_tmp: If true, then the file is renamed deterministically to avoid
                 collisions.
+            skip_cache: If set to `True`, W&B will not copy files to the cache after uploading.
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Returns:
             The added manifest entry
@@ -1145,10 +1178,11 @@ class Artifact:
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isfile(local_path):
-            raise ValueError("Path is not a file: %s" % local_path)
+            raise ValueError("Path is not a file: {}".format(local_path))
 
         name = LogicalPath(name or os.path.basename(local_path))
         digest = md5_file_b64(local_path)
@@ -1159,9 +1193,17 @@ class Artifact:
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
             name = os.path.join(file_path, ".".join(file_name_parts))
 
-        return self._add_local_file(name, local_path, digest=digest)
+        return self._add_local_file(
+            name, local_path, digest=digest, skip_cache=skip_cache, policy=policy
+        )
 
-    def add_dir(self, local_path: str, name: Optional[str] = None) -> None:
+    def add_dir(
+        self,
+        local_path: str,
+        name: Optional[str] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+    ) -> None:
         """Add a local directory to the artifact.
 
         Arguments:
@@ -1169,18 +1211,24 @@ class Artifact:
             name: The subdirectory name within an artifact. The name you specify appears
                 in the W&B App UI nested by artifact's `type`.
                 Defaults to the root of the artifact.
+            skip_cache: If set to `True`, W&B will not copy/move files to the cache while uploading
+            policy: "mutable" | "immutable". By default, "mutable"
+                "mutable": Create a temporary copy of the file to prevent corruption during upload.
+                "immutable": Disable protection, rely on the user not to delete or change the file.
 
         Raises:
             ArtifactFinalizedError: You cannot make changes to the current artifact
             version because it is finalized. Log a new artifact version instead.
+            ValueError: Policy must be "mutable" or "immutable"
         """
         self._ensure_can_add()
         if not os.path.isdir(local_path):
-            raise ValueError("Path is not a directory: %s" % local_path)
+            raise ValueError("Path is not a directory: {}".format(local_path))
 
         termlog(
-            "Adding directory to artifact (%s)... "
-            % os.path.join(".", os.path.normpath(local_path)),
+            "Adding directory to artifact ({})... ".format(
+                os.path.join(".", os.path.normpath(local_path))
+            ),
             newline=False,
         )
         start_time = time.time()
@@ -1196,7 +1244,12 @@ class Artifact:
 
         def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
-            self._add_local_file(logical_path, physical_path)
+            self._add_local_file(
+                name=logical_path,
+                path=physical_path,
+                skip_cache=skip_cache,
+                policy=policy,
+            )
 
         num_threads = 8
         pool = multiprocessing.dummy.Pool(num_threads)
@@ -1244,12 +1297,14 @@ class Artifact:
             name: The path within the artifact to place the contents of this reference.
             checksum: Whether or not to checksum the resource(s) located at the
                 reference URI. Checksumming is strongly recommended as it enables
-                automatic integrity validation, however it can be disabled to speed up
-                artifact creation.
+                automatic integrity validation. Disabling checksumming will speed up
+                artifact creation but reference directories will not iterated through so the
+                objects in the directory will not be saved to the artifact. We recommend
+                adding reference objects in the case checksumming is false.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
-                the maximum number of objects allowed for Amazon S3 and
-                GCS is 10,000. Other URI schemas do not have a maximum.
+                the maximum number of objects allowed for Amazon S3,
+                GCS, Azure, and local files is 10,000,000. Other URI schemas do not have a maximum.
 
         Returns:
             The added manifest entries.
@@ -1386,20 +1441,34 @@ class Artifact:
         return entry
 
     def _add_local_file(
-        self, name: StrPath, path: StrPath, digest: Optional[B64MD5] = None
+        self,
+        name: StrPath,
+        path: StrPath,
+        digest: Optional[B64MD5] = None,
+        skip_cache: Optional[bool] = False,
+        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
     ) -> ArtifactManifestEntry:
-        with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
-            staging_path = f.name
-            shutil.copyfile(path, staging_path)
-            os.chmod(staging_path, 0o400)
+        policy = policy or "mutable"
+        if policy not in ["mutable", "immutable"]:
+            raise ValueError(
+                f"Invalid policy `{policy}`. Policy may only be `mutable` or `immutable`."
+            )
+        upload_path = path
+        if policy == "mutable":
+            with tempfile.NamedTemporaryFile(dir=get_staging_dir(), delete=False) as f:
+                staging_path = f.name
+                shutil.copyfile(path, staging_path)
+                # Set as read-only to prevent changes to the file during upload process
+                os.chmod(staging_path, stat.S_IRUSR)
+                upload_path = staging_path
 
         entry = ArtifactManifestEntry(
             path=name,
-            digest=digest or md5_file_b64(staging_path),
-            size=os.path.getsize(staging_path),
-            local_path=staging_path,
+            digest=digest or md5_file_b64(upload_path),
+            size=os.path.getsize(upload_path),
+            local_path=upload_path,
+            skip_cache=skip_cache,
         )
-
         self.manifest.add_entry(entry)
         self._added_local_paths[os.fspath(path)] = entry
         return entry
@@ -1437,8 +1506,9 @@ class Artifact:
 
     def get_path(self, name: StrPath) -> ArtifactManifestEntry:
         """Deprecated. Use `get_entry(name)`."""
-        termwarn(
-            "Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead."
+        deprecate(
+            field_name=Deprecated.artifact__get_path,
+            warning_message="Artifact.get_path(name) is deprecated, use Artifact.get_entry(name) instead.",
         )
         return self.get_entry(name)
 
@@ -1460,7 +1530,7 @@ class Artifact:
         name = LogicalPath(name)
         entry = self.manifest.entries.get(name) or self._get_obj_entry(name)[0]
         if entry is None:
-            raise KeyError("Path not contained in artifact: %s" % name)
+            raise KeyError("Path not contained in artifact: {}".format(name))
         entry._parent_artifact = self
         return entry
 
@@ -1550,7 +1620,7 @@ class Artifact:
 
     def download(
         self,
-        root: Optional[str] = None,
+        root: Optional[StrPath] = None,
         allow_missing_references: bool = False,
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
@@ -1576,10 +1646,10 @@ class Artifact:
         """
         self._ensure_logged("download")
 
-        root = root or self._default_root()
+        root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
-        if get_core_path() != "":
+        if is_require_core():
             return self._download_using_core(
                 root=root,
                 allow_missing_references=allow_missing_references,
@@ -1612,6 +1682,8 @@ class Artifact:
         self,
         root: str,
         allow_missing_references: bool = False,
+        skip_cache: bool = False,
+        path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         import pathlib
 
@@ -1652,11 +1724,15 @@ class Artifact:
             self.id,  # type: ignore
             root,
             allow_missing_references,
+            skip_cache,
+            path_prefix,  # type: ignore
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
         self._download(
             root=root,
             allow_missing_references=allow_missing_references,
+            skip_cache=skip_cache,
+            path_prefix=path_prefix,
         )
         result = handle.wait(timeout=-1)
 
@@ -1682,7 +1758,7 @@ class Artifact:
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
         # todo: remove once artifact reference downloads are supported in core
-        require_core = get_core_path() != ""
+        require_core = is_require_core()
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1865,11 +1941,11 @@ class Artifact:
         for entry in self.manifest.entries.values():
             if entry.ref is None:
                 if md5_file_b64(os.path.join(root, entry.path)) != entry.digest:
-                    raise ValueError("Digest mismatch for file: %s" % entry.path)
+                    raise ValueError("Digest mismatch for file: {}".format(entry.path))
             else:
                 ref_count += 1
         if ref_count > 0:
-            print("Warning: skipped verification of %s refs" % ref_count)
+            print("Warning: skipped verification of {} refs".format(ref_count))
 
     def file(self, root: Optional[str] = None) -> StrPath:
         """Download a single file artifact to the directory you specify with `root`.
@@ -1943,16 +2019,23 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
+        If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
+        source artifact is unaffected.
+
         Arguments:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
                 aliases.
+                This parameter is ignored if the artifact is linked (i.e. a member of a portfolio collection).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
         self._ensure_logged("delete")
-        self._delete(delete_aliases)
+        if self.collection.is_sequence():
+            self._delete(delete_aliases)
+        else:
+            self._unlink()
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
@@ -1985,13 +2068,13 @@ class Artifact:
 
         Arguments:
             target_path: The path to the portfolio inside a project.
-            The target path must adhere to one of the following
-            schemas `{portfolio}`, `{project}/{portfolio}` or
-            `{entity}/{project}/{portfolio}`.
-            To link the artifact to the Model Registry, rather than to a generic
-            portfolio inside a project, set `target_path` to the following
-            schema `{"model-registry"}/{Registered Model Name}` or
-            `{entity}/{"model-registry"}/{Registered Model Name}`.
+                The target path must adhere to one of the following
+                schemas `{portfolio}`, `{project}/{portfolio}` or
+                `{entity}/{project}/{portfolio}`.
+                To link the artifact to the Model Registry, rather than to a generic
+                portfolio inside a project, set `target_path` to the following
+                schema `{"model-registry"}/{Registered Model Name}` or
+                `{entity}/{"model-registry"}/{Registered Model Name}`.
             aliases: A list of strings that uniquely identifies the artifact inside the
                 specified portfolio.
 
@@ -2008,6 +2091,48 @@ class Artifact:
                 run.link_artifact(self, target_path, aliases)
         else:
             wandb.run.link_artifact(self, target_path, aliases)
+
+    def unlink(self) -> None:
+        """Unlink this artifact if it is currently a member of a portfolio (a promoted collection of artifacts).
+
+        Raises:
+            ArtifactNotLoggedError: If the artifact is not logged.
+            ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
+        """
+        self._ensure_logged("unlink")
+
+        # Fail early if this isn't a linked artifact to begin with
+        if self.collection.is_sequence():
+            raise ValueError(
+                f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
+                f"To delete it, use {self.delete.__qualname__!r} instead."
+            )
+
+        self._unlink()
+
+    @normalize_exceptions
+    def _unlink(self) -> None:
+        mutation = gql(
+            """
+            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+                unlinkArtifact(
+                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
+                ) {
+                    artifactID
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        assert self._client is not None
+        self._client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioID": self.collection.id,
+            },
+        )
 
     def used_by(self) -> List[Run]:
         """Get a list of the runs that have used this artifact.
@@ -2229,6 +2354,12 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
+
+
+def is_require_core() -> bool:
+    if env.is_require_core():
+        return bool(get_core_path())
+    return False
 
 
 class _ArtifactVersionType(WBType):

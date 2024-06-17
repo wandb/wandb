@@ -61,7 +61,7 @@ class SummarySubDict:
         This should only be implemented by the "_root" child class.
 
         We pass the child_dict so the item can be set on it or not as
-        appropriate. Returning None for a nonexistant path wouldn't be
+        appropriate. Returning None for a nonexistent path wouldn't be
         distinguishable from that path being set to the value None.
         """
         raise NotImplementedError
@@ -389,6 +389,11 @@ class HTTPSummary(Summary):
         self._run = run
         self._client = client
         self._started = time.time()
+
+    def __delitem__(self, key):
+        if key not in self._json_dict:
+            raise KeyError(key)
+        del self._json_dict[key]
 
     def load(self):
         pass

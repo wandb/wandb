@@ -112,12 +112,45 @@ def test_artifact_download(user, api, sample_data):
     assert os.listdir(path) == ["digits.h5"]
 
 
+def test_artifact_exists(user, api, sample_data):
+    assert api.artifact_exists("mnist:v0")
+    assert not api.artifact_exists("mnist:v2")
+    assert not api.artifact_exists("mnist-fake:v0")
+
+
+def test_artifact_collection_exists(user, api, sample_data):
+    assert api.artifact_collection_exists("mnist", "dataset")
+    assert not api.artifact_collection_exists("mnist-fake", "dataset")
+
+
 def test_artifact_delete(user, api, sample_data):
     art = api.artifact("mnist:v0", type="dataset")
     # The artifact has aliases, so fail unless delete_aliases is set.
     with pytest.raises(wandb.errors.CommError):
         art.delete()
     art.delete(delete_aliases=True)
+
+
+def test_artifact_delete_on_linked_artifact(user, api, sample_data):
+    portfolio = "portfolio_name"
+
+    source_art = api.artifact("mnist:v0", type="dataset")
+    source_path = source_art.qualified_name  # Set this now in case state changes
+
+    # Link the artifact
+    source_art.link(portfolio)
+    linked_path = f"{source_art.entity}/{source_art.project}/{portfolio}:v0"
+    linked_art = api.artifact(linked_path)
+
+    # Sanity check
+    assert source_path != linked_art.qualified_name
+    assert source_path == linked_art.source_qualified_name
+
+    # Deleting the linked instance should remove the link, not the underlying source artifact
+    linked_art.delete()
+
+    assert api.artifact_exists(source_path) is True
+    assert api.artifact_exists(linked_path) is False
 
 
 def test_artifact_checkout(user, api, sample_data):
@@ -217,3 +250,40 @@ def test_artifact_save_norun_nosettings(user, assets_path):
     wb_image = wandb.Image(im_path, classes=[{"id": 0, "name": "person"}])
     artifact.add(wb_image, "my-image")
     artifact.save()
+
+
+def test_parse_artifact_path(user, api):
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias/with/slashes"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias/with/slashes"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias:with:colons"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias:with:colons"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "entity/project/artifact:alias:with:colons/and/slashes"
+    )
+    assert (
+        entity == "entity"
+        and project == "project"
+        and path == "artifact:alias:with:colons/and/slashes"
+    )
+
+    entity, project, path = api._parse_artifact_path(
+        "artifact:alias/with:colons:and/slashes"
+    )
+    assert path == "artifact:alias/with:colons:and/slashes"
+
+    entity, project, path = api._parse_artifact_path("entity/project/artifact")
+    assert entity == "entity" and project == "project" and path == "artifact"

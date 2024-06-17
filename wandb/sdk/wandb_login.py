@@ -6,7 +6,7 @@ This authenticates your machine to log data to your account.
 import enum
 import os
 import sys
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -22,7 +22,7 @@ from wandb.old.settings import Settings as OldSettings
 from ..apis import InternalApi
 from .internal.internal_api import Api
 from .lib import apikey
-from .wandb_settings import Settings, Source
+from .wandb_settings import Settings
 
 
 def _handle_host_wandb_setting(host: Optional[str], cloud: bool = False) -> None:
@@ -80,11 +80,17 @@ def login(
     _handle_host_wandb_setting(host)
     if wandb.setup()._settings._noop:
         return True
-    kwargs = dict(locals())
-    _verify = kwargs.pop("verify", False)
-    configured = _login(**kwargs)
 
-    if _verify:
+    configured = _login(
+        anonymous=anonymous,
+        key=key,
+        relogin=relogin,
+        host=host,
+        force=force,
+        timeout=timeout,
+    )
+
+    if verify:
         from . import wandb_setup
 
         singleton = wandb_setup._WandbSetup._instance
@@ -106,49 +112,64 @@ class ApiKeyStatus(enum.Enum):
 
 class _WandbLogin:
     def __init__(self):
-        self.kwargs: Optional[Dict] = None
         self._settings: Optional[Settings] = None
         self._backend = None
-        self._silent = None
-        self._entity = None
+        self._silent: Optional[bool] = None
+        self._entity: Optional[str] = None
         self._wl = None
         self._key = None
         self._relogin = None
 
-    def setup(self, kwargs):
-        self.kwargs = kwargs
+    def setup(
+        self,
+        *,
+        anonymous: Optional[Literal["must", "allow", "never"]] = None,
+        key: Optional[str] = None,
+        relogin: Optional[bool] = None,
+        host: Optional[str] = None,
+        force: Optional[bool] = None,
+        timeout: Optional[int] = None,
+    ) -> None:
+        """Updates login-related settings on the global setup object."""
+        self._relogin = relogin
 
         # built up login settings
         login_settings: Settings = wandb.Settings()
-        settings_param = kwargs.pop("_settings", None)
-        # note that this case does not come up anywhere except for the tests
-        if settings_param is not None:
-            if isinstance(settings_param, Settings):
-                login_settings._apply_settings(settings_param)
-            elif isinstance(settings_param, dict):
-                login_settings.update(settings_param, source=Source.LOGIN)
-        _logger = wandb.setup()._get_logger()
-        # Do not save relogin into settings as we just want to relogin once
-        self._relogin = kwargs.pop("relogin", None)
-        login_settings._apply_login(kwargs, _logger=_logger)
+        logger = wandb.setup()._get_logger()
+
+        login_settings._apply_login(
+            {
+                "anonymous": anonymous,
+                "key": key,
+                "host": host,
+                "force": force,
+                "timeout": timeout,
+            },
+            _logger=logger,
+        )
 
         # make sure they are applied globally
         self._wl = wandb.setup(settings=login_settings)
         self._settings = self._wl.settings
 
-    def is_apikey_configured(self):
+    def is_apikey_configured(self) -> bool:
+        """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
 
     def set_backend(self, backend):
         self._backend = backend
 
-    def set_silent(self, silent: bool):
+    def set_silent(self, silent: bool) -> None:
         self._silent = silent
 
-    def set_entity(self, entity: str):
+    def set_entity(self, entity: str) -> None:
         self._entity = entity
 
-    def login(self):
+    def login(self) -> bool:
+        """Returns whether the user is logged in (i.e. an API key exists).
+
+        If the user is logged in, this also prints an informational message.
+        """
         apikey_configured = self.is_apikey_configured()
         if self._settings.relogin or self._relogin:
             apikey_configured = False
@@ -156,11 +177,12 @@ class _WandbLogin:
             return False
 
         if not self._silent:
-            self.login_display()
+            self._print_logged_in_message()
 
         return apikey_configured
 
-    def login_display(self):
+    def _print_logged_in_message(self) -> None:
+        """Prints a message telling the user they are logged in."""
         username = self._wl._get_username()
 
         if username:
@@ -184,7 +206,8 @@ class _WandbLogin:
             repeat=False,
         )
 
-    def configure_api_key(self, key):
+    def configure_api_key(self, key: str) -> None:
+        """Saves the API key and updates the the global setup object."""
         if self._settings._notebook and not self._settings.silent:
             wandb.termwarn(
                 "If you're specifying your api key in code, ensure this "
@@ -197,8 +220,14 @@ class _WandbLogin:
         self._key = key
 
     def update_session(
-        self, key: Optional[str], status: ApiKeyStatus = ApiKeyStatus.VALID
+        self,
+        key: Optional[str],
+        status: ApiKeyStatus = ApiKeyStatus.VALID,
     ) -> None:
+        """Updates mode and API key settings on the global setup object.
+
+        If we're online, this also pulls in user settings from the server.
+        """
         _logger = wandb.setup()._get_logger()
         login_settings = dict()
         if status == ApiKeyStatus.OFFLINE:
@@ -236,7 +265,8 @@ class _WandbLogin:
                 return None, ApiKeyStatus.OFFLINE
             return key, ApiKeyStatus.VALID
 
-    def prompt_api_key(self):
+    def prompt_api_key(self) -> None:
+        """Updates the global API key by prompting the user."""
         key, status = self._prompt_api_key()
         if status == ApiKeyStatus.NOTTY:
             directive = (
@@ -249,16 +279,9 @@ class _WandbLogin:
         self.update_session(key, status=status)
         self._key = key
 
-    def propogate_login(self):
-        # TODO(jhr): figure out if this is really necessary
-        if self._backend:
-            # TODO: calling this twice is gross, this deserves a refactor
-            # Make sure our backend picks up the new creds
-            # _ = self._backend.interface.communicate_login(key, anonymous)
-            pass
-
 
 def _login(
+    *,
     anonymous: Optional[Literal["must", "allow", "never"]] = None,
     key: Optional[str] = None,
     relogin: Optional[bool] = None,
@@ -270,9 +293,6 @@ def _login(
     _disable_warning: Optional[bool] = None,
     _entity: Optional[str] = None,
 ):
-    kwargs = dict(locals())
-    _disable_warning = kwargs.pop("_disable_warning", None)
-
     if wandb.run is not None:
         if not _disable_warning:
             wandb.termwarn("Calling wandb.login() after wandb.init() has no effect.")
@@ -280,20 +300,24 @@ def _login(
 
     wlogin = _WandbLogin()
 
-    _backend = kwargs.pop("_backend", None)
     if _backend:
         wlogin.set_backend(_backend)
 
-    _silent = kwargs.pop("_silent", None)
     if _silent:
         wlogin.set_silent(_silent)
 
-    _entity = kwargs.pop("_entity", None)
     if _entity:
         wlogin.set_entity(_entity)
 
     # configure login object
-    wlogin.setup(kwargs)
+    wlogin.setup(
+        anonymous=anonymous,
+        key=key,
+        relogin=relogin,
+        host=host,
+        force=force,
+        timeout=timeout,
+    )
 
     if wlogin._settings._offline:
         return False
@@ -306,7 +330,6 @@ def _login(
     # perform a login
     logged_in = wlogin.login()
 
-    key = kwargs.get("key")
     if key:
         wlogin.configure_api_key(key)
 
@@ -315,8 +338,5 @@ def _login(
 
     if not key:
         wlogin.prompt_api_key()
-
-    # make sure login credentials get to the backend
-    wlogin.propogate_login()
 
     return wlogin._key or False

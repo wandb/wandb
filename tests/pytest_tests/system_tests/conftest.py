@@ -10,7 +10,7 @@ import unittest.mock
 import urllib.parse
 from collections.abc import Sequence
 from contextlib import contextmanager
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Iterator, List, Optional, Union
 
 import pytest
 import requests
@@ -30,7 +30,8 @@ except ImportError:
     from typing_extensions import Literal
 
 
-# `local-testcontainer` ports
+# `local-testcontainer` url and ports
+DEFAULT_SERVER_URL = "http://localhost"
 LOCAL_BASE_PORT = "8080"
 SERVICES_API_PORT = "8083"
 FIXTURE_SERVICE_PORT = "9015"
@@ -474,6 +475,13 @@ def pytest_addoption(parser):
         help="Run tests in verbose mode",
     )
 
+    # Spin up a second server (for importer tests)
+    parser.addoption(
+        "--wandb-second-server",
+        default=False,
+        help="Spin up a second server (for importer tests)",
+    )
+
 
 @dataclasses.dataclass
 class WandbServerSettings:
@@ -493,7 +501,7 @@ class WandbServerSettings:
     internal_local_base_port: str = LOCAL_BASE_PORT
     internal_local_services_api_port: str = SERVICES_API_PORT
     internal_fixture_service_port: str = FIXTURE_SERVICE_PORT
-    url: str = "http://localhost"
+    url: str = DEFAULT_SERVER_URL
 
     base_url: Optional[str] = None
 
@@ -522,60 +530,57 @@ def check_server_health(
     return False
 
 
-def spin_wandb_server():
-    def spin_wandb_server_fn(settings: WandbServerSettings) -> bool:
-        base_url = settings.base_url
-        app_health_endpoint = "healthz"
-        fixture_url = base_url.replace(
-            settings.local_base_port, settings.fixture_service_port
+def spin_wandb_server(settings: WandbServerSettings) -> bool:
+    base_url = settings.base_url
+    app_health_endpoint = "healthz"
+    fixture_url = base_url.replace(
+        settings.local_base_port, settings.fixture_service_port
+    )
+    fixture_health_endpoint = "health"
+
+    if settings.wandb_server_use_existing:
+        return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
+
+    if not check_server_health(base_url, app_health_endpoint):
+        command = [
+            "docker",
+            "run",
+            "--pull",
+            settings.wandb_server_pull,
+            "--rm",
+            "-v",
+            f"{settings.volume}:/vol",
+            "-p",
+            f"{settings.local_base_port}:{settings.internal_local_base_port}",
+            "-p",
+            f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
+            "-p",
+            f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
+            "-e",
+            "WANDB_ENABLE_TEST_CONTAINER=true",
+            "--name",
+            settings.name,
+            "--platform",
+            "linux/amd64",
+            f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
+        ]
+        subprocess.Popen(command)
+        # wait for the server to start
+        server_is_up = check_server_health(
+            base_url=base_url, endpoint=app_health_endpoint, num_retries=120
         )
-        fixture_health_endpoint = "health"
-
-        if settings.wandb_server_use_existing:
-            return check_server_health(base_url=base_url, endpoint=app_health_endpoint)
-
-        if not check_server_health(base_url, app_health_endpoint):
-            command = [
-                "docker",
-                "run",
-                "--pull",
-                settings.wandb_server_pull,
-                "--rm",
-                "-v",
-                f"{settings.volume}:/vol",
-                "-p",
-                f"{settings.local_base_port}:{settings.internal_local_base_port}",
-                "-p",
-                f"{settings.services_api_port}:{settings.internal_local_services_api_port}",
-                "-p",
-                f"{settings.fixture_service_port}:{settings.internal_fixture_service_port}",
-                "-e",
-                "WANDB_ENABLE_TEST_CONTAINER=true",
-                "--name",
-                settings.name,
-                "--platform",
-                "linux/amd64",
-                f"{settings.wandb_server_image_registry}/{settings.wandb_server_image_repository}:{settings.wandb_server_tag}",
-            ]
-            subprocess.Popen(command)
-            # wait for the server to start
-            server_is_up = check_server_health(
-                base_url=base_url, endpoint=app_health_endpoint, num_retries=30
-            )
-            if not server_is_up:
-                return False
-            # check that the fixture service is accessible
-            return check_server_health(
-                base_url=fixture_url,
-                endpoint=fixture_health_endpoint,
-                num_retries=30,
-            )
-
+        if not server_is_up:
+            return False
+        # check that the fixture service is accessible
         return check_server_health(
-            base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=10
+            base_url=fixture_url,
+            endpoint=fixture_health_endpoint,
+            num_retries=30,
         )
 
-    return spin_wandb_server_fn
+    return check_server_health(
+        base_url=fixture_url, endpoint=fixture_health_endpoint, num_retries=20
+    )
 
 
 def pytest_configure(config):
@@ -585,6 +590,7 @@ def pytest_configure(config):
     settings = WandbServerSettings(
         name=DEFAULT_SERVER_CONTAINER_NAME,
         volume=DEFAULT_SERVER_VOLUME,
+        url=DEFAULT_SERVER_URL,
         local_base_port=LOCAL_BASE_PORT,
         services_api_port=SERVICES_API_PORT,
         fixture_service_port=FIXTURE_SERVICE_PORT,
@@ -602,27 +608,71 @@ def pytest_configure(config):
     config.wandb_server_settings = settings
 
     # start or connect to wandb test server
-    success = spin_wandb_server()(settings)
+    success = spin_wandb_server(settings)
     if not success:
         pytest.exit("Failed to connect to wandb server")
+
+    if config.getoption("--wandb-second-server"):
+        # In CI, we use a docker name and the same ports
+        # Locally, we use localhost and different port mappings
+        default_server_url2 = (
+            os.getenv("WANDB_TEST_SERVER_URL2")
+            if os.getenv("CI")
+            else DEFAULT_SERVER_URL
+        )
+        local_base_port2 = LOCAL_BASE_PORT if os.getenv("CI") else "9180"
+        service_api_port2 = SERVICES_API_PORT if os.getenv("CI") else "9183"
+        fixture_service_port2 = FIXTURE_SERVICE_PORT if os.getenv("CI") else "9115"
+        server_container_name2 = "wandb-local-testcontainer2"
+        server_volume2 = "wandb-local-testcontainer-vol2"
+
+        settings2 = WandbServerSettings(
+            name=server_container_name2,
+            volume=server_volume2,
+            url=default_server_url2,
+            local_base_port=local_base_port2,
+            services_api_port=service_api_port2,
+            fixture_service_port=fixture_service_port2,
+            wandb_server_pull=config.getoption("--wandb-server-pull"),
+            wandb_server_image_registry=config.getoption(
+                "--wandb-server-image-registry"
+            ),
+            wandb_server_image_repository=config.getoption(
+                "--wandb-server-image-repository"
+            ),
+            wandb_server_tag=config.getoption("--wandb-server-tag"),
+            wandb_server_use_existing=config.getoption(
+                "--wandb-server-use-existing",
+                default=True if os.getenv("CI") else False,
+            ),
+        )
+        config.wandb_server_settings2 = settings2
+
+        success2 = spin_wandb_server(settings2)
+        if not success2:
+            pytest.exit("Failed to connect to wandb server2")
 
 
 def pytest_unconfigure(config):
     clean = config.getoption("--wandb-server-clean")
+    second_server = config.getoption("--wandb-second-server")
+
+    server_settings_objs = [config.wandb_server_settings]
+    if second_server:
+        server_settings_objs += [config.wandb_server_settings2]
+
     if clean != "none":
         print("Cleaning up wandb server...")
     if clean in ("container", "all"):
-        print(
-            f"Cleaning up wandb server container ({config.wandb_server_settings.name}) ..."
-        )
-        command = ["docker", "rm", "-f", config.wandb_server_settings.name]
-        subprocess.run(command, check=True)
+        for server_settings in server_settings_objs:
+            print(f"Cleaning up wandb server container ({server_settings.name}) ...")
+            command = ["docker", "rm", "-f", server_settings.name]
+            subprocess.run(command, check=True)
     if clean in ("volume", "all"):
-        print(
-            f"Cleaning up wandb server volume ({config.wandb_server_settings.volume}) ..."
-        )
-        command = ["docker", "volume", "rm", config.wandb_server_settings.volume]
-        subprocess.run(command, check=True)
+        for server_settings in server_settings_objs:
+            print(f"Cleaning up wandb server volume ({server_settings.volume}) ...")
+            command = ["docker", "volume", "rm", server_settings.volume]
+            subprocess.run(command, check=True)
 
 
 def determine_scope(fixture_name, config):
@@ -717,7 +767,7 @@ def user_factory(worker_id: str, wandb_debug) -> str:
 def fixture_fn_factory():
     def _fixture_fn_factory(settings):
         def fixture_util(
-            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser]
+            cmd: Union[UserFixtureCommand, AddAdminAndEnsureNoDefaultUser],
         ) -> bool:
             base_url = settings.base_url
             endpoint = urllib.parse.urljoin(
@@ -817,26 +867,32 @@ def debug(wandb_debug, fixture_fn, base_url):
 
 @pytest.fixture(scope="function")
 def relay_server(base_url, wandb_verbose):
-    """Create a new relay server."""
+    """A context manager in which the backend is a RelayServer.
+
+    This returns a context manager that creates a RelayServer and monkey-patches
+    WANDB_BASE_URL to point to it.
+    """
 
     @contextmanager
-    def relay_server_context(inject: Optional[List[InjectedResponse]] = None):
+    def relay_server_context(
+        inject: Optional[List[InjectedResponse]] = None,
+    ) -> Iterator[RelayServer]:
         _relay_server = RelayServer(
             base_url=base_url,
             inject=inject,
             verbose=wandb_verbose,
         )
-        try:
-            _relay_server.start()
-            print(f"Relay server started at {_relay_server.relay_url}")
-            with unittest.mock.patch.dict(
-                os.environ,
-                {"WANDB_BASE_URL": _relay_server.relay_url},
-            ):
-                yield _relay_server
-            print(f"Stopping relay server at {_relay_server.relay_url}")
-        finally:
-            del _relay_server
+
+        _relay_server.start()
+        print(f"Relay server started at {_relay_server.relay_url}")
+
+        with unittest.mock.patch.dict(
+            os.environ,
+            {"WANDB_BASE_URL": _relay_server.relay_url},
+        ):
+            yield _relay_server
+
+        print(f"Stopping relay server at {_relay_server.relay_url}")
 
     return relay_server_context
 
@@ -868,6 +924,8 @@ def wandb_init(user, test_settings, request):
         monitor_gym: Optional[bool] = None,
         save_code: Optional[bool] = None,
         id: Optional[str] = None,
+        fork_from: Optional[str] = None,
+        resume_from: Optional[str] = None,
         settings: Union[
             "wandb.sdk.wandb_settings.Settings", Dict[str, Any], None
         ] = None,
@@ -927,6 +985,30 @@ def inject_file_stream_response(base_url, user):
             body=body,
             status=status,
             application_pattern=TokenizedCircularPattern(application_pattern),
+        )
+
+    yield helper
+
+
+@pytest.fixture(scope="function")
+def inject_file_stream_connection_reset(base_url, user):
+    def helper(
+        run,
+        body: Union[str, Exception] = "{}",
+        status: int = 200,
+        application_pattern: str = "1",
+    ) -> InjectedResponse:
+        return InjectedResponse(
+            method="POST",
+            url=(
+                urllib.parse.urljoin(
+                    base_url,
+                    f"/files/{user}/{run.project or 'uncategorized'}/{run.id}/file_stream",
+                )
+            ),
+            application_pattern=TokenizedCircularPattern(application_pattern),
+            body=body or ConnectionResetError("Connection reset by peer"),
+            status=status,
         )
 
     yield helper

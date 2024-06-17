@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"sync"
 
@@ -21,6 +22,12 @@ func WithWriterSettings(settings *service.Settings) WriterOption {
 	return func(w *Writer) {
 		w.settings = settings
 	}
+}
+
+type WriterParams struct {
+	Logger   *observability.CoreLogger
+	Settings *service.Settings
+	FwdChan  chan *service.Record
 }
 
 // Writer is responsible for writing messages to the append-only log.
@@ -54,14 +61,13 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, logger *observability.CoreLogger, opts ...WriterOption) *Writer {
+func NewWriter(ctx context.Context, params WriterParams) *Writer {
 	w := &Writer{
-		ctx:    ctx,
-		logger: logger,
-		wg:     sync.WaitGroup{},
-	}
-	for _, opt := range opts {
-		opt(w)
+		ctx:      ctx,
+		wg:       sync.WaitGroup{},
+		logger:   params.Logger,
+		settings: params.Settings,
+		fwdChan:  params.FwdChan,
 	}
 	return w
 }
@@ -75,36 +81,43 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue(), w.logger)
+	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
-		w.logger.CaptureFatalAndPanic("writer: error creating store", err)
+		w.logger.CaptureFatalAndPanic(
+			fmt.Errorf("writer: startStore: error creating store: %v", err))
 	}
 
 	w.wg.Add(1)
 	go func() {
 		for record := range w.storeChan {
 			if err = w.store.Write(record); err != nil {
-				w.logger.Error("writer: error storing record", "error", err)
+				w.logger.CaptureError(
+					fmt.Errorf(
+						"writer: startStore: error storing record: %v",
+						err,
+					))
 			}
 		}
 
 		if err = w.store.Close(); err != nil {
-			w.logger.CaptureError("writer: error closing store", err)
+			w.logger.CaptureError(
+				fmt.Errorf("writer: startStore: error closing store: %v", err))
 		}
 		w.wg.Done()
 	}()
 }
 
-// do is the main loop of the writer to process incoming messages
+// Do is the main loop of the writer to process incoming messages
 func (w *Writer) Do(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
-	w.logger.Info("writer: started", "stream_id", w.settings.RunId)
+	w.logger.Info("writer: Do: started", "stream_id", w.settings.RunId)
 
 	w.startStore()
 
 	for record := range inChan {
-		w.handleRecord(record)
+		w.logger.Debug("write: Do: got a message", "record", record.RecordType, "stream_id", w.settings.RunId)
+		w.writeRecord(record)
 	}
 	w.Close()
 	w.wg.Wait()
@@ -117,22 +130,21 @@ func (w *Writer) Close() {
 	if w.storeChan != nil {
 		close(w.storeChan)
 	}
-	w.logger.Info("writer: closed", "stream_id", w.settings.RunId)
+	w.logger.Info("writer: Close: closed", "stream_id", w.settings.RunId)
 }
 
-// handleRecord Writing messages to the append-only log,
+// writeRecord Writing messages to the append-only log,
 // and passing them to the sender.
 // We ensure that the messages are written to the log
 // before they are sent to the server.
-func (w *Writer) handleRecord(record *service.Record) {
-	w.logger.Debug("write: got a message", "record", record, "stream_id", w.settings.RunId)
+func (w *Writer) writeRecord(record *service.Record) {
 	switch record.RecordType.(type) {
 	case *service.Record_Request:
-		w.sendRecord(record)
+		w.fwdRecord(record)
 	case nil:
-		w.logger.Error("nil record type")
+		w.logger.Error("writer: writeRecord: nil record type")
 	default:
-		w.sendRecord(record)
+		w.fwdRecord(record)
 		w.storeRecord(record)
 	}
 }
@@ -147,7 +159,7 @@ func (w *Writer) storeRecord(record *service.Record) {
 	w.storeChan <- record
 }
 
-func (w *Writer) sendRecord(record *service.Record) {
+func (w *Writer) fwdRecord(record *service.Record) {
 	// TODO: redo it so it only uses control
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return

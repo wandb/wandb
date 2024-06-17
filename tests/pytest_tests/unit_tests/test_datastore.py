@@ -1,6 +1,5 @@
 """datastore tests."""
 
-
 import json
 import os
 

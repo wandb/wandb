@@ -100,6 +100,10 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
+    def _publish_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
+        record = self._make_request(job_input=job_input)
+        return self._deliver_record(record)
+
     def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
@@ -145,9 +149,9 @@ class InterfaceShared(InterfaceBase):
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
-        job_info: Optional[pb.JobInfoRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
+        job_input: Optional[pb.JobInputRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -202,14 +206,14 @@ class InterfaceShared(InterfaceBase):
             request.summary_record.CopyFrom(summary_record)
         elif telemetry_record:
             request.telemetry_record.CopyFrom(telemetry_record)
-        elif job_info:
-            request.job_info.CopyFrom(job_info)
         elif get_system_metrics:
             request.get_system_metrics.CopyFrom(get_system_metrics)
         elif sync:
             request.sync.CopyFrom(sync)
         elif python_packages:
             request.python_packages.CopyFrom(python_packages)
+        elif job_input:
+            request.job_input.CopyFrom(job_input)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -317,7 +321,7 @@ class InterfaceShared(InterfaceBase):
         if result is None:
             # TODO: friendlier error message here
             raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
+                "Couldn't communicate with backend after {} seconds".format(timeout)
             )
         login_response = result.response.login_response
         assert login_response
@@ -521,10 +525,6 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
-        return self._deliver_record(record)
-
-    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
-        record = self._make_request(job_info=job_info)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

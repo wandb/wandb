@@ -1,4 +1,5 @@
 """Artifact manifest."""
+
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -50,7 +51,7 @@ class ArtifactManifest:
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
         ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
+            raise ValueError("Cannot add the same path twice: {}".format(entry.path))
         self.entries[entry.path] = entry
 
     def remove_entry(self, entry: "ArtifactManifestEntry") -> None:
