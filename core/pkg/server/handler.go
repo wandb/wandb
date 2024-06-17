@@ -396,7 +396,6 @@ func (h *Handler) handleStepMetric(key string) {
 func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
 	// metric can have a glob name or a name
 	// TODO: replace glob-name/name with one-of field
-	// fmt.Printf("metric: %v\n", metric)
 	switch {
 	case metric.GetGlobName() != "":
 		if _, err := runmetric.AddMetric(metric, metric.GetGlobName(), &h.metricHandler.GlobMetrics); err != nil {
@@ -1332,7 +1331,6 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
 	if value, ok := h.runSummary.Tree()[key]; ok {
-		// fmt.Printf("  value: %v\n", value)
 		v, err := json.Marshal(value)
 		if err != nil {
 			h.logger.CaptureError(
