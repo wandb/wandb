@@ -2758,8 +2758,6 @@ class Run:
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
-                # TODO:
-                tel.feature.metric_summary_type = summary
         # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
