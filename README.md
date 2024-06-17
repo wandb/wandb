@@ -13,11 +13,9 @@
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
-Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
+Use W&B to build better models faster, fine-tune LLMs, and develop AI applications. Sign up for a 30-day free trial today at [http://wandb.me/trial](http://wandb.me/trial)
 
-🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
-
-Want to use Weights & Biases for seamless collaboration between your ML or Data Science team? Looking for Production-grade MLOps at scale? Sign up to one of [our plans](https://wandb.ai/site/pricing) or [contact the Sales Team](https://wandb.ai/site/contact).
+W&B Models is the MLOps solution used by foundation model builders and enterprises who are training, fine-tuning, and deploying models into production. W&B Weave is the LLMOps solution for software developers who want a lightweight toolkit to help them track and evaluate LLM applications.
 
 &nbsp;
 
