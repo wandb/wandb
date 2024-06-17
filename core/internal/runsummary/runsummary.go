@@ -59,7 +59,7 @@ func NewFrom(tree pathtree.TreeData) *RunSummary {
 	}
 }
 
-// GetSummary matches the path against the defined metrics and returns the
+// GetSummaryTypes matches the path against the defined metrics and returns the
 // requested summary type for the metric.
 //
 // It first checked the concrete metrics and then the glob metrics.
@@ -94,24 +94,23 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 	}
 	for pattern, globMetric := range rs.mh.GlobMetrics {
 		// match the key against the glob pattern:
-		if match, err := filepath.Match(pattern, name); err == nil {
-			if match {
-				summary := globMetric.GetSummary()
-				if summary.GetNone() {
-					return []SummaryType{None}
-				}
-				if summary.GetMax() {
-					types = append(types, Max)
-				}
-				if summary.GetMin() {
-					types = append(types, Min)
-				}
-				if summary.GetMean() {
-					types = append(types, Mean)
-				}
-				if summary.GetLast() {
-					types = append(types, Latest)
-				}
+		// note check for no error
+		if match, err := filepath.Match(pattern, name); err == nil && match {
+			summary := globMetric.GetSummary()
+			if summary.GetNone() {
+				return []SummaryType{None}
+			}
+			if summary.GetMax() {
+				types = append(types, Max)
+			}
+			if summary.GetMin() {
+				types = append(types, Min)
+			}
+			if summary.GetMean() {
+				types = append(types, Mean)
+			}
+			if summary.GetLast() {
+				types = append(types, Latest)
 			}
 		}
 	}
@@ -119,7 +118,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 	return types
 }
 
-// Updates and/or removes values from the configuration tree.
+// ApplyChangeRecord updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
@@ -137,38 +136,38 @@ func (rs *RunSummary) ApplyChangeRecord(
 			continue
 		}
 		// update all the stats for the given key path
-		kp := keyPath(item)
-		err = rs.stats.UpdateStats(kp, update)
+		path := keyPath(item)
+		err = rs.stats.UpdateStats(path, update)
 		if err != nil {
 			onError(err)
 			continue
 		}
 		// get the summary type for the item
-		st := rs.GetSummaryTypes(kp)
+		summaryTypes := rs.GetSummaryTypes(path)
 
 		// skip if None in the summary type slice
-		if len(st) == 1 && st[0] == None {
+		if len(summaryTypes) == 1 && summaryTypes[0] == None {
 			continue
 		}
 
 		// get the requested stats for the item
 		updateMap := make(map[string]interface{})
-		for s := range st {
-			upd, err := rs.stats.GetStat(kp, st[s])
+		for summaryType := range summaryTypes {
+			update, err := rs.stats.GetStat(path, summaryTypes[summaryType])
 			if err != nil {
 				onError(err)
 				continue
 			}
 
-			switch st[s] {
+			switch summaryTypes[summaryType] {
 			case Max:
-				updateMap["max"] = upd
+				updateMap["max"] = update
 			case Min:
-				updateMap["min"] = upd
+				updateMap["min"] = update
 			case Mean:
-				updateMap["mean"] = upd
+				updateMap["mean"] = update
 			case Latest:
-				updateMap["last"] = upd
+				updateMap["last"] = update
 			}
 		}
 
@@ -251,7 +250,7 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 	return summary, nil
 }
 
-// Clones the tree. This is useful for creating a snapshot of the tree.
+// CloneTree clones the tree. This is useful for creating a snapshot of the tree.
 func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
 
 	return rs.pathTree.CloneTree()
