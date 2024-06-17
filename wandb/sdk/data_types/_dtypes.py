@@ -390,10 +390,13 @@ if np:
     NumberType.types.append(np.uintp)
     NumberType.types.append(np.float32)
     NumberType.types.append(np.float64)
-    NumberType.types.append(np.float_)
     NumberType.types.append(np.complex64)
     NumberType.types.append(np.complex128)
-    NumberType.types.append(np.complex_)
+
+    numpy_major_version = np.__version__.split(".")[0]
+    if int(numpy_major_version) < 2:
+        NumberType.types.append(np.float_)
+        NumberType.types.append(np.complex_)
 
 
 class TimestampType(Type):
