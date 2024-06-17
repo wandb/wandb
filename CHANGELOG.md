@@ -17,6 +17,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
+- Fix issues with `numpy>=2` support by @dmitryduev in https://github.com/wandb/wandb/pull/7816
 - Fix "UnicodeDecodeError: 'charmap'" when opening HTML files on Windows by specifying UTF-8 encoding by @KilnOfTheSecondFlame in https://github.com/wandb/wandb/pull/7730
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
 - Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
