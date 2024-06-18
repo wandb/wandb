@@ -4,17 +4,15 @@ import shutil
 import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Optional
 
 import numpy as np
 import pytest
 import wandb
 from wandb import Api
+from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
-from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.wandb_run import Run
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -22,7 +20,7 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float64)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool_)
 
@@ -33,7 +31,7 @@ def test_add_table_from_dataframe(wandb_init):
 
     wb_table_float = wandb.Table(dataframe=df_float)
     wb_table_float32 = wandb.Table(dataframe=df_float32)
-    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float_))
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float64))
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
@@ -214,6 +212,34 @@ def test_remove_after_log(wandb_init):
             retrieved.remove("file1.txt")
 
 
+def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
+    # Setup cache dir
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    artifact = wandb.Artifact(name="cache-test", type="dataset")
+    file_path = Path(tmp_path / "text.txt")
+    with open(file_path, "w") as f:
+        f.write("test123")
+    entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Ensure the uploaded file is in the cache.
+    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    assert not hit
+
+    # Manually write a file into the cache path to ensure that it's the one that is used.
+    # This is kind of evil and might break if we later force cache validity.
+    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "w") as f:
+        f.write("corrupt")
+    download_root = Path(artifact.download(tmp_path / "download_root"))
+    assert (download_root / "text.txt").read_text() == "corrupt"
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
@@ -237,7 +263,6 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
@@ -300,7 +325,6 @@ def test_mutable_uploads_with_cache_disabled(wandb_init, tmp_path, monkeypatch):
     assert len(staging_files) == 0
 
 
-@pytest.mark.wandb_core_failure(feature="artifacts_cache")
 def test_immutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
@@ -394,30 +418,6 @@ def test_artifact_wait_failure(wandb_init, timeout):
         artifact.add(image, "image")
         run.log_artifact(artifact).wait(timeout=timeout)
     run.finish()
-
-
-@pytest.mark.skip(
-    reason="often makes tests time out on CI (despite only taking 3x10 seconds locally)"
-)
-@pytest.mark.parametrize("_async_upload_concurrency_limit", [None, 1, 10])
-def test_artifact_upload_succeeds_with_async(
-    wandb_init: Callable[..., Run],
-    _async_upload_concurrency_limit: Optional[int],
-    tmp_path: Path,
-):
-    with wandb_init(
-        settings=dict(_async_upload_concurrency_limit=_async_upload_concurrency_limit)
-    ) as run:
-        artifact = wandb.Artifact("art", type="dataset")
-        (tmp_path / "my-file.txt").write_text("my contents")
-        artifact.add_dir(str(tmp_path))
-        run.log_artifact(artifact).wait(timeout=5)
-
-    # re-download the artifact
-    with wandb.init() as using_run:
-        using_artifact: Artifact = using_run.use_artifact("art:latest")
-        using_artifact.download(root=str(tmp_path / "downloaded"))
-        assert (tmp_path / "downloaded" / "my-file.txt").read_text() == "my contents"
 
 
 def test_check_existing_artifact_before_download(wandb_init, tmp_path, monkeypatch):
@@ -528,6 +528,20 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
     assert downloaded == art_dir / name_path
 
 
+def test_retrieve_missing_artifact(logged_artifact):
+    with pytest.raises(CommError, match="project 'bar' not found"):
+        Api().artifact(f"foo/bar/{logged_artifact.name}")
+
+    with pytest.raises(CommError, match="project 'bar' not found"):
+        Api().artifact(f"{logged_artifact.entity}/bar/{logged_artifact.name}")
+
+    with pytest.raises(CommError, match="must be specified as 'collection:alias'"):
+        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz")
+
+    with pytest.raises(CommError, match="do not have permission"):
+        Api().artifact(f"{logged_artifact.entity}/{logged_artifact.project}/baz:v0")
+
+
 def test_new_draft(wandb_init):
     art = wandb.Artifact("test-artifact", "test-type")
     with art.new_file("boom.txt", "w") as f:
@@ -605,3 +619,55 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.source_project == collection.project
     assert linked_artifact.source_name.startswith(collection.name)
     assert linked_artifact.type == collection.type
+
+
+def test_unlink_artifact(logged_artifact, linked_artifact, api):
+    """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
+    source_artifact = logged_artifact  # For readability
+
+    # Pull these out now in case of state changes
+    source_artifact_path = source_artifact.qualified_name
+    linked_artifact_path = linked_artifact.qualified_name
+
+    # Consistency/sanity checks in case of changes to upstream fixtures
+    assert source_artifact.qualified_name != linked_artifact.qualified_name
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is True
+
+    linked_artifact.unlink()
+
+    # Now the source artifact should still exist, the link should not
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is False
+
+    # Unlinking the source artifact should not be possible
+    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+        source_artifact.unlink()
+
+    # ... and the source artifact should *still* exist
+    assert api.artifact_exists(source_artifact_path) is True
+
+
+def test_used_artifacts_preserve_original_project(
+    wandb_init, user, api, logged_artifact
+):
+    """Run artifacts from the API should preserve the original project they were created in."""
+    orig_project = logged_artifact.project  # Original project that created the artifact
+    new_project = "new-project"  # New project using the same artifact
+
+    artifact_path = f"{user}/{orig_project}/{logged_artifact.name}"
+
+    # Use the artifact within a *different* project
+    with wandb_init(entity=user, project=new_project) as run:
+        art = run.use_artifact(artifact_path)
+        art.download()
+
+    # Check project of artifact vs run as retrieved from the API
+    run_from_api = api.run(run.path)
+    art_from_run = run_from_api.used_artifacts()[0]
+
+    # Assumption check in case of future changes to fixtures
+    assert orig_project != new_project
+
+    assert run_from_api.project == new_project
+    assert art_from_run.project == orig_project

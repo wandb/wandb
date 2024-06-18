@@ -61,7 +61,7 @@ def launch_add(
         config: A dictionary containing the configuration for the run. May also contain
             resource specific arguments under the key "resource_args"
         template_variables: A dictionary containing values of template variables for a run queue.
-            Expected format of {"<var-name>": <var-value>}
+            Expected format of {"VAR_NAME": VAR_VALUE}
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
@@ -109,7 +109,6 @@ def launch_add(
 
     return _launch_add(
         api,
-        uri,
         job,
         config,
         template_variables,
@@ -134,7 +133,6 @@ def launch_add(
 
 def _launch_add(
     api: Api,
-    uri: Optional[str],
     job: Optional[str],
     config: Optional[Dict[str, Any]],
     template_variables: Optional[dict],
@@ -156,7 +154,7 @@ def _launch_add(
     priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
-        uri,
+        None,
         job,
         api,
         name,

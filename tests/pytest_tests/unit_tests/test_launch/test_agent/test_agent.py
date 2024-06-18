@@ -11,7 +11,7 @@ from wandb.sdk.launch.agent.agent import (
     LaunchAgent,
 )
 from wandb.sdk.launch.errors import LaunchDockerError, LaunchError
-from wandb.sdk.launch.utils import LOG_PREFIX
+from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT, LOG_PREFIX
 
 
 class AsyncMock(MagicMock):
@@ -194,7 +194,9 @@ async def test_requeue_on_preemption(mocker, clean_agent):
     expected_config = {"run_id": "test-run-id", "_resume_count": 1}
 
     mocker.launch_add.assert_called_once_with(
-        config=expected_config, project_queue="test-project", queue_name="test-queue"
+        config=expected_config,
+        project_queue=LAUNCH_DEFAULT_PROJECT,
+        queue_name="test-queue",
     )
 
 
@@ -543,6 +545,8 @@ async def test_thread_finish_run_info_backoff(mocker, clean_agent):
         "entity": "test-entity",
         "project": "test-project",
     }
+    mocker.patch("asyncio.sleep", AsyncMock())
+
     mocker.api.get_run_state.side_effect = CommError("failed")
     agent = LaunchAgent(api=mocker.api, config=mock_config)
     submitted_run = MagicMock()
@@ -636,6 +640,52 @@ async def test_inner_thread_run_job(mocker, clean_agent):
 
 
 @pytest.mark.asyncio
+async def test_raise_warnings(mocker, clean_agent):
+    _setup(mocker)
+    mocker.status = MagicMock()
+    mocker.status.state = "preempted"
+    mocker.status.messages = ["Test message"]
+    mocker.run = MagicMock()
+    _mock_get_status = AsyncMock(return_value=mocker.status)
+    mocker.run.get_status = _mock_get_status
+    mocker.runner = MagicMock()
+    mocker.runner.run = AsyncMock(return_value=mocker.run)
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.loader.runner_from_config",
+        return_value=mocker.runner,
+    )
+
+    mocker.patch("wandb.sdk.launch.agent.agent.DEFAULT_STOPPED_RUN_TIMEOUT", new=0)
+    mocker.patch("wandb.sdk.launch.agent.agent.AGENT_POLLING_INTERVAL", new=0)
+    mock_config = {
+        "entity": "test-entity",
+        "project": "test-project",
+    }
+    job = JobAndRunStatusTracker(
+        "run_queue_item_id", "test-queue", MagicMock(), run=mocker.run
+    )
+    agent = LaunchAgent(api=mocker.api, config=mock_config)
+    mock_spec = {
+        "docker": {"docker_image": "blah-blah:latest"},
+        "entity": "user",
+        "project": "test",
+    }
+
+    await agent._task_run_job(
+        mock_spec,
+        {"runQueueItemId": "blah"},
+        {},
+        mocker.api,
+        threading.current_thread().ident,
+        job,
+    )
+    assert agent._known_warnings == ["Test message"]
+    mocker.api.update_run_queue_item_warning.assert_called_once_with(
+        "run_queue_item_id", "Test message", "Kubernetes", []
+    )
+
+
+@pytest.mark.asyncio
 async def test_get_job_and_queue(mocker):
     _setup(mocker)
     mock_config = {
@@ -700,3 +750,17 @@ def test_agent_logger(mocker):
     logger.debug("test 8")
     mocker.termlog.assert_called_with(f"{LOG_PREFIX}test 8")
     mocker.logger.debug.assert_called_with(f"{LOG_PREFIX}test 8")
+
+
+def test_agent_inf_jobs(mocker):
+    config = {
+        "entity": "mock_server_entity",
+        "project": "test_project",
+        "queues": ["default"],
+        "max_jobs": -1,
+    }
+    mocker.patch(
+        "wandb.sdk.launch.agent.agent.LaunchAgent._init_agent_run", lambda x: None
+    )
+    agent = LaunchAgent(MagicMock(), config)
+    assert agent._max_jobs == float("inf")

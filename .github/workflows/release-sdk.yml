@@ -25,6 +25,7 @@ jobs:
         with:
           python-version: '3.10'
 
+      # Use the GHA bot credentials: https://api.github.com/users/github-actions%5Bbot%5D
       - name: Setup git config
         run: |
           git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -278,7 +279,7 @@ jobs:
           files: |
             wandb-${{ github.event.inputs.version }}.zip
             wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: false
+          draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:

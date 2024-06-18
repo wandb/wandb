@@ -28,6 +28,7 @@ def build_wandb_core(
     coverage_flags = ["-cover"] if with_code_coverage else []
     output_flags = ["-o", str(".." / output_path)]
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
+    vendor_flags = ["-mod=vendor"]
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
@@ -38,6 +39,7 @@ def build_wandb_core(
             *coverage_flags,
             *ld_flags,
             *output_flags,
+            *vendor_flags,
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
         cwd="./core",
@@ -64,9 +66,9 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
                 # Use https://en.wikipedia.org/wiki/Gold_(linker)
                 "-fuse-ld=gold",
                 # Set the --weak-unresolved-symbols option in gold, converting
-                # unresolved symbols to weak references.
-                #
-                # TODO: why?
+                # unresolved symbols to weak references. This is necessary to
+                # build a Go binary with cgo on Linux, where the NVML libraries
+                # needed for Nvidia GPU monitoring may not be available at build time.
                 "-Wl,--weak-unresolved-symbols",
             ]
         )

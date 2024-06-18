@@ -4,6 +4,7 @@ package settings
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/wandb/wandb/core/pkg/auth"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -57,6 +58,11 @@ func (s *Settings) GetAPIKey() string {
 	return s.Proto.ApiKey.GetValue()
 }
 
+// Whether we are in sync mode.
+func (s *Settings) IsSync() bool {
+	return s.Proto.XSync.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
@@ -80,6 +86,12 @@ func (s *Settings) GetProject() string {
 // The W&B entity, like a user or a team.
 func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
+}
+
+// The start time of the run.
+func (s *Settings) GetStartTime() time.Time {
+	seconds := s.Proto.XStartTime.GetValue()
+	return time.UnixMicro(int64(seconds * 1e6))
 }
 
 // The directory for storing log files.

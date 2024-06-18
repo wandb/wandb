@@ -2,15 +2,18 @@
 package launch
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/internal/data_types"
+	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -31,6 +34,7 @@ const REQUIREMENTS_FNAME = "requirements.txt"
 const FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
 const DIFF_FNAME = "diff.patch"
 const WANDB_METADATA_FNAME = "wandb-metadata.json"
+const BASE_JOB_VERSION = "v0"
 
 type LogLevel int
 
@@ -69,9 +73,11 @@ type GitInfo struct {
 
 // Define the GitSource struct that implements the Source interface.
 type GitSource struct {
-	Git        GitInfo  `json:"git"`
-	Entrypoint []string `json:"entrypoint"`
-	Notebook   bool     `json:"notebook"`
+	Git          GitInfo  `json:"git"`
+	Entrypoint   []string `json:"entrypoint"`
+	Notebook     bool     `json:"notebook"`
+	BuildContext *string  `json:"build_context,omitempty"`
+	Dockerfile   *string  `json:"dockerfile,omitempty"`
 }
 
 func (g GitSource) GetSourceType() SourceType {
@@ -92,9 +98,11 @@ func (g GitSource) GetSourceImage() *string {
 
 // Define the ArtifactSource struct that implements the Source interface.
 type ArtifactSource struct {
-	Artifact   string   `json:"artifact"`
-	Entrypoint []string `json:"entrypoint"`
-	Notebook   bool     `json:"notebook"`
+	Artifact     string   `json:"artifact"`
+	Entrypoint   []string `json:"entrypoint"`
+	Notebook     bool     `json:"notebook"`
+	BuildContext *string  `json:"build_context,omitempty"`
+	Dockerfile   *string  `json:"dockerfile,omitempty"`
 }
 
 func (a ArtifactSource) GetSourceType() SourceType {
@@ -153,15 +161,10 @@ type ArtifactInfoForJob struct {
 	Name string `json:"name"`
 }
 
-type PartialJobSource struct {
-	JobName       string            `json:"job_name"`
-	JobSourceInfo JobSourceMetadata `json:"job_source_info"`
-}
-
 type JobBuilder struct {
 	logger *observability.CoreLogger
 
-	PartialJobSource *PartialJobSource
+	PartialJobID *string
 
 	verbose bool
 
@@ -194,13 +197,12 @@ func MakeArtifactNameSafe(name string) string {
 
 func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
 	jobBuilder := JobBuilder{
-		settings:              settings,
-		isNotebookRun:         settings.GetXJupyter().GetValue(),
-		logger:                logger,
-		Disable:               settings.GetDisableJobCreation().GetValue(),
-		wandbConfigParameters: newWandbConfigParameters(),
-		saveShapeToMetadata:   false,
-		verbose:               verbose,
+		settings:            settings,
+		isNotebookRun:       settings.GetXJupyter().GetValue(),
+		logger:              logger,
+		Disable:             settings.GetDisableJobCreation().GetValue(),
+		saveShapeToMetadata: false,
+		verbose:             verbose,
 	}
 	return &jobBuilder
 }
@@ -506,6 +508,8 @@ func (j *JobBuilder) createImageJobSource(metadata RunMetadata) (*ImageSource, *
 }
 
 func (j *JobBuilder) Build(
+	ctx context.Context,
+	client graphql.Client,
 	output map[string]interface{},
 ) (artifact *service.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
@@ -513,6 +517,23 @@ func (j *JobBuilder) Build(
 		j.logger.Debug("jobBuilder: disabled")
 		return nil, nil
 	}
+	if j.PartialJobID != nil {
+		// If we have a partial job source we just update the
+		// metadata and don't build the job.
+		typed_output := data_types.ResolveTypes(output)
+		metadata, err := j.MakeJobMetadata(&typed_output)
+		if err != nil {
+			return nil, err
+		}
+		_, err = gql.UpdateArtifact(
+			ctx, client, *j.PartialJobID, &metadata,
+		)
+		if err != nil {
+			return nil, err
+		}
+		return nil, nil
+	}
+
 	fileDir := j.settings.FilesDir.GetValue()
 	_, err := os.Stat(filepath.Join(fileDir, REQUIREMENTS_FNAME))
 	if os.IsNotExist(err) {
@@ -526,7 +547,7 @@ func (j *JobBuilder) Build(
 
 	metadata, err := j.handleMetadataFile()
 	if err != nil {
-		j.logger.Debug("jobBuilder: error handling metadata file", err)
+		j.logger.Debug("jobBuilder: error handling metadata file", "error", err)
 		return nil, err
 	}
 
@@ -539,43 +560,36 @@ func (j *JobBuilder) Build(
 	var sourceInfo JobSourceMetadata
 	var name *string
 	var sourceType *SourceType
-	// this flow is from using a partial job artifact that was created by the CLI to make a run
-	if j.PartialJobSource != nil {
-		name = &j.PartialJobSource.JobName
-		sourceInfo = j.PartialJobSource.JobSourceInfo
-		_sourceType := sourceInfo.Source.GetSourceType()
-		sourceType = &_sourceType
-	} else {
-		sourceType, err = j.GetSourceType(*metadata)
-		if err != nil {
-			return nil, err
-		}
-		if sourceType == nil {
-			j.logger.Debug("jobBuilder: unable to determine source type")
-			j.logIfVerbose("No source type found, not creating job artifact", Warn)
-			return nil, nil
-		}
-		programRelpath := j.getProgramRelpath(*metadata, *sourceType)
-		// all jobs except image jobs need to specify a program path
-		if *sourceType != ImageSourceType && programRelpath == nil {
-			j.logger.Debug("jobBuilder: no program path found")
-			j.logIfVerbose("No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job", Warn)
-			return nil, nil
-		}
 
-		var jobSource Source
-		jobSource, name, err = j.getSourceAndName(*sourceType, programRelpath, *metadata)
-		if err != nil {
-			return nil, err
-		} else if jobSource == nil || name == nil {
-			j.logger.Debug("jobBuilder: no job source or name found")
-			return nil, nil
-		}
-		sourceInfo.Source = jobSource
-		sourceInfo.SourceType = *sourceType
-
-		sourceInfo.Version = "v0"
+	sourceType, err = j.GetSourceType(*metadata)
+	if err != nil {
+		return nil, err
 	}
+	if sourceType == nil {
+		j.logger.Debug("jobBuilder: unable to determine source type")
+		j.logIfVerbose("No source type found, not creating job artifact", Warn)
+		return nil, nil
+	}
+	programRelpath := j.getProgramRelpath(*metadata, *sourceType)
+	// all jobs except image jobs need to specify a program path
+	if *sourceType != ImageSourceType && programRelpath == nil {
+		j.logger.Debug("jobBuilder: no program path found")
+		j.logIfVerbose("No program path found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job", Warn)
+		return nil, nil
+	}
+
+	var jobSource Source
+	jobSource, name, err = j.getSourceAndName(*sourceType, programRelpath, *metadata)
+	if err != nil {
+		return nil, err
+	} else if jobSource == nil || name == nil {
+		j.logger.Debug("jobBuilder: no job source or name found")
+		return nil, nil
+	}
+	sourceInfo.Source = jobSource
+	sourceInfo.SourceType = *sourceType
+
+	sourceInfo.Version = BASE_JOB_VERSION
 
 	// inject partial field for create job CLI flow
 	if metadata.Partial != nil {
@@ -588,13 +602,16 @@ func (j *JobBuilder) Build(
 	}
 	var metadataString string
 	if j.saveShapeToMetadata {
-		metadataString, err = j.makeJobMetadata(&sourceInfo.OutputTypes)
+		metadataString, err = j.MakeJobMetadata(&sourceInfo.OutputTypes)
 		if err != nil {
 			return nil, err
 		}
+		sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
 	} else {
 		metadataString = ""
-		if j.runConfig != nil {
+		if j.runConfig == nil {
+			sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
+		} else {
 			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
 		}
 	}
@@ -606,7 +623,7 @@ func (j *JobBuilder) Build(
 		Name:             *name,
 		Metadata:         metadataString,
 		Type:             "job",
-		Aliases:          j.aliases,
+		Aliases:          append(j.aliases, "latest"),
 		Finalize:         true,
 		ClientId:         utils.GenerateAlphanumericSequence(128),
 		SequenceClientId: utils.GenerateAlphanumericSequence(128),
@@ -678,62 +695,11 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 		return
 	}
 
-	sourceInfo := useArtifact.Partial.SourceInfo
-	jobSourceMetadata := JobSourceMetadata{
-		Version:    "v0",
-		SourceType: SourceType(sourceInfo.SourceType),
-		Runtime:    &sourceInfo.Runtime,
-	}
-
-	switch sourceInfo.SourceType {
-	case "repo":
-		if sourceInfo.Source.Git == nil {
-			j.logger.Debug("jobBuilder: no git info found in repo type partial use artifact record, disabling job builder")
-			j.Disable = true
-			return
-		}
-		entrypoint := sourceInfo.Source.Git.Entrypoint
-		gitSource := GitSource{
-			Git: GitInfo{
-				Remote: &sourceInfo.Source.Git.GitInfo.Remote,
-				Commit: &sourceInfo.Source.Git.GitInfo.Commit,
-			},
-			Notebook:   sourceInfo.Source.Git.Notebook,
-			Entrypoint: entrypoint,
-		}
-		jobSourceMetadata.Source = gitSource
-	case "artifact":
-		if sourceInfo.Source.Artifact == nil {
-			j.logger.Debug("jobBuilder: no artifact info found in artifact type partial use artifact record, disabling job builder")
-			j.Disable = true
-			return
-		}
-		entrypoint := sourceInfo.Source.Artifact.Entrypoint
-		artifactSource := ArtifactSource{
-			Artifact:   sourceInfo.Source.Artifact.Artifact,
-			Notebook:   sourceInfo.Source.Artifact.Notebook,
-			Entrypoint: entrypoint,
-		}
-		jobSourceMetadata.Source = artifactSource
-	case "image":
-		if sourceInfo.Source.Image == nil {
-			j.logger.Debug("jobBuilder: no image info found in image type partial use artifact record, disabling job builder")
-			j.Disable = true
-			return
-		}
-		imageSource := ImageSource{
-			Image: sourceInfo.Source.Image.Image,
-		}
-		jobSourceMetadata.Source = imageSource
-	}
-	j.PartialJobSource = &PartialJobSource{
-		JobName:       strings.Split(useArtifact.Partial.JobName, ":")[0],
-		JobSourceInfo: jobSourceMetadata,
-	}
+	j.PartialJobID = &useArtifact.Id
 }
 
 // Makes job input schema into a json string to be stored as artifact metadata.
-func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
+func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	input_types := make(map[string]interface{})
 	if len(j.configFiles) > 0 {
@@ -743,12 +709,12 @@ func (j *JobBuilder) makeJobMetadata(output *data_types.TypeRepresentation) (str
 		}
 		input_types["files"] = files
 	}
-	if j.runConfig != nil {
+	if j.runConfig != nil && j.wandbConfigParameters != nil {
 		runConfigTypes, err := j.inferRunConfigTypes()
 		if err == nil {
 			input_types[WandbConfigKey] = runConfigTypes
 		} else {
-			j.logger.Debug("jobBuilder: error inferring run config types", err)
+			j.logger.Debug("jobBuilder: error inferring run config types", "error", err)
 		}
 	}
 	metadata["input_types"] = input_types
@@ -804,11 +770,14 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 			request.GetExcludePaths(),
 		)
 		if err != nil {
-			j.logger.Error("jobBuilder: error creating file input from request", err)
+			j.logger.Error("jobBuilder: error creating file input from request", "error", err)
 			return
 		}
 		j.configFiles = append(j.configFiles, newInput)
 	case *service.JobInputSource_RunConfig:
+		if j.wandbConfigParameters == nil {
+			j.wandbConfigParameters = newWandbConfigParameters()
+		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
 	}

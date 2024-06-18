@@ -1,12 +1,12 @@
 import json
 import os
+import platform
 import sys
 import tempfile
 from unittest.mock import MagicMock
 
 import pytest
 from wandb.sdk.internal.job_builder import JobBuilder
-from wandb.sdk.launch.builder.build import get_current_python_version
 from wandb.sdk.launch.create_job import (
     _configure_job_builder_for_partial,
     _create_artifact_metadata,
@@ -14,9 +14,12 @@ from wandb.sdk.launch.create_job import (
     _dump_metadata_and_requirements,
     _make_code_artifact_name,
 )
+from wandb.sdk.launch.utils import get_current_python_version
 
 
-def test_create_artifact_metadata():
+def test_create_artifact_metadata(mocker):
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     path = tempfile.TemporaryDirectory().name
     runtime = "3.9"
     entrypoint = "python test.py"
@@ -27,18 +30,31 @@ def test_create_artifact_metadata():
     metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
     assert not metadata and not requirements
 
+    # wandb missing
     os.makedirs(path)
     with open(os.path.join(path, "requirements.txt"), "w") as f:
-        f.write("wandb\n")
-
-    # basic case
+        f.write("test-import\n")
     metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
     assert metadata == {
         "python": runtime,
         "codePath": entrypoint_file,
         "entrypoint": entrypoint_list,
     }
-    assert requirements == ["wandb"]
+    warn_msg = mocker.termwarn.call_args.args[0]
+    assert "wandb is not present in requirements.txt." in warn_msg
+    mocker.termwarn.reset_mock()
+
+    # basic case
+    with open(os.path.join(path, "requirements.txt"), "a") as f:
+        f.write("wandb\n")
+    metadata, requirements = _create_artifact_metadata(path, entrypoint, runtime)
+    assert metadata == {
+        "python": runtime,
+        "codePath": entrypoint_file,
+        "entrypoint": entrypoint_list,
+    }
+    assert requirements == ["test-import", "wandb"]
+    mocker.termwarn.assert_not_called()
 
     # python picked up correctly
     metadata, requirements = _create_artifact_metadata(path, entrypoint)
@@ -48,7 +64,7 @@ def test_create_artifact_metadata():
         "codePath": entrypoint_file,
         "entrypoint": entrypoint_list,
     }
-    assert requirements == ["wandb"]
+    assert requirements == ["test-import", "wandb"]
 
 
 def test_configure_job_builder_for_partial():
@@ -94,7 +110,11 @@ def test_dump_metadata_and_requirements():
     assert metadata == m
 
 
-def test__get_entrypoint():
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="python exec name is different on windows",
+)
+def test_get_entrypoint():
     dir = tempfile.TemporaryDirectory().name
     job_source = "artifact"
     builder = _configure_job_builder_for_partial(dir, job_source)
@@ -103,17 +123,12 @@ def test__get_entrypoint():
 
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3.9", "main.py"]
+    assert entrypoint == ["python3", "main.py"]
 
     metadata = {"python": "3.9", "codePath": "main.py", "_partial": "v0"}
     program_relpath = builder._get_program_relpath(job_source, metadata)
     entrypoint = builder._get_entrypoint(program_relpath, metadata)
-    assert entrypoint == ["python3.9", "main.py"]
-
-    with pytest.raises(AssertionError):
-        metadata = {"codePath": "main.py", "_partial": "v0"}
-        program_relpath = builder._get_program_relpath(job_source, metadata)
-        entrypoint = builder._get_entrypoint(program_relpath, metadata)
+    assert entrypoint == ["python3", "main.py"]
 
     metadata = {"codePath": "main.py"}
     program_relpath = builder._get_program_relpath(job_source, metadata)

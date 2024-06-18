@@ -301,6 +301,7 @@ SYMBOLS_WANDB_INIT = {
     "job_type",
     "reinit",
     "fork_from",
+    "resume_from",
 }
 
 

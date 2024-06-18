@@ -2,6 +2,9 @@ package runfiles
 
 import (
 	"sync"
+
+	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/waiting"
 )
 
 // uploadBatcher helps batch many simultaneous upload operations.
@@ -12,51 +15,58 @@ type uploadBatcher struct {
 	addWG *sync.WaitGroup
 
 	// Files collected so far.
-	files map[string]struct{}
+	runPaths map[paths.RelativePath]struct{}
 
 	// Whether an upload is queued to happen soon.
 	isQueued bool
 
-	// A function that returns a stream that is signalled when the next
-	// batch upload should happen.
-	delayFunc func() <-chan struct{}
+	// How long to wait to collect a batch before sending it.
+	delay waiting.Delay
 
 	// Callback to upload a list of files.
-	upload func([]string)
+	upload func([]paths.RelativePath)
 }
 
 func newUploadBatcher(
-	delayFunc func() <-chan struct{},
-	upload func([]string),
+	delay waiting.Delay,
+	upload func([]paths.RelativePath),
 ) *uploadBatcher {
-	return &uploadBatcher{
-		addWG: &sync.WaitGroup{},
-		files: make(map[string]struct{}),
+	if delay == nil {
+		delay = waiting.NoDelay()
+	}
 
-		delayFunc: delayFunc,
-		upload:    upload,
+	return &uploadBatcher{
+		addWG:    &sync.WaitGroup{},
+		runPaths: make(map[paths.RelativePath]struct{}),
+
+		delay:  delay,
+		upload: upload,
 	}
 }
 
 // Add adds files to the next upload batch, scheduling one if necessary.
-func (b *uploadBatcher) Add(files []string) {
-	if b.delayFunc == nil {
-		b.upload(files)
+func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
+	if b.delay.IsZero() {
+		b.upload(runPaths)
 		return
 	}
 
 	b.Lock()
 	defer b.Unlock()
 
-	for _, file := range files {
-		b.files[file] = struct{}{}
+	for _, runPath := range runPaths {
+		b.runPaths[runPath] = struct{}{}
 	}
 
 	if !b.isQueued {
-		b.addWG.Add(1)
 		b.isQueued = true
 
-		go b.uploadAfterDelay()
+		b.addWG.Add(1)
+		go func() {
+			defer b.addWG.Done()
+			<-b.delay.Wait()
+			b.uploadBatch()
+		}()
 	}
 }
 
@@ -65,21 +75,17 @@ func (b *uploadBatcher) Wait() {
 	b.addWG.Wait()
 }
 
-func (b *uploadBatcher) uploadAfterDelay() {
-	<-b.delayFunc()
-
+func (b *uploadBatcher) uploadBatch() {
 	b.Lock()
 	b.isQueued = false
-	files := b.files
-	b.files = make(map[string]struct{})
+	runPathsSet := b.runPaths
+	b.runPaths = make(map[paths.RelativePath]struct{})
 	b.Unlock()
 
-	filesSlice := make([]string, 0, len(files))
-	for k := range files {
-		filesSlice = append(filesSlice, k)
+	runPaths := make([]paths.RelativePath, 0, len(runPathsSet))
+	for runPath := range runPathsSet {
+		runPaths = append(runPaths, runPath)
 	}
 
-	b.upload(filesSlice)
-
-	b.addWG.Done()
+	b.upload(runPaths)
 }

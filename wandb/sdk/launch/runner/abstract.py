@@ -40,9 +40,9 @@ State = Literal[
 
 
 class Status:
-    def __init__(self, state: "State" = "unknown", data=None):  # type: ignore
+    def __init__(self, state: "State" = "unknown", messages: List[str] = None):  # type: ignore
         self.state = state
-        self.data = data or {}
+        self.messages = messages or []
 
     def __repr__(self) -> "State":
         return self.state

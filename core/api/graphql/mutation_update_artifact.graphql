@@ -1,0 +1,7 @@
+mutation UpdateArtifact($artifactID: ID!, $metadata: JSONString) {
+  updateArtifact(input: { artifactID: $artifactID, metadata: $metadata }) {
+    artifact {
+      id
+    }
+  }
+}

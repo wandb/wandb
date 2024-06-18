@@ -205,6 +205,9 @@ async def test_kubernetes_run_env_vars(relay_server, monkeypatch, assets_path):
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.get_env_vars_dict = lambda _, __: {
+            "WANDB_API_KEY": "test-key",
+        }
 
         environment = loader.environment_from_config({})
         api = Api()

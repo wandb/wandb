@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 
 	"github.com/segmentio/encoding/json"
@@ -15,11 +14,13 @@ import (
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/sampler"
+	"github.com/wandb/wandb/core/internal/runhistory"
+	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -27,28 +28,27 @@ import (
 )
 
 const (
-	MetaFileName              = "wandb-metadata.json"
-	SummaryFileName           = "wandb-summary.json"
-	OutputFileName            = "output.log"
-	DiffFileName              = "diff.patch"
-	RequirementsFileName      = "requirements.txt"
-	ConfigFileName            = "config.yaml"
-	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
-	summaryDebouncerBurstSize = 1        // todo: audit burst size
+	MetaFileName         = "wandb-metadata.json"
+	SummaryFileName      = "wandb-summary.json"
+	DiffFileName         = "diff.patch"
+	RequirementsFileName = "requirements.txt"
+	ConfigFileName       = "config.yaml"
+	LatestOutputFileName = "output.log"
 )
 
 type HandlerParams struct {
 	Settings          *service.Settings
-	ForwardChan       chan *service.Record
+	FwdChan           chan *service.Record
 	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
-	SummaryHandler    *SummaryHandler
-	MetricHandler     *MetricHandler
+	RunSummary        *runsummary.RunSummary
+	MetricHandler     *runmetric.MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
-	TBHandler         *TBHandler
+	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
+	TerminalPrinter   *observability.Printer
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -59,6 +59,13 @@ type Handler struct {
 
 	// settings is the settings for the handler
 	settings *service.Settings
+
+	// clientID is an ID for this process.
+	//
+	// This identifies the process that uploaded a set of metrics when
+	// running in "shared" mode, where there may be multiple writers for
+	// the same run.
+	clientID string
 
 	// logger is the logger for the handler
 	logger *observability.CoreLogger
@@ -75,39 +82,38 @@ type Handler struct {
 	// runRecord is the runRecord record received from the server
 	runRecord *service.RunRecord
 
-	// summaryHandler is the summary handler for the stream
-	summaryHandler *SummaryHandler
+	// runHistory is the current active history entry being updated
+	runHistory *runhistory.RunHistory
 
-	// activeHistory is the history record used to track
-	// current active history record for the stream
-	activeHistory *ActiveHistory
-
-	// samplers is the map of samplers for all the history metrics that are
-	// being tracked, the result of the samplers will be used to display the
-	// the sparkline in the terminal
+	// runHistorySampler tracks samples of all metrics in the run's history.
 	//
-	// TODO: currently only values that can be cast to float32 are supported
-	samplers map[string]*sampler.ReservoirSampler[float32]
+	// This is used to display the sparkline in the terminal at the end of
+	// the run.
+	runHistorySampler *runhistory.RunHistorySampler
 
 	// metricHandler is the metric handler for the stream
-	metricHandler *MetricHandler
+	metricHandler *runmetric.MetricHandler
+
+	// runSummary keeps the complete up-to-date summary
+	runSummary *runsummary.RunSummary
 
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
 	// tbHandler is the tensorboard handler
-	tbHandler *TBHandler
+	tbHandler *tensorboard.TBHandler
 
 	// runfilesUploaderOrNil manages uploading a run's files
 	//
 	// It may be nil when offline.
+	// TODO: should this be moved to the sender?
 	runfilesUploaderOrNil runfiles.Uploader
 
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
 
-	// internalPrinter is the internal messages handler for the stream
-	internalPrinter *observability.Printer[string]
+	// terminalPrinter gathers terminal messages to send back to the user process
+	terminalPrinter *observability.Printer
 
 	mailbox *mailbox.Mailbox
 }
@@ -115,18 +121,20 @@ type Handler struct {
 // NewHandler creates a new handler
 func NewHandler(
 	ctx context.Context,
-	params *HandlerParams,
+	params HandlerParams,
 ) *Handler {
 	return &Handler{
 		ctx:                   ctx,
 		runTimer:              timer.New(),
-		internalPrinter:       observability.NewPrinter[string](),
+		terminalPrinter:       params.TerminalPrinter,
 		logger:                params.Logger,
 		settings:              params.Settings,
-		fwdChan:               params.ForwardChan,
+		clientID:              utils.ShortID(32),
+		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
-		summaryHandler:        params.SummaryHandler,
+		runSummary:            params.RunSummary,
+		runHistorySampler:     runhistory.NewRunHistorySampler(),
 		metricHandler:         params.MetricHandler,
 		fileTransferStats:     params.FileTransferStats,
 		runfilesUploaderOrNil: params.RunfilesUploader,
@@ -180,16 +188,14 @@ func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ..
 		record.Control = &service.Control{}
 	}
 
-	control := record.GetControl()
 	for _, opt := range controlOptions {
-		opt(control)
+		opt(record.Control)
 	}
 	h.fwdRecord(record)
 }
 
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *service.Record) {
-	h.summaryHandler.Debounce(h.fwdSummary)
 	switch x := record.RecordType.(type) {
 	case *service.Record_Alert:
 		h.handleAlert(record)
@@ -228,17 +234,17 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *service.Record_Tbrecord:
-		h.handleTBrecord(record)
+		h.handleTBrecord(x.Tbrecord)
 	case *service.Record_Telemetry:
 		h.handleTelemetry(record)
 	case *service.Record_UseArtifact:
 		h.handleUseArtifact(record)
 	case nil:
-		err := fmt.Errorf("handler: handleRecord: record type is nil")
-		h.logger.CaptureFatalAndPanic("error handling record", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handler: handleRecord: record type is nil"))
 	default:
-		err := fmt.Errorf("handler: handleRecord: unknown record type %T", x)
-		h.logger.CaptureFatalAndPanic("error handling record", err)
+		h.logger.CaptureFatalAndPanic(
+			fmt.Errorf("handler: handleRecord: unknown record type %T", x))
 	}
 }
 
@@ -315,11 +321,11 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_JobInput:
 		h.handleRequestJobInput(record)
 	case nil:
-		err := fmt.Errorf("handler: handleRequest: request type is nil")
-		h.logger.CaptureFatalAndPanic("error handling request", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handler: handleRequest: request type is nil"))
 	default:
-		err := fmt.Errorf("handler: handleRequest: unknown request type %T", x)
-		h.logger.CaptureFatalAndPanic("error handling request", err)
+		h.logger.CaptureFatalAndPanic(
+			fmt.Errorf("handler: handleRequest: unknown request type %T", x))
 	}
 }
 
@@ -364,14 +370,15 @@ func (h *Handler) handleStepMetric(key string) {
 	}
 
 	// already exists no need to add
-	if _, defined := h.metricHandler.definedMetrics[key]; defined {
+	if _, defined := h.metricHandler.DefinedMetrics[key]; defined {
 		return
 	}
 
-	metric, err := addMetric(key, key, &h.metricHandler.definedMetrics)
+	metric, err := runmetric.AddMetric(key, key, &h.metricHandler.DefinedMetrics)
 
 	if err != nil {
-		h.logger.CaptureError("error adding metric to map", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error adding metric to map: %v", err))
 		return
 	}
 
@@ -391,20 +398,24 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 	// TODO: replace glob-name/name with one-of field
 	switch {
 	case metric.GetGlobName() != "":
-		if _, err := addMetric(metric, metric.GetGlobName(), &h.metricHandler.globMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
+		if _, err := runmetric.AddMetric(metric, metric.GetGlobName(), &h.metricHandler.GlobMetrics); err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("error adding metric to map: %v", err))
 			return
 		}
 		h.fwdRecord(record)
 	case metric.GetName() != "":
-		if _, err := addMetric(metric, metric.GetName(), &h.metricHandler.definedMetrics); err != nil {
-			h.logger.CaptureError("error adding metric to map", err)
+		if _, err := runmetric.AddMetric(metric, metric.GetName(), &h.metricHandler.DefinedMetrics); err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("error adding metric to map: %v", err))
 			return
 		}
 		h.handleStepMetric(metric.GetStepMetric())
 		h.fwdRecord(record)
 	default:
-		h.logger.CaptureError("invalid metric", errors.New("invalid metric"))
+		h.logger.CaptureError(
+			fmt.Errorf("invalid metric"),
+			"metric", metric)
 	}
 }
 
@@ -417,13 +428,23 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 		// after the run has exited
 		h.systemMonitor.Stop()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		h.activeHistory.Flush()
+		// This will force the content of h.runHistory to be flushed and sent
+		// over to the sender.
+		//
+		// Since the data of the PartialHistoryRequest is empty it will not
+		// change the content of h.runHistory, but it will trigger flushing
+		// of h.runHistory content, because the flush action is set to true.
+		// Hence, we are guranteed that the content of h.runHistory is sent
+		h.handleRequestPartialHistory(
+			nil,
+			&service.PartialHistoryRequest{
+				Action: &service.HistoryAction{
+					Flush: true,
+				},
+			},
+		)
 	case service.DeferRequest_FLUSH_TB:
-		h.tbHandler.Close()
 	case service.DeferRequest_FLUSH_SUM:
-		h.handleSummary(nil, &service.SummaryRecord{})
-		h.summaryHandler.Flush(h.fwdSummary)
-		h.writeAndSendSummaryFile()
 	case service.DeferRequest_FLUSH_DEBOUNCER:
 	case service.DeferRequest_FLUSH_OUTPUT:
 	case service.DeferRequest_FLUSH_JOB:
@@ -440,8 +461,8 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_END:
 		h.fileTransferStats.SetDone()
 	default:
-		err := fmt.Errorf("handleDefer: unknown defer state %v", request.State)
-		h.logger.CaptureError("unknown defer state", err)
+		h.logger.CaptureError(
+			fmt.Errorf("handleDefer: unknown defer state %v", request.State))
 	}
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*service.Record)
@@ -565,13 +586,10 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
-		err := fmt.Errorf("handleRunStart: failed to clone run")
-		h.logger.CaptureFatalAndPanic("error handling run start", err)
+		h.logger.CaptureFatalAndPanic(
+			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
-
-	// TODO: mark OutputFileName as a WANDB file
-	_ = OutputFileName
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
@@ -762,12 +780,14 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 	jsonBytes, err := mo.Marshal(request)
 	if err != nil {
-		h.logger.CaptureError("error marshalling metadata", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error marshalling metadata: %v", err))
 		return
 	}
 	filePath := filepath.Join(h.settings.GetFilesDir().GetValue(), MetaFileName)
 	if err := os.WriteFile(filePath, jsonBytes, 0644); err != nil {
-		h.logger.CaptureError("error writing metadata file", err)
+		h.logger.CaptureError(
+			fmt.Errorf("error writing metadata file: %v", err))
 		return
 	}
 
@@ -851,17 +871,15 @@ func (h *Handler) handleAlert(record *service.Record) {
 func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
 	// stop the run timer and set the runtime
 	h.runTimer.Pause()
-	runtime := int32(h.runTimer.Elapsed().Seconds())
-	exit.Runtime = runtime
+	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
-	// update summary with runtime
 	if !h.settings.GetXSync().GetValue() {
-		summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, []*service.SummaryItem{
-			{
-				Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
+		summaryRecord := &service.Record{
+			RecordType: &service.Record_Summary{
+				Summary: &service.SummaryRecord{},
 			},
-		})
-		h.summaryHandler.updateSummaryDelta(summaryRecord)
+		}
+		h.handleSummary(summaryRecord, summaryRecord.GetSummary())
 	}
 
 	// send the exit record
@@ -886,10 +904,14 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
-	var items []*service.SummaryItem
-	for key, element := range h.summaryHandler.consolidatedSummary {
-		items = append(items, &service.SummaryItem{Key: key, ValueJson: element})
+	items, err := h.runSummary.Flatten()
+	if err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf("error flattening run summary: %v", err))
+		h.respond(record, response)
+		return
 	}
+
 	response.ResponseType = &service.Response_GetSummaryResponse{
 		GetSummaryResponse: &service.GetSummaryResponse{
 			Item: items,
@@ -929,7 +951,7 @@ func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
 }
 
 func (h *Handler) handleRequestInternalMessages(record *service.Record) {
-	messages := h.internalPrinter.Read()
+	messages := h.terminalPrinter.Read()
 	response := &service.Response{
 		ResponseType: &service.Response_InternalMessagesResponse{
 			InternalMessagesResponse: &service.InternalMessagesResponse{
@@ -962,90 +984,131 @@ func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) writeAndSendSummaryFile() {
-	if h.settings.GetXSync().GetValue() {
+func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
+	if !h.settings.GetXSync().GetValue() {
 		// if sync is enabled, we don't need to do all this
-		return
-	}
+		runtime := int32(h.runTimer.Elapsed().Seconds())
 
-	// write summary to file
-	summaryFile := filepath.Join(h.settings.GetFilesDir().GetValue(), SummaryFileName)
-
-	jsonBytes, err := json.MarshalIndent(h.summaryHandler.consolidatedSummary, "", "  ")
-	if err != nil {
-		h.logger.Error("handler: writeAndSendSummaryFile: error marshalling summary", "error", err)
-		return
-	}
-
-	if err := os.WriteFile(summaryFile, []byte(jsonBytes), 0644); err != nil {
-		h.logger.Error("handler: writeAndSendSummaryFile: failed to write config file", "error", err)
-	}
-
-	// send summary file
-	if h.runfilesUploaderOrNil != nil {
-		// TODO: mark as WANDB file
-		h.runfilesUploaderOrNil.UploadNow(SummaryFileName)
-	}
-}
-
-func (h *Handler) fwdSummary() {
-	summaryRecord := &service.SummaryRecord{
-		Update: []*service.SummaryItem{},
-	}
-
-	for key, value := range h.summaryHandler.summaryDelta {
-		summaryRecord.Update = append(summaryRecord.Update, &service.SummaryItem{
-			Key: key, ValueJson: value,
+		// update summary with runtime
+		summary.Update = append(summary.Update, &service.SummaryItem{
+			NestedKey: []string{"_wandb", "runtime"},
+			ValueJson: fmt.Sprintf("%d", runtime),
 		})
 	}
 
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: summaryRecord,
+	h.runSummary.ApplyChangeRecord(
+		summary,
+		func(err error) {
+			h.logger.CaptureError(
+				fmt.Errorf("error updating run summary: %v", err))
 		},
-	}
-	h.fwdRecord(record)
-	// reset delta summary
-	clear(h.summaryHandler.summaryDelta)
+	)
+
+	h.fwdRecordWithControl(record,
+		func(control *service.Control) {
+			control.AlwaysSend = true
+			// do not write to the transaction log when syncing an offline run
+			if h.settings.GetXSync().GetValue() {
+				control.Local = true
+			}
+		},
+	)
 }
 
-func (h *Handler) handleSummary(_ *service.Record, summary *service.SummaryRecord) {
-	if h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		return
-	}
-
-	runtime := int32(h.runTimer.Elapsed().Seconds())
-
-	// update summary with runtime
-	summary.Update = append(summary.Update, &service.SummaryItem{
-		Key: "_wandb", ValueJson: fmt.Sprintf(`{"runtime": %d}`, runtime),
-	})
-
-	summaryRecord := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, summary.Update)
-	h.summaryHandler.updateSummaryDelta(summaryRecord)
-}
-
-func (h *Handler) handleTBrecord(record *service.Record) {
-	err := h.tbHandler.Handle(record)
-	if err != nil {
-		h.logger.CaptureError("error handling tbrecord", err)
+func (h *Handler) handleTBrecord(record *service.TBRecord) {
+	if err := h.tbHandler.Handle(record); err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf("handler: failed to handle TB record: %v", err))
 	}
 }
 
 // The main entry point for history records.
 //
 // This processes a history record and forwards it to the writer.
+//
+// This function flushes the history record to the writer and updates the
+// summary. It is responsible for adding internal history items to the history
+// record, matching current history items with defined metrics, and creating
+// new metrics if needed. It also handles step metric in case it needs to be
+// synced, but not part of the history record. This function is also responsible
+// for sampling history items.
 func (h *Handler) handleHistory(history *service.HistoryRecord) {
-	// TODO replace history encoding with a map, this will make it easier to handle history
-	h.activeHistory = NewActiveHistory(
-		WithStep(history.GetStep().GetNum()),
-	)
-	h.activeHistory.UpdateValues(history.GetItem())
+	// TODO replace history encoding with a map,
+	//  this will make it easier to handle history
 
-	h.flushHistory(history)
+	if len(history.GetItem()) == 0 {
+		return
+	}
 
-	h.activeHistory.Flush()
+	runtime := h.runTimer.Elapsed().Seconds()
+	history.Item = append(history.Item, &service.HistoryItem{
+		Key:       "_runtime",
+		ValueJson: fmt.Sprintf("%f", runtime),
+	})
+
+	// When running in "shared" mode, there can be multiple writers to the same
+	// run (for example running on different machines). In that case, the
+	// backend determines the step, and the client ID identifies which metrics
+	// came from the same writer. Otherwise, we must set the step explicitly.
+	if h.settings.GetXShared().GetValue() {
+		history.Item = append(history.Item, &service.HistoryItem{
+			Key:       "_client_id",
+			ValueJson: fmt.Sprintf(`"%s"`, h.clientID),
+		})
+	} else {
+		history.Item = append(history.Item, &service.HistoryItem{
+			Key:       "_step",
+			ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum()),
+		})
+	}
+
+	// handles all history items. It is responsible for matching current history
+	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
+	// it needs to be synced, but not part of the history record.
+	// This means that there are metrics defined for this run
+	if h.metricHandler != nil {
+		items := make([]*service.HistoryItem, 0, len(history.GetItem()))
+		for _, item := range history.GetItem() {
+			// TODO: handle nested metric metrics (e.g. metric defined by another metric)
+			if metric := h.imputeStepMetric(item); metric != nil {
+				items = append(items, metric)
+			}
+		}
+		history.Item = append(history.Item, items...)
+	}
+
+	h.runHistorySampler.SampleNext(history)
+
+	record := &service.Record{
+		RecordType: &service.Record_History{
+			History: history,
+		},
+	}
+	h.fwdRecord(record)
+
+	// TODO add an option to disable summary (this could be quite expensive)
+	if h.runSummary == nil {
+		return
+	}
+
+	summary := make([]*service.SummaryItem, 0, len(history.GetItem()))
+	for _, item := range history.GetItem() {
+		summaryItem := &service.SummaryItem{
+			Key:       item.Key,
+			NestedKey: item.NestedKey,
+			ValueJson: item.ValueJson,
+		}
+		summary = append(summary, summaryItem)
+	}
+
+	record = &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: summary,
+			},
+		},
+	}
+	h.handleSummary(record, record.GetSummary())
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
@@ -1074,24 +1137,30 @@ func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *servic
 // In this mode, the server will assign a step number to the history record.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	// This is the first partial history record we receive
-	if h.activeHistory == nil {
-		h.activeHistory = NewActiveHistory(
-			WithFlush(
-				func(_ *service.HistoryStep, items []*service.HistoryItem) {
-					record := &service.HistoryRecord{
-						Item: items,
-					}
-					h.flushHistory(record)
-				},
-			),
-		)
+	if h.runHistory == nil {
+		h.runHistory = runhistory.New()
 	}
 	// Append the history items from the request to the current history record.
-	h.activeHistory.UpdateValues(request.Item)
+	h.runHistory.ApplyChangeRecord(request.GetItem(),
+		func(err error) {
+			h.logger.CaptureError(
+				fmt.Errorf("error updating run history: %v", err))
+		})
 
 	// Flush the history record and start to collect a new one
 	if request.GetAction() == nil || request.GetAction().GetFlush() {
-		h.activeHistory.Flush()
+		items, err := h.runHistory.Flatten()
+		if err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("error flattening run history: %v", err))
+			h.terminalPrinter.Write(
+				"Failed to process history record, skipping syncing.")
+			return
+		}
+		h.handleHistory(&service.HistoryRecord{
+			Item: items,
+		})
+		h.runHistory = runhistory.New()
 	}
 }
 
@@ -1108,23 +1177,10 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// for this step, so we need to initialize the history record
 	// and step. If the user provided a step in the request,
 	// use that, otherwise use 0.
-	if h.activeHistory == nil {
+	if h.runHistory == nil {
 
-		h.activeHistory = NewActiveHistory(
-			// Although technically the backend allows negative steps,
-			// in practice it is all set up to work with non-negative steps
-			// so if we receive a negative step, it will be discarded
-			WithStep(h.runRecord.GetStartingStep()),
-			WithFlush(
-				func(step *service.HistoryStep, items []*service.HistoryItem) {
-					record := &service.HistoryRecord{
-						Step: step,
-						Item: items,
-					}
-					h.flushHistory(record)
-				},
-			),
-		)
+		step := h.runRecord.GetStartingStep()
+		h.runHistory = runhistory.NewWithStep(step)
 	}
 
 	// The HistoryRecord struct is responsible for tracking data related to
@@ -1157,29 +1213,66 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
-		current := h.activeHistory.GetStep().Num
+		current := h.runHistory.GetStep()
 		if step > current {
-			h.activeHistory.Flush()
-			h.activeHistory.UpdateStep(step)
+			items, err := h.runHistory.Flatten()
+			if err != nil {
+				h.logger.CaptureError(
+					fmt.Errorf("error flattening run history: %v", err))
+				h.terminalPrinter.Writef(
+					"Failed to process history record for step %d, skipping...",
+					h.runHistory.GetStep(),
+				)
+				return
+			}
+			history := &service.HistoryRecord{
+				Step: &service.HistoryStep{
+					Num: h.runHistory.GetStep(),
+				},
+				Item: items,
+			}
+			h.handleHistory(history)
+			h.runHistory = runhistory.NewWithStep(step)
 		} else if step < current {
 			h.logger.CaptureWarn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
 			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
 				"that is less than the current step (%d) this data will be ignored. if you need to log data out of order, "+
 				"please see: https://wandb.me/define-metric", step, current)
-			h.internalPrinter.Write(msg)
+			h.terminalPrinter.Write(msg)
 			return
 		}
 	}
 
 	// Append the history items from the request to the current history record.
-	h.activeHistory.UpdateValues(request.Item)
+	h.runHistory.ApplyChangeRecord(request.GetItem(),
+		func(err error) {
+			h.logger.CaptureError(
+				fmt.Errorf("error updating run history: %v", err))
+		})
 
 	// Flush the history record and start to collect a new one with
 	// the next step number.
 	if (request.GetStep() == nil && request.GetAction() == nil) || request.GetAction().GetFlush() {
-		h.activeHistory.Flush()
-		step := h.activeHistory.GetStep().Num + 1
-		h.activeHistory.UpdateStep(step)
+		items, err := h.runHistory.Flatten()
+		if err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("error flattening run history: %v", err))
+			msg := fmt.Sprintf(
+				"Failed to process history record, for step %d, skipping...",
+				h.runHistory.GetStep(),
+			)
+			h.terminalPrinter.Write(msg)
+			return
+		}
+		history := &service.HistoryRecord{
+			Step: &service.HistoryStep{
+				Num: h.runHistory.GetStep(),
+			},
+			Item: items,
+		}
+		h.handleHistory(history)
+		step := h.runHistory.GetStep() + 1
+		h.runHistory = runhistory.NewWithStep(step)
 	}
 }
 
@@ -1192,12 +1285,12 @@ func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.Met
 	}
 
 	// check if history item matches a defined metric exactly, if it does return the metric
-	if metric, ok := h.metricHandler.definedMetrics[item.Key]; ok {
+	if metric, ok := h.metricHandler.DefinedMetrics[item.Key]; ok {
 		return metric
 	}
 
 	// if a new metric was created, we need to handle it
-	metric := h.metricHandler.createMatchingGlobMetric(item.Key)
+	metric := h.metricHandler.CreateMatchingGlobMetric(item.Key)
 	if metric != nil {
 		record := &service.Record{
 			RecordType: &service.Record_Metric{
@@ -1229,19 +1322,35 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 	}
 
 	// check if step metric is already in history
-	if _, ok := h.activeHistory.GetItem(key); ok {
+	// TODO: avoid using the Tree method
+	if _, ok := h.runHistory.Tree()[key]; ok {
 		return nil
 	}
 
+	// TODO: avoid using the tree representation of the summary
+	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
-	if value, ok := h.summaryHandler.consolidatedSummary[key]; ok {
-		// TODO: add nested key support
-		hi := &service.HistoryItem{
-			Key:       key,
-			ValueJson: value,
+	if value, ok := h.runSummary.Tree()[key]; ok {
+		v, err := json.Marshal(value)
+		if err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("error marshalling step metric value: %v", err))
+			return nil
 		}
-		h.activeHistory.UpdateValues([]*service.HistoryItem{hi})
-		return hi
+		item := []*service.HistoryItem{
+			{
+				Key:       key,
+				ValueJson: string(v),
+			},
+		}
+		h.runHistory.ApplyChangeRecord(
+			item,
+			func(err error) {
+				h.logger.CaptureError(
+					fmt.Errorf("error updating run history: %v", err))
+			},
+		)
+		return item[0]
 	}
 	return nil
 }
@@ -1252,118 +1361,13 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 // sampled values. It is used to display a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
 func (h *Handler) handleRequestSampledHistory(record *service.Record) {
-	response := &service.Response{}
-
-	if h.samplers != nil {
-		var items []*service.SampledHistoryItem
-		for key, sampler := range h.samplers {
-			values := sampler.Sample()
-			item := &service.SampledHistoryItem{
-				Key:         key,
-				ValuesFloat: values,
-			}
-			items = append(items, item)
-		}
-
-		response.ResponseType = &service.Response_SampledHistoryResponse{
+	h.respond(record, &service.Response{
+		ResponseType: &service.Response_SampledHistoryResponse{
 			SampledHistoryResponse: &service.SampledHistoryResponse{
-				Item: items,
+				Item: h.runHistorySampler.Get(),
 			},
-		}
-	}
-
-	h.respond(record, response)
-}
-
-// sample history items and update the samplers map before flushing the history
-// record as these values are finalized for the current step
-func (h *Handler) sampleHistory(history *service.HistoryRecord) {
-	// initialize the samplers map if it doesn't exist
-	if h.samplers == nil {
-		h.samplers = make(map[string]*sampler.ReservoirSampler[float32])
-	}
-
-	for _, item := range history.GetItem() {
-		var value float32
-		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
-			// ignore items that cannot be parsed as float32
-			continue
-		}
-
-		// create a new sampler if it doesn't exist
-		if _, ok := h.samplers[item.Key]; !ok {
-			h.samplers[item.Key] = sampler.NewReservoirSampler[float32](48, 0.0005)
-		}
-
-		// add the new value to the sampler
-		h.samplers[item.Key].Add(value)
-	}
-}
-
-// flush history record to the writer and update the summary
-//
-// This function flushes the history record to the writer and updates the
-// summary. It is responsible for adding internal history items to the history
-// record, matching current history items with defined metrics, and creating
-// new metrics if needed. It also handles step metric in case it needs to be
-// synced, but not part of the history record. This function is also responsible
-// for sampling history items.
-func (h *Handler) flushHistory(history *service.HistoryRecord) {
-	if history.GetItem() == nil {
-		return
-	}
-
-	// adds internal history items to the history record
-	// these items are used for internal bookkeeping and are not sent by the user
-	// TODO: add a timestamp field to the history record
-	var runTime float64 = 0
-	if item, ok := h.activeHistory.GetItem("_timestamp"); ok {
-		value := item.GetValueJson()
-		val, err := strconv.ParseFloat(value, 64)
-		if err != nil {
-			h.logger.CaptureError("error parsing timestamp", err)
-		} else {
-			runTime = val - h.runTimer.GetStartTimeMicro()
-		}
-	}
-	history.Item = append(history.Item,
-		&service.HistoryItem{Key: "_runtime", ValueJson: fmt.Sprintf("%f", runTime)},
-	)
-	if !h.settings.GetXShared().GetValue() {
-		history.Item = append(history.Item,
-			&service.HistoryItem{Key: "_step", ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum())},
-		)
-	}
-
-	// handles all history items. It is responsible for matching current history
-	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-	// it needs to be synced, but not part of the history record.
-	// This means that there are metrics defined for this run
-	if h.metricHandler != nil {
-		for _, item := range history.GetItem() {
-			step := h.imputeStepMetric(item)
-			// TODO: fix this, we update history while we are iterating over it
-			// TODO: handle nested step metrics (e.g. step defined by another step)
-			if step != nil {
-				history.Item = append(history.Item, step)
-			}
-		}
-	}
-
-	h.sampleHistory(history)
-
-	record := &service.Record{
-		RecordType: &service.Record_History{History: history},
-	}
-	h.fwdRecord(record)
-
-	// TODO unify with handleSummary
-	// TODO add an option to disable summary (this could be quite expensive)
-	if h.summaryHandler == nil {
-		return
-	}
-	summary := corelib.ConsolidateSummaryItems(h.summaryHandler.consolidatedSummary, history.GetItem())
-	h.summaryHandler.updateSummaryDelta(summary)
+		},
+	})
 }
 
 func (h *Handler) GetRun() *service.RunRecord {
