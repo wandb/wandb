@@ -214,11 +214,12 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	}
 
 	transport := retryableHTTP.HTTPClient.Transport.(*http.Transport)
-	// add proxy support
-	transport.Proxy = http.ProxyFromEnvironment
-	// add extra headers
-	transport.ProxyConnectHeader = http.Header{"Proxy-Authorization": []string{opts.ExtraHeaders["Proxy-Authorization"]}}
-	fmt.Println(transport.ProxyConnectHeader)
+	// set proxy
+	transport.Proxy = opts.Proxy
+	// set proxy authorization header, if present
+	if opts.ExtraHeaders["Proxy-Authorization"] != "" {
+		transport.ProxyConnectHeader = http.Header{"Proxy-Authorization": []string{opts.ExtraHeaders["Proxy-Authorization"]}}
+	}
 
 	retryableHTTP.HTTPClient.Transport =
 		NewPeekingTransport(

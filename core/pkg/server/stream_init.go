@@ -44,7 +44,7 @@ func NewBackend(
 	})
 }
 
-func CustomProxy(proxyMap map[string]string) func(*http.Request) (*url.URL, error) {
+func ProxyFn(proxyMap map[string]string) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		// Check if there's a custom proxy setting for the request URL scheme
 		if proxyURL, exists := proxyMap[req.URL.Scheme]; exists {
@@ -80,6 +80,7 @@ func NewGraphQLClient(
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
+		Proxy:           ProxyFn(settings.Proto.GetXProxies().GetValue()),
 	}
 	if retryMax := settings.Proto.GetXGraphqlRetryMax(); retryMax != nil {
 		opts.RetryMax = int(retryMax.GetValue())
@@ -93,9 +94,6 @@ func NewGraphQLClient(
 	if timeout := settings.Proto.GetXGraphqlTimeoutSeconds(); timeout != nil {
 		opts.NonRetryTimeout = clients.SecondsToDuration(timeout.GetValue())
 	}
-
-	// TODO:
-	// proxy := CustomProxy(settings.Proto.GetXProxyMap().GetValue())
 
 	httpClient := backend.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
@@ -124,6 +122,7 @@ func NewFileStream(
 		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:    fileStreamHeaders,
 		NetworkPeeker:   peeker,
+		Proxy:           ProxyFn(settings.Proto.GetXProxies().GetValue()),
 	}
 	if retryMax := settings.Proto.GetXFileStreamRetryMax(); retryMax != nil {
 		opts.RetryMax = int(retryMax.GetValue())
