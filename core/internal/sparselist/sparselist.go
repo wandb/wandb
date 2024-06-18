@@ -69,9 +69,11 @@ func (l *SparseList[T]) Put(index int, item T) {
 		l.boundsCached = true
 	} else {
 		l.items[index] = item
-		l.firstIndex = min(l.firstIndex, index)
-		l.lastIndex = max(l.lastIndex, index)
-		l.boundsCached = true
+
+		if l.boundsCached {
+			l.firstIndex = min(l.firstIndex, index)
+			l.lastIndex = max(l.lastIndex, index)
+		}
 	}
 }
 
