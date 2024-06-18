@@ -33,6 +33,13 @@ func WithComments() FormatterOption {
 	}
 }
 
+// WithBuiltin includes builtin fields/directives/etc from the source/AST in the formatted output.
+func WithBuiltin() FormatterOption {
+	return func(f *formatter) {
+		f.emitBuiltin = true
+	}
+}
+
 func NewFormatter(w io.Writer, options ...FormatterOption) Formatter {
 	f := &formatter{
 		indent: "\t",
