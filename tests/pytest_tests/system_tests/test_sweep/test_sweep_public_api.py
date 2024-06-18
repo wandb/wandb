@@ -1,6 +1,8 @@
 import pytest
 import wandb
 from wandb import Api
+from wandb.apis.public.sweeps import Sweep
+from wandb_gql import gql
 
 from .test_wandb_sweep import (
     SWEEP_CONFIG_BAYES,
@@ -8,6 +10,31 @@ from .test_wandb_sweep import (
     SWEEP_CONFIG_GRID_NESTED,
     SWEEP_CONFIG_RANDOM,
     VALID_SWEEP_CONFIGS_MINIMAL,
+)
+
+
+SWEEP_QUERY = gql(
+    """
+query Sweep($project: String, $entity: String, $name: String!) {
+    project(name: $project, entityName: $entity) {
+        sweep(sweepName: $name) {
+            id
+            name
+            state
+            runCountExpected
+            bestLoss
+            config
+            priorRuns {
+                edges {
+                    node {
+                        id
+                    }
+                }
+            }
+        }
+    }
+}
+"""
 )
 
 
@@ -22,20 +49,25 @@ from .test_wandb_sweep import (
     ids=["test grid", "test grid nested", "test bayes", "test random"],
 )
 def test_sweep_api_expected_run_count(
-    user, relay_server, sweep_config, expected_run_count
+    user, wandb_init, relay_server, sweep_config, expected_run_count
 ):
     _project = "test"
     with relay_server() as relay:
-        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project)
+        run = wandb_init(entity=user, project=_project)
+        run_id = run.id
+        run.log({"x": 1})
+        run.finish()
+        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project, prior_runs=[run_id])
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
         print(q)
 
-    print(f"sweep_id{sweep_id}")
-    sweep = Api().sweep(f"{user}/{_project}/sweeps/{sweep_id}")
+    api = Api()
+    sweep = Sweep.get(api.client, user, _project, sweep_id, query=SWEEP_QUERY)
 
     assert sweep.expected_run_count == expected_run_count
+    assert len(sweep._attrs["priorRuns"]["edges"]) == 1
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
