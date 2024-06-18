@@ -2,28 +2,123 @@ package runsummary
 
 import (
 	"fmt"
+	"path/filepath"
+	"strings"
 
 	// TODO: use simplejsonext for now until we replace the usage of json with
 	// protocol buffer and proto json marshaler
 	json "github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type RunSummary struct {
 	pathTree *pathtree.PathTree
+	stats    *Node
+	mh       *runmetric.MetricHandler
 }
 
-func New() *RunSummary {
-	return &RunSummary{pathTree: pathtree.New()}
+type Params struct {
+	MetricHandler *runmetric.MetricHandler
+}
+
+func New(params Params) *RunSummary {
+	if params.MetricHandler == nil {
+		params.MetricHandler = runmetric.NewMetricHandler()
+	}
+
+	rs := &RunSummary{
+		pathTree: pathtree.New(),
+		stats:    NewNode(),
+		mh:       params.MetricHandler,
+	}
+	return rs
+}
+
+func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
+	stats := NewNode()
+	for k, v := range tree {
+		if subtree, ok := v.(pathtree.TreeData); ok {
+			stats.nodes[k] = statsTreeFromPathTree(subtree)
+		} else {
+			stats.nodes[k] = &Node{
+				stats: &Stats{},
+			}
+		}
+	}
+	return stats
 }
 
 func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{pathTree: pathtree.NewFrom(tree)}
+	return &RunSummary{
+		pathTree: pathtree.NewFrom(tree),
+		stats:    statsTreeFromPathTree(tree),
+		mh:       runmetric.NewMetricHandler(),
+	}
 }
 
-// Updates and/or removes values from the configuration tree.
+// GetSummaryTypes matches the path against the defined metrics and returns the
+// requested summary type for the metric.
+//
+// It first checked the concrete metrics and then the glob metrics.
+// The first match wins. If no match is found, it returns Latest.
+func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
+	// look for a matching rule
+	// TODO: properly implement dot notation for nested keys,
+	// see test_metric_full.py::test_metric_dotted for an example
+	name := strings.Join(path, ".")
+
+	types := make([]SummaryType, 0)
+
+	for pattern, definedMetric := range rs.mh.DefinedMetrics {
+		if pattern == name {
+			summary := definedMetric.GetSummary()
+			if summary.GetNone() {
+				return []SummaryType{None}
+			}
+			if summary.GetMax() {
+				types = append(types, Max)
+			}
+			if summary.GetMin() {
+				types = append(types, Min)
+			}
+			if summary.GetMean() {
+				types = append(types, Mean)
+			}
+			if summary.GetLast() {
+				types = append(types, Latest)
+			}
+		}
+	}
+	for pattern, globMetric := range rs.mh.GlobMetrics {
+		// match the key against the glob pattern:
+		// note check for no error
+		if match, err := filepath.Match(pattern, name); err == nil && match {
+			summary := globMetric.GetSummary()
+			if summary.GetNone() {
+				return []SummaryType{None}
+			}
+			if summary.GetMax() {
+				types = append(types, Max)
+			}
+			if summary.GetMin() {
+				types = append(types, Min)
+			}
+			if summary.GetMean() {
+				types = append(types, Mean)
+			}
+			if summary.GetLast() {
+				types = append(types, Latest)
+			}
+		}
+	}
+
+	return types
+}
+
+// ApplyChangeRecord updates and/or removes values from the configuration tree.
 //
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
@@ -31,26 +126,84 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-
+	// handle updates
 	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
+
 	for _, item := range summaryRecord.GetUpdate() {
 		update, err := json.Unmarshal([]byte(item.GetValueJson()))
 		if err != nil {
 			onError(err)
 			continue
 		}
+		// update all the stats for the given key path
+		path := keyPath(item)
+		err = rs.stats.UpdateStats(path, update)
+		if err != nil {
+			onError(err)
+			continue
+		}
+		// get the summary type for the item
+		summaryTypes := rs.GetSummaryTypes(path)
+
+		// skip if None in the summary type slice
+		if len(summaryTypes) == 1 && summaryTypes[0] == None {
+			continue
+		}
+
+		// get the requested stats for the item
+		updateMap := make(map[string]interface{})
+		for summaryType := range summaryTypes {
+			update, err := rs.stats.GetStat(path, summaryTypes[summaryType])
+			if err != nil {
+				onError(err)
+				continue
+			}
+
+			switch summaryTypes[summaryType] {
+			case Max:
+				updateMap["max"] = update
+			case Min:
+				updateMap["min"] = update
+			case Mean:
+				updateMap["mean"] = update
+			case Latest:
+				updateMap["last"] = update
+			}
+		}
+
+		if len(updateMap) > 0 {
+			// update summaryRecord with the new value
+			jsonValue, err := json.Marshal(updateMap)
+			if err != nil {
+				onError(err)
+				continue
+			}
+			item.ValueJson = string(jsonValue)
+
+			// update the value to be stored in the tree
+			update = updateMap
+		}
+
+		// store the update
 		updates = append(updates, &pathtree.PathItem{
 			Path:  keyPath(item),
 			Value: update,
 		})
+
 	}
 	rs.pathTree.ApplyUpdate(updates, onError)
 
+	// handle removes
 	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
 	for _, item := range summaryRecord.GetRemove() {
 		removes = append(removes, &pathtree.PathItem{
 			Path: keyPath(item),
 		})
+		// remove the stats
+		err := rs.stats.DeleteNode(keyPath(item))
+		if err != nil {
+			onError(err)
+		}
 	}
 	rs.pathTree.ApplyRemove(removes)
 }
@@ -97,7 +250,7 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 	return summary, nil
 }
 
-// Clones the tree. This is useful for creating a snapshot of the tree.
+// CloneTree clones the tree. This is useful for creating a snapshot of the tree.
 func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
 
 	return rs.pathTree.CloneTree()

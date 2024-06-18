@@ -2751,12 +2751,14 @@ class Run:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
+        # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
@@ -2772,6 +2774,9 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_step_sync = True
 
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2783,8 +2788,6 @@ class Run:
         )
         m._set_callback(self._metric_callback)
         m._commit()
-        with telemetry.context(run=self) as tel:
-            tel.feature.metric = True
         return m
 
     # TODO(jhr): annotate this
