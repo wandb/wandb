@@ -28,11 +28,10 @@ func (u *LogsUpdate) Apply(ctx UpdateContext) error {
 		line = fmt.Sprintf("ERROR %s %s", t, u.Record.Line)
 	default:
 		ctx.Logger.CaptureError(
-			fmt.Sprintf(
+			fmt.Errorf(
 				"filestream: unexpected logs output type %v",
 				u.Record.OutputType,
 			),
-			nil,
 		)
 
 		return nil

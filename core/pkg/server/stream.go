@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -158,7 +159,8 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 		// Better behavior would be to inform the user and turn off any
 		// components that rely on the hostname, but it's not easy to do
 		// with our current code structure.
-		s.logger.CaptureError("could not get hostname", err)
+		s.logger.CaptureError(
+			fmt.Errorf("stream: could not get hostname: %v", err))
 		hostname = ""
 	}
 
@@ -205,6 +207,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 	}
 
 	mailbox := mailbox.NewMailbox()
+	metricHandler := runmetric.NewMetricHandler()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -216,8 +219,8 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(),
-			MetricHandler:     NewMetricHandler(),
+			RunSummary:        runsummary.New(runsummary.Params{MetricHandler: metricHandler}),
+			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
@@ -251,7 +254,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
-			RunSummary:          runsummary.New(),
+			RunSummary:          runsummary.New(runsummary.Params{}),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

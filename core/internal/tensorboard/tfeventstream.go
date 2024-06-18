@@ -1,6 +1,7 @@
 package tensorboard
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/paths"
@@ -93,9 +94,10 @@ func (s *tfEventStream) loop() {
 		event, err := s.reader.NextEvent(s.emitFilePath /*onNewFile*/)
 		if err != nil {
 			s.logger.CaptureError(
-				"tensorboard: failed reading next event",
-				err,
-			)
+				fmt.Errorf(
+					"tensorboard: failed reading next event: %v",
+					err,
+				))
 			return
 		}
 
