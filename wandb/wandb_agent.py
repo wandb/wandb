@@ -128,7 +128,12 @@ class Agent:
     FLAPPING_MAX_SECONDS = 60
     FLAPPING_MAX_FAILURES = 3
     MAX_INITIAL_FAILURES = 5
-    DEFAULT_SWEEP_COMMAND: List[str] = sweep_utils.DEFAULT_SWEEP_COMMAND
+    DEFAULT_SWEEP_COMMAND: List[str] = [
+        "${env}",
+        "${interpreter}",
+        "${program}",
+        "${args}",
+    ]
     SWEEP_COMMAND_ENV_VAR_REGEX = re.compile(r"\$\{envvar\:([A-Z0-9_]*)\}")
 
     def __init__(
