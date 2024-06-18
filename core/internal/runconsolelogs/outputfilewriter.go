@@ -2,6 +2,8 @@ package runconsolelogs
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/sparselist"
@@ -23,6 +25,10 @@ func NewOutputFileWriter(
 	path string,
 	logger *observability.CoreLogger,
 ) (*outputFileWriter, error) {
+	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+		return nil, err
+	}
+
 	// 6 = read, write permissions for the user.
 	// 4 = read-only for "group" and "other".
 	outputFile, err := CreateLineFile(path, 0644)
