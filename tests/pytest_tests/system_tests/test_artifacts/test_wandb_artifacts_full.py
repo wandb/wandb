@@ -20,7 +20,7 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float64)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool_)
 
@@ -31,7 +31,7 @@ def test_add_table_from_dataframe(wandb_init):
 
     wb_table_float = wandb.Table(dataframe=df_float)
     wb_table_float32 = wandb.Table(dataframe=df_float32)
-    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float_))
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float64))
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
