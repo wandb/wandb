@@ -47,7 +47,7 @@ func (o *RunLogsChangeModel) NextLine(streamPrefix string) RunLogsLineRef {
 	line := RunLogsLine{}
 	line.StreamPrefix = streamPrefix
 	line.MaxLength = o.maxLineLength
-	line.Timestamp = time.Now() // TODO don't use time.Now
+	line.Timestamp = time.Now()
 
 	lineNum := o.firstLineNum + len(o.lines)
 	o.lines = append(o.lines, line)
