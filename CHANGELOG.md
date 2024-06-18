@@ -28,6 +28,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
 - Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
 
+### Changed
+
+- Upgrade github.com/vektah/gqlparser/v2 from 2.5.11 to 2.5.16 by @wandb-kc in https://github.com/wandb/wandb/pull/7828
+
 ## [0.17.1] - 2024-06-07
 
 ### Added

@@ -12,7 +12,6 @@ import (
 )
 
 func init() {
-
 	AddRule("OverlappingFieldsCanBeMerged", func(observers *Events, addError AddErrFunc) {
 		/**
 		 * Algorithm:
@@ -304,10 +303,8 @@ func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFieldsAndFr
 }
 
 func (m *overlappingFieldsCanBeMergedManager) collectConflictsBetweenFragments(conflicts *conflictMessageContainer, areMutuallyExclusive bool, fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread) {
-
 	var check func(fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread)
 	check = func(fragmentSpreadA *ast.FragmentSpread, fragmentSpreadB *ast.FragmentSpread) {
-
 		if fragmentSpreadA.Name == fragmentSpreadB.Name {
 			return
 		}
