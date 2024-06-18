@@ -168,9 +168,13 @@ func NewFileTransferManager(
 		fileTransferStats,
 	)
 
-	fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).Proxy = http.ProxyFromEnvironment
-	fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).ProxyConnectHeader = http.Header{
-		"Proxy-Authorization": []string{settings.Proto.GetXExtraHttpHeaders().GetValue()["Proxy-Authorization"]},
+	// Set proxy
+	fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).Proxy = ProxyFn(settings.Proto.GetXProxies().GetValue())
+	// Set proxy authorization header, if present
+	if val, ok := settings.Proto.GetXExtraHttpHeaders().GetValue()["Proxy-Authorization"]; ok {
+		fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{val},
+		}
 	}
 
 	if retryMax := settings.Proto.GetXFileTransferRetryMax(); retryMax != nil {
