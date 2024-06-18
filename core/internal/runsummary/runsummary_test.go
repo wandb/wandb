@@ -13,7 +13,7 @@ import (
 
 func TestApplyUpdate(t *testing.T) {
 
-	rh := runsummary.New()
+	rh := runsummary.New(runsummary.Params{})
 	summary := &service.SummaryRecord{
 		Update: []*service.SummaryItem{
 			{
@@ -91,7 +91,7 @@ func key(item *service.SummaryItem) []string {
 // These values are supported by our special json package and should not return an error.
 func TestApplyUpdateSpecialValues(t *testing.T) {
 
-	rs := runsummary.New()
+	rs := runsummary.New(runsummary.Params{})
 	summary := &service.SummaryRecord{
 		Update: []*service.SummaryItem{
 			{

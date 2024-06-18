@@ -3038,6 +3038,7 @@ class Api:
         project: Optional[str] = None,
         entity: Optional[str] = None,
         state: Optional[str] = None,
+        prior_runs: Optional[List[str]] = None,
         template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
@@ -3051,6 +3052,7 @@ class Api:
             project (str): project to use
             entity (str): entity to use
             state (str): state
+            prior_runs (list): IDs of existing runs to add to the sweep
             template_variable_values (dict): template variable values
         """
         project_query = """
@@ -3072,7 +3074,8 @@ class Api:
             $projectName: String,
             $controller: JSONString,
             $scheduler: JSONString,
-            $state: String
+            $state: String,
+            $priorRunsFilters: JSONString,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3082,7 +3085,8 @@ class Api:
                 projectName: $projectName,
                 controller: $controller,
                 scheduler: $scheduler,
-                state: $state
+                state: $state,
+                priorRunsFilters: $priorRunsFilters,
             }) {
                 sweep {
                     name
@@ -3094,9 +3098,7 @@ class Api:
         """
         # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-
-        # launchScheduler was introduced in core v0.14.0
-        mutation_4 = gql(
+        mutation_5 = gql(
             mutation_str.replace(
                 "$controller: JSONString,",
                 "$controller: JSONString,$launchScheduler: JSONString, $templateVariableValues: JSONString,",
@@ -3104,6 +3106,18 @@ class Api:
             .replace(
                 "controller: $controller,",
                 "controller: $controller,launchScheduler: $launchScheduler,templateVariableValues: $templateVariableValues,",
+            )
+            .replace("_PROJECT_QUERY_", project_query)
+        )
+        # launchScheduler was introduced in core v0.14.0
+        mutation_4 = gql(
+            mutation_str.replace(
+                "$controller: JSONString,",
+                "$controller: JSONString,$launchScheduler: JSONString,",
+            )
+            .replace(
+                "controller: $controller,",
+                "controller: $controller,launchScheduler: $launchScheduler",
             )
             .replace("_PROJECT_QUERY_", project_query)
         )
@@ -3122,7 +3136,7 @@ class Api:
         )
 
         # TODO(dag): replace this with a query for protocol versioning
-        mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
+        mutations = [mutation_5, mutation_4, mutation_3, mutation_2, mutation_1]
 
         config = self._validate_config_and_fill_distribution(config)
 
@@ -3131,6 +3145,9 @@ class Api:
         config_str = yaml.dump(
             json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
         )
+        filters = None
+        if prior_runs:
+            filters = json.dumps({"$or": [{"name": r} for r in prior_runs]})
 
         err: Optional[Exception] = None
         for mutation in mutations:
@@ -3144,6 +3161,7 @@ class Api:
                     "controller": controller,
                     "launchScheduler": launch_scheduler,
                     "scheduler": scheduler,
+                    "priorRunsFilters": filters,
                 }
                 if state:
                     variables["state"] = state
