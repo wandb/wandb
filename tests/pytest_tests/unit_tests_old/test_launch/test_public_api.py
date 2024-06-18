@@ -5,6 +5,7 @@ def test_from_path(mock_server, api):
     sweep = api.from_path("test/test/sweeps/test")
     assert isinstance(sweep, wandb.apis.public.Sweep)
 
+
 def test_sweep(runner, mock_server, api):
     sweep = api.sweep("test/test/test")
     assert sweep.entity == "test"
