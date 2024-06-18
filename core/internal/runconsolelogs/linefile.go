@@ -82,23 +82,29 @@ func (f *lineFile) UpdateLines(lines sparselist.SparseList[string]) error {
 	}
 
 	// Write back lines, replacing old lines as necessary.
+loop:
 	for {
 		var lineToWrite string
 
-		if newLine, ok := lines.Get(f.nextLineNum); ok {
-			// Use the new line if there is one.
+		newLine, hadNewLine := lines.Get(f.nextLineNum)
+		switch {
+		// Use the new line if there is one.
+		case hadNewLine:
 			lineToWrite = newLine
-		} else if f.nextLineNum < origNextLine {
-			// Use the old line if there is one.
+
+		// Use the old line if there is one.
+		case f.nextLineNum < origNextLine:
 			idx := origNextLine - 1 - f.nextLineNum
 			lineToWrite = oldLinesReversed[idx]
-		} else if f.nextLineNum < lines.LastIndex() {
-			// If we're adding lines past the original number of lines in the
-			// file, append blanks for any unspecified lines.
+
+		// If we're adding lines past the original number of lines in the
+		// file, append blanks for any unspecified lines.
+		case f.nextLineNum < lines.LastIndex():
 			lineToWrite = ""
-		} else {
-			// No more lines to write, stop.
-			break
+
+		// No more lines to write, stop.
+		default:
+			break loop
 		}
 
 		f.nextLineNum++
