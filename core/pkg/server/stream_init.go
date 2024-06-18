@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"maps"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -43,6 +44,23 @@ func NewBackend(
 	})
 }
 
+func CustomProxy(proxyMap map[string]string) func(*http.Request) (*url.URL, error) {
+	return func(req *http.Request) (*url.URL, error) {
+		// Check if there's a custom proxy setting for the request URL scheme
+		if proxyURL, exists := proxyMap[req.URL.Scheme]; exists {
+			proxyURLParsed, err := url.Parse(proxyURL)
+			if err != nil {
+				return nil, err
+			}
+
+			return proxyURLParsed, nil
+		}
+
+		// Fall back to the default environment proxy settings
+		return http.ProxyFromEnvironment(req)
+	}
+}
+
 func NewGraphQLClient(
 	backend *api.Backend,
 	settings *settings.Settings,
@@ -76,6 +94,9 @@ func NewGraphQLClient(
 		opts.NonRetryTimeout = clients.SecondsToDuration(timeout.GetValue())
 	}
 
+	// TODO:
+	// proxy := CustomProxy(settings.Proto.GetXProxyMap().GetValue())
+
 	httpClient := backend.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.Proto.GetBaseUrl().GetValue())
 
@@ -90,6 +111,7 @@ func NewFileStream(
 	peeker api.Peeker,
 ) filestream.FileStream {
 	fileStreamHeaders := map[string]string{}
+	maps.Copy(fileStreamHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
 	if settings.Proto.GetXShared().GetValue() {
 		fileStreamHeaders["X-WANDB-USE-ASYNC-FILESTREAM"] = "true"
 	}
@@ -146,6 +168,11 @@ func NewFileTransferManager(
 		logger,
 		fileTransferStats,
 	)
+
+	fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).Proxy = http.ProxyFromEnvironment
+	fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).ProxyConnectHeader = http.Header{
+		"Proxy-Authorization": []string{settings.Proto.GetXExtraHttpHeaders().GetValue()["Proxy-Authorization"]},
+	}
 
 	if retryMax := settings.Proto.GetXFileTransferRetryMax(); retryMax != nil {
 		fileTransferRetryClient.RetryMax = int(retryMax.GetValue())

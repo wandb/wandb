@@ -181,6 +181,9 @@ type ClientOptions struct {
 	// on the request and response. Need to make sure that the response body is
 	// available to read by later stages.
 	NetworkPeeker Peeker
+
+	// Proxy function to use for requests.
+	Proxy func(*http.Request) (*url.URL, error)
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -210,10 +213,17 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
+	transport := retryableHTTP.HTTPClient.Transport.(*http.Transport)
+	// add proxy support
+	transport.Proxy = http.ProxyFromEnvironment
+	// add extra headers
+	transport.ProxyConnectHeader = http.Header{"Proxy-Authorization": []string{opts.ExtraHeaders["Proxy-Authorization"]}}
+	fmt.Println(transport.ProxyConnectHeader)
+
 	retryableHTTP.HTTPClient.Transport =
 		NewPeekingTransport(
 			opts.NetworkPeeker,
-			NewRateLimitedTransport(retryableHTTP.HTTPClient.Transport),
+			NewRateLimitedTransport(transport),
 		)
 
 	return &clientImpl{
