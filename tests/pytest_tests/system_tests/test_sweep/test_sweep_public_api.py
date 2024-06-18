@@ -27,6 +27,7 @@ query Sweep($project: String, $entity: String, $name: String!) {
                 edges {
                     node {
                         id
+                        name
                     }
                 }
             }
@@ -69,6 +70,7 @@ def test_sweep_api_expected_run_count(
 
     assert sweep.expected_run_count == expected_run_count
     assert len(sweep._attrs["priorRuns"]["edges"]) == 1
+    assert sweep._attrs["priorRuns"]["edges"][0]["node"]["name"] == run_id
 
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
