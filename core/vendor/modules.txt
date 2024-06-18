@@ -235,7 +235,7 @@ github.com/tklauser/go-sysconf
 # github.com/tklauser/numcpus v0.7.0
 ## explicit; go 1.18
 github.com/tklauser/numcpus
-# github.com/vektah/gqlparser/v2 v2.5.11
+# github.com/vektah/gqlparser/v2 v2.5.16
 ## explicit; go 1.19
 github.com/vektah/gqlparser/v2/ast
 github.com/vektah/gqlparser/v2/formatter
