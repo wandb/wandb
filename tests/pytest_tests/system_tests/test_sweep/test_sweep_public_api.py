@@ -12,7 +12,6 @@ from .test_wandb_sweep import (
     VALID_SWEEP_CONFIGS_MINIMAL,
 )
 
-
 SWEEP_QUERY = gql(
     """
 query Sweep($project: String, $entity: String, $name: String!) {
@@ -57,7 +56,9 @@ def test_sweep_api_expected_run_count(
         run_id = run.id
         run.log({"x": 1})
         run.finish()
-        sweep_id = wandb.sweep(sweep_config, entity=user, project=_project, prior_runs=[run_id])
+        sweep_id = wandb.sweep(
+            sweep_config, entity=user, project=_project, prior_runs=[run_id]
+        )
 
     for comm in relay.context.raw_data:
         q = comm["request"].get("query")
