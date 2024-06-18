@@ -15,7 +15,7 @@
 
 Use W&B to build better models faster, fine-tune LLMs, and develop AI applications. Sign up for a 30-day free trial today at [http://wandb.me/trial](http://wandb.me/trial)
 
-W&B Models is the MLOps solution used by foundation model builders and enterprises who are training, fine-tuning, and deploying models into production. W&B Weave is the LLMOps solution for software developers who want a lightweight toolkit to help them track and evaluate LLM applications.
+W&B Models is the MLOps solution used by foundation model builders and enterprises who are training, fine-tuning, and deploying models into production. [W&B Weave](https://wandb.github.io/weave/) is the LLMOps solution for software developers who want a lightweight toolkit to help them track and evaluate LLM applications.
 
 &nbsp;
 
@@ -43,7 +43,7 @@ W&B Models is the MLOps solution used by foundation model builders and enterpris
   <img alt="Weights and Biases Artifacts" src="">
 </picture>
 </a>
-<a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<a target="_blank" href="https://docs.wandb.ai/guides/tables?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
   <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/tables-light.svg" width="14.0%">
@@ -64,18 +64,17 @@ W&B Models is the MLOps solution used by foundation model builders and enterpris
   <img alt="Weights and Biases Launch" src="">
 </picture>
 </a>
-<a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<a target="_blank" href="https://docs.wandb.ai/guides/model_registry?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/model-registry-dark.svg" width="14.0%">
   <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/model-registry-light.svg" width="14.0%">
   <img alt="Weights and Biases Model Management" src="">
 </picture>
 </a>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<a target="_blank" href="https://docs.wandb.ai/guides/artifacts/project-scoped-automations?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/traces-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/traces-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/automations-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/automations-light.svg" width="14.0%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </p>
