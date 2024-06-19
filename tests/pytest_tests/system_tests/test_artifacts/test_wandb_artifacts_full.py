@@ -219,8 +219,8 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
 
     artifact = wandb.Artifact(name="cache-test", type="dataset")
     file_path = Path(tmp_path / "text.txt")
-    with open(file_path, "w") as f:
-        f.write("test123")
+    file_path.write_text("test123")
+
     entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
 
     with wandb_init() as run:
@@ -234,8 +234,8 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
     # Manually write a file into the cache path to ensure that it's the one that is used.
     # This is kind of evil and might break if we later force cache validity.
     Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_path, "w") as f:
-        f.write("corrupt")
+    Path(cache_path).write_text("corrupt")
+
     download_root = Path(artifact.download(tmp_path / "download_root"))
     assert (download_root / "text.txt").read_text() == "corrupt"
 
@@ -247,8 +247,8 @@ def test_download_skips_cache(wandb_init, tmp_path, monkeypatch):
 
     artifact = wandb.Artifact(name="cache-test", type="dataset")
     file_path = Path(tmp_path / "text.txt")
-    with open(file_path, "w") as f:
-        f.write("test123")
+    file_path.write_text("test123")
+
     entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
 
     with wandb_init() as run:
@@ -262,9 +262,9 @@ def test_download_skips_cache(wandb_init, tmp_path, monkeypatch):
     # Manually write a file into the cache path to check that it's NOT used.
     # This is kind of evil and might break if we later force cache validity.
     Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_path, "w") as f:
-        f.write("corrupt")
-    download_root = Path(artifact.download(tmp_path / "download_root", skip_cache=True))
+    Path(cache_path).write_text("corrupt")
+
+    download_root = Path(artifact.download(tmp_path / "dest_dir", skip_cache=True))
     assert (download_root / "text.txt").read_text() != "corrupt"
 
 

@@ -192,7 +192,8 @@ class ArtifactFileCache:
         if size > self._free_space():
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
-    def _noncache_opener(self, path: Path, size: int) -> "Opener":
+    @staticmethod
+    def _noncache_opener(path: Path, size: int) -> "Opener":
         @contextlib.contextmanager
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             with open(path, mode=mode) as f:
