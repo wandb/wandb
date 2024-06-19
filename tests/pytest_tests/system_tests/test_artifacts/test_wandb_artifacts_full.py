@@ -240,6 +240,34 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
     assert (download_root / "text.txt").read_text() == "corrupt"
 
 
+def test_download_skips_cache(wandb_init, tmp_path, monkeypatch):
+    # Setup cache dir
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    cache = artifact_file_cache.get_artifact_file_cache()
+
+    artifact = wandb.Artifact(name="cache-test", type="dataset")
+    file_path = Path(tmp_path / "text.txt")
+    with open(file_path, "w") as f:
+        f.write("test123")
+    entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+    artifact.wait()
+
+    # Ensure the uploaded file is in the cache.
+    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    assert not hit
+
+    # Manually write a file into the cache path to check that it's NOT used.
+    # This is kind of evil and might break if we later force cache validity.
+    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
+    with open(cache_path, "w") as f:
+        f.write("corrupt")
+    download_root = Path(artifact.download(tmp_path / "download_root", skip_cache=True))
+    assert (download_root / "text.txt").read_text() != "corrupt"
+
+
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path))
