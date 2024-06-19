@@ -31,11 +31,6 @@ type lineFileIO struct {
 	// contained in buf.
 	bufStart int64
 
-	// nextLineNum is the number of the next line to be added to the file.
-	//
-	// This is equal to the number of '\n' runes in the file.
-	nextLineNum int
-
 	// cursor is an offset into the file.
 	//
 	// `cursor - bufStartOffset` is always a valid index into the buffer
@@ -132,11 +127,10 @@ func (f *lineFile) Open() (*lineFileIO, error) {
 	endOffset := info.Size()
 
 	return &lineFileIO{
-		f:           file,
-		bufStart:    endOffset,
-		buf:         make([]byte, 0),
-		nextLineNum: f.nextLineNum,
-		cursor:      endOffset,
+		f:        file,
+		bufStart: endOffset,
+		buf:      make([]byte, 0),
+		cursor:   endOffset,
 	}, nil
 }
 
@@ -179,7 +173,6 @@ func (f *lineFileIO) AppendLine(line string) error {
 	f.buf = make([]byte, 0)
 	f.bufStart = lineStart + int64(len(data))
 	f.cursor = f.bufStart
-	f.nextLineNum += 1
 	return nil
 }
 
@@ -190,10 +183,6 @@ func (f *lineFileIO) AppendLine(line string) error {
 // Returns an error if there's an issue reading the file or if there are no
 // more lines.
 func (f *lineFileIO) PopLine() (string, error) {
-	if f.nextLineNum == 0 {
-		return "", errors.New("no lines remaining")
-	}
-
 	// Start with the cursor at the end of the file.
 	f.cursor = f.bufStart + int64(len(f.buf))
 
@@ -215,8 +204,6 @@ func (f *lineFileIO) PopLine() (string, error) {
 		//
 		// This is a crucial fact for reading the file in reverse.
 		if isAtStart || prevByte == '\n' {
-			f.nextLineNum -= 1
-
 			bufIdx := f.cursor - f.bufStart
 
 			// Read the line contents, which is everything from the current
