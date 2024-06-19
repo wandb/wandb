@@ -19,7 +19,6 @@ const (
 	HistoryFileName          = "wandb-history.jsonl"
 	SummaryFileName          = "wandb-summary.json"
 	OutputFileName           = "output.log"
-	defaultMaxItemsPerPush   = 5_000
 	defaultHeartbeatInterval = 30 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
@@ -89,10 +88,8 @@ type fileStream struct {
 	// The client for making API requests.
 	apiClient api.Client
 
-	maxItemsPerPush int // TODO: remove or use maxItemsPerPush
-
 	// The rate limit for sending data to the backend.
-	transmitRateLimit *rate.Limiter // TODO: initialize
+	transmitRateLimit *rate.Limiter
 
 	// A schedule on which to send heartbeats to the backend
 	// to prove the run is still alive.
@@ -108,7 +105,6 @@ type FileStreamParams struct {
 	Logger             *observability.CoreLogger
 	Printer            *observability.Printer
 	ApiClient          api.Client
-	MaxItemsPerPush    int
 	TransmitRateLimit  *rate.Limiter
 	HeartbeatStopwatch waiting.Stopwatch
 }
@@ -131,7 +127,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		apiClient:         params.ApiClient,
 		processChan:       make(chan Update, BufferSize),
 		feedbackWait:      &sync.WaitGroup{},
-		maxItemsPerPush:   defaultMaxItemsPerPush,
 		transmitRateLimit: params.TransmitRateLimit,
 		deadChanOnce:      &sync.Once{},
 		deadChan:          make(chan struct{}),
@@ -140,10 +135,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 	fs.heartbeatStopwatch = params.HeartbeatStopwatch
 	if fs.heartbeatStopwatch == nil {
 		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
-	}
-
-	if params.MaxItemsPerPush > 0 {
-		fs.maxItemsPerPush = params.MaxItemsPerPush
 	}
 
 	return fs
