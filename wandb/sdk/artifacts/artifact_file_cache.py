@@ -64,18 +64,23 @@ class ArtifactFileCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         if self._override_cache_path is not None:
             path = Path(self._override_cache_path)
+            use_cache = False
         else:
             hexhash = hashlib.sha256(
                 hashlib.sha256(url.encode("utf-8")).digest()
                 + hashlib.sha256(etag.encode("utf-8")).digest()
             ).hexdigest()
             path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
-        return self._check_or_create(path, size)
+            use_cache = True
+        return self._check_or_create(path, size, use_cache=use_cache)
 
     def _check_or_create(
-        self, path: Path, size: int
+        self, path: Path, size: int, use_cache: bool = True
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        opener = self._cache_opener(path, size)
+        if use_cache:
+            opener = self._cache_opener(path, size)
+        else:
+            opener = self._noncache_opener(path, size)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
@@ -184,6 +189,13 @@ class ArtifactFileCache:
         self.cleanup(target_size=0)
         if size > self._free_space():
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
+
+    def _noncache_opener(self, path: Path, size: int) -> "Opener":
+        @contextlib.contextmanager
+        def helper(mode: str = "w") -> Generator[IO, None, None]:
+            with open(path, mode=mode) as f:
+                yield f
+        return helper
 
     def _cache_opener(self, path: Path, size: int) -> "Opener":
         @contextlib.contextmanager
