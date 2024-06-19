@@ -13,6 +13,7 @@ else:
 _Setting = Literal[
     "_args",
     "_aws_lambda",
+    "_break_a_leg",
     "_cli_only_mode",
     "_code_path_local",
     "_colab",
