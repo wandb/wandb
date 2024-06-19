@@ -149,12 +149,6 @@ class Project(Attrs):
                 self.entity,
                 self.name,
                 e["node"]["name"],
-                attrs={
-                    "id": e["node"]["id"],
-                    "name": e["node"]["name"],
-                    "bestLoss": e["node"]["bestLoss"],
-                    "config": e["node"]["config"],
-                },
             )
             for e in ret["project"]["sweeps"]["edges"]
         ]
