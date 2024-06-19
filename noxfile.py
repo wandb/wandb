@@ -172,6 +172,8 @@ def run_yea(
         # Disable writing to Sentry.
         "WANDB_ERROR_REPORTING": "false",
         "WANDB_CORE_ERROR_REPORTING": "false",
+        # Disable internal rate limits.
+        "WANDB__BREAK_A_LEG": "true",
     }
 
     # is the version constraint needed?

@@ -119,12 +119,19 @@ func NewFileStream(
 
 	fileStreamRetryClient := backend.NewClient(opts)
 
+	var transmitRateLimit *rate.Limiter
+	if settings.IsBreakingLegs() {
+		transmitRateLimit = rate.NewLimiter(rate.Inf, 1)
+	} else {
+		transmitRateLimit = rate.NewLimiter(rate.Every(15*time.Second), 1)
+	}
+
 	params := filestream.FileStreamParams{
 		Settings:          settings.Proto,
 		Logger:            logger,
 		Printer:           printer,
 		ApiClient:         fileStreamRetryClient,
-		TransmitRateLimit: rate.NewLimiter(rate.Every(15*time.Second), 1),
+		TransmitRateLimit: transmitRateLimit,
 	}
 
 	return filestream.NewFileStream(params)
