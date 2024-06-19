@@ -4,7 +4,9 @@ package filestream
 //
 // This batches all incoming requests while waiting for transmissions
 // to go through.
-type CollectLoop struct{}
+type CollectLoop struct {
+	SkipRateLimits chan<- struct{}
+}
 
 // Start ingests updates and outputs the resulting requests.
 func (cl CollectLoop) Start(
@@ -38,6 +40,7 @@ func (cl CollectLoop) Start(
 		}
 
 		// Send final transmission.
+		close(cl.SkipRateLimits)
 		transmissions <- state.PrepRequest(true)
 		state.RequestSent()
 		close(transmissions)

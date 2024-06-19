@@ -7,15 +7,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/waitingtest"
-	"golang.org/x/time/rate"
 )
 
 func TestTransmitLoop_Sends(t *testing.T) {
 	outputs := make(chan filestream.FsTransmitData)
 	loop := filestream.TransmitLoop{
-		TransmitRateLimit:  rate.NewLimiter(rate.Inf, 1),
-		HeartbeatStopwatch: waitingtest.NewFakeStopwatch(),
-
+		HeartbeatStopwatch:     waitingtest.NewFakeStopwatch(),
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
 			ftd filestream.FsTransmitData,
@@ -46,9 +43,7 @@ func TestTransmitLoop_SendsHeartbeats(t *testing.T) {
 	defer close(inputs)
 	outputs := make(chan filestream.FsTransmitData)
 	loop := filestream.TransmitLoop{
-		TransmitRateLimit:  rate.NewLimiter(rate.Inf, 1),
-		HeartbeatStopwatch: heartbeat,
-
+		HeartbeatStopwatch:     heartbeat,
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
 			ftd filestream.FsTransmitData,

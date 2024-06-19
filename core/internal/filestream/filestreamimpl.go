@@ -5,6 +5,7 @@ import (
 	"io"
 	"net/http"
 	"sync"
+	"time"
 
 	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
@@ -78,13 +79,14 @@ func (fs *fileStream) startTransmitting(
 	stateUpdates <-chan CollectorStateUpdate,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
-	transmissions := CollectLoop{}.Start(
+	transmissions := CollectLoop{
+		SkipRateLimits: fs.skipRateLimits,
+	}.Start(
 		stateUpdates,
 		initialOffsets,
 	)
 
 	feedback := TransmitLoop{
-		TransmitRateLimit:      fs.transmitRateLimit,
 		HeartbeatStopwatch:     fs.heartbeatStopwatch,
 		Send:                   fs.send,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
@@ -108,6 +110,15 @@ func (fs *fileStream) startProcessingFeedback(
 		for range feedback {
 		}
 	}()
+}
+
+func (fs *fileStream) waitForRateLimit() {
+	reservation := fs.transmitRateLimit.Reserve()
+
+	select {
+	case <-time.After(reservation.Delay()):
+	case <-fs.skipRateLimits:
+	}
 }
 
 func (fs *fileStream) send(
@@ -134,6 +145,7 @@ func (fs *fileStream) send(
 		},
 	}
 
+	fs.waitForRateLimit()
 	resp, err := fs.apiClient.Send(req)
 
 	switch {

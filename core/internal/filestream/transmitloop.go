@@ -1,19 +1,14 @@
 package filestream
 
 import (
-	"context"
-
 	"github.com/wandb/wandb/core/internal/waiting"
-	"golang.org/x/time/rate"
 )
 
 // TransmitLoop makes requests to the backend.
 //
 // Requests are rate-limited and heartbeats are inserted as necessary.
 type TransmitLoop struct {
-	TransmitRateLimit  *rate.Limiter
-	HeartbeatStopwatch waiting.Stopwatch
-
+	HeartbeatStopwatch     waiting.Stopwatch
 	Send                   func(FsTransmitData, chan<- map[string]any) error
 	LogFatalAndStopWorking func(error)
 }
@@ -37,9 +32,6 @@ func (tr TransmitLoop) Start(
 		}()
 
 		for {
-			// Wait() can return errors that are not relevant here.
-			_ = tr.TransmitRateLimit.Wait(context.Background())
-
 			x, ok := readWithHeartbeat(data, tr.HeartbeatStopwatch)
 			if !ok {
 				break

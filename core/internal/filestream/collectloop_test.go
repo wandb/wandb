@@ -19,7 +19,7 @@ func (s *uploadedFilesUpdate) Apply(state *filestream.CollectorState) {
 func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	updates := make(chan filestream.CollectorStateUpdate)
 	defer close(updates)
-	loop := filestream.CollectLoop{}
+	loop := filestream.CollectLoop{SkipRateLimits: make(chan<- struct{})}
 
 	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
 	updates <- &uploadedFilesUpdate{file: "one"}
@@ -31,6 +31,21 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 		assert.Equal(t,
 			[]string{"one", "two", "three"},
 			result.Uploaded)
+	case <-time.After(time.Second):
+		t.Error("timeout after 1 second")
+	}
+}
+
+func TestCollectLoop_SkipsRateLimitsForLastRequest(t *testing.T) {
+	updates := make(chan filestream.CollectorStateUpdate)
+	skipRateLimits := make(chan struct{})
+	loop := filestream.CollectLoop{SkipRateLimits: skipRateLimits}
+
+	_ = loop.Start(updates, filestream.FileStreamOffsetMap{})
+	close(updates)
+
+	select {
+	case <-skipRateLimits:
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
 	}

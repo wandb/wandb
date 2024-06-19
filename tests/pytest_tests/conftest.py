@@ -41,9 +41,6 @@ def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     # of triggering flow control logic.
     monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
 
-    # Disable rate-limits so that tests aren't unnecessarily slow.
-    monkeypatch.setenv("WANDB__BREAK_A_LEG", "true")
-
 
 @pytest.fixture(autouse=True)
 def toggle_wandb_core(

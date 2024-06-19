@@ -113,8 +113,3 @@ func (s *Settings) GetFilesDir() string {
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
 }
-
-// Whether internal rate-limits should be disabled.
-func (s *Settings) IsBreakingLegs() bool {
-	return s.Proto.XBreakALeg.GetValue()
-}
