@@ -49,10 +49,12 @@ class ArtifactFileCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         if self._override_cache_path is not None:
             path = Path(self._override_cache_path)
+            use_cache = False
         else:
             hex_md5 = b64_to_hex_id(b64_md5)
             path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
-        return self._check_or_create(path, size)
+            use_cache = True
+        return self._check_or_create(path, size, use_cache=use_cache)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
