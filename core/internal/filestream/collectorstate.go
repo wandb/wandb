@@ -127,9 +127,11 @@ func (s *CollectorState) RequestSent() {
 	s.EventsLines = nil
 
 	// Drop uploaded lines.
-	run := s.ConsoleLogUpdates.ToRuns()[0]
-	for i := run.Start; i < run.Start+len(run.Items); i++ {
-		s.ConsoleLogUpdates.Delete(i)
+	if s.ConsoleLogUpdates.Len() > 0 {
+		run := s.ConsoleLogUpdates.ToRuns()[0]
+		for i := run.Start; i < run.Start+len(run.Items); i++ {
+			s.ConsoleLogUpdates.Delete(i)
+		}
 	}
 
 	s.LatestSummary = ""
