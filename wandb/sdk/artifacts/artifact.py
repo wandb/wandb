@@ -1653,6 +1653,8 @@ class Artifact:
             return self._download_using_core(
                 root=root,
                 allow_missing_references=allow_missing_references,
+                skip_cache=skip_cache,
+                path_prefix=path_prefix,
             )
         return self._download(
             root=root,
