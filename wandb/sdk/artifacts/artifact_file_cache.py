@@ -195,6 +195,7 @@ class ArtifactFileCache:
         def helper(mode: str = "w") -> Generator[IO, None, None]:
             with open(path, mode=mode) as f:
                 yield f
+
         return helper
 
     def _cache_opener(self, path: Path, size: int) -> "Opener":
