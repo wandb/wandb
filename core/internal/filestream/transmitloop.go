@@ -5,8 +5,6 @@ import (
 )
 
 // TransmitLoop makes requests to the backend.
-//
-// Requests are rate-limited and heartbeats are inserted as necessary.
 type TransmitLoop struct {
 	HeartbeatStopwatch     waiting.Stopwatch
 	Send                   func(FsTransmitData, chan<- map[string]any) error
