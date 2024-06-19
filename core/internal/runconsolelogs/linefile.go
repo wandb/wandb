@@ -164,8 +164,6 @@ func (f *lineFileIO) AppendLine(line string) error {
 		if err := f.f.Truncate(lineStart); err != nil {
 			return err
 		}
-
-		f.buf = make([]byte, 0)
 	}
 
 	// Write the UTF-8 bytes of the line to the file with a '\n' at the end.
@@ -173,12 +171,16 @@ func (f *lineFileIO) AppendLine(line string) error {
 	data = append(data, line...)
 	data = append(data, '\n')
 
+	_, err := f.f.WriteAt(data, lineStart)
+	if err != nil {
+		return err
+	}
+
+	f.buf = make([]byte, 0)
 	f.bufStart = lineStart + int64(len(data))
 	f.cursor = f.bufStart
 	f.nextLineNum += 1
-
-	_, err := f.f.WriteAt(data, lineStart)
-	return err
+	return nil
 }
 
 // PopLine drops the last file from the file and returns it.
@@ -191,6 +193,9 @@ func (f *lineFileIO) PopLine() (string, error) {
 	if f.nextLineNum == 0 {
 		return "", errors.New("no lines remaining")
 	}
+
+	// Start with the cursor at the end of the file.
+	f.cursor = f.bufStart + int64(len(f.buf))
 
 	for {
 		err := f.cursorBack()
