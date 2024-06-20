@@ -13,7 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
-- Fix ECR regex separating tag on forward slash and period @KyleGoyette https://github.com/wandb/wandb/pull/7837
+- Fix W&B Launch registry ECR regex separating tag on forward slash and period @KyleGoyette https://github.com/wandb/wandb/pull/7837
 
 ## [0.17.2] - 2024-06-17
 
