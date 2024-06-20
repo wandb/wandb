@@ -155,7 +155,7 @@ class ArtifactManifestEntry:
             return FilePathStr(dest_path)
         else:
             return FilePathStr(
-                filesystem.copy_or_overwrite_changed(cache_path, dest_path)
+                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
             )
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
