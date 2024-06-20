@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import pytest
-
 import wandb
 from wandb import Api
 from wandb.errors import CommError
