@@ -49,12 +49,10 @@ class ArtifactFileCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         if self._override_cache_path is not None:
             path = Path(self._override_cache_path)
-            use_cache = False
         else:
             hex_md5 = b64_to_hex_id(b64_md5)
             path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
-            use_cache = True
-        return self._check_or_create(path, size, use_cache=use_cache)
+        return self._check_or_create(path, size)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -66,20 +64,18 @@ class ArtifactFileCache:
     ) -> Tuple[FilePathStr, bool, "Opener"]:
         if self._override_cache_path is not None:
             path = Path(self._override_cache_path)
-            use_cache = False
         else:
             hexhash = hashlib.sha256(
                 hashlib.sha256(url.encode("utf-8")).digest()
                 + hashlib.sha256(etag.encode("utf-8")).digest()
             ).hexdigest()
             path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
-            use_cache = True
-        return self._check_or_create(path, size, use_cache=use_cache)
+        return self._check_or_create(path, size)
 
     def _check_or_create(
-        self, path: Path, size: int, use_cache: bool = True
+        self, path: Path, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        if use_cache:
+        if self._override_cache_path is None:
             opener = self._cache_opener(path, size)
         else:
             opener = self._noncache_opener(path, size)
