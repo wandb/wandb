@@ -131,11 +131,6 @@ class ArtifactManifestEntry:
         path = str(Path(self.path))
         dest_path = os.path.join(root, path)
 
-        if skip_cache:
-            override_cache_path = dest_path
-        else:
-            override_cache_path = None
-
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
         if os.path.exists(dest_path) and self.digest == md5_file_b64(dest_path):
@@ -143,11 +138,17 @@ class ArtifactManifestEntry:
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
-                self, local=True, dest_path=override_cache_path
+                self,
+                local=True,
+                dest_path=dest_path,
+                skip_cache=skip_cache,
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact, self, dest_path=override_cache_path
+                self._parent_artifact,
+                self,
+                dest_path=dest_path,
+                skip_cache=skip_cache,
             )
 
         if skip_cache:
