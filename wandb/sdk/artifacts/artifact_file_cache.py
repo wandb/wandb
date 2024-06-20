@@ -195,6 +195,7 @@ class ArtifactFileCache:
     def _noncache_opener(path: Path) -> "Opener":
         @contextlib.contextmanager
         def opener(mode: str = "w") -> Iterator[IO]:
+            path.parent.mkdir(parents=True, exist_ok=True)
             with open(path, mode=mode) as f:
                 yield f
 
