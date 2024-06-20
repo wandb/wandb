@@ -172,10 +172,10 @@ commands:
       Helper command for the nox-tests-* jobs. Runs a nox session and uploads
       tests artifacts.
     parameters:
-      python: {type: string}
-      session: {type: string}
-      yea_shard: {type: string}
-      codecov_flags: {type: string}
+      python: { type: string }
+      session: { type: string }
+      yea_shard: { type: string }
+      codecov_flags: { type: string }
     steps:
       - run:
           name: Install Python dependencies
@@ -373,19 +373,18 @@ commands:
             # in the key in the hopes that it encapsulates the Python version.
             # We include the architecture (OS + processor) as well to be safe.
             - &tox-cache v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
-                checksum "tox-cache-date.txt" }}-{{
-                checksum "requirements_dev.txt" }}-{{
-                checksum "requirements_test.txt" }}-{{
-                checksum "tox.ini" }}
+              checksum "tox-cache-date.txt" }}-{{
+              checksum "requirements_dev.txt" }}-{{
+              checksum "requirements_test.txt" }}-{{
+              checksum "tox.ini" }}
             - v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
-                checksum "tox-cache-date.txt" }}
+              checksum "tox-cache-date.txt" }}
   save_cache_tox:
     steps:
       - save_cache:
           name: Upload .tox cache
           key: *tox-cache
           paths: [.tox]
-
 
 jobs:
   regression:
@@ -476,7 +475,7 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard:  # if running tests with yea, like functional_tests
+      yea_shard: # if running tests with yea, like functional_tests
         default: ""
         type: string
 
@@ -503,7 +502,7 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard:  # if running tests with yea, like functional_tests
+      yea_shard: # if running tests with yea, like functional_tests
         default: ""
         type: string
 
@@ -528,7 +527,7 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard:  # if running tests with yea, like functional_tests
+      yea_shard: # if running tests with yea, like functional_tests
         default: ""
         type: string
 
@@ -858,7 +857,7 @@ jobs:
           command: |
             sudo apt-get update
             sudo apt install -y software-properties-common
-            sudo add-apt-repository ppa:deadsnakes/ppa
+            sudo add-apt-repository -y ppa:deadsnakes/ppa
             sudo apt update
             sudo apt install -y python3.9
       - run:
