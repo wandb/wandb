@@ -89,11 +89,19 @@ def test_create_and_run_agent(config, error, mock_agent):
     [
         # Valid URIs
         ("https://123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo", True),
+        (
+            "https://123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo.withdash-dot/andslash",
+            True,
+        ),
         ("https://myregistry.azurecr.io/my-repo", True),
         ("https://us-central1-docker.pkg.dev/my-project/my-repo/my-image", True),
         ("https://myregistry.com/my-repo", True),
         # Invalid URIs
         ("https://123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo:tag", False),
+        (
+            "https://123456789012.dkr.ecr.us-west-2.amazonaws.com/my-repo.withdash-dot/andslash:tag",
+            False,
+        ),
         ("https://myregistry.azurecr.io/my-repo:tag", False),
         ("https://us-central1-docker.pkg.dev/my-project/my-repo/my-image:tag", False),
         ("https://us-central1-docker.pkg.dev/my-project/my-repo", False),
