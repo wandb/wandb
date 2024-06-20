@@ -46,12 +46,7 @@ func (cl CollectLoop) waitForRateLimit(
 	state *CollectorState,
 	updates <-chan CollectorStateUpdate,
 ) {
-	// Special case: send the "pre-empting" state immediately.
-	//
-	// This state indicates that the process may be about to yield the
-	// CPU for an unknown amount of time, and we want to let the backend
-	// know ASAP.
-	if state.HasPreempting {
+	if shouldSendASAP(state) {
 		return
 	}
 
@@ -62,18 +57,21 @@ func (cl CollectLoop) waitForRateLimit(
 		return
 	}
 
-loop:
 	for {
 		select {
 		case <-time.After(reservation.Delay()):
-			break loop
+			return
 
 		case update, ok := <-updates:
 			if !ok {
-				break loop
+				return
 			}
 
 			update.Apply(state)
+
+			if shouldSendASAP(state) {
+				return
+			}
 		}
 	}
 }
@@ -99,4 +97,14 @@ batchingLoop:
 			update.Apply(state)
 		}
 	}
+}
+
+// shouldSendASAP returns a request should be made regardless of rate limits.
+func shouldSendASAP(state *CollectorState) bool {
+	// Send the "pre-empting" state immediately.
+	//
+	// This state indicates that the process may be about to yield the
+	// CPU for an unknown amount of time, and we want to let the backend
+	// know ASAP.
+	return state.HasPreempting
 }
