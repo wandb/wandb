@@ -11,8 +11,13 @@ type CollectorState struct {
 	EventsLines   []string // Lines to append to run system metrics.
 
 	// Lines to update in the run's console logs file.
-	ConsoleLogUpdates  sparselist.SparseList[string]
-	ConsoleLogNextLine int // First untouched line in the console output file.
+	ConsoleLogUpdates sparselist.SparseList[string]
+
+	// Offset to add to all console output line numbers.
+	//
+	// This is used for resumed runs, where we want to append to the original
+	// logs.
+	ConsoleLogLineOffset int
 
 	SummaryLineNum int    // Line number where to write the run summary.
 	LatestSummary  string // The run's updated summary, or the empty string.
@@ -40,7 +45,7 @@ func NewCollectorState(initialOffsets FileStreamOffsetMap) CollectorState {
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
 		state.EventsLineNum = initialOffsets[EventsChunk]
-		state.ConsoleLogNextLine = initialOffsets[OutputChunk]
+		state.ConsoleLogLineOffset = initialOffsets[OutputChunk]
 		state.SummaryLineNum = initialOffsets[SummaryChunk]
 	}
 
@@ -80,7 +85,7 @@ func (s *CollectorState) MakeRequest(isDone bool) (*FsTransmitData, bool) {
 		// We can only upload one run of lines at a time, unfortunately.
 		run := s.ConsoleLogUpdates.ToRuns()[0]
 		files[chunkFilename[OutputChunk]] = FsTransmitFileData{
-			Offset:  run.Start,
+			Offset:  run.Start + s.ConsoleLogLineOffset,
 			Content: run.Items,
 		}
 
