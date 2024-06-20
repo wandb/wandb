@@ -75,10 +75,7 @@ class ArtifactFileCache:
     def _check_or_create(
         self, path: Path, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        if self._override_cache_path is None:
-            opener = self._cache_opener(path, size)
-        else:
-            opener = self._noncache_opener(path)
+        opener = self._opener(path, size)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
@@ -187,6 +184,12 @@ class ArtifactFileCache:
         self.cleanup(target_size=0)
         if size > self._free_space():
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
+
+    def _opener(self, path: Path, size: int) -> "Opener":
+        if self._override_cache_path is None:
+            return self._cache_opener(path, size)
+        else:
+            return self._noncache_opener(path)
 
     @staticmethod
     def _noncache_opener(path: Path) -> "Opener":
