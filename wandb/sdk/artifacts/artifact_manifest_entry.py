@@ -141,14 +141,14 @@ class ArtifactManifestEntry:
                 self,
                 local=True,
                 dest_path=dest_path,
-                skip_cache=skip_cache,
+                skip_cache=bool(skip_cache),
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
                 self._parent_artifact,
                 self,
                 dest_path=dest_path,
-                skip_cache=skip_cache,
+                skip_cache=bool(skip_cache),
             )
 
         if skip_cache:
