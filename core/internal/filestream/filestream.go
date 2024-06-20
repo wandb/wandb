@@ -91,12 +91,6 @@ type fileStream struct {
 	// The rate limit for sending data to the backend.
 	transmitRateLimit *rate.Limiter
 
-	// A channel that's closed if we should ignore the rate limit.
-	//
-	// This is closed before the final request, which should happen as soon
-	// as it's created.
-	skipRateLimits chan struct{}
-
 	// A schedule on which to send heartbeats to the backend
 	// to prove the run is still alive.
 	heartbeatStopwatch waiting.Stopwatch
@@ -134,7 +128,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		processChan:       make(chan Update, BufferSize),
 		feedbackWait:      &sync.WaitGroup{},
 		transmitRateLimit: params.TransmitRateLimit,
-		skipRateLimits:    make(chan struct{}),
 		deadChanOnce:      &sync.Once{},
 		deadChan:          make(chan struct{}),
 	}

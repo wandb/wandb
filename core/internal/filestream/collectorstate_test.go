@@ -12,7 +12,7 @@ func TestMakeRequest_Empty(t *testing.T) {
 
 	data := state.PrepRequest(false)
 
-	assert.Zero(t, data)
+	assert.Zero(t, *data)
 }
 
 func TestMakeRequest_Done_SetsExitCode(t *testing.T) {

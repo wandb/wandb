@@ -10,12 +10,12 @@ import (
 )
 
 func TestTransmitLoop_Sends(t *testing.T) {
-	outputs := make(chan filestream.FsTransmitData)
+	outputs := make(chan *filestream.FsTransmitData)
 	loop := filestream.TransmitLoop{
 		HeartbeatStopwatch:     waitingtest.NewFakeStopwatch(),
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
-			ftd filestream.FsTransmitData,
+			ftd *filestream.FsTransmitData,
 			c chan<- map[string]any,
 		) error {
 			outputs <- ftd
@@ -24,14 +24,14 @@ func TestTransmitLoop_Sends(t *testing.T) {
 	}
 	testInput := filestream.FsTransmitData{Preempting: true}
 
-	inputs := make(chan filestream.FsTransmitData)
+	inputs := make(chan *filestream.FsTransmitData)
 	_ = loop.Start(inputs)
-	inputs <- testInput
+	inputs <- &testInput
 	close(inputs)
 
 	select {
 	case result := <-outputs:
-		assert.Equal(t, testInput, result)
+		assert.Equal(t, testInput, *result)
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
 	}
@@ -39,14 +39,14 @@ func TestTransmitLoop_Sends(t *testing.T) {
 
 func TestTransmitLoop_SendsHeartbeats(t *testing.T) {
 	heartbeat := waitingtest.NewFakeStopwatch()
-	inputs := make(chan filestream.FsTransmitData)
+	inputs := make(chan *filestream.FsTransmitData)
 	defer close(inputs)
-	outputs := make(chan filestream.FsTransmitData)
+	outputs := make(chan *filestream.FsTransmitData)
 	loop := filestream.TransmitLoop{
 		HeartbeatStopwatch:     heartbeat,
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
-			ftd filestream.FsTransmitData,
+			ftd *filestream.FsTransmitData,
 			c chan<- map[string]any,
 		) error {
 			outputs <- ftd
@@ -59,7 +59,7 @@ func TestTransmitLoop_SendsHeartbeats(t *testing.T) {
 
 	select {
 	case result := <-outputs:
-		assert.Zero(t, result)
+		assert.Zero(t, *result)
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
 	}

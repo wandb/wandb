@@ -15,8 +15,13 @@ type CollectorState struct {
 	EventsLines   []string // Lines to append to run system metrics.
 
 	// Lines to update in the run's console logs file.
-	ConsoleLogUpdates  sparselist.SparseList[string]
-	ConsoleLogNextLine int // First untouched line in the console output file.
+	ConsoleLogUpdates sparselist.SparseList[string]
+
+	// Offset to add to all console output line numbers.
+	//
+	// This is used for resumed runs, where we want to append to the original
+	// logs.
+	ConsoleLogLineOffset int
 
 	SummaryLineNum int    // Line number where to write the run summary.
 	LatestSummary  string // The run's updated summary, or the empty string.
@@ -44,7 +49,7 @@ func NewCollectorState(initialOffsets FileStreamOffsetMap) CollectorState {
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
 		state.EventsLineNum = initialOffsets[EventsChunk]
-		state.ConsoleLogNextLine = initialOffsets[OutputChunk]
+		state.ConsoleLogLineOffset = initialOffsets[OutputChunk]
 		state.SummaryLineNum = initialOffsets[SummaryChunk]
 	}
 
@@ -60,7 +65,7 @@ type CollectorStateUpdate interface {
 // PrepRequest prepares an API request from the collected data.
 //
 // If the request is sent, `RequestSent` must be invoked.
-func (s *CollectorState) PrepRequest(isDone bool) FsTransmitData {
+func (s *CollectorState) PrepRequest(isDone bool) *FsTransmitData {
 	files := make(map[string]FsTransmitFileData)
 	addLines := func(chunkType ChunkTypeEnum, lineNum int, lines []string) {
 		if len(lines) == 0 {
@@ -81,7 +86,7 @@ func (s *CollectorState) PrepRequest(isDone bool) FsTransmitData {
 		// We can only upload one run of lines at a time, unfortunately.
 		run := s.ConsoleLogUpdates.ToRuns()[0]
 		files[chunkFilename[OutputChunk]] = FsTransmitFileData{
-			Offset:  run.Start,
+			Offset:  run.Start + s.ConsoleLogLineOffset,
 			Content: run.Items,
 		}
 	}
@@ -115,7 +120,7 @@ func (s *CollectorState) PrepRequest(isDone bool) FsTransmitData {
 		transmitData.Complete = s.Complete
 	}
 
-	return transmitData
+	return &transmitData
 }
 
 // RequestSent indicates that the result of PrepRequest was used.
@@ -137,4 +142,6 @@ func (s *CollectorState) RequestSent() {
 	s.LatestSummary = ""
 
 	s.UploadedFiles = nil
+
+	s.HasPreempting = false
 }

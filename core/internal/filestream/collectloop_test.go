@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestream"
+	"golang.org/x/time/rate"
 )
 
 type uploadedFilesUpdate struct {
@@ -19,7 +20,7 @@ func (s *uploadedFilesUpdate) Apply(state *filestream.CollectorState) {
 func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	updates := make(chan filestream.CollectorStateUpdate)
 	defer close(updates)
-	loop := filestream.CollectLoop{SkipRateLimits: make(chan<- struct{})}
+	loop := filestream.CollectLoop{TransmitRateLimit: rate.NewLimiter(rate.Inf, 1)}
 
 	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
 	updates <- &uploadedFilesUpdate{file: "one"}
@@ -36,16 +37,16 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 	}
 }
 
-func TestCollectLoop_SkipsRateLimitsForLastRequest(t *testing.T) {
+func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	updates := make(chan filestream.CollectorStateUpdate)
-	skipRateLimits := make(chan struct{})
-	loop := filestream.CollectLoop{SkipRateLimits: skipRateLimits}
+	// Use a rate limiter that never lets requests through.
+	loop := filestream.CollectLoop{TransmitRateLimit: &rate.Limiter{}}
 
-	_ = loop.Start(updates, filestream.FileStreamOffsetMap{})
+	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
 	close(updates)
 
 	select {
-	case <-skipRateLimits:
+	case <-transmissions:
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
 	}
