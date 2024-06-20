@@ -36,7 +36,7 @@ func NewFrom(tree TreeData) *PathTree {
 	return &PathTree{tree}
 }
 
-// Returns the underlying config tree.
+// Returns the underlying tree.
 //
 // Provided temporarily as part of a refactor. Avoid using this, especially
 // mutating it.
