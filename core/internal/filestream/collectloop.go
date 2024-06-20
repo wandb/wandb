@@ -58,11 +58,14 @@ func (cl CollectLoop) waitForRateLimit(
 	}
 
 	for {
+		timer := time.NewTimer(reservation.Delay())
 		select {
-		case <-time.After(reservation.Delay()):
+		case <-timer.C:
 			return
 
 		case update, ok := <-updates:
+			_ = timer.Stop()
+
 			if !ok {
 				return
 			}
