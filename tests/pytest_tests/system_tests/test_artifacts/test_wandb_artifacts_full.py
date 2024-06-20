@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 import wandb
 from wandb import Api
 from wandb.errors import CommError
@@ -212,7 +213,14 @@ def test_remove_after_log(wandb_init):
             retrieved.remove("file1.txt")
 
 
-def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    # Valid values for `skip_cache` in `Artifact.download()`
+    "skip_download_cache",
+    [None, False, True],
+)
+def test_download_respects_skip_cache(
+    wandb_init, tmp_path, monkeypatch, skip_download_cache
+):
     # Setup cache dir
     monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
     cache = artifact_file_cache.get_artifact_file_cache()
@@ -221,6 +229,7 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
     file_path = Path(tmp_path / "text.txt")
     file_path.write_text("test123")
 
+    # Don't skip cache for setup
     entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
 
     with wandb_init() as run:
@@ -231,41 +240,22 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
     cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
     assert not hit
 
-    # Manually write a file into the cache path to ensure that it's the one that is used.
+    # Manually write a file into the cache path to check that it's:
+    # - used, if not skipping the cache (default behavior)
+    # - ignored, if skipping the cache
     # This is kind of evil and might break if we later force cache validity.
+    replaced_cache_content = "corrupt"
     Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(cache_path).write_text("corrupt")
+    Path(cache_path).write_text(replaced_cache_content)
 
-    download_root = Path(artifact.download(tmp_path / "download_root"))
-    assert (download_root / "text.txt").read_text() == "corrupt"
+    dest_dir = tmp_path / "download_root"
+    download_root = Path(artifact.download(dest_dir, skip_cache=skip_download_cache))
+    downloaded_content = (download_root / "text.txt").read_text()
 
-
-def test_download_skips_cache(wandb_init, tmp_path, monkeypatch):
-    # Setup cache dir
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
-    cache = artifact_file_cache.get_artifact_file_cache()
-
-    artifact = wandb.Artifact(name="cache-test", type="dataset")
-    file_path = Path(tmp_path / "text.txt")
-    file_path.write_text("test123")
-
-    entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
-
-    with wandb_init() as run:
-        run.log_artifact(artifact)
-    artifact.wait()
-
-    # Ensure the uploaded file is in the cache.
-    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
-    assert not hit
-
-    # Manually write a file into the cache path to check that it's NOT used.
-    # This is kind of evil and might break if we later force cache validity.
-    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(cache_path).write_text("corrupt")
-
-    download_root = Path(artifact.download(tmp_path / "dest_dir", skip_cache=True))
-    assert (download_root / "text.txt").read_text() != "corrupt"
+    if skip_download_cache in (None, False):
+        assert downloaded_content == replaced_cache_content
+    else:
+        assert downloaded_content != replaced_cache_content
 
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
