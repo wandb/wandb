@@ -7,7 +7,19 @@ import (
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
-func TestSparseList(t *testing.T) {
+func TestSparseListGet(t *testing.T) {
+	list := sparselist.SparseList[string]{}
+
+	_, existed := list.Get(0)
+	assert.False(t, existed)
+
+	list.Put(0, "xyz")
+	val, existed := list.Get(0)
+	assert.True(t, existed)
+	assert.Equal(t, "xyz", val)
+}
+
+func TestSparseListRuns(t *testing.T) {
 	list := sparselist.SparseList[string]{}
 
 	list.Put(0, "zero")
@@ -49,4 +61,24 @@ func TestSparseListUpdate(t *testing.T) {
 			{Start: 0, Items: []string{"a", "x", "c", "y"}},
 		},
 		list1.ToRuns())
+}
+
+func TestSparseListIndices(t *testing.T) {
+	list := sparselist.SparseList[string]{}
+
+	list.Put(-1, "a")
+	list.Put(99, "b")
+	list.Put(5, "b")
+	list.Put(109, "b")
+	list.Put(-3, "b")
+	list.Put(10, "b")
+
+	assert.Equal(t, -3, list.FirstIndex())
+	assert.Equal(t, 109, list.LastIndex())
+
+	list.Delete(-3)
+	assert.Equal(t, -1, list.FirstIndex())
+
+	list.Delete(109)
+	assert.Equal(t, 99, list.LastIndex())
 }
