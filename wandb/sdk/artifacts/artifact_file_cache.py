@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
+from typing import IO, TYPE_CHECKING, ContextManager, Iterator, Optional, Tuple
 
 import wandb
 from wandb import env, util
@@ -78,7 +78,7 @@ class ArtifactFileCache:
         if self._override_cache_path is None:
             opener = self._cache_opener(path, size)
         else:
-            opener = self._noncache_opener(path, size)
+            opener = self._noncache_opener(path)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
@@ -189,17 +189,17 @@ class ArtifactFileCache:
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
     @staticmethod
-    def _noncache_opener(path: Path, size: int) -> "Opener":
+    def _noncache_opener(path: Path) -> "Opener":
         @contextlib.contextmanager
-        def helper(mode: str = "w") -> Generator[IO, None, None]:
+        def opener(mode: str = "w") -> Iterator[IO]:
             with open(path, mode=mode) as f:
                 yield f
 
-        return helper
+        return opener
 
     def _cache_opener(self, path: Path, size: int) -> "Opener":
         @contextlib.contextmanager
-        def helper(mode: str = "w") -> Generator[IO, None, None]:
+        def opener(mode: str = "w") -> Iterator[IO]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
@@ -215,7 +215,7 @@ class ArtifactFileCache:
                 os.remove(temp_file.name)
                 raise
 
-        return helper
+        return opener
 
     def _ensure_write_permissions(self) -> None:
         """Raise an error if we cannot write to the cache directory."""
