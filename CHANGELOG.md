@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- With core enabled, nested `tqdm` bars show up correctly in the Logs tab (@timoffex in https://github.com/wandb/wandb/pull/7825)
+
 ## [0.17.2] - 2024-06-17
 
 ### Added
