@@ -115,6 +115,10 @@ func (s *Settings) GetIgnoreGlobs() []string {
 }
 
 // Custom proxy settings for the W&B backend.
-func (s *Settings) GetProxies() map[string]string {
-	return s.Proto.XProxies.GetValue()
+func (s *Settings) GetHTTPProxy() string {
+	return s.Proto.HttpProxy.GetValue()
+}
+
+func (s *Settings) GetHTTPSProxy() string {
+	return s.Proto.HttpsProxy.GetValue()
 }

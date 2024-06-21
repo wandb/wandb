@@ -11,33 +11,29 @@ import (
 func TestProxyFn(t *testing.T) {
 	tests := []struct {
 		name          string
-		proxyMap      map[string]string
+		httpProxy     string
+		httpsProxy    string
 		requestURL    string
 		envProxy      map[string]string
 		expectedProxy string
 		expectedError bool
 	}{
 		{
-			name: "Custom HTTP proxy",
-			proxyMap: map[string]string{
-				"http": "http://custom-proxy:8080",
-			},
+			name:          "Custom HTTP proxy",
+			httpProxy:     "http://custom-proxy:8080",
 			requestURL:    "http://example.com",
 			expectedProxy: "http://custom-proxy:8080",
 			expectedError: false,
 		},
 		{
-			name: "Custom HTTPS proxy",
-			proxyMap: map[string]string{
-				"https": "http://custom-proxy:8443",
-			},
+			name:          "Custom HTTPS proxy",
+			httpsProxy:    "http://custom-proxy:8443",
 			requestURL:    "https://example.com",
 			expectedProxy: "http://custom-proxy:8443",
 			expectedError: false,
 		},
 		{
 			name:          "No custom proxy, fallback to environment HTTP proxy",
-			proxyMap:      map[string]string{},
 			requestURL:    "http://example.com",
 			envProxy:      map[string]string{"HTTP_PROXY": "http://env-proxy:8080"},
 			expectedProxy: "http://env-proxy:8080",
@@ -45,16 +41,14 @@ func TestProxyFn(t *testing.T) {
 		},
 		{
 			name:          "Custom proxy with invalid URL",
-			proxyMap:      map[string]string{"http": "http:// invalid-url "},
+			httpProxy:     "http:// invalid-url ",
 			requestURL:    "http://example.com",
 			expectedProxy: "",
 			expectedError: true,
 		},
 		{
-			name: "Custom proxy overrides environment proxy",
-			proxyMap: map[string]string{
-				"http": "http://custom-proxy:8080",
-			},
+			name:          "Custom proxy overrides environment proxy",
+			httpProxy:     "http://custom-proxy:8080",
 			requestURL:    "http://example.com",
 			envProxy:      map[string]string{"HTTP_PROXY": "http://env-proxy:8080"},
 			expectedProxy: "http://custom-proxy:8080",
@@ -75,7 +69,7 @@ func TestProxyFn(t *testing.T) {
 				t.Fatalf("http.NewRequest failed: %v", err)
 			}
 
-			proxyFn := server.ProxyFn(tt.proxyMap)
+			proxyFn := server.ProxyFn(tt.httpProxy, tt.httpsProxy)
 			proxyURL, err := proxyFn(req)
 
 			if tt.expectedError {

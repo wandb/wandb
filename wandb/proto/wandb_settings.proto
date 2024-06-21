@@ -41,7 +41,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 168
+// Next ID: 170
 message Settings {
   reserved 12, 94;
 
@@ -236,6 +236,9 @@ message Settings {
   google.protobuf.BoolValue _shared = 162;
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
+  // The custom proxy servers for the requests to W&B.
+  google.protobuf.StringValue http_proxy = 168;
+  google.protobuf.StringValue https_proxy = 169;
 
   // Custom proxy servers for the requests to W&B.
   //

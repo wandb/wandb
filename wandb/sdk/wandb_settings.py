@@ -410,6 +410,8 @@ class SettingsData:
     git_root: str
     heartbeat_seconds: int
     host: str
+    http_proxy: str  # proxy server for the http requests to W&B
+    https_proxy: str  # proxy server for the https requests to W&B
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
@@ -708,6 +710,7 @@ class Settings(SettingsData):
             },
             _platform={"value": util.get_platform_name()},
             _proxies={
+                # TODO: deprecate and ask the user to use http_proxy and https_proxy instead
                 "preprocessor": _str_as_json,
             },
             _require_core={"value": False, "preprocessor": _str_as_bool},
@@ -818,6 +821,14 @@ class Settings(SettingsData):
             },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
+            http_proxy={
+                "hook": lambda x: self._proxies.get("http") or x,
+                "auto_hook": True,
+            },
+            https_proxy={
+                "hook": lambda x: self._proxies.get("https") or x,
+                "auto_hook": True,
+            },
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
