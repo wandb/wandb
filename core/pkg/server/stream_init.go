@@ -45,8 +45,6 @@ func NewBackend(
 	})
 }
 
-// GetProxies returns a map of proxy settings from the given settings.
-//
 
 // ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
 //
