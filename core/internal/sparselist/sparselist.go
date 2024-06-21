@@ -2,6 +2,7 @@ package sparselist
 
 import (
 	"maps"
+	"math"
 	"slices"
 )
 
@@ -13,7 +14,10 @@ import (
 //
 // The zero value is an empty list.
 type SparseList[T any] struct {
-	items map[int]T
+	items        map[int]T
+	firstIndex   int
+	lastIndex    int
+	boundsCached bool
 }
 
 // Len returns the number of indices in the list that are set.
@@ -21,13 +25,68 @@ func (l *SparseList[T]) Len() int {
 	return len(l.items)
 }
 
-// Put inserts an item into the list.
-func (l *SparseList[T]) Put(index int, item T) {
-	if l.items == nil {
-		l.items = make(map[int]T)
+// FirstIndex is the smallest index that is set, if Len > 0.
+func (l *SparseList[T]) FirstIndex() int {
+	if !l.boundsCached {
+		l.recomputeBounds()
 	}
 
-	l.items[index] = item
+	return l.firstIndex
+}
+
+// LastIndex is the largest index that is set, if Len > 0.
+func (l *SparseList[T]) LastIndex() int {
+	if !l.boundsCached {
+		l.recomputeBounds()
+	}
+
+	return l.lastIndex
+}
+
+// recomputeBounds recomputes firstIndex and lastIndex.
+func (l *SparseList[T]) recomputeBounds() {
+	if len(l.items) == 0 {
+		return
+	}
+
+	l.firstIndex = math.MaxInt
+	l.lastIndex = math.MinInt
+
+	for i := range l.items {
+		l.firstIndex = min(i, l.firstIndex)
+		l.lastIndex = max(i, l.lastIndex)
+	}
+
+	l.boundsCached = true
+}
+
+// Put inserts an item into the list.
+func (l *SparseList[T]) Put(index int, item T) {
+	if len(l.items) == 0 {
+		l.items = map[int]T{index: item}
+		l.firstIndex = index
+		l.lastIndex = index
+		l.boundsCached = true
+	} else {
+		l.items[index] = item
+
+		if l.boundsCached {
+			l.firstIndex = min(l.firstIndex, index)
+			l.lastIndex = max(l.lastIndex, index)
+		}
+	}
+}
+
+// Get returns an item at an index in the list.
+//
+// The second return value indicates whether there was anything at the index.
+func (l *SparseList[T]) Get(index int) (T, bool) {
+	if len(l.items) == 0 {
+		return *new(T), false
+	}
+
+	item, ok := l.items[index]
+	return item, ok
 }
 
 // Delete clears an index in the list.
@@ -36,11 +95,20 @@ func (l *SparseList[T]) Put(index int, item T) {
 // the index by `nil`.
 func (l *SparseList[T]) Delete(index int) {
 	delete(l.items, index)
+
+	if index == l.firstIndex || index == l.lastIndex {
+		l.boundsCached = false
+	}
 }
 
 // Update overwrites the data in this list by the other list.
 func (l *SparseList[T]) Update(other SparseList[T]) {
+	if l.items == nil {
+		l.items = make(map[int]T)
+	}
+
 	maps.Copy(l.items, other.items)
+	l.boundsCached = false
 }
 
 // Run is a sequence of consecutive values in a sparse list.

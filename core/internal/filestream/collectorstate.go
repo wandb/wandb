@@ -1,6 +1,10 @@
 package filestream
 
-import "github.com/wandb/wandb/core/internal/sparselist"
+import (
+	"slices"
+
+	"github.com/wandb/wandb/core/internal/sparselist"
+)
 
 // CollectorState is the filestream's buffered data.
 type CollectorState struct {
@@ -11,8 +15,13 @@ type CollectorState struct {
 	EventsLines   []string // Lines to append to run system metrics.
 
 	// Lines to update in the run's console logs file.
-	ConsoleLogUpdates  sparselist.SparseList[string]
-	ConsoleLogNextLine int // First untouched line in the console output file.
+	ConsoleLogUpdates sparselist.SparseList[string]
+
+	// Offset to add to all console output line numbers.
+	//
+	// This is used for resumed runs, where we want to append to the original
+	// logs.
+	ConsoleLogLineOffset int
 
 	SummaryLineNum int    // Line number where to write the run summary.
 	LatestSummary  string // The run's updated summary, or the empty string.
@@ -40,7 +49,7 @@ func NewCollectorState(initialOffsets FileStreamOffsetMap) CollectorState {
 	if initialOffsets != nil {
 		state.HistoryLineNum = initialOffsets[HistoryChunk]
 		state.EventsLineNum = initialOffsets[EventsChunk]
-		state.ConsoleLogNextLine = initialOffsets[OutputChunk]
+		state.ConsoleLogLineOffset = initialOffsets[OutputChunk]
 		state.SummaryLineNum = initialOffsets[SummaryChunk]
 	}
 
@@ -53,39 +62,35 @@ type CollectorStateUpdate interface {
 	Apply(*CollectorState)
 }
 
-// MakeRequest moves buffered data into an API request and returns it.
+// PrepRequest prepares an API request from the collected data.
 //
-// Returns a boolean that's true if the request is non-empty.
-func (s *CollectorState) MakeRequest(isDone bool) (*FsTransmitData, bool) {
+// After this, the state must not be modified until either:
+//
+//   - The return value is discarded
+//   - `RequestSent` is invoked
+func (s *CollectorState) PrepRequest(isDone bool) *FsTransmitData {
 	files := make(map[string]FsTransmitFileData)
-	addLines := func(chunkType ChunkTypeEnum, lineNum int, lines []string) {
-		if len(lines) == 0 {
-			return
-		}
-		files[chunkFilename[chunkType]] = FsTransmitFileData{
-			Offset:  lineNum,
-			Content: lines,
+
+	if len(s.HistoryLines) > 0 {
+		files[chunkFilename[HistoryChunk]] = FsTransmitFileData{
+			Offset:  s.HistoryLineNum,
+			Content: s.HistoryLines,
 		}
 	}
 
-	addLines(HistoryChunk, s.HistoryLineNum, s.HistoryLines)
-	s.HistoryLineNum += len(s.HistoryLines)
-	s.HistoryLines = nil
-
-	addLines(EventsChunk, s.EventsLineNum, s.EventsLines)
-	s.EventsLineNum += len(s.EventsLines)
-	s.EventsLines = nil
+	if len(s.EventsLines) > 0 {
+		files[chunkFilename[EventsChunk]] = FsTransmitFileData{
+			Offset:  s.EventsLineNum,
+			Content: s.EventsLines,
+		}
+	}
 
 	if s.ConsoleLogUpdates.Len() > 0 {
 		// We can only upload one run of lines at a time, unfortunately.
 		run := s.ConsoleLogUpdates.ToRuns()[0]
 		files[chunkFilename[OutputChunk]] = FsTransmitFileData{
-			Offset:  run.Start,
+			Offset:  run.Start + s.ConsoleLogLineOffset,
 			Content: run.Items,
-		}
-
-		for i := run.Start; i < run.Start+len(run.Items); i++ {
-			s.ConsoleLogUpdates.Delete(i)
 		}
 	}
 
@@ -96,34 +101,53 @@ func (s *CollectorState) MakeRequest(isDone bool) (*FsTransmitData, bool) {
 		// runs where we appended to the summary file. In that case, we want
 		// to update the last line, since all other lines are ignored. This
 		// applies to resumed runs.
-		addLines(SummaryChunk, s.SummaryLineNum, []string{s.LatestSummary})
-		s.LatestSummary = ""
+		files[chunkFilename[SummaryChunk]] = FsTransmitFileData{
+			Offset:  s.SummaryLineNum,
+			Content: []string{s.LatestSummary},
+		}
 	}
 
 	transmitData := FsTransmitData{}
-	hasData := false
 
 	if len(files) > 0 {
 		transmitData.Files = files
-		hasData = true
 	}
 
 	if len(s.UploadedFiles) > 0 {
-		transmitData.Uploaded = s.UploadedFiles
-		s.UploadedFiles = nil
-		hasData = true
+		transmitData.Uploaded = slices.Clone(s.UploadedFiles)
 	}
 
 	if s.HasPreempting {
 		transmitData.Preempting = s.Preempting
-		hasData = true
 	}
 
 	if isDone {
 		transmitData.Exitcode = s.ExitCode
 		transmitData.Complete = s.Complete
-		hasData = true
 	}
 
-	return &transmitData, hasData
+	return &transmitData
+}
+
+// RequestSent indicates that the result of PrepRequest was used.
+func (s *CollectorState) RequestSent() {
+	s.HistoryLineNum += len(s.HistoryLines)
+	s.HistoryLines = nil
+
+	s.EventsLineNum += len(s.EventsLines)
+	s.EventsLines = nil
+
+	// Drop uploaded lines.
+	if s.ConsoleLogUpdates.Len() > 0 {
+		run := s.ConsoleLogUpdates.ToRuns()[0]
+		for i := run.Start; i < run.Start+len(run.Items); i++ {
+			s.ConsoleLogUpdates.Delete(i)
+		}
+	}
+
+	s.LatestSummary = ""
+
+	s.UploadedFiles = nil
+
+	s.HasPreempting = false
 }
