@@ -349,7 +349,7 @@ class SettingsData:
     _sync: bool
     _os: str
     _platform: str
-    _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
+    _proxies: Mapping[str, str]  # custom proxy servers for the requests to W&B [scheme -> url]
     _python: str
     _runqueue_item_id: str
     _require_core: bool

@@ -44,6 +44,20 @@ func NewBackend(
 	})
 }
 
+// ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
+//
+// The function first checks if there's a custom proxy setting for the request
+// URL scheme. If not, it falls back to the default environment proxy settings.
+// If there is, it returns the custom proxy URL.
+
+// This is useful if the user only want to proxy traffic W&B, but not other traffic,
+// as the standard environment proxy settings would potentially proxy all traffic.
+//
+// The custom proxy settings are passed as a map where the key is the URL scheme
+// and the value is the proxy URL.
+//
+// The default environment proxy settings are read from the environment variables
+// HTTP_PROXY, HTTPS_PROXY, and NO_PROXY.
 func ProxyFn(proxyMap map[string]string) func(*http.Request) (*url.URL, error) {
 	return func(req *http.Request) (*url.URL, error) {
 		// Check if there's a custom proxy setting for the request URL scheme
@@ -80,7 +94,7 @@ func NewGraphQLClient(
 		NonRetryTimeout: api.DefaultNonRetryTimeout,
 		ExtraHeaders:    graphqlHeaders,
 		NetworkPeeker:   peeker,
-		Proxy:           ProxyFn(settings.Proto.GetXProxies().GetValue()),
+		Proxy:           ProxyFn(settings.GetProxies()),
 	}
 	if retryMax := settings.Proto.GetXGraphqlRetryMax(); retryMax != nil {
 		opts.RetryMax = int(retryMax.GetValue())
@@ -122,7 +136,7 @@ func NewFileStream(
 		NonRetryTimeout: filestream.DefaultNonRetryTimeout,
 		ExtraHeaders:    fileStreamHeaders,
 		NetworkPeeker:   peeker,
-		Proxy:           ProxyFn(settings.Proto.GetXProxies().GetValue()),
+		Proxy:           ProxyFn(settings.GetProxies()),
 	}
 	if retryMax := settings.Proto.GetXFileStreamRetryMax(); retryMax != nil {
 		opts.RetryMax = int(retryMax.GetValue())
@@ -168,14 +182,18 @@ func NewFileTransferManager(
 		fileTransferStats,
 	)
 
-	// Set proxy
-	fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).Proxy = ProxyFn(settings.Proto.GetXProxies().GetValue())
-	// Set proxy authorization header, if present
-	if val, ok := settings.Proto.GetXExtraHttpHeaders().GetValue()["Proxy-Authorization"]; ok {
-		fileTransferRetryClient.HTTPClient.Transport.(*http.Transport).ProxyConnectHeader = http.Header{
-			"Proxy-Authorization": []string{val},
+	// Set the Proxy function on the HTTP client.
+	transport := &http.Transport{
+		Proxy: ProxyFn(settings.GetProxies()),
+	}
+	// Set the "Proxy-Authorization" header for the CONNECT requests
+	// to the proxy server if the header is present in the extra headers.
+	if header, ok := settings.Proto.GetXExtraHttpHeaders().GetValue()["Proxy-Authorization"]; ok {
+		transport.ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{header},
 		}
 	}
+	fileTransferRetryClient.HTTPClient.Transport = transport
 
 	if retryMax := settings.Proto.GetXFileTransferRetryMax(); retryMax != nil {
 		fileTransferRetryClient.RetryMax = int(retryMax.GetValue())

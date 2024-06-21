@@ -113,3 +113,8 @@ func (s *Settings) GetFilesDir() string {
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
 }
+
+// Custom proxy settings for the W&B backend.
+func (s *Settings) GetProxies() map[string]string {
+	return s.Proto.XProxies.GetValue()
+}

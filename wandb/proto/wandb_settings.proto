@@ -237,6 +237,10 @@ message Settings {
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
 
+  // Custom proxy servers for the requests to W&B.
+  //
+  // The key is the protocol, e.g. "http", "https", "socks5".
+  // The value is the proxy URL.
   MapStringKeyStringValue _proxies = 200;
 
   // todo?

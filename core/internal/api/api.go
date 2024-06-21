@@ -182,7 +182,17 @@ type ClientOptions struct {
 	// available to read by later stages.
 	NetworkPeeker Peeker
 
-	// Proxy function to use for requests.
+	// Function that returns a proxy URL to use for a given http.Request.
+	//
+	// The proxy type is determined by the URL scheme.
+	//
+	// If the proxy URL contains a userinfo subcomponent,
+	// the proxy request will pass the username and password
+	// in a Proxy-Authorization header using the Basic scheme.
+	//
+	// If Proxy returns a non-nil error, the request is aborted with the error.
+	//
+	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
 }
 
@@ -213,12 +223,17 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
-	transport := retryableHTTP.HTTPClient.Transport.(*http.Transport)
-	// set proxy
-	transport.Proxy = opts.Proxy
-	// set proxy authorization header, if present
-	if opts.ExtraHeaders["Proxy-Authorization"] != "" {
-		transport.ProxyConnectHeader = http.Header{"Proxy-Authorization": []string{opts.ExtraHeaders["Proxy-Authorization"]}}
+	// Set the Proxy function on the HTTP client.
+	transport := &http.Transport{
+		Proxy: opts.Proxy,
+	}
+	// Set the "Proxy-Authorization" header for the CONNECT requests
+	// to the proxy server if the header is present in the extra headers.
+	//
+	// It is necessary if the proxy server uses TLS for the connection
+	// and requires authentication using a scheme other than "Basic".
+	if header := opts.ExtraHeaders["Proxy-Authorization"]; header != "" {
+		transport.ProxyConnectHeader.Add("Proxy-Authorization", header)
 	}
 
 	retryableHTTP.HTTPClient.Transport =
