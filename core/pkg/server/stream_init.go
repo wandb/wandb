@@ -47,17 +47,6 @@ func NewBackend(
 
 // GetProxies returns a map of proxy settings from the given settings.
 //
-// The map has the URL scheme as the key and the proxy URL as the value.
-// func GetProxies(settings *settings.Settings) map[string]string {
-// 	proxies := map[string]string{}
-// 	if httpProxy := settings.GetHTTPProxy(); httpProxy != "" {
-// 		proxies["http"] = httpProxy
-// 	}
-// 	if httpsProxy := settings.GetHTTPSProxy(); httpsProxy != "" {
-// 		proxies["https"] = httpsProxy
-// 	}
-// 	return proxies
-// }
 
 // ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
 //
