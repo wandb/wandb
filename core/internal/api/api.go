@@ -233,7 +233,9 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	// It is necessary if the proxy server uses TLS for the connection
 	// and requires authentication using a scheme other than "Basic".
 	if header := opts.ExtraHeaders["Proxy-Authorization"]; header != "" {
-		transport.ProxyConnectHeader.Add("Proxy-Authorization", header)
+		transport.ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{header},
+		}
 	}
 
 	retryableHTTP.HTTPClient.Transport =
