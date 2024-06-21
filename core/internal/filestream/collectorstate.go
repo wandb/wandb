@@ -64,23 +64,26 @@ type CollectorStateUpdate interface {
 
 // PrepRequest prepares an API request from the collected data.
 //
-// If the request is sent, `RequestSent` must be invoked.
+// After this, the state must not be modified until either:
+//
+//   - The return value is discarded
+//   - `RequestSent` is invoked
 func (s *CollectorState) PrepRequest(isDone bool) *FsTransmitData {
 	files := make(map[string]FsTransmitFileData)
-	addLines := func(chunkType ChunkTypeEnum, lineNum int, lines []string) {
-		if len(lines) == 0 {
-			return
-		}
-		files[chunkFilename[chunkType]] = FsTransmitFileData{
-			Offset:  lineNum,
-			Content: slices.Clone(lines),
+
+	if len(s.HistoryLines) > 0 {
+		files[chunkFilename[HistoryChunk]] = FsTransmitFileData{
+			Offset:  s.HistoryLineNum,
+			Content: s.HistoryLines,
 		}
 	}
 
-	addLines(HistoryChunk, s.HistoryLineNum, s.HistoryLines)
-	addLines(EventsChunk, s.EventsLineNum, s.EventsLines)
-	s.EventsLineNum += len(s.EventsLines)
-	s.EventsLines = nil
+	if len(s.EventsLines) > 0 {
+		files[chunkFilename[EventsChunk]] = FsTransmitFileData{
+			Offset:  s.EventsLineNum,
+			Content: s.EventsLines,
+		}
+	}
 
 	if s.ConsoleLogUpdates.Len() > 0 {
 		// We can only upload one run of lines at a time, unfortunately.
@@ -98,7 +101,10 @@ func (s *CollectorState) PrepRequest(isDone bool) *FsTransmitData {
 		// runs where we appended to the summary file. In that case, we want
 		// to update the last line, since all other lines are ignored. This
 		// applies to resumed runs.
-		addLines(SummaryChunk, s.SummaryLineNum, []string{s.LatestSummary})
+		files[chunkFilename[SummaryChunk]] = FsTransmitFileData{
+			Offset:  s.SummaryLineNum,
+			Content: []string{s.LatestSummary},
+		}
 	}
 
 	transmitData := FsTransmitData{}
