@@ -673,7 +673,12 @@ class Settings(google.protobuf.message.Message):
     @property
     def console_multipart(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
-    def _proxies(self) -> global___MapStringKeyStringValue: ...
+    def _proxies(self) -> global___MapStringKeyStringValue:
+        """Custom proxy servers for the requests to W&B.
+
+        The key is the protocol, e.g. "http", "https", "socks5".
+        The value is the proxy URL.
+        """
     def __init__(
         self,
         *,
