@@ -502,13 +502,15 @@ type Settings struct {
 	XShared                          *wrapperspb.BoolValue    `protobuf:"bytes,162,opt,name=_shared,json=Shared,proto3" json:"_shared,omitempty"`
 	XCodePathLocal                   *wrapperspb.StringValue  `protobuf:"bytes,163,opt,name=_code_path_local,json=CodePathLocal,proto3" json:"_code_path_local,omitempty"`
 	ConsoleMultipart                 *wrapperspb.BoolValue    `protobuf:"bytes,166,opt,name=console_multipart,json=consoleMultipart,proto3" json:"console_multipart,omitempty"`
-	// The custom proxy servers for the requests to W&B.
-	HttpProxy  *wrapperspb.StringValue `protobuf:"bytes,168,opt,name=http_proxy,json=httpProxy,proto3" json:"http_proxy,omitempty"`
+	// The custom proxy servers for http requests to W&B.
+	HttpProxy *wrapperspb.StringValue `protobuf:"bytes,168,opt,name=http_proxy,json=httpProxy,proto3" json:"http_proxy,omitempty"`
+	// The custom proxy servers for https requests to W&B.
 	HttpsProxy *wrapperspb.StringValue `protobuf:"bytes,169,opt,name=https_proxy,json=httpsProxy,proto3" json:"https_proxy,omitempty"`
 	// Custom proxy servers for the requests to W&B.
 	//
 	// The key is the protocol, e.g. "http", "https", "socks5".
 	// The value is the proxy URL.
+	// TODO: deprecated, use http_proxy and https_proxy instead.
 	XProxies *MapStringKeyStringValue `protobuf:"bytes,200,opt,name=_proxies,json=Proxies,proto3" json:"_proxies,omitempty"`
 }
 

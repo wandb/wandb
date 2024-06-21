@@ -685,16 +685,19 @@ class Settings(google.protobuf.message.Message):
     def console_multipart(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def http_proxy(self) -> google.protobuf.wrappers_pb2.StringValue:
-        """The custom proxy servers for the requests to W&B."""
+        """The custom proxy servers for http requests to W&B."""
 
     @property
-    def https_proxy(self) -> google.protobuf.wrappers_pb2.StringValue: ...
+    def https_proxy(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """The custom proxy servers for https requests to W&B."""
+
     @property
     def _proxies(self) -> global___MapStringKeyStringValue:
         """Custom proxy servers for the requests to W&B.
 
         The key is the protocol, e.g. "http", "https", "socks5".
         The value is the proxy URL.
+        TODO: deprecated, use http_proxy and https_proxy instead.
         """
 
     def __init__(
