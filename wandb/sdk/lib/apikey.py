@@ -1,6 +1,7 @@
 """apikey util."""
 
 import os
+import platform
 import stat
 import sys
 import textwrap
@@ -57,7 +58,10 @@ def get_netrc_file_path() -> str:
     netrc_file = os.environ.get("NETRC")
     if netrc_file:
         return os.path.expanduser(netrc_file)
-    return os.path.join(os.path.expanduser("~"), ".netrc")
+
+    netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
+
+    return os.path.join(os.path.expanduser("~"), netrc_file)
 
 
 def prompt_api_key(  # noqa: C901
