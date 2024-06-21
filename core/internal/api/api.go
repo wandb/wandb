@@ -181,6 +181,19 @@ type ClientOptions struct {
 	// on the request and response. Need to make sure that the response body is
 	// available to read by later stages.
 	NetworkPeeker Peeker
+
+	// Function that returns a proxy URL to use for a given http.Request.
+	//
+	// The proxy type is determined by the URL scheme.
+	//
+	// If the proxy URL contains a user info subcomponent,
+	// the proxy request will pass the username and password
+	// in a Proxy-Authorization header using the Basic scheme.
+	//
+	// If Proxy returns a non-nil error, the request is aborted with the error.
+	//
+	// If Proxy is nil or returns a nil *URL, no proxy will be used.
+	Proxy func(*http.Request) (*url.URL, error)
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -210,10 +223,25 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 	}
 
+	// Set the Proxy function on the HTTP client.
+	transport := &http.Transport{
+		Proxy: opts.Proxy,
+	}
+	// Set the "Proxy-Authorization" header for the CONNECT requests
+	// to the proxy server if the header is present in the extra headers.
+	//
+	// It is necessary if the proxy server uses TLS for the connection
+	// and requires authentication using a scheme other than "Basic".
+	if header := opts.ExtraHeaders["Proxy-Authorization"]; header != "" {
+		transport.ProxyConnectHeader = http.Header{
+			"Proxy-Authorization": []string{header},
+		}
+	}
+
 	retryableHTTP.HTTPClient.Transport =
 		NewPeekingTransport(
 			opts.NetworkPeeker,
-			NewRateLimitedTransport(retryableHTTP.HTTPClient.Transport),
+			NewRateLimitedTransport(transport),
 		)
 
 	return &clientImpl{
