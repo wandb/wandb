@@ -186,7 +186,7 @@ type ClientOptions struct {
 	//
 	// The proxy type is determined by the URL scheme.
 	//
-	// If the proxy URL contains a userinfo subcomponent,
+	// If the proxy URL contains a user info subcomponent,
 	// the proxy request will pass the username and password
 	// in a Proxy-Authorization header using the Basic scheme.
 	//

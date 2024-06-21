@@ -64,7 +64,7 @@ func NewBackend(
 // URL scheme. If not, it falls back to the default environment proxy settings.
 // If there is, it returns the custom proxy URL.
 //
-// This is useful if the user only want to proxy traffic W&B, but not other traffic,
+// This is useful if the user only want to proxy traffic to W&B, but not other traffic,
 // as the standard environment proxy settings would potentially proxy all traffic.
 //
 // The custom proxy URLs are passed as arguments to the function.
