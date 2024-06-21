@@ -502,7 +502,11 @@ type Settings struct {
 	XShared                          *wrapperspb.BoolValue    `protobuf:"bytes,162,opt,name=_shared,json=Shared,proto3" json:"_shared,omitempty"`
 	XCodePathLocal                   *wrapperspb.StringValue  `protobuf:"bytes,163,opt,name=_code_path_local,json=CodePathLocal,proto3" json:"_code_path_local,omitempty"`
 	ConsoleMultipart                 *wrapperspb.BoolValue    `protobuf:"bytes,166,opt,name=console_multipart,json=consoleMultipart,proto3" json:"console_multipart,omitempty"`
-	XProxies                         *MapStringKeyStringValue `protobuf:"bytes,200,opt,name=_proxies,json=Proxies,proto3" json:"_proxies,omitempty"`
+	// Custom proxy servers for the requests to W&B.
+	//
+	// The key is the protocol, e.g. "http", "https", "socks5".
+	// The value is the proxy URL.
+	XProxies *MapStringKeyStringValue `protobuf:"bytes,200,opt,name=_proxies,json=Proxies,proto3" json:"_proxies,omitempty"`
 }
 
 func (x *Settings) Reset() {
