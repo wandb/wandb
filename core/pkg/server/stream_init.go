@@ -45,7 +45,6 @@ func NewBackend(
 	})
 }
 
-
 // ProxyFn returns a function that returns a proxy URL for a given hhtp.Request.
 //
 // The function first checks if there's a custom proxy setting for the request
