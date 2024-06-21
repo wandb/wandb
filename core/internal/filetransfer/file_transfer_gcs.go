@@ -2,6 +2,7 @@ package filetransfer
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/url"
 	"os"
@@ -13,10 +14,14 @@ import (
 	"google.golang.org/api/iterator"
 )
 
+type GCSClient interface {
+	Bucket(name string) *storage.BucketHandle
+}
+
 // GCSFileTransfer uploads or downloads files to/from GCS
 type GCSFileTransfer struct {
 	// client is the HTTP client for the file transfer
-	client *storage.Client
+	client GCSClient
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
@@ -30,14 +35,18 @@ type GCSFileTransfer struct {
 
 // NewGCSFileTransfer creates a new fileTransfer
 func NewGCSFileTransfer(
+	client GCSClient,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *GCSFileTransfer {
 	ctx := context.Background()
-	client, err := storage.NewClient(ctx)
-	if err != nil {
-		logger.CaptureError("gcs file transfer: error creating new gcs client", err)
-		return nil
+	if client == nil {
+		var err error
+		client, err = storage.NewClient(ctx)
+		if err != nil {
+			logger.CaptureError("gcs file transfer: error creating new gcs client", err)
+			return nil
+		}
 	}
 
 	fileTransfer := &GCSFileTransfer{
@@ -59,6 +68,10 @@ func (ft *GCSFileTransfer) Upload(task *Task) error {
 // Download downloads a file from the server
 func (ft *GCSFileTransfer) Download(task *Task) error {
 	ft.logger.Debug("gcs file transfer: downloading file", "path", task.Path, "url", task.Url, "ref", task.Reference)
+	if task.Reference == nil {
+		ft.logger.Error("gcs file transfer: download: reference is nil")
+		return errors.New("gcs file transfer: download: reference is nil")
+	}
 	reference := *task.Reference
 
 	uriParts, err := url.Parse(reference)
@@ -68,7 +81,7 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 	}
 	if uriParts.Scheme != "gs" {
 		ft.logger.CaptureError("gcs file transfer: download: invalid gsutil URI", err, "reference", reference)
-		return err
+		return errors.New("gcs file transfer: download: invalid gsutil URI")
 	}
 	bucketName := uriParts.Host
 	objectName := strings.TrimPrefix(uriParts.Path, "/")
@@ -89,7 +102,7 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			}
 			if err != nil {
 				ft.logger.CaptureError("gcs file transfer: download: error while iterating through objects in gcs bucket", err, "reference", reference)
-				return nil
+				return err
 			}
 			object := bucket.Object(objAttrs.Name)
 			objects = append(objects, object)
@@ -99,13 +112,13 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 		objects = append(objects, object)
 	default:
 		object := bucket.Object(objectName)
-		bucketAttrs, err := bucket.Attrs(ft.ctx)
+		objAttrs, err := object.Attrs(ft.ctx)
 		if err != nil {
-			ft.logger.CaptureError("gcs file transfer: download: unable to fetch bucket attributes", err, "reference", reference)
+			ft.logger.CaptureError("gcs file transfer: download: unable to fetch object attributes", err, "reference", reference)
 			return err
 		}
-		if bucketAttrs.Etag != task.Digest {
-			ft.logger.CaptureError("gcs file transfer: download: digest/etag mismatch", err, "reference", reference, "etag", bucketAttrs.Etag, "digest", task.Digest)
+		if objAttrs.Etag != task.Digest {
+			ft.logger.CaptureError("gcs file transfer: download: digest/etag mismatch", err, "reference", reference, "etag", objAttrs.Etag, "digest", task.Digest)
 			return err
 		}
 		objects = append(objects, object)

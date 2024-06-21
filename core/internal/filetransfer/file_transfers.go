@@ -26,7 +26,7 @@ func NewFileTransfers(
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
-	gcsReferenceFileTransfer := NewGCSFileTransfer(logger, fileTransferStats)
+	gcsReferenceFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 
 	return &FileTransfers{
 		Default:      defaultFileTransfer,
