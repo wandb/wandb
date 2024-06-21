@@ -822,11 +822,11 @@ class Settings(SettingsData):
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
             http_proxy={
-                "hook": lambda x: self._proxies.get("http") or x,
+                "hook": lambda x: self._proxies and self._proxies.get("http") or x,
                 "auto_hook": True,
             },
             https_proxy={
-                "hook": lambda x: self._proxies.get("https") or x,
+                "hook": lambda x: self._proxies and self._proxies.get("https") or x,
                 "auto_hook": True,
             },
             ignore_globs={
