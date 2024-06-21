@@ -1,5 +1,7 @@
 package arg
 
+import "fmt"
+
 // Subcommand returns the user struct for the subcommand selected by
 // the command line arguments most recently processed by the parser.
 // The return value is always a pointer to a struct. If no subcommand
@@ -7,31 +9,35 @@ package arg
 // no command line arguments have been processed by this parser then it
 // returns nil.
 func (p *Parser) Subcommand() interface{} {
-	if p.lastCmd == nil || p.lastCmd.parent == nil {
+	if len(p.subcommand) == 0 {
 		return nil
 	}
-	return p.val(p.lastCmd.dest).Interface()
+	cmd, err := p.lookupCommand(p.subcommand...)
+	if err != nil {
+		return nil
+	}
+	return p.val(cmd.dest).Interface()
 }
 
 // SubcommandNames returns the sequence of subcommands specified by the
 // user. If no subcommands were given then it returns an empty slice.
 func (p *Parser) SubcommandNames() []string {
-	if p.lastCmd == nil {
-		return nil
-	}
+	return p.subcommand
+}
 
-	// make a list of ancestor commands
-	var ancestors []string
-	cur := p.lastCmd
-	for cur.parent != nil { // we want to exclude the root
-		ancestors = append(ancestors, cur.name)
-		cur = cur.parent
+// lookupCommand finds a subcommand based on a sequence of subcommand names. The
+// first string should be a top-level subcommand, the next should be a child
+// subcommand of that subcommand, and so on. If no strings are given then the
+// root command is returned. If no such subcommand exists then an error is
+// returned.
+func (p *Parser) lookupCommand(path ...string) (*command, error) {
+	cmd := p.cmd
+	for _, name := range path {
+		found := findSubcommand(cmd.subcommands, name)
+		if found == nil {
+			return nil, fmt.Errorf("%q is not a subcommand of %s", name, cmd.name)
+		}
+		cmd = found
 	}
-
-	// reverse the list
-	out := make([]string, len(ancestors))
-	for i := 0; i < len(ancestors); i++ {
-		out[i] = ancestors[len(ancestors)-i-1]
-	}
-	return out
+	return cmd, nil
 }

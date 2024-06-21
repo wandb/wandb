@@ -21,6 +21,7 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
+	"golang.org/x/time/rate"
 )
 
 // NewBackend returns a Backend or nil if we're offline.
@@ -171,10 +172,11 @@ func NewFileStream(
 	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
-		Settings:  settings.Proto,
-		Logger:    logger,
-		Printer:   printer,
-		ApiClient: fileStreamRetryClient,
+		Settings:          settings.Proto,
+		Logger:            logger,
+		Printer:           printer,
+		ApiClient:         fileStreamRetryClient,
+		TransmitRateLimit: rate.NewLimiter(rate.Every(15*time.Second), 1),
 	}
 
 	return filestream.NewFileStream(params)
