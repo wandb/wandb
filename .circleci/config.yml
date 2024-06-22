@@ -1489,7 +1489,7 @@ workflows:
               only:
                 # - main
                 - /^release-.*/
-                - /^.*-ci-win$/
+                # - /^.*-ci-win$/
           matrix:
             parameters:
               python_version_major: [3]
