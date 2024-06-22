@@ -6,7 +6,7 @@ import stat
 import sys
 import textwrap
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Union
 from urllib.parse import urlparse
 
 # import Literal
@@ -16,7 +16,6 @@ else:
     from typing_extensions import Literal
 
 import click
-import requests.utils
 
 import wandb
 from wandb.apis import InternalApi
@@ -223,6 +222,47 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
         return None
 
 
+def get_netrc_auth(url: str) -> Optional[Tuple[str, str]]:
+    """Get the netrc auth for a given url.
+
+    Returns None if the netrc file does not exist or if the auth for the given
+    url does not exist in the netrc file. Otherwise, returns a tuple of the
+    login and password for the given url.
+
+    This function was adapted from requests.utils.get_netrc_auth. The main
+    difference is that this function uses _netrc for Windows systems and .netrc
+    for Unix systems, while requests.utils.get_netrc_auth tries both _netrc and
+    .netrc on all systems.
+
+    Args:
+        url (str): The url to get the netrc auth for.
+
+    Returns:
+        Optional[Tuple[str, str]]: The login and password for the given url.
+    """
+    netrc_file = get_netrc_file_path()
+    if not os.path.exists(netrc_file):
+        return None
+
+    try:
+        from netrc import NetrcParseError, netrc
+
+        ri = urlparse(url)
+        host = ri.netloc.split(":")[0]
+
+        try:
+            _netrc = netrc(netrc_file).authenticators(host)
+            if _netrc:
+                login_i = 0 if _netrc[0] else 1
+                return (_netrc[login_i], _netrc[2])
+
+        except (NetrcParseError, OSError):
+            pass
+
+    except (ImportError, AttributeError):
+        pass
+
+
 def write_key(
     settings: "Settings",
     key: Optional[str],
@@ -258,7 +298,7 @@ def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
         assert settings is not None
     if settings.api_key:
         return settings.api_key
-    auth = requests.utils.get_netrc_auth(settings.base_url)
+    auth = get_netrc_auth(settings.base_url)
     if auth:
         return auth[-1]
     return None
