@@ -17,7 +17,7 @@ Use W&B to build better models faster. Track and visualize all the pieces of you
 
 <br>
 
-Building an LLM app? Track, debug, evaluate, and monitor LLM apps with [Weave](https://wandb.github.io/weave/), our new suite of tools for GenAI.
+Building an LLM app? Track, debug, evaluate, and monitor LLM apps with [Weave](https://wandb.github.io/weave?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme), our new suite of tools for GenAI.
 
 &nbsp;
 
