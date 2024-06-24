@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.3] - 2024-06-24
+
 ### Fixed
 
 - Correctly name the netrc file on Windows as `_netrc` by @dmitryduev in https://github.com/wandb/wandb/pull/7844
