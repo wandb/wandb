@@ -40,6 +40,6 @@ func ScanWBRecords(data []byte, _ bool) (int, []byte, error) {
 	}
 
 	advance := wbHeaderLength + int(header.DataLength)
-	token := data[wbHeaderLength:]
+	token := data[wbHeaderLength:advance]
 	return advance, token, nil
 }
