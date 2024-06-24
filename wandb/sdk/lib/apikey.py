@@ -16,6 +16,7 @@ else:
     from typing_extensions import Literal
 
 import click
+from requests.utils import NETRC_FILES, get_netrc_auth
 
 import wandb
 from wandb.apis import InternalApi
@@ -54,10 +55,19 @@ def _fixup_anon_mode(default: Optional[Mode]) -> Optional[Mode]:
 
 
 def get_netrc_file_path() -> str:
+    """Return the path to the netrc file."""
+    # if the NETRC environment variable is set, use that
     netrc_file = os.environ.get("NETRC")
     if netrc_file:
         return os.path.expanduser(netrc_file)
 
+    # if either .netrc or _netrc exists in the home directory, use that
+    for netrc_file in NETRC_FILES:
+        home_dir = os.path.expanduser("~")
+        if os.path.exists(home_dir, netrc_file):
+            return os.path.join(home_dir, netrc_file)
+
+    # otherwise, use .netrc on non-Windows platforms and _netrc on Windows
     netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
 
     return os.path.join(os.path.expanduser("~"), netrc_file)
@@ -220,47 +230,6 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
     except OSError:
         wandb.termerror(f"Unable to read {netrc_path}")
         return None
-
-
-def get_netrc_auth(url: str) -> Optional[Tuple[str, str]]:
-    """Get the netrc auth for a given url.
-
-    Returns None if the netrc file does not exist or if the auth for the given
-    url does not exist in the netrc file. Otherwise, returns a tuple of the
-    login and password for the given url.
-
-    This function was adapted from requests.utils.get_netrc_auth. The main
-    difference is that this function uses _netrc for Windows systems and .netrc
-    for Unix systems, while requests.utils.get_netrc_auth tries both _netrc and
-    .netrc on all systems.
-
-    Args:
-        url (str): The url to get the netrc auth for.
-
-    Returns:
-        Optional[Tuple[str, str]]: The login and password for the given url.
-    """
-    netrc_file = get_netrc_file_path()
-    if not os.path.exists(netrc_file):
-        return None
-
-    try:
-        from netrc import NetrcParseError, netrc
-
-        ri = urlparse(url)
-        host = ri.netloc.split(":")[0]
-
-        try:
-            _netrc = netrc(netrc_file).authenticators(host)
-            if _netrc:
-                login_i = 0 if _netrc[0] else 1
-                return (_netrc[login_i], _netrc[2])
-
-        except (NetrcParseError, OSError):
-            pass
-
-    except (ImportError, AttributeError):
-        pass
 
 
 def write_key(

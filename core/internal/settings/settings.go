@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/auth"
+	"github.com/wandb/wandb/core/internal/auth"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
