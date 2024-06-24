@@ -9,7 +9,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
-	json "github.com/wandb/simplejsonext"
+	"github.com/segmentio/encoding/json"
 )
 
 // MockClient is a mock implementation of the genqlient Client interface.
@@ -82,12 +82,7 @@ func handlerReturningJSON(
 	return func(_ *graphql.Request, resp *graphql.Response) error {
 		// Return the JSON error to make it easier to tell if a test's
 		// JSON is incorrect.
-		data, err := json.Unmarshal([]byte(responseJSON))
-		if err != nil {
-			return fmt.Errorf("gqlmock: invalid JSON: %v", err)
-		}
-		resp.Data = data
-		return nil
+		return json.Unmarshal([]byte(responseJSON), resp.Data)
 	}
 }
 
