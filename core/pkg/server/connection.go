@@ -139,19 +139,18 @@ func (nc *Connection) Respond(resp *service.ServerResponse) {
 // it closes the inChan when the connection is closed
 func (nc *Connection) readConnection() {
 	scanner := bufio.NewScanner(nc.conn)
-	buf := make([]byte, messageSize)
-	scanner.Buffer(buf, maxMessageSize)
-	tokenizer := &Tokenizer{}
-	scanner.Split(tokenizer.Split)
+	scanner.Buffer(make([]byte, messageSize), maxMessageSize)
+	scanner.Split(ScanWBRecords)
+
 	for scanner.Scan() {
-		msg := &service.ServerRequest{}
-		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
+		var msg service.ServerRequest
+		if err := proto.Unmarshal(scanner.Bytes(), &msg); err != nil {
 			slog.Error(
 				"unmarshalling error",
 				"err", err,
 				"conn", nc.conn.RemoteAddr())
 		} else {
-			nc.inChan <- msg
+			nc.inChan <- &msg
 		}
 	}
 	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {

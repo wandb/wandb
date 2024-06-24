@@ -3,7 +3,8 @@ package server
 import (
 	"bytes"
 	"encoding/binary"
-	"log/slog"
+	"errors"
+	"fmt"
 )
 
 type Header struct {
@@ -11,43 +12,34 @@ type Header struct {
 	DataLength uint32
 }
 
-type Tokenizer struct {
-	header       Header
-	headerLength int
-	headerValid  bool
-}
+var wbHeaderLength = binary.Size(Header{})
 
-func (x *Tokenizer) Split(data []byte, _ bool) (advance int, token []byte, err error) {
-	if x.headerLength == 0 {
-		x.headerLength = binary.Size(x.header)
+// ScanWBRecords is a split function for a [bufio.Scanner] that returns
+// the bytes corresponding to incoming Record protos.
+func ScanWBRecords(data []byte, _ bool) (int, []byte, error) {
+	if len(data) < wbHeaderLength {
+		return 0, nil, nil
 	}
 
-	advance = 0
-
-	if !x.headerValid {
-		if len(data) < x.headerLength {
-			return
-		}
-		buf := bytes.NewReader(data)
-		err := binary.Read(buf, binary.LittleEndian, &x.header)
-		if err != nil {
-			slog.Error("can't read token", "err", err)
-			return 0, nil, err
-		}
-		if x.header.Magic != uint8('W') {
-			slog.Error("Invalid magic byte in header")
-		}
-		x.headerValid = true
-		advance += x.headerLength
-		data = data[advance:]
+	var header Header
+	if err := binary.Read(
+		bytes.NewReader(data),
+		binary.LittleEndian,
+		&header,
+	); err != nil {
+		return 0, nil, fmt.Errorf("failed to read header: %v", err)
 	}
 
-	if len(data) < int(x.header.DataLength) {
-		return
+	if header.Magic != uint8('W') {
+		return 0, nil, errors.New("invalid magic byte in header")
 	}
 
-	advance += int(x.header.DataLength)
-	token = data[:x.header.DataLength]
-	x.headerValid = false
-	return
+	if len(data) < wbHeaderLength+int(header.DataLength) {
+		// 'data' does not yet contain the entire token.
+		return 0, nil, nil
+	}
+
+	advance := wbHeaderLength + int(header.DataLength)
+	token := data[wbHeaderLength:]
+	return advance, token, nil
 }
