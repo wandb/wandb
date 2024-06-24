@@ -6,7 +6,7 @@ import (
 	"runtime"
 	"testing"
 
-	"github.com/wandb/wandb/core/pkg/auth"
+	"github.com/wandb/wandb/core/internal/auth"
 )
 
 func TestNetrcPath(t *testing.T) {
