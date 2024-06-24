@@ -5,14 +5,15 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 )
+
+const wbHeaderLength = 5 // (8 + 32) / 8
 
 type Header struct {
 	Magic      uint8
 	DataLength uint32
 }
-
-var wbHeaderLength = binary.Size(Header{})
 
 // ScanWBRecords is a split function for a [bufio.Scanner] that returns
 // the bytes corresponding to incoming Record protos.
@@ -34,12 +35,26 @@ func ScanWBRecords(data []byte, _ bool) (int, []byte, error) {
 		return 0, nil, errors.New("invalid magic byte in header")
 	}
 
-	if len(data) < wbHeaderLength+int(header.DataLength) {
+	tokenEnd64 := uint64(header.DataLength) + wbHeaderLength
+
+	// Ensure tokenEnd64 fits into an int.
+	//
+	// On 64-bit systems, it always fits. On 32-bit systems, there will
+	// sometimes be overflow.
+	//
+	// If Go ever introduces integers with >=66 bits, then this code will
+	// fail to compile on those systems because Go can tell at compile time
+	// that MaxInt doesn't fit into uint64.
+	if tokenEnd64 > uint64(math.MaxInt) {
+		return 0, nil, errors.New("data too long, got integer overflow")
+	}
+	tokenEnd := int(tokenEnd64)
+
+	if len(data) < tokenEnd {
 		// 'data' does not yet contain the entire token.
 		return 0, nil, nil
 	}
 
-	advance := wbHeaderLength + int(header.DataLength)
-	token := data[wbHeaderLength:advance]
-	return advance, token, nil
+	token := data[wbHeaderLength:tokenEnd]
+	return tokenEnd, token, nil
 }
