@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 )
 
 func FileExists(path string) (bool, error) {

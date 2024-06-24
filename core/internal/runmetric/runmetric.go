@@ -3,6 +3,7 @@ package runmetric
 import (
 	"errors"
 	"path/filepath"
+	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/proto"
@@ -70,6 +71,7 @@ type MetricSender struct {
 	DefinedMetrics map[string]*service.MetricRecord
 	MetricIndex    map[string]int32
 	ConfigMetrics  []map[int]interface{}
+	Mu             sync.Mutex
 }
 
 func NewMetricSender() *MetricSender {

@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 )
 

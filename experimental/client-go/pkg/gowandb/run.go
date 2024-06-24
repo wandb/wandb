@@ -6,7 +6,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"

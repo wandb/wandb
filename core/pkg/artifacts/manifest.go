@@ -6,7 +6,7 @@ import (
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -46,8 +46,7 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 	for _, entry := range proto.Contents {
 		extra := map[string]interface{}{}
 		for _, item := range entry.Extra {
-			var value interface{}
-			err := json.Unmarshal([]byte(item.ValueJson), &value)
+			value, err := json.Unmarshal([]byte(item.ValueJson))
 			if err != nil {
 				return Manifest{}, fmt.Errorf(
 					"manifest entry extra json.Unmarshal: %w", err,
@@ -88,7 +87,7 @@ func loadManifestFromURL(url string) (Manifest, error) {
 		return Manifest{}, err
 	}
 	defer resp.Body.Close()
-	manifest := Manifest{}
+
 	if resp.StatusCode != http.StatusOK {
 		return Manifest{}, fmt.Errorf("request to get manifest from url failed with status code: %d", resp.StatusCode)
 	}
@@ -96,9 +95,9 @@ func loadManifestFromURL(url string) (Manifest, error) {
 	if err != nil {
 		return Manifest{}, fmt.Errorf("error reading response body: %v", err)
 	}
-	err = json.Unmarshal(body, &manifest)
+	manifest, err := json.Unmarshal(body)
 	if err != nil {
 		return Manifest{}, nil
 	}
-	return manifest, nil
+	return manifest.(Manifest), nil
 }

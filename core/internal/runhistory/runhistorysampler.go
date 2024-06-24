@@ -3,7 +3,7 @@ package runhistory
 import (
 	"strings"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -24,8 +24,9 @@ func NewRunHistorySampler() *RunHistorySampler {
 // This must be called on history rows in order.
 func (s *RunHistorySampler) SampleNext(history *service.HistoryRecord) {
 	for _, item := range history.Item {
-		var value float32
-		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
+
+		value, err := json.Unmarshal([]byte(item.ValueJson))
+		if err != nil {
 			// Skip items that we cannot sample.
 			continue
 		}
@@ -38,7 +39,7 @@ func (s *RunHistorySampler) SampleNext(history *service.HistoryRecord) {
 			s.samples[key] = sample
 		}
 
-		sample.Add(value)
+		sample.Add(value.(float32))
 	}
 }
 

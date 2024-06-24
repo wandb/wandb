@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"path/filepath"
 	"strings"
@@ -1086,7 +1087,11 @@ func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord
 		return
 	}
 
-	s.encodeMetricHints(record, metric)
+	if err := s.encodeMetricHints(record, metric); err != nil {
+		s.logger.Error("sender: sendMetric: failed to encode metric hints", "error", err)
+		return
+	}
+
 	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
 }
@@ -1370,28 +1375,52 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 
 // encodeMetricHints encodes the metric hints for the given metric record. The metric hints
 // are used to configure the plots in the UI.
-func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-
-	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
-	if err != nil {
-		return
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) error {
+	if s.metricSender == nil {
+		return errors.New("metricSender is not initialized")
 	}
 
-	if metric.GetStepMetric() != "" {
-		index, ok := s.metricSender.MetricIndex[metric.GetStepMetric()]
+	// Clone the metric to avoid modifying the original
+	metricClone := proto.Clone(metric).(*service.MetricRecord)
+
+	_, err := runmetric.AddMetric(metricClone, metricClone.GetName(), &s.metricSender.DefinedMetrics)
+	if err != nil {
+		return fmt.Errorf("failed to add metric: %w", err)
+	}
+
+	if metricClone.GetStepMetric() != "" {
+		index, ok := s.metricSender.MetricIndex[metricClone.GetStepMetric()]
 		if ok {
-			metric = proto.Clone(metric).(*service.MetricRecord)
-			metric.StepMetric = ""
-			metric.StepMetricIndex = index + 1
+			metricClone.StepMetric = ""
+			// Use safe addition to prevent overflow
+			if index < math.MaxInt32-1 {
+				metricClone.StepMetricIndex = int32(index + 1)
+			} else {
+				return errors.New("step metric index overflow")
+			}
 		}
 	}
 
-	encodeMetric := corelib.ProtoEncodeToDict(metric)
-	if index, ok := s.metricSender.MetricIndex[metric.GetName()]; ok {
-		s.metricSender.ConfigMetrics[index] = encodeMetric
+	encodeMetric := corelib.ProtoEncodeToDict(metricClone)
+
+	s.metricSender.Mu.Lock()
+	defer s.metricSender.Mu.Unlock()
+
+	if index, ok := s.metricSender.MetricIndex[metricClone.GetName()]; ok {
+		if index >= 0 && index < int32(len(s.metricSender.ConfigMetrics)) {
+			s.metricSender.ConfigMetrics[index] = encodeMetric
+		} else {
+			return fmt.Errorf("invalid metric index: %d", index)
+		}
 	} else {
 		nextIndex := len(s.metricSender.ConfigMetrics)
 		s.metricSender.ConfigMetrics = append(s.metricSender.ConfigMetrics, encodeMetric)
-		s.metricSender.MetricIndex[metric.GetName()] = int32(nextIndex)
+		if nextIndex <= math.MaxInt32 {
+			s.metricSender.MetricIndex[metricClone.GetName()] = int32(nextIndex)
+		} else {
+			return errors.New("metric index overflow")
+		}
 	}
+
+	return nil
 }

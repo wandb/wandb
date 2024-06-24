@@ -3,7 +3,7 @@ package runconfig
 import (
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -68,8 +68,8 @@ func (rc *RunConfig) ApplyChangeRecord(
 ) {
 	updates := make([]*pathtree.PathItem, 0, len(configRecord.GetUpdate()))
 	for _, item := range configRecord.GetUpdate() {
-		var value any
-		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
+		value, err := json.Unmarshal([]byte(item.GetValueJson()))
+		if err != nil {
 			onError(err)
 			continue
 		}
