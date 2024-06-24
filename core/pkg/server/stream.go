@@ -15,6 +15,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -234,19 +235,26 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 		},
 	)
 
-	var outputFile string
+	var outputFile *paths.RelativePath
 	if settings.Proto.GetConsoleMultipart().GetValue() {
-		outputFile = filepath.Join(
-			"logs",
-			fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
+		// This is guaranteed not to fail.
+		outputFile, _ = paths.Relative(
+			filepath.Join(
+				"logs",
+				fmt.Sprintf(
+					"%s_output.log",
+					time.Now().Format("20060102_150405.000000"),
+				),
+			),
 		)
 	}
+
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
 		SenderParams{
 			Logger:              s.logger,
-			Settings:            s.settings.Proto,
+			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
