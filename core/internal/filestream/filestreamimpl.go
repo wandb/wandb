@@ -76,65 +76,20 @@ func (fs *fileStream) startProcessingUpdates(
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
 	stateUpdates <-chan CollectorStateUpdate,
+	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
-	// Output channel of responses.
-	feedback := make(chan map[string]any)
+	transmissions := CollectLoop{
+		TransmitRateLimit: fs.transmitRateLimit,
+	}.Start(
+		stateUpdates,
+		initialOffsets,
+	)
 
-	// Internal channel of actual requests to make.
-	transmissions := make(chan *FsTransmitData)
-
-	state := CollectorState{}
-
-	transmitWG := &sync.WaitGroup{}
-	transmitWG.Add(1)
-	go func() {
-		defer func() {
-			close(feedback)
-			transmitWG.Done()
-		}()
-
-		fs.sendAll(transmissions, feedback)
-	}()
-
-	// Periodically send heartbeats.
-	//
-	// We do this by pushing a transmission if no requests are sent for too
-	// long---that is, when the heartbeat stopwatch hits zero. Whenever we
-	// transmit, we reset the stopwatch.
-	stopHearbeat := make(chan struct{})
-	heartbeatWG := &sync.WaitGroup{}
-	heartbeatWG.Add(1)
-	go func() {
-		defer heartbeatWG.Done()
-		fs.sendHeartbeats(stopHearbeat, transmissions)
-	}()
-
-	go func() {
-		// Batch and send updates.
-		//
-		// We try to batch updates that happen in quick succession by waiting a
-		// short time after receiving an update.
-		for firstUpdate := range stateUpdates {
-			firstUpdate.Apply(&state)
-			fs.collectBatch(&state, stateUpdates)
-
-			fs.heartbeatStopwatch.Reset()
-			data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
-			if hasData {
-				transmissions <- data
-			}
-		}
-
-		// Stop sending heartbeats.
-		close(stopHearbeat)
-		heartbeatWG.Wait()
-
-		// Send final transmission.
-		data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
-		transmissions <- data
-		close(transmissions)
-		transmitWG.Wait()
-	}()
+	feedback := TransmitLoop{
+		HeartbeatStopwatch:     fs.heartbeatStopwatch,
+		Send:                   fs.send,
+		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
+	}.Start(transmissions)
 
 	return feedback
 }
@@ -156,61 +111,8 @@ func (fs *fileStream) startProcessingFeedback(
 	}()
 }
 
-func (fs *fileStream) sendHeartbeats(
-	stop <-chan struct{},
-	out chan<- *FsTransmitData,
-) {
-	for keepGoing := true; keepGoing; {
-		select {
-		case <-fs.heartbeatStopwatch.Wait():
-			fs.heartbeatStopwatch.Reset()
-			out <- &FsTransmitData{}
-		case <-stop:
-			keepGoing = false
-		}
-	}
-}
-
-func (fs *fileStream) collectBatch(
-	state *CollectorState,
-	updates <-chan CollectorStateUpdate,
-) {
-	maxChunkWait := fs.delayProcess.Wait()
-
-	for keepGoing := true; keepGoing; {
-		select {
-		case update, ok := <-updates:
-			if ok {
-				update.Apply(state)
-			} else {
-				keepGoing = false
-			}
-		case <-maxChunkWait:
-			keepGoing = false
-		}
-	}
-}
-
-func (fs *fileStream) sendAll(
-	data <-chan *FsTransmitData,
-	feedbackChan chan<- map[string]any,
-) {
-	for x := range data {
-		err := fs.send(*x, feedbackChan)
-
-		if err != nil {
-			fs.logFatalAndStopWorking(err)
-			break
-		}
-	}
-
-	// Flush the channel, in case the loop above ended with an error.
-	for range data {
-	}
-}
-
 func (fs *fileStream) send(
-	data FsTransmitData,
+	data *FsTransmitData,
 	feedbackChan chan<- map[string]any,
 ) error {
 	// Stop working after death to avoid data corruption.
@@ -220,7 +122,7 @@ func (fs *fileStream) send(
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("filestream: json marshall error in send(): %v", err)
+		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
@@ -253,14 +155,16 @@ func (fs *fileStream) send(
 
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError("filestream: error closing response body", err)
+			fs.logger.CaptureError(
+				fmt.Errorf("filestream: error closing response body: %v", err))
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError("json decode error", err)
+		fs.logger.CaptureError(
+			fmt.Errorf("filestream: json decode error: %v", err))
 	}
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)

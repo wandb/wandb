@@ -1180,6 +1180,7 @@ class Api:
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
         """
+        # Pulling wandbConfig.start_time is required so that we can determine if a run has actually started
         query = gql(
             """
         query RunResumeStatus($project: String, $entity: String, $name: String!) {
@@ -1203,6 +1204,7 @@ class Api:
                     eventsTail
                     config
                     tags
+                    wandbConfig(keys: ["t"])
                 }
             }
         }
@@ -3036,6 +3038,7 @@ class Api:
         project: Optional[str] = None,
         entity: Optional[str] = None,
         state: Optional[str] = None,
+        prior_runs: Optional[List[str]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
@@ -3048,6 +3051,7 @@ class Api:
             project (str): project to use
             entity (str): entity to use
             state (str): state
+            prior_runs (list): IDs of existing runs to add to the sweep
         """
         project_query = """
             project {
@@ -3068,7 +3072,8 @@ class Api:
             $projectName: String,
             $controller: JSONString,
             $scheduler: JSONString,
-            $state: String
+            $state: String,
+            $priorRunsFilters: JSONString,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3078,7 +3083,8 @@ class Api:
                 projectName: $projectName,
                 controller: $controller,
                 scheduler: $scheduler,
-                state: $state
+                state: $state,
+                priorRunsFilters: $priorRunsFilters,
             }) {
                 sweep {
                     name
@@ -3127,6 +3133,9 @@ class Api:
         config_str = yaml.dump(
             json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
         )
+        filters = None
+        if prior_runs:
+            filters = json.dumps({"$or": [{"name": r} for r in prior_runs]})
 
         err: Optional[Exception] = None
         for mutation in mutations:
@@ -3140,6 +3149,7 @@ class Api:
                     "controller": controller,
                     "launchScheduler": launch_scheduler,
                     "scheduler": scheduler,
+                    "priorRunsFilters": filters,
                 }
                 if state:
                     variables["state"] = state
