@@ -64,7 +64,7 @@ def get_netrc_file_path() -> str:
     # if either .netrc or _netrc exists in the home directory, use that
     for netrc_file in NETRC_FILES:
         home_dir = os.path.expanduser("~")
-        if os.path.exists(home_dir, netrc_file):
+        if os.path.exists(os.path.join(home_dir, netrc_file)):
             return os.path.join(home_dir, netrc_file)
 
     # otherwise, use .netrc on non-Windows platforms and _netrc on Windows
