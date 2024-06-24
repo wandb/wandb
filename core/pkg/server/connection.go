@@ -143,14 +143,14 @@ func (nc *Connection) readConnection() {
 	scanner.Split(ScanWBRecords)
 
 	for scanner.Scan() {
-		var msg service.ServerRequest
-		if err := proto.Unmarshal(scanner.Bytes(), &msg); err != nil {
+		msg := &service.ServerRequest{}
+		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
 			slog.Error(
 				"unmarshalling error",
 				"err", err,
 				"conn", nc.conn.RemoteAddr())
 		} else {
-			nc.inChan <- &msg
+			nc.inChan <- msg
 		}
 	}
 	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
