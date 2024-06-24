@@ -2614,11 +2614,6 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # this message is confusing, we should remove it
-        # self._footer_exit_status_info(
-        #     self._exit_code, settings=self._settings, printer=self._printer
-        # )
-
         # wait for the exit to complete
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
@@ -2756,12 +2751,14 @@ class Run:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
+        # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
@@ -2777,6 +2774,9 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_step_sync = True
 
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2788,8 +2788,6 @@ class Run:
         )
         m._set_callback(self._metric_callback)
         m._commit()
-        with telemetry.context(run=self) as tel:
-            tel.feature.metric = True
         return m
 
     # TODO(jhr): annotate this
@@ -3764,6 +3762,11 @@ class Run:
             settings=settings,
             printer=printer,
         )
+        Run._footer_notify_wandb_core(
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
         Run._footer_local_warn(
             server_info_response=server_info_response,
             quiet=quiet,
@@ -3785,26 +3788,6 @@ class Run:
             settings=settings,
             printer=printer,
         )
-
-    @staticmethod
-    def _footer_exit_status_info(
-        exit_code: Optional[int],
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if settings.silent:
-            return
-
-        status = "(success)." if not exit_code else f"(failed {exit_code})."
-        info = [
-            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
-        ]
-
-        if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort()} to abort syncing.")
-
-        printer.display(f'{" ".join(info)}')
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
     @staticmethod
@@ -4153,6 +4136,24 @@ class Run:
         package_problem = check_version.delete_message or check_version.yank_message
         if package_problem and check_version.upgrade_message:
             printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_notify_wandb_core(
+        *,
+        quiet: Optional[bool] = None,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        """Prints a message advertising the upcoming core release."""
+        if quiet or settings._require_core:
+            return
+
+        printer.display(
+            "The new W&B backend becomes opt-out in version 0.18.0;"
+            ' try it out with `wandb.require("core")`!'
+            " See https://wandb.me/wandb-core for more information.",
+            level="warn",
+        )
 
     @staticmethod
     def _footer_reporter_warn_err(

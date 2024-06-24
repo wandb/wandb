@@ -4,6 +4,7 @@ package settings
 import (
 	"fmt"
 	"net/url"
+	"time"
 
 	"github.com/wandb/wandb/core/pkg/auth"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -87,6 +88,12 @@ func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
 }
 
+// The start time of the run.
+func (s *Settings) GetStartTime() time.Time {
+	seconds := s.Proto.XStartTime.GetValue()
+	return time.UnixMicro(int64(seconds * 1e6))
+}
+
 // The directory for storing log files.
 func (s *Settings) GetLogDir() string {
 	return s.Proto.LogDir.GetValue()
@@ -105,4 +112,14 @@ func (s *Settings) GetFilesDir() string {
 // Unix glob patterns relative to `files_dir` to not upload.
 func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
+}
+
+// Custom proxy for http requests to W&B.
+func (s *Settings) GetHTTPProxy() string {
+	return s.Proto.HttpProxy.GetValue()
+}
+
+// Custom proxy for https requests to W&B.
+func (s *Settings) GetHTTPSProxy() string {
+	return s.Proto.HttpsProxy.GetValue()
 }

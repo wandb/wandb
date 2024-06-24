@@ -1,4 +1,5 @@
 import datetime
+import enum
 import os
 import platform
 import random
@@ -68,6 +69,16 @@ def assert_deep_lists_equal(a, b, indices=None):
 def json_friendly_test(orig_data, obj):
     data, converted = util.json_friendly(obj)
     assert_deep_lists_equal(orig_data, data)
+    assert converted
+
+
+def test_jsonify_enum():
+    class TestEnum(enum.Enum):
+        A = 1
+        B = 2
+
+    data, converted = util.json_friendly(TestEnum.A)
+    assert data == "A"
     assert converted
 
 

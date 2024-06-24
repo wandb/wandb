@@ -72,7 +72,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		cancel,
 		server.SenderParams{
 			Logger:              logger,
-			Settings:            settings.Proto,
+			Settings:            settings,
 			Backend:             backend,
 			FileStream:          fileStream,
 			FileTransferManager: fileTransferManager,

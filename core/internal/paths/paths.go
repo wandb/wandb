@@ -16,6 +16,7 @@ package paths
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 )
 
@@ -50,6 +51,19 @@ func (path *RelativePath) OrEmpty() string {
 	} else {
 		return string(*path)
 	}
+}
+
+// CWD returns the current working directory.
+//
+// It may fail if the directory has been deleted.
+func CWD() (*AbsolutePath, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+
+	// Getwd() always returns an absolute path.
+	return toPtr(AbsolutePath(filepath.Clean(cwd))), nil
 }
 
 // Absolute makes a path absolute.

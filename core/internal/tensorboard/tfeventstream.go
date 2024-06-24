@@ -1,6 +1,7 @@
 package tensorboard
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/paths"
@@ -71,6 +72,8 @@ func (s *tfEventStream) Stop() {
 }
 
 // Start begins reading files and pushing to the output channel.
+//
+// A no-op if called after Stop.
 func (s *tfEventStream) Start() {
 	s.wg.Add(1)
 	go func() {
@@ -80,23 +83,35 @@ func (s *tfEventStream) Start() {
 }
 
 func (s *tfEventStream) loop() {
+	// Whether we're in the final stage where we read all remaining events.
+	//
+	// Stop() may be invoked while we're asleep, during which time more events
+	// may have been written. As soon as Stop() is invoked, we wake up and
+	// flush all remaining events before exiting the loop.
+	isFinishing := false
+
 	for {
 		event, err := s.reader.NextEvent(s.emitFilePath /*onNewFile*/)
 		if err != nil {
 			s.logger.CaptureError(
-				"tensorboard: failed reading next event",
-				err,
-			)
+				fmt.Errorf(
+					"tensorboard: failed reading next event: %v",
+					err,
+				))
 			return
 		}
 
-		// NOTE: We only exit the loop after there are no more events to read.
 		if event == nil {
+			if isFinishing {
+				return
+			}
+
 			select {
 			case <-s.readDelay.Wait():
 				continue
 			case <-s.done:
-				return
+				isFinishing = true
+				continue
 			}
 		}
 

@@ -1,5 +1,5 @@
 import urllib.parse
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import wandb
 from wandb import env
@@ -32,6 +32,7 @@ def sweep(
     sweep: Union[dict, Callable],
     entity: Optional[str] = None,
     project: Optional[str] = None,
+    prior_runs: Optional[List[str]] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
@@ -57,6 +58,7 @@ def sweep(
       project: The name of the project where W&B runs created from
         the sweep are sent to. If the project is not specified, the
         run is sent to a project labeled 'Uncategorized'.
+      prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
       sweep_id: str. A unique identifier for the sweep.
@@ -78,7 +80,7 @@ def sweep(
     if wandb.run is None:
         wandb_login._login(_silent=True)
     api = InternalApi()
-    sweep_id, warnings = api.upsert_sweep(sweep)
+    sweep_id, warnings = api.upsert_sweep(sweep, prior_runs=prior_runs)
     handle_sweep_config_violations(warnings)
     print("Create sweep with ID:", sweep_id)
     sweep_url = _get_sweep_url(api, sweep_id)
