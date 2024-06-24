@@ -2780,9 +2780,9 @@ class Api:
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
             request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.error(f"upload_file request headers: {request_headers!r}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content}")
+            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -2848,7 +2848,7 @@ class Api:
             request_headers = e.request.headers if e.request is not None else ""
             logger.error(f"upload_file request headers: {request_headers}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content}")
+            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
