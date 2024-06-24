@@ -79,7 +79,7 @@ func parseNetrc(data string) []netrcLine {
 	return nrc
 }
 
-func netrcPath() (string, error) {
+func NetrcPath() (string, error) {
 	if env := os.Getenv("NETRC"); env != "" {
 		return env, nil
 	}
@@ -87,6 +87,15 @@ func netrcPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	// if either .netrc or _netrc file exists, use it
+	for _, name := range []string{".netrc", "_netrc"} {
+		if _, err := os.Stat(filepath.Join(dir, name)); err == nil {
+			return filepath.Join(dir, name), nil
+		}
+	}
+
+	// otherwise, use _netrc on Windows and .netrc on other systems
 	base := ".netrc"
 	if runtime.GOOS == "windows" {
 		base = "_netrc"
@@ -95,7 +104,7 @@ func netrcPath() (string, error) {
 }
 
 func ReadNetrc() ([]netrcLine, error) {
-	path, err := netrcPath()
+	path, err := NetrcPath()
 	if err != nil {
 		// netrcErr = err
 		return []netrcLine{}, err
