@@ -6,7 +6,7 @@ import stat
 import sys
 import textwrap
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Callable, Dict, Optional, Union
 from urllib.parse import urlparse
 
 # import Literal
