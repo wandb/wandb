@@ -10,8 +10,8 @@ type FileStreamRequest struct {
 
 	// Uploaded is a list of run files that were successfully uploaded.
 	//
-	// This is used in deployments where run files are stored separately
-	// and it's unknown whether
+	// This is used in deployments where the backend is not notified
+	// when a file declared in a run has finished uploading to storage.
 	Uploaded []string `json:"uploaded,omitempty"`
 
 	// Preempting indicates that the run process is about to yield access
