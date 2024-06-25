@@ -82,3 +82,19 @@ func TestSparseListIndices(t *testing.T) {
 	list.Delete(109)
 	assert.Equal(t, 99, list.LastIndex())
 }
+
+func TestSparseListMap(t *testing.T) {
+	list := sparselist.SparseList[float64]{}
+	list.Put(0, 1.23)
+	list.Put(1, 4.56)
+	list.Put(2, 7.89)
+
+	result := sparselist.Map(list,
+		func(x float64) float64 { return -x })
+
+	assert.Equal(t,
+		[]sparselist.Run[float64]{
+			{Start: 0, Items: []float64{-1.23, -4.56, -7.89}},
+		},
+		result.ToRuns())
+}

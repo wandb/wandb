@@ -9,23 +9,21 @@ import (
 	"golang.org/x/time/rate"
 )
 
-type uploadedFilesUpdate struct {
-	file string
-}
-
-func (s *uploadedFilesUpdate) Apply(state *filestream.CollectorState) {
-	state.UploadedFiles = append(state.UploadedFiles, s.file)
+func uploadedFilesUpdate(file string) filestream.BufferMutation {
+	return func(buffer *filestream.FileStreamRequestBuffer) {
+		buffer.UploadedFiles = append(buffer.UploadedFiles, file)
+	}
 }
 
 func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
-	updates := make(chan filestream.CollectorStateUpdate)
-	defer close(updates)
+	mutations := make(chan filestream.BufferMutation)
+	defer close(mutations)
 	loop := filestream.CollectLoop{TransmitRateLimit: rate.NewLimiter(rate.Inf, 1)}
 
-	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
-	updates <- &uploadedFilesUpdate{file: "one"}
-	updates <- &uploadedFilesUpdate{file: "two"}
-	updates <- &uploadedFilesUpdate{file: "three"}
+	transmissions := loop.Start(mutations, filestream.FileStreamOffsetMap{})
+	mutations <- uploadedFilesUpdate("one")
+	mutations <- uploadedFilesUpdate("two")
+	mutations <- uploadedFilesUpdate("three")
 
 	select {
 	case result := <-transmissions:
@@ -38,12 +36,12 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 }
 
 func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
-	updates := make(chan filestream.CollectorStateUpdate)
+	mutations := make(chan filestream.BufferMutation)
 	// Use a rate limiter that never lets requests through.
 	loop := filestream.CollectLoop{TransmitRateLimit: &rate.Limiter{}}
 
-	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
-	close(updates)
+	transmissions := loop.Start(mutations, filestream.FileStreamOffsetMap{})
+	close(mutations)
 
 	select {
 	case <-transmissions:

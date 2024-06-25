@@ -10,40 +10,24 @@ import (
 	"github.com/wandb/wandb/core/internal/api"
 )
 
-// FsTransmitData is serialized and sent to a W&B server
-type FsTransmitData struct {
-	Files      map[string]FsTransmitFileData `json:"files,omitempty"`
-	Complete   *bool                         `json:"complete,omitempty"`
-	Exitcode   *int32                        `json:"exitcode,omitempty"`
-	Preempting bool                          `json:"preempting,omitempty"`
-	Dropped    int32                         `json:"dropped,omitempty"`
-	Uploaded   []string                      `json:"uploaded,omitempty"`
-}
-
-// FsServerFileData (part of FsTransmitData) is serialized and sent to a W&B server
-type FsTransmitFileData struct {
-	Offset  int      `json:"offset"`
-	Content []string `json:"content"`
-}
-
 // startProcessingUpdates asynchronously ingests updates.
 //
 // This returns a channel of actual work to perform to update the filestream's
 // next request.
 func (fs *fileStream) startProcessingUpdates(
 	updates <-chan Update,
-) <-chan CollectorStateUpdate {
-	stateUpdates := make(chan CollectorStateUpdate)
+) <-chan BufferMutation {
+	mutations := make(chan BufferMutation)
 
 	go func() {
-		defer close(stateUpdates)
+		defer close(mutations)
 
 		fs.logger.Debug("filestream: open", "path", fs.path)
 
 		for update := range updates {
 			err := update.Apply(UpdateContext{
-				ModifyRequest: func(csu CollectorStateUpdate) {
-					stateUpdates <- csu
+				Modify: func(mutation BufferMutation) {
+					mutations <- mutation
 				},
 
 				Settings: fs.settings,
@@ -63,7 +47,7 @@ func (fs *fileStream) startProcessingUpdates(
 		}
 	}()
 
-	return stateUpdates
+	return mutations
 }
 
 // startTransmitting makes requests to the filestream API.
@@ -75,15 +59,12 @@ func (fs *fileStream) startProcessingUpdates(
 // guaranteeing that a request is sent at least once every period specified
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
-	stateUpdates <-chan CollectorStateUpdate,
+	mutations <-chan BufferMutation,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
 	transmissions := CollectLoop{
 		TransmitRateLimit: fs.transmitRateLimit,
-	}.Start(
-		stateUpdates,
-		initialOffsets,
-	)
+	}.Start(mutations, initialOffsets)
 
 	feedback := TransmitLoop{
 		HeartbeatStopwatch:     fs.heartbeatStopwatch,
@@ -112,7 +93,7 @@ func (fs *fileStream) startProcessingFeedback(
 }
 
 func (fs *fileStream) send(
-	data *FsTransmitData,
+	data *FileStreamRequest,
 	feedbackChan chan<- map[string]any,
 ) error {
 	// Stop working after death to avoid data corruption.

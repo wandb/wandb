@@ -10,21 +10,22 @@ import (
 )
 
 func TestTransmitLoop_Sends(t *testing.T) {
-	outputs := make(chan *filestream.FsTransmitData)
+	outputs := make(chan *filestream.FileStreamRequest)
 	loop := filestream.TransmitLoop{
 		HeartbeatStopwatch:     waitingtest.NewFakeStopwatch(),
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
-			ftd *filestream.FsTransmitData,
+			ftd *filestream.FileStreamRequest,
 			c chan<- map[string]any,
 		) error {
 			outputs <- ftd
 			return nil
 		},
 	}
-	testInput := filestream.FsTransmitData{Preempting: true}
+	boolTrue := true
+	testInput := filestream.FileStreamRequest{Preempting: &boolTrue}
 
-	inputs := make(chan *filestream.FsTransmitData)
+	inputs := make(chan *filestream.FileStreamRequest)
 	_ = loop.Start(inputs)
 	inputs <- &testInput
 	close(inputs)
@@ -39,14 +40,14 @@ func TestTransmitLoop_Sends(t *testing.T) {
 
 func TestTransmitLoop_SendsHeartbeats(t *testing.T) {
 	heartbeat := waitingtest.NewFakeStopwatch()
-	inputs := make(chan *filestream.FsTransmitData)
+	inputs := make(chan *filestream.FileStreamRequest)
 	defer close(inputs)
-	outputs := make(chan *filestream.FsTransmitData)
+	outputs := make(chan *filestream.FileStreamRequest)
 	loop := filestream.TransmitLoop{
 		HeartbeatStopwatch:     heartbeat,
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
-			ftd *filestream.FsTransmitData,
+			ftd *filestream.FileStreamRequest,
 			c chan<- map[string]any,
 		) error {
 			outputs <- ftd

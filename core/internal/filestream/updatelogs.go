@@ -8,15 +8,9 @@ type LogsUpdate struct {
 }
 
 func (u *LogsUpdate) Apply(ctx UpdateContext) error {
-	ctx.ModifyRequest(&collectorLogsUpdate{lines: u.Lines})
+	ctx.Modify(func(buffer *FileStreamRequestBuffer) {
+		buffer.ConsoleLogUpdates.Update(u.Lines)
+	})
 
 	return nil
-}
-
-type collectorLogsUpdate struct {
-	lines sparselist.SparseList[string]
-}
-
-func (u *collectorLogsUpdate) Apply(state *CollectorState) {
-	state.ConsoleLogUpdates.Update(u.lines)
 }
