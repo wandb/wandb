@@ -49,7 +49,7 @@ parameters:
     default: 1
   go_version:
     type: string
-    default: "1.22.3"
+    default: "1.22.4"
   container_registry:
     type: string
     default: "us-central1-docker.pkg.dev"
@@ -179,7 +179,7 @@ commands:
     steps:
       - run:
           name: Install Python dependencies
-          command: pip install -U nox pip uv
+          command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
 
       - run:
@@ -442,8 +442,7 @@ jobs:
                 no_output_timeout: 30m
             - run:
                 name: Install requirements
-                command: |
-                  pip install -U pip tox
+                command: python -m pip install -U pip tox
                 no_output_timeout: 5m
             - run:
                 name: Run tests
@@ -569,7 +568,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip uv
+          command: python -m pip install -U tox nox pip uv
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
@@ -636,7 +635,7 @@ jobs:
             - install_go
             - run:
                 name: Install Python dependencies
-                command: pip install -U tox nox pip uv
+                command: python -m pip install -U tox nox pip uv
                 no_output_timeout: 5m
             - restore_cache_tox
             - run:
@@ -694,7 +693,7 @@ jobs:
       - install_go
       - run:
           name: Install Python dependencies
-          command: pip install -U tox nox pip uv
+          command: python -m pip install -U tox nox pip uv
           no_output_timeout: 5m
       - restore_cache_tox
       - run:
@@ -747,7 +746,7 @@ jobs:
           name:
           command: |
             go install github.com/google/go-containerregistry/cmd/gcrane@latest
-            pip install -U pip nox requests uv
+            python -m pip install -U pip nox requests uv
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 
