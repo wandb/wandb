@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"

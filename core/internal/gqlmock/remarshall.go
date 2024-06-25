@@ -1,6 +1,6 @@
 package gqlmock
 
-import "github.com/segmentio/encoding/json"
+import json "github.com/wandb/simplejsonext"
 
 // Converts a value to a map by marshalling to JSON and unmarshalling.
 func jsonMarshallToMap(value any) (ret map[string]any) {
@@ -9,7 +9,8 @@ func jsonMarshallToMap(value any) (ret map[string]any) {
 		return nil
 	}
 
-	err = json.Unmarshal(bytes, &ret)
+	val, err := json.Unmarshal(bytes)
+	ret = val.(map[string]any)
 	if err != nil {
 		return nil
 	}

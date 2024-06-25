@@ -3,7 +3,7 @@ package filestream
 import (
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	json "github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -23,17 +23,16 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_runtime"] = timestamp - ctx.Settings.XStartTime.GetValue()
 
 	for _, item := range u.Record.Item {
-		var val interface{}
-		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
+		val, err := json.Unmarshal([]byte(item.ValueJson))
+		if err != nil {
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
-					"filestream: failed to marshal StatsItem for key %s: %v",
+					"filestream: failed to unmarshal StatsItem for key %s: %v",
 					item.Key,
 					err,
 				))
 			continue
 		}
-
 		row["system."+item.Key] = val
 	}
 

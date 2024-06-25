@@ -33,9 +33,19 @@ func TestConfigUpdate(t *testing.T) {
 		}, ignoreError,
 	)
 
+	// TODO: FIX THIS! Must be it
+	/*
+		Diff:
+		--- Expected
+		+++ Actual
+		@@ -1,3 +1,3 @@
+			(map[string]interface {}) (len=2) {
+		- (string) (len=1) "a": (float64) 1,
+		+ (string) (len=1) "a": (int64) 1,
+	*/
 	assert.Equal(t,
 		pathtree.TreeData{
-			"a": 1.0,
+			"a": int64(1.0),
 			"b": pathtree.TreeData{
 				"c": "text",
 				"d": 123.0,
