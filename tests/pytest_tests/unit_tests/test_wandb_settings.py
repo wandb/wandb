@@ -347,6 +347,16 @@ def test_run_urls():
     assert s.run_url == f"{base_url}/{entity}/{project}/runs/{run_id}"
 
 
+def test_project():
+    s = Settings()
+    assert s.project == "uncategorized"
+    with mock.patch.object(wandb.sdk.lib.gitlib.GitRepo, "root_dir", "my/git/root"):
+        assert s.project == "root"
+    assert s.project == "uncategorized"
+    s.update({"project": "test"})
+    assert s.project == "test"
+
+
 def test_offline(test_settings):
     test_settings = test_settings()
     assert test_settings._offline is False
