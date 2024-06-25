@@ -11,8 +11,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.3] - 2024-06-24
+
 ### Fixed
 
+- Correctly name the netrc file on Windows as `_netrc` by @dmitryduev in https://github.com/wandb/wandb/pull/7844
 - With core enabled, nested `tqdm` bars show up correctly in the Logs tab (@timoffex in https://github.com/wandb/wandb/pull/7825)
 - Fix W&B Launch registry ECR regex separating tag on forward slash and period @KyleGoyette https://github.com/wandb/wandb/pull/7837
 
