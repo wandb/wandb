@@ -875,8 +875,6 @@ class Settings(SettingsData):
             },
             project={
                 "validator": self._validate_project,
-                "hook": lambda x: x or util.auto_project_name(self.program),
-                "auto_hook": True,
             },
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
