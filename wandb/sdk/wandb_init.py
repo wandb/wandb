@@ -989,8 +989,9 @@ def init(
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
-            the new run. If the project is not specified, the run is put in an
-            "Uncategorized" project.
+            the new run. If the project is not specified, we will try to infer
+            the project name from git root or the current program file. If we
+            can't infer the project name, we will default to `"uncategorized"`.
         entity: (str, optional) An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before
