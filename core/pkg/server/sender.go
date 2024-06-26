@@ -16,15 +16,20 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -44,7 +49,7 @@ const (
 
 type SenderParams struct {
 	Logger              *observability.CoreLogger
-	Settings            *service.Settings
+	Settings            *settings.Settings
 	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
@@ -57,7 +62,7 @@ type SenderParams struct {
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
-	OutputFileName      string
+	OutputFileName      *paths.RelativePath
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -111,7 +116,7 @@ type Sender struct {
 	telemetry *service.TelemetryRecord
 
 	// metricSender is a service for managing metrics
-	metricSender *MetricSender
+	metricSender *runmetric.MetricSender
 
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -150,8 +155,8 @@ type Sender struct {
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
 
-	// filename to write console output to
-	outputFileName string
+	// consoleLogsSender uploads captured console output.
+	consoleLogsSender *runconsolelogs.Sender
 }
 
 // NewSender creates a new Sender with the given settings
@@ -161,8 +166,13 @@ func NewSender(
 	params SenderParams,
 ) *Sender {
 
-	if params.OutputFileName == "" {
-		params.OutputFileName = LatestOutputFileName
+	var outputFileName paths.RelativePath
+	if params.OutputFileName != nil {
+		outputFileName = *params.OutputFileName
+	} else {
+		// Guaranteed not to fail.
+		path, _ := paths.Relative(LatestOutputFileName)
+		outputFileName = *path
 	}
 
 	s := &Sender{
@@ -172,7 +182,7 @@ func NewSender(
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
 		logger:              params.Logger,
-		settings:            params.Settings,
+		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
 		fileWatcher:         params.FileWatcher,
@@ -194,7 +204,14 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
-		outputFileName: params.OutputFileName,
+
+		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
+			ConsoleOutputFile: outputFileName,
+			Settings:          params.Settings,
+			Logger:            params.Logger,
+			LoopbackChan:      params.FwdChan,
+			FileStreamOrNil:   params.FileStream,
+		}),
 	}
 
 	backendOrNil := params.Backend
@@ -514,7 +531,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		s.uploadOutputFile()
+		s.consoleLogsSender.Finish()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -621,7 +638,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 func (s *Sender) updateConfigPrivate() {
 	metrics := []map[int]interface{}(nil)
 	if s.metricSender != nil {
-		metrics = s.metricSender.configMetrics
+		metrics = s.metricSender.ConfigMetrics
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -989,72 +1006,8 @@ func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
 	// TODO: implement me
 }
 
-func writeOutputToFile(file, line string) error {
-	// append line to file
-	f, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = fmt.Fprintln(f, line)
-	return err
-}
-
-func (s *Sender) uploadOutputFile() {
-	// In the end of a run, we upload the output file to the server
-	// This is a bit of a duplication, as we send the same content through the
-	// filestream
-	// Ideally, the output content from the filestream would be converted
-	// to a file on the server side, but for now we do it here as well
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: s.outputFileName,
-						Type: service.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}
-
-	s.fwdRecord(record)
-}
-
 func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRecord) {
-	// TODO: move this to filestream!
-	// TODO: match logic handling of lines to the one in the python version
-	// - handle carriage returns (for tqdm-like progress bars)
-	// - handle caching multiple (non-new lines) and sending them in one chunk
-	// - handle lines longer than ~60_000 characters
-
-	// ignore empty "new lines"
-	if outputRaw.Line == "\n" {
-		return
-	}
-
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
-	}
-
-	// create a folder for the output file if it doesn't exist
-	fullFilePath := filepath.Join(s.settings.GetFilesDir().GetValue(), s.outputFileName)
-	logPath := filepath.Dir(fullFilePath)
-	// check if the directory exists
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		// create the directory
-		if err := os.MkdirAll(logPath, 0755); err != nil {
-			s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
-			return
-		}
-	}
-
-	// append line to file
-	if err := writeOutputToFile(fullFilePath, outputRaw.Line); err != nil {
-		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
-	}
+	s.consoleLogsSender.StreamLogs(outputRaw)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -1125,7 +1078,7 @@ func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRec
 // which will then send it to the server
 func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
 	if s.metricSender == nil {
-		s.metricSender = NewMetricSender()
+		s.metricSender = runmetric.NewMetricSender()
 	}
 
 	if metric.GetGlobName() != "" {
@@ -1413,4 +1366,32 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
+
+	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
+	if err != nil {
+		return
+	}
+
+	if metric.GetStepMetric() != "" {
+		index, ok := s.metricSender.MetricIndex[metric.GetStepMetric()]
+		if ok {
+			metric = proto.Clone(metric).(*service.MetricRecord)
+			metric.StepMetric = ""
+			metric.StepMetricIndex = index + 1
+		}
+	}
+
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
+	if index, ok := s.metricSender.MetricIndex[metric.GetName()]; ok {
+		s.metricSender.ConfigMetrics[index] = encodeMetric
+	} else {
+		nextIndex := len(s.metricSender.ConfigMetrics)
+		s.metricSender.ConfigMetrics = append(s.metricSender.ConfigMetrics, encodeMetric)
+		s.metricSender.MetricIndex[metric.GetName()] = int32(nextIndex)
+	}
 }

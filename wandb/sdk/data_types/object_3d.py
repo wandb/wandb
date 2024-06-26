@@ -36,7 +36,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
     from ..wandb_run import Run as LocalRun
 
-    numeric = Union[int, float, np.integer, np.float_]
+    numeric = Union[int, float, np.integer, np.float64]
     FileFormat3D = Literal[
         "obj",
         "gltf",

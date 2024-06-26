@@ -11,15 +11,30 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.3] - 2024-06-24
+
+### Fixed
+
+- Correctly name the netrc file on Windows as `_netrc` by @dmitryduev in https://github.com/wandb/wandb/pull/7844
+- With core enabled, nested `tqdm` bars show up correctly in the Logs tab (@timoffex in https://github.com/wandb/wandb/pull/7825)
+- Fix W&B Launch registry ECR regex separating tag on forward slash and period @KyleGoyette https://github.com/wandb/wandb/pull/7837
+
+## [0.17.2] - 2024-06-17
+
 ### Added
 
 - Add prior runs when creating a sweep from the CLI by @TimH98 in https://github.com/wandb/wandb/pull/7803
 
 ### Fixed
 
+- Fix issues with `numpy>=2` support by @dmitryduev in https://github.com/wandb/wandb/pull/7816
 - Fix "UnicodeDecodeError: 'charmap'" when opening HTML files on Windows by specifying UTF-8 encoding by @KilnOfTheSecondFlame in https://github.com/wandb/wandb/pull/7730
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
 - Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
+
+### Changed
+
+- Upgrade github.com/vektah/gqlparser/v2 from 2.5.11 to 2.5.16 by @wandb-kc in https://github.com/wandb/wandb/pull/7828
 
 ## [0.17.1] - 2024-06-07
 

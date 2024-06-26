@@ -9,7 +9,6 @@ import (
 
 func init() {
 	AddRule("PossibleFragmentSpreads", func(observers *Events, addError AddErrFunc) {
-
 		validate := func(walker *Walker, parentDef *ast.Definition, fragmentName string, emitError func()) {
 			if parentDef == nil {
 				return

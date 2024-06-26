@@ -15,7 +15,9 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -206,6 +208,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 	}
 
 	mailbox := mailbox.NewMailbox()
+	metricHandler := runmetric.NewMetricHandler()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -217,8 +220,8 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(),
-			MetricHandler:     NewMetricHandler(),
+			RunSummary:        runsummary.New(runsummary.Params{MetricHandler: metricHandler}),
+			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
@@ -232,19 +235,26 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 		},
 	)
 
-	var outputFile string
+	var outputFile *paths.RelativePath
 	if settings.Proto.GetConsoleMultipart().GetValue() {
-		outputFile = filepath.Join(
-			"logs",
-			fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
+		// This is guaranteed not to fail.
+		outputFile, _ = paths.Relative(
+			filepath.Join(
+				"logs",
+				fmt.Sprintf(
+					"%s_output.log",
+					time.Now().Format("20060102_150405.000000"),
+				),
+			),
 		)
 	}
+
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
 		SenderParams{
 			Logger:              s.logger,
-			Settings:            s.settings.Proto,
+			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
@@ -252,7 +262,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Clien
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
-			RunSummary:          runsummary.New(),
+			RunSummary:          runsummary.New(runsummary.Params{}),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
