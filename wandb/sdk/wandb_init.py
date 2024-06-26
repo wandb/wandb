@@ -323,6 +323,15 @@ class _WandbInit:
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
 
+        # TODO: remove this once we refactor the client. This is a temporary
+        # fix to make sure that we use the same project name for wandb-core.
+        # The reason this is not going throught the settings object is to
+        # avoid failure cases in other parts of the code that will be
+        # removed with the switch to wandb-core.
+        if settings.project is None:
+            project = wandb.util.auto_project_name(settings.program)
+            settings.update({"project": project}, source=Source.INIT)
+
         # TODO(jhr): should this be moved? probably.
         settings._set_run_start_time(source=Source.INIT)
 
@@ -989,8 +998,9 @@ def init(
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
-            the new run. If the project is not specified, the run is put in an
-            "Uncategorized" project.
+            the new run. If the project is not specified, we will try to infer
+            the project name from git root or the current program file. If we
+            can't infer the project name, we will default to `"uncategorized"`.
         entity: (str, optional) An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before
