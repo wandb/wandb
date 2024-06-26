@@ -15,7 +15,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.24.5
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0
-	github.com/wandb/segmentio-encoding v0.0.0-20240626224323-091ed9ec125f
+	github.com/wandb/segmentio-encoding v0.0.0-20240626235424-a08f80ebfb91
 	golang.org/x/sync v0.7.0
 	golang.org/x/time v0.5.0
 	google.golang.org/protobuf v1.34.2

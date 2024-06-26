@@ -300,13 +300,13 @@ func (d decoder) parseNumber(b []byte) (v, r []byte, kind Kind, err error) {
 	if len(b) >= 3 {
 		switch string(b[:3]) {
 		case "NaN":
-			return []byte("\"NaN\""), b[3:], String, nil
+			return []byte("NaN"), b[3:], Float, nil
 		case "Inf":
-			return []byte("\"Infinity\""), b[8:], String, nil
+			return []byte("Infinity"), b[8:], Float, nil
 		}
 	}
 	if len(b) >= 4 && string(b[:4]) == "-Inf" {
-		return []byte("\"-Infinity\""), b[9:], String, nil
+		return []byte("-Infinity"), b[9:], Float, nil
 	}
 	
 	// Assume it's an unsigned integer at first.

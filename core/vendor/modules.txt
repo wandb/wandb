@@ -244,7 +244,7 @@ github.com/vektah/gqlparser/v2/lexer
 github.com/vektah/gqlparser/v2/parser
 github.com/vektah/gqlparser/v2/validator
 github.com/vektah/gqlparser/v2/validator/rules
-# github.com/wandb/segmentio-encoding v0.0.0-20240626224323-091ed9ec125f
+# github.com/wandb/segmentio-encoding v0.0.0-20240626235424-a08f80ebfb91
 ## explicit; go 1.18
 github.com/wandb/segmentio-encoding/json
 # github.com/xanzy/ssh-agent v0.3.3

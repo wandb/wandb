@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/segmentio/encoding/json"
+	jsonlib "github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
 )
 
@@ -120,7 +121,7 @@ func (fs *fileStream) send(
 		return fmt.Errorf("filestream: can't send because I am dead")
 	}
 
-	jsonData, err := json.Marshal(data)
+	jsonData, err := jsonlib.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
