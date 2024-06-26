@@ -3160,16 +3160,12 @@ class Api:
                     "projectName": project or self.settings("project"),
                     "controller": controller,
                     "launchScheduler": launch_scheduler,
+                    "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
                     "priorRunsFilters": filters,
                 }
                 if state:
                     variables["state"] = state
-
-                if template_variable_values:
-                    variables["templateVariableValues"] = json.dumps(
-                        template_variable_values
-                    )
 
                 response = self.gql(
                     mutation,
