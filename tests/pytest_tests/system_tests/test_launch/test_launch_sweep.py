@@ -141,8 +141,8 @@ def test_launch_agent_scheduler(
     api = wandb.sdk.internal.internal_api.Api()
     res = api.create_default_resource_config(
         user,
-        "local=container",
-        json.dumps({"e": "{{var}}"}),
+        "local-container",
+        json.dumps({"resource_args": {"local-container": {"e": "{{var}}"}}}),
         {"var": {"schema": {"type": "string", "enum": ["1", "2"]}}},
     )
     id = res.get("defaultResourceConfigID")
