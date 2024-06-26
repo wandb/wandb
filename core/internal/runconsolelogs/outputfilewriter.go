@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -13,6 +14,11 @@ import (
 type outputFileWriter struct {
 	outputFile *lineFile
 	logger     *observability.CoreLogger
+
+	wg            sync.WaitGroup
+	mu            sync.Mutex
+	bufferedLines sparselist.SparseList[string]
+	isWriting     bool
 }
 
 func NewOutputFileWriter(
@@ -33,13 +39,41 @@ func NewOutputFileWriter(
 	return &outputFileWriter{outputFile: outputFile, logger: logger}, nil
 }
 
-func (w *outputFileWriter) WriteToFile(
-	changes sparselist.SparseList[RunLogsLine],
-) {
-	lines := sparselist.Map(changes, func(line RunLogsLine) string {
-		return string(line.Content)
-	})
+func (w *outputFileWriter) Finish() {
+	w.wg.Wait()
+}
 
+func (w *outputFileWriter) WriteToFile(lineNum int, line RunLogsLine) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.bufferedLines.Put(lineNum, string(line.Content))
+
+	if !w.isWriting {
+		w.isWriting = true
+
+		w.wg.Add(1)
+		go func() {
+			for {
+				w.mu.Lock()
+				if w.bufferedLines.Len() == 0 {
+					break
+				}
+				lines := w.bufferedLines
+				w.bufferedLines = sparselist.SparseList[string]{}
+				w.mu.Unlock()
+
+				w.flush(lines)
+			}
+
+			w.wg.Done()
+			w.isWriting = false
+			w.mu.Unlock()
+		}()
+	}
+}
+
+func (w *outputFileWriter) flush(lines sparselist.SparseList[string]) {
 	err := w.outputFile.UpdateLines(lines)
 	if err != nil {
 		w.logger.CaptureError(
