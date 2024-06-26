@@ -308,7 +308,9 @@ class LaunchAgent:
         self._wandb_run = None
 
         if self.gorilla_supports_agents:
-            settings = wandb.Settings(silent=True, disable_git=True)
+            settings = wandb.Settings(
+                silent=True, disable_git=True, disable_job_creation=True
+            )
             self._wandb_run = wandb.init(
                 project=self._project,
                 entity=self._entity,
