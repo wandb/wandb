@@ -38,13 +38,6 @@ const (
 	SummaryChunk
 )
 
-var chunkFilename = map[ChunkTypeEnum]string{
-	HistoryChunk: HistoryFileName,
-	OutputChunk:  OutputFileName,
-	EventsChunk:  EventsFileName,
-	SummaryChunk: SummaryFileName,
-}
-
 type FileStream interface {
 	// Start asynchronously begins to upload to the backend.
 	//

@@ -8,21 +8,13 @@ type ExitUpdate struct {
 }
 
 func (u *ExitUpdate) Apply(ctx UpdateContext) error {
+	exitCode := u.Record.ExitCode
+	complete := true
 
-	ctx.ModifyRequest(&collectorExitUpdate{
-		exitCode: u.Record.ExitCode,
+	ctx.Modify(func(buffer *FileStreamRequestBuffer) {
+		buffer.ExitCode = &exitCode
+		buffer.Complete = &complete
 	})
 
 	return nil
-}
-
-type collectorExitUpdate struct {
-	exitCode int32
-}
-
-func (u *collectorExitUpdate) Apply(state *CollectorState) {
-	boolTrue := true
-
-	state.ExitCode = &u.exitCode
-	state.Complete = &boolTrue
 }

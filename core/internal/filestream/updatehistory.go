@@ -52,18 +52,10 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 				len(line),
 				maxFileLineBytes)
 	} else {
-		ctx.ModifyRequest(&collectorHistoryUpdate{
-			lines: []string{string(line)},
+		ctx.Modify(func(buffer *FileStreamRequestBuffer) {
+			buffer.HistoryLines = append(buffer.HistoryLines, string(line))
 		})
 	}
 
 	return nil
-}
-
-type collectorHistoryUpdate struct {
-	lines []string
-}
-
-func (u *collectorHistoryUpdate) Apply(state *CollectorState) {
-	state.HistoryLines = append(state.HistoryLines, u.lines...)
 }
