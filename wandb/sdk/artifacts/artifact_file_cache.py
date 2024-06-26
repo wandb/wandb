@@ -205,8 +205,9 @@ class ArtifactFileCache:
                 temp_file.close()
                 os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 os.replace(temp_file.name, path)
-            finally:
+            except Exception:
                 os.remove(temp_file.name)
+                raise
 
         return opener
 
@@ -224,8 +225,9 @@ class ArtifactFileCache:
                 os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
-            finally:
+            except Exception:
                 os.remove(temp_file.name)
+                raise
 
         return opener
 
