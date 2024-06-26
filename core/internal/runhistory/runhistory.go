@@ -104,7 +104,6 @@ func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 		}
 
 		value, err := jsonlib.Marshal(leaf.Value)
-		fmt.Println("value", value, "err", err)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"runhistory: failed to marshal value for item %v: %v",
