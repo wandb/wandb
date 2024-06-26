@@ -3039,6 +3039,7 @@ class Api:
         entity: Optional[str] = None,
         state: Optional[str] = None,
         prior_runs: Optional[List[str]] = None,
+        template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
@@ -3052,6 +3053,7 @@ class Api:
             entity (str): entity to use
             state (str): state
             prior_runs (list): IDs of existing runs to add to the sweep
+            template_variable_values (dict): template variable values
         """
         project_query = """
             project {
@@ -3096,7 +3098,17 @@ class Api:
         """
         # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-
+        mutation_5 = gql(
+            mutation_str.replace(
+                "$controller: JSONString,",
+                "$controller: JSONString,$launchScheduler: JSONString, $templateVariableValues: JSONString,",
+            )
+            .replace(
+                "controller: $controller,",
+                "controller: $controller,launchScheduler: $launchScheduler,templateVariableValues: $templateVariableValues,",
+            )
+            .replace("_PROJECT_QUERY_", project_query)
+        )
         # launchScheduler was introduced in core v0.14.0
         mutation_4 = gql(
             mutation_str.replace(
@@ -3105,7 +3117,7 @@ class Api:
             )
             .replace(
                 "controller: $controller,",
-                "controller: $controller,launchScheduler: $launchScheduler,",
+                "controller: $controller,launchScheduler: $launchScheduler",
             )
             .replace("_PROJECT_QUERY_", project_query)
         )
@@ -3124,7 +3136,7 @@ class Api:
         )
 
         # TODO(dag): replace this with a query for protocol versioning
-        mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
+        mutations = [mutation_5, mutation_4, mutation_3, mutation_2, mutation_1]
 
         config = self._validate_config_and_fill_distribution(config)
 
@@ -3148,6 +3160,7 @@ class Api:
                     "projectName": project or self.settings("project"),
                     "controller": controller,
                     "launchScheduler": launch_scheduler,
+                    "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
                     "priorRunsFilters": filters,
                 }

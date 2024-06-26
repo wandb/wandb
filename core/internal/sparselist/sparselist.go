@@ -111,24 +111,6 @@ func (l *SparseList[T]) Update(other SparseList[T]) {
 	l.boundsCached = false
 }
 
-// ForEach invokes a callback on each value in the list.
-func (l *SparseList[T]) ForEach(fn func(int, T)) {
-	for i, x := range l.items {
-		fn(i, x)
-	}
-}
-
-// Map returns a new list by applying a transformation to each element.
-func Map[T, U any](list SparseList[T], fn func(T) U) SparseList[U] {
-	result := SparseList[U]{}
-
-	list.ForEach(func(i int, x T) {
-		result.Put(i, fn(x))
-	})
-
-	return result
-}
-
 // Run is a sequence of consecutive values in a sparse list.
 type Run[T any] struct {
 	// Start is the index in the list where the run starts.

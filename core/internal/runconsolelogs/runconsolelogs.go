@@ -5,16 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
-	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
-	"golang.org/x/time/rate"
 )
 
 const (
@@ -34,10 +31,9 @@ type Sender struct {
 	// console messages.
 	consoleOutputFile paths.RelativePath
 
-	writer *debouncedWriter
-
-	logger       *observability.CoreLogger
-	loopbackChan chan<- *service.Record
+	outputFileWriter *outputFileWriter
+	logger           *observability.CoreLogger
+	loopbackChan     chan<- *service.Record
 }
 
 type Params struct {
@@ -84,22 +80,18 @@ func New(params Params) *Sender {
 			))
 	}
 
-	writer := NewDebouncedWriter(
-		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		func(lines sparselist.SparseList[RunLogsLine]) {
-			if fileWriter != nil {
-				fileWriter.WriteToFile(lines)
-			}
-
-			if fsWriter != nil {
-				fsWriter.SendChanged(lines)
-			}
-		},
-	)
 	model := &RunLogsChangeModel{
 		maxLines:      maxTerminalLines,
 		maxLineLength: maxTerminalLineLength,
-		onChange:      writer.OnChanged,
+		onChange: func(lineNum int, line RunLogsLine) {
+			if fileWriter != nil {
+				fileWriter.WriteToFile(lineNum, line)
+			}
+
+			if fsWriter != nil {
+				fsWriter.SendChanged(lineNum, line)
+			}
+		},
 	}
 
 	return &Sender{
@@ -114,9 +106,9 @@ func New(params Params) *Sender {
 
 		consoleOutputFile: params.ConsoleOutputFile,
 
-		writer:       writer,
-		logger:       params.Logger,
-		loopbackChan: params.LoopbackChan,
+		outputFileWriter: fileWriter,
+		logger:           params.Logger,
+		loopbackChan:     params.LoopbackChan,
 	}
 }
 
@@ -124,7 +116,10 @@ func New(params Params) *Sender {
 //
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
-	s.writer.Wait()
+	if s.outputFileWriter != nil {
+		s.outputFileWriter.Finish()
+	}
+
 	s.uploadOutputFile()
 }
 
