@@ -191,13 +191,22 @@ class ArtifactFileCache:
         else:
             return self._noncache_opener(path)
 
-    @staticmethod
-    def _noncache_opener(path: Path) -> "Opener":
+    def _noncache_opener(self, path: Path) -> "Opener":
         @contextlib.contextmanager
         def opener(mode: str = "w") -> Iterator[IO]:
+            # We're skipping the cache here, but still need to write to a temporary file to ensure atomicity.
+            # Put the temporary file in the same folder as the destination file in an attempt to ensure
+            # they're on the same filesystem.
             path.parent.mkdir(parents=True, exist_ok=True)
-            with open(path, mode=mode) as f:
-                yield f
+
+            temp_file = NamedTemporaryFile(dir=path.parent, mode=mode, delete=False)
+            try:
+                yield temp_file
+                temp_file.close()
+                os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
+                os.replace(temp_file.name, path)
+            finally:
+                os.remove(temp_file.name)
 
         return opener
 
@@ -215,9 +224,8 @@ class ArtifactFileCache:
                 os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
                 os.replace(temp_file.name, path)
-            except Exception:
+            finally:
                 os.remove(temp_file.name)
-                raise
 
         return opener
 
