@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	jsonlib "github.com/wandb/wandb/core/internal/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
+	jsonlib "github.com/wandbly/encoding/json"
 )
 
 // The current active history of a run.
@@ -59,8 +59,6 @@ func (rh *RunHistory) ApplyChangeRecord(
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
 		err := jsonlib.Unmarshal([]byte(item.GetValueJson()), &update)
-		fmt.Println(err)
-		fmt.Println(update)
 		if err != nil {
 			onError(err)
 			continue

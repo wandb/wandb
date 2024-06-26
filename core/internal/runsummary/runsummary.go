@@ -7,10 +7,10 @@ import (
 
 	"github.com/segmentio/encoding/json"
 
-	jsonlib "github.com/wandb/wandb/core/internal/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/service"
+	jsonlib "github.com/wandbly/encoding/json"
 )
 
 type RunSummary struct {
