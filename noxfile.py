@@ -220,6 +220,7 @@ def unit_tests(session: nox.Session) -> None:
     by passing them via positional arguments.
     """
     session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
@@ -242,6 +243,7 @@ def unit_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
@@ -268,6 +270,7 @@ def system_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
