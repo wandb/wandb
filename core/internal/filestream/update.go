@@ -11,11 +11,13 @@ type Update interface {
 	Apply(UpdateContext) error
 }
 
+type BufferMutation func(*FileStreamRequestBuffer)
+
 type UpdateContext struct {
-	// ModifyRequest updates the next filestream API request.
+	// ModifyRequest modifies the filestream's buffered data.
 	//
 	// The state update runs in a separate goroutine.
-	ModifyRequest func(CollectorStateUpdate)
+	Modify func(BufferMutation)
 
 	Settings *service.Settings
 

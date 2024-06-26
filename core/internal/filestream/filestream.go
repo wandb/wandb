@@ -25,6 +25,12 @@ const (
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
 	maxFileLineBytes = (10 << 20) - (100 << 10)
+
+	// Maximum number of bytes for history content to send in a request.
+	//
+	// This is a soft limit which we impose to avoid failing due to trying to
+	// uploade too much data at a time. Logging a lot of data to W&B is common.
+	maxRequestHistoryBytes = 10 << 20
 )
 
 type ChunkTypeEnum int8
@@ -37,13 +43,6 @@ const (
 	EventsChunk
 	SummaryChunk
 )
-
-var chunkFilename = map[ChunkTypeEnum]string{
-	HistoryChunk: HistoryFileName,
-	OutputChunk:  OutputFileName,
-	EventsChunk:  EventsFileName,
-	SummaryChunk: SummaryFileName,
-}
 
 type FileStream interface {
 	// Start asynchronously begins to upload to the backend.

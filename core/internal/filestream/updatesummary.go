@@ -49,18 +49,10 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 				len(line),
 				maxFileLineBytes)
 	} else {
-		ctx.ModifyRequest(&collectorSummaryUpdate{
-			newSummary: string(line),
+		ctx.Modify(func(buffer *FileStreamRequestBuffer) {
+			buffer.LatestSummary = string(line)
 		})
 	}
 
 	return nil
-}
-
-type collectorSummaryUpdate struct {
-	newSummary string
-}
-
-func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
-	state.LatestSummary = u.newSummary
 }
