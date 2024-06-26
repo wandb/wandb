@@ -330,7 +330,7 @@ class _WandbInit:
         # removed with the switch to wandb-core.
         if settings.project is None:
             project = wandb.util.auto_project_name(settings.program)
-            settings.update({"project": project}, source=Source.SETUP)
+            settings.update({"project": project}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
         settings._set_run_start_time(source=Source.INIT)
