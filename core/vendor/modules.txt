@@ -244,9 +244,6 @@ github.com/vektah/gqlparser/v2/lexer
 github.com/vektah/gqlparser/v2/parser
 github.com/vektah/gqlparser/v2/validator
 github.com/vektah/gqlparser/v2/validator/rules
-# github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635
-## explicit; go 1.22.1
-github.com/wandb/simplejsonext
 # github.com/xanzy/ssh-agent v0.3.3
 ## explicit; go 1.16
 github.com/xanzy/ssh-agent
