@@ -4,9 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	jsonlib "github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
-	jsonlib "github.com/wandbly/encoding/json"
 )
 
 // The current active history of a run.

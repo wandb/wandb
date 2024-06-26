@@ -308,7 +308,7 @@ func (d decoder) parseNumber(b []byte) (v, r []byte, kind Kind, err error) {
 	if len(b) >= 4 && string(b[:4]) == "-Inf" {
 		return []byte("\"-Infinity\""), b[9:], String, nil
 	}
-
+	
 	// Assume it's an unsigned integer at first.
 	kind = Uint
 
