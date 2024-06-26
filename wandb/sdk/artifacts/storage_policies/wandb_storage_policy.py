@@ -117,9 +117,8 @@ class WandbStoragePolicy(StoragePolicy):
         artifact: "Artifact",
         manifest_entry: "ArtifactManifestEntry",
         dest_path: Optional[str] = None,
-        skip_cache: bool = False,
     ) -> FilePathStr:
-        if skip_cache:
+        if dest_path is not None:
             self._cache._override_cache_path = dest_path
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -172,11 +171,10 @@ class WandbStoragePolicy(StoragePolicy):
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
         dest_path: Optional[str] = None,
-        skip_cache: bool = False,
     ) -> Union[FilePathStr, URIStr]:
         assert manifest_entry.ref is not None
         used_handler = self._handler._get_handler(manifest_entry.ref)
-        if skip_cache and hasattr(used_handler, "_cache") and (dest_path is not None):
+        if hasattr(used_handler, "_cache") and (dest_path is not None):
             used_handler._cache._override_cache_path = dest_path
         return self._handler.load_path(manifest_entry, local)
 

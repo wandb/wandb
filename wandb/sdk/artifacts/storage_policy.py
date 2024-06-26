@@ -40,7 +40,6 @@ class StoragePolicy:
         artifact: "Artifact",
         manifest_entry: "ArtifactManifestEntry",
         dest_path: Optional[str] = None,
-        skip_cache: bool = False,
     ) -> FilePathStr:
         raise NotImplementedError
 
@@ -69,6 +68,5 @@ class StoragePolicy:
         manifest_entry: "ArtifactManifestEntry",
         local: bool = False,
         dest_path: Optional[str] = None,
-        skip_cache: bool = False,
     ) -> Union[FilePathStr, URIStr]:
         raise NotImplementedError
