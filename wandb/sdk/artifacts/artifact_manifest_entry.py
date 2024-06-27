@@ -143,15 +143,11 @@ class ArtifactManifestEntry:
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
-                self,
-                local=True,
-                dest_path=override_cache_path,
+                self, local=True, dest_path=override_cache_path
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact,
-                self,
-                dest_path=override_cache_path,
+                self._parent_artifact, self, dest_path=override_cache_path
             )
 
         if skip_cache:
