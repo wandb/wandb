@@ -1,9 +1,10 @@
 package runresume
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"

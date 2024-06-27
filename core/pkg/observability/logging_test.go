@@ -2,9 +2,10 @@ package observability_test
 
 import (
 	"bytes"
-	"encoding/json"
 	"log/slog"
 	"testing"
+
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/observability"

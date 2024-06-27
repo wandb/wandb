@@ -2,6 +2,7 @@
 package runconsolelogs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -46,6 +47,14 @@ type Params struct {
 	Settings *settings.Settings
 	Logger   *observability.CoreLogger
 
+	// Ctx is a cancellation context that can be used to abruptly stop
+	// processing terminal output.
+	//
+	// `Finish` should still be invoked after cancellation to wait for
+	// all goroutines to complete. A file upload record for the logs
+	// file is emitted regardless of cancellation.
+	Ctx context.Context
+
 	// LoopbackChan is for emitting new records.
 	LoopbackChan chan<- *service.Record
 
@@ -59,6 +68,8 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: Settings is nil")
 	case params.Logger == nil:
 		panic("runconsolelogs: Logger is nil")
+	case params.Ctx == nil:
+		panic("runconsolelogs: Ctx is nil")
 	case params.LoopbackChan == nil:
 		panic("runconsolelogs: LoopbackChan is nil")
 	}
@@ -86,6 +97,7 @@ func New(params Params) *Sender {
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
+		params.Ctx,
 		func(lines sparselist.SparseList[RunLogsLine]) {
 			if fileWriter != nil {
 				fileWriter.WriteToFile(lines)

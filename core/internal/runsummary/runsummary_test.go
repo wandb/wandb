@@ -33,10 +33,10 @@ func TestApplyUpdate(t *testing.T) {
 		})
 
 	expectedTree := pathtree.TreeData{
-		"setting1": int64(69),
+		"setting1": float64(69),
 		"config": pathtree.TreeData{
 			"setting2": pathtree.TreeData{
-				"value": int64(42),
+				"value": float64(42),
 			},
 		},
 	}
@@ -49,9 +49,9 @@ func TestApplyUpdate(t *testing.T) {
 func TestApplyRemove(t *testing.T) {
 
 	rs := runsummary.NewFrom(pathtree.TreeData{
-		"setting0": float32(69),
+		"setting0": 69,
 		"config": pathtree.TreeData{
-			"setting1": int64(42),
+			"setting1": 42,
 			"setting2": "goodbye",
 		},
 	})
@@ -69,9 +69,9 @@ func TestApplyRemove(t *testing.T) {
 		})
 
 	expectedTree := pathtree.TreeData{
-		"setting0": float32(69),
+		"setting0": int(69),
 		"config": pathtree.TreeData{
-			"setting1": int64(42),
+			"setting1": int(42),
 		},
 	}
 

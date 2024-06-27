@@ -9,7 +9,7 @@ import (
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 )
 
 // MockClient is a mock implementation of the genqlient Client interface.

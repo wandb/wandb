@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -412,6 +412,8 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 		}
 		h.handleStepMetric(metric.GetStepMetric())
 		h.fwdRecord(record)
+	case metric.GetStepMetric() != "":
+		// this is an explicitly-defined x axis, no need to process it
 	default:
 		h.logger.CaptureError(
 			fmt.Errorf("invalid metric"),

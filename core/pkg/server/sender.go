@@ -209,6 +209,7 @@ func NewSender(
 			ConsoleOutputFile: outputFileName,
 			Settings:          params.Settings,
 			Logger:            params.Logger,
+			Ctx:               ctx,
 			LoopbackChan:      params.FwdChan,
 			FileStreamOrNil:   params.FileStream,
 		}),
@@ -425,7 +426,8 @@ func (s *Sender) updateSettings() {
 	}
 }
 
-// sendRun starts up all the resources for a run
+// sendRequestRunStart sends a run start request to start all the stream
+// components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	s.updateSettings()
 
@@ -697,6 +699,7 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	return nil
 }
 
+// sendRun sends a run record to the server and updates the run record
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if s.graphqlClient != nil {
 		// The first run record sent by the client is encoded incorrectly,
