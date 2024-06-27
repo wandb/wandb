@@ -108,6 +108,51 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
+    def __init__(self, settings: "Settings") -> None:
+        """Connects to the internal service, starting it if necessary."""
+        from wandb.sdk.service import service
+
+        self._settings = settings
+        self._atexit_lambda = None
+        self._hooks = None
+
+        self._service = service._Service(settings=self._settings)
+        self._token = _ManagerToken.from_environment()
+        if not self._token:
+            self._service.start()
+            host = "localhost"
+            transport = "tcp"
+            port = self._service.sock_port
+            assert port
+            self._token = _ManagerToken.from_params(
+                transport=transport, host=host, port=port
+            )
+            self._token.set_environment()
+            self._atexit_setup()
+
+        try:
+            self._service_connect()
+        except ManagerConnectionError as e:
+            wandb._sentry.reraise(e)
+
+    def _teardown(self, exit_code: int) -> int:
+        """Shuts down the internal process and returns its exit code.
+
+        This sends a teardown record to the process. An exception is raised if
+        the process has already been shut down.
+        """
+        unregister_all_post_import_hooks()
+
+        if self._atexit_lambda:
+            atexit.unregister(self._atexit_lambda)
+            self._atexit_lambda = None
+
+        try:
+            self._inform_teardown(exit_code)
+            return self._service.join()
+        finally:
+            self._token.reset_environment()
+
     def _service_connect(self) -> None:
         port = self._token.port
         svc_iface = self._get_service_interface()
@@ -126,32 +171,6 @@ class _Manager:
         except Exception as e:
             raise ManagerConnectionError(f"Connection to wandb service failed: {e}")
 
-    def __init__(self, settings: "Settings") -> None:
-        from wandb.sdk.service import service
-
-        self._settings = settings
-        self._atexit_lambda = None
-        self._hooks = None
-
-        self._service = service._Service(settings=self._settings)
-        token = _ManagerToken.from_environment()
-        if not token:
-            self._service.start()
-            host = "localhost"
-            transport = "tcp"
-            port = self._service.sock_port
-            assert port
-            token = _ManagerToken.from_params(transport=transport, host=host, port=port)
-            token.set_environment()
-            self._atexit_setup()
-
-        self._token = token
-
-        try:
-            self._service_connect()
-        except ManagerConnectionError as e:
-            wandb._sentry.reraise(e)
-
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
 
@@ -161,28 +180,18 @@ class _Manager:
 
     def _atexit_teardown(self) -> None:
         trigger.call("on_finished")
-        exit_code = self._hooks.exit_code if self._hooks else 0
-        self._teardown(exit_code)
 
-    def _teardown(self, exit_code: int) -> None:
-        unregister_all_post_import_hooks()
-
-        if self._atexit_lambda:
-            atexit.unregister(self._atexit_lambda)
-            self._atexit_lambda = None
+        # Clear the atexit hook---we're executing it now, after which the
+        # process will exit.
+        self._atexit_lambda = None
 
         try:
-            self._inform_teardown(exit_code)
-            result = self._service.join()
-            if result and not self._settings._notebook:
-                os._exit(result)
+            self._teardown(self._hooks.exit_code if self._hooks else 0)
         except Exception as e:
             wandb.termlog(
-                f"While tearing down the service manager. The following error has occurred: {e}",
+                f"Encountered an error while tearing down the service manager: {e}",
                 repeat=False,
             )
-        finally:
-            self._token.reset_environment()
 
     def _get_service(self) -> "service._Service":
         return self._service
