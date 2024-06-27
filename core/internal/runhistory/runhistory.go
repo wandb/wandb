@@ -58,7 +58,6 @@ func (rh *RunHistory) ApplyChangeRecord(
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
 		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
-		fmt.Println("err", err, "update", update, "item", item.GetValueJson())
 		if err != nil {
 			onError(err)
 			continue
