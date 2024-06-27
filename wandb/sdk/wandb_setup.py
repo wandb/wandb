@@ -268,19 +268,19 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                     self._config = config_dict
 
     def _teardown(self, exit_code: Optional[int] = None) -> None:
-        exit_code = exit_code or 0
-        self._teardown_manager(exit_code=exit_code)
+        if not self._manager:
+            return
+
+        internal_exit_code = self._manager._teardown(exit_code or 0)
+        self._manager = None
+
+        if internal_exit_code != 0:
+            sys.exit(internal_exit_code)
 
     def _setup_manager(self) -> None:
         if self._settings._disable_service:
             return
         self._manager = wandb_manager._Manager(settings=self._settings)
-
-    def _teardown_manager(self, exit_code: int) -> None:
-        if not self._manager:
-            return
-        self._manager._teardown(exit_code)
-        self._manager = None
 
     def _get_manager(self) -> Optional[wandb_manager._Manager]:
         return self._manager
@@ -312,11 +312,9 @@ def _setup(
 ) -> Optional["_WandbSetup"]:
     """Set up library context."""
     if _reset:
-        setup_instance = _WandbSetup._instance
-        if setup_instance:
-            setup_instance._teardown()
-        _WandbSetup._instance = None
+        teardown()
         return None
+
     wl = _WandbSetup(settings=settings)
     return wl
 
@@ -330,6 +328,7 @@ def setup(
 
 def teardown(exit_code: Optional[int] = None) -> None:
     setup_instance = _WandbSetup._instance
+    _WandbSetup._instance = None
+
     if setup_instance:
         setup_instance._teardown(exit_code=exit_code)
-    _WandbSetup._instance = None
