@@ -296,6 +296,19 @@ func (d decoder) parseNumber(b []byte) (v, r []byte, kind Kind, err error) {
 		return
 	}
 
+	// Check for NaN and ±Inf
+	if len(b) >= 3 {
+		switch string(b[:3]) {
+		case "NaN":
+			return []byte("NaN"), b[3:], Float, nil
+		case "Inf":
+			return []byte("Infinity"), b[8:], Float, nil
+		}
+	}
+	if len(b) >= 4 && string(b[:4]) == "-Inf" {
+		return []byte("-Infinity"), b[9:], Float, nil
+	}
+	
 	// Assume it's an unsigned integer at first.
 	kind = Uint
 
@@ -718,7 +731,7 @@ func (d decoder) parseValue(b []byte) ([]byte, []byte, Kind, error) {
 		v, b, k, err = d.parseTrue(b)
 	case 'f':
 		v, b, k, err = d.parseFalse(b)
-	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+	case '-', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'N', 'I':
 		v, b, k, err = d.parseNumber(b)
 	default:
 		err = syntaxError(b, "invalid character '%c' looking for beginning of value", b[0])
