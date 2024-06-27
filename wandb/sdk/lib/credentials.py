@@ -8,7 +8,8 @@ import requests.utils
 from wandb.errors import AuthenticationError
 
 DEFAULT_WANDB_CREDENTIALS_FILE = Path(
-    os.path.expanduser("~/.config/wandb/credentials.json"))
+    os.path.expanduser("~/.config/wandb/credentials.json")
+)
 
 _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
