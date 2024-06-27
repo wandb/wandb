@@ -135,18 +135,18 @@ class _Manager:
         self._hooks = None
 
         self._service = service._Service(settings=self._settings)
-        self._token = _ManagerToken.from_environment()
-        if not self._token:
+
+        token = _ManagerToken.from_environment()
+        if not token:
             self._service.start()
             host = "localhost"
             transport = "tcp"
             port = self._service.sock_port
             assert port
-            self._token = _ManagerToken.from_params(
-                transport=transport, host=host, port=port
-            )
-            self._token.set_environment()
+            token = _ManagerToken.from_params(transport=transport, host=host, port=port)
+            token.set_environment()
             self._atexit_setup()
+        self._token = token
 
         try:
             self._service_connect()
