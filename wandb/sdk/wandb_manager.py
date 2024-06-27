@@ -108,6 +108,24 @@ class _Manager:
     _settings: "Settings"
     _service: "service._Service"
 
+    def _service_connect(self) -> None:
+        port = self._token.port
+        svc_iface = self._get_service_interface()
+
+        try:
+            svc_iface._svc_connect(port=port)
+        except ConnectionRefusedError as e:
+            if not psutil.pid_exists(self._token.pid):
+                message = (
+                    "Connection to wandb service failed "
+                    "since the process is not available. "
+                )
+            else:
+                message = f"Connection to wandb service failed: {e}. "
+            raise ManagerConnectionRefusedError(message)
+        except Exception as e:
+            raise ManagerConnectionError(f"Connection to wandb service failed: {e}")
+
     def __init__(self, settings: "Settings") -> None:
         """Connects to the internal service, starting it if necessary."""
         from wandb.sdk.service import service
@@ -152,24 +170,6 @@ class _Manager:
             return self._service.join()
         finally:
             self._token.reset_environment()
-
-    def _service_connect(self) -> None:
-        port = self._token.port
-        svc_iface = self._get_service_interface()
-
-        try:
-            svc_iface._svc_connect(port=port)
-        except ConnectionRefusedError as e:
-            if not psutil.pid_exists(self._token.pid):
-                message = (
-                    "Connection to wandb service failed "
-                    "since the process is not available. "
-                )
-            else:
-                message = f"Connection to wandb service failed: {e}. "
-            raise ManagerConnectionRefusedError(message)
-        except Exception as e:
-            raise ManagerConnectionError(f"Connection to wandb service failed: {e}")
 
     def _atexit_setup(self) -> None:
         self._atexit_lambda = lambda: self._atexit_teardown()
