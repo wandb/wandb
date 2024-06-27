@@ -209,6 +209,7 @@ func NewSender(
 			ConsoleOutputFile: outputFileName,
 			Settings:          params.Settings,
 			Logger:            params.Logger,
+			Ctx:               ctx,
 			LoopbackChan:      params.FwdChan,
 			FileStreamOrNil:   params.FileStream,
 		}),
