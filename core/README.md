@@ -81,6 +81,8 @@ Status legend:
 |             | system metrics    | ✅[^E.9]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
+|             | Forking           | ❌               |
+|             | Rewind            | ❌               |
 |             | Settings          | 🚧[^E.12]        |
 | Login       |                   |                  |
 |             | default entity    | ✅               |

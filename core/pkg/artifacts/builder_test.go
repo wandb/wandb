@@ -1,10 +1,11 @@
 package artifacts
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
+
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/stretchr/testify/assert"
 

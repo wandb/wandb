@@ -880,7 +880,9 @@ class Settings(SettingsData):
             program={
                 "hook": lambda x: self._get_program(x),
             },
-            project={"validator": self._validate_project},
+            project={
+                "validator": self._validate_project,
+            },
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},

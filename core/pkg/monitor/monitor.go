@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"google.golang.org/protobuf/proto"
 
