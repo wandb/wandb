@@ -259,10 +259,12 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
+        settings = wandb.Settings(disable_job_creation=True)
         run: SdkRun = wandb.init(  # type: ignore
             name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
+            settings=settings,
         )
         return run
 
