@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import IO, TYPE_CHECKING, ContextManager, Iterator, Optional, Tuple
-from uuid import uuid4
 
 import wandb
 from wandb import env, util
@@ -187,19 +186,20 @@ class ArtifactFileCache:
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
     def _opener(self, path: Path, size: int) -> "Opener":
+        # Check if we're using vs skipping the cache
+        skip_cache = self._override_cache_path is not None
+
         @contextlib.contextmanager
-        def opener(mode: str = "w") -> Iterator[IO]:
-            # Check if we're using vs skipping the cache
-            if self._override_cache_path is not None:
-                # We're skipping the cache here, but still need to write to a temporary file to ensure atomicity.
-                # Put the temp file in the same folder as the destination file in an attempt to avoid moving/copying
+        def atomic_opener(mode: str = "w") -> Iterator[IO]:
+            if skip_cache:
+                # Skipping the cache, but still need an intermediate, temporary file to ensure atomicity.
+                # Put the temp file in the same location as the destination file in an attempt to avoid moving/copying
                 # across filesystems.
                 temp_dir = path.parent
                 temp_dir.mkdir(parents=True, exist_ok=True)
             else:
                 if "a" in mode:
                     raise ValueError("Appending to cache files is not supported")
-
                 self._reserve_space(size)
                 temp_dir = self._temp_dir
 
@@ -209,12 +209,12 @@ class ArtifactFileCache:
                 temp_file.close()
                 os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                _safe_replace(temp_file.name, path)
+                os.replace(temp_file.name, path)
             except Exception:
                 os.remove(temp_file.name)
                 raise
 
-        return opener
+        return atomic_opener
 
     def _ensure_write_permissions(self) -> None:
         """Raise an error if we cannot write to the cache directory."""
@@ -227,28 +227,6 @@ class ArtifactFileCache:
                 f"Unable to write to {self._cache_dir}. "
                 "Ensure that the current user has write permissions."
             ) from e
-
-
-def _safe_replace(src: StrPath, dst: StrPath) -> None:
-    try:
-        os.replace(src, dst)  # This should work most of the time
-    except OSError as e:
-        # Ref: https://stackoverflow.com/questions/11614815/a-safe-atomic-file-copy-operation/28090883#28090883
-        if e.errno == errno.EXDEV:
-            # OSError("Invalid cross-device link") from trying to move a file between different filesystems
-
-            # Fall back on `shutil.copyfile`, which is NOT atomic in general.
-            # To keep this safe, copy to a temporary path (effectively unique) on the dest filesystem first.
-            # Then call `os.replace` again (which is atomic), but this time within the same filesystem.
-            temp_dst = f"{dst!s}.{uuid4()!s}.temp"
-            shutil.copyfile(src, temp_dst)
-            os.replace(temp_dst, dst)
-            try:
-                os.remove(src)
-            except FileNotFoundError:
-                pass
-        else:
-            raise e
 
 
 _artifact_file_cache: Optional[ArtifactFileCache] = None
