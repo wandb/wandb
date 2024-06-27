@@ -3,10 +3,7 @@ package runhistory
 import (
 	"fmt"
 
-	// TODO: use simplejsonext for now until we replace the usage of json with
-	// protocol buffer and proto json marshaler
-	json "github.com/wandb/simplejsonext"
-
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -58,7 +55,9 @@ func (rh *RunHistory) ApplyChangeRecord(
 ) {
 	updates := make([]*pathtree.PathItem, 0, len(historyRecord))
 	for _, item := range historyRecord {
-		update, err := json.Unmarshal([]byte(item.GetValueJson()))
+		var update interface{}
+		// custom unmarshal function that handles NaN and +-Inf
+		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
 		if err != nil {
 			onError(err)
 			continue
