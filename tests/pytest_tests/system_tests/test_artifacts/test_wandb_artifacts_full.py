@@ -7,6 +7,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+
 import wandb
 from wandb import Api
 from wandb.errors import CommError
@@ -222,11 +223,12 @@ def test_download_respects_skip_cache(
 ):
     # Setup cache dir
     monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
-    cache = artifact_file_cache.get_artifact_file_cache()
 
+    cache = artifact_file_cache.get_artifact_file_cache()
     artifact = wandb.Artifact(name="cache-test", type="dataset")
+    file_content = "test123"
     file_path = Path(tmp_path / "text.txt")
-    file_path.write_text("test123")
+    file_path.write_text(file_content)
 
     # Don't skip cache for setup
     entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
@@ -253,8 +255,10 @@ def test_download_respects_skip_cache(
 
     if skip_download_cache in (None, False):
         assert downloaded_content == replaced_cache_content
+        assert downloaded_content != file_content
     else:
         assert downloaded_content != replaced_cache_content
+        assert downloaded_content == file_content
 
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
