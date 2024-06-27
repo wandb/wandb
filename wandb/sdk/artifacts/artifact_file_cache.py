@@ -10,6 +10,7 @@ import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import IO, TYPE_CHECKING, ContextManager, Iterator, Optional, Tuple
+from uuid import uuid4
 
 import wandb
 from wandb import env, util
@@ -186,45 +187,29 @@ class ArtifactFileCache:
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
     def _opener(self, path: Path, size: int) -> "Opener":
-        if self._override_cache_path is None:
-            return self._cache_opener(path, size)
-        else:
-            return self._noncache_opener(path)
-
-    def _noncache_opener(self, path: Path) -> "Opener":
         @contextlib.contextmanager
         def opener(mode: str = "w") -> Iterator[IO]:
-            # We're skipping the cache here, but still need to write to a temporary file to ensure atomicity.
-            # Put the temporary file in the same folder as the destination file in an attempt to ensure
-            # they're on the same filesystem.
-            path.parent.mkdir(parents=True, exist_ok=True)
+            # Check if we're using vs skipping the cache
+            if self._override_cache_path is not None:
+                # We're skipping the cache here, but still need to write to a temporary file to ensure atomicity.
+                # Put the temp file in the same folder as the destination file in an attempt to avoid moving/copying
+                # across filesystems.
+                temp_dir = path.parent
+                temp_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                if "a" in mode:
+                    raise ValueError("Appending to cache files is not supported")
 
-            temp_file = NamedTemporaryFile(dir=path.parent, mode=mode, delete=False)
-            try:
-                yield temp_file
-                temp_file.close()
-                os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
-                os.replace(temp_file.name, path)
-            except Exception:
-                os.remove(temp_file.name)
-                raise
+                self._reserve_space(size)
+                temp_dir = self._temp_dir
 
-        return opener
-
-    def _cache_opener(self, path: Path, size: int) -> "Opener":
-        @contextlib.contextmanager
-        def opener(mode: str = "w") -> Iterator[IO]:
-            if "a" in mode:
-                raise ValueError("Appending to cache files is not supported")
-
-            self._reserve_space(size)
-            temp_file = NamedTemporaryFile(dir=self._temp_dir, mode=mode, delete=False)
+            temp_file = NamedTemporaryFile(dir=temp_dir, mode=mode, delete=False)
             try:
                 yield temp_file
                 temp_file.close()
                 os.chmod(temp_file.name, 0o666 & ~self._sys_umask)
                 path.parent.mkdir(parents=True, exist_ok=True)
-                os.replace(temp_file.name, path)
+                _safe_replace(temp_file.name, path)
             except Exception:
                 os.remove(temp_file.name)
                 raise
@@ -242,6 +227,28 @@ class ArtifactFileCache:
                 f"Unable to write to {self._cache_dir}. "
                 "Ensure that the current user has write permissions."
             ) from e
+
+
+def _safe_replace(src: StrPath, dst: StrPath) -> None:
+    try:
+        os.replace(src, dst)  # This should work most of the time
+    except OSError as e:
+        # Ref: https://stackoverflow.com/questions/11614815/a-safe-atomic-file-copy-operation/28090883#28090883
+        if e.errno == errno.EXDEV:
+            # OSError("Invalid cross-device link") from trying to move a file between different filesystems
+
+            # Fall back on `shutil.copyfile`, which is NOT atomic in general.
+            # To keep this safe, copy to a temporary path (effectively unique) on the dest filesystem first.
+            # Then call `os.replace` again (which is atomic), but this time within the same filesystem.
+            temp_dst = f"{dst!s}.{uuid4()!s}.temp"
+            shutil.copyfile(src, temp_dst)
+            os.replace(temp_dst, dst)
+            try:
+                os.remove(src)
+            except FileNotFoundError:
+                pass
+        else:
+            raise e
 
 
 _artifact_file_cache: Optional[ArtifactFileCache] = None
