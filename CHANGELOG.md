@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Changed
+
+- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
+
 ## [0.17.3] - 2024-06-24
 
 ### Fixed
