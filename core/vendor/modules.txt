@@ -201,7 +201,6 @@ github.com/segmentio/asm/keyset
 ## explicit; go 1.18
 github.com/segmentio/encoding/ascii
 github.com/segmentio/encoding/iso8601
-github.com/segmentio/encoding/json
 # github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 ## explicit; go 1.13
 github.com/sergi/go-diff/diffmatchpatch
