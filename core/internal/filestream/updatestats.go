@@ -3,7 +3,7 @@ package filestream
 import (
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 

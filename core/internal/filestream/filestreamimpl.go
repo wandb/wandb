@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
 )
 
