@@ -3,7 +3,7 @@ package runhistory
 import (
 	"strings"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/pkg/service"
 )

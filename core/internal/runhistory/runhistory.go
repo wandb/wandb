@@ -3,7 +3,7 @@ package runhistory
 import (
 	"fmt"
 
-	jsonlib "github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -57,7 +57,7 @@ func (rh *RunHistory) ApplyChangeRecord(
 	for _, item := range historyRecord {
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
-		err := jsonlib.Unmarshal([]byte(item.GetValueJson()), &update)
+		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
 		fmt.Println("err", err, "update", update, "item", item.GetValueJson())
 		if err != nil {
 			onError(err)
@@ -80,7 +80,7 @@ func (rh *RunHistory) ApplyChangeRecord(
 func (rh *RunHistory) Serialize() ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
 	value := rh.pathTree.Tree()
-	return jsonlib.Marshal(value)
+	return json.Marshal(value)
 }
 
 // Flatten returns a flat list of history items.
@@ -103,7 +103,7 @@ func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 			)
 		}
 
-		value, err := jsonlib.Marshal(leaf.Value)
+		value, err := json.Marshal(leaf.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"runhistory: failed to marshal value for item %v: %v",

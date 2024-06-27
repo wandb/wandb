@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	jsonlib "github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -129,7 +129,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 	for _, item := range summaryRecord.GetUpdate() {
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
-		err := jsonlib.Unmarshal([]byte(item.GetValueJson()), &update)
+		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
 		if err != nil {
 			onError(err)
 			continue
@@ -172,7 +172,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 
 		if len(updateMap) > 0 {
 			// update summaryRecord with the new value
-			jsonValue, err := jsonlib.Marshal(updateMap)
+			jsonValue, err := json.Marshal(updateMap)
 			if err != nil {
 				onError(err)
 				continue
@@ -226,7 +226,7 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 			)
 		}
 
-		value, err := jsonlib.Marshal(leaf.Value)
+		value, err := json.Marshal(leaf.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"runhistory: failed to marshal value for item %v: %v",
@@ -263,7 +263,7 @@ func (rs *RunSummary) Tree() pathtree.TreeData {
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
-	return jsonlib.Marshal(rs.Tree())
+	return json.Marshal(rs.Tree())
 }
 
 // keyPath returns the key path for the given config item.
