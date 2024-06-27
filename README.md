@@ -15,9 +15,9 @@
 
 Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
-🎓 W&B is free for students, educators, and academic researchers. For more information, visit [https://wandb.ai/site/research](https://wandb.ai/site/research?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme).
+<br>
 
-Want to use Weights & Biases for seamless collaboration between your ML or Data Science team? Looking for Production-grade MLOps at scale? Sign up to one of [our plans](https://wandb.ai/site/pricing) or [contact the Sales Team](https://wandb.ai/site/contact).
+Building an LLM app? Track, debug, evaluate, and monitor LLM apps with [Weave](https://wandb.github.io/weave?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme), our new suite of tools for GenAI.
 
 &nbsp;
 
@@ -33,8 +33,8 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
 </a>
 <a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/report-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/report-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/reports-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/reports-light.svg" width="14.0%">
   <img alt="Weights and Biases Reports" src="">
 </picture>
 </a>
@@ -45,7 +45,7 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
   <img alt="Weights and Biases Artifacts" src="">
 </picture>
 </a>
-<a target="_blank" href="https://docs.wandb.ai/guides/data-vis?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<a target="_blank" href="https://docs.wandb.ai/guides/tables?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
   <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/tables-light.svg" width="14.0%">
@@ -66,24 +66,17 @@ Want to use Weights & Biases for seamless collaboration between your ML or Data 
   <img alt="Weights and Biases Launch" src="">
 </picture>
 </a>
-<a target="_blank" href="https://docs.wandb.ai/guides/models?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<a target="_blank" href="https://docs.wandb.ai/guides/model_registry?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/models-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/models-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/model-registry-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/model-registry-light.svg" width="14.0%">
   <img alt="Weights and Biases Model Management" src="">
 </picture>
 </a>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/prompts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
+<a target="_blank" href="https://docs.wandb.ai/guides/artifacts/project-scoped-automations?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/prompts-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/prompts-light.svg" width="14.0%">
-  <img alt="Weights and Biases Prompts" src="">
-</picture>
-<a target="_blank" href="https://github.com/wandb/weave">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/weave-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/weave-light.svg" width="14.0%">
+  <source media="(prefers-color-scheme: dark)" srcset="./assets/Product_Icons_dark_background/automations-dark.svg" width="14.0%">
+  <source media="(prefers-color-scheme: light)" srcset="./assets/Product_Icons_light/automations-light.svg" width="14.0%">
   <img alt="Weights and Biases Prompts" src="">
 </picture>
 </p>
