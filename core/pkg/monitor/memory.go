@@ -33,7 +33,7 @@ func (m *Memory) SampleMetrics() {
 	virtualMem, err := mem.VirtualMemory()
 
 	if err == nil {
-		// total system memory usage in percents
+		// total system memory usage in percent
 		m.metrics["memory_percent"] = append(
 			m.metrics["memory_percent"],
 			virtualMem.UsedPercent,
