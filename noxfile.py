@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Tuple
 
 import nox
+import pytest
 
 nox.options.default_venv_backend = "uv"
 
@@ -25,9 +26,9 @@ _NOX_GO_COVERAGE_DIR = pathlib.Path(".nox-wandb", "go-coverage")
 
 @contextmanager
 def report_time(session: nox.Session):
-    t = time.time()
+    t = time.perf_counter()
     yield
-    session.log(f"Took {time.time() - t:.2f} seconds.")
+    session.log(f"Took {time.perf_counter() - t:.2f} seconds.")
 
 
 def install_timed(session: nox.Session, *args, **kwargs):
@@ -836,3 +837,83 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+def run_funky_test(
+    session: nox.Session, test_file: str, test_name: str, deps: List[str]
+) -> None:
+    """Run a single test with dependencies in a new virtual environment."""
+    install_wandb(session)
+    session.install(*deps)
+
+    pytest_opts = []
+
+    # verbose output
+    pytest_opts.append("-s")
+    pytest_opts.append("-vvv")
+
+    # (pytest-timeout) Per-test timeout.
+    pytest_opts.append("--timeout=300")
+
+    session.run(
+        "pytest",
+        *pytest_opts,
+        f"{test_file}::{test_name}",
+        silent=False,
+        external=True,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def funky_tests(session: nox.Session) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    class TestCollector:
+        def __init__(self):
+            self.tests = dict()
+
+        def pytest_collection_modifyitems(self, session, config, items):
+            for item in items:
+                marker = item.get_closest_marker("depends")
+                deps = marker.kwargs.get("deps", []) if marker else []
+                self.tests[item.name] = deps
+
+    test_files = [
+        str(p)
+        for p in (
+            pathlib.Path(__file__).parent
+            / "tests"
+            / "pytest_tests"
+            / "system_tests"
+            / "test_functional"
+            / "jax"  # TODO: generalize
+        ).rglob("test_*.py")
+    ]
+
+    tests = dict()
+
+    for test_file in test_files:
+        collector = TestCollector()
+        pytest.main(
+            [
+                "--collect-only",
+                "-q",
+                "--tb=no",
+                test_file,
+            ],
+            plugins=[collector],
+        )
+        tests[test_file] = collector.tests
+
+    print(tests)
+
+    # run each test in a new virtual environment
+    # TODO: parallelize this
+    for test_file, test_deps in tests.items():
+        for test_name, deps in test_deps.items():
+            print(f"Running {test_name} from {test_file}")
+            print(f"Dependencies: {deps}")
+            run_funky_test(session, test_file, test_name, deps)
+
+    # TODO: aggregate tests results for nice reporting
