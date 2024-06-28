@@ -12,59 +12,69 @@ import (
 )
 
 type Params struct {
-	DSN              string
+	// DSN is the Data Source Name for the sentry client
+	DSN string
+	// AttachStacktrace is a flag to attach stacktrace to the sentry event
 	AttachStacktrace bool
-	Release          string
-	Commit           string
-	Environment      string
-	BeforeSend       func(*sentry.Event, *sentry.EventHint) *sentry.Event
-	LRUSize          int
+	// Release is the version of the application
+	Release string
+	// Commit is the git commit hash
+	Commit string
+	// Environment is the environment the application is running in
+	Environment string
+	// BeforeSend is a callback to modify the event before sending it to sentry
+	BeforeSend func(*sentry.Event, *sentry.EventHint) *sentry.Event
+	// LRUSize is the size of the LRU cache
+	LRUSize int
 }
 
 type Client struct {
+	// Recent is the cache of recent errors sent to sentry to avoid sending
+	// the same error multiple times
 	Recent *cache
 }
 
 // New initializes the sentry client.
+//
+// If the DSN is not set, the client is effectively disabled and will not send
+// any errors to sentry.
+// If we can't create the cache, we will log an error and return nil.
 func New(params Params) *Client {
 
 	if params.BeforeSend == nil {
 		params.BeforeSend = RemoveBottomFrames
 	}
-
-	err := sentry.Init(sentry.ClientOptions{
-		Dsn:              params.DSN,
-		AttachStacktrace: params.AttachStacktrace,
-		Release:          params.Release,
-		Dist:             params.Commit,
-		BeforeSend:       params.BeforeSend,
-		Environment:      params.Environment,
-	})
-
-	if err != nil {
-		slog.Error("sentry: New: failed to initialize sentry", "err", err)
+	if err := sentry.Init(
+		sentry.ClientOptions{
+			Dsn:              params.DSN,
+			AttachStacktrace: params.AttachStacktrace,
+			Release:          params.Release,
+			Dist:             params.Commit,
+			BeforeSend:       params.BeforeSend,
+			Environment:      params.Environment,
+		}); err != nil {
+		slog.Error("sentry_ext: New: failed to initialize sentry", "err", err)
 	}
 
-	if params.DSN != "" {
-		slog.Debug("sentry: New: sentry is enabled", "dsn", params.DSN)
+	if params.DSN == "" {
+		slog.Debug("sentry_ext: New: sentry is disabled, no DSN provided")
 	} else {
-		slog.Debug("sentry is disabled")
+		slog.Debug("sentry_ext: New: sentry is enabled", "dsn", params.DSN)
 	}
 
 	cache, err := newCache(params.LRUSize)
 	if err != nil {
-		slog.Error("failed to create LRU cache", "err", err)
+		slog.Error("sentry_ext: New: failed to create cache", "err", err)
 		return nil
 	}
 
 	// If the DSN is not set, the client is effectively disabled.
-	s := &Client{
+	return &Client{
 		Recent: cache,
 	}
-
-	return s
 }
 
+// SetUser sets the user information for the sentry client.
 func (s *Client) SetUser(id, email, name string) {
 
 	localHub := sentry.CurrentHub().Clone()

@@ -23,8 +23,8 @@ func TestNew(t *testing.T) {
 			name: "TestNew",
 			args: args{
 				params: sentry_ext.Params{
-					// DSN:    "",
-					// Commit: "commit",
+					DSN:    "",
+					Commit: "commit",
 				},
 			},
 		},
