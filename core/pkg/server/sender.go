@@ -707,7 +707,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		//  consequent updates are fire-and-forget and thus don't have a mailbox
 		//  slot.
 		//  We should probably separate the initial upsert from the updates.
-		runRecordSet := s.RunRecord != nil
+		runRecordIsSet := s.RunRecord != nil
 
 		// The first run record sent by the client is encoded incorrectly,
 		// causing it to overwrite the entire "_wandb" config key rather than
@@ -725,7 +725,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
 
-		if !runRecordSet {
+		if !runRecordIsSet {
 			var ok bool
 			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 			if !ok {
@@ -767,7 +767,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			// if this times out, we cancel the global context
 			// as there is no need to proceed with the run
 			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
-		} else if !runRecordSet {
+		} else if !runRecordIsSet {
 			// this should never happen:
 			// the initial run upsert record should have a mailbox slot set by the client
 			s.logger.CaptureFatalAndPanic(
