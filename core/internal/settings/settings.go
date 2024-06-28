@@ -88,6 +88,21 @@ func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
 }
 
+// The W&B user name.
+func (s *Settings) GetUserName() string {
+	return s.Proto.Username.GetValue()
+}
+
+// The W&B email address.
+func (s *Settings) GetEmail() string {
+	return s.Proto.Email.GetValue()
+}
+
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
+}
+
 // The start time of the run.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()

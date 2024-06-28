@@ -10,7 +10,8 @@ import (
 	"runtime/trace"
 
 	"github.com/wandb/wandb/core/internal/processlib"
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
@@ -44,14 +45,17 @@ func main() {
 	}
 
 	// set up sentry reporting
-	params := sentry.Params{
-		DSN:    SentryDSN,
-		Commit: commit,
+	params := sentry_ext.Params{
+		DSN:              SentryDSN,
+		AttachStacktrace: true,
+		Release:          version.Version,
+		Commit:           commit,
+		Environment:      version.Environment,
 	}
 	if *disableAnalytics {
 		params.DSN = ""
 	}
-	sentryClient := sentry.New(params)
+	sentryClient := sentry_ext.New(params)
 	defer sentryClient.Flush(2)
 
 	// store commit hash in context

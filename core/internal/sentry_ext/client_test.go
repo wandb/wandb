@@ -1,19 +1,19 @@
-package sentry_test
+package sentry_ext_test
 
 import (
 	"errors"
 	"testing"
 
-	sentrygo "github.com/getsentry/sentry-go"
+	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func TestNew(t *testing.T) {
 	type args struct {
-		params sentry.Params
+		params sentry_ext.Params
 	}
 	tests := []struct {
 		name string
@@ -22,16 +22,16 @@ func TestNew(t *testing.T) {
 		{
 			name: "TestNew",
 			args: args{
-				params: sentry.Params{
-					DSN:    "",
-					Commit: "commit",
+				params: sentry_ext.Params{
+					// DSN:    "",
+					// Commit: "commit",
 				},
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sc := sentry.New(tt.args.params)
+			sc := sentry_ext.New(tt.args.params)
 			assert.NotNil(t, sc, "New() should return a non-nil sentry client")
 		})
 	}
@@ -111,12 +111,12 @@ func TestSentryClient_CaptureException(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := sentry.Params{
+			params := sentry_ext.Params{
 				DSN:     tt.fields.DSN,
 				Commit:  tt.fields.Commit,
 				LRUSize: tt.fields.LRUSize,
 			}
-			sc := sentry.New(params)
+			sc := sentry_ext.New(params)
 
 			for _, err := range tt.args.errs {
 				sc.CaptureException(err, tt.args.tags)
@@ -161,12 +161,12 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			params := sentry.Params{
+			params := sentry_ext.Params{
 				DSN:     tt.fields.DSN,
 				Commit:  tt.fields.Commit,
 				LRUSize: tt.fields.LRUSize,
 			}
-			sc := sentry.New(params)
+			sc := sentry_ext.New(params)
 
 			sc.CaptureMessage(tt.args.msg, tt.args.tags)
 
@@ -179,11 +179,11 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 
 func TestRemoveBottomFrames(t *testing.T) {
 	// Mock event with stack trace containing frames to be removed
-	event := &sentrygo.Event{
-		Exception: []sentrygo.Exception{
+	event := &sentry.Event{
+		Exception: []sentry.Exception{
 			{
-				Stacktrace: &sentrygo.Stacktrace{
-					Frames: []sentrygo.Frame{
+				Stacktrace: &sentry.Stacktrace{
+					Frames: []sentry.Frame{
 						{AbsPath: "/path/to/file1.go"},
 						{AbsPath: "/path/to/file2.go"},
 						{AbsPath: "/path/to/sentry.go"},
@@ -195,14 +195,14 @@ func TestRemoveBottomFrames(t *testing.T) {
 	}
 
 	// Mock hint (not used in our function, so it can be nil)
-	hint := (*sentrygo.EventHint)(nil)
+	hint := (*sentry.EventHint)(nil)
 
 	// Call the function under test
-	modifiedEvent := sentry.RemoveBottomFrames(event, hint)
+	modifiedEvent := sentry_ext.RemoveBottomFrames(event, hint)
 
 	// Validate the result: The last two frames should be preserved,
 	// as well as the first non-matching frame before the last two.
-	expectedFrames := []sentrygo.Frame{
+	expectedFrames := []sentry.Frame{
 		{AbsPath: "/path/to/file1.go"},
 		{AbsPath: "/path/to/file2.go"},
 	}

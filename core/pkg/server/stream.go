@@ -19,7 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
@@ -81,10 +81,10 @@ type Stream struct {
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.Client
+	sentryClient *sentry_ext.Client
 }
 
-func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -119,6 +119,12 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *obs
 		// AddSource: true,
 	}
 
+	sentryClient.SetUser(
+		settings.GetEntity(),
+		settings.GetEmail(),
+		settings.GetUserName(),
+	)
+
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, opts)),
 		observability.WithTags(observability.Tags{}),
@@ -127,11 +133,12 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *obs
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
+
 	tags := observability.Tags{
-		"run_id":  settings.GetRunID(),
-		"run_url": settings.GetRunURL(),
-		"project": settings.GetProject(),
-		"entity":  settings.GetEntity(),
+		"run_id":    settings.GetRunID(),
+		"run_url":   settings.GetRunURL(),
+		"project":   settings.GetProject(),
+		"sweep_url": settings.GetSweepURL(),
 	}
 	logger.SetTags(tags)
 
@@ -139,7 +146,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry.Client) *obs
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string, sentryClient *sentry.Client) *Stream {
+func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
