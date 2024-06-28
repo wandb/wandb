@@ -103,7 +103,8 @@ func processScalars(
 		str, err := toHistogramJSON(value.Tensor)
 
 		if err != nil {
-			logger.CaptureError("tensorboard: error serializing a tensor", err)
+			logger.CaptureError(
+				fmt.Errorf("tensorboard: error serializing a tensor: %v", err))
 			return jsonData
 		} else {
 			return append(jsonData, tagAndJSON{tag: tag, json: str})

@@ -3,7 +3,7 @@ package filestream
 import (
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -25,12 +25,12 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	for _, item := range u.Record.Item {
 		var val interface{}
 		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
-			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
-			errMsg := fmt.Sprintf(
-				"filestream: failed to marshal StatsItem key: %s",
-				item.Key,
-			)
-			ctx.Logger.CaptureError(errMsg, e)
+			ctx.Logger.CaptureError(
+				fmt.Errorf(
+					"filestream: failed to marshal StatsItem for key %s: %v",
+					item.Key,
+					err,
+				))
 			continue
 		}
 
@@ -43,9 +43,10 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
 		ctx.Logger.CaptureError(
-			"filestream: failed to marshal system metrics",
-			err,
-		)
+			fmt.Errorf(
+				"filestream: failed to marshal system metrics: %v",
+				err,
+			))
 	case len(line) > maxFileLineBytes:
 		// This is a non-blocking failure as well.
 		ctx.Logger.CaptureWarn(

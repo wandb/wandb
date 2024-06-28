@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -15,15 +16,20 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
+	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runconfig"
+	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -43,7 +49,7 @@ const (
 
 type SenderParams struct {
 	Logger              *observability.CoreLogger
-	Settings            *service.Settings
+	Settings            *settings.Settings
 	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
@@ -56,7 +62,7 @@ type SenderParams struct {
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
 	FwdChan             chan *service.Record
-	OutputFileName      string
+	OutputFileName      *paths.RelativePath
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
@@ -110,7 +116,7 @@ type Sender struct {
 	telemetry *service.TelemetryRecord
 
 	// metricSender is a service for managing metrics
-	metricSender *MetricSender
+	metricSender *runmetric.MetricSender
 
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -149,8 +155,8 @@ type Sender struct {
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
 
-	// filename to write console output to
-	outputFileName string
+	// consoleLogsSender uploads captured console output.
+	consoleLogsSender *runconsolelogs.Sender
 }
 
 // NewSender creates a new Sender with the given settings
@@ -160,8 +166,13 @@ func NewSender(
 	params SenderParams,
 ) *Sender {
 
-	if params.OutputFileName == "" {
-		params.OutputFileName = LatestOutputFileName
+	var outputFileName paths.RelativePath
+	if params.OutputFileName != nil {
+		outputFileName = *params.OutputFileName
+	} else {
+		// Guaranteed not to fail.
+		path, _ := paths.Relative(LatestOutputFileName)
+		outputFileName = *path
 	}
 
 	s := &Sender{
@@ -171,7 +182,7 @@ func NewSender(
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		wgFileTransfer:      sync.WaitGroup{},
 		logger:              params.Logger,
-		settings:            params.Settings,
+		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
 		fileWatcher:         params.FileWatcher,
@@ -193,7 +204,15 @@ func NewSender(
 			summaryDebouncerBurstSize,
 			params.Logger,
 		),
-		outputFileName: params.OutputFileName,
+
+		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
+			ConsoleOutputFile: outputFileName,
+			Settings:          params.Settings,
+			Logger:            params.Logger,
+			Ctx:               ctx,
+			LoopbackChan:      params.FwdChan,
+			FileStreamOrNil:   params.FileStream,
+		}),
 	}
 
 	backendOrNil := params.Backend
@@ -243,11 +262,11 @@ func (s *Sender) respond(record *service.Record, response any) {
 	case *service.RunUpdateResult:
 		s.respondRunUpdate(record, x)
 	case nil:
-		err := fmt.Errorf("sender: respond: nil response")
-		s.logger.CaptureFatalAndPanic("sender: respond: nil response", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: respond: nil response"))
 	default:
-		err := fmt.Errorf("sender: respond: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: respond: unexpected type", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: respond: unexpected type %T", x))
 	}
 }
 
@@ -343,11 +362,11 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Artifact:
 		s.sendArtifact(record, x.Artifact)
 	case nil:
-		err := fmt.Errorf("sender: sendRecord: nil RecordType")
-		s.logger.CaptureFatalAndPanic("sender: sendRecord: nil RecordType", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendRecord: nil RecordType"))
 	default:
-		err := fmt.Errorf("sender: sendRecord: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: sendRecord: unexpected type", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendRecord: unexpected type %T", x))
 	}
 }
 
@@ -375,11 +394,11 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 	case *service.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
 	case nil:
-		err := fmt.Errorf("sender: sendRequest: nil RequestType")
-		s.logger.CaptureFatalAndPanic("sender: sendRequest: nil RequestType", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendRequest: nil RequestType"))
 	default:
-		err := fmt.Errorf("sender: sendRequest: unexpected type %T", x)
-		s.logger.CaptureFatalAndPanic("sender: sendRequest: unexpected type", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendRequest: unexpected type %T", x))
 	}
 }
 
@@ -407,7 +426,8 @@ func (s *Sender) updateSettings() {
 	}
 }
 
-// sendRun starts up all the resources for a run
+// sendRequestRunStart sends a run start request to start all the stream
+// components that need to be started and to update the settings
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	s.updateSettings()
 
@@ -513,7 +533,7 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_OUTPUT:
-		s.uploadOutputFile()
+		s.consoleLogsSender.Finish()
 		request.State++
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_JOB:
@@ -559,8 +579,8 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		// cancel tells the stream to close the loopback and input channels
 		s.cancel()
 	default:
-		err := fmt.Errorf("sender: sendDefer: unexpected state %v", request.State)
-		s.logger.CaptureFatalAndPanic("sender: sendDefer: unexpected state", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendDefer: unexpected state %v", request.State))
 	}
 }
 
@@ -598,7 +618,8 @@ func (s *Sender) sendLinkArtifact(record *service.Record) {
 	}
 	err := linker.Link()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic("sender: sendLinkArtifact: link failure", err)
+		s.logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: sendLinkArtifact: link failure: %v", err))
 	}
 
 	// why is this here?
@@ -619,7 +640,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 func (s *Sender) updateConfigPrivate() {
 	metrics := []map[int]interface{}(nil)
 	if s.metricSender != nil {
-		metrics = s.metricSender.configMetrics
+		metrics = s.metricSender.ConfigMetrics
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -678,8 +699,17 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	return nil
 }
 
+// sendRun sends a run record to the server and updates the run record
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if s.graphqlClient != nil {
+		// TODO: we use the same record type for the initial run upsert and the
+		//  follow-up run updates, such as setting the name, tags, and notes.
+		//  The client only expects a response for the initial upsert, the
+		//  consequent updates are fire-and-forget and thus don't have a mailbox
+		//  slot.
+		//  We should probably separate the initial upsert from the updates.
+		runRecordIsSet := s.RunRecord != nil
+
 		// The first run record sent by the client is encoded incorrectly,
 		// causing it to overwrite the entire "_wandb" config key rather than
 		// just the necessary part ("_wandb/code_path"). This can overwrite
@@ -689,18 +719,19 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		// resumed config and apply updates on top of it.
 		s.runConfig.ApplyChangeRecord(run.Config,
 			func(err error) {
-				s.logger.CaptureError("Error updating run config", err)
+				s.logger.CaptureError(
+					fmt.Errorf("error updating run config: %v", err))
 			})
 
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
 
-		if s.RunRecord == nil {
+		if !runRecordIsSet {
 			var ok bool
 			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 			if !ok {
-				err := fmt.Errorf("failed to clone RunRecord")
-				s.logger.CaptureFatalAndPanic("sender: sendRun: ", err)
+				s.logger.CaptureFatalAndPanic(
+					errors.New("sender: sendRun: failed to clone RunRecord"))
 			}
 
 			if err := s.checkAndUpdateResumeState(record); err != nil {
@@ -737,9 +768,12 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			// if this times out, we cancel the global context
 			// as there is no need to proceed with the run
 			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
-		} else {
-			// this should never happen
-			s.logger.CaptureError("sender: sendRun: no mailbox slot", nil)
+		} else if !runRecordIsSet {
+			// this should never happen:
+			// the initial run upsert record should have a mailbox slot set by the client
+			s.logger.CaptureFatalAndPanic(
+				errors.New("sender: sendRun: mailbox slot not set"),
+			)
 		}
 
 		data, err := gql.UpsertBucket(
@@ -825,7 +859,8 @@ func (s *Sender) streamSummary() {
 
 	update, err := s.runSummary.Flatten()
 	if err != nil {
-		s.logger.CaptureError("Error flattening run summary", err)
+		s.logger.CaptureError(
+			fmt.Errorf("error flattening run summary: %v", err))
 		return
 	}
 
@@ -840,7 +875,8 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	s.runSummary.ApplyChangeRecord(
 		summary,
 		func(err error) {
-			s.logger.CaptureError("Error updating run summary", err)
+			s.logger.CaptureError(
+				fmt.Errorf("error updating run summary: %v", err))
 		},
 	)
 
@@ -964,7 +1000,8 @@ func (s *Sender) sendConfig(_ *service.Record, configRecord *service.ConfigRecor
 	if configRecord != nil {
 		s.runConfig.ApplyChangeRecord(configRecord,
 			func(err error) {
-				s.logger.CaptureError("Error updating run config", err)
+				s.logger.CaptureError(
+					fmt.Errorf("error updating run config: %v", err))
 			})
 	}
 	s.configDebouncer.SetNeedsDebounce()
@@ -983,72 +1020,8 @@ func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
 	// TODO: implement me
 }
 
-func writeOutputToFile(file, line string) error {
-	// append line to file
-	f, err := os.OpenFile(file, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = fmt.Fprintln(f, line)
-	return err
-}
-
-func (s *Sender) uploadOutputFile() {
-	// In the end of a run, we upload the output file to the server
-	// This is a bit of a duplication, as we send the same content through the
-	// filestream
-	// Ideally, the output content from the filestream would be converted
-	// to a file on the server side, but for now we do it here as well
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: s.outputFileName,
-						Type: service.FilesItem_WANDB,
-					},
-				},
-			},
-		},
-	}
-
-	s.fwdRecord(record)
-}
-
 func (s *Sender) sendOutputRaw(_ *service.Record, outputRaw *service.OutputRawRecord) {
-	// TODO: move this to filestream!
-	// TODO: match logic handling of lines to the one in the python version
-	// - handle carriage returns (for tqdm-like progress bars)
-	// - handle caching multiple (non-new lines) and sending them in one chunk
-	// - handle lines longer than ~60_000 characters
-
-	// ignore empty "new lines"
-	if outputRaw.Line == "\n" {
-		return
-	}
-
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.LogsUpdate{Record: outputRaw})
-	}
-
-	// create a folder for the output file if it doesn't exist
-	fullFilePath := filepath.Join(s.settings.GetFilesDir().GetValue(), s.outputFileName)
-	logPath := filepath.Dir(fullFilePath)
-	// check if the directory exists
-	if _, err := os.Stat(logPath); os.IsNotExist(err) {
-		// create the directory
-		if err := os.MkdirAll(logPath, 0755); err != nil {
-			s.logger.Error("sender: sendOutput: failed to create output file directory", "error", err)
-			return
-		}
-	}
-
-	// append line to file
-	if err := writeOutputToFile(fullFilePath, outputRaw.Line); err != nil {
-		s.logger.Error("sender: sendOutput: failed to write to output file", "error", err)
-	}
+	s.consoleLogsSender.StreamLogs(outputRaw)
 }
 
 func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
@@ -1057,8 +1030,8 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	}
 
 	if s.RunRecord == nil {
-		err := fmt.Errorf("sender: sendAlert: RunRecord not set")
-		s.logger.CaptureFatalAndPanic("sender received error", err)
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendAlert: RunRecord not set"))
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
@@ -1075,8 +1048,11 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		&alert.WaitDuration,
 	)
 	if err != nil {
-		err = fmt.Errorf("sender: sendAlert: failed to notify scriptable run alert: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: sendAlert: failed to notify scriptable run alert: %v",
+				err,
+			))
 	} else {
 		s.logger.Info("sender: sendAlert: notified scriptable run alert", "data", data)
 	}
@@ -1116,7 +1092,7 @@ func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRec
 // which will then send it to the server
 func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
 	if s.metricSender == nil {
-		s.metricSender = NewMetricSender()
+		s.metricSender = runmetric.NewMetricSender()
 	}
 
 	if metric.GetGlobName() != "" {
@@ -1184,7 +1160,11 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
 	err := downloader.Download()
 	if err != nil {
-		s.logger.CaptureError("senderError: downloadArtifact: failed to download artifact: %v", err)
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"senderError: downloadArtifact: failed to download artifact: %v",
+				err,
+			))
 		response.ErrorMessage = err.Error()
 	}
 
@@ -1269,8 +1249,11 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 		switch {
 		case err != nil:
 			// if there is an error, we don't know if the run should stop
-			err = fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %s", err)
-			s.logger.CaptureError("sender received error", err)
+			s.logger.CaptureError(
+				fmt.Errorf(
+					"sender: sendStopStatus: failed to get run stopped status: %v",
+					err,
+				))
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: false,
 			}
@@ -1298,10 +1281,14 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 
 func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadRequest) {
 	if s.store == nil {
-		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue(), s.logger)
+		store := NewStore(s.ctx, s.settings.GetSyncFile().GetValue())
 		err := store.Open(os.O_RDONLY)
 		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to create store", err)
+			s.logger.CaptureError(
+				fmt.Errorf(
+					"sender: sendSenderRead: failed to create store: %v",
+					err,
+				))
 			return
 		}
 		s.store = store
@@ -1326,7 +1313,11 @@ func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadR
 			return
 		}
 		if err != nil {
-			s.logger.CaptureError("sender: sendSenderRead: failed to read record", err)
+			s.logger.CaptureError(
+				fmt.Errorf(
+					"sender: sendSenderRead: failed to read record: %v",
+					err,
+				))
 			return
 		}
 	}
@@ -1339,8 +1330,11 @@ func (s *Sender) getServerInfo() {
 
 	data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
 	if err != nil {
-		err = fmt.Errorf("sender: getServerInfo: failed to get server info: %s", err)
-		s.logger.CaptureError("sender received error", err)
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: getServerInfo: failed to get server info: %v",
+				err,
+			))
 		return
 	}
 	s.serverInfo = data.GetServerInfo()
@@ -1386,4 +1380,32 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
+// are used to configure the plots in the UI.
+func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
+
+	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
+	if err != nil {
+		return
+	}
+
+	if metric.GetStepMetric() != "" {
+		index, ok := s.metricSender.MetricIndex[metric.GetStepMetric()]
+		if ok {
+			metric = proto.Clone(metric).(*service.MetricRecord)
+			metric.StepMetric = ""
+			metric.StepMetricIndex = index + 1
+		}
+	}
+
+	encodeMetric := corelib.ProtoEncodeToDict(metric)
+	if index, ok := s.metricSender.MetricIndex[metric.GetName()]; ok {
+		s.metricSender.ConfigMetrics[index] = encodeMetric
+	} else {
+		nextIndex := len(s.metricSender.ConfigMetrics)
+		s.metricSender.ConfigMetrics = append(s.metricSender.ConfigMetrics, encodeMetric)
+		s.metricSender.MetricIndex[metric.GetName()] = int32(nextIndex)
+	}
 }

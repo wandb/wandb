@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/gql"

@@ -10,6 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -18,8 +19,6 @@ const (
 	HistoryFileName          = "wandb-history.jsonl"
 	SummaryFileName          = "wandb-summary.json"
 	OutputFileName           = "output.log"
-	defaultMaxItemsPerPush   = 5_000
-	defaultDelayProcess      = 20 * time.Millisecond
 	defaultHeartbeatInterval = 30 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
@@ -89,8 +88,8 @@ type fileStream struct {
 	// The client for making API requests.
 	apiClient api.Client
 
-	maxItemsPerPush int
-	delayProcess    waiting.Delay
+	// The rate limit for sending data to the backend.
+	transmitRateLimit *rate.Limiter
 
 	// A schedule on which to send heartbeats to the backend
 	// to prove the run is still alive.
@@ -106,44 +105,36 @@ type FileStreamParams struct {
 	Logger             *observability.CoreLogger
 	Printer            *observability.Printer
 	ApiClient          api.Client
-	MaxItemsPerPush    int
-	DelayProcess       waiting.Delay
+	TransmitRateLimit  *rate.Limiter
 	HeartbeatStopwatch waiting.Stopwatch
 }
 
 func NewFileStream(params FileStreamParams) FileStream {
 	// Panic early to avoid surprises. These fields are required.
-	if params.Logger == nil {
+	switch {
+	case params.Logger == nil:
 		panic("filestream: nil logger")
-	}
-	if params.Printer == nil {
+	case params.Printer == nil:
 		panic("filestream: nil printer")
+	case params.TransmitRateLimit == nil:
+		panic("filestream: nil rate limit")
 	}
 
 	fs := &fileStream{
-		settings:        params.Settings,
-		logger:          params.Logger,
-		printer:         params.Printer,
-		apiClient:       params.ApiClient,
-		processChan:     make(chan Update, BufferSize),
-		feedbackWait:    &sync.WaitGroup{},
-		maxItemsPerPush: defaultMaxItemsPerPush,
-		deadChanOnce:    &sync.Once{},
-		deadChan:        make(chan struct{}),
-	}
-
-	fs.delayProcess = params.DelayProcess
-	if fs.delayProcess == nil {
-		fs.delayProcess = waiting.NewDelay(defaultDelayProcess)
+		settings:          params.Settings,
+		logger:            params.Logger,
+		printer:           params.Printer,
+		apiClient:         params.ApiClient,
+		processChan:       make(chan Update, BufferSize),
+		feedbackWait:      &sync.WaitGroup{},
+		transmitRateLimit: params.TransmitRateLimit,
+		deadChanOnce:      &sync.Once{},
+		deadChan:          make(chan struct{}),
 	}
 
 	fs.heartbeatStopwatch = params.HeartbeatStopwatch
 	if fs.heartbeatStopwatch == nil {
 		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
-	}
-
-	if params.MaxItemsPerPush > 0 {
-		fs.maxItemsPerPush = params.MaxItemsPerPush
 	}
 
 	return fs
@@ -186,7 +177,7 @@ func (fs *fileStream) Close() {
 // when we can't guarantee correctness, in which case we stop uploading
 // data but continue to save it to disk to avoid data loss.
 func (fs *fileStream) logFatalAndStopWorking(err error) {
-	fs.logger.CaptureFatal("filestream: fatal error", err)
+	fs.logger.CaptureFatal(fmt.Errorf("filestream: fatal error: %v", err))
 	fs.deadChanOnce.Do(func() {
 		close(fs.deadChan)
 		fs.printer.Write(

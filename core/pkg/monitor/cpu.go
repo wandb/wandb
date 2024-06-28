@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/wandb/wandb/core/pkg/service"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type CPU struct {

@@ -156,6 +156,9 @@ class _WandbLogin:
         """Returns whether an API key is set or can be inferred."""
         return apikey.api_key(settings=self._settings) is not None
 
+    def should_use_identity_token(self):
+        return self._settings.identity_token_file is not None
+
     def set_backend(self, backend):
         self._backend = backend
 
@@ -326,6 +329,9 @@ def _login(
             "To use W&B in kaggle you must enable internet in the settings panel on the right."
         )
         return False
+
+    if wlogin.should_use_identity_token():
+        return True
 
     # perform a login
     logged_in = wlogin.login()

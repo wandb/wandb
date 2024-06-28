@@ -5,8 +5,8 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/service"
 
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type Memory struct {

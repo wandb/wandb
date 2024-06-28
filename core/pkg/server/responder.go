@@ -51,8 +51,8 @@ func (d *Dispatcher) handleRespond(result *service.Result) {
 	if responder, ok := d.responders[responderId]; ok {
 		responder.Respond(response)
 	} else {
-		err := fmt.Errorf("dispatch: no responder found: %s", responderId)
-		d.logger.CaptureFatalAndPanic("dispatch: no responder found", err)
+		d.logger.CaptureFatalAndPanic(
+			fmt.Errorf("dispatch: no responder found: %s", responderId))
 	}
 }
 
