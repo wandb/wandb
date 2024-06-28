@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
 )
 
@@ -26,159 +26,93 @@ type FsTransmitFileData struct {
 	Content []string `json:"content"`
 }
 
-// loopProcess ingests the processChan to process incoming data into
-// FS requests.
-func (fs *fileStream) loopProcess() {
-	// Close the output channel at the end.
-	defer close(fs.transmitChan)
+// startProcessingUpdates asynchronously ingests updates.
+//
+// This returns a channel of actual work to perform to update the filestream's
+// next request.
+func (fs *fileStream) startProcessingUpdates(
+	updates <-chan Update,
+) <-chan CollectorStateUpdate {
+	stateUpdates := make(chan CollectorStateUpdate)
 
-	fs.logger.Debug("filestream: open", "path", fs.path)
+	go func() {
+		defer close(stateUpdates)
 
-	for update := range fs.processChan {
-		err := update.Apply(UpdateContext{
-			ModifyRequest: func(csu CollectorStateUpdate) {
-				fs.transmitChan <- csu
-			},
+		fs.logger.Debug("filestream: open", "path", fs.path)
 
-			Settings: fs.settings,
-			ClientID: fs.clientId,
+		for update := range updates {
+			err := update.Apply(UpdateContext{
+				ModifyRequest: func(csu CollectorStateUpdate) {
+					stateUpdates <- csu
+				},
 
-			Logger:  fs.logger,
-			Printer: fs.printer,
-		})
+				Settings: fs.settings,
 
-		if err != nil {
-			fs.logFatalAndStopWorking(err)
-			break
+				Logger:  fs.logger,
+				Printer: fs.printer,
+			})
+
+			if err != nil {
+				fs.logFatalAndStopWorking(err)
+				break
+			}
 		}
-	}
 
-	// Flush input channel if we exited early.
-	for range fs.processChan {
-	}
+		// Flush input channel if we exited early.
+		for range updates {
+		}
+	}()
+
+	return stateUpdates
 }
 
-// loopTransmit sends updates in the transmitChan to the backend.
+// startTransmitting makes requests to the filestream API.
+//
+// It ingests a channel of updates and outputs a channel of API responses.
 //
 // Updates are batched to reduce the total number of HTTP requests.
 // An empty "heartbeat" request is sent when there are no updates for too long,
 // guaranteeing that a request is sent at least once every period specified
 // by `heartbeatStopwatch`.
-func (fs *fileStream) loopTransmit() {
-	// Close the output channel at the end.
-	defer close(fs.feedbackChan)
+func (fs *fileStream) startTransmitting(
+	stateUpdates <-chan CollectorStateUpdate,
+	initialOffsets FileStreamOffsetMap,
+) <-chan map[string]any {
+	transmissions := CollectLoop{
+		TransmitRateLimit: fs.transmitRateLimit,
+	}.Start(
+		stateUpdates,
+		initialOffsets,
+	)
 
-	state := CollectorState{}
+	feedback := TransmitLoop{
+		HeartbeatStopwatch:     fs.heartbeatStopwatch,
+		Send:                   fs.send,
+		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
+	}.Start(transmissions)
 
-	transmissions := make(chan *FsTransmitData)
+	return feedback
+}
 
-	transmitWG := &sync.WaitGroup{}
-	transmitWG.Add(1)
+// startProcessingFeedback processes feedback from the filestream API.
+//
+// This increments the wait group and decrements it after completing
+// all work.
+func (fs *fileStream) startProcessingFeedback(
+	feedback <-chan map[string]any,
+	wg *sync.WaitGroup,
+) {
+	wg.Add(1)
 	go func() {
-		defer transmitWG.Done()
-		fs.sendAll(transmissions, fs.feedbackChan)
+		defer wg.Done()
+
+		for range feedback {
+		}
 	}()
-
-	// Periodically send heartbeats.
-	//
-	// We do this by pushing a transmission if no requests are sent for too
-	// long---that is, when the heartbeat stopwatch hits zero. Whenever we
-	// transmit, we reset the stopwatch.
-	stopHearbeat := make(chan struct{})
-	heartbeatWG := &sync.WaitGroup{}
-	heartbeatWG.Add(1)
-	go func() {
-		defer heartbeatWG.Done()
-		fs.sendHeartbeats(stopHearbeat, transmissions)
-	}()
-
-	// Batch and send updates.
-	//
-	// We try to batch updates that happen in quick succession by waiting a
-	// short time after receiving an update.
-	for firstUpdate := range fs.transmitChan {
-		firstUpdate.Apply(&state)
-		fs.collectBatch(&state, fs.transmitChan)
-
-		fs.heartbeatStopwatch.Reset()
-		data, hasData := state.Consume(fs.offsetMap, false /*isDone*/)
-		if hasData {
-			transmissions <- data
-		}
-	}
-
-	// Stop sending heartbeats.
-	close(stopHearbeat)
-	heartbeatWG.Wait()
-
-	// Send final transmission.
-	data, _ := state.Consume(fs.offsetMap, true /*isDone*/)
-	transmissions <- data
-	close(transmissions)
-	transmitWG.Wait()
-}
-
-// loopFeedback consumes the feedbackChan to process feedback from the backend.
-func (fs *fileStream) loopFeedback() {
-	for range fs.feedbackChan {
-	}
-}
-
-func (fs *fileStream) sendHeartbeats(
-	stop <-chan struct{},
-	out chan<- *FsTransmitData,
-) {
-	for keepGoing := true; keepGoing; {
-		select {
-		case <-fs.heartbeatStopwatch.Wait():
-			fs.heartbeatStopwatch.Reset()
-			out <- &FsTransmitData{}
-		case <-stop:
-			keepGoing = false
-		}
-	}
-}
-
-func (fs *fileStream) collectBatch(
-	state *CollectorState,
-	updates <-chan CollectorStateUpdate,
-) {
-	maxChunkWait := fs.delayProcess.Wait()
-
-	for keepGoing := true; keepGoing; {
-		select {
-		case update, ok := <-updates:
-			if ok {
-				update.Apply(state)
-			} else {
-				keepGoing = false
-			}
-		case <-maxChunkWait:
-			keepGoing = false
-		}
-	}
-}
-
-func (fs *fileStream) sendAll(
-	data <-chan *FsTransmitData,
-	feedbackChan chan<- map[string]any,
-) {
-	for x := range data {
-		err := fs.send(*x, feedbackChan)
-
-		if err != nil {
-			fs.logFatalAndStopWorking(err)
-			break
-		}
-	}
-
-	// Flush the channel, in case the loop above ended with an error.
-	for range data {
-	}
 }
 
 func (fs *fileStream) send(
-	data FsTransmitData,
+	data *FsTransmitData,
 	feedbackChan chan<- map[string]any,
 ) error {
 	// Stop working after death to avoid data corruption.
@@ -188,7 +122,7 @@ func (fs *fileStream) send(
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("filestream: json marshall error in send(): %v", err)
+		return fmt.Errorf("filestream: json marshal error in send(): %v", err)
 	}
 	fs.logger.Debug("filestream: post request", "request", string(jsonData))
 
@@ -205,10 +139,14 @@ func (fs *fileStream) send(
 
 	switch {
 	case err != nil:
-		return fmt.Errorf("filestream: error making HTTP request: %v", err)
+		return fmt.Errorf(
+			"filestream: error making HTTP request: %v. got response: %v",
+			err,
+			resp,
+		)
 	case resp == nil:
 		// Sometimes resp and err can both be nil in retryablehttp's Client.
-		return fmt.Errorf("filestream: nil response and nil error")
+		return fmt.Errorf("filestream: nil response and nil error for request to %v", req.Path)
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
@@ -217,14 +155,16 @@ func (fs *fileStream) send(
 
 	defer func(Body io.ReadCloser) {
 		if err = Body.Close(); err != nil {
-			fs.logger.CaptureError("filestream: error closing response body", err)
+			fs.logger.CaptureError(
+				fmt.Errorf("filestream: error closing response body: %v", err))
 		}
 	}(resp.Body)
 
 	var res map[string]interface{}
 	err = json.NewDecoder(resp.Body).Decode(&res)
 	if err != nil {
-		fs.logger.CaptureError("json decode error", err)
+		fs.logger.CaptureError(
+			fmt.Errorf("filestream: json decode error: %v", err))
 	}
 	feedbackChan <- res
 	fs.logger.Debug("filestream: post response", "response", res)

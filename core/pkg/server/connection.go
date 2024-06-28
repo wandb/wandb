@@ -11,6 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/sentry"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -52,6 +53,9 @@ type Connection struct {
 
 	// closed indicates if the outChan is closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry.Client
 }
 
 // NewConnection creates a new connection
@@ -59,16 +63,18 @@ func NewConnection(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
+	sentryClient *sentry.Client,
 ) *Connection {
 
 	nc := &Connection{
-		ctx:     ctx,
-		cancel:  cancel,
-		conn:    conn,
-		id:      conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:  make(chan *service.ServerRequest, BufferSize),
-		outChan: make(chan *service.ServerResponse, BufferSize),
-		closed:  &atomic.Bool{},
+		ctx:          ctx,
+		cancel:       cancel,
+		conn:         conn,
+		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:       make(chan *service.ServerRequest, BufferSize),
+		outChan:      make(chan *service.ServerResponse, BufferSize),
+		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
 	}
 	return nc
 }
@@ -133,10 +139,9 @@ func (nc *Connection) Respond(resp *service.ServerResponse) {
 // it closes the inChan when the connection is closed
 func (nc *Connection) readConnection() {
 	scanner := bufio.NewScanner(nc.conn)
-	buf := make([]byte, messageSize)
-	scanner.Buffer(buf, maxMessageSize)
-	tokenizer := &Tokenizer{}
-	scanner.Split(tokenizer.Split)
+	scanner.Buffer(make([]byte, messageSize), maxMessageSize)
+	scanner.Split(ScanWBRecords)
+
 	for scanner.Scan() {
 		msg := &service.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
@@ -238,7 +243,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(settings, streamId)
+	nc.stream = NewStream(settings, streamId, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)

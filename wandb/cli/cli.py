@@ -692,7 +692,7 @@ def sync(
     skip_console=None,
 ):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync offline runs")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -896,6 +896,14 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
+@click.option(
+    "--prior_run",
+    "-R",
+    "prior_runs",
+    multiple=True,
+    default=None,
+    help="ID of an existing run to add to this sweep",
+)
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
 @display_error
@@ -913,6 +921,7 @@ def sweep(
     cancel,
     pause,
     resume,
+    prior_runs,
     config_yaml_or_sweep_id,
 ):
     state_args = "stop", "cancel", "pause", "resume"
@@ -923,7 +932,7 @@ def sweep(
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
         api = _get_cling_api()
-        if api.api_key is None:
+        if not api.is_authenticated:
             wandb.termlog("Login to W&B to use the sweep feature")
             ctx.invoke(login, no_offline=True)
             api = _get_cling_api(reset=True)
@@ -966,7 +975,7 @@ def sweep(
         return ret
 
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1054,6 +1063,7 @@ def sweep(
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
+        prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
 
@@ -1120,6 +1130,14 @@ def sweep(
     default=None,
     help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
 )
+@click.option(
+    "--prior_run",
+    "-R",
+    "prior_runs",
+    multiple=True,
+    default=None,
+    help="ID of an existing run to add to this sweep",
+)
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
@@ -1130,10 +1148,11 @@ def launch_sweep(
     queue,
     config,
     resume_id,
+    prior_runs,
 ):
     api = _get_cling_api()
     env = os.environ
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1314,6 +1333,8 @@ def launch_sweep(
         obj_id=sweep_obj_id,  # if resuming
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
+        prior_runs=prior_runs,
+        template_variable_values=scheduler_args.get("template_variables", None),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
@@ -1332,7 +1353,6 @@ def launch_sweep(
     "-u",
     metavar="(str)",
     default=None,
-    hidden=True,
     help="Local path or git repo uri to launch. If provided this command will "
     "create a job from the specified uri.",
 )
@@ -1814,7 +1834,7 @@ def launch_agent(
 @display_error
 def agent(ctx, project, entity, count, sweep_id):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1838,7 +1858,7 @@ def scheduler(
     sweep_id,
 ):
     api = InternalApi()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)

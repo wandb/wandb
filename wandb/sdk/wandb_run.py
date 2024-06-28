@@ -256,7 +256,7 @@ class RunStatusChecker:
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
-            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            wait_time = max(timeout - time_elapsed, 0)
             join_requested = self._join_event.wait(timeout=wait_time)
 
     def check_network_status(self) -> None:
@@ -318,19 +318,19 @@ class RunStatusChecker:
             for msg in internal_messages.messages.warning:
                 wandb.termwarn(msg)
 
-            try:
-                self._loop_check_status(
-                    lock=self._internal_messages_lock,
-                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                    timeout=1,
-                    request=self._interface.deliver_internal_messages,
-                    process=_process_internal_messages,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._internal_messages_lock,
-                    self._internal_messages_handle,
-                )
+        try:
+            self._loop_check_status(
+                lock=self._internal_messages_lock,
+                set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+                timeout=1,
+                request=self._interface.deliver_internal_messages,
+                process=_process_internal_messages,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._internal_messages_lock,
+                self._internal_messages_handle,
+            )
 
     def stop(self) -> None:
         self._join_event.set()
@@ -704,6 +704,12 @@ class Run:
             config[wandb_key]["branch_point"] = {
                 "run_id": self._settings.fork_from.run,
                 "step": self._settings.fork_from.value,
+            }
+
+        if self._settings.resume_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.resume_from.run,
+                "step": self._settings.resume_from.value,
             }
 
         self._config._update(config, ignore_locked=True)
@@ -2608,11 +2614,6 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # this message is confusing, we should remove it
-        # self._footer_exit_status_info(
-        #     self._exit_code, settings=self._settings, printer=self._printer
-        # )
-
         # wait for the exit to complete
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
@@ -2750,12 +2751,14 @@ class Run:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
+        # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
@@ -2771,6 +2774,9 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_step_sync = True
 
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2782,8 +2788,6 @@ class Run:
         )
         m._set_callback(self._metric_callback)
         m._commit()
-        with telemetry.context(run=self) as tel:
-            tel.feature.metric = True
         return m
 
     # TODO(jhr): annotate this
@@ -2955,6 +2959,7 @@ class Run:
             api.use_artifact(
                 artifact.id,
                 entity_name=r.entity,
+                project_name=r.project,
                 use_as=use_as or artifact_or_name,
             )
         else:
@@ -3017,8 +3022,7 @@ class Run:
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
-                Valid names can be in the following forms:
+            name: (str, optional) An artifact name. Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
@@ -3664,7 +3668,11 @@ class Run:
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
-        run_state_str = "Resuming run" if settings.resumed else "Syncing run"
+        run_state_str = (
+            "Resuming run"
+            if settings.resumed or settings.resume_from
+            else "Syncing run"
+        )
         run_name = settings.run_name
         if not run_name:
             return
@@ -3754,6 +3762,11 @@ class Run:
             settings=settings,
             printer=printer,
         )
+        Run._footer_notify_wandb_core(
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
         Run._footer_local_warn(
             server_info_response=server_info_response,
             quiet=quiet,
@@ -3775,26 +3788,6 @@ class Run:
             settings=settings,
             printer=printer,
         )
-
-    @staticmethod
-    def _footer_exit_status_info(
-        exit_code: Optional[int],
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if settings.silent:
-            return
-
-        status = "(success)." if not exit_code else f"(failed {exit_code})."
-        info = [
-            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
-        ]
-
-        if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort()} to abort syncing.")
-
-        printer.display(f'{" ".join(info)}')
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
     @staticmethod
@@ -4143,6 +4136,24 @@ class Run:
         package_problem = check_version.delete_message or check_version.yank_message
         if package_problem and check_version.upgrade_message:
             printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_notify_wandb_core(
+        *,
+        quiet: Optional[bool] = None,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        """Prints a message advertising the upcoming core release."""
+        if quiet or settings._require_core:
+            return
+
+        printer.display(
+            "The new W&B backend becomes opt-out in version 0.18.0;"
+            ' try it out with `wandb.require("core")`!'
+            " See https://wandb.me/wandb-core for more information.",
+            level="warn",
+        )
 
     @staticmethod
     def _footer_reporter_warn_err(

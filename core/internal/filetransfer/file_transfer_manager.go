@@ -16,11 +16,6 @@ const (
 	DefaultConcurrencyLimit = 128
 )
 
-type FileTransfer interface {
-	Upload(task *Task) error
-	Download(task *Task) error
-}
-
 // A manager of asynchronous file upload tasks.
 type FileTransferManager interface {
 	// Asynchronously begins the main loop of the file transfer manager.
@@ -38,9 +33,8 @@ type fileTransferManager struct {
 	// inChan is the channel for incoming messages
 	inChan chan *Task
 
-	// fileTransfer is the uploader/downloader
-	// todo: make this a map of uploaders for different destination storage types
-	fileTransfer FileTransfer
+	// fileTransfers is the map of fileTransfer uploader/downloaders
+	fileTransfers *FileTransfers
 
 	// fileTransferStats keeps track of upload/download statistics
 	fileTransferStats FileTransferStats
@@ -75,9 +69,9 @@ func WithSettings(settings *service.Settings) FileTransferManagerOption {
 	}
 }
 
-func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
+func WithFileTransfers(fileTransfers *FileTransfers) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
-		fm.fileTransfer = fileTransfer
+		fm.fileTransfers = fileTransfers
 	}
 }
 
@@ -123,10 +117,12 @@ func (fm *fileTransferManager) Start() {
 
 				if task.Err != nil {
 					fm.logger.CaptureError(
-						"filetransfer: uploader: error uploading",
-						task.Err,
-						"path", task.Path, "url", task.Url,
-					)
+						fmt.Errorf(
+							"filetransfer: uploader: error uploading path=%s url=%s: %v",
+							task.Path,
+							task.Url,
+							task.Err,
+						))
 				}
 
 				// Execute the callback.
@@ -175,15 +171,20 @@ func (fm *fileTransferManager) Close() {
 
 // Uploads or downloads a file.
 func (fm *fileTransferManager) transfer(task *Task) error {
+	fileTransfer := fm.fileTransfers.GetFileTransferForTask(task)
+	if fileTransfer == nil {
+		return fmt.Errorf("file transfer not found for task")
+	}
+
 	var err error
 	switch task.Type {
 	case UploadTask:
-		err = fm.fileTransfer.Upload(task)
+		err = fileTransfer.Upload(task)
 	case DownloadTask:
-		err = fm.fileTransfer.Download(task)
+		err = fileTransfer.Download(task)
 	default:
-		err = fmt.Errorf("unknown task type")
-		fm.logger.CaptureFatalAndPanic("fileTransfer", err)
+		fm.logger.CaptureFatalAndPanic(
+			fmt.Errorf("fileTransfer: unknown task type: %v", task.Type))
 	}
 	return err
 }

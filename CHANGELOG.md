@@ -13,17 +13,67 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
-- Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
-- Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
-- Added --add_tag and --remove_tag to wandb sync to be able to add and remove run tags in offline runs prior to syncing and raises warning when a tag does not exist when trying to remove it by @umakrishnaswamy in https://github.com/wandb/wandb/pull/7678
+- Support queue template variables in launch sweep scheduelr jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
 
 ### Fixed
 
-- Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
-- Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
+- Use `sys.exit()` instead of `os._exit()` if an internal subprocess exits with a non-zero code (@timoffex in https://github.com/wandb/wandb/pull/7866)
+
+## [0.17.3] - 2024-06-24
+
+### Fixed
+
+- Correctly name the netrc file on Windows as `_netrc` by @dmitryduev in https://github.com/wandb/wandb/pull/7844
+- With core enabled, nested `tqdm` bars show up correctly in the Logs tab (@timoffex in https://github.com/wandb/wandb/pull/7825)
+- Fix W&B Launch registry ECR regex separating tag on forward slash and period @KyleGoyette https://github.com/wandb/wandb/pull/7837
+
+## [0.17.2] - 2024-06-17
+
+### Added
+
+- Add prior runs when creating a sweep from the CLI by @TimH98 in https://github.com/wandb/wandb/pull/7803
+
+### Fixed
+
+- Fix issues with `numpy>=2` support by @dmitryduev in https://github.com/wandb/wandb/pull/7816
+- Fix "UnicodeDecodeError: 'charmap'" when opening HTML files on Windows by specifying UTF-8 encoding by @KilnOfTheSecondFlame in https://github.com/wandb/wandb/pull/7730
+- Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
+- Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
 
 ### Changed
 
+- Upgrade github.com/vektah/gqlparser/v2 from 2.5.11 to 2.5.16 by @wandb-kc in https://github.com/wandb/wandb/pull/7828
+
+## [0.17.1] - 2024-06-07
+
+### Added
+
+- Added `api.runs().histories()` to fetch history metrics for runs that meet specified conditions by @thanos-wandb in https://github.com/wandb/wandb/pull/7690
+- Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
+- Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
+- Added --add_tag and --remove_tag to wandb sync to be able to add and remove run tags in offline runs prior to syncing and raises warning when a tag does not exist when trying to remove it by @umakrishnaswamy in https://github.com/wandb/wandb/pull/7678
+- Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step by @dannygoldstein in https://github.com/wandb/wandb/pull/7711
+- Added new Workspace API for programatically editing W&B Workspaces by @andrewtruong in https://github.com/wandb/wandb/pull/7728
+- Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
+- Added basic TensorBoard support when running with `wandb.require("core")` by @timoffex in https://github.com/wandb/wandb/pull/7725
+  - The TensorBoard tab in W&B will work.
+  - Charts show up in W&B, possibly better than when running without core.
+  - Not all types of data are supported yet. Unsupported data is not shown in charts.
+
+### Fixed
+
+- Fix `define_metric` behavior for multiple metrics in `shared` mode by @dmitryduev in https://github.com/wandb/wandb/pull/7715
+- Correctly pass in project name to internal api from run while calling run.use_artifact() by @ibindlish in https://github.com/wandb/wandb/pull/7701
+- Correctly upload console output log files when resuming runs enabled with `console_multipart` setting by @kptkin in https://github.com/wandb/wandb/pull/7694 and @dmitryduev in https://github.com/wandb/wandb/pull/7697
+- Interpret non-octal strings with leading zeros as strings and not integers in sweep configs by @KyleGoyette https://github.com/wandb/wandb/pull/7649
+- Support Azure repo URI format in Launch @KyleGoyette https://github.com/wandb/wandb/pull/7664
+- Fix path parsing for artifacts with aliases containing forward slashes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7676
+- Add missing docstrings for any public methods in `Api` class by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7713
+- Correctly add latest alias to jobs built by the job builder @KyleGoyette https://github.com/wandb/wandb/pull/7727
+
+### Changed
+
+- Option to change naming scheme for console output logs from `output.log` to `logs/YYYYMMDD_HHmmss.ms_output.log` by @kptkin in https://github.com/wandb/wandb/pull/7694
 - Require `unsafe=True` in `use_model` calls that could potentially load and deserialize unsafe pickle files by @anandwandb https://github.com/wandb/wandb/pull/7663
 - Update order in api.runs() to ascending to prevent duplicate responses by @thanos-wandb https://github.com/wandb/wandb/pull/7675
 - Eliminate signed URL timeout errors during artifact file uploads in core by @moredatarequired in https://github.com/wandb/wandb/pull/7586

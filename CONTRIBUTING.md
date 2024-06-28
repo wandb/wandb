@@ -218,7 +218,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.22.3` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.22.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
 brew install go@1.22
 ```
@@ -251,6 +251,7 @@ pip install -U pre-commit
 
 To install all of our pre-commit hooks run:
 ```shell
+./core/scripts/code-checks.sh update
 pre-commit install
 ```
 

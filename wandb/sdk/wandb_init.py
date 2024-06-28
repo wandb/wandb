@@ -323,6 +323,15 @@ class _WandbInit:
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
 
+        # TODO: remove this once we refactor the client. This is a temporary
+        # fix to make sure that we use the same project name for wandb-core.
+        # The reason this is not going throught the settings object is to
+        # avoid failure cases in other parts of the code that will be
+        # removed with the switch to wandb-core.
+        if settings.project is None:
+            project = wandb.util.auto_project_name(settings.program)
+            settings.update({"project": project}, source=Source.INIT)
+
         # TODO(jhr): should this be moved? probably.
         settings._set_run_start_time(source=Source.INIT)
 
@@ -946,6 +955,7 @@ def init(
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
     fork_from: Optional[str] = None,
+    resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Union[Run, RunDisabled]:
     r"""Start a new run to track and log to W&B.
@@ -988,14 +998,15 @@ def init(
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
-            the new run. If the project is not specified, the run is put in an
-            "Uncategorized" project.
+            the new run. If the project is not specified, we will try to infer
+            the project name from git root or the current program file. If we
+            can't infer the project name, we will default to `"uncategorized"`.
         entity: (str, optional) An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before
             starting to log runs.
             If you don't specify an entity, the run will be sent to your default
-            entity, which is usually your username. Change your default entity
+            entity. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
         config: (dict, argparse, absl.flags, str, optional)
@@ -1154,9 +1165,15 @@ def init(
 
     kwargs = dict(locals())
 
-    # convert fork_from into a version that can be passed to settings
-    if fork_from is not None and resume is not None:
-        raise ValueError("Cannot specify both `fork_from` and `resume`")
+    num_resume_options_set = (
+        (fork_from is not None)  # wrap
+        + (resume is not None)
+        + (resume_from is not None)
+    )
+    if num_resume_options_set > 1:
+        raise ValueError(
+            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
+        )
 
     try:
         wi = _WandbInit()

@@ -8,13 +8,18 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+const (
+	defaultSamplingInterval = 2.0 * time.Second
+	defaultSamplesToAverage = 15
 )
 
 func Average(nums []float64) float64 {
@@ -26,60 +31,6 @@ func Average(nums []float64) float64 {
 		total += num
 	}
 	return total / float64(len(nums))
-}
-
-type Measurement struct {
-	// timestamp of the measurement
-	Timestamp *timestamppb.Timestamp
-	// value of the measurement
-	Value float64
-}
-
-type List struct {
-	// slice of tuples of (timestamp, value)
-	elements []Measurement
-	maxSize  int32
-}
-
-func (l *List) Append(element Measurement) {
-	if (l.maxSize > 0) && (len(l.elements) >= int(l.maxSize)) {
-		l.elements = l.elements[1:] // Drop the oldest element
-	}
-	l.elements = append(l.elements, element) // Add the new element
-}
-
-func (l *List) GetElements() []Measurement {
-	return l.elements
-}
-
-// Buffer is the in-memory metrics buffer for the system monitor
-type Buffer struct {
-	elements map[string]List
-	mutex    sync.RWMutex
-	maxSize  int32
-}
-
-func NewBuffer(maxSize int32) *Buffer {
-	return &Buffer{
-		elements: make(map[string]List),
-		maxSize:  maxSize,
-	}
-}
-
-func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
-	mb.mutex.Lock()
-	defer mb.mutex.Unlock()
-	buf, ok := mb.elements[metricName]
-	if !ok {
-		mb.elements[metricName] = List{
-			maxSize: mb.maxSize,
-		}
-	}
-	buf.Append(Measurement{
-		Timestamp: timeStamp,
-		Value:     metricValue,
-	})
-	mb.elements[metricName] = buf
 }
 
 func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
@@ -136,6 +87,12 @@ type SystemMonitor struct {
 	// settings is the settings for the system monitor
 	settings *service.Settings
 
+	// samplingInterval is the interval at which metrics are sampled
+	samplingInterval time.Duration
+
+	// samplesToAverage is the number of samples to average before sending the metrics
+	samplesToAverage int32
+
 	// logger is the logger for the system monitor
 	logger *observability.CoreLogger
 }
@@ -156,12 +113,30 @@ func NewSystemMonitor(
 	}
 
 	systemMonitor := &SystemMonitor{
-		wg:       sync.WaitGroup{},
-		settings: settings,
-		logger:   logger,
-		outChan:  outChan,
-		buffer:   buffer,
+		wg:               sync.WaitGroup{},
+		settings:         settings,
+		logger:           logger,
+		outChan:          outChan,
+		buffer:           buffer,
+		samplingInterval: defaultSamplingInterval,
+		samplesToAverage: defaultSamplesToAverage,
 	}
+
+	// TODO: rename the setting...should be SamplingIntervalSeconds
+	if si := settings.XStatsSampleRateSeconds; si != nil {
+		systemMonitor.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
+	}
+	if sta := settings.XStatsSamplesToAverage; sta != nil {
+		systemMonitor.samplesToAverage = int32(sta.GetValue())
+	}
+
+	systemMonitor.logger.Debug(
+		fmt.Sprintf(
+			"samplingInterval: %v, samplesToAverage: %v",
+			systemMonitor.samplingInterval,
+			systemMonitor.samplesToAverage,
+		),
+	)
 
 	// if stats are disabled, return early
 	if settings.XDisableStats.GetValue() {
@@ -245,24 +220,12 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			e := fmt.Errorf("%v", err)
-			sm.logger.CaptureError("monitor: panic", e)
+			sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
 		}
 	}()
 
-	// todo: rename the setting...should be SamplingIntervalSeconds
-	samplingInterval := time.Duration(sm.settings.XStatsSampleRateSeconds.GetValue() * float64(time.Second))
-	samplesToAverage := sm.settings.XStatsSamplesToAverage.GetValue()
-	sm.logger.Debug(
-		fmt.Sprintf(
-			"samplingInterval: %v, samplesToAverage: %v",
-			samplingInterval,
-			samplesToAverage,
-		),
-	)
-
 	// Create a ticker that fires every `samplingInterval` seconds
-	ticker := time.NewTicker(samplingInterval)
+	ticker := time.NewTicker(sm.samplingInterval)
 	defer ticker.Stop()
 
 	// Create a new channel and immediately send a signal to it.
@@ -286,7 +249,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			asset.SampleMetrics()
 			samplesCollected++
 
-			if samplesCollected == samplesToAverage {
+			if samplesCollected == sm.samplesToAverage {
 				aggregatedMetrics := asset.AggregateMetrics()
 				if len(aggregatedMetrics) > 0 {
 					ts := timestamppb.Now()
