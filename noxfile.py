@@ -839,19 +839,47 @@ def combine_test_results(session: nox.Session) -> None:
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
 
 
-def get_test_dependencies(test_file, test_name):
-    collected = pytest.main(
-        ["--collect-only", "-q", "--tb=no", f"{test_file}::{test_name}"]
+def run_funky_test(
+    session: nox.Session, test_file: str, test_name: str, deps: List[str]
+) -> None:
+    """Run a single test with dependencies in a new virtual environment."""
+    install_wandb(session)
+    session.install(*deps)
+
+    pytest_opts = []
+
+    # verbose output
+    pytest_opts.append("-s")
+    pytest_opts.append("-vvv")
+
+    # (pytest-timeout) Per-test timeout.
+    pytest_opts.append("--timeout=300")
+
+    session.run(
+        "pytest",
+        *pytest_opts,
+        f"{test_file}::{test_name}",
+        silent=False,
+        external=True,
     )
-    for item in collected.items:
-        marker = item.get_closest_marker("depends")
-        if marker:
-            return marker.kwargs.get("deps", [])
-    return []
 
 
-def get_test_files():
-    files = [
+@nox.session(python=_SUPPORTED_PYTHONS)
+def funky_tests(session: nox.Session) -> None:
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    class TestCollector:
+        def __init__(self):
+            self.tests = dict()
+
+        def pytest_collection_modifyitems(self, session, config, items):
+            for item in items:
+                marker = item.get_closest_marker("depends")
+                deps = marker.kwargs.get("deps", []) if marker else []
+                self.tests[item.name] = deps
+
+    test_files = [
         str(p)
         for p in (
             pathlib.Path(__file__).parent
@@ -862,47 +890,27 @@ def get_test_files():
             / "jax"  # TODO: generalize
         ).rglob("test_*.py")
     ]
-    print(files)
-    return files
 
+    tests = dict()
 
-@nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("test_file", get_test_files())
-def funky_tests(session: nox.Session, test_file: str) -> None:
-    # session.install("pytest")
-    # session.install(".")  # Install your package
+    for test_file in test_files:
+        collector = TestCollector()
+        pytest.main(
+            [
+                "--collect-only",
+                "-q",
+                "--tb=no",
+                test_file,
+            ],
+            plugins=[collector],
+        )
+        tests[test_file] = collector.tests
 
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+    print(tests)
 
-    # install_wandb(session)
-
-    class TestCollector:
-        def __init__(self):
-            self.test_names = []
-
-        def pytest_collection_modifyitems(self, session, config, items):
-            for item in items:
-                self.test_names.append(item.nodeid)
-
-    collector = TestCollector()
-    collected = pytest.main(
-        ["--collect-only", "-q", "--tb=no", test_file], plugins=[collector]
-    )
-    print(collector.test_names)
-    for item in collected.items:
-        test_name = item.name
-        deps = get_test_dependencies(test_file, test_name)
-        print(f"Running {test_name} from {test_file}")
-        print(f"Dependencies: {deps}")
-
-        # Create a new virtual environment for this specific test
-        # with session.virtualenv() as venv:
-        #     venv.install("pytest")
-        #     venv.install(".")
-        #     if deps:
-        #         venv.install(*deps)
-
-        #     # Run the specific test
-        #     print(f"Running {test_name} from {test_file}")
-        #     # session.run("pytest", f"{test_file}::{test_name}", silent=False)
+    # run each test in a new virtual environment
+    for test_file, test_deps in tests.items():
+        for test_name, deps in test_deps.items():
+            print(f"Running {test_name} from {test_file}")
+            print(f"Dependencies: {deps}")
+            run_funky_test(session, test_file, test_name, deps)
