@@ -1,6 +1,7 @@
 import dataclasses
 import json
 import os
+import pathlib
 import platform
 import secrets
 import string
@@ -1042,3 +1043,12 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
+
+
+@pytest.fixture
+def execute_script() -> callable:
+    def execute_script_helper(script_path: pathlib.Path) -> int:
+        pathlib.Path(".wandb").mkdir()
+        return subprocess.run(["python", str(script_path)], check=False).returncode
+
+    return execute_script_helper

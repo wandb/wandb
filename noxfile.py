@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from typing import Callable, Dict, List, Optional, Tuple
 
 import nox
+import pytest
 
 nox.options.default_venv_backend = "uv"
 
@@ -25,9 +26,9 @@ _NOX_GO_COVERAGE_DIR = pathlib.Path(".nox-wandb", "go-coverage")
 
 @contextmanager
 def report_time(session: nox.Session):
-    t = time.time()
+    t = time.perf_counter()
     yield
-    session.log(f"Took {time.time() - t:.2f} seconds.")
+    session.log(f"Took {time.perf_counter() - t:.2f} seconds.")
 
 
 def install_timed(session: nox.Session, *args, **kwargs):
@@ -836,3 +837,72 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+def get_test_dependencies(test_file, test_name):
+    collected = pytest.main(
+        ["--collect-only", "-q", "--tb=no", f"{test_file}::{test_name}"]
+    )
+    for item in collected.items:
+        marker = item.get_closest_marker("depends")
+        if marker:
+            return marker.kwargs.get("deps", [])
+    return []
+
+
+def get_test_files():
+    files = [
+        str(p)
+        for p in (
+            pathlib.Path(__file__).parent
+            / "tests"
+            / "pytest_tests"
+            / "system_tests"
+            / "test_functional"
+            / "jax"  # TODO: generalize
+        ).rglob("test_*.py")
+    ]
+    print(files)
+    return files
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("test_file", get_test_files())
+def funky_tests(session: nox.Session, test_file: str) -> None:
+    # session.install("pytest")
+    # session.install(".")  # Install your package
+
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
+    # install_wandb(session)
+
+    class TestCollector:
+        def __init__(self):
+            self.test_names = []
+
+        def pytest_collection_modifyitems(self, session, config, items):
+            for item in items:
+                self.test_names.append(item.nodeid)
+
+    collector = TestCollector()
+    collected = pytest.main(
+        ["--collect-only", "-q", "--tb=no", test_file], plugins=[collector]
+    )
+    print(collector.test_names)
+    for item in collected.items:
+        test_name = item.name
+        deps = get_test_dependencies(test_file, test_name)
+        print(f"Running {test_name} from {test_file}")
+        print(f"Dependencies: {deps}")
+
+        # Create a new virtual environment for this specific test
+        # with session.virtualenv() as venv:
+        #     venv.install("pytest")
+        #     venv.install(".")
+        #     if deps:
+        #         venv.install(*deps)
+
+        #     # Run the specific test
+        #     print(f"Running {test_name} from {test_file}")
+        #     # session.run("pytest", f"{test_file}::{test_name}", silent=False)
