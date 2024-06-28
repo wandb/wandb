@@ -909,8 +909,11 @@ def funky_tests(session: nox.Session) -> None:
     print(tests)
 
     # run each test in a new virtual environment
+    # TODO: parallelize this
     for test_file, test_deps in tests.items():
         for test_name, deps in test_deps.items():
             print(f"Running {test_name} from {test_file}")
             print(f"Dependencies: {deps}")
             run_funky_test(session, test_file, test_name, deps)
+
+    # TODO: aggregate tests results for nice reporting
