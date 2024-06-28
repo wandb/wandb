@@ -77,8 +77,15 @@ func New(params Params) *Client {
 // SetUser sets the user information for the sentry client.
 func (s *Client) SetUser(id, email, name string) {
 
-	localHub := sentry.CurrentHub().Clone()
-	localHub.ConfigureScope(func(scope *sentry.Scope) {
+	// localHub := sentry.CurrentHub().Clone()
+	// localHub.ConfigureScope(func(scope *sentry.Scope) {
+	// 	scope.SetUser(sentry.User{
+	// 		ID:    id,
+	// 		Email: email,
+	// 		Name:  name,
+	// 	})
+	// })
+	sentry.ConfigureScope(func(scope *sentry.Scope) {
 		scope.SetUser(sentry.User{
 			ID:    id,
 			Email: email,
