@@ -330,7 +330,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Exit:
-		s.sendExit(record, x.Exit)
+		s.sendExit(record)
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *service.Record_Metric:
@@ -561,7 +561,11 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
 		if s.fileStream != nil {
-			s.fileStream.Close()
+			if s.exitRecord != nil {
+				s.fileStream.FinishWithExit(s.exitRecord.GetExit().GetExitCode())
+			} else {
+				s.fileStream.FinishWithoutExit()
+			}
 		}
 		request.State++
 		s.fwdRequestDefer(request)
@@ -1060,13 +1064,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
-func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRecord) {
+func (s *Sender) sendExit(record *service.Record) {
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
-
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.ExitUpdate{Record: exitRecord})
-	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process

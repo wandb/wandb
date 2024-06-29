@@ -25,6 +25,11 @@ const (
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
 	maxFileLineBytes = (10 << 20) - (100 << 10)
+
+	// An approximate maximum size for a request.
+	//
+	// Requests are be broken into pieces of size not much larger than this.
+	maxRequestSizeBytes = 10 << 20 // 10 MB
 )
 
 type ChunkTypeEnum int8
@@ -37,13 +42,6 @@ const (
 	EventsChunk
 	SummaryChunk
 )
-
-var chunkFilename = map[ChunkTypeEnum]string{
-	HistoryChunk: HistoryFileName,
-	OutputChunk:  OutputFileName,
-	EventsChunk:  EventsFileName,
-	SummaryChunk: SummaryFileName,
-}
 
 type FileStream interface {
 	// Start asynchronously begins to upload to the backend.
@@ -59,8 +57,13 @@ type FileStream interface {
 		offsetMap FileStreamOffsetMap,
 	)
 
-	// Close waits for all work to be completed.
-	Close()
+	// FinishWithExit marks the run as complete and blocks until all
+	// uploads finish.
+	FinishWithExit(exitCode int32)
+
+	// FinishWithoutExit blocks until all uploads finish but does not
+	// mark the run as complete.
+	FinishWithoutExit()
 
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
@@ -165,7 +168,12 @@ func (fs *fileStream) StreamUpdate(update Update) {
 	fs.processChan <- update
 }
 
-func (fs *fileStream) Close() {
+func (fs *fileStream) FinishWithExit(exitCode int32) {
+	fs.StreamUpdate(&ExitUpdate{ExitCode: exitCode})
+	fs.FinishWithoutExit()
+}
+
+func (fs *fileStream) FinishWithoutExit() {
 	close(fs.processChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")
