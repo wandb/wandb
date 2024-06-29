@@ -325,6 +325,7 @@ def test_run_update(user, relay_server):
 
     with relay_server() as relay:
         run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
+        wandb_key = run.rawconfig["_wandb"]
         run.tags.append("test")
         run.config["foo"] = "bar"
         run.update()
@@ -332,6 +333,7 @@ def test_run_update(user, relay_server):
         result = relay.context.get_run(run.id)
         assert result["tags"] == ["test"]
         assert result["config"]["foo"]["value"] == "bar"
+        assert result["rawconfig"]["_wandb"] == wandb_key
         assert result["entity"] == seed_run.entity
 
 
