@@ -18,6 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Use `sys.exit()` instead of `os._exit()` if an internal subprocess exits with a non-zero code (@timoffex in https://github.com/wandb/wandb/pull/7866)
+- Fix OSError on `Artifact.download(skip_cache=True)` when encountering different filesystems by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7835
 
 ## [0.17.3] - 2024-06-24
 
@@ -39,7 +40,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix "UnicodeDecodeError: 'charmap'" when opening HTML files on Windows by specifying UTF-8 encoding by @KilnOfTheSecondFlame in https://github.com/wandb/wandb/pull/7730
 - Ensure `Artifact.delete()` on linked artifacts only removes link, not source artifact by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7742
 - Sweep runs no longer appear to be resumed when they are not by @TimH98 https://github.com/wandb/wandb/pull/7684
-- Fix OSError on `Artifact.download(skip_cache=True)` when encountering different filesystems by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7835
 
 ### Changed
 
