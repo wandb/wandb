@@ -37,7 +37,8 @@ func (fs *FakeFileStream) Start(
 ) {
 }
 
-func (fs *FakeFileStream) Close() {}
+func (fs *FakeFileStream) FinishWithExit(int32) {}
+func (fs *FakeFileStream) FinishWithoutExit()   {}
 
 func (fs *FakeFileStream) StreamUpdate(update filestream.Update) {
 	fs.Lock()

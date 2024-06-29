@@ -6,44 +6,43 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestream"
+	. "github.com/wandb/wandb/core/internal/filestream"
 	"golang.org/x/time/rate"
 )
 
-type uploadedFilesUpdate struct {
-	file string
-}
-
-func (s *uploadedFilesUpdate) Apply(state *filestream.CollectorState) {
-	state.UploadedFiles = append(state.UploadedFiles, s.file)
-}
-
 func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
-	updates := make(chan filestream.CollectorStateUpdate)
-	defer close(updates)
-	loop := filestream.CollectLoop{TransmitRateLimit: rate.NewLimiter(rate.Inf, 1)}
+	requests := make(chan *FileStreamRequest)
+	defer close(requests)
+	loop := CollectLoop{TransmitRateLimit: rate.NewLimiter(rate.Inf, 1)}
 
-	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
-	updates <- &uploadedFilesUpdate{file: "one"}
-	updates <- &uploadedFilesUpdate{file: "two"}
-	updates <- &uploadedFilesUpdate{file: "three"}
+	set := func(s string) map[string]struct{} {
+		return map[string]struct{}{s: {}}
+	}
+
+	transmissions := loop.Start(requests)
+	requests <- &FileStreamRequest{UploadedFiles: set("one")}
+	requests <- &FileStreamRequest{UploadedFiles: set("two")}
+	requests <- &FileStreamRequest{UploadedFiles: set("three")}
 
 	select {
 	case result := <-transmissions:
-		assert.Equal(t,
-			[]string{"one", "two", "three"},
-			result.Uploaded)
+		req := result.GetJSON(&FileStreamState{})
+		assert.Len(t, req.Uploaded, 3)
+		assert.Contains(t, req.Uploaded, "one")
+		assert.Contains(t, req.Uploaded, "two")
+		assert.Contains(t, req.Uploaded, "three")
 	case <-time.After(time.Second):
 		t.Error("timeout after 1 second")
 	}
 }
 
 func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
-	updates := make(chan filestream.CollectorStateUpdate)
+	requests := make(chan *FileStreamRequest)
 	// Use a rate limiter that never lets requests through.
 	loop := filestream.CollectLoop{TransmitRateLimit: &rate.Limiter{}}
 
-	transmissions := loop.Start(updates, filestream.FileStreamOffsetMap{})
-	close(updates)
+	transmissions := loop.Start(requests)
+	close(requests)
 
 	select {
 	case <-transmissions:
