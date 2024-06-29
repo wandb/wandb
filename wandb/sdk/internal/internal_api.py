@@ -45,8 +45,8 @@ from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import credentials, retry
-from ..lib.credentials import Credentials, DEFAULT_WANDB_CREDENTIALS_FILE
+from ..lib import retry
+from ..lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE, Credentials
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
