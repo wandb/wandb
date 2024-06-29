@@ -24,6 +24,7 @@ else:
 
 SCRIPT_PATH = os.path.abspath(sys.argv[0])
 wandb.START_TIME = time.time()
+START_TIME = time.time()
 LIB_ROOT = os.path.join(os.path.dirname(__file__), "..")
 IS_GIT = os.path.exists(os.path.join(LIB_ROOT, ".git"))
 
