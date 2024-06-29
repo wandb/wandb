@@ -137,14 +137,17 @@ class WandbStoragePolicy(StoragePolicy):
                 manifest_entry._download_url = None
         if manifest_entry._download_url is None:
             auth = None
-            if not _thread_local_api_settings.cookies:
-                assert self._api.api_key is not None
-                auth = ("api", self._api.api_key)
+            http_headers = _thread_local_api_settings.headers or {}
+            if self._api.access_token is not None:
+                http_headers["Authorization"] = f"Bearer {self._api.access_token}"
+            elif _thread_local_api_settings.cookies is None:
+                auth = ("api", self._api.api_key or "")
+
             response = self._session.get(
                 self._file_url(self._api, artifact.entity, manifest_entry),
                 auth=auth,
                 cookies=_thread_local_api_settings.cookies,
-                headers=_thread_local_api_settings.headers,
+                headers=http_headers,
                 stream=True,
             )
             response.raise_for_status()
