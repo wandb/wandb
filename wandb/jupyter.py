@@ -331,6 +331,8 @@ class Notebook:
         self.shell = get_ipython()
 
     def save_display(self, exc_count, data_with_metadata):
+        if self.settings.disable_code:
+            return
         self.outputs[exc_count] = self.outputs.get(exc_count, [])
 
         # byte values such as images need to be encoded in base64
@@ -368,7 +370,7 @@ class Notebook:
         return
 
     def save_ipynb(self) -> bool:
-        if not self.settings.save_code:
+        if self.settings.disable_code or not self.settings.save_code:
             logger.info("not saving jupyter notebook")
             return False
         ret = False
@@ -440,7 +442,9 @@ class Notebook:
             return
         cells = []
         hist = list(self.shell.history_manager.get_range(output=True))
-        if len(hist) <= 1 or not self.settings.save_code:
+        if len(hist) <= 1 or (
+            not self.settings.save_code or self.settings.disable_code
+        ):
             logger.info("not saving jupyter history")
             return
         try:
