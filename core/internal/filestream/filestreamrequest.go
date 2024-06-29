@@ -210,7 +210,6 @@ func (r *FileStreamRequestReader) GetJSON(
 		}
 	}
 
-	// TODO: verify omitempty works properly
 	json.Uploaded = make([]string, 0, len(r.request.UploadedFiles))
 	for file := range r.request.UploadedFiles {
 		json.Uploaded = append(json.Uploaded, file)
