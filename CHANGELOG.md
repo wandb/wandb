@@ -14,6 +14,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Support queue template variables in launch sweep scheduelr jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
+- Support for RFC 7523 bearer token exchange. This enhancement provides an alternative authentication mode to the API
+  key-based authentication method with a more secure and flexible token-based system. You configure this by setting the
+  file path to the identity token (JWT) in the `WANDB_IDENTITY_TOKEN_FILE` environment variable.
 
 ### Fixed
 

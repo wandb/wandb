@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 import responses
 from wandb import errors
-from wandb.sdk.lib.credentials import _expires_at_fmt, access_token
+from wandb.sdk.lib.credentials import Credentials, _expires_at_fmt
 
 
 def write_credentials(data: dict, credentials_file: Path):
@@ -29,7 +29,8 @@ def test_write_credentials(tmp_path: Path):
     with responses.RequestsMock() as rsps:
         rsps.add(responses.POST, base_url + "/oidc/token", json=expected_response)
 
-        res = access_token(base_url, token_file, credentials_file)
+        creds = Credentials(base_url, token_file, credentials_file)
+        res = creds.token
         assert res == expected_response["access_token"]
 
         with open(credentials_file) as f:
@@ -55,7 +56,8 @@ def test_fetch_credentials(tmp_path: Path):
     }
 
     write_credentials(expected, credentials_file)
-    access_token(base_url, token_file, credentials_file)
+    creds = Credentials(base_url, token_file, credentials_file)
+    assert creds.token == expected["access_token"]
 
 
 def test_refresh_credentials(tmp_path: Path):
@@ -80,7 +82,8 @@ def test_refresh_credentials(tmp_path: Path):
     with responses.RequestsMock() as rsps:
         rsps.add(responses.POST, base_url + "/oidc/token", json=new_credentials)
 
-        res = access_token(base_url, token_file, credentials_file)
+        creds = Credentials(base_url, token_file, credentials_file)
+        res = creds.token
         assert res == new_credentials["access_token"]
 
         with open(credentials_file) as f:
@@ -113,7 +116,8 @@ def test_write_credentials_other_base_url(tmp_path: Path):
     with responses.RequestsMock() as rsps:
         rsps.add(responses.POST, base_url + "/oidc/token", json=new_credentials)
 
-        res = access_token(base_url, token_file, credentials_file)
+        creds = Credentials(base_url, token_file, credentials_file)
+        res = creds.token
         assert res == new_credentials["access_token"]
 
         with open(credentials_file) as f:
@@ -140,7 +144,7 @@ def test_token_expired(tmp_path: Path):
         )
 
         with pytest.raises(errors.AuthenticationError):
-            access_token(base_url, token_file, credentials_file)
+            Credentials(base_url, token_file, credentials_file)
 
 
 def test_token_file_not_found(tmp_path: Path):
@@ -150,4 +154,4 @@ def test_token_file_not_found(tmp_path: Path):
 
     with responses.RequestsMock():
         with pytest.raises(FileNotFoundError):
-            access_token(base_url, token_file, credentials_file)
+            Credentials(base_url, token_file, credentials_file)

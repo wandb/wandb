@@ -9,10 +9,9 @@ from wandb.errors import AuthenticationError
 
 DEFAULT_WANDB_CREDENTIALS_FILE = Path("~/.config/wandb/credentials.json").expanduser()
 
+_expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 class Credentials:
-    __expires_at_fmt = "%Y-%m-%d %H:%M:%S"
-
     def __init__(self, base_url: str, token_file: Path, credentials_file: Path):
         self.base_url = base_url
         self.token_file = token_file
@@ -81,7 +80,7 @@ class Credentials:
 
         expires_at = datetime.utcnow()
         if "expires_at" in creds:
-            expires_at = datetime.strptime(creds["expires_at"], self.__expires_at_fmt)
+            expires_at = datetime.strptime(creds["expires_at"], _expires_at_fmt)
 
         if expires_at <= datetime.utcnow():
             creds = self.__create_access_token()
@@ -137,7 +136,7 @@ class Credentials:
         expires_at = datetime.utcnow() + timedelta(
             seconds=float(resp_json["expires_in"])
         )
-        resp_json["expires_at"] = expires_at.strftime(self.__expires_at_fmt)
+        resp_json["expires_at"] = expires_at.strftime(_expires_at_fmt)
         del resp_json["expires_in"]
 
         return resp_json
@@ -149,7 +148,7 @@ class Credentials:
             bool: True if the token is expiring within the next 5 minutes, False otherwise.
         """
         expiration_time = datetime.strptime(
-            self.__token_info["expires_at"], self.__expires_at_fmt
+            self.__token_info["expires_at"], _expires_at_fmt
         )
         return expiration_time <= datetime.utcnow() + timedelta(minutes=5)
 
