@@ -46,6 +46,7 @@ from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
 from ..lib import credentials, retry
+from ..lib.credentials import Credentials, DEFAULT_WANDB_CREDENTIALS_FILE
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
@@ -406,9 +407,10 @@ class Api:
 
         base_url = self.settings("base_url")
         credentials_file = env.get_credentials_file(
-            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+            str(DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
         )
-        return credentials.access_token(base_url, token_file, credentials_file)
+        creds = Credentials(base_url, token_file, credentials_file)
+        return creds.token
 
     @property
     def api_url(self) -> str:
