@@ -11,6 +11,7 @@ DEFAULT_WANDB_CREDENTIALS_FILE = Path("~/.config/wandb/credentials.json").expand
 
 _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
+
 class Credentials:
     def __init__(self, base_url: str, token_file: Path, credentials_file: Path):
         self.base_url = base_url
@@ -34,7 +35,7 @@ class Credentials:
         if not self.credentials_file.exists():
             self.__write_credentials_file()
 
-        self.__token_info = self.__fetch_credentials()
+        self.__token_info = self.__read_credentials_from_file()
 
     def __write_credentials_file(self):
         """Obtain an access token from the server and write it to the credentials file.
@@ -54,7 +55,7 @@ class Credentials:
             # Set file permissions to be read/write by the owner only
             os.chmod(self.credentials_file, 0o600)
 
-    def __fetch_credentials(self) -> dict:
+    def __read_credentials_from_file(self) -> dict:
         """Fetch the access token from the credentials file.
 
         If the access token has expired, fetch a new one from the server and save it
@@ -78,11 +79,7 @@ class Credentials:
             if self.base_url in data["credentials"]:
                 creds = data["credentials"][self.base_url]
 
-        expires_at = datetime.utcnow()
-        if "expires_at" in creds:
-            expires_at = datetime.strptime(creds["expires_at"], _expires_at_fmt)
-
-        if expires_at <= datetime.utcnow():
+        if self.__is_token_expiring():
             creds = self.__create_access_token()
             with open(self.credentials_file, "w") as file:
                 data["credentials"][self.base_url] = creds
@@ -147,10 +144,12 @@ class Credentials:
         Returns:
             bool: True if the token is expiring within the next 5 minutes, False otherwise.
         """
-        expiration_time = datetime.strptime(
-            self.__token_info["expires_at"], _expires_at_fmt
-        )
-        return expiration_time <= datetime.utcnow() + timedelta(minutes=5)
+        expires_at = datetime.utcnow()
+        if "expires_at" in self.__token_info:
+            expries_at = datetime.strptime(
+                self.__token_info["expires_at"], _expires_at_fmt
+            )
+        return expires_at <= datetime.utcnow() + timedelta(minutes=5)
 
     @property
     def token(self):
