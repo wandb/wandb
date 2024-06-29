@@ -146,7 +146,7 @@ class Credentials:
         """
         expires_at = datetime.utcnow()
         if "expires_at" in self.__token_info:
-            expries_at = datetime.strptime(
+            expires_at = datetime.strptime(
                 self.__token_info["expires_at"], _expires_at_fmt
             )
         return expires_at <= datetime.utcnow() + timedelta(minutes=5)
