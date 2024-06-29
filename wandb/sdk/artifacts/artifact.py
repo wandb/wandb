@@ -3,6 +3,7 @@
 import atexit
 import concurrent.futures
 import contextlib
+import gzip
 import json
 import multiprocessing.dummy
 import os
@@ -15,7 +16,7 @@ import time
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -48,6 +49,7 @@ from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient,
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -144,6 +146,7 @@ class Artifact:
 
         # Internal.
         self._client: Optional[RetryingClient] = None
+        self._cache = get_artifact_file_cache()
 
         storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
         layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
@@ -1685,8 +1688,6 @@ class Artifact:
         skip_cache: bool = False,
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
-        import pathlib
-
         from wandb.sdk.backend.backend import Backend
 
         if wandb.run is None:
@@ -1698,7 +1699,7 @@ class Artifact:
 
             settings = wl.settings.to_proto()
             # TODO: remove this
-            tmp_dir = pathlib.Path(tempfile.mkdtemp())
+            tmp_dir = Path(tempfile.mkdtemp())
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
             settings.files_dir.value = str(tmp_dir / "files")
@@ -2283,11 +2284,18 @@ class Artifact:
         )
 
     def _load_manifest(self, url: str) -> None:
+        cached_path, hit, opener = self._cache.check_manifest_obj_path(self.id)
+        if hit:
+            encoded = Path(cached_path).read_bytes()
+            content = gzip.decompress(encoded).decode("utf-8")
+            self._manifest = ArtifactManifest.from_manifest_json(json.loads(content))
+            return
         with requests.get(url) as request:
             request.raise_for_status()
-            self._manifest = ArtifactManifest.from_manifest_json(
-                json.loads(util.ensure_text(request.content))
-            )
+            content = util.ensure_text(request.content)
+            self._manifest = ArtifactManifest.from_manifest_json(json.loads(content))
+        with opener("wb") as f:
+            f.write(gzip.compress(content.encode("utf-8"), compresslevel=1))
 
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
