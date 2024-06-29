@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/filestream"
 	. "github.com/wandb/wandb/core/internal/filestream"
 	"golang.org/x/time/rate"
 )
@@ -39,7 +38,7 @@ func TestCollectLoop_BatchesWhileWaiting(t *testing.T) {
 func TestCollectLoop_SendsLastRequestImmediately(t *testing.T) {
 	requests := make(chan *FileStreamRequest)
 	// Use a rate limiter that never lets requests through.
-	loop := filestream.CollectLoop{TransmitRateLimit: &rate.Limiter{}}
+	loop := CollectLoop{TransmitRateLimit: &rate.Limiter{}}
 
 	transmissions := loop.Start(requests)
 	close(requests)
