@@ -75,7 +75,9 @@ class ArtifactFileCache:
     def _check_or_create(
         self, path: Path, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        opener = self._opener(path, size)
+        # Check if we're using vs skipping the cache
+        skip_cache = self._override_cache_path is not None
+        opener = self._opener(path, size, skip_cache=skip_cache)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
@@ -185,24 +187,22 @@ class ArtifactFileCache:
         if size > self._free_space():
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
-    def _opener(self, path: Path, size: int) -> "Opener":
-        # Check if we're using vs skipping the cache
-        skip_cache = self._override_cache_path is not None
-
+    def _opener(self, path: Path, size: int, skip_cache: bool = False) -> "Opener":
         @contextlib.contextmanager
-        def atomic_opener(mode: str = "w") -> Iterator[IO]:
+        def atomic_open(mode: str = "w") -> Iterator[IO]:
+            if "a" in mode:
+                raise ValueError("Appending to cache files is not supported")
+
             if skip_cache:
-                # Skipping the cache, but still need an intermediate, temporary file to ensure atomicity.
-                # Put the temp file in the same location as the destination file in an attempt to avoid moving/copying
+                # We skip the cache, but we'll still need an intermediate, temporary file to ensure atomicity.
+                # Put the temp file in the same root as the destination file in an attempt to avoid moving/copying
                 # across filesystems.
                 temp_dir = path.parent
-                temp_dir.mkdir(parents=True, exist_ok=True)
             else:
-                if "a" in mode:
-                    raise ValueError("Appending to cache files is not supported")
                 self._reserve_space(size)
                 temp_dir = self._temp_dir
 
+            temp_dir.mkdir(parents=True, exist_ok=True)
             temp_file = NamedTemporaryFile(dir=temp_dir, mode=mode, delete=False)
             try:
                 yield temp_file
@@ -214,7 +214,7 @@ class ArtifactFileCache:
                 os.remove(temp_file.name)
                 raise
 
-        return atomic_opener
+        return atomic_open
 
     def _ensure_write_permissions(self) -> None:
         """Raise an error if we cannot write to the cache directory."""
