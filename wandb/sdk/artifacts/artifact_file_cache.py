@@ -47,12 +47,15 @@ class ArtifactFileCache:
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
+        # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
+            skip_cache = True
             path = Path(self._override_cache_path)
         else:
+            skip_cache = False
             hex_md5 = b64_to_hex_id(b64_md5)
             path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
-        return self._check_or_create(path, size)
+        return self._check_or_create(path, size, skip_cache=skip_cache)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -62,21 +65,22 @@ class ArtifactFileCache:
         etag: ETag,
         size: int,
     ) -> Tuple[FilePathStr, bool, "Opener"]:
+        # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
+            skip_cache = True
             path = Path(self._override_cache_path)
         else:
+            skip_cache = False
             hexhash = hashlib.sha256(
                 hashlib.sha256(url.encode("utf-8")).digest()
                 + hashlib.sha256(etag.encode("utf-8")).digest()
             ).hexdigest()
             path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
-        return self._check_or_create(path, size)
+        return self._check_or_create(path, size, skip_cache=skip_cache)
 
     def _check_or_create(
-        self, path: Path, size: int
+        self, path: Path, size: int, skip_cache: bool = False
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        # Check if we're using vs skipping the cache
-        skip_cache = self._override_cache_path is not None
         opener = self._opener(path, size, skip_cache=skip_cache)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
