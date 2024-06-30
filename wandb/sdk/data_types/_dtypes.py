@@ -593,6 +593,27 @@ def OptionalType(dtype: ConvertibleToType) -> UnionType:  # noqa: N802
     return UnionType([TypeRegistry.type_from_dtype(dtype), NoneType()])
 
 
+def _valid_list_py_obj(py_obj: t.Optional[t.Any]) -> bool:
+    return (
+        isinstance(py_obj, (list, tuple, set, frozenset))
+        or hasattr(py_obj, "tolist")
+        or (np and isinstance(py_obj, np.ndarray))
+    )
+
+
+def _assign_list_length(
+    to_type_len: t.Optional[int], from_type_len: t.Optional[int]
+) -> t.Optional[int]:
+    if to_type_len is None:
+        return from_type_len
+    elif from_type_len is None:
+        return to_type_len
+    elif to_type_len == from_type_len:
+        return to_type_len
+    else:
+        return None
+
+
 class ListType(Type):
     """A list of homogeneous types."""
 
@@ -613,8 +634,8 @@ class ListType(Type):
 
     @classmethod
     def from_obj(cls, py_obj: t.Optional[t.Any] = None) -> "ListType":
-        if py_obj is None or not hasattr(py_obj, "__iter__"):
-            raise TypeError("ListType.from_obj expects py_obj to by list-like")
+        if not _valid_list_py_obj(py_obj):
+            raise TypeError("ListType.from_obj expects py_obj to be list-like")
         else:
             if hasattr(py_obj, "tolist"):
                 py_list = py_obj.tolist()
@@ -646,9 +667,9 @@ class ListType(Type):
             if not isinstance(assigned_type, InvalidType):
                 return ListType(
                     assigned_type,
-                    None
-                    if self.params["length"] != wb_type.params["length"]
-                    else self.params["length"],
+                    _assign_list_length(
+                        self.params["length"], wb_type.params["length"]
+                    ),
                 )
 
         return InvalidType()
@@ -656,7 +677,7 @@ class ListType(Type):
     def assign(
         self, py_obj: t.Optional[t.Any] = None
     ) -> t.Union["ListType", InvalidType]:
-        if hasattr(py_obj, "__iter__"):
+        if _valid_list_py_obj(py_obj):
             new_element_type = self.params["element_type"]
             # The following ignore is needed since the above hasattr(py_obj, "__iter__") enforces iteration
             # error: Argument 1 to "list" has incompatible type "Optional[Any]"; expected "Iterable[Any]"
@@ -665,7 +686,10 @@ class ListType(Type):
                 new_element_type = new_element_type.assign(obj)
                 if isinstance(new_element_type, InvalidType):
                     return InvalidType()
-            return ListType(new_element_type, len(py_list))
+            return ListType(
+                new_element_type,
+                _assign_list_length(self.params["length"], len(py_list)),
+            )
 
         return InvalidType()
 
