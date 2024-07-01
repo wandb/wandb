@@ -434,10 +434,6 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.resumeState.GetFileStreamOffset(),
 		)
 	}
-
-	if s.fileTransferManager != nil {
-		s.fileTransferManager.Start()
-	}
 }
 
 func (s *Sender) sendRequestNetworkStatus(
@@ -1145,20 +1141,20 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	// TODO: this should be handled by a separate service startup mechanism
-	s.fileTransferManager.Start()
-
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot,
-		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
-	err := downloader.Download()
-	if err != nil {
+
+	if err := artifacts.NewArtifactDownloader(
+		s.ctx,
+		s.graphqlClient,
+		s.fileTransferManager,
+		msg.ArtifactId,
+		msg.DownloadRoot,
+		msg.AllowMissingReferences,
+		msg.SkipCache,
+		msg.PathPrefix,
+	).Download(); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf(
-				"senderError: downloadArtifact: failed to download artifact: %v",
-				err,
-			))
+			fmt.Errorf("sender: failed to download artifact: %v", err))
 		response.ErrorMessage = err.Error()
 	}
 
