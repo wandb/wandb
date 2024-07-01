@@ -8,9 +8,8 @@ from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
-from pyfakefs.fake_filesystem import FakeFilesystem
-
 import wandb
+from pyfakefs.fake_filesystem import FakeFilesystem
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
