@@ -6,22 +6,22 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/runconsolelogs"
+	. "github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"golang.org/x/time/rate"
 )
 
 func TestInvokesCallback(t *testing.T) {
-	flushes := make(chan sparselist.SparseList[runconsolelogs.RunLogsLine], 1)
-	writer := runconsolelogs.NewDebouncedWriter(
+	flushes := make(chan sparselist.SparseList[*RunLogsLine], 1)
+	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Inf, 1),
 		context.Background(),
-		func(lines sparselist.SparseList[runconsolelogs.RunLogsLine]) {
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			flushes <- lines
 		},
 	)
 
-	line := runconsolelogs.RunLogsLine{}
+	line := &RunLogsLine{}
 	line.Content = []rune("content")
 	writer.OnChanged(1, line)
 	writer.Wait()
@@ -37,17 +37,17 @@ func TestInvokesCallback(t *testing.T) {
 
 func TestRespectsCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
-	flushes := make(chan sparselist.SparseList[runconsolelogs.RunLogsLine], 1)
-	writer := runconsolelogs.NewDebouncedWriter(
+	flushes := make(chan sparselist.SparseList[*RunLogsLine], 1)
+	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Inf, 1),
 		ctx,
-		func(lines sparselist.SparseList[runconsolelogs.RunLogsLine]) {
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			flushes <- lines
 		},
 	)
 
 	cancel()
-	writer.OnChanged(1, runconsolelogs.RunLogsLine{})
+	writer.OnChanged(1, &RunLogsLine{})
 	writer.Wait()
 
 	select {

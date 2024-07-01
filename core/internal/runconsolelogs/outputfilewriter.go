@@ -34,9 +34,9 @@ func NewOutputFileWriter(
 }
 
 func (w *outputFileWriter) WriteToFile(
-	changes sparselist.SparseList[RunLogsLine],
+	changes sparselist.SparseList[*RunLogsLine],
 ) {
-	lines := sparselist.Map(changes, func(line RunLogsLine) string {
+	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
 		return string(line.Content)
 	})
 
