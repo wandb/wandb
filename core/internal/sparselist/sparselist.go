@@ -89,6 +89,12 @@ func (l *SparseList[T]) Get(index int) (T, bool) {
 	return item, ok
 }
 
+// GetOrZero returns an item at an index in the list, or the zero value.
+func (l *SparseList[T]) GetOrZero(index int) T {
+	x, _ := l.Get(index)
+	return x
+}
+
 // Delete clears an index in the list.
 //
 // Viewing `SparseList[T]` as `[]*T`, this is equivalent to replacing
