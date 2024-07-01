@@ -185,7 +185,7 @@ func TestRemoveBottomFrames(t *testing.T) {
 					Frames: []sentry.Frame{
 						{AbsPath: "/path/to/file1.go"},
 						{AbsPath: "/path/to/file2.go"},
-						{AbsPath: "/path/to/sentry.go"},
+						{AbsPath: "/path/to/client.go"},
 						{AbsPath: "/path/to/logging.go"},
 					},
 				},

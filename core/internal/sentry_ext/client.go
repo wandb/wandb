@@ -151,15 +151,16 @@ func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Eve
 		frames := exception.Stacktrace.Frames
 		framesLen := len(frames)
 		// for the recovered panics, the bottom-most 3 frames of the stacktrace
-		// will come from sentry.go and logging.go, so we remove them
+		// will come from client.go and logging.go, so we remove them
 		if framesLen < 3 {
 			continue
 		}
 		for j := framesLen - 1; j >= framesLen-3; j-- {
 			frame := frames[j]
-			// TODO: think of a better way to do this without hard-coding the file names
-			//  this is a hack to remove the bottom-most 3 frames that are internal to core
-			if strings.HasSuffix(frame.AbsPath, "sentry.go") || strings.HasSuffix(frame.AbsPath, "logging.go") {
+			// TODO: think of a better way to do this without hard-coding the
+			// file names this is a hack to remove the bottom-most 3 frames that
+			// are internal to core
+			if strings.HasSuffix(frame.AbsPath, "client.go") || strings.HasSuffix(frame.AbsPath, "logging.go") {
 				frames = frames[:j]
 			} else {
 				break
