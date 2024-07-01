@@ -35,7 +35,7 @@ func (fs *FakeFileStream) GetRequest(
 	fullRequest := &filestream.FileStreamRequest{}
 
 	for _, update := range fs.GetUpdates() {
-		update.Apply(filestream.UpdateContext{
+		_ = update.Apply(filestream.UpdateContext{
 			MakeRequest: func(request *filestream.FileStreamRequest) {
 				fullRequest.Merge(request)
 			},
