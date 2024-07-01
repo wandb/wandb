@@ -18,6 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Use `sys.exit()` instead of `os._exit()` if an internal subprocess exits with a non-zero code (@timoffex in https://github.com/wandb/wandb/pull/7866)
+- Fix an occasional race condition when using `core` that could affect run logs (@timoffex in https://github.com/wandb/wandb/pull/7889)
 
 ## [0.17.3] - 2024-06-24
 
