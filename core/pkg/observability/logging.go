@@ -8,8 +8,8 @@ import (
 
 type Tags map[string]string
 
-// NewTags creates a new Tags from a mix of slog.Attr and a string and its corresponding value.
-// It ignores incomplete pairs and other types.
+// NewTags creates a new Tags from a mix of slog.Attr and a string and its
+// corresponding value. It ignores incomplete pairs and other types.
 func NewTags(args ...any) Tags {
 	var done bool
 	tags := Tags{}
@@ -39,26 +39,26 @@ const LevelFatal = slog.Level(12)
 type CoreLogger struct {
 	*slog.Logger
 	tags             Tags
-	captureException func(err error, tags Tags)
-	captureMessage   func(msg string, tags Tags)
-	reraise          func(err interface{}, tags Tags)
+	captureException func(err error, tags map[string]string)
+	captureMessage   func(msg string, tags map[string]string)
+	reraise          func(err interface{}, tags map[string]string)
 }
 
 type CoreLoggerOption func(cl *CoreLogger)
 
-func WithCaptureMessage(f func(msg string, tags Tags)) CoreLoggerOption {
+func WithCaptureMessage(f func(msg string, tags map[string]string)) CoreLoggerOption {
 	return func(cl *CoreLogger) {
 		cl.captureMessage = f
 	}
 }
 
-func WithCaptureException(f func(err error, tags Tags)) CoreLoggerOption {
+func WithCaptureException(f func(err error, tags map[string]string)) CoreLoggerOption {
 	return func(cl *CoreLogger) {
 		cl.captureException = f
 	}
 }
 
-func WithReraise(f func(err interface{}, tags Tags)) CoreLoggerOption {
+func WithReraise(f func(err interface{}, tags map[string]string)) CoreLoggerOption {
 	return func(cl *CoreLogger) {
 		cl.reraise = f
 	}
@@ -162,20 +162,20 @@ func (cl *CoreLogger) GetLogger() *slog.Logger {
 }
 
 // GetCaptureException returns the function used to capture exceptions.
-func (cl *CoreLogger) GetCaptureException() func(err error, tags Tags) {
+func (cl *CoreLogger) GetCaptureException() func(err error, tags map[string]string) {
 	return cl.captureException
 }
 
 // GetCaptureMessage returns the function used to capture messages.
-func (cl *CoreLogger) GetCaptureMessage() func(msg string, tags Tags) {
+func (cl *CoreLogger) GetCaptureMessage() func(msg string, tags map[string]string) {
 	return cl.captureMessage
 }
 
 func NewNoOpLogger() *CoreLogger {
 	return NewCoreLogger(slog.New(slog.NewJSONHandler(io.Discard, nil)),
 		WithTags(Tags{}),
-		WithCaptureException(func(err error, tags Tags) {}),
-		WithCaptureMessage(func(msg string, tags Tags) {}),
-		WithReraise(func(err interface{}, tags Tags) {}),
+		WithCaptureException(func(err error, tags map[string]string) {}),
+		WithCaptureMessage(func(msg string, tags map[string]string) {}),
+		WithReraise(func(err interface{}, tags map[string]string) {}),
 	)
 }
