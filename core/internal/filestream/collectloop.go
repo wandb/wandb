@@ -14,39 +14,42 @@ type CollectLoop struct {
 	TransmitRateLimit *rate.Limiter
 }
 
-// Start ingests updates and outputs rate-limited requests.
+// Start ingests requests and outputs rate-limited, batched requests.
 func (cl CollectLoop) Start(
-	stateUpdates <-chan CollectorStateUpdate,
-	initialOffsets FileStreamOffsetMap,
-) <-chan *FsTransmitData {
-	transmissions := make(chan *FsTransmitData)
+	requests <-chan *FileStreamRequest,
+) <-chan *FileStreamRequestReader {
+	transmissions := make(chan *FileStreamRequestReader)
 
 	go func() {
-		state := NewCollectorState(initialOffsets)
+		buffer := &FileStreamRequest{}
+		isDone := false
 
-		for update := range stateUpdates {
-			update.Apply(&state)
+		for request := range requests {
+			buffer.Merge(request)
 
-			cl.waitForRateLimit(&state, stateUpdates)
-			cl.transmit(&state, stateUpdates, transmissions)
+			cl.waitForRateLimit(buffer, requests)
+			buffer, isDone = cl.transmit(buffer, requests, transmissions)
 		}
 
-		// Send final transmission.
-		transmissions <- state.PrepRequest(true)
-		state.RequestSent()
+		for !isDone {
+			reader := NewRequestReader(buffer)
+			transmissions <- reader
+			buffer, isDone = reader.Next()
+		}
+
 		close(transmissions)
 	}()
 
 	return transmissions
 }
 
-// waitForRateLimit applies updates until the rate limit allows us
-// to make a request.
+// waitForRateLimit merges requests until the rate limit allows us
+// to transmit data.
 func (cl CollectLoop) waitForRateLimit(
-	state *CollectorState,
-	updates <-chan CollectorStateUpdate,
+	buffer *FileStreamRequest,
+	requests <-chan *FileStreamRequest,
 ) {
-	if shouldSendASAP(state) {
+	if shouldSendASAP(buffer) {
 		return
 	}
 
@@ -63,51 +66,51 @@ func (cl CollectLoop) waitForRateLimit(
 		case <-timer.C:
 			return
 
-		case update, ok := <-updates:
+		case request, ok := <-requests:
 			_ = timer.Stop()
 
 			if !ok {
 				return
 			}
 
-			update.Apply(state)
+			buffer.Merge(request)
 
-			if shouldSendASAP(state) {
+			if shouldSendASAP(buffer) {
 				return
 			}
 		}
 	}
 }
 
-// transmit applies updates until a request goes through.
+// transmit accumulates incoming requests until a transmission goes through.
 func (cl CollectLoop) transmit(
-	state *CollectorState,
-	updates <-chan CollectorStateUpdate,
-	transmissions chan<- *FsTransmitData,
-) {
-batchingLoop:
+	buffer *FileStreamRequest,
+	requests <-chan *FileStreamRequest,
+	transmissions chan<- *FileStreamRequestReader,
+) (*FileStreamRequest, bool) {
 	for {
-		select {
-		case transmissions <- state.PrepRequest(false /*isDone*/):
-			state.RequestSent()
-			break batchingLoop
+		reader := NewRequestReader(buffer)
 
-		case update, ok := <-updates:
+		select {
+		case transmissions <- reader:
+			return reader.Next()
+
+		case request, ok := <-requests:
 			if !ok {
-				break batchingLoop
+				return buffer, false
 			}
 
-			update.Apply(state)
+			buffer.Merge(request)
 		}
 	}
 }
 
 // shouldSendASAP returns a request should be made regardless of rate limits.
-func shouldSendASAP(state *CollectorState) bool {
+func shouldSendASAP(request *FileStreamRequest) bool {
 	// Send the "pre-empting" state immediately.
 	//
 	// This state indicates that the process may be about to yield the
 	// CPU for an unknown amount of time, and we want to let the backend
 	// know ASAP.
-	return state.HasPreempting
+	return request.Preempting
 }
