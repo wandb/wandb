@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -146,9 +145,6 @@ type Sender struct {
 	// that allow users to re-run the run with different configurations
 	jobBuilder *launch.JobBuilder
 
-	// wgFileTransfer is a wait group for file transfers
-	wgFileTransfer sync.WaitGroup
-
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
 
@@ -180,7 +176,6 @@ func NewSender(
 		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer:      sync.WaitGroup{},
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
@@ -549,7 +544,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
 		s.fileWatcher.Finish()
-		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
 			s.runfilesUploader.Finish()
 			s.fileTransferManager.Close()
