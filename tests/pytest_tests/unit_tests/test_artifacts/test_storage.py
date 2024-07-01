@@ -4,12 +4,14 @@ import os
 import random
 import tempfile
 from multiprocessing import Pool
+from pathlib import Path
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
-import wandb
 from pyfakefs.fake_filesystem import FakeFilesystem
+
+import wandb
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -48,10 +50,13 @@ def test_opener_works_across_filesystem_boundaries(
     # to unrelated operations (e.g. around `subprocess.call()`).  This will have to do for the moment.
 
     # Some setup/patching we have to do to get this test to play well with `pyfakefs`
-    fs.create_dir(tmp_path)
-    fs.create_dir(artifact_file_cache._cache_dir)
-    fs.create_dir(artifact_file_cache._obj_dir)
-    fs.create_dir(artifact_file_cache._temp_dir)
+    # Note: Cast to str looks redundant, but is intentional (for python < 3.10).
+    # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests
+    fake_tmp_path = Path(str(tmp_path))
+    fs.create_dir(str(fake_tmp_path))
+    fs.create_dir(str(artifact_file_cache._cache_dir))
+    fs.create_dir(str(artifact_file_cache._obj_dir))
+    fs.create_dir(str(artifact_file_cache._temp_dir))
 
     cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
         example_digest, 7
@@ -60,7 +65,7 @@ def test_opener_works_across_filesystem_boundaries(
         f.write("test-123")
 
     # Simulate a destination filepath on the mounted filesystem
-    dest_dir = tmp_path / "mount"
+    dest_dir = fake_tmp_path / "mount"
     dest_path = dest_dir / "dest.txt"
     fs.create_dir(dest_dir)
     fs.add_mount_point(str(dest_dir))
