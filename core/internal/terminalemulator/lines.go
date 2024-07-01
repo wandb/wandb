@@ -1,5 +1,7 @@
 package terminalemulator
 
+import "slices"
+
 // LineSupplier returns lines for a terminal emulator to use.
 type LineSupplier interface {
 	// NextLine returns a new line below the previous ones.
@@ -39,4 +41,12 @@ func (l *LineContent) PutChar(c rune, offset int) bool {
 
 	l.Content[offset] = c
 	return true
+}
+
+// Clone returns a deep copy of the line content.
+func (l LineContent) Clone() LineContent {
+	return LineContent{
+		MaxLength: l.MaxLength,
+		Content:   slices.Clone(l.Content),
+	}
 }
