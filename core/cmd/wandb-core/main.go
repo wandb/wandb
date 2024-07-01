@@ -16,9 +16,11 @@ import (
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
-// const SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
-// Use for testing:
-const SentryDSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.us.sentry.io/6438430"
+const (
+	SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+	// Use for testing:
+	// SentryDSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.us.sentry.io/6438430"
+)
 
 // this is set by the build script and used by the observability package
 var commit string
