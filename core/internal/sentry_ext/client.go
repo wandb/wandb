@@ -151,7 +151,7 @@ func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Eve
 		frames := exception.Stacktrace.Frames
 		framesLen := len(frames)
 		// for the recovered panics, the bottom-most 3 frames of the stacktrace
-		// will come from sentry.go and logging.go, so we remove them
+		// will come from client.go and logging.go, so we remove them
 		if framesLen < 3 {
 			continue
 		}
