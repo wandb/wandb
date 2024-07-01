@@ -157,9 +157,10 @@ func RemoveBottomFrames(event *sentry.Event, hint *sentry.EventHint) *sentry.Eve
 		}
 		for j := framesLen - 1; j >= framesLen-3; j-- {
 			frame := frames[j]
-			// TODO: think of a better way to do this without hard-coding the file names
-			//  this is a hack to remove the bottom-most 3 frames that are internal to core
-			if strings.HasSuffix(frame.AbsPath, "sentry.go") || strings.HasSuffix(frame.AbsPath, "logging.go") {
+			// TODO: think of a better way to do this without hard-coding the
+			// file names this is a hack to remove the bottom-most 3 frames that
+			// are internal to core
+			if strings.HasSuffix(frame.AbsPath, "client.go") || strings.HasSuffix(frame.AbsPath, "logging.go") {
 				frames = frames[:j]
 			} else {
 				break
