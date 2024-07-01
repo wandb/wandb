@@ -38,11 +38,18 @@ class ArtifactFileCache:
 
         # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
         # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
-        umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
-        umask = int(subprocess.check_output(umask_cmd))
-        self._sys_umask = umask
+        self._sys_umask = self._get_sys_umask_threadsafe()
 
         self._override_cache_path: Optional[StrPath] = None
+
+    @staticmethod
+    def _get_sys_umask_threadsafe() -> int:
+        # Workaround to get the current system umask, since
+        # - `os.umask()` isn't thread-safe
+        # - we don't want to inadvertently change the umask of the current process
+        # See: https://stackoverflow.com/questions/53227072/reading-umask-thread-safe
+        umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
+        return int(subprocess.check_output(umask_cmd))
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
