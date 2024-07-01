@@ -580,7 +580,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"], python="3.9")
+@nox.session(name="proto-python", tags=["proto"], python="3.10")
 @nox.parametrize("pb", [3, 4, 5])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
@@ -618,7 +618,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.run("python", "wandb_generate_proto.py")
 
 
-@nox.session(name="generate-deprecated", tags=["proto"], python="3.9")
+@nox.session(name="generate-deprecated", tags=["proto"], python="3.10")
 def generate_deprecated_class_definition(session: nox.Session) -> None:
     session.install("-e", ".")
 

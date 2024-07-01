@@ -44,6 +44,10 @@ class Api:
         return self.api.api_key
 
     @property
+    def is_authenticated(self):
+        return self.api.access_token is not None or self.api.api_key is not None
+
+    @property
     def api_url(self):
         return self.api.api_url
 
