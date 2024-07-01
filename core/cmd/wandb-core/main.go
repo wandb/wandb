@@ -10,12 +10,17 @@ import (
 	"runtime/trace"
 
 	"github.com/wandb/wandb/core/internal/processlib"
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
-const SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+const (
+	SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+	// Use for testing:
+	// SentryDSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.us.sentry.io/6438430"
+)
 
 // this is set by the build script and used by the observability package
 var commit string
@@ -44,14 +49,17 @@ func main() {
 	}
 
 	// set up sentry reporting
-	params := sentry.Params{
-		DSN:    SentryDSN,
-		Commit: commit,
+	params := sentry_ext.Params{
+		DSN:              SentryDSN,
+		AttachStacktrace: true,
+		Release:          version.Version,
+		Commit:           commit,
+		Environment:      version.Environment,
 	}
 	if *disableAnalytics {
 		params.DSN = ""
 	}
-	sentryClient := sentry.New(params)
+	sentryClient := sentry_ext.New(params)
 	defer sentryClient.Flush(2)
 
 	// store commit hash in context
