@@ -139,6 +139,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 		"run_url":   settings.GetRunURL(),
 		"project":   settings.GetProject(),
 		"sweep_url": settings.GetSweepURL(),
+		"base_url":  settings.GetBaseURL(),
 	}
 	logger.SetTags(tags)
 

@@ -103,6 +103,10 @@ func (s *Settings) GetSweepURL() string {
 	return s.Proto.SweepUrl.GetValue()
 }
 
+func (s *Settings) GetBaseURL() string {
+	return s.Proto.BaseUrl.GetValue()
+}
+
 // The start time of the run.
 func (s *Settings) GetStartTime() time.Time {
 	seconds := s.Proto.XStartTime.GetValue()
