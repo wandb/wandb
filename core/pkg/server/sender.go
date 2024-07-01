@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -146,9 +145,6 @@ type Sender struct {
 	// that allow users to re-run the run with different configurations
 	jobBuilder *launch.JobBuilder
 
-	// wgFileTransfer is a wait group for file transfers
-	wgFileTransfer sync.WaitGroup
-
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
 
@@ -180,7 +176,6 @@ func NewSender(
 		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer:      sync.WaitGroup{},
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
@@ -439,10 +434,6 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.resumeState.GetFileStreamOffset(),
 		)
 	}
-
-	if s.fileTransferManager != nil {
-		s.fileTransferManager.Start()
-	}
 }
 
 func (s *Sender) sendRequestNetworkStatus(
@@ -549,7 +540,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
 		s.fileWatcher.Finish()
-		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
 			s.runfilesUploader.Finish()
 			s.fileTransferManager.Close()
@@ -1151,20 +1141,20 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	// TODO: this should be handled by a separate service startup mechanism
-	s.fileTransferManager.Start()
-
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot,
-		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
-	err := downloader.Download()
-	if err != nil {
+
+	if err := artifacts.NewArtifactDownloader(
+		s.ctx,
+		s.graphqlClient,
+		s.fileTransferManager,
+		msg.ArtifactId,
+		msg.DownloadRoot,
+		msg.AllowMissingReferences,
+		msg.SkipCache,
+		msg.PathPrefix,
+	).Download(); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf(
-				"senderError: downloadArtifact: failed to download artifact: %v",
-				err,
-			))
+			fmt.Errorf("sender: failed to download artifact: %v", err))
 		response.ErrorMessage = err.Error()
 	}
 
