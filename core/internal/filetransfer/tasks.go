@@ -1,6 +1,9 @@
 package filetransfer
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type TaskType int
 
@@ -58,4 +61,11 @@ func (ut *Task) SetProgressCallback(callback func(int, int)) {
 
 func (ut *Task) SetCompletionCallback(callback func(*Task)) {
 	ut.CompletionCallback = callback
+}
+
+func (ut *Task) String() string {
+	return fmt.Sprintf(
+		"Task{FileKind: %d, Type: %d, Path: %s, Name: %s, Url: %s, Size: %d}",
+		ut.FileKind, ut.Type, ut.Path, ut.Name, ut.Url, ut.Size,
+	)
 }

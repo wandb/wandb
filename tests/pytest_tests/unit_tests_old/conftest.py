@@ -334,7 +334,10 @@ def local_netrc(monkeypatch):
         # TODO: this seems overkill...
         origexpand = os.path.expanduser
         # Touch that netrc
-        open(".netrc", "wb").close()
+
+        netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
+
+        open(netrc_file, "wb").close()
 
         def expand(path):
             if "netrc" in path:

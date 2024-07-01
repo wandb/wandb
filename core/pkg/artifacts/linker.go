@@ -60,13 +60,21 @@ func (al *ArtifactLinker) Link() error {
 			nil,
 		)
 	default:
-		err = fmt.Errorf("LinkArtifact: %s, error: artifact must have either server id or client id", portfolioName)
-		al.Logger.CaptureFatalAndPanic("linkArtifact", err)
+		return fmt.Errorf(
+			"LinkArtifact: %s,"+
+				" error: artifact must have either server id or client id",
+			portfolioName,
+		)
 	}
+
 	if err != nil {
-		err = fmt.Errorf("LinkArtifact: %s, error: %+v response: %+v", portfolioName, err, response)
-		al.Logger.CaptureFatalAndPanic("linkArtifact", err)
-		return err
+		return fmt.Errorf(
+			"LinkArtifact: %s, error: %v, response: %v",
+			portfolioName,
+			err,
+			response,
+		)
 	}
+
 	return nil
 }

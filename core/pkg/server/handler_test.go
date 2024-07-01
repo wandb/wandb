@@ -14,7 +14,7 @@ func makeHandler(
 	outChan chan *service.Result,
 ) *server.Handler {
 	h := server.NewHandler(context.Background(),
-		&server.HandlerParams{
+		server.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
 			Settings:        &service.Settings{},
 			FwdChan:         fwdChan,

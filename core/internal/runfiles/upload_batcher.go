@@ -3,6 +3,7 @@ package runfiles
 import (
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/waiting"
 )
 
@@ -14,7 +15,7 @@ type uploadBatcher struct {
 	addWG *sync.WaitGroup
 
 	// Files collected so far.
-	files map[string]struct{}
+	runPaths map[paths.RelativePath]struct{}
 
 	// Whether an upload is queued to happen soon.
 	isQueued bool
@@ -23,20 +24,20 @@ type uploadBatcher struct {
 	delay waiting.Delay
 
 	// Callback to upload a list of files.
-	upload func([]string)
+	upload func([]paths.RelativePath)
 }
 
 func newUploadBatcher(
 	delay waiting.Delay,
-	upload func([]string),
+	upload func([]paths.RelativePath),
 ) *uploadBatcher {
 	if delay == nil {
 		delay = waiting.NoDelay()
 	}
 
 	return &uploadBatcher{
-		addWG: &sync.WaitGroup{},
-		files: make(map[string]struct{}),
+		addWG:    &sync.WaitGroup{},
+		runPaths: make(map[paths.RelativePath]struct{}),
 
 		delay:  delay,
 		upload: upload,
@@ -44,24 +45,25 @@ func newUploadBatcher(
 }
 
 // Add adds files to the next upload batch, scheduling one if necessary.
-func (b *uploadBatcher) Add(files []string) {
+func (b *uploadBatcher) Add(runPaths []paths.RelativePath) {
 	if b.delay.IsZero() {
-		b.upload(files)
+		b.upload(runPaths)
 		return
 	}
 
 	b.Lock()
 	defer b.Unlock()
 
-	for _, file := range files {
-		b.files[file] = struct{}{}
+	for _, runPath := range runPaths {
+		b.runPaths[runPath] = struct{}{}
 	}
 
 	if !b.isQueued {
-		b.addWG.Add(1)
 		b.isQueued = true
 
+		b.addWG.Add(1)
 		go func() {
+			defer b.addWG.Done()
 			<-b.delay.Wait()
 			b.uploadBatch()
 		}()
@@ -76,16 +78,14 @@ func (b *uploadBatcher) Wait() {
 func (b *uploadBatcher) uploadBatch() {
 	b.Lock()
 	b.isQueued = false
-	files := b.files
-	b.files = make(map[string]struct{})
+	runPathsSet := b.runPaths
+	b.runPaths = make(map[paths.RelativePath]struct{})
 	b.Unlock()
 
-	filesSlice := make([]string, 0, len(files))
-	for k := range files {
-		filesSlice = append(filesSlice, k)
+	runPaths := make([]paths.RelativePath, 0, len(runPathsSet))
+	for runPath := range runPathsSet {
+		runPaths = append(runPaths, runPath)
 	}
 
-	b.upload(filesSlice)
-
-	b.addWG.Done()
+	b.upload(runPaths)
 }

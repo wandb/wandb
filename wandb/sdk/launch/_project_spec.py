@@ -141,7 +141,7 @@ class LaunchProject:
         elif self.job is not None:
             self.source = LaunchSource.JOB
             self.project_dir = tempfile.mkdtemp()
-        if self.uri and self.uri.startswith("placeholder"):
+        elif self.uri and self.uri.startswith("placeholder"):
             self.source = LaunchSource.SCHEDULER
             self.project_dir = os.getcwd()
             self._entry_point = self.override_entrypoint

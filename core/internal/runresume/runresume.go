@@ -1,13 +1,15 @@
 package runresume
 
 import (
-	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/wandb/segmentio-encoding/json"
+
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -60,6 +62,13 @@ func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
 	r.FileStreamOffset[key] = offset
 }
 
+func RunHasStarted(bucket *Bucket) bool {
+	// If bucket is nil, run doesn't exist yet
+	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
+	// (e.g. a sweep run that was created ahead of time)
+	return bucket != nil && bucket.WandbConfig != nil && strings.Contains(*bucket.WandbConfig, `"t":`)
+}
+
 func (r *State) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
@@ -76,13 +85,13 @@ func (r *State) Update(
 	// If we get that the run is a resume run, we should fail if resume is set to never
 	// for any other case of resume status, we should continue to process the resume response
 	switch {
-	case bucket == nil && r.resume != Must:
+	case !RunHasStarted(bucket) && r.resume != Must:
 		return nil, nil
-	case bucket == nil && r.resume == Must:
+	case !RunHasStarted(bucket) && r.resume == Must:
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'must' is not a valid option for resuming a run"+
-				" (%s/%s) that does not exist. Please check your inputs and"+
+				" (%s/%s) that has never been started. Please check your inputs and"+
 				" try again with a valid value for the `resume` argument.\n"+
 				"If you are trying to start a new run, please omit the"+
 				" `resume` argument or use `resume='allow'`",
@@ -95,7 +104,7 @@ func (r *State) Update(
 		err := fmt.Errorf(
 			"sender: Update: resume is 'must' for a run that does not exist")
 		return result, err
-	case bucket != nil && r.resume == Never:
+	case r.resume == Never && RunHasStarted(bucket):
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'never' is not a valid option for resuming a"+

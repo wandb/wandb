@@ -14,6 +14,11 @@ ignore:
   - "core/pkg/service"
   - "core/internal/gql"
 
+  # Ignore all generated proto files.
+  - "**/*.pb.go"
+  - "**/*_pb2.py"
+  - "**/*_pb2.pyi"
+
 coverage:
   precision: 2
   round: down

@@ -52,14 +52,22 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			ft.logger.CaptureError("file transfer: upload: error closing file", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: upload: error closing file %s: %v",
+					task.Path,
+					err,
+				))
 		}
 	}(file)
 
 	stat, err := file.Stat()
 	if err != nil {
-		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
-		return err
+		return fmt.Errorf(
+			"file transfer: upload: error when stat-ing %s: %v",
+			task.Path,
+			err,
+		)
 	}
 
 	// Don't try to upload directories.
@@ -158,13 +166,22 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 	}
 	defer func(file *os.File) {
 		if err := file.Close(); err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: download: error closing file %s: %v",
+					task.Path,
+					err,
+				))
 		}
 	}(file)
 
 	defer func(file io.ReadCloser) {
 		if err := file.Close(); err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: download: error closing response reader: %v",
+					err,
+				))
 		}
 	}(resp.Body)
 
