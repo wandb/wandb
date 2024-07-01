@@ -135,11 +135,13 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 	logger.Info("created symlink", "path", targetPath)
 
 	tags := observability.Tags{
-		"run_id":    settings.GetRunID(),
-		"run_url":   settings.GetRunURL(),
-		"project":   settings.GetProject(),
-		"sweep_url": settings.GetSweepURL(),
-		"base_url":  settings.GetBaseURL(),
+		"run_id":   settings.GetRunID(),
+		"run_url":  settings.GetRunURL(),
+		"project":  settings.GetProject(),
+		"base_url": settings.GetBaseURL(),
+	}
+	if settings.GetSweepURL() != "" {
+		tags["sweep_url"] = settings.GetSweepURL()
 	}
 	logger.SetTags(tags)
 
