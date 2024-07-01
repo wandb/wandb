@@ -8,8 +8,9 @@ from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
-import wandb
 from pyfakefs.fake_filesystem import FakeFilesystem
+
+import wandb
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -62,6 +63,7 @@ def test_opener_works_across_filesystem_boundaries(
     # Simulate a destination filepath on the mounted filesystem
     dest_dir = tmp_path / "mount"
     dest_path = dest_dir / "dest.txt"
+    fs.create_dir(dest_dir)
     fs.add_mount_point(str(dest_dir))
 
     # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
