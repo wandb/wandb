@@ -22,7 +22,7 @@ func TestTransmitLoop_Sends(t *testing.T) {
 			return nil
 		},
 	}
-	testInput := NewRequestReader(&FileStreamRequest{Preempting: true})
+	testInput := NewRequestReader(&FileStreamRequest{Preempting: true}, 999)
 
 	inputs := make(chan *FileStreamRequestReader)
 	_ = loop.Start(inputs, FileStreamOffsetMap{})
