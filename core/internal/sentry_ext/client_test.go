@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func TestNew(t *testing.T) {
@@ -45,7 +44,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 	}
 	type args struct {
 		errs []error
-		tags observability.Tags
+		tags map[string]string
 	}
 	tests := []struct {
 		name        string
@@ -62,7 +61,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 			},
 			args: args{
 				errs: []error{errors.New("error")},
-				tags: observability.Tags{},
+				tags: map[string]string{},
 			},
 			numCaptures: 1,
 		},
@@ -76,7 +75,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 			},
 			args: args{
 				errs: []error{errors.New("error"), errors.New("error")},
-				tags: observability.Tags{},
+				tags: map[string]string{},
 			},
 			numCaptures: 1,
 		},
@@ -90,7 +89,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 			},
 			args: args{
 				errs: []error{errors.New("error1"), errors.New("error2")},
-				tags: observability.Tags{},
+				tags: map[string]string{},
 			},
 			numCaptures: 2,
 		},
@@ -104,7 +103,7 @@ func TestSentryClient_CaptureException(t *testing.T) {
 			},
 			args: args{
 				errs: []error{errors.New("error1"), errors.New("error2"), errors.New("error3")},
-				tags: observability.Tags{},
+				tags: map[string]string{},
 			},
 			numCaptures: 2,
 		},
@@ -137,7 +136,7 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 	}
 	type args struct {
 		msg  string
-		tags observability.Tags
+		tags map[string]string
 	}
 	tests := []struct {
 		name        string
@@ -154,7 +153,7 @@ func TestSentryClient_CaptureMessage(t *testing.T) {
 			},
 			args: args{
 				msg:  "message",
-				tags: observability.Tags{},
+				tags: map[string]string{},
 			},
 			numCaptures: 1,
 		},

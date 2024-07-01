@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 type Params struct {
@@ -76,15 +75,6 @@ func New(params Params) *Client {
 
 // SetUser sets the user information for the sentry client.
 func (s *Client) SetUser(id, email, name string) {
-
-	// localHub := sentry.CurrentHub().Clone()
-	// localHub.ConfigureScope(func(scope *sentry.Scope) {
-	// 	scope.SetUser(sentry.User{
-	// 		ID:    id,
-	// 		Email: email,
-	// 		Name:  name,
-	// 	})
-	// })
 	sentry.ConfigureScope(func(scope *sentry.Scope) {
 		scope.SetUser(sentry.User{
 			ID:    id,
@@ -95,41 +85,43 @@ func (s *Client) SetUser(id, email, name string) {
 }
 
 // CaptureException captures an error and sends it to sentry.
-func (s *Client) CaptureException(err error, tags observability.Tags) {
+// Used for capturing errors. The error is sent to sentry as an error level
+// event. The event is enriched with the tags provided.
+func (s *Client) CaptureException(err error, tags map[string]string) {
 	if !s.Recent.shouldCapture(err) {
 		return
 	}
 
 	// Send the error to sentry
 	localHub := sentry.CurrentHub().Clone()
-	localHub.ConfigureScope(func(scope *sentry.Scope) {
-		for k, v := range tags {
-			if v != "" {
-				scope.SetTag(k, v)
-			}
-		}
-	})
+	localHub.ConfigureScope(
+		func(scope *sentry.Scope) {
+			scope.SetTags(tags)
+		},
+	)
 	localHub.CaptureException(err)
 }
 
 // CaptureMessage captures a message and sends it to sentry.
-func (s *Client) CaptureMessage(msg string, tags observability.Tags) {
+// Used for capturing non-error messages. The message is sent to sentry as an
+// info level event. The event is enriched with the tags provided.
+func (s *Client) CaptureMessage(msg string, tags map[string]string) {
 	if !s.Recent.shouldCapture(errors.New(msg)) {
 		return
 	}
 
 	localHub := sentry.CurrentHub().Clone()
-	localHub.ConfigureScope(func(scope *sentry.Scope) {
-		for k, v := range tags {
-			scope.SetTag(k, v)
-		}
-	})
+	localHub.ConfigureScope(
+		func(scope *sentry.Scope) {
+			scope.SetTags(tags)
+		},
+	)
 	localHub.CaptureMessage(msg)
 }
 
 // Reraise captures an error and re-raises it.
 // Used to capture unexpected panics.
-func (s *Client) Reraise(err any, tags observability.Tags) {
+func (s *Client) Reraise(err any, tags map[string]string) {
 	if err != nil {
 		var e error
 		if errors.As(e, &err) {
