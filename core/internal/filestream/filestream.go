@@ -28,7 +28,7 @@ const (
 
 	// An approximate maximum size for a request.
 	//
-	// Requests are be broken into pieces of size not much larger than this.
+	// Requests are broken into pieces of size not much larger than this.
 	maxRequestSizeBytes = 10 << 20 // 10 MB
 )
 
