@@ -20,7 +20,7 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float64)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool_)
 
@@ -31,7 +31,7 @@ def test_add_table_from_dataframe(wandb_init):
 
     wb_table_float = wandb.Table(dataframe=df_float)
     wb_table_float32 = wandb.Table(dataframe=df_float32)
-    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float_))
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float64))
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
@@ -619,3 +619,55 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.source_project == collection.project
     assert linked_artifact.source_name.startswith(collection.name)
     assert linked_artifact.type == collection.type
+
+
+def test_unlink_artifact(logged_artifact, linked_artifact, api):
+    """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
+    source_artifact = logged_artifact  # For readability
+
+    # Pull these out now in case of state changes
+    source_artifact_path = source_artifact.qualified_name
+    linked_artifact_path = linked_artifact.qualified_name
+
+    # Consistency/sanity checks in case of changes to upstream fixtures
+    assert source_artifact.qualified_name != linked_artifact.qualified_name
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is True
+
+    linked_artifact.unlink()
+
+    # Now the source artifact should still exist, the link should not
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is False
+
+    # Unlinking the source artifact should not be possible
+    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+        source_artifact.unlink()
+
+    # ... and the source artifact should *still* exist
+    assert api.artifact_exists(source_artifact_path) is True
+
+
+def test_used_artifacts_preserve_original_project(
+    wandb_init, user, api, logged_artifact
+):
+    """Run artifacts from the API should preserve the original project they were created in."""
+    orig_project = logged_artifact.project  # Original project that created the artifact
+    new_project = "new-project"  # New project using the same artifact
+
+    artifact_path = f"{user}/{orig_project}/{logged_artifact.name}"
+
+    # Use the artifact within a *different* project
+    with wandb_init(entity=user, project=new_project) as run:
+        art = run.use_artifact(artifact_path)
+        art.download()
+
+    # Check project of artifact vs run as retrieved from the API
+    run_from_api = api.run(run.path)
+    art_from_run = run_from_api.used_artifacts()[0]
+
+    # Assumption check in case of future changes to fixtures
+    assert orig_project != new_project
+
+    assert run_from_api.project == new_project
+    assert art_from_run.project == orig_project

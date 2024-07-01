@@ -129,6 +129,7 @@ def test_pull(runner, wandb_init):
     ],
 )
 @pytest.mark.wandb_core_failure(feature="tensorboard")
+@pytest.mark.skip(reason="TODO: re-enable pending tensorboard support of numpy 2.0")
 def test_sync_tensorboard(
     runner,
     relay_server,

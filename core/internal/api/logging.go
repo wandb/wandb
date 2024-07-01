@@ -40,9 +40,12 @@ func withRetryLogging(
 		willRetry, err := policy(ctx, resp, err)
 
 		if willRetry {
-			if resp == nil {
+			switch {
+			case resp == nil && err == nil:
 				logger.Debug("Retrying HTTP request, no error or response")
-			} else if resp.StatusCode >= 400 {
+			case err != nil:
+				logger.Debug("Retrying error", "error", err)
+			case resp.StatusCode >= 400:
 				logger.Debug("Retrying HTTP error", "status", resp.StatusCode)
 			}
 		}

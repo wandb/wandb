@@ -65,6 +65,8 @@ class WandbLogger:
         overwrite: bool = False,
         wait_for_job_success: bool = True,
         log_datasets: bool = True,
+        model_artifact_name: str = "model-metadata",
+        model_artifact_type: str = "model",
         **kwargs_wandb_init: Dict[str, Any],
     ) -> str:
         """Sync fine-tunes to Weights & Biases.
@@ -76,6 +78,8 @@ class WandbLogger:
         :param entity: Username or team name where you're sending runs. By default, your default entity is used, which is usually your username.
         :param overwrite: Forces logging and overwrite existing wandb run of the same fine-tune.
         :param wait_for_job_success: Waits for the fine-tune to be complete and then log metrics to W&B. By default, it is True.
+        :param model_artifact_name: Name of the model artifact that is logged
+        :param model_artifact_type: Type of the model artifact that is logged
         """
         if openai_client is None:
             openai_client = OpenAI()
@@ -157,6 +161,8 @@ class WandbLogger:
                 overwrite,
                 show_individual_warnings,
                 log_datasets,
+                model_artifact_name,
+                model_artifact_type,
                 **kwargs_wandb_init,
             )
 
@@ -201,6 +207,8 @@ class WandbLogger:
         overwrite: bool,
         show_individual_warnings: bool,
         log_datasets: bool,
+        model_artifact_name: str,
+        model_artifact_type: str,
         **kwargs_wandb_init: Dict[str, Any],
     ):
         fine_tune_id = fine_tune.id
@@ -244,7 +252,15 @@ class WandbLogger:
             cls._run.summary["fine_tuned_model"] = fine_tuned_model
 
         # training/validation files and fine-tune details
-        cls._log_artifacts(fine_tune, project, entity, log_datasets, overwrite)
+        cls._log_artifacts(
+            fine_tune,
+            project,
+            entity,
+            log_datasets,
+            overwrite,
+            model_artifact_name,
+            model_artifact_type,
+        )
 
         # mark run as complete
         cls._run.summary["status"] = "succeeded"
@@ -341,6 +357,8 @@ class WandbLogger:
         entity: Optional[str],
         log_datasets: bool,
         overwrite: bool,
+        model_artifact_name: str,
+        model_artifact_type: str,
     ) -> None:
         if log_datasets:
             wandb.termlog("Logging training/validation files...")
@@ -361,8 +379,8 @@ class WandbLogger:
         # fine-tune details
         fine_tune_id = fine_tune.id
         artifact = wandb.Artifact(
-            "model_metadata",
-            type="model",
+            model_artifact_name,
+            type=model_artifact_type,
             metadata=dict(fine_tune),
         )
 

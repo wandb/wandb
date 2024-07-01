@@ -117,12 +117,17 @@ func (tracker *RateLimitTracker) UpdateEstimates(
 
 	tracker.targetUnitsPerSec = window.targetUnitsPerSec
 
-	if window.remainingDelta < 1 || window.isNewQuotaWindow {
-		// If the quota didn't change, or if we entered a new quota window,
-		// then we can raise the rate limit, i.e. lower our estimate of how
-		// many requests we can make per quota unit.
+	if window.quotaConsumed < 1 || window.isNewQuotaWindow {
+		// If the quota didn't change (or increased), then we can raise our
+		// rate limit, i.e. raise our estimate of how many requests we can
+		// make per quota unit.
 		//
-		// We push the conversion factor toward the value such that
+		// We also do this if we're in a new quota window to guard against
+		// the possibility of our rate limit being so slow that every request
+		// lands in a new quota window.
+		//
+		// We push the conversion factor (reqs / unit) toward the value
+		// satisfying
 		//   (reqs / unit) * (target units / sec) = (max reqs / sec)
 		tracker.requestsPerUnit = tracker.interp(
 			tracker.requestsPerUnit,
@@ -132,7 +137,7 @@ func (tracker *RateLimitTracker) UpdateEstimates(
 		// Otherwise, update our requestsPerUnit estimate normally.
 		tracker.requestsPerUnit = tracker.interp(
 			tracker.requestsPerUnit,
-			float64(window.nRequests)/window.remainingDelta,
+			float64(window.nRequests)/window.quotaConsumed,
 		)
 	}
 }
@@ -148,8 +153,8 @@ type rateLimitStats struct {
 	// Number of requests made.
 	nRequests uint64
 
-	// Change in RateLimit-Remaining header, if `isNewWindow` is false.
-	remainingDelta float64
+	// Decrease in RateLimit-Remaining header, if `isNewWindow` is false.
+	quotaConsumed float64
 
 	// Rate limit based on the final Remaining and Reset values.
 	targetUnitsPerSec float64
@@ -185,7 +190,7 @@ func (tracker *RateLimitTracker) tryStartNewWindow(
 	return rateLimitStats{
 		nRequests:         nRequests,
 		isNewQuotaWindow:  t.After(lastInvalidTime),
-		remainingDelta:    lastRemaining - rlHeader.Remaining,
+		quotaConsumed:     lastRemaining - rlHeader.Remaining,
 		targetUnitsPerSec: rlHeader.Remaining / rlHeader.Reset,
 	}, true
 }

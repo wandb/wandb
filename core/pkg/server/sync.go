@@ -2,7 +2,7 @@ package server
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"io"
 	"sync"
 
@@ -161,7 +161,7 @@ func (s *SyncService) Flush() {
 	}
 	s.Close()
 	if s.flushCallback == nil {
-		s.logger.CaptureError("Flush without callback", fmt.Errorf("flushing sync service"))
+		s.logger.CaptureError(errors.New("flush without callback"))
 		return
 	}
 	s.flushCallback(s.syncErr)

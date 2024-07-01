@@ -9,10 +9,17 @@ import (
 	"runtime"
 	"runtime/trace"
 
-	"github.com/getsentry/sentry-go"
 	"github.com/wandb/wandb/core/internal/processlib"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
+)
+
+const (
+	SentryDSN = "https://0d0c6674e003452db392f158c42117fb@o151352.ingest.sentry.io/4505513612214272"
+	// Use for testing:
+	// SentryDSN = "https://45bbbb93aacd42cf90785517b66e925b@o151352.ingest.us.sentry.io/6438430"
 )
 
 // this is set by the build script and used by the observability package
@@ -42,8 +49,18 @@ func main() {
 	}
 
 	// set up sentry reporting
-	observability.InitSentry(*disableAnalytics, commit)
-	defer sentry.Flush(2)
+	params := sentry_ext.Params{
+		DSN:              SentryDSN,
+		AttachStacktrace: true,
+		Release:          version.Version,
+		Commit:           commit,
+		Environment:      version.Environment,
+	}
+	if *disableAnalytics {
+		params.DSN = ""
+	}
+	sentryClient := sentry_ext.New(params)
+	defer sentryClient.Flush(2)
 
 	// store commit hash in context
 	ctx := context.Background()
@@ -100,6 +117,7 @@ func main() {
 			ListenIPAddress: "127.0.0.1:0",
 			PortFilename:    *portFilename,
 			ParentPid:       *pid,
+			SentryClient:    sentryClient,
 		},
 	)
 	if err != nil {

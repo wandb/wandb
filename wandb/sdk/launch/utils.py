@@ -34,7 +34,9 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 # TODO: this should be restricted to just Git repos and not S3 and stuff like that
-_GIT_URI_REGEX = re.compile(r"^[^/|^~|^\.].*(git|bitbucket)")
+_GIT_URI_REGEX = re.compile(
+    r"^[^/|^~|^\.].*(git|bitbucket|dev\.azure\.com|\.visualstudio\.com)"
+)
 _VALID_IP_REGEX = r"^https?://[0-9]+(?:\.[0-9]+){3}(:[0-9]+)?"
 _VALID_PIP_PACKAGE_REGEX = r"^[a-zA-Z0-9_.-]+$"
 _VALID_WANDB_REGEX = r"^https?://(api.)?wandb"
@@ -58,7 +60,7 @@ AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
 )
 
 ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"^(?:https://)?(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\w-]+):?(?P<tag>.*)$"
+    r"^(?:https://)?(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\.\/\w-]+):?(?P<tag>.*)$"
 )
 
 GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
@@ -72,6 +74,7 @@ AZURE_BLOB_REGEX = re.compile(
     r"^https://([^\.]+)\.blob\.core\.windows\.net/([^/]+)/?(.*)$"
 )
 
+ARN_PARTITION_RE = re.compile(r"^arn:([^:]+):[^:]*:[^:]*:[^:]*:[^:]*$")
 
 PROJECT_SYNCHRONOUS = "SYNCHRONOUS"
 

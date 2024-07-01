@@ -307,11 +307,11 @@ func (as *ArtifactSaver) batchSize() int {
 	// we know how fast they upload.
 	minBatchSize := filetransfer.DefaultConcurrencyLimit / as.maxActiveBatches
 	maxBatchSize := 10000 / as.maxActiveBatches
-	if as.numDone < filetransfer.DefaultConcurrencyLimit {
+	sinceStart := time.Since(as.startTime)
+	if as.numDone < filetransfer.DefaultConcurrencyLimit || sinceStart < 1*time.Second {
 		return minBatchSize
 	}
 	// Given the average time per item, estimate a batch size that will take 1 minute.
-	sinceStart := time.Since(as.startTime) + 1*time.Millisecond // Avoid division by zero.
 	filesPerMin := int(float64(as.numDone) / sinceStart.Minutes())
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
