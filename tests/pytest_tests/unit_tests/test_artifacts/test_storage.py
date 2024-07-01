@@ -1,3 +1,4 @@
+import errno
 import logging
 import os
 import random
@@ -7,6 +8,8 @@ from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
+from pyfakefs.fake_filesystem import FakeFilesystem
+
 import wandb
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
@@ -34,6 +37,50 @@ def test_opener_rejects_append_mode(artifact_file_cache):
     # make sure that the ValueError goes away if we use a valid mode
     with opener("w") as f:
         f.write("example")
+
+
+def test_opener_works_across_filesystem_boundaries(
+    tmp_path, artifact_file_cache, fs: FakeFilesystem
+):
+    # This is not ideal, as we'd much rather test e.g. `Artifact.download()` directly or E2E.
+    #
+    # However, we're using `pyfakefs` to mock mounted/partitioned filesystems, and it doesn't play well with
+    # some of the internals of ArtifactFileCache without additional, potentially brittle/complicated patches
+    # to unrelated operations (e.g. around `subprocess.call()`).  This will have to do for the moment.
+
+    # Some setup/patching we have to do to get this test to play well with `pyfakefs`
+    fs.create_dir(tmp_path)
+    fs.create_dir(artifact_file_cache._cache_dir)
+    fs.create_dir(artifact_file_cache._obj_dir)
+    fs.create_dir(artifact_file_cache._temp_dir)
+
+    cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7
+    )
+    with cache_opener() as f:
+        f.write("test-123")
+
+    # Simulate a destination filepath on the mounted filesystem
+    dest_dir = tmp_path / "mount"
+    dest_path = dest_dir / "dest.txt"
+    fs.add_mount_point(str(dest_dir))
+
+    # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
+    # This is extra assurance that we're testing what we think we are
+    with pytest.raises(OSError) as excinfo:
+        os.rename(cache_path, dest_path)
+        assert excinfo.value.args[0] == errno.EXDEV
+
+    # Now simulate skipping the cache
+    artifact_file_cache._override_cache_path = dest_path
+    override_path, _, override_opener = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7
+    )
+
+    with override_opener() as f:
+        f.write("test-abc")
+
+    assert dest_path.read_text() == "test-abc"
 
 
 def test_check_md5_obj_path(artifact_file_cache):
