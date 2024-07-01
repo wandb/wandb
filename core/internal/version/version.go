@@ -10,8 +10,8 @@ var Environment string
 
 func init() {
 	if strings.Contains(Version, "dev") {
-		Environment = "dev"
+		Environment = "development"
 	} else {
-		Environment = "prod"
+		Environment = "production"
 	}
 }
