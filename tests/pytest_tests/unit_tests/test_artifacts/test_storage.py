@@ -52,10 +52,17 @@ def test_opener_works_across_filesystem_boundaries(
     # Note: Cast to str looks redundant, but is intentional (for python < 3.10).
     # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests
     fake_tmp_path = Path(str(tmp_path))
-    fs.create_dir(str(fake_tmp_path))
-    fs.create_dir(str(artifact_file_cache._cache_dir))
-    fs.create_dir(str(artifact_file_cache._obj_dir))
-    fs.create_dir(str(artifact_file_cache._temp_dir))
+    fs.create_dir(fake_tmp_path)
+
+    fake_cache_dir = Path(str(artifact_file_cache._cache_dir))
+    fake_cache_obj_dir = Path(str(artifact_file_cache._obj_dir))
+    fake_cache_temp_dir = Path(str(artifact_file_cache._temp_dir))
+    artifact_file_cache._cache_dir = fake_cache_dir
+    artifact_file_cache._obj_dir = fake_cache_obj_dir
+    artifact_file_cache._temp_dir = fake_cache_temp_dir
+    fs.create_dir(fake_cache_dir)
+    fs.create_dir(fake_cache_obj_dir)
+    fs.create_dir(fake_cache_temp_dir)
 
     cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
         example_digest, 7
@@ -70,7 +77,7 @@ def test_opener_works_across_filesystem_boundaries(
     fs.add_mount_point(str(dest_dir))
 
     # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
-    # This is extra assurance that we're testing what we think we are
+    # This is extra assurance that we're still testing what we expect to test
     with pytest.raises(OSError) as excinfo:
         os.rename(cache_path, dest_path)
         assert excinfo.value.args[0] == errno.EXDEV
