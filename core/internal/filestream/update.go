@@ -12,10 +12,8 @@ type Update interface {
 }
 
 type UpdateContext struct {
-	// ModifyRequest updates the next filestream API request.
-	//
-	// The state update runs in a separate goroutine.
-	ModifyRequest func(CollectorStateUpdate)
+	// MakeRequest queues a filestream API request.
+	MakeRequest func(*FileStreamRequest)
 
 	Settings *service.Settings
 
