@@ -17,13 +17,16 @@ type RunLogsChangeModel struct {
 	maxLineLength int
 
 	// onChange is invoked whenever a line is modified.
-	onChange func(int, RunLogsLine)
+	onChange func(int, *RunLogsLine)
+
+	// getNow returns the current time.
+	getNow func() time.Time
 
 	firstLineNum int
-	lines        []RunLogsLine
+	lines        []*RunLogsLine
 }
 
-// RunLogsLine is a line in the W&B run's console logs.
+// RunLogsLine is a mutable line in the W&B run's console logs.
 type RunLogsLine struct {
 	terminalemulator.LineContent
 
@@ -32,6 +35,15 @@ type RunLogsLine struct {
 
 	// Timestamp is the time this line was created.
 	Timestamp time.Time
+}
+
+// Clone returns a deep copy of the line.
+func (l *RunLogsLine) Clone() *RunLogsLine {
+	return &RunLogsLine{
+		LineContent:  l.LineContent.Clone(),
+		StreamPrefix: l.StreamPrefix,
+		Timestamp:    l.Timestamp,
+	}
 }
 
 // LineSupplier returns a terminalemulator.LineSupplier for the stream prefix.
@@ -44,10 +56,10 @@ func (o *RunLogsChangeModel) LineSupplier(streamPrefix string) *RunLogsLineSuppl
 
 // NextLine allocates a new line in the output buffer.
 func (o *RunLogsChangeModel) NextLine(streamPrefix string) RunLogsLineRef {
-	line := RunLogsLine{}
+	line := &RunLogsLine{}
 	line.StreamPrefix = streamPrefix
 	line.MaxLength = o.maxLineLength
-	line.Timestamp = time.Now()
+	line.Timestamp = o.getNow()
 
 	lineNum := o.firstLineNum + len(o.lines)
 	o.lines = append(o.lines, line)
@@ -89,7 +101,7 @@ func (l RunLogsLineRef) PutChar(c rune, offset int) {
 	}
 
 	if line.PutChar(c, offset) {
-		l.output.onChange(l.lineNum, *line)
+		l.output.onChange(l.lineNum, line)
 	}
 }
 
@@ -103,5 +115,5 @@ func (l *RunLogsLineRef) line() *RunLogsLine {
 		return nil
 	}
 
-	return &l.output.lines[idx]
+	return l.output.lines[idx]
 }
