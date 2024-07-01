@@ -412,6 +412,8 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 		}
 		h.handleStepMetric(metric.GetStepMetric())
 		h.fwdRecord(record)
+	case metric.GetStepMetric() != "":
+		// this is an explicitly-defined x axis, no need to process it
 	default:
 		h.logger.CaptureError(
 			fmt.Errorf("invalid metric"),
@@ -1234,7 +1236,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			h.handleHistory(history)
 			h.runHistory = runhistory.NewWithStep(step)
 		} else if step < current {
-			h.logger.CaptureWarn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
+			h.logger.Warn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
 			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
 				"that is less than the current step (%d) this data will be ignored. if you need to log data out of order, "+
 				"please see: https://wandb.me/define-metric", step, current)
