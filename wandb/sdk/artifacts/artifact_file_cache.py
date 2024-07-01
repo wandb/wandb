@@ -123,7 +123,7 @@ class ArtifactFileCache:
             raise ValueError("Cannot specify both target_size and target_fraction")
         if target_size and target_size < 0:
             raise ValueError("target_size must be non-negative")
-        if target_fraction and not (0 <= target_fraction <= 1):
+        if target_fraction and (target_fraction < 0 or target_fraction > 1):
             raise ValueError("target_fraction must be between 0 and 1")
 
         bytes_reclaimed = 0
