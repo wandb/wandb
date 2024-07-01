@@ -5,6 +5,8 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // A fake implementation of FileStream.
@@ -24,6 +26,27 @@ func (fs *FakeFileStream) GetUpdates() []filestream.Update {
 	fs.Lock()
 	defer fs.Unlock()
 	return slices.Clone(fs.updates)
+}
+
+// GetRequest returns a request accumulated from applying all updates.
+func (fs *FakeFileStream) GetRequest(
+	settings *service.Settings,
+) *filestream.FileStreamRequest {
+	fullRequest := &filestream.FileStreamRequest{}
+
+	for _, update := range fs.GetUpdates() {
+		update.Apply(filestream.UpdateContext{
+			MakeRequest: func(request *filestream.FileStreamRequest) {
+				fullRequest.Merge(request)
+			},
+
+			Settings: settings,
+			Logger:   observability.NewNoOpLogger(),
+			Printer:  observability.NewPrinter(),
+		})
+	}
+
+	return fullRequest
 }
 
 // Prove that we implement the interface.
