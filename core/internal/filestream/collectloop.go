@@ -32,7 +32,7 @@ func (cl CollectLoop) Start(
 		}
 
 		for !isDone {
-			reader := NewRequestReader(buffer)
+			reader := NewRequestReader(buffer, maxRequestSizeBytes)
 			transmissions <- reader
 			buffer, isDone = reader.Next()
 		}
@@ -89,7 +89,7 @@ func (cl CollectLoop) transmit(
 	transmissions chan<- *FileStreamRequestReader,
 ) (*FileStreamRequest, bool) {
 	for {
-		reader := NewRequestReader(buffer)
+		reader := NewRequestReader(buffer, maxRequestSizeBytes)
 
 		select {
 		case transmissions <- reader:

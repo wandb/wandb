@@ -11,8 +11,10 @@ import (
 
 func TestTransmitLoop_Sends(t *testing.T) {
 	outputs := make(chan *FileStreamRequestJSON)
+	heartbeat := waitingtest.NewFakeStopwatch()
+	heartbeat.SetDoneForever()
 	loop := TransmitLoop{
-		HeartbeatStopwatch:     waitingtest.NewFakeStopwatch(),
+		HeartbeatStopwatch:     heartbeat,
 		LogFatalAndStopWorking: func(err error) {},
 		Send: func(
 			ftd *FileStreamRequestJSON,
@@ -22,12 +24,12 @@ func TestTransmitLoop_Sends(t *testing.T) {
 			return nil
 		},
 	}
-	testInput := NewRequestReader(&FileStreamRequest{Preempting: true})
+	testInput := NewRequestReader(&FileStreamRequest{Preempting: true}, 999)
 
-	inputs := make(chan *FileStreamRequestReader)
-	_ = loop.Start(inputs, FileStreamOffsetMap{})
+	inputs := make(chan *FileStreamRequestReader, 1)
 	inputs <- testInput
 	close(inputs)
+	_ = loop.Start(inputs, FileStreamOffsetMap{})
 
 	select {
 	case result := <-outputs:
