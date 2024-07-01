@@ -758,10 +758,8 @@ def test_table_typing_numpy():
     table.add_data(np.uintp(42))
     table.add_data(np.float32(42))
     table.add_data(np.float64(42))
-    table.add_data(np.float_(42))
     table.add_data(np.complex64(42))
     table.add_data(np.complex128(42))
-    table.add_data(np.complex_(42))
 
     # Booleans
     table = wandb.Table(columns=["A"], dtype=[BooleanType])
@@ -803,10 +801,8 @@ def test_table_typing_numpy():
     table.add_data(np.array([42, 42], dtype=np.uintp))
     table.add_data(np.array([42, 42], dtype=np.float32))
     table.add_data(np.array([42, 42], dtype=np.float64))
-    table.add_data(np.array([42, 42], dtype=np.float_))
     table.add_data(np.array([42, 42], dtype=np.complex64))
     table.add_data(np.array([42, 42], dtype=np.complex128))
-    table.add_data(np.array([42, 42], dtype=np.complex_))
 
     # Array of Booleans
     table = wandb.Table(columns=["A"], dtype=[[BooleanType]])
@@ -884,13 +880,9 @@ def test_table_typing_pandas():
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float64))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float_))
-    table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex64))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex128))
-    table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex_))
     table.add_data(42)
 
     # Boolean

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/gqlmock"
@@ -110,6 +110,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 3, len(artifact.Manifest.Contents))
 		assert.Equal(t, "148c5ecbb60815f037fd8ba2715ec1c6", artifact.Digest)
+		assert.Equal(t, []string{"latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -172,6 +173,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 3, len(artifact.Manifest.Contents))
 		assert.Equal(t, "955b87b67813fcf514645b98ed9aaccf", artifact.Digest)
+		assert.Equal(t, []string{"latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -225,6 +227,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
 		assert.Equal(t, "53efc97d385924d4eeb9893d44552c3c", artifact.Digest)
+		assert.Equal(t, []string{"latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)
@@ -336,7 +339,7 @@ func TestJobBuilderImage(t *testing.T) {
 		assert.Equal(t, "testRunId", artifact.RunId)
 		assert.Equal(t, 2, len(artifact.Manifest.Contents))
 		assert.Equal(t, "e56fd338fa10f4b993f78e4530b30f76", artifact.Digest)
-		assert.Equal(t, []string{"testTag"}, artifact.Aliases)
+		assert.Equal(t, []string{"testTag", "latest"}, artifact.Aliases)
 		for _, content := range artifact.Manifest.Contents {
 			if content.Path == "wandb-job.json" {
 				jobFile, err := os.Open(content.LocalPath)

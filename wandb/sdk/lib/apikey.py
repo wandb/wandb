@@ -1,6 +1,7 @@
 """apikey util."""
 
 import os
+import platform
 import stat
 import sys
 import textwrap
@@ -15,7 +16,7 @@ else:
     from typing_extensions import Literal
 
 import click
-import requests.utils
+from requests.utils import NETRC_FILES, get_netrc_auth
 
 import wandb
 from wandb.apis import InternalApi
@@ -54,10 +55,22 @@ def _fixup_anon_mode(default: Optional[Mode]) -> Optional[Mode]:
 
 
 def get_netrc_file_path() -> str:
+    """Return the path to the netrc file."""
+    # if the NETRC environment variable is set, use that
     netrc_file = os.environ.get("NETRC")
     if netrc_file:
         return os.path.expanduser(netrc_file)
-    return os.path.join(os.path.expanduser("~"), ".netrc")
+
+    # if either .netrc or _netrc exists in the home directory, use that
+    for netrc_file in NETRC_FILES:
+        home_dir = os.path.expanduser("~")
+        if os.path.exists(os.path.join(home_dir, netrc_file)):
+            return os.path.join(home_dir, netrc_file)
+
+    # otherwise, use .netrc on non-Windows platforms and _netrc on Windows
+    netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
+
+    return os.path.join(os.path.expanduser("~"), netrc_file)
 
 
 def prompt_api_key(  # noqa: C901
@@ -254,7 +267,7 @@ def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
         assert settings is not None
     if settings.api_key:
         return settings.api_key
-    auth = requests.utils.get_netrc_auth(settings.base_url)
+    auth = get_netrc_auth(settings.base_url)
     if auth:
         return auth[-1]
     return None

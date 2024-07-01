@@ -15,9 +15,13 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
@@ -75,9 +79,12 @@ type Stream struct {
 
 	// closed indicates if the inChan and loopBackChan are closed
 	closed *atomic.Bool
+
+	// sentryClient is the client used to report errors to sentry.io
+	sentryClient *sentry_ext.Client
 }
 
-func streamLogger(settings *settings.Settings) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
 	if path := defaultLoggerPath.Load(); path != nil {
@@ -112,19 +119,29 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 		// AddSource: true,
 	}
 
+	sentryClient.SetUser(
+		settings.GetEntity(),
+		settings.GetEmail(),
+		settings.GetUserName(),
+	)
+
 	logger := observability.NewCoreLogger(
 		slog.New(slog.NewJSONHandler(writer, opts)),
 		observability.WithTags(observability.Tags{}),
-		observability.WithCaptureMessage(observability.CaptureMessage),
-		observability.WithCaptureException(observability.CaptureException),
+		observability.WithCaptureMessage(sentryClient.CaptureMessage),
+		observability.WithCaptureException(sentryClient.CaptureException),
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
+
 	tags := observability.Tags{
-		"run_id":  settings.GetRunID(),
-		"run_url": settings.GetRunURL(),
-		"project": settings.GetProject(),
-		"entity":  settings.GetEntity(),
+		"run_id":   settings.GetRunID(),
+		"run_url":  settings.GetRunURL(),
+		"project":  settings.GetProject(),
+		"base_url": settings.GetBaseURL(),
+	}
+	if settings.GetSweepURL() != "" {
+		tags["sweep_url"] = settings.GetSweepURL()
 	}
 	logger.SetTags(tags)
 
@@ -132,18 +149,30 @@ func streamLogger(settings *settings.Settings) *observability.CoreLogger {
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string) *Stream {
+func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
-		logger:       streamLogger(settings),
+		logger:       streamLogger(settings, sentryClient),
 		wg:           sync.WaitGroup{},
 		settings:     settings,
 		inChan:       make(chan *service.Record, BufferSize),
 		loopBackChan: make(chan *service.Record, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
+		sentryClient: sentryClient,
+	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		// We log an error but continue anyway with an empty hostname string.
+		// Better behavior would be to inform the user and turn off any
+		// components that rely on the hostname, but it's not easy to do
+		// with our current code structure.
+		s.logger.CaptureError(
+			fmt.Errorf("stream: could not get hostname: %v", err))
+		hostname = ""
 	}
 
 	// TODO: replace this with a logger that can be read by the user
@@ -153,6 +182,12 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	backendOrNil := NewBackend(s.logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
+	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
+		OutputRecords: s.loopBackChan,
+		Logger:        s.logger,
+		Settings:      s.settings,
+		Hostname:      hostname,
+	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
 	var fileTransferManagerOrNil filetransfer.FileTransferManager
@@ -183,6 +218,7 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 	}
 
 	mailbox := mailbox.NewMailbox()
+	metricHandler := runmetric.NewMetricHandler()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -192,10 +228,10 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 			OutChan:           make(chan *service.Result, BufferSize),
 			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
 			RunfilesUploader:  runfilesUploaderOrNil,
-			TBHandler:         NewTBHandler(fileWatcher, s.logger, s.settings.Proto, s.loopBackChan),
+			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(),
-			MetricHandler:     NewMetricHandler(),
+			RunSummary:        runsummary.New(runsummary.Params{MetricHandler: metricHandler}),
+			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
@@ -209,26 +245,34 @@ func NewStream(settings *settings.Settings, _ string) *Stream {
 		},
 	)
 
-	var outputFile string
+	var outputFile *paths.RelativePath
 	if settings.Proto.GetConsoleMultipart().GetValue() {
-		outputFile = filepath.Join(
-			"logs",
-			fmt.Sprintf("%s_output.log", time.Now().Format("20060102_150405.000000")),
+		// This is guaranteed not to fail.
+		outputFile, _ = paths.Relative(
+			filepath.Join(
+				"logs",
+				fmt.Sprintf(
+					"%s_output.log",
+					time.Now().Format("20060102_150405.000000"),
+				),
+			),
 		)
 	}
+
 	s.sender = NewSender(
 		s.ctx,
 		s.cancel,
 		SenderParams{
 			Logger:              s.logger,
-			Settings:            s.settings.Proto,
+			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
+			TBHandler:           tbHandler,
 			Peeker:              peeker,
-			RunSummary:          runsummary.New(),
+			RunSummary:          runsummary.New(runsummary.Params{}),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

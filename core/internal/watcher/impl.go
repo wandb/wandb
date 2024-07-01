@@ -159,9 +159,10 @@ func (w *watcher) loopWatchFiles(ctx context.Context) {
 
 		case err := <-w.delegate.Error:
 			w.logger.CaptureError(
-				"watcher: error in file watcher",
-				err,
-			)
+				fmt.Errorf(
+					"watcher: error in file watcher: %v",
+					err,
+				))
 
 		case <-w.delegate.Closed:
 			return
