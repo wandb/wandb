@@ -53,6 +53,7 @@ func TestGCSFileTransfer_Download(t *testing.T) {
 				Type:      filetransfer.DownloadTask,
 				Path:      "test-download-file.txt",
 				Reference: &gsReference,
+				Size:      100,
 			},
 			wantErr: true,
 		},

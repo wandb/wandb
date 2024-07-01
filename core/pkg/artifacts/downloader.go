@@ -155,6 +155,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						Url:       *entry.DownloadURL,
 						Reference: entry.Ref,
 						Digest:    entry.Digest,
+						Size:      entry.Size,
 					}
 					versionId, ok := entry.Extra["versionID"]
 					if ok {

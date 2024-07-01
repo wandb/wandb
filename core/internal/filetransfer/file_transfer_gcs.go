@@ -88,7 +88,7 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 
 	// Get the bucket and the object
 	bucket := ft.client.Bucket(bucketName)
-	var objects []*storage.ObjectHandle
+	var objectNames []string
 
 	switch {
 	case task.Digest == reference:
@@ -104,13 +104,37 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 				ft.logger.CaptureError("gcs file transfer: download: error while iterating through objects in gcs bucket", err, "reference", reference)
 				return err
 			}
-			object := bucket.Object(objAttrs.Name)
-			objects = append(objects, object)
+			objectNames = append(objectNames, objAttrs.Name)
+		}
+
+		c := make(chan error)
+		for _, objectName := range objectNames {
+			go func(name string) {
+				object := bucket.Object(name)
+				err = ft.DownloadFile(object, task, objectName)
+				c <- err
+			}(objectName)
+		}
+		for range objectNames {
+			err := <-c
+			if err != nil {
+				ft.logger.CaptureError("gcs file transfer: download: error when downloading reference", err, "reference", reference)
+			}
 		}
 	case task.VersionId != nil:
+		if task.Size == 0 {
+			return nil
+		}
 		object := bucket.Object(objectName).Generation(int64(task.VersionId.(float64)))
-		objects = append(objects, object)
+		err := ft.DownloadFile(object, task, objectName)
+		if err != nil {
+			ft.logger.CaptureError("gcs file transfer: download: error while downloading file", err, "reference", reference)
+			return err
+		}
 	default:
+		if task.Size == 0 {
+			return nil
+		}
 		object := bucket.Object(objectName)
 		objAttrs, err := object.Attrs(ft.ctx)
 		if err != nil {
@@ -121,65 +145,56 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			ft.logger.CaptureError("gcs file transfer: download: digest/etag mismatch", err, "reference", reference, "etag", objAttrs.Etag, "digest", task.Digest)
 			return err
 		}
-		objects = append(objects, object)
-	}
-
-	c := make(chan error)
-	for _, object := range objects {
-		go func(obj *storage.ObjectHandle) {
-			objName := obj.ObjectName()
-			r, err := obj.NewReader(ft.ctx)
-			if err != nil {
-				ft.logger.CaptureError("gcs file transfer: download: unable to create reader", err, "reference", reference, "versionId", task.VersionId, "object", objName)
-				c <- err
-				return
-			}
-			defer r.Close()
-
-			ext, _ := strings.CutPrefix(objName, objectName)
-			localPath := task.Path + ext
-			dir := path.Dir(localPath)
-
-			// Check if the directory already exists
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				// Directory doesn't exist, create it
-				if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-					// Handle the error if it occurs
-					c <- err
-					return
-				}
-			} else if err != nil {
-				// Handle other errors that may occur while checking directory existence
-				c <- err
-				return
-			}
-
-			// open the file for writing and defer closing it
-			file, err := os.Create(localPath)
-			if err != nil {
-				c <- err
-				return
-			}
-			defer func(file *os.File) {
-				if err := file.Close(); err != nil {
-					ft.logger.CaptureError("gcs file transfer: download: error closing file", err, "path", localPath)
-				}
-			}(file)
-
-			_, err = io.Copy(file, r)
-			if err != nil {
-				ft.logger.CaptureError("gcs file transfer: download: error copying file", err, "reference", reference, "object", objName)
-				c <- err
-				return
-			}
-			c <- nil
-		}(object)
-	}
-	for range objects {
-		err := <-c
+		err = ft.DownloadFile(object, task, objectName)
 		if err != nil {
-			ft.logger.CaptureError("gcs file transfer: download: error when downloading reference", err, "reference", reference)
+			ft.logger.CaptureError("gcs file transfer: download: error while downloading file", err, "reference", reference)
+			return err
 		}
 	}
+	return nil
+}
+
+func (ft *GCSFileTransfer) DownloadFile(obj *storage.ObjectHandle, task *Task, objectName string) error {
+	objName := obj.ObjectName()
+	r, err := obj.NewReader(ft.ctx)
+	if err != nil {
+		ft.logger.CaptureError("gcs file transfer: download: unable to create reader", err, "reference", *task.Reference, "versionId", task.VersionId, "object", objName)
+		return err
+	}
+	defer r.Close()
+
+	ext, _ := strings.CutPrefix(objName, objectName)
+	localPath := task.Path + ext
+	dir := path.Dir(localPath)
+
+	// Check if the directory already exists
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		// Directory doesn't exist, create it
+		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+			// Handle the error if it occurs
+			return err
+		}
+	} else if err != nil {
+		// Handle other errors that may occur while checking directory existence
+		return err
+	}
+
+	// open the file for writing and defer closing it
+	file, err := os.Create(localPath)
+	if err != nil {
+		return err
+	}
+	defer func(file *os.File) {
+		if err := file.Close(); err != nil {
+			ft.logger.CaptureError("gcs file transfer: download: error closing file", err, "path", localPath)
+		}
+	}(file)
+
+	_, err = io.Copy(file, r)
+	if err != nil {
+		ft.logger.CaptureError("gcs file transfer: download: error copying file", err, "reference", *task.Reference, "object", objName)
+		return err
+	}
+
 	return nil
 }
