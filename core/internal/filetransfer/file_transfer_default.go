@@ -82,11 +82,8 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		// Treat this as a range upload if we start somewhere other than the beginning or
 		// if a length is specified and it's less than the file size.
 		if task.Offset+task.Length > stat.Size() {
-			// If the range exceeds the file size, log an error but truncate it and continue.
-			ft.logger.Error("file transfer: upload: offset + length is greater than the file size",
-				"offset", task.Offset, "length", task.Length, "file size", stat.Size())
-			// If Length = Size - Offset, then we upload up to Offset + (Size - Offset) = Size.
-			task.Length = int64(stat.Size() - task.Offset)
+			// If the range exceeds the file size, there was some kind of error upstream.
+			return fmt.Errorf("file transfer: upload: offset + length exceeds the file size")
 		}
 		sectionReader := io.NewSectionReader(file, task.Offset, task.Length)
 		reader = sectionReader
