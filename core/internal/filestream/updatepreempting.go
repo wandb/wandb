@@ -15,14 +15,9 @@ type PreemptingUpdate struct {
 }
 
 func (u *PreemptingUpdate) Apply(ctx UpdateContext) error {
-	ctx.ModifyRequest(&collectorPreemptingUpdate{})
+	ctx.MakeRequest(&FileStreamRequest{
+		Preempting: true,
+	})
 
 	return nil
-}
-
-type collectorPreemptingUpdate struct{}
-
-func (u *collectorPreemptingUpdate) Apply(state *CollectorState) {
-	state.HasPreempting = true
-	state.Preempting = true
 }
