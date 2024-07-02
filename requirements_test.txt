@@ -6,6 +6,7 @@ pytest-split
 pytest-mock
 pytest-timeout
 pytest-flakefinder
+pyfakefs
 parameterized
 
 flask>2.0.0
