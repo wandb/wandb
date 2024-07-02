@@ -61,8 +61,14 @@ func (fs *fileStream) startTransmitting(
 	requests <-chan *FileStreamRequest,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
+	maxRequestSizeBytes := fs.settings.GetFileStreamMaxBytes()
+	if maxRequestSizeBytes <= 0 {
+		maxRequestSizeBytes = 10 << 20 // 10 MB
+	}
+
 	transmissions := CollectLoop{
-		TransmitRateLimit: fs.transmitRateLimit,
+		TransmitRateLimit:   fs.transmitRateLimit,
+		MaxRequestSizeBytes: int(maxRequestSizeBytes),
 	}.Start(requests)
 
 	feedback := TransmitLoop{

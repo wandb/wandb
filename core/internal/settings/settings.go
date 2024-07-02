@@ -133,6 +133,11 @@ func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
 }
 
+// An approximate maximum request size for the filestream API.
+func (s *Settings) GetFileStreamMaxBytes() int32 {
+	return s.Proto.XFileStreamMaxBytes.GetValue()
+}
+
 // Custom proxy for http requests to W&B.
 func (s *Settings) GetHTTPProxy() string {
 	return s.Proto.HttpProxy.GetValue()
