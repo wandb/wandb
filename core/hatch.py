@@ -100,7 +100,10 @@ def _go_env(with_race_detection: bool) -> Mapping[str, str]:
         # system metrics are unavailable.
         ("darwin", "arm64"),
         ("darwin", "aarch64"),
-    ]:
+    ] or (
+        # On Windows, -race requires cgo.
+        system == "windows" and with_race_detection
+    ):
         env["CGO_ENABLED"] = "1"
 
     return env
