@@ -1,13 +1,12 @@
-# wandb-core: A New Backend for the W&B SDK
+# wandb-core: A new backend for the W&B SDK
 
 ## Introduction
 
-Good News, Everyone! We've developed a new and improved backend for the W&B SDK that is
-more performant, versatile, and robust.
+`wandb-core` is a new and improved backend for the W&B SDK that is more performant, versatile, and robust.
 
-## Getting Started
+## Getting started
 
-To start using the new backend, add `wandb.require("core")` to your script after importing `wandb`:
+To start using `wandb-core`, add `wandb.require("core")` to your script after importing `wandb`:
 
 ```python
 import wandb
@@ -17,22 +16,22 @@ wandb.require("core")
 
 Note: ensure you have `wandb>=0.17.0`.
 
-### Platform Compatibility
+### Platform compatibility
 
 `wandb-core` is pre-built for the following platforms:
 
-- Linux:`x86_64`, `aarch64`
+- Linux: `x86_64`, `aarch64`
 - macOS: `x86_64`, `arm64`
-- Windows `amd64`
+- Windows: `amd64`
 
-For other platforms, build `wandb-core` from the source as outlined in our [contributing guide](docs/contributing.md#installing-wandb-core). If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
+If it is not supported for your platform, you will see an error if you try to start a run. If you're interested in support for additional platforms, please inform us by opening a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose). Your feedback helps us prioritize new platform support.
 
-### W&B Server Compatibility
+### W&B server compatibility
 
 `wandb-core` is compatible with our production and dedicated cloud deployments as well as
 [W&B Server](https://docs.wandb.ai/guides/hosting) versions `>=0.40.0`.
 
-### Switching Back to the Old SDK Backend
+### Switching back to the old SDK backend
 
 To revert to the old SDK backend, remove `wandb.require("core")` from your script.
 
@@ -40,10 +39,10 @@ To revert to the old SDK backend, remove `wandb.require("core")` from your scrip
 
 Your contributions are welcome! Please follow our [contributing guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more details.
 
-## Feedback and Bug Reporting
-We're eager to hear your thoughts on `wandb-core`. Your feedback, especially bug reports, is invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
+## Feedback and bug reporting
+We're eager to hear your thoughts on `wandb-core`. Your feedback and bug reports are invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
 
-## Feature Support Status
+## Feature support status
 
 Below is an overview of the feature support status in `wandb-core`.
 
@@ -61,7 +60,7 @@ Status legend:
 |             | `log_code`        | ✅               |
 |             | `config`          | ✅               |
 |             | `summary`         | ✅               |
-|             | `define_metric`   | 🚧[^E.5]         |
+|             | `define_metric`   | ✅[^E.5]         |
 |             | `tags`            | ✅               |
 |             | `notes`           | ✅               |
 |             | `name`            | ✅               |
@@ -82,6 +81,8 @@ Status legend:
 |             | system metrics    | ✅[^E.9]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
+|             | Forking           | ❌               |
+|             | Rewind            | ❌               |
 |             | Settings          | 🚧[^E.12]        |
 | Login       |                   |                  |
 |             | default entity    | ✅               |
@@ -97,7 +98,7 @@ Status legend:
 | Launch      |                   | ✅               |
 
 [^E.1]: `sync_tensorboard` uploads `tfevent` files to W&B, so the TensorBoard tab works, but only some types of metrics appear in native W&B charts.
-[^E.5]: `define_metric` only supports default summary.
+[^E.5]: Missing full nested key summary support.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
 [^E.12]: Unsupported settings:

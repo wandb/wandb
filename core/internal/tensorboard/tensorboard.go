@@ -13,6 +13,7 @@
 package tensorboard
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -172,9 +173,10 @@ func (tb *TBHandler) startStream(
 
 			if err != nil {
 				tb.logger.CaptureError(
-					"tensorboard: failed to infer root directory",
-					err,
-				)
+					fmt.Errorf(
+						"tensorboard: failed to infer root directory: %v",
+						err,
+					))
 				tb.startWG.Done()
 				return
 			}
@@ -363,7 +365,7 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	maybeRelPath, err := path.RelativeTo(rootDir)
 	if err != nil {
 		tb.logger.CaptureError(
-			"tensorboard: error getting relative path", err,
+			fmt.Errorf("tensorboard: error getting relative path: %v", err),
 			"rootDir", rootDir,
 			"path", path)
 		return
@@ -372,7 +374,7 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 
 	if !relPath.IsLocal() {
 		tb.logger.CaptureError(
-			"tensorboard: file is not under TB root", nil,
+			errors.New("tensorboard: file is not under TB root"),
 			"rootDir", rootDir,
 			"path", path,
 		)
@@ -415,8 +417,7 @@ func (tb *TBHandler) getNamespace(logDir, rootDir paths.AbsolutePath) string {
 
 	if !success {
 		tb.logger.CaptureError(
-			"tensorboard: rootDir not prefix of logDir",
-			nil,
+			errors.New("tensorboard: rootDir not prefix of logDir"),
 			"rootDir", rootDir,
 			"logDir", logDir,
 		)

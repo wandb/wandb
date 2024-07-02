@@ -11,6 +11,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -37,14 +38,14 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import retry
+from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
@@ -234,14 +235,18 @@ class Api:
         extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
+        extra_http_headers.update(_thread_local_api_settings.headers or {})
+
+        auth = None
+        if self.access_token is not None:
+            extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
+        elif _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+
         proxies = self.settings("_proxies") or json.loads(
             self._environ.get("WANDB__PROXIES", "{}")
         )
 
-        auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("api", self.api_key or "")
-        extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
                 headers={
@@ -375,6 +380,35 @@ class Api:
         sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
         default_key: Optional[str] = self.default_settings.get("api_key")
         return env_key or key or sagemaker_key or default_key
+
+    @property
+    def access_token(self) -> Optional[str]:
+        """Retrieves an access token for authentication.
+
+        This function attempts to exchange an identity token for a temporary
+        access token from the server, and save it to the credentials file.
+        It uses the path to the identity token as defined in the environment
+        variables. If the environment variable is not set, it returns None.
+
+        Returns:
+            Optional[str]: The access token if available, otherwise None if
+            no identity token is supplied.
+        Raises:
+            AuthenticationError: If the path to the identity token is not found.
+        """
+        token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
+        if not token_file_str:
+            return None
+
+        token_file = Path(token_file_str)
+        if not token_file.exists():
+            raise AuthenticationError(f"Identity token file not found: {token_file}")
+
+        base_url = self.settings("base_url")
+        credentials_file = env.get_credentials_file(
+            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+        )
+        return credentials.access_token(base_url, token_file, credentials_file)
 
     @property
     def api_url(self) -> str:
@@ -1180,6 +1214,7 @@ class Api:
             project_name (str): The project to download, (can include bucket)
             name (str): The run to download
         """
+        # Pulling wandbConfig.start_time is required so that we can determine if a run has actually started
         query = gql(
             """
         query RunResumeStatus($project: String, $entity: String, $name: String!) {
@@ -1203,6 +1238,7 @@ class Api:
                     eventsTail
                     config
                     tags
+                    wandbConfig(keys: ["t"])
                 }
             }
         }
@@ -2672,14 +2708,20 @@ class Api:
             A tuple of the content length and the streaming response
         """
         check_httpclient_logger_handler()
+
+        http_headers = _thread_local_api_settings.headers or {}
+
         auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("user", self.api_key or "")
+        if self.access_token is not None:
+            http_headers["Authorization"] = f"Bearer {self.access_token}"
+        elif _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+
         response = requests.get(
             url,
             auth=auth,
             cookies=_thread_local_api_settings.cookies or {},
-            headers=_thread_local_api_settings.headers or {},
+            headers=http_headers,
             stream=True,
         )
         response.raise_for_status()
@@ -2778,9 +2820,9 @@ class Api:
         except requests.exceptions.RequestException as e:
             logger.error(f"upload_file exception {url}: {e}")
             request_headers = e.request.headers if e.request is not None else ""
-            logger.error(f"upload_file request headers: {request_headers}")
+            logger.error(f"upload_file request headers: {request_headers!r}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content}")
+            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = status_code == 400 and "RequestTimeout" in str(
@@ -2846,7 +2888,7 @@ class Api:
             request_headers = e.request.headers if e.request is not None else ""
             logger.error(f"upload_file request headers: {request_headers}")
             response_content = e.response.content if e.response is not None else ""
-            logger.error(f"upload_file response body: {response_content}")
+            logger.error(f"upload_file response body: {response_content!r}")
             status_code = e.response.status_code if e.response is not None else 0
             # S3 reports retryable request timeouts out-of-band
             is_aws_retryable = (
@@ -3036,6 +3078,8 @@ class Api:
         project: Optional[str] = None,
         entity: Optional[str] = None,
         state: Optional[str] = None,
+        prior_runs: Optional[List[str]] = None,
+        template_variable_values: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, List[str]]:
         """Upsert a sweep object.
 
@@ -3048,6 +3092,8 @@ class Api:
             project (str): project to use
             entity (str): entity to use
             state (str): state
+            prior_runs (list): IDs of existing runs to add to the sweep
+            template_variable_values (dict): template variable values
         """
         project_query = """
             project {
@@ -3068,7 +3114,8 @@ class Api:
             $projectName: String,
             $controller: JSONString,
             $scheduler: JSONString,
-            $state: String
+            $state: String,
+            $priorRunsFilters: JSONString,
         ) {
             upsertSweep(input: {
                 id: $id,
@@ -3078,7 +3125,8 @@ class Api:
                 projectName: $projectName,
                 controller: $controller,
                 scheduler: $scheduler,
-                state: $state
+                state: $state,
+                priorRunsFilters: $priorRunsFilters,
             }) {
                 sweep {
                     name
@@ -3090,7 +3138,17 @@ class Api:
         """
         # TODO(jhr): we need protocol versioning to know schema is not supported
         # for now we will just try both new and old query
-
+        mutation_5 = gql(
+            mutation_str.replace(
+                "$controller: JSONString,",
+                "$controller: JSONString,$launchScheduler: JSONString, $templateVariableValues: JSONString,",
+            )
+            .replace(
+                "controller: $controller,",
+                "controller: $controller,launchScheduler: $launchScheduler,templateVariableValues: $templateVariableValues,",
+            )
+            .replace("_PROJECT_QUERY_", project_query)
+        )
         # launchScheduler was introduced in core v0.14.0
         mutation_4 = gql(
             mutation_str.replace(
@@ -3099,7 +3157,7 @@ class Api:
             )
             .replace(
                 "controller: $controller,",
-                "controller: $controller,launchScheduler: $launchScheduler,",
+                "controller: $controller,launchScheduler: $launchScheduler",
             )
             .replace("_PROJECT_QUERY_", project_query)
         )
@@ -3118,7 +3176,7 @@ class Api:
         )
 
         # TODO(dag): replace this with a query for protocol versioning
-        mutations = [mutation_4, mutation_3, mutation_2, mutation_1]
+        mutations = [mutation_5, mutation_4, mutation_3, mutation_2, mutation_1]
 
         config = self._validate_config_and_fill_distribution(config)
 
@@ -3127,6 +3185,9 @@ class Api:
         config_str = yaml.dump(
             json.loads(json.dumps(config)), Dumper=util.NonOctalStringDumper
         )
+        filters = None
+        if prior_runs:
+            filters = json.dumps({"$or": [{"name": r} for r in prior_runs]})
 
         err: Optional[Exception] = None
         for mutation in mutations:
@@ -3139,7 +3200,9 @@ class Api:
                     "projectName": project or self.settings("project"),
                     "controller": controller,
                     "launchScheduler": launch_scheduler,
+                    "templateVariableValues": json.dumps(template_variable_values),
                     "scheduler": scheduler,
+                    "priorRunsFilters": filters,
                 }
                 if state:
                     variables["state"] = state

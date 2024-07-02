@@ -23,7 +23,10 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 		func(err error) {
 			// TODO: maybe we should shut down filestream if this fails?
 			ctx.Logger.CaptureError(
-				"filestream: failed to apply history record", err)
+				fmt.Errorf(
+					"filestream: failed to apply history record: %v",
+					err,
+				))
 		},
 	)
 	line, err := rh.Serialize()
@@ -49,19 +52,10 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 				len(line),
 				maxFileLineBytes)
 	} else {
-		ctx.ModifyRequest(&collectorHistoryUpdate{
-			lines: []string{string(line)},
+		ctx.MakeRequest(&FileStreamRequest{
+			HistoryLines: []string{string(line)},
 		})
 	}
 
 	return nil
-}
-
-type collectorHistoryUpdate struct {
-	lines []string
-}
-
-func (u *collectorHistoryUpdate) Apply(state *CollectorState) {
-	state.Buffer.HistoryLines =
-		append(state.Buffer.HistoryLines, u.lines...)
 }

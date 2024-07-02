@@ -90,9 +90,10 @@ func (u *uploader) Process(record *service.FilesRecord) {
 		maybeRunPath, err := paths.Relative(file.GetPath())
 		if err != nil {
 			u.logger.CaptureError(
-				"runfiles: file path is not relative",
-				err,
-			)
+				fmt.Errorf(
+					"runfiles: file path is not relative: %v",
+					err,
+				))
 			continue
 		}
 		runPath := *maybeRunPath
@@ -113,11 +114,11 @@ func (u *uploader) Process(record *service.FilesRecord) {
 				u.uploadBatcher.Add([]paths.RelativePath{runPath})
 			}); err != nil {
 				u.logger.CaptureError(
-					"runfiles: error watching file",
-					err,
-					"file",
-					file.GetPath(),
-				)
+					fmt.Errorf(
+						"runfiles: error watching file %s: %v",
+						file.GetPath(),
+						err,
+					))
 			}
 
 		case service.FilesItem_END:
@@ -226,9 +227,7 @@ func (u *uploader) lockForOperation(method string) bool {
 		u.stateMu.Unlock()
 
 		u.logger.CaptureError(
-			fmt.Sprintf("runfiles: called %v() after Finish()", method),
-			nil,
-		)
+			fmt.Errorf("runfiles: called %v() after Finish()", method))
 
 		return false
 	}
@@ -266,20 +265,19 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			runSlashPaths,
 		)
 		if err != nil {
-			u.logger.CaptureError("runfiles: CreateRunFiles returned error", err)
+			u.logger.CaptureError(
+				fmt.Errorf("runfiles: CreateRunFiles returned error: %v", err))
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}
 
 		if len(createRunFilesResponse.CreateRunFiles.Files) != len(runPaths) {
 			u.logger.CaptureError(
-				"runfiles: CreateRunFiles returned unexpected number of files",
-				nil,
-				"expected",
-				len(runPaths),
-				"actual",
-				len(createRunFilesResponse.CreateRunFiles.Files),
-			)
+				fmt.Errorf(
+					"runfiles: CreateRunFiles returned %d files but expected %d",
+					len(createRunFilesResponse.CreateRunFiles.Files),
+					len(runPaths),
+				))
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}
@@ -288,9 +286,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			if f.UploadUrl == nil {
 				u.logger.CaptureWarn(
 					"runfiles: CreateRunFiles has empty UploadUrl",
-					"response",
-					createRunFilesResponse,
-				)
+					"response", createRunFilesResponse)
 				u.uploadWG.Done()
 				continue
 			}
@@ -298,11 +294,11 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 			maybeRunPath, err := paths.Relative(filepath.FromSlash(f.Name))
 			if err != nil || !maybeRunPath.IsLocal() {
 				u.logger.CaptureError(
-					"runfiles: CreateRunFiles returned unexpected file name",
-					err,
-					"response",
-					createRunFilesResponse,
-				)
+					fmt.Errorf(
+						"runfiles: CreateRunFiles returned unexpected file name: %v",
+						err,
+					),
+					"response", createRunFilesResponse)
 				u.uploadWG.Done()
 				continue
 			}

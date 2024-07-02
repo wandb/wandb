@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 )
 
 const (
@@ -25,7 +25,7 @@ type ServerParams struct {
 	ListenIPAddress string
 	PortFilename    string
 	ParentPid       int
-	SentryClient    *sentry.Client
+	SentryClient    *sentry_ext.Client
 }
 
 // Server is the core server
@@ -41,7 +41,7 @@ type Server struct {
 	listener net.Listener
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.Client
+	sentryClient *sentry_ext.Client
 
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish

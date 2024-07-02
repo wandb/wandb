@@ -14,12 +14,15 @@ type SummaryUpdate struct {
 }
 
 func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
-	rs := runsummary.New()
+	rs := runsummary.New(runsummary.Params{})
 	rs.ApplyChangeRecord(
 		u.Record,
 		func(err error) {
 			ctx.Logger.CaptureError(
-				"filestream: failed to apply summary record", err)
+				fmt.Errorf(
+					"filestream: failed to apply summary record: %v",
+					err,
+				))
 		},
 	)
 
@@ -46,18 +49,10 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 				len(line),
 				maxFileLineBytes)
 	} else {
-		ctx.ModifyRequest(&collectorSummaryUpdate{
-			newSummary: string(line),
+		ctx.MakeRequest(&FileStreamRequest{
+			LatestSummary: string(line),
 		})
 	}
 
 	return nil
-}
-
-type collectorSummaryUpdate struct {
-	newSummary string
-}
-
-func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
-	state.Buffer.LatestSummary = u.newSummary
 }

@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"google.golang.org/protobuf/proto"
 
@@ -220,8 +220,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			e := fmt.Errorf("%v", err)
-			sm.logger.CaptureError("monitor: panic", e)
+			sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
 		}
 	}()
 

@@ -220,6 +220,7 @@ def unit_tests(session: nox.Session) -> None:
     by passing them via positional arguments.
     """
     session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
@@ -242,6 +243,7 @@ def unit_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
@@ -268,6 +270,7 @@ def system_tests(session: nox.Session) -> None:
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
 
     install_wandb(session)
@@ -577,7 +580,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"], python="3.9")
+@nox.session(name="proto-python", tags=["proto"], python="3.10")
 @nox.parametrize("pb", [3, 4, 5])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
@@ -615,7 +618,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.run("python", "wandb_generate_proto.py")
 
 
-@nox.session(name="generate-deprecated", tags=["proto"], python="3.9")
+@nox.session(name="generate-deprecated", tags=["proto"], python="3.10")
 def generate_deprecated_class_definition(session: nox.Session) -> None:
     session.install("-e", ".")
 
