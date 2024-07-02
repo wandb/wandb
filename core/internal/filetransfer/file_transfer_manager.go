@@ -121,8 +121,8 @@ func (fm *fileTransferManager) completeTask(task *Task) {
 		fm.fileTransferStats.UpdateUploadStats(FileUploadInfo{
 			FileKind:      task.FileKind,
 			Path:          task.Path,
-			UploadedBytes: task.Size,
-			TotalBytes:    task.Size,
+			UploadedBytes: task.Length,
+			TotalBytes:    task.Length,
 		})
 	}
 }
