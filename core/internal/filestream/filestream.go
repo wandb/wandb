@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 	"golang.org/x/time/rate"
 )
 
@@ -25,11 +25,6 @@ const (
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
 	maxFileLineBytes = (10 << 20) - (100 << 10)
-
-	// An approximate maximum size for a request.
-	//
-	// Requests are broken into pieces of size not much larger than this.
-	maxRequestSizeBytes = 10 << 20 // 10 MB
 )
 
 type ChunkTypeEnum int8
@@ -80,7 +75,7 @@ type fileStream struct {
 	feedbackWait *sync.WaitGroup
 
 	// settings is the settings for the filestream
-	settings *service.Settings
+	settings *settings.Settings
 
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
@@ -104,7 +99,7 @@ type fileStream struct {
 }
 
 type FileStreamParams struct {
-	Settings           *service.Settings
+	Settings           *settings.Settings
 	Logger             *observability.CoreLogger
 	Printer            *observability.Printer
 	ApiClient          api.Client

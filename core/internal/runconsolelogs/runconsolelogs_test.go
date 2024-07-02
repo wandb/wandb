@@ -17,14 +17,14 @@ import (
 )
 
 func TestFileStreamUpdates(t *testing.T) {
-	settingsProto := &service.Settings{
+	settings := settings.From(&service.Settings{
 		FilesDir: wrapperspb.String(t.TempDir()),
-	}
+	})
 	fileStream := filestreamtest.NewFakeFileStream()
 	outputFile, _ := paths.Relative("output.log")
 	sender := New(Params{
 		ConsoleOutputFile: *outputFile,
-		Settings:          settings.From(settingsProto),
+		Settings:          settings,
 		Logger:            observability.NewNoOpLogger(),
 		Ctx:               context.Background(),
 		LoopbackChan:      make(chan<- *service.Record, 10),
@@ -39,7 +39,7 @@ func TestFileStreamUpdates(t *testing.T) {
 	sender.StreamLogs(&service.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
 	sender.Finish()
 
-	request := fileStream.GetRequest(settingsProto)
+	request := fileStream.GetRequest(settings)
 	assert.Equal(t,
 		[]sparselist.Run[string]{
 			{Start: 0, Items: []string{

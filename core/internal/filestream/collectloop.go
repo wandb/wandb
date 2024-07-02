@@ -11,7 +11,8 @@ import (
 // This batches all incoming requests while waiting for transmissions
 // to go through.
 type CollectLoop struct {
-	TransmitRateLimit *rate.Limiter
+	TransmitRateLimit   *rate.Limiter
+	MaxRequestSizeBytes int
 }
 
 // Start ingests requests and outputs rate-limited, batched requests.
@@ -32,7 +33,7 @@ func (cl CollectLoop) Start(
 		}
 
 		for !isDone {
-			reader, _ := NewRequestReader(buffer, maxRequestSizeBytes)
+			reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
 			transmissions <- reader
 			buffer, isDone = reader.Next()
 		}
@@ -49,7 +50,7 @@ func (cl CollectLoop) waitForRateLimit(
 	buffer *FileStreamRequest,
 	requests <-chan *FileStreamRequest,
 ) {
-	if shouldSendASAP(buffer) {
+	if cl.shouldSendASAP(buffer) {
 		return
 	}
 
@@ -75,7 +76,7 @@ func (cl CollectLoop) waitForRateLimit(
 
 			buffer.Merge(request)
 
-			if shouldSendASAP(buffer) {
+			if cl.shouldSendASAP(buffer) {
 				return
 			}
 		}
@@ -89,7 +90,7 @@ func (cl CollectLoop) transmit(
 	transmissions chan<- *FileStreamRequestReader,
 ) (*FileStreamRequest, bool) {
 	for {
-		reader, _ := NewRequestReader(buffer, maxRequestSizeBytes)
+		reader, _ := NewRequestReader(buffer, cl.MaxRequestSizeBytes)
 
 		select {
 		case transmissions <- reader:
@@ -106,8 +107,8 @@ func (cl CollectLoop) transmit(
 }
 
 // shouldSendASAP returns a request should be made regardless of rate limits.
-func shouldSendASAP(request *FileStreamRequest) bool {
-	_, isTruncated := NewRequestReader(request, maxRequestSizeBytes)
+func (cl CollectLoop) shouldSendASAP(request *FileStreamRequest) bool {
+	_, isTruncated := NewRequestReader(request, cl.MaxRequestSizeBytes)
 
 	switch {
 	// If we've accumulated a request of the maximum size, send it immediately.
