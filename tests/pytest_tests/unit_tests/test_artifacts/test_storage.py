@@ -1,13 +1,16 @@
+import errno
 import logging
 import os
 import random
 import tempfile
 from multiprocessing import Pool
+from pathlib import Path
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
+from pyfakefs.fake_filesystem import FakeFilesystem
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
@@ -34,6 +37,62 @@ def test_opener_rejects_append_mode(artifact_file_cache):
     # make sure that the ValueError goes away if we use a valid mode
     with opener("w") as f:
         f.write("example")
+
+
+def test_opener_works_across_filesystem_boundaries(
+    tmp_path, artifact_file_cache, fs: FakeFilesystem
+):
+    # This isn't ideal, we'd rather test e.g. `Artifact.download` directly.
+    #
+    # However, we're using `pyfakefs` to mock mounted/partitioned filesystems,
+    # and it doesn't play well with some of the internals of ArtifactFileCache
+    # without extra, potentially brittle patches (e.g. to `subprocess.call`).
+    # This will have to do for the moment.
+
+    # Some setup we have to do to get this test to play well with `pyfakefs`.
+    # Note: Cast to str looks redundant but is intentional (for python<=3.10).
+    # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests
+    fake_tmp_path = Path(str(tmp_path))
+    fs.create_dir(fake_tmp_path)
+
+    fake_cache_dir = Path(str(artifact_file_cache._cache_dir))
+    fake_cache_obj_dir = Path(str(artifact_file_cache._obj_dir))
+    fake_cache_temp_dir = Path(str(artifact_file_cache._temp_dir))
+    artifact_file_cache._cache_dir = fake_cache_dir
+    artifact_file_cache._obj_dir = fake_cache_obj_dir
+    artifact_file_cache._temp_dir = fake_cache_temp_dir
+    fs.create_dir(fake_cache_dir)
+    fs.create_dir(fake_cache_obj_dir)
+    fs.create_dir(fake_cache_temp_dir)
+
+    cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7
+    )
+    with cache_opener() as f:
+        f.write("test-123")
+
+    # Simulate a destination filepath on the mounted filesystem
+    dest_dir = fake_tmp_path / "mount"
+    dest_path = dest_dir / "dest.txt"
+    fs.create_dir(dest_dir)
+    fs.add_mount_point(str(dest_dir))
+
+    # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
+    # This is extra assurance that we're still testing what we expect to test
+    with pytest.raises(OSError) as excinfo:
+        os.rename(cache_path, dest_path)
+    assert excinfo.value.args[0] == errno.EXDEV
+
+    # Now simulate skipping the cache
+    artifact_file_cache._override_cache_path = dest_path
+    override_path, _, override_opener = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7
+    )
+
+    with override_opener() as f:
+        f.write("test-abc")
+
+    assert dest_path.read_text() == "test-abc"
 
 
 def test_check_md5_obj_path(artifact_file_cache):
