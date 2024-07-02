@@ -147,11 +147,44 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 		Path:   tempFile.Name(),
 		Url:    server.URL,
 		Offset: 5,
-		Length: 7,
+		Size:   7,
 	}
 
 	err = ft.Upload(task)
 	assert.NoError(t, err)
+}
+
+func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
+	entireContent := []byte("test content for upload")
+
+	chunkCheckHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
+	server := httptest.NewServer(chunkCheckHandler)
+
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	_, err = tempFile.Write(entireContent)
+	assert.NoError(t, err)
+	tempFile.Close()
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.Task{
+		Type:   filetransfer.UploadTask,
+		Path:   tempFile.Name(),
+		Url:    server.URL,
+		Offset: 17,
+		Size:   1000,
+	}
+
+	err = ft.Upload(task)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "offset + size exceeds the file size")
 }
 
 func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {

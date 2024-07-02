@@ -32,15 +32,14 @@ type Task struct {
 	// Headers to send on the upload
 	Headers []string
 
-	// Size is the size of the file
+	// Size is the number of bytes to upload
+	//
+	// If this is zero, then all bytes starting at `Offset` are uploaded; if non-zero,
+	// then that many bytes starting from `Offset` are uploaded.
 	Size int64
 
-	// Offset is the offset of the file
+	// Offset is the beginning of the file segment to upload
 	Offset int64
-
-	// Length is the length of the segment to upload
-	// If 0 the entire file is uploaded unless Offset > 0
-	Length int64
 
 	// Error, if any.
 	Err error

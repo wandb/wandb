@@ -44,7 +44,6 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
 	// open the file for reading and defer closing it
-	var reader io.ReadSeeker
 	file, err := os.Open(task.Path)
 	if err != nil {
 		return err
@@ -78,17 +77,17 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		)
 	}
 
-	if task.Offset > 0 || (task.Length > 0 && task.Length < stat.Size()) {
-		if task.Offset+task.Length > stat.Size() {
-			return fmt.Errorf("file transfer: upload: offset + length is greater than the file size")
-		}
-		sectionReader := io.NewSectionReader(file, task.Offset, task.Length)
-		reader = sectionReader
-		task.Size = task.Length
-	} else {
-		reader = file
-		task.Size = stat.Size()
+	if task.Offset+task.Size > stat.Size() {
+		// If the range exceeds the file size, there was some kind of error upstream.
+		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
 	}
+
+	if task.Size == 0 {
+		// If Size is 0, upload the remainder of the file.
+		task.Size = stat.Size() - task.Offset
+	}
+
+	reader := io.NewSectionReader(file, task.Offset, task.Size)
 
 	progressReader, err := NewProgressReader(
 		reader,
@@ -191,8 +190,6 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 }
 
 type ProgressReader struct {
-	// Note: this turns ProgressReader into a ReadSeeker, not just a Reader!
-	// The retryablehttp client will seek to 0 on every retry.
 	io.ReadSeeker
 	len      int
 	read     int

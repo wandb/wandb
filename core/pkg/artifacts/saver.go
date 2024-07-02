@@ -390,13 +390,12 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 		task := newUploadTask(fileInfo, path)
 		task.Offset = part.PartNumber * chunkSize
 		if part.PartNumber == int64(len(partInfo)) {
-			task.Length = statInfo.Size() - task.Offset
+			task.Size = statInfo.Size() - task.Offset
 		} else {
-			task.Length = chunkSize
+			task.Size = chunkSize
 		}
 		task.Headers = append(task.Headers, "content-md5:"+partData[i].HexMD5)
-		// TODO: I think length and type are added automatically at a lower level.
-		task.Headers = append(task.Headers, "content-length:"+strconv.FormatInt(task.Length, 10))
+		task.Headers = append(task.Headers, "content-length:"+strconv.FormatInt(task.Size, 10))
 		task.SetCompletionCallback(func(t *filetransfer.Task) {
 			subChan <- t
 			wg.Done()
