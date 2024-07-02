@@ -25,11 +25,6 @@ const (
 	//
 	// See https://github.com/wandb/core/pull/7339 for history.
 	maxFileLineBytes = (10 << 20) - (100 << 10)
-
-	// An approximate maximum size for a request.
-	//
-	// Requests are broken into pieces of size not much larger than this.
-	maxRequestSizeBytes = 10 << 20 // 10 MB
 )
 
 type ChunkTypeEnum int8
