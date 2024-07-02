@@ -115,37 +115,40 @@ class AzureHandler(StorageHandler):
             blob_properties = blob_client.get_blob_properties(
                 version_id=query.get("versionId")
             )
-            return [
-                self._create_entry(
-                    blob_properties,
-                    path=name or PurePosixPath(blob_name).name,
-                    ref=URIStr(
-                        f"{account_url}/{container_name}/{blob_properties.name}"
-                    ),
-                )
-            ]
+
+            if not self._is_directory_stub(blob_properties):
+                return [
+                    self._create_entry(
+                        blob_properties,
+                        path=name or PurePosixPath(blob_name).name,
+                        ref=URIStr(
+                            f"{account_url}/{container_name}/{blob_properties.name}"
+                        ),
+                    )
+                ]
 
         entries = []
         container_client = blob_service_client.get_container_client(container_name)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
-        for i, blob_properties in enumerate(
-            container_client.list_blobs(name_starts_with=f"{blob_name}/")
+        for blob_properties in container_client.list_blobs(
+            name_starts_with=f"{blob_name}/"
         ):
-            if i >= max_objects:
+            if len(entries) >= max_objects:
                 raise ValueError(
                     f"Exceeded {max_objects} objects tracked, pass max_objects to "
                     f"add_reference"
                 )
-            suffix = PurePosixPath(blob_properties.name).relative_to(blob_name)
-            entries.append(
-                self._create_entry(
-                    blob_properties,
-                    path=LogicalPath(name) / suffix if name else suffix,
-                    ref=URIStr(
-                        f"{account_url}/{container_name}/{blob_properties.name}"
-                    ),
+            if not self._is_directory_stub(blob_properties):
+                suffix = PurePosixPath(blob_properties.name).relative_to(blob_name)
+                entries.append(
+                    self._create_entry(
+                        blob_properties,
+                        path=LogicalPath(name) / suffix if name else suffix,
+                        ref=URIStr(
+                            f"{account_url}/{container_name}/{blob_properties.name}"
+                        ),
+                    )
                 )
-            )
         return entries
 
     def _get_module(self, name: str) -> ModuleType:
@@ -191,4 +194,13 @@ class AzureHandler(StorageHandler):
             digest=blob_properties.etag.strip('"'),
             size=blob_properties.size,
             extra=extra,
+        )
+
+    def _is_directory_stub(
+        self, blob_properties: "azure.storage.blob.BlobProperties"
+    ) -> bool:
+        return (
+            "metadata" in blob_properties
+            and "hdi_isfolder" in blob_properties["metadata"]
+            and blob_properties["metadata"]["hdi_isfolder"] == "true"
         )
