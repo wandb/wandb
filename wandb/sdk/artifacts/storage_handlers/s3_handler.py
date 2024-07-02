@@ -56,6 +56,7 @@ class S3Handler(StorageHandler):
             region_name=os.getenv("AWS_REGION"),
         )
         self._botocore = util.get_module("botocore")
+        self._boto_transfer = util.get_module("boto3.s3.transfer")
         return self._s3
 
     def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
@@ -136,7 +137,8 @@ class S3Handler(StorageHandler):
                 )
 
         with cache_open(mode="wb") as f:
-            obj.download_fileobj(f, ExtraArgs=extra_args)
+            transfer_config = self._boto_transfer.TransferConfig(use_threads=False)
+            obj.download_fileobj(f, ExtraArgs=extra_args, Config=transfer_config)
         return path
 
     def store_path(
