@@ -129,7 +129,7 @@ type FileStreamRequestReader struct {
 	isFullRequest bool
 }
 
-// NewRequestReader makes a request reader.
+// NewRequestReader makes a request reader and computes the request's size.
 //
 // The reader takes ownership of the request. Ownership is returned
 // to the caller if the reader is discarded; otherwise, the caller
@@ -137,11 +137,12 @@ type FileStreamRequestReader struct {
 // was consumed).
 //
 // requestSizeLimitBytes is an approximate limit to the amount of
-// data to include in the JSON request.
+// data to include in the JSON request. The second return value
+// indicates whether the request would be truncated to fit this.
 func NewRequestReader(
 	request *FileStreamRequest,
 	requestSizeLimitBytes int,
-) *FileStreamRequestReader {
+) (*FileStreamRequestReader, bool) {
 	requestSizeApprox := 0
 
 	// Increases requestSizeApprox and returns the number of strings to
@@ -203,7 +204,7 @@ func NewRequestReader(
 		reader.isFullRequest = true
 	}
 
-	return reader
+	return reader, !reader.isFullRequest
 }
 
 // FileStreamState is state necessary to turn a [FileStreamRequest]

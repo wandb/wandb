@@ -32,7 +32,7 @@ func (cl CollectLoop) Start(
 		}
 
 		for !isDone {
-			reader := NewRequestReader(buffer, maxRequestSizeBytes)
+			reader, _ := NewRequestReader(buffer, maxRequestSizeBytes)
 			transmissions <- reader
 			buffer, isDone = reader.Next()
 		}
@@ -89,7 +89,7 @@ func (cl CollectLoop) transmit(
 	transmissions chan<- *FileStreamRequestReader,
 ) (*FileStreamRequest, bool) {
 	for {
-		reader := NewRequestReader(buffer, maxRequestSizeBytes)
+		reader, _ := NewRequestReader(buffer, maxRequestSizeBytes)
 
 		select {
 		case transmissions <- reader:
@@ -107,10 +107,22 @@ func (cl CollectLoop) transmit(
 
 // shouldSendASAP returns a request should be made regardless of rate limits.
 func shouldSendASAP(request *FileStreamRequest) bool {
+	_, isTruncated := NewRequestReader(request, maxRequestSizeBytes)
+
+	switch {
+	// If we've accumulated a request of the maximum size, send it immediately.
+	case isTruncated:
+		return true
+
 	// Send the "pre-empting" state immediately.
 	//
 	// This state indicates that the process may be about to yield the
 	// CPU for an unknown amount of time, and we want to let the backend
 	// know ASAP.
-	return request.Preempting
+	case request.Preempting:
+		return true
+
+	default:
+		return false
+	}
 }
