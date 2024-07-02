@@ -32,11 +32,11 @@ type Task struct {
 	// Headers to send on the upload
 	Headers []string
 
-	// Length is the size of the file
+	// Size is the number of bytes to upload
 	//
 	// If this is zero, the entire file is uploaded; if non-zero,
 	// then that many bytes starting from `Offset` are uploaded.
-	Length int64
+	Size int64
 
 	// Offset is the beginning of the file segment to upload
 	Offset int64
@@ -64,7 +64,7 @@ func (ut *Task) SetCompletionCallback(callback func(*Task)) {
 
 func (ut *Task) String() string {
 	return fmt.Sprintf(
-		"Task{FileKind: %d, Type: %d, Path: %s, Name: %s, Url: %s, Length: %d}",
-		ut.FileKind, ut.Type, ut.Path, ut.Name, ut.Url, ut.Length,
+		"Task{FileKind: %d, Type: %d, Path: %s, Name: %s, Url: %s, Size: %d}",
+		ut.FileKind, ut.Type, ut.Path, ut.Name, ut.Url, ut.Size,
 	)
 }

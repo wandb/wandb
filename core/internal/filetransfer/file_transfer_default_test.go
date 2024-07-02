@@ -147,7 +147,7 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 		Path:   tempFile.Name(),
 		Url:    server.URL,
 		Offset: 5,
-		Length: 7,
+		Size:   7,
 	}
 
 	err = ft.Upload(task)
@@ -179,12 +179,12 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 		Path:   tempFile.Name(),
 		Url:    server.URL,
 		Offset: 17,
-		Length: 1000,
+		Size:   1000,
 	}
 
 	err = ft.Upload(task)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "offset + length exceeds the file size")
+	assert.Contains(t, err.Error(), "offset + size exceeds the file size")
 }
 
 func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {

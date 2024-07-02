@@ -77,21 +77,21 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		)
 	}
 
-	if task.Offset+task.Length > stat.Size() {
+	if task.Offset+task.Size > stat.Size() {
 		// If the range exceeds the file size, there was some kind of error upstream.
-		return fmt.Errorf("file transfer: upload: offset + length exceeds the file size")
+		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
 	}
 
-	if task.Offset == 0 && task.Length == 0 {
+	if task.Offset == 0 && task.Size == 0 {
 		// If both offset and size are zero (default), upload the entire file.
-		task.Length = stat.Size()
+		task.Size = stat.Size()
 	}
 
-	reader := io.NewSectionReader(file, task.Offset, task.Length)
+	reader := io.NewSectionReader(file, task.Offset, task.Size)
 
 	progressReader, err := NewProgressReader(
 		reader,
-		task.Length,
+		task.Size,
 		func(processed int, total int) {
 			if task.ProgressCallback != nil {
 				task.ProgressCallback(processed, total)
