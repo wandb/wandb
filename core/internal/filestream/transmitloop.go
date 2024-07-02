@@ -67,15 +67,29 @@ func readWithHeartbeat(
 	heartbeat waiting.Stopwatch,
 ) (*FileStreamRequestJSON, bool) {
 	select {
-	// Send data as it comes in.
+	// If data is available now, send it.
 	case x, ok := <-data:
 		if !ok {
 			return nil, false
 		}
 		return x.GetJSON(state), true
 
-	// If data doesn't come in time, send a heartbeat.
-	case <-heartbeat.Wait():
-		return &FileStreamRequestJSON{}, true
+	// Otherwise, wait for data to arrive or a heartbeat to happen.
+	//
+	// We need this in a separate 'default' case because Go selects a random
+	// available case, so if data is available and the stopwatch is finished,
+	// Go might send a heartbeat instead of the data. This could be a problem
+	// on slow internet connections with a long roundtrip time.
+	default:
+		select {
+		case x, ok := <-data:
+			if !ok {
+				return nil, false
+			}
+			return x.GetJSON(state), true
+
+		case <-heartbeat.Wait():
+			return &FileStreamRequestJSON{}, true
+		}
 	}
 }
