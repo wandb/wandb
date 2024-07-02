@@ -42,14 +42,15 @@ def test_opener_rejects_append_mode(artifact_file_cache):
 def test_opener_works_across_filesystem_boundaries(
     tmp_path, artifact_file_cache, fs: FakeFilesystem
 ):
-    # This is not ideal, as we'd much rather test e.g. `Artifact.download()` directly or E2E.
+    # This isn't ideal, we'd rather test e.g. `Artifact.download` directly.
     #
-    # However, we're using `pyfakefs` to mock mounted/partitioned filesystems, and it doesn't play well with
-    # some of the internals of ArtifactFileCache without additional, potentially brittle/complicated patches
-    # to unrelated operations (e.g. around `subprocess.call()`).  This will have to do for the moment.
+    # However, we're using `pyfakefs` to mock mounted/partitioned filesystems,
+    # and it doesn't play well with some of the internals of ArtifactFileCache
+    # without extra, potentially brittle patches (e.g. to `subprocess.call`).
+    # This will have to do for the moment.
 
-    # Some setup/patching we have to do to get this test to play well with `pyfakefs`
-    # Note: Cast to str looks redundant, but is intentional (for python < 3.10).
+    # Some setup we have to do to get this test to play well with `pyfakefs`.
+    # Note: Cast to str looks redundant but is intentional (for python<=3.10).
     # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests
     fake_tmp_path = Path(str(tmp_path))
     fs.create_dir(fake_tmp_path)
