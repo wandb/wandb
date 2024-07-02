@@ -329,8 +329,8 @@ func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.
 }
 
 const (
-	S3MinMultiUploadSize = 2 << 30 // 2 GiB
-	S3MaxMultiUploadSize = 5 << 40 // 5 TiB
+	S3MinMultiUploadSize = 2 << 30 // 2 GiB, the threshold we've chosen to switch to multipart
+	S3MaxMultiUploadSize = 5 << 40 // 5 TiB, maximum possible object size
 	S3MaxParts           = 10000
 )
 
@@ -341,9 +341,12 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	}
 	fileSize := fileInfo.Size()
 
-	if fileSize < S3MinMultiUploadSize || fileSize > S3MaxMultiUploadSize {
+	if fileSize < S3MinMultiUploadSize {
 		// We don't need to use multipart for small files.
 		return nil, nil
+	}
+	if fileSize > S3MaxMultiUploadSize {
+		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
 	}
 
 	file, err := os.Open(path)
@@ -353,7 +356,7 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	defer file.Close()
 
 	partsInfo := []gql.UploadPartsInput{}
-	partNumber := int64(1)
+	partNumber := int64(0)
 	buffer := make([]byte, getChunkSize(fileSize))
 	for {
 		bytesRead, err := file.Read(buffer)
@@ -390,8 +393,9 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 	for i, part := range partInfo {
 		task := newUploadTask(fileInfo, path)
 		task.Offset = part.PartNumber * chunkSize
-		if part.PartNumber == int64(len(partInfo)) {
-			task.Size = statInfo.Size() - task.Offset
+		remainingSize := statInfo.Size() - task.Offset
+		if remainingSize < chunkSize {
+			task.Size = remainingSize
 		} else {
 			task.Size = chunkSize
 		}
@@ -404,8 +408,11 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 		wg.Add(1)
 		as.FileTransferManager.AddTask(task)
 	}
-	wg.Wait()
-	close(subChan)
+
+	go func() {
+		wg.Wait()
+		close(subChan)
+	}()
 
 	for t := range subChan {
 		if t.Err != nil {
@@ -425,7 +432,7 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 func getChunkSize(fileSize int64) int64 {
 	// Default to 100MiB chunks
 	const defaultChunkSize = int64(100 * 1024 * 1024)
-	if fileSize < defaultChunkSize * S3MaxParts {
+	if fileSize < defaultChunkSize*S3MaxParts {
 		return defaultChunkSize
 	}
 	// Use a larger chunk size if we would need more than 10,000 chunks.
@@ -593,7 +600,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	if as.Artifact.Finalize {
 		err = as.commitArtifact(artifactID)
 		if err != nil {
-			return "", fmt.Errorf("ArtifactSacer.commitArtifact: %w", err)
+			return "", fmt.Errorf("ArtifactSaver.commitArtifact: %w", err)
 		}
 
 		if as.Artifact.UseAfterCommit {
