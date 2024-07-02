@@ -1,5 +1,7 @@
 -r requirements_test.txt
 
+typing_extensions
+
 pytest
 hypothesis
 hypothesis-fspaths
