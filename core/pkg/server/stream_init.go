@@ -158,7 +158,7 @@ func NewFileStream(
 	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
-		Settings:          settings.Proto,
+		Settings:          settings,
 		Logger:            logger,
 		Printer:           printer,
 		ApiClient:         fileStreamRetryClient,
