@@ -1,8 +1,8 @@
 package filestream
 
 import (
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // Update is a modification to the filestream's next API request.
@@ -15,7 +15,7 @@ type UpdateContext struct {
 	// MakeRequest queues a filestream API request.
 	MakeRequest func(*FileStreamRequest)
 
-	Settings *service.Settings
+	Settings *settings.Settings
 
 	Logger  *observability.CoreLogger
 	Printer *observability.Printer

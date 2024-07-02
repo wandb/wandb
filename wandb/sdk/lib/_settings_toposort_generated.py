@@ -26,6 +26,7 @@ _Setting = Literal[
     "_disable_machine_info",
     "_executable",
     "_extra_http_headers",
+    "_file_stream_max_bytes",
     "_file_stream_retry_max",
     "_file_stream_retry_wait_min_seconds",
     "_file_stream_retry_wait_max_seconds",
