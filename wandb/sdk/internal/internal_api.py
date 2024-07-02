@@ -232,14 +232,14 @@ class Api:
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
+        self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
-        extra_http_headers.update(_thread_local_api_settings.headers or {})
+        self._extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
         if self.access_token is not None:
-            extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
+            self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
