@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "typing_extensions"]
 build-backend = "hatchling.build"
 
 [project]

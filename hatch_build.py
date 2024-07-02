@@ -8,6 +8,7 @@ import sysconfig
 from typing import Any, Dict, List
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
+from typing_extensions import override
 
 # A small hack to allow importing build scripts from the source tree.
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
@@ -27,6 +28,7 @@ _WANDB_BUILD_SKIP_APPLE = "WANDB_BUILD_SKIP_APPLE"
 
 
 class CustomBuildHook(BuildHookInterface):
+    @override
     def initialize(self, version: str, build_data: Dict[str, Any]) -> None:
         if self.target_name == "wheel":
             self._prepare_wheel(build_data)
