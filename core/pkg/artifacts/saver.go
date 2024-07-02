@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"net/url"
 	"os"
 	"strconv"
@@ -423,12 +424,13 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 
 func getChunkSize(fileSize int64) int64 {
 	// Default to 100MiB chunks
-	chunkSize := int64(100 * 1024 * 1024)
-	// Use a larger chunk size if we would need more than 10,000 chunks.
-	if chunkSize*S3MaxParts < fileSize {
-		chunkSize = int64(fileSize/S3MaxParts) + 1
-		chunkSize = (chunkSize + 4095) &^ 4095 // Round up to the nearest multiple of 4096.
+	const defaultChunkSize = int64(100 * 1024 * 1024)
+	if fileSize < defaultChunkSize * S3MaxParts {
+		return defaultChunkSize
 	}
+	// Use a larger chunk size if we would need more than 10,000 chunks.
+	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
+	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096) // Round up to the nearest multiple of 4096.
 	return chunkSize
 }
 
