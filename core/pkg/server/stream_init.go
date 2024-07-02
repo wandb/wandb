@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -84,9 +85,16 @@ func NewGraphQLClient(
 	settings *settings.Settings,
 	peeker *observability.Peeker,
 ) graphql.Client {
+	// TODO: This is used for service account to associate the run with the
+	// correct user. Note that we are using environment variables here, instead
+	// of the settings object. This is because the settings object will populate
+	// both username and email and it might be incosistent with partial environment
+	// variables. We should consider using the settings object here.
+	// Leaving this as is for now just to avoid breakage, but we should consider
+	// refactoring this.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   settings.Proto.GetUsername().GetValue(),
-		"X-WANDB-USER-EMAIL": settings.Proto.GetEmail().GetValue(),
+		"X-WANDB-USERNAME":   os.Getenv("WANDB_USERNAME"),
+		"X-WANDB-USER-EMAIL": os.Getenv("WANDB_USER_EMAIL"),
 	}
 	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
 
