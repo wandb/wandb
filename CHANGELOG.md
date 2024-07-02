@@ -52,6 +52,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Added `api.runs().histories()` to fetch history metrics for runs that meet specified conditions by @thanos-wandb in https://github.com/wandb/wandb/pull/7690
 - Display warning when Kubernetes pod fails to schedule by @TimH98 in https://github.com/wandb/wandb/pull/7576
 - Added `ArtifactCollection.save()` to allow persisting changes by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7555
+- Added --add_tag and --remove_tag to wandb sync to be able to add and remove run tags in offline runs prior to syncing and raises warning when a tag does not exist when trying to remove it by @umakrishnaswamy in https://github.com/wandb/wandb/pull/7678
 - Added the ability to overwrite history of previous runs at an arbitrary step and continue logging from that step by @dannygoldstein in https://github.com/wandb/wandb/pull/7711
 - Added new Workspace API for programatically editing W&B Workspaces by @andrewtruong in https://github.com/wandb/wandb/pull/7728
 - Added `Artifact.unlink()` to allow programmatic unlinking of artifacts by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7735
