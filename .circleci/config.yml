@@ -550,8 +550,9 @@ jobs:
             setx PATH '/c/nox-tests-python/python/tools;%PATH%'
 
       - run:
-          name: Install system deps (ffmpeg)
-          command: choco install -y ffmpeg
+          name: Install system deps (ffmpeg, gcc)
+          # We install mingw so that gcc is available, which is needed for cgo.
+          command: choco install -y ffmpeg mingw
 
       - install_go
       - run-nox-tests:

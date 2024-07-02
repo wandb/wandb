@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // A fake implementation of FileStream.
@@ -30,7 +30,7 @@ func (fs *FakeFileStream) GetUpdates() []filestream.Update {
 
 // GetRequest returns a request accumulated from applying all updates.
 func (fs *FakeFileStream) GetRequest(
-	settings *service.Settings,
+	settings *settings.Settings,
 ) *filestream.FileStreamRequest {
 	fullRequest := &filestream.FileStreamRequest{}
 

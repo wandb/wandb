@@ -8,6 +8,24 @@ import (
 	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
+func TestSizeLimit_HugeLine_SentAlone(t *testing.T) {
+	reader, isTruncated := NewRequestReader(
+		&FileStreamRequest{HistoryLines: []string{"too large", "next"}},
+		0,
+	)
+
+	json := reader.GetJSON(&FileStreamState{})
+	next, done := reader.Next()
+
+	// Even though "too large" is above the size limit (0) we do want
+	// to eventually send it. There are other guards elsewhere to avoid
+	// this case and inform the user.
+	assert.True(t, isTruncated)
+	assert.Equal(t, []string{"too large"}, json.Files[HistoryFileName].Content)
+	assert.Equal(t, []string{"next"}, next.HistoryLines)
+	assert.False(t, done)
+}
+
 func TestHistory_MergeAppends(t *testing.T) {
 	req1 := &FileStreamRequest{HistoryLines: []string{"original"}}
 	req2 := &FileStreamRequest{HistoryLines: []string{"new"}}
@@ -17,18 +35,34 @@ func TestHistory_MergeAppends(t *testing.T) {
 	assert.Equal(t, []string{"original", "new"}, req1.HistoryLines)
 }
 
-func TestHistory_Read(t *testing.T) {
-	reader := NewRequestReader(
-		&FileStreamRequest{HistoryLines: []string{"one", "two"}})
+func TestHistory_ReadFull(t *testing.T) {
+	reader, _ := NewRequestReader(
+		&FileStreamRequest{HistoryLines: []string{"one", "two"}}, 999)
 	state := &FileStreamState{HistoryLineNum: 5}
 
 	json := reader.GetJSON(state)
-	next, _ := reader.Next()
+	next, done := reader.Next()
 
 	assert.Equal(t, 7, state.HistoryLineNum)
 	assert.Equal(t, 5, json.Files[HistoryFileName].Offset)
 	assert.Equal(t, []string{"one", "two"}, json.Files[HistoryFileName].Content)
 	assert.Empty(t, next.HistoryLines)
+	assert.True(t, done)
+}
+
+func TestHistory_ReadPartial(t *testing.T) {
+	reader, _ := NewRequestReader(
+		&FileStreamRequest{HistoryLines: []string{"one", "two"}}, 3)
+	state := &FileStreamState{HistoryLineNum: 5}
+
+	json := reader.GetJSON(state)
+	next, done := reader.Next()
+
+	assert.Equal(t, 6, state.HistoryLineNum)
+	assert.Equal(t, 5, json.Files[HistoryFileName].Offset)
+	assert.Equal(t, []string{"one"}, json.Files[HistoryFileName].Content)
+	assert.Equal(t, []string{"two"}, next.HistoryLines)
+	assert.False(t, done)
 }
 
 func TestEvents_MergeAppends(t *testing.T) {
@@ -40,18 +74,34 @@ func TestEvents_MergeAppends(t *testing.T) {
 	assert.Equal(t, []string{"original", "new"}, req1.EventsLines)
 }
 
-func TestEvents_Read(t *testing.T) {
-	reader := NewRequestReader(
-		&FileStreamRequest{EventsLines: []string{"one", "two"}})
+func TestEvents_ReadFull(t *testing.T) {
+	reader, _ := NewRequestReader(
+		&FileStreamRequest{EventsLines: []string{"one", "two"}}, 999)
 	state := &FileStreamState{EventsLineNum: 5}
 
 	json := reader.GetJSON(state)
-	next, _ := reader.Next()
+	next, done := reader.Next()
 
 	assert.Equal(t, 7, state.EventsLineNum)
 	assert.Equal(t, 5, json.Files[EventsFileName].Offset)
 	assert.Equal(t, []string{"one", "two"}, json.Files[EventsFileName].Content)
 	assert.Empty(t, next.EventsLines)
+	assert.True(t, done)
+}
+
+func TestEvents_ReadPartial(t *testing.T) {
+	reader, _ := NewRequestReader(
+		&FileStreamRequest{EventsLines: []string{"one", "two"}}, 3)
+	state := &FileStreamState{EventsLineNum: 5}
+
+	json := reader.GetJSON(state)
+	next, done := reader.Next()
+
+	assert.Equal(t, 6, state.EventsLineNum)
+	assert.Equal(t, 5, json.Files[EventsFileName].Offset)
+	assert.Equal(t, []string{"one"}, json.Files[EventsFileName].Content)
+	assert.Equal(t, []string{"two"}, next.EventsLines)
+	assert.False(t, done)
 }
 
 func TestSummary_MergeTakesLatest(t *testing.T) {
@@ -73,7 +123,7 @@ func TestSummary_MergeIgnoresEmpty(t *testing.T) {
 }
 
 func TestSummary_Read(t *testing.T) {
-	reader := NewRequestReader(&FileStreamRequest{LatestSummary: "summary"})
+	reader, _ := NewRequestReader(&FileStreamRequest{LatestSummary: "summary"}, 99)
 	state := &FileStreamState{SummaryLineNum: 9}
 
 	json := reader.GetJSON(state)
@@ -103,11 +153,11 @@ func TestConsole_MergeUpdatesPreferringLast(t *testing.T) {
 		req1.ConsoleLines.ToRuns())
 }
 
-func TestConsole_Read_ConsecutiveLines(t *testing.T) {
+func TestConsole_ReadFull(t *testing.T) {
 	req := &FileStreamRequest{}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(1, "line 1")
-	reader := NewRequestReader(req)
+	reader, _ := NewRequestReader(req, 999)
 	state := &FileStreamState{ConsoleLineOffset: 1}
 
 	json := reader.GetJSON(state)
@@ -122,21 +172,31 @@ func TestConsole_Read_ConsecutiveLines(t *testing.T) {
 	assert.True(t, done)
 }
 
-func TestConsole_Read_NonconsecutiveLines(t *testing.T) {
+func TestConsole_ReadPartial_OneLineBlock(t *testing.T) {
 	req := &FileStreamRequest{}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(1, "line 1")
-	req.ConsoleLines.Put(99, "line 99")
-	reader := NewRequestReader(req)
+	reader, _ := NewRequestReader(req, 6)
 
 	json := reader.GetJSON(&FileStreamState{})
 	next, done := reader.Next()
 
-	// Only the first run of lines is sent.
-	assert.Equal(t,
-		[]string{"line 0", "line 1"},
-		json.Files[OutputFileName].Content)
-	// The rest of the lines are in the "next" request.
+	assert.Equal(t, []string{"line 0"}, json.Files[OutputFileName].Content)
+	assert.Equal(t, 1, next.ConsoleLines.Len())
+	assert.Equal(t, "line 1", next.ConsoleLines.GetOrZero(1))
+	assert.False(t, done)
+}
+
+func TestConsole_ReadPartial_ManyLineBlocks(t *testing.T) {
+	req := &FileStreamRequest{}
+	req.ConsoleLines.Put(0, "line 0")
+	req.ConsoleLines.Put(99, "line 99")
+	reader, _ := NewRequestReader(req, 6)
+
+	json := reader.GetJSON(&FileStreamState{})
+	next, done := reader.Next()
+
+	assert.Equal(t, []string{"line 0"}, json.Files[OutputFileName].Content)
 	assert.Equal(t, 1, next.ConsoleLines.Len())
 	assert.Equal(t, "line 99", next.ConsoleLines.GetOrZero(99))
 	assert.False(t, done)
@@ -161,12 +221,12 @@ func TestUploadedFiles_MergeIsUnion(t *testing.T) {
 }
 
 func TestUploadedFiles_Read(t *testing.T) {
-	reader := NewRequestReader(&FileStreamRequest{
+	reader, _ := NewRequestReader(&FileStreamRequest{
 		UploadedFiles: map[string]struct{}{
 			"file1": {},
 			"file2": {},
 		},
-	})
+	}, 999)
 
 	json := reader.GetJSON(&FileStreamState{})
 	next, _ := reader.Next()
@@ -198,7 +258,8 @@ func TestExitCode_MergeIgnoresIfNotComplete(t *testing.T) {
 }
 
 func TestExitCode_Read_Done(t *testing.T) {
-	reader := NewRequestReader(&FileStreamRequest{Complete: true, ExitCode: 5})
+	reader, _ := NewRequestReader(
+		&FileStreamRequest{Complete: true, ExitCode: 5}, 99)
 
 	json := reader.GetJSON(&FileStreamState{})
 
@@ -211,7 +272,7 @@ func TestExitCode_Read_NotDone(t *testing.T) {
 	req := &FileStreamRequest{Complete: true, ExitCode: 5}
 	req.ConsoleLines.Put(0, "line 0")
 	req.ConsoleLines.Put(9, "line 9")
-	reader := NewRequestReader(req)
+	reader, _ := NewRequestReader(req, 99)
 
 	json := reader.GetJSON(&FileStreamState{})
 

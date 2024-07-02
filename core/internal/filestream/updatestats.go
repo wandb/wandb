@@ -20,7 +20,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_wandb"] = true
 	timestamp := float64(u.Record.GetTimestamp().Seconds) + float64(u.Record.GetTimestamp().Nanos)/1e9
 	row["_timestamp"] = timestamp
-	row["_runtime"] = timestamp - ctx.Settings.XStartTime.GetValue()
+	row["_runtime"] = u.Record.Timestamp.AsTime().Sub(ctx.Settings.GetStartTime()).Seconds()
 
 	for _, item := range u.Record.Item {
 		var val interface{}
