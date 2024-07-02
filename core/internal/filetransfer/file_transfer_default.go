@@ -77,10 +77,20 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		)
 	}
 
-	task.Size = stat.Size()
+	if task.Offset+task.Size > stat.Size() {
+		// If the range exceeds the file size, there was some kind of error upstream.
+		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
+	}
+
+	if task.Size == 0 {
+		// If Size is 0, upload the remainder of the file.
+		task.Size = stat.Size() - task.Offset
+	}
+
+	reader := io.NewSectionReader(file, task.Offset, task.Size)
 
 	progressReader, err := NewProgressReader(
-		file,
+		reader,
 		task.Size,
 		func(processed int, total int) {
 			if task.ProgressCallback != nil {
@@ -180,27 +190,25 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 }
 
 type ProgressReader struct {
-	// Note: this turns ProgressReader into a ReadSeeker, not just a Reader!
-	// The retryablehttp client will seek to 0 on every retry.
-	*os.File
+	io.ReadSeeker
 	len      int
 	read     int
 	callback func(processed, total int)
 }
 
-func NewProgressReader(file *os.File, size int64, callback func(processed, total int)) (*ProgressReader, error) {
+func NewProgressReader(reader io.ReadSeeker, size int64, callback func(processed, total int)) (*ProgressReader, error) {
 	if size > math.MaxInt {
 		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
 	return &ProgressReader{
-		File:     file,
-		len:      int(size),
-		callback: callback,
+		ReadSeeker: reader,
+		len:        int(size),
+		callback:   callback,
 	}, nil
 }
 
 func (pr *ProgressReader) Read(p []byte) (int, error) {
-	n, err := pr.File.Read(p)
+	n, err := pr.ReadSeeker.Read(p)
 	if err != nil {
 		return n, err // Return early if there's an error
 	}
