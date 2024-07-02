@@ -2908,16 +2908,17 @@ class Run:
         Call `download` or `file` on the returned object to get the contents locally.
 
         Arguments:
-            artifact_or_name: (str or Artifact) An artifact name.
-                May be prefixed with entity/project/. Valid names
-                can be in the following forms:
-                    - name:version
-                    - name:alias
-                You can also pass an Artifact object created by calling `wandb.Artifact`
-            type: (str, optional) The type of artifact to use.
-            aliases: (list, optional) Aliases to apply to this artifact
-            use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
-                                       Will be shown in UI.
+            artifact_or_name: (str or Artifact) The name of the artifact. The string 
+                must contain the name of the artifact and either the alias or the 
+                artifact's version. It is advised that you include the entity and project as well. 
+                For example: 'entity/project/aritifact-name:alias'. See the 
+                [W&B Registry docs](https://docs.wandb.ai/guides/registry) for 
+                information on how to correctly specify the name of an artifact linked to a registry.
+            type: (str, optional) The artifact's type. The type is specified when you 
+                create the artifact. Common artifact types include 
+                `model` and `dataset`.
+            aliases: (list, optional) Aliases to apply to this artifact.
+            use_as: (string, optional) A string that describes the purpose of the artifact.
 
         Returns:
             An `Artifact` object.
