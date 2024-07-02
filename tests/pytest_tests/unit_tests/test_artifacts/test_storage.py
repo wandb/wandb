@@ -81,7 +81,7 @@ def test_opener_works_across_filesystem_boundaries(
     # This is extra assurance that we're still testing what we expect to test
     with pytest.raises(OSError) as excinfo:
         os.rename(cache_path, dest_path)
-        assert excinfo.value.args[0] == errno.EXDEV
+    assert excinfo.value.args[0] == errno.EXDEV
 
     # Now simulate skipping the cache
     artifact_file_cache._override_cache_path = dest_path
