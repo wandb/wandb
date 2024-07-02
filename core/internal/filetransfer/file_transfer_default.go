@@ -82,9 +82,9 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
 	}
 
-	if task.Offset == 0 && task.Size == 0 {
-		// If both offset and size are zero (default), upload the entire file.
-		task.Size = stat.Size()
+	if task.Size == 0 {
+		// If Size is 0, upload the remainder of the file.
+		task.Size = stat.Size() - task.Offset
 	}
 
 	reader := io.NewSectionReader(file, task.Offset, task.Size)

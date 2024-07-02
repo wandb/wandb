@@ -34,7 +34,7 @@ type Task struct {
 
 	// Size is the number of bytes to upload
 	//
-	// If this is zero, the entire file is uploaded; if non-zero,
+	// If this is zero, then all bytes starting at `Offset` are uploaded; if non-zero,
 	// then that many bytes starting from `Offset` are uploaded.
 	Size int64
 
