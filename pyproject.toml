@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "typing_extensions"]
 build-backend = "hatchling.build"
 
 [project]
@@ -21,10 +21,10 @@ dependencies = [
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
     "setuptools",
-    "protobuf>=3.12.0,!=4.21.0,<5; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
+    "protobuf>=3.12.0,!=4.21.0,<6; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,<6; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<6; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<6; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
     "platformdirs",
@@ -102,8 +102,7 @@ launch = [
 models = ["cloudpickle"]
 perf = ["orjson"]
 importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
-reports = ["pydantic>=2.0.0"]
-
+workspaces = ["wandb-workspaces"]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -171,8 +170,13 @@ select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
-    "D1",    # Allow missing docstrings.
-    "D417",  # Don't require descriptions for all arguments.
+    # pydocstyle rules: https://docs.astral.sh/ruff/rules/#pydocstyle-d
+    "D100",  # Allow missing docstrings in modules.
+    "D101",  # Allow missing docstrings in classes.
+    "D104",  # Allow missing docstrings in packages.
+    "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
+    "D106",  # Allow missing docstrings in nested classes.
+    "D107",  # Allow missing docstrings in __init__ methods.
     "UP022",
     "UP032", # Allow using format instead of f-string.
     "UP036",
@@ -192,7 +196,22 @@ ignore-overlong-task-comments = true
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
+ignore-decorators = [
+    # Allow undocumented @property descriptors for now.
+    # As of May 2024, many in the public API module(s) currently lack docs, or may plausibly have been intended
+    # for internal use only.  Consider removing this exemption in the future, when/if/as appropriate.
+    "property",
+]
+
 [tool.ruff.lint.per-file-ignores]
+# Ensure stricter docstring requirements for public API module(s).
+"!wandb/apis/public/api.py" = [ # Consider expanding to other `wandb.api.public` submodules as well.
+    "D101", # Require docstrings in public classes
+    "D102", # Require docstrings in public methods
+    "D103", # Require docstrings in public functions
+    "D417", # Require descriptions for all arguments
+]
+
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
 "wandb/cli/cli.py" = ["C901"]
@@ -203,9 +222,13 @@ convention = "google"
 "wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
-"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "D", "E", "F", "N", "UP026"]
+
+# Don't require docstrings on test functions.
+"tests/**" = ["D"]
+
+"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "E", "F", "N", "UP026"]
 "tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
-"tests/functional_tests/t0_main/metaflow/**" = ["D", "N806"]
+"tests/functional_tests/t0_main/metaflow/**" = ["N806"]
 
 
 [tool.mypy]

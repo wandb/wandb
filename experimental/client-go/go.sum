@@ -125,6 +125,8 @@ github.com/tklauser/numcpus v0.7.0 h1:yjuerZP127QG9m5Zh/mSO4wqurYil27tHrqwRoRjpr
 github.com/tklauser/numcpus v0.7.0/go.mod h1:bb6dMVcj8A42tSE7i32fsIUCbQNllK5iDguyOZRUzAY=
 github.com/vektah/gqlparser/v2 v2.5.11 h1:JJxLtXIoN7+3x6MBdtIP59TP1RANnY7pXOaDnADQSf8=
 github.com/vektah/gqlparser/v2 v2.5.11/go.mod h1:1rCcfwB2ekJofmluGWXMSEnPMZgbxzwj6FaZ/4OT8Cc=
+github.com/wandb/segmentio-encoding v0.0.0-20240626235424-a08f80ebfb91 h1:13i+752LzQ9z3L8Ipm7HtMpvajgE8HM/atoVB4EiU7w=
+github.com/wandb/segmentio-encoding v0.0.0-20240626235424-a08f80ebfb91/go.mod h1:mQUy829Xm7S6zYNDQqOCqS2/iHpPARu+zN7BbWGywFk=
 github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635 h1:k7PFWbQaatq7N9Iuj8tzHOqeZ0Nw/GtIEp3+BYZgJAQ=
 github.com/wandb/simplejsonext v0.0.0-20240325214351-2a76dcabf635/go.mod h1:1C0JeI1VoqmKoe+DlmsZwnGYRmFBrZlTT1id1sbPJFI=
 github.com/wandb/wandb/core v0.0.0-20240502211842-3579a7c6fe44 h1:Z8JzIepRw/pYfJeOmkdbjmUK64J0TryLKtesJQHwTZQ=

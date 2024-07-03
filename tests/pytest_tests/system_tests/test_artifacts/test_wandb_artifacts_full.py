@@ -20,7 +20,7 @@ sm = wandb.wandb_sdk.internal.sender.SendManager
 def test_add_table_from_dataframe(wandb_init):
     import pandas as pd
 
-    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float_)
+    df_float = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float64)
     df_float32 = pd.DataFrame([[1, 2.0, 3.0]], dtype=np.float32)
     df_bool = pd.DataFrame([[True, False, True]], dtype=np.bool_)
 
@@ -31,7 +31,7 @@ def test_add_table_from_dataframe(wandb_init):
 
     wb_table_float = wandb.Table(dataframe=df_float)
     wb_table_float32 = wandb.Table(dataframe=df_float32)
-    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float_))
+    wb_table_float32_recast = wandb.Table(dataframe=df_float32.astype(np.float64))
     wb_table_bool = wandb.Table(dataframe=df_bool)
     wb_table_timestamp = wandb.Table(dataframe=df_timestamp)
 
@@ -212,15 +212,24 @@ def test_remove_after_log(wandb_init):
             retrieved.remove("file1.txt")
 
 
-def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    # Valid values for `skip_cache` in `Artifact.download()`
+    "skip_download_cache",
+    [None, False, True],
+)
+def test_download_respects_skip_cache(
+    wandb_init, tmp_path, monkeypatch, skip_download_cache
+):
     # Setup cache dir
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
     cache = artifact_file_cache.get_artifact_file_cache()
 
     artifact = wandb.Artifact(name="cache-test", type="dataset")
+    orig_content = "test123"
     file_path = Path(tmp_path / "text.txt")
-    with open(file_path, "w") as f:
-        f.write("test123")
+    file_path.write_text(orig_content)
+
+    # Don't skip cache for setup
     entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
 
     with wandb_init() as run:
@@ -228,16 +237,29 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
     artifact.wait()
 
     # Ensure the uploaded file is in the cache.
-    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    cache_pathstr, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
     assert not hit
 
-    # Manually write a file into the cache path to ensure that it's the one that is used.
+    # Manually write a file into the cache path to check that it's:
+    # - used, if not skipping the cache (default behavior)
+    # - ignored, if skipping the cache
     # This is kind of evil and might break if we later force cache validity.
-    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_path, "w") as f:
-        f.write("corrupt")
-    download_root = Path(artifact.download(tmp_path / "download_root"))
-    assert (download_root / "text.txt").read_text() == "corrupt"
+    replaced_cache_content = "corrupt"
+
+    cache_path = Path(cache_pathstr)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(replaced_cache_content)
+
+    dest_dir = tmp_path / "download_root"
+    download_root = Path(artifact.download(dest_dir, skip_cache=skip_download_cache))
+    downloaded_content = (download_root / "text.txt").read_text()
+
+    if skip_download_cache in (None, False):
+        assert downloaded_content == replaced_cache_content
+        assert downloaded_content != orig_content
+    else:
+        assert downloaded_content != replaced_cache_content
+        assert downloaded_content == orig_content
 
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
@@ -670,6 +692,33 @@ def test_get_artifact_collection_from_linked_artifact(linked_artifact):
     assert linked_artifact.source_project == collection.project
     assert linked_artifact.source_name.startswith(collection.name)
     assert linked_artifact.type == collection.type
+
+
+def test_unlink_artifact(logged_artifact, linked_artifact, api):
+    """Unlinking an artifact in a portfolio collection removes the linked artifact *without* deleting the original."""
+    source_artifact = logged_artifact  # For readability
+
+    # Pull these out now in case of state changes
+    source_artifact_path = source_artifact.qualified_name
+    linked_artifact_path = linked_artifact.qualified_name
+
+    # Consistency/sanity checks in case of changes to upstream fixtures
+    assert source_artifact.qualified_name != linked_artifact.qualified_name
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is True
+
+    linked_artifact.unlink()
+
+    # Now the source artifact should still exist, the link should not
+    assert api.artifact_exists(source_artifact_path) is True
+    assert api.artifact_exists(linked_artifact_path) is False
+
+    # Unlinking the source artifact should not be possible
+    with pytest.raises(ValueError, match=r"use 'Artifact.delete' instead"):
+        source_artifact.unlink()
+
+    # ... and the source artifact should *still* exist
+    assert api.artifact_exists(source_artifact_path) is True
 
 
 def test_used_artifacts_preserve_original_project(
