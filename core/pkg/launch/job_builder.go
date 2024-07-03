@@ -177,6 +177,7 @@ type JobBuilder struct {
 	wandbConfigParameters *launchWandbConfigParameters
 	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
+	inputSchema           *string
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -721,6 +722,15 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 	if output != nil {
 		metadata["output_types"] = data_types.ResolveTypes(*output)
 	}
+
+	if j.inputSchema != nil {
+		var inputSchemaMap map[string]interface{}
+		err := json.Unmarshal([]byte(*j.inputSchema), &inputSchemaMap)
+		if err != nil {
+			return "", err
+		}
+		metadata["input_schema"] = &inputSchemaMap
+	}
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return "", err
@@ -780,5 +790,8 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
+	}
+	if request.InputSchema != "" {
+		j.inputSchema = &request.InputSchema
 	}
 }

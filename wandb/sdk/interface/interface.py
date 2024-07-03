@@ -749,6 +749,7 @@ class InterfaceBase:
         self,
         include_paths: List[List[str]],
         exclude_paths: List[List[str]],
+        input_schema: dict,
         run_config: bool = False,
         file_path: str = "",
     ):
@@ -788,6 +789,7 @@ class InterfaceBase:
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
         request.input_source.CopyFrom(source)
+        request.input_schema = json_dumps_safer(input_schema)
 
         return self._publish_job_input(request)
 

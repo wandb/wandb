@@ -62,11 +62,13 @@ class JobInputArguments:
         self,
         include: Optional[List[str]] = None,
         exclude: Optional[List[str]] = None,
+        input_schema: Optional[dict] = None,
         file_path: Optional[str] = None,
         run_config: Optional[bool] = None,
     ):
         self.include = include
         self.exclude = exclude
+        self.input_schema = input_schema
         self.file_path = file_path
         self.run_config = run_config
 
@@ -121,6 +123,7 @@ def _publish_job_input(
         exclude_paths=[_split_on_unesc_dot(path) for path in input.exclude]
         if input.exclude
         else [],
+        input_schema=input.input_schema,
         run_config=input.run_config,
         file_path=input.file_path or "",
     )
@@ -130,6 +133,7 @@ def handle_config_file_input(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
+    input_schema: Optional[dict] = None,
 ):
     """Declare an overridable configuration file for a launch job.
 
@@ -154,6 +158,7 @@ def handle_config_file_input(
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
+        input_schema=input_schema,
         file_path=path,
         run_config=False,
     )
@@ -165,7 +170,9 @@ def handle_config_file_input(
 
 
 def handle_run_config_input(
-    include: Optional[List[str]] = None, exclude: Optional[List[str]] = None
+    include: Optional[List[str]] = None,
+    exclude: Optional[List[str]] = None,
+    input_schema: Optional[dict] = None,
 ):
     """Declare wandb.config as an overridable configuration for a launch job.
 
@@ -178,6 +185,7 @@ def handle_run_config_input(
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
+        input_schema=input_schema,
         run_config=True,
         file_path=None,
     )

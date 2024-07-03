@@ -7,6 +7,7 @@ def manage_config_file(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
+    input_schema: Optional[dict] = None,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -49,12 +50,13 @@ def manage_config_file(
     """
     from .internal import handle_config_file_input
 
-    return handle_config_file_input(path, include, exclude)
+    return handle_config_file_input(path, include, exclude, input_schema)
 
 
 def manage_wandb_config(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
+    input_schema: Optional[dict] = None,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 
@@ -92,4 +94,4 @@ def manage_wandb_config(
     """
     from .internal import handle_run_config_input
 
-    handle_run_config_input(include, exclude)
+    handle_run_config_input(include, exclude, input_schema)
