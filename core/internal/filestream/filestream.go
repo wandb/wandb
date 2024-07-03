@@ -160,7 +160,11 @@ func (fs *fileStream) Start(
 
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
-	fs.processChan <- update
+	select {
+	case fs.processChan <- update:
+	case <-fs.deadChan:
+		// Ignore everything if the filestream is dead.
+	}
 }
 
 func (fs *fileStream) FinishWithExit(exitCode int32) {
