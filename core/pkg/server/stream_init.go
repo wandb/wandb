@@ -8,6 +8,7 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
+	"os"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -84,9 +85,20 @@ func NewGraphQLClient(
 	settings *settings.Settings,
 	peeker *observability.Peeker,
 ) graphql.Client {
+	// TODO: This is used for the service account feature to associate the run
+	// with the specified user. Note that we are using environment variables
+	// here, instead of the settings object (which is ideally would be the only
+	// setting used). We are doing this because, the default setting populates
+	// the username with a value that not necessarily matches the username in
+	// our app. There is also a precedence issue, where if the username is set
+	// it will always be used, even if the email is set. Causing the owner of
+	// to be wrong.
+	// We should consider using the settings object here. But we need to make
+	// sure that the username setting is populated correctly. Leaving this as is
+	// for now just to avoid breakage in the service account feature.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   settings.Proto.GetUsername().GetValue(),
-		"X-WANDB-USER-EMAIL": settings.Proto.GetEmail().GetValue(),
+		"X-WANDB-USERNAME":   os.Getenv("WANDB_USERNAME"),
+		"X-WANDB-USER-EMAIL": os.Getenv("WANDB_USER_EMAIL"),
 	}
 	maps.Copy(graphqlHeaders, settings.Proto.GetXExtraHttpHeaders().GetValue())
 
@@ -158,7 +170,7 @@ func NewFileStream(
 	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
-		Settings:          settings.Proto,
+		Settings:          settings,
 		Logger:            logger,
 		Printer:           printer,
 		ApiClient:         fileStreamRetryClient,

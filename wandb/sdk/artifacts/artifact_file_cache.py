@@ -9,7 +9,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, TYPE_CHECKING, ContextManager, Generator, Optional, Tuple
+from typing import IO, TYPE_CHECKING, ContextManager, Iterator, Optional, Tuple
 
 import wandb
 from wandb import env, util
@@ -29,6 +29,15 @@ if TYPE_CHECKING:
             pass
 
 
+def _get_sys_umask_threadsafe() -> int:
+    # Workaround to get the current system umask, since
+    # - `os.umask()` isn't thread-safe
+    # - we don't want to inadvertently change the umask of the current process
+    # See: https://stackoverflow.com/questions/53227072/reading-umask-thread-safe
+    umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
+    return int(subprocess.check_output(umask_cmd))
+
+
 class ArtifactFileCache:
     def __init__(self, cache_dir: StrPath) -> None:
         self._cache_dir = Path(cache_dir)
@@ -38,21 +47,22 @@ class ArtifactFileCache:
 
         # NamedTemporaryFile sets the file mode to 600 [1], we reset to the default.
         # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
-        umask_cmd = (sys.executable, "-c", "import os; print(os.umask(22))")
-        umask = int(subprocess.check_output(umask_cmd))
-        self._sys_umask = umask
+        self._sys_umask = _get_sys_umask_threadsafe()
 
         self._override_cache_path: Optional[StrPath] = None
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
     ) -> Tuple[FilePathStr, bool, "Opener"]:
+        # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
+            skip_cache = True
             path = Path(self._override_cache_path)
         else:
+            skip_cache = False
             hex_md5 = b64_to_hex_id(b64_md5)
             path = self._obj_dir / "md5" / hex_md5[:2] / hex_md5[2:]
-        return self._check_or_create(path, size)
+        return self._check_or_create(path, size, skip_cache=skip_cache)
 
     # TODO(spencerpearson): this method at least needs its signature changed.
     # An ETag is not (necessarily) a checksum.
@@ -62,20 +72,23 @@ class ArtifactFileCache:
         etag: ETag,
         size: int,
     ) -> Tuple[FilePathStr, bool, "Opener"]:
+        # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
+            skip_cache = True
             path = Path(self._override_cache_path)
         else:
+            skip_cache = False
             hexhash = hashlib.sha256(
                 hashlib.sha256(url.encode("utf-8")).digest()
                 + hashlib.sha256(etag.encode("utf-8")).digest()
             ).hexdigest()
             path = self._obj_dir / "etag" / hexhash[:2] / hexhash[2:]
-        return self._check_or_create(path, size)
+        return self._check_or_create(path, size, skip_cache=skip_cache)
 
     def _check_or_create(
-        self, path: Path, size: int
+        self, path: Path, size: int, skip_cache: bool = False
     ) -> Tuple[FilePathStr, bool, "Opener"]:
-        opener = self._cache_opener(path, size)
+        opener = self._opener(path, size, skip_cache=skip_cache)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
@@ -185,14 +198,23 @@ class ArtifactFileCache:
         if size > self._free_space():
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
-    def _cache_opener(self, path: Path, size: int) -> "Opener":
+    def _opener(self, path: Path, size: int, skip_cache: bool = False) -> "Opener":
         @contextlib.contextmanager
-        def helper(mode: str = "w") -> Generator[IO, None, None]:
+        def atomic_open(mode: str = "w") -> Iterator[IO]:
             if "a" in mode:
                 raise ValueError("Appending to cache files is not supported")
 
-            self._reserve_space(size)
-            temp_file = NamedTemporaryFile(dir=self._temp_dir, mode=mode, delete=False)
+            if skip_cache:
+                # We skip the cache, but we'll still need an intermediate, temporary file to ensure atomicity.
+                # Put the temp file in the same root as the destination file in an attempt to avoid moving/copying
+                # across filesystems.
+                temp_dir = path.parent
+            else:
+                self._reserve_space(size)
+                temp_dir = self._temp_dir
+
+            temp_dir.mkdir(parents=True, exist_ok=True)
+            temp_file = NamedTemporaryFile(dir=temp_dir, mode=mode, delete=False)
             try:
                 yield temp_file
                 temp_file.close()
@@ -203,7 +225,7 @@ class ArtifactFileCache:
                 os.remove(temp_file.name)
                 raise
 
-        return helper
+        return atomic_open
 
     def _ensure_write_permissions(self) -> None:
         """Raise an error if we cannot write to the cache directory."""

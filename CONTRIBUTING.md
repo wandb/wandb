@@ -267,10 +267,10 @@ pre-commit run ruff-format --all-files --hook-stage pre-push
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
 
-If you update any of the `.proto` files in `wandb/proto`, you'll need to:
+If you update any of the `.proto` files in `wandb/proto`, you'll need to run the
+ proto nox command to build the protocol buffer files:
 
 
-- Now you can run the proto action to build the protocol buffer files.
 ```shell
 nox -t proto
 ```

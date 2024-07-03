@@ -60,6 +60,11 @@ type Params struct {
 
 	// FileStreamOrNil is the filestream API.
 	FileStreamOrNil filestream.FileStream
+
+	// GetNow is an optional function that returns the current time.
+	//
+	// It is used for testing.
+	GetNow func() time.Time
 }
 
 func New(params Params) *Sender {
@@ -72,6 +77,10 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: Ctx is nil")
 	case params.LoopbackChan == nil:
 		panic("runconsolelogs: LoopbackChan is nil")
+	}
+
+	if params.GetNow == nil {
+		params.GetNow = time.Now
 	}
 
 	var fsWriter *filestreamWriter
@@ -98,7 +107,7 @@ func New(params Params) *Sender {
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
 		params.Ctx,
-		func(lines sparselist.SparseList[RunLogsLine]) {
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				fileWriter.WriteToFile(lines)
 			}
@@ -112,6 +121,7 @@ func New(params Params) *Sender {
 		maxLines:      maxTerminalLines,
 		maxLineLength: maxTerminalLineLength,
 		onChange:      writer.OnChanged,
+		getNow:        params.GetNow,
 	}
 
 	return &Sender{

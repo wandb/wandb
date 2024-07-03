@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -146,9 +145,6 @@ type Sender struct {
 	// that allow users to re-run the run with different configurations
 	jobBuilder *launch.JobBuilder
 
-	// wgFileTransfer is a wait group for file transfers
-	wgFileTransfer sync.WaitGroup
-
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
 
@@ -180,7 +176,6 @@ func NewSender(
 		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer:      sync.WaitGroup{},
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
@@ -330,7 +325,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Exit:
-		s.sendExit(record, x.Exit)
+		s.sendExit(record)
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *service.Record_Metric:
@@ -439,10 +434,6 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.resumeState.GetFileStreamOffset(),
 		)
 	}
-
-	if s.fileTransferManager != nil {
-		s.fileTransferManager.Start()
-	}
 }
 
 func (s *Sender) sendRequestNetworkStatus(
@@ -549,7 +540,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
 		s.fileWatcher.Finish()
-		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
 			s.runfilesUploader.Finish()
 			s.fileTransferManager.Close()
@@ -561,7 +551,13 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
 		if s.fileStream != nil {
-			s.fileStream.Close()
+			if s.exitRecord != nil {
+				s.fileStream.FinishWithExit(s.exitRecord.GetExit().GetExitCode())
+			} else {
+				s.logger.CaptureError(
+					fmt.Errorf("sender: no exit code on finish"))
+				s.fileStream.FinishWithoutExit()
+			}
 		}
 		request.State++
 		s.fwdRequestDefer(request)
@@ -1060,13 +1056,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
-func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRecord) {
+func (s *Sender) sendExit(record *service.Record) {
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
-
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.ExitUpdate{Record: exitRecord})
-	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -1151,20 +1143,20 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	// TODO: this should be handled by a separate service startup mechanism
-	s.fileTransferManager.Start()
-
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot,
-		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
-	err := downloader.Download()
-	if err != nil {
+
+	if err := artifacts.NewArtifactDownloader(
+		s.ctx,
+		s.graphqlClient,
+		s.fileTransferManager,
+		msg.ArtifactId,
+		msg.DownloadRoot,
+		msg.AllowMissingReferences,
+		msg.SkipCache,
+		msg.PathPrefix,
+	).Download(); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf(
-				"senderError: downloadArtifact: failed to download artifact: %v",
-				err,
-			))
+			fmt.Errorf("sender: failed to download artifact: %v", err))
 		response.ErrorMessage = err.Error()
 	}
 
