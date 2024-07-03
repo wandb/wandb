@@ -786,9 +786,8 @@ func TestWandbConfigParameters(t *testing.T) {
 }
 
 func TestWandbConfigParametersWithInputSchema(t *testing.T) {
-	// Test that if WandbConfigParametersRecord is set on the job builder
-	// then inputs will be filtered to only include the parameters specified
-	// in the WandbConfigParametersRecord.
+	// Test that if InputSchema is set on the job builder
+	// then the schema is persisted in the artifact metadata
 
 	ctx := context.Background()
 	gql := gqlmock.NewMockClient()
@@ -957,9 +956,8 @@ func TestConfigFileParameters(t *testing.T) {
 }
 
 func TestConfigFileParametersWithInputSchema(t *testing.T) {
-	// Test that if ConfigFileParametersRecord is set on the job builder
-	// then inputs will be filtered to only include the parameters specified
-	// in the ConfigFileParametersRecord.
+	// Test that if InputSchema is set on the job builder
+	// then the schema is persisted in the artifact metadata
 
 	ctx := context.Background()
 	gql := gqlmock.NewMockClient()
