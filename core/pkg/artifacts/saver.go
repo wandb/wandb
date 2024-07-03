@@ -375,8 +375,11 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	return partsInfo, nil
 }
 
-func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileResponse,
-	partData []gql.UploadPartsInput, doneChan chan<- *filetransfer.Task,
+func (as *ArtifactSaver) uploadMultipart(
+	path string,
+	fileInfo serverFileResponse,
+	partData []gql.UploadPartsInput,
+	doneChan chan<- *filetransfer.Task,
 ) {
 	statInfo, err := os.Stat(path)
 	if err != nil {
