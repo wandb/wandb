@@ -837,7 +837,7 @@ def combine_test_results(session: nox.Session) -> None:
 @nox.session(name="bump-go-version")
 def bump_go_version(session: nox.Session) -> None:
     """Bump the Go version."""
-    install_timed(session, "bump2version", "requests", "nox")
+    install_timed(session, "bump2version", "requests")
 
     # Get the latest Go version
     latest_version = session.run(
