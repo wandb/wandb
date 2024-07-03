@@ -397,11 +397,7 @@ func (as *ArtifactSaver) uploadMultipart(
 		task := newUploadTask(fileInfo, path)
 		task.Offset = part.PartNumber * chunkSize
 		remainingSize := statInfo.Size() - task.Offset
-		if remainingSize < chunkSize {
-			task.Size = remainingSize
-		} else {
-			task.Size = chunkSize
-		}
+		task.Size = min(remainingSize, chunkSize)
 		task.Headers = append(task.Headers, "content-md5:"+partData[i].HexMD5)
 		task.Headers = append(task.Headers, "content-length:"+strconv.FormatInt(task.Size, 10))
 		task.SetCompletionCallback(func(t *filetransfer.Task) {
