@@ -5,6 +5,7 @@ package wandb_internal;
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
+import "google/protobuf/empty.proto";
 
 /*
  * Record: Persistent on disk data (BE CAREFUL)
@@ -44,6 +45,8 @@ message Record {
     HeaderRecord header = 21;
     FooterRecord footer = 22;
     RunPreemptingRecord preempting = 23;
+    // Removed but kept to avoid panics in `wandb sync`.
+    google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
 
     // request field does not belong here longterm
