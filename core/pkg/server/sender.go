@@ -311,11 +311,6 @@ func (s *Sender) SendRecord(record *service.Record) {
 	s.sendRecord(record)
 }
 
-func (s *Sender) SendRequest(record *service.Record) {
-	// this is for testing purposes only yet
-	s.sendRequest(record, record.GetRequest())
-}
-
 // sendRecord sends a record
 //
 //gocyclo:ignore
