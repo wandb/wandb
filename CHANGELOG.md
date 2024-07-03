@@ -14,7 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Support queue template variables in launch sweep scheduler jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
-- Support multipart for large uploads when running against backends using S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
+- When using wandb-core, support multipart uploads to S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
 
 ### Fixed
 
