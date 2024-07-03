@@ -832,3 +832,32 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+@nox.session(name="bump-go-version")
+def bump_go_version(session: nox.Session) -> None:
+    """Bump the Go version."""
+    install_timed(session, "bump2version", "requests")
+
+    # Get the latest Go version
+    latest_version = session.run(
+        "./tools/get-go-version.py",
+        silent=True,
+        external=True,
+    )
+    latest_version = latest_version.strip()
+
+    session.log(f"Latest Go version: {latest_version}")
+
+    # Run bump2version with the fetched version
+    session.run(
+        "bump2version",
+        "patch",
+        "--new-version",
+        latest_version,
+        "--config-file",
+        ".bumpversion.go.cfg",
+        "--no-commit",
+        "--allow-dirty",
+        external=True,
+    )
