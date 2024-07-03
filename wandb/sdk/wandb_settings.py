@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import configparser
-import getpass
 import json
 import logging
 import multiprocessing
@@ -1043,14 +1042,6 @@ class Settings(BaseModel, validate_assignment=True):
         # vars exist -- but if they don't, we'll fill them in here
         if self.host is None:
             self.host = socket.gethostname()  # type: ignore
-
-        if self.username is None:
-            try:  # type: ignore
-                self.username = getpass.getuser()
-            except KeyError:
-                # getuser() could raise KeyError in restricted environments like
-                # chroot jails or docker containers. Return user id in these cases.
-                self.username = str(os.getuid())
 
         _executable = (
             self.x_executable
