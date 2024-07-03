@@ -5,7 +5,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/hashicorp/go-retryablehttp"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -23,13 +24,16 @@ type StoragePolicyConfig struct {
 }
 
 type ManifestEntry struct {
+	// Fields from the service.ArtifactManifestEntry proto.
 	Digest          string                 `json:"digest"`
-	BirthArtifactID *string                `json:"birthArtifactID"`
 	Ref             *string                `json:"ref,omitempty"`
 	Size            int64                  `json:"size"`
-	Extra           map[string]interface{} `json:"extra,omitempty"`
 	LocalPath       *string                `json:"-"`
-	DownloadURL     *string                `json:"-"`
+	BirthArtifactID *string                `json:"birthArtifactID"`
+	SkipCache       bool                   `json:"-"`
+	Extra           map[string]interface{} `json:"extra,omitempty"`
+	// Added and used during download.
+	DownloadURL *string `json:"-"`
 }
 
 func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
@@ -53,11 +57,12 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		}
 		manifest.Contents[entry.Path] = ManifestEntry{
 			Digest:          entry.Digest,
-			BirthArtifactID: utils.NilIfZero(entry.BirthArtifactId),
 			Ref:             utils.NilIfZero(entry.Ref),
 			Size:            entry.Size,
-			Extra:           extra,
 			LocalPath:       utils.NilIfZero(entry.LocalPath),
+			BirthArtifactID: utils.NilIfZero(entry.BirthArtifactId),
+			SkipCache:       entry.SkipCache,
+			Extra:           extra,
 		}
 	}
 	return manifest, nil
@@ -77,8 +82,8 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 func loadManifestFromURL(url string) (Manifest, error) {
-	// TODO: this should use a retryable HTTP client from internal/clients
-	resp, err := http.Get(url)
+	resp, err := retryablehttp.NewClient().Get(url)
+
 	if err != nil {
 		return Manifest{}, err
 	}

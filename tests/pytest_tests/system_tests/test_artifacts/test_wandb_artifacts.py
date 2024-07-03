@@ -15,6 +15,7 @@ import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -103,10 +104,10 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     return mock
 
 
-def mock_gcs(artifact, path=False):
+def mock_gcs(artifact, path=False, hash=True):
     class Blob:
         def __init__(self, name="my_object.pb", metadata=None, generation=None):
-            self.md5_hash = "1234567890abcde"
+            self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
             self.generation = generation or "1"
             self.name = name
@@ -673,9 +674,22 @@ def test_add_gs_reference_object():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "extra": {"versionID": "1"},
         "size": 10,
     }
+
+
+def test_load_gs_reference_object_without_generation_and_mismatched_etag():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_gcs(artifact)
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+    artifact._state = ArtifactState.COMMITTED
+    entry = artifact.get_entry("my_object.pb")
+    entry.extra = {}
+    entry.digest = "abad0"
+
+    with pytest.raises(ValueError, match="Digest mismatch"):
+        entry.download()
 
 
 def test_add_gs_reference_object_with_version():
@@ -688,7 +702,7 @@ def test_add_gs_reference_object_with_version():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "2"},
+        "extra": {"versionID": "2"},
         "size": 10,
     }
 
@@ -703,7 +717,7 @@ def test_add_gs_reference_object_with_name():
     assert manifest["contents"]["renamed.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "extra": {"versionID": "1"},
         "size": 10,
     }
 
@@ -719,11 +733,26 @@ def test_add_gs_reference_path(runner, capsys):
         assert manifest["contents"]["my_object.pb"] == {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "extra": {"versionID": "1"},
             "size": 10,
         }
         _, err = capsys.readouterr()
         assert "Generating checksum" in err
+
+
+def test_add_gs_reference_object_no_md5():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_gcs(artifact, hash=False)
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "gs://my-bucket/my_object.pb",
+        "extra": {"versionID": "1"},
+        "size": 10,
+    }
 
 
 def test_add_azure_reference_no_checksum(mock_azure_handler):
@@ -1392,6 +1421,79 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
             artifact.download()
 
 
+def test_change_artifact_collection_type(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        artifact.collection.change_type("lucas_type")
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        assert artifact.type == "lucas_type"
+
+
+def test_save_artifact_sequence(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("sequence_name", "data")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+        artifact = run.use_artifact("sequence_name:latest")
+        collection = wandb.Api().artifact_collection("data", "sequence_name")
+        collection.description = "new description"
+        collection.name = "new_name"
+        collection.type = "new_type"
+        collection.tags = ["tag"]
+        collection.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        assert artifact.type == "new_type"
+        collection = artifact.collection
+        assert collection.type == "new_type"
+        assert collection.name == "new_name"
+        assert collection.description == "new description"
+        assert len(collection.tags) == 1 and collection.tags[0] == "tag"
+
+        collection.tags = ["new_tag"]
+        collection.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        collection = artifact.collection
+        assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
+
+
+def test_save_artifact_portfolio(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+        artifact.link("portfolio_name")
+        artifact.wait()
+
+        portfolio = wandb.Api().artifact_collection("data", "portfolio_name")
+        portfolio.description = "new description"
+        portfolio.name = "new_name"
+        with pytest.raises(ValueError):
+            portfolio.type = "new_type"
+        portfolio.tags = ["tag"]
+        portfolio.save()
+
+        port_artifact = run.use_artifact("new_name:v0")
+        portfolio = port_artifact.collection
+        assert portfolio.name == "new_name"
+        assert portfolio.description == "new description"
+        assert len(portfolio.tags) == 1 and portfolio.tags[0] == "tag"
+
+        portfolio.tags = ["new_tag"]
+        portfolio.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        portfolio = artifact.collection
+        assert len(portfolio.tags) == 1 and portfolio.tags[0] == "new_tag"
+
+
 def test_s3_storage_handler_load_path_missing_reference_allowed(
     monkeypatch, wandb_init, capsys
 ):
@@ -1490,10 +1592,8 @@ def test_manifest_json_invalid_version(version):
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
-    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
-    monkeypatch.setattr(artifact_file_cache, "_artifact_file_cache", cache)
-    assert cache == artifact_file_cache.get_artifact_file_cache()
-    cache.cleanup(0)
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    cache = artifact_file_cache.get_artifact_file_cache()
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
     with open("test-file", "wb") as f:

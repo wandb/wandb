@@ -1,6 +1,7 @@
 """
 wandb/internal/update.py test.
 """
+
 import wandb
 
 update = wandb.wandb_sdk.internal.update

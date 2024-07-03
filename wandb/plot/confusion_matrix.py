@@ -48,7 +48,7 @@ def confusion_matrix(
 
     assert (probs is None or preds is None) and not (
         probs is None and preds is None
-    ), "Must provide probabilties or predictions but not both to confusion matrix"
+    ), "Must provide probabilities or predictions but not both to confusion matrix"
 
     if probs is not None:
         preds = np.argmax(probs, axis=1).tolist()

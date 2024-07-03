@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/shirou/gopsutil/v3/cpu"
+	"github.com/shirou/gopsutil/v4/cpu"
 
 	"github.com/wandb/wandb/core/pkg/service"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type CPU struct {
@@ -33,7 +33,7 @@ func (c *CPU) SampleMetrics() {
 	defer c.mutex.Unlock()
 
 	// process-related metrics
-	proc := process.Process{Pid: int32(c.settings.XStatsPid.GetValue())}
+	proc := process.Process{Pid: c.settings.XStatsPid.GetValue()}
 	// process CPU usage in percent
 	procCPU, err := proc.CPUPercent()
 	if err == nil {

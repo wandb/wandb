@@ -48,7 +48,7 @@ def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exist
     }
     conf = parse_sm_config()
     # Setting the environment variable
-    sm_trainging_env = json.dumps(
+    sm_training_env = json.dumps(
         {
             "sagemaker_training_job_name": "2022-07-21",
             "param1": "2022-04-01",
@@ -106,7 +106,7 @@ def test_parse_sm_config(mock_open, mock_json_load, mock_getenv, mock_path_exist
     with mock.patch.dict(
         os.environ,
         {
-            "SM_TRAINING_ENV": sm_trainging_env,
+            "SM_TRAINING_ENV": sm_training_env,
         },
     ):
         # Mock  getenv to return the environment variable value

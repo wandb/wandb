@@ -6,7 +6,6 @@ import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
 from wandb.errors import CommError
-from wandb.sdk.launch._project_spec import create_project_from_spec
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -15,6 +14,8 @@ from wandb.sdk.launch.utils import (
     construct_launch_spec,
     validate_launch_spec_source,
 )
+
+from ._project_spec import LaunchProject
 
 
 def push_to_queue(
@@ -60,7 +61,7 @@ def launch_add(
         config: A dictionary containing the configuration for the run. May also contain
             resource specific arguments under the key "resource_args"
         template_variables: A dictionary containing values of template variables for a run queue.
-            Expected format of {"<var-name>": <var-value>}
+            Expected format of {"VAR_NAME": VAR_VALUE}
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
@@ -106,36 +107,32 @@ def launch_add(
     """
     api = Api()
 
-    return asyncio.run(
-        _launch_add(
-            api,
-            uri,
-            job,
-            config,
-            template_variables,
-            project,
-            entity,
-            queue_name,
-            resource,
-            entry_point,
-            name,
-            version,
-            docker_image,
-            project_queue,
-            resource_args,
-            run_id=run_id,
-            build=build,
-            repository=repository,
-            sweep_id=sweep_id,
-            author=author,
-            priority=priority,
-        )
+    return _launch_add(
+        api,
+        job,
+        config,
+        template_variables,
+        project,
+        entity,
+        queue_name,
+        resource,
+        entry_point,
+        name,
+        version,
+        docker_image,
+        project_queue,
+        resource_args,
+        run_id=run_id,
+        build=build,
+        repository=repository,
+        sweep_id=sweep_id,
+        author=author,
+        priority=priority,
     )
 
 
-async def _launch_add(
+def _launch_add(
     api: Api,
-    uri: Optional[str],
     job: Optional[str],
     config: Optional[Dict[str, Any]],
     template_variables: Optional[dict],
@@ -157,7 +154,7 @@ async def _launch_add(
     priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
-        uri,
+        None,
         job,
         api,
         name,
@@ -185,9 +182,9 @@ async def _launch_add(
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
 
-        launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = await build_image_from_project(
-            launch_project, api, config or {}
+        launch_project = LaunchProject.from_spec(launch_spec, api)
+        docker_image_uri = asyncio.run(
+            build_image_from_project(launch_project, api, config or {})
         )
         run = wandb.run or wandb.init(
             project=launch_spec["project"],

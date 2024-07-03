@@ -1,39 +1,41 @@
 # Install pre-commit hooks via `pip install pre-commit && pre-commit install`
+
+# Exclude:
+#   * vendored code
+#   * generated protobuf files
+exclude: '^(wandb/vendor|core/vendor/)|\.pb\.go$|_pb2\.pyi?$'
+
 default_stages:
   - pre-push
+default_install_hook_types: [pre-push, pre-commit]
 repos:
-  - repo: https://github.com/doublify/pre-commit-rust
-    rev: v1.0
-    hooks:
-    - id: clippy
-      args: ['--manifest-path=client/Cargo.toml', '--all', '--']
+  # - repo: https://github.com/doublify/pre-commit-rust
+  #   rev: v1.0
+  #   hooks:
+  #   - id: clippy
+  #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.1.0"
+    rev: "v0.4.4"
     hooks:
       - id: ruff
         args: [ --fix]
-  - repo: https://github.com/psf/black
-    rev: 23.10.0
-    hooks:
-      - id: black-jupyter
-        exclude: ^(wandb/vendor/|wandb/proto/v.*/.*_pb2\.py|wandb/proto/v.*/.*_pb2_grpc\.py|wandb/proto/wandb_deprecated.py)
+      - id: ruff-format
   - repo: https://github.com/asottile/blacken-docs
     rev: 1.16.0
     hooks:
       - id: blacken-docs
-        exclude: ^(wandb/vendor/)
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v17.0.3
+    rev: v18.1.3
     hooks:
       - id: clang-format
         types_or: [proto]
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v4.6.0
     hooks:
       - id: check-merge-conflict
       - id: trailing-whitespace
         name: trailing-whitespace
-        exclude: ^(wandb/|tests/|src/)
+        exclude: ^(wandb/|tests/|src/|.bumpversion.*.cfg)
       - id: end-of-file-fixer
         name: end-of-file-fixer
         exclude: ^(wandb/|tests/|src/|.*_durations)
@@ -54,14 +56,9 @@ repos:
         name: check-toml
       - id: debug-statements
         name: debug-statements
-        exclude: ^(wandb/__init__.py)
+        exclude: ^wandb/__init__.py
       - id: forbid-submodules
         name: forbid-submodules
-  - repo: https://github.com/psf/black
-    rev: 23.10.0
-    hooks:
-      - id: black
-        files: '^core/'
   - repo: local
     hooks:
       - id: go-generate-proto
@@ -92,7 +89,6 @@ repos:
         name: 'go-imports'
         entry: core/scripts/pre-commit-hooks/run-go-imports.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
         language: 'script'
         description: "Runs `goimports`, requires golang"
       - id: go-unit-tests
@@ -126,7 +122,6 @@ repos:
         name: 'go-cyclo'
         entry: core/scripts/pre-commit-hooks/run-go-cyclo.sh
         files: '\.go$'
-        exclude: 'core/pkg/service/'
         language: 'script'
         description: "Runs `gocyclo`, requires https://github.com/fzipp/gocyclo"
         args:

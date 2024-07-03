@@ -1,39 +1,8 @@
-import os
-from inspect import cleandoc
+import wandb
 
-from .... import termlog
-from . import blocks, panels
-from .blocks import *  # noqa
-from .interface import (
-    GradientPoint,
-    InlineCode,
-    InlineLatex,
-    Layout,
-    Link,
-    ParallelCoordinatesPlotColumn,
-    Report,
-    Runset,
-    RunsetGroup,
-    RunsetGroupKey,
-)
-from .metrics import *  # noqa
-from .panels import *  # noqa
-
-
-def show_welcome_message():
-    if os.getenv("WANDB_REPORT_API_DISABLE_MESSAGE"):
-        return
-
-    termlog(
-        cleandoc(
-            """
-            Thanks for trying out Report API v2!
-            See a tutorial and the changes here: http://wandb.me/report-api-quickstart
-            For bugs/feature requests, please create an issue on github: https://github.com/wandb/wandb/issues
-            You can disable this message by setting the env var WANDB_REPORT_API_DISABLE_MESSAGE=True
-            """
-        )
+try:
+    from wandb_workspaces.reports.v2 import *  # noqa: F403
+except ImportError:
+    wandb.termerror(
+        "Failed to import wandb_workspaces.  To edit reports programatically, please install it using `pip install wandb[workspaces]`."
     )
-
-
-show_welcome_message()

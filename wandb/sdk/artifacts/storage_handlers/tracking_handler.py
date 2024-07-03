@@ -1,4 +1,5 @@
 """Tracking storage handler."""
+
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 from urllib.parse import urlparse
 
@@ -56,12 +57,14 @@ class TrackingHandler(StorageHandler):
         url = urlparse(path)
         if name is None:
             raise ValueError(
-                'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: %s'
-                % path
+                'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: {}'.format(
+                    path
+                )
             )
         termwarn(
-            "Artifact references with unsupported schemes cannot be checksummed: %s"
-            % path
+            "Artifact references with unsupported schemes cannot be checksummed: {}".format(
+                path
+            )
         )
         name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(path=name, ref=path, digest=path)]

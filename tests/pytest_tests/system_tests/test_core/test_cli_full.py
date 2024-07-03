@@ -128,7 +128,8 @@ def test_pull(runner, wandb_init):
         ),
     ],
 )
-@pytest.mark.wandb_core_failure(feature="offline_sync")
+@pytest.mark.wandb_core_failure(feature="tensorboard")
+@pytest.mark.skip(reason="TODO: re-enable pending tensorboard support of numpy 2.0")
 def test_sync_tensorboard(
     runner,
     relay_server,
@@ -159,7 +160,7 @@ def test_sync_tensorboard(
         assert tb_file_name in os.listdir(".")
 
 
-@pytest.mark.wandb_core_failure(feature="offline_sync")
+@pytest.mark.wandb_core_failure(feature="artifacts")
 def test_sync_wandb_run(runner, relay_server, user, copy_asset):
     # note: we have to mock out ArtifactSaver.save
     # because the artifact does not actually exist
@@ -168,7 +169,7 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
     # (as we used to use a mock backend)
     # todo: create a new test asset that will contain an artifact
     with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=({}, None)
+        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
     ):
         copy_asset("wandb")
 
@@ -186,10 +187,10 @@ def test_sync_wandb_run(runner, relay_server, user, copy_asset):
         assert "wandb: ERROR Nothing to sync." in result.output
 
 
-@pytest.mark.wandb_core_failure(feature="offline_sync")
+@pytest.mark.wandb_core_failure(feature="tensorboard")
 def test_sync_wandb_run_and_tensorboard(runner, relay_server, user, copy_asset):
     with relay_server() as relay, runner.isolated_filesystem(), mock.patch(
-        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=({}, None)
+        "wandb.sdk.artifacts.artifact_saver.ArtifactSaver.save", return_value=None
     ):
         run_dir = os.path.join("wandb", "offline-run-20210216_154407-g9dvvkua")
         copy_asset("wandb")

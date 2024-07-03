@@ -11,8 +11,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.16.3.dev1"
-_minimum_core_version = "0.17.0b8"
+__version__ = "0.17.4.dev1"
+
 
 # Used with pypi checks and other messages related to pip
 _wandb_module = "wandb"
@@ -85,7 +85,6 @@ from wandb.wandb_agent import agent
 # from wandb.core import *
 from wandb.viz import visualize
 from wandb import plot
-from wandb import plots  # deprecating this
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
@@ -215,9 +214,12 @@ from .analytics import Sentry as _Sentry
 if "dev" in __version__:
     import os
 
+    # disable error reporting in dev versions for the python client
     os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
         "WANDB_ERROR_REPORTING", "false"
     )
+    # turn on wandb-core for dev versions
+    os.environ["WANDB__REQUIRE_CORE"] = os.environ.get("WANDB__REQUIRE_CORE", "true")
 
 _sentry = _Sentry()
 _sentry.setup()

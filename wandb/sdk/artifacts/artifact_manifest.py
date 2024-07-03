@@ -1,6 +1,8 @@
 """Artifact manifest."""
+
 from typing import TYPE_CHECKING, Dict, List, Mapping, Optional
 
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5
 
 if TYPE_CHECKING:
@@ -12,13 +14,15 @@ class ArtifactManifest:
     entries: Dict[str, "ArtifactManifestEntry"]
 
     @classmethod
-    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifest":
+    def from_manifest_json(
+        cls, manifest_json: Dict, api: Optional[InternalApi] = None
+    ) -> "ArtifactManifest":
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
         for sub in cls.__subclasses__():
             if sub.version() == version:
-                return sub.from_manifest_json(manifest_json)
+                return sub.from_manifest_json(manifest_json, api=api)
         raise ValueError("Invalid manifest version.")
 
     @classmethod
@@ -47,7 +51,7 @@ class ArtifactManifest:
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
         ):
-            raise ValueError("Cannot add the same path twice: %s" % entry.path)
+            raise ValueError("Cannot add the same path twice: {}".format(entry.path))
         self.entries[entry.path] = entry
 
     def remove_entry(self, entry: "ArtifactManifestEntry") -> None:

@@ -1,18 +1,19 @@
 import asyncio
 import base64
+import copy
 import json
 import logging
 import os
+import shutil
 import tarfile
 import tempfile
 import time
 import traceback
-from typing import Optional
+from typing import Any, Dict, Optional
 
 import wandb
 from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
-from wandb.sdk.launch.builder.abstract import AbstractBuilder
-from wandb.sdk.launch.builder.build import registry_from_uri
+from wandb.sdk.launch.builder.abstract import AbstractBuilder, registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
@@ -23,25 +24,15 @@ from wandb.sdk.launch.registry.elastic_container_registry import (
 from wandb.sdk.launch.registry.google_artifact_registry import GoogleArtifactRegistry
 from wandb.util import get_module
 
-from .._project_spec import (
-    EntryPoint,
-    LaunchProject,
-    create_metadata_file,
-    get_entry_point_command,
-)
+from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchError
 from ..utils import (
     LOG_PREFIX,
     get_kube_context_and_api_client,
-    sanitize_wandb_api_key,
     warn_failed_packages_from_build_logs,
 )
-from .build import (
-    _WANDB_DOCKERFILE_NAME,
-    _create_docker_build_ctx,
-    generate_dockerfile,
-    image_tag_from_dockerfile_and_source,
-)
+from .build import _WANDB_DOCKERFILE_NAME
+from .context_manager import BuildContextManager
 
 get_module(
     "kubernetes_asyncio",
@@ -56,6 +47,14 @@ _logger = logging.getLogger(__name__)
 _DEFAULT_BUILD_TIMEOUT_SECS = 1800  # 30 minute build timeout
 
 SERVICE_ACCOUNT_NAME = os.environ.get("WANDB_LAUNCH_SERVICE_ACCOUNT_NAME", "default")
+PVC_NAME = os.environ.get("WANDB_LAUNCH_KANIKO_PVC_NAME")
+PVC_MOUNT_PATH = (
+    os.environ.get("WANDB_LAUNCH_KANIKO_PVC_MOUNT_PATH", "/kaniko").rstrip("/")
+    if PVC_NAME
+    else None
+)
+DOCKER_CONFIG_SECRET = os.environ.get("WANDB_LAUNCH_KANIKO_AUTH_SECRET")
+
 
 if os.path.exists("/var/run/secrets/kubernetes.io/serviceaccount/namespace"):
     with open("/var/run/secrets/kubernetes.io/serviceaccount/namespace") as f:
@@ -102,6 +101,7 @@ class KanikoBuilder(AbstractBuilder):
         secret_name: str = "",
         secret_key: str = "",
         image: str = "gcr.io/kaniko-project/executor:v1.11.0",
+        config: Optional[dict] = None,
     ):
         """Initialize a KanikoBuilder.
 
@@ -115,12 +115,6 @@ class KanikoBuilder(AbstractBuilder):
             verify (bool, optional): Whether to verify the functionality of the builder.
                 Defaults to True.
         """
-        if build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  storage url "
-                "in the 'build-context-store' field of your builder config."
-            )
         self.environment = environment
         self.registry = registry
         self.build_job_name = build_job_name
@@ -128,6 +122,7 @@ class KanikoBuilder(AbstractBuilder):
         self.secret_name = secret_name
         self.secret_key = secret_key
         self.image = image
+        self.kaniko_config = config or {}
 
     @classmethod
     def from_config(
@@ -154,13 +149,16 @@ class KanikoBuilder(AbstractBuilder):
             raise LaunchError(
                 "Builder config must include 'type':'kaniko' to create a KanikoBuilder."
             )
-        build_context_store = config.get("build-context-store")
+        build_context_store = config.get("build-context-store", "")
         if build_context_store is None:
-            raise LaunchError(
-                "You are required to specify an external build "
-                "context store for Kaniko builds. Please specify a  "
-                "storage url in the 'build_context_store' field of your builder config."
-            )
+            if not PVC_MOUNT_PATH:
+                raise LaunchError(
+                    "You must specify a build context store for kaniko builds. "
+                    "You can set builder.build-context-store in your agent config "
+                    "to a valid s3, gcs, or azure blog storage URI. Or, configure "
+                    "a persistent volume claim through the agent helm chart: "
+                    "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent"
+                )
         build_job_name = config.get("build-job-name", "wandb-launch-container-build")
         secret_name = config.get("secret-name", "")
         secret_key = config.get("secret-key", "")
@@ -170,6 +168,8 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = config.get("destination")
         if image_uri is not None:
             registry = registry_from_uri(image_uri)
+        kaniko_config = config.get("kaniko-config", {})
+
         return cls(
             environment,
             registry,
@@ -178,6 +178,7 @@ class KanikoBuilder(AbstractBuilder):
             secret_name=secret_name,
             secret_key=secret_key,
             image=kaniko_image,
+            config=kaniko_config,
         )
 
     async def verify(self) -> None:
@@ -186,9 +187,8 @@ class KanikoBuilder(AbstractBuilder):
         Raises:
             LaunchError: If the builder config is invalid.
         """
-        if self.environment is None:
-            raise LaunchError("No environment specified for Kaniko build.")
-        await self.environment.verify_storage_uri(self.build_context_store)
+        if self.build_context_store:
+            await self.environment.verify_storage_uri(self.build_context_store)
 
     def login(self) -> None:
         """Login to the registry."""
@@ -197,8 +197,6 @@ class KanikoBuilder(AbstractBuilder):
     async def _create_docker_ecr_config_map(
         self, job_name: str, corev1_client: client.CoreV1Api, repository: str
     ) -> None:
-        if self.registry is None:
-            raise LaunchError("No registry specified for Kaniko build.")
         username, password = await self.registry.get_username_password()
         encoded = base64.b64encode(f"{username}:{password}".encode()).decode("utf-8")
         ecr_config_map = client.V1ConfigMap(
@@ -235,11 +233,21 @@ class KanikoBuilder(AbstractBuilder):
         with tarfile.TarFile.open(fileobj=context_file, mode="w:gz") as context_tgz:
             context_tgz.add(context_path, arcname=".")
         context_file.close()
-        destination = f"{self.build_context_store}/{run_id}.tgz"
-        if self.environment is None:
-            raise LaunchError("No environment specified for Kaniko build.")
-        await self.environment.upload_file(context_file.name, destination)
-        return destination
+        if PVC_MOUNT_PATH is None:
+            destination = f"{self.build_context_store}/{run_id}.tgz"
+            if self.environment is None:
+                raise LaunchError("No environment specified for Kaniko build.")
+            await self.environment.upload_file(context_file.name, destination)
+            return destination
+        else:
+            destination = f"{PVC_MOUNT_PATH}/{run_id}.tgz"
+            try:
+                shutil.copy(context_file.name, destination)
+            except Exception as e:
+                raise LaunchError(
+                    f"Error copying build context to PVC mounted at {PVC_MOUNT_PATH}: {e}"
+                ) from e
+            return f"tar:///context/{run_id}.tgz"
 
     async def build_image(
         self,
@@ -248,18 +256,10 @@ class KanikoBuilder(AbstractBuilder):
         job_tracker: Optional[JobAndRunStatusTracker] = None,
     ) -> str:
         await self.verify()
-        # TODO: this should probably throw an error if the registry is a local registry
-        if not self.registry:
-            raise LaunchError("No registry specified for Kaniko build.")
-        # kaniko builder doesn't seem to work with a custom user id, need more investigation
-        dockerfile_str = generate_dockerfile(
-            launch_project=launch_project,
-            entry_point=entrypoint,
-            runner_type=launch_project.resource,
-            builder_type="kaniko",
-            dockerfile=launch_project.override_dockerfile,
-        )
-        image_tag = image_tag_from_dockerfile_and_source(launch_project, dockerfile_str)
+
+        build_contex_manager = BuildContextManager(launch_project=launch_project)
+        context_path, image_tag = build_contex_manager.create_build_context("kaniko")
+        run_id = launch_project.run_id
         repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 
@@ -270,24 +270,10 @@ class KanikoBuilder(AbstractBuilder):
             return image_uri
 
         _logger.info(f"Building image {image_uri}...")
-
-        entry_cmd = " ".join(
-            get_entry_point_command(entrypoint, launch_project.override_args)
-        )
-
-        create_metadata_file(
-            launch_project,
-            image_uri,
-            sanitize_wandb_api_key(entry_cmd),
-            sanitize_wandb_api_key(dockerfile_str),
-        )
-        context_path = _create_docker_build_ctx(launch_project, dockerfile_str)
-        run_id = launch_project.run_id
-
         _, api_client = await get_kube_context_and_api_client(
             kubernetes, launch_project.resource_args
         )
-        # TODO: use same client as kuberentes_runner.py
+        # TODO: use same client as kubernetes_runner.py
         batch_v1 = client.BatchV1Api(api_client)
         core_v1 = client.CoreV1Api(api_client)
 
@@ -295,7 +281,7 @@ class KanikoBuilder(AbstractBuilder):
 
         build_context = await self._upload_build_context(run_id, context_path)
         build_job = await self._create_kaniko_job(
-            build_job_name, repo_uri, image_uri, build_context, core_v1
+            build_job_name, repo_uri, image_uri, build_context, core_v1, api_client
         )
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
@@ -330,7 +316,9 @@ class KanikoBuilder(AbstractBuilder):
             ):
                 if job_tracker:
                     job_tracker.set_err_stage("build")
-                raise Exception(f"Failed to build image in kaniko for job {run_id}")
+                raise Exception(
+                    f"Failed to build image in kaniko for job {run_id}. View logs with `kubectl logs -n {NAMESPACE} {build_job_name}`."
+                )
             try:
                 pods_from_job = await core_v1.list_namespaced_pod(
                     namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
@@ -377,23 +365,46 @@ class KanikoBuilder(AbstractBuilder):
         image_tag: str,
         build_context_path: str,
         core_client: client.CoreV1Api,
-    ) -> "client.V1Job":
-        env = []
-        volume_mounts = []
-        volumes = []
+        api_client,
+    ) -> Dict[str, Any]:
+        job = copy.deepcopy(self.kaniko_config)
+        job_metadata = job.get("metadata", {})
+        job_labels = job_metadata.get("labels", {})
+        job_spec = job.get("spec", {})
+        pod_template = job_spec.get("template", {})
+        pod_metadata = pod_template.get("metadata", {})
+        pod_labels = pod_metadata.get("labels", {})
+        pod_spec = pod_template.get("spec", {})
+        volumes = pod_spec.get("volumes", [])
+        containers = pod_spec.get("containers") or [{}]
+        if len(containers) > 1:
+            raise LaunchError(
+                "Multiple container configs not supported for kaniko builder."
+            )
+        container = containers[0]
+        volume_mounts = container.get("volumeMounts", [])
+        env = container.get("env", [])
+        custom_args = container.get("args", [])
+
+        if PVC_MOUNT_PATH:
+            volumes.append(
+                {"name": "kaniko-pvc", "persistentVolumeClaim": {"claimName": PVC_NAME}}
+            )
+            volume_mounts.append({"name": "kaniko-pvc", "mountPath": "/context"})
+
         if bool(self.secret_name) != bool(self.secret_key):
             raise LaunchError(
                 "Both secret_name and secret_key or neither must be specified "
                 "for kaniko build. You provided only one of them."
             )
         if isinstance(self.registry, ElasticContainerRegistry):
-            env += [
-                client.V1EnvVar(
-                    name="AWS_REGION",
-                    value=self.registry.region,
-                )
-            ]
-        # TODO: Refactor all of this environment/registry
+            env.append(
+                {
+                    "name": "AWS_REGION",
+                    "value": self.registry.region,
+                }
+            )
+        # TODO(ben): Refactor all of this environment/registry
         # specific stuff into methods of those classes.
         if isinstance(self.environment, AzureEnvironment):
             # Use the core api to check if the secret exists
@@ -408,33 +419,46 @@ class KanikoBuilder(AbstractBuilder):
                     "namespace wandb. Please create it with the key password "
                     "set to your azure storage access key."
                 ) from e
-            env += [
-                client.V1EnvVar(
-                    name="AZURE_STORAGE_ACCESS_KEY",
-                    value_from=client.V1EnvVarSource(
-                        secret_key_ref=client.V1SecretKeySelector(
-                            name="azure-storage-access-key",
-                            key="password",
-                        )
-                    ),
-                )
-            ]
-
-        if self.secret_name and self.secret_key:
-            volumes += [
-                client.V1Volume(
-                    name="docker-config",
-                    config_map=client.V1ConfigMapVolumeSource(
-                        name=f"docker-config-{job_name}",
-                    ),
-                ),
-            ]
-            volume_mounts += [
-                client.V1VolumeMount(
-                    name="docker-config", mount_path="/kaniko/.docker/"
-                ),
-            ]
-            # TODO: I don't like conditioning on the registry type here. As a
+            env.append(
+                {
+                    "name": "AZURE_STORAGE_ACCESS_KEY",
+                    "valueFrom": {
+                        "secretKeyRef": {
+                            "name": "azure-storage-access-key",
+                            "key": "password",
+                        }
+                    },
+                }
+            )
+        if DOCKER_CONFIG_SECRET:
+            volumes.append(
+                {
+                    "name": "kaniko-docker-config",
+                    "secret": {
+                        "secretName": DOCKER_CONFIG_SECRET,
+                        "items": [
+                            {
+                                "key": ".dockerconfigjson",
+                                "path": "config.json",
+                            }
+                        ],
+                    },
+                }
+            )
+            volume_mounts.append(
+                {"name": "kaniko-docker-config", "mountPath": "/kaniko/.docker"}
+            )
+        elif self.secret_name and self.secret_key:
+            volumes.append(
+                {
+                    "name": "docker-config",
+                    "configMap": {"name": f"docker-config-{job_name}"},
+                }
+            )
+            volume_mounts.append(
+                {"name": "docker-config", "mountPath": "/kaniko/.docker"}
+            )
+            # TODO(ben): I don't like conditioning on the registry type here. As a
             # future change I want the registry and environment classes to provide
             # a list of environment variables and volume mounts that need to be
             # added to the job. The environment class provides credentials for
@@ -448,90 +472,95 @@ class KanikoBuilder(AbstractBuilder):
             elif isinstance(self.registry, GoogleArtifactRegistry):
                 mount_path = "/kaniko/.config/gcloud"
                 key = "config.json"
-                env += [
-                    client.V1EnvVar(
-                        name="GOOGLE_APPLICATION_CREDENTIALS",
-                        value="/kaniko/.config/gcloud/config.json",
-                    )
-                ]
+                env.append(
+                    {
+                        "name": "GOOGLE_APPLICATION_CREDENTIALS",
+                        "value": "/kaniko/.config/gcloud/config.json",
+                    }
+                )
             else:
-                raise LaunchError(
-                    f"Registry type {type(self.registry)} not supported by kaniko"
+                wandb.termwarn(
+                    f"{LOG_PREFIX}Automatic credential handling is not supported for registry type {type(self.registry)}. Build job: {self.build_job_name}"
                 )
-            volume_mounts += [
-                client.V1VolumeMount(
-                    name=self.secret_name,
-                    mount_path=mount_path,
-                    read_only=True,
-                )
-            ]
-            volumes += [
-                client.V1Volume(
-                    name=self.secret_name,
-                    secret=client.V1SecretVolumeSource(
-                        secret_name=self.secret_name,
-                        items=[client.V1KeyToPath(key=self.secret_key, path=key)],
-                    ),
-                )
-            ]
+            volumes.append(
+                {
+                    "name": self.secret_name,
+                    "secret": {
+                        "secretName": self.secret_name,
+                        "items": [{"key": self.secret_key, "path": key}],
+                    },
+                }
+            )
+            volume_mounts.append(
+                {
+                    "name": self.secret_name,
+                    "mountPath": mount_path,
+                    "readOnly": True,
+                }
+            )
         if isinstance(self.registry, AzureContainerRegistry):
-            # ADd the docker config map
-            volume_mounts += [
-                client.V1VolumeMount(
-                    name="docker-config", mount_path="/kaniko/.docker/"
-                ),
-            ]
-            volumes += [
-                client.V1Volume(
-                    name="docker-config",
-                    config_map=client.V1ConfigMapVolumeSource(
-                        name=f"docker-config-{job_name}",
-                    ),
-                ),
-            ]
-        # Kaniko doesn't want https:// at the begining of the image tag.
+            # Add the docker config map
+            volumes.append(
+                {
+                    "name": "docker-config",
+                    "configMap": {"name": f"docker-config-{job_name}"},
+                }
+            )
+            volume_mounts.append(
+                {"name": "docker-config", "mountPath": "/kaniko/.docker/"}
+            )
+        # Kaniko doesn't want https:// at the beginning of the image tag.
         destination = image_tag
         if destination.startswith("https://"):
             destination = destination.replace("https://", "")
-        args = [
-            f"--context={build_context_path}",
-            f"--dockerfile={_WANDB_DOCKERFILE_NAME}",
-            f"--destination={destination}",
-            "--cache=true",
-            f"--cache-repo={repository.replace('https://', '')}",
-            "--snapshotMode=redo",
-            "--compressed-caching=false",
+        args = {
+            "--context": build_context_path,
+            "--dockerfile": _WANDB_DOCKERFILE_NAME,
+            "--destination": destination,
+            "--cache": "true",
+            "--cache-repo": repository.replace("https://", ""),
+            "--snapshot-mode": "redo",
+            "--compressed-caching": "false",
+        }
+        for custom_arg in custom_args:
+            arg_name, arg_value = custom_arg.split("=", 1)
+            args[arg_name] = arg_value
+        parsed_args = [
+            f"{arg_name}={arg_value}" for arg_name, arg_value in args.items()
         ]
-        container = client.V1Container(
-            name="wandb-container-build",
-            image=self.image,
-            args=args,
-            volume_mounts=volume_mounts,
-            env=env if env else None,
-        )
-        # Create and configure a spec section
-        labels = {"wandb": "launch"}
+        container["args"] = parsed_args
+
+        # Apply the rest of our defaults
+        pod_labels["wandb"] = "launch"
         # This annotation is required to enable azure workload identity.
         if isinstance(self.registry, AzureContainerRegistry):
-            labels["azure.workload.identity/use"] = "true"
-        template = client.V1PodTemplateSpec(
-            metadata=client.V1ObjectMeta(labels=labels),
-            spec=client.V1PodSpec(
-                restart_policy="Never",
-                active_deadline_seconds=_DEFAULT_BUILD_TIMEOUT_SECS,
-                containers=[container],
-                volumes=volumes,
-                service_account_name=SERVICE_ACCOUNT_NAME,
-            ),
+            pod_labels["azure.workload.identity/use"] = "true"
+        pod_spec["restartPolicy"] = pod_spec.get("restartPolicy", "Never")
+        pod_spec["activeDeadlineSeconds"] = pod_spec.get(
+            "activeDeadlineSeconds", _DEFAULT_BUILD_TIMEOUT_SECS
         )
-        # Create the specification of job
-        spec = client.V1JobSpec(template=template, backoff_limit=0)
-        job = client.V1Job(
-            api_version="batch/v1",
-            kind="Job",
-            metadata=client.V1ObjectMeta(
-                name=job_name, namespace=NAMESPACE, labels={"wandb": "launch"}
-            ),
-            spec=spec,
+        pod_spec["serviceAccountName"] = pod_spec.get(
+            "serviceAccountName", SERVICE_ACCOUNT_NAME
         )
+        job_spec["backoffLimit"] = job_spec.get("backoffLimit", 0)
+        job_labels["wandb"] = "launch"
+        job_metadata["namespace"] = job_metadata.get("namespace", NAMESPACE)
+        job_metadata["name"] = job_metadata.get("name", job_name)
+        job["apiVersion"] = "batch/v1"
+        job["kind"] = "Job"
+
+        # Apply all nested configs from the bottom up
+        pod_metadata["labels"] = pod_labels
+        pod_template["metadata"] = pod_metadata
+        container["name"] = container.get("name", "wandb-container-build")
+        container["image"] = container.get("image", self.image)
+        container["volumeMounts"] = volume_mounts
+        container["env"] = env
+        pod_spec["containers"] = [container]
+        pod_spec["volumes"] = volumes
+        pod_template["spec"] = pod_spec
+        job_spec["template"] = pod_template
+        job_metadata["labels"] = job_labels
+        job["metadata"] = job_metadata
+        job["spec"] = job_spec
         return job

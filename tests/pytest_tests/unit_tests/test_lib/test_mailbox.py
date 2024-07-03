@@ -1,8 +1,7 @@
 import sys
-import threading
 import time
 from contextlib import contextmanager
-from unittest import TestCase
+from typing import Optional
 from unittest.mock import Mock, patch
 
 from parameterized import parameterized
@@ -110,143 +109,137 @@ class TimeObject:
         return now
 
 
-class TestWithMockedTime(TestCase):
-    def setUp(self):
-        self._orig_event_class = threading.Event
-        self._time_obj = TimeObject()
+@contextmanager
+def _patch_mailbox(time_obj: Optional[TimeObject] = None):
+    if time_obj is None:
+        time_obj = TimeObject()
 
-    @property
-    def time_obj(self):
-        return self._time_obj
-
-    @contextmanager
-    def _patch_mailbox(self):
-        def _wait(self_wait, timeout):
-            wait_result = self_wait._event.wait(timeout=0)
-            if wait_result:
-                return wait_result
-            self.time_obj.advance_time(timeout)
+    def _wait(self_wait, timeout):
+        wait_result = self_wait._event.wait(timeout=0)
+        if wait_result:
             return wait_result
+        time_obj.advance_time(timeout)
+        return wait_result
 
-        with patch("wandb.sdk.lib.mailbox.MailboxHandle._time") as time_mock, patch(
-            "wandb.sdk.lib.mailbox.Mailbox._time"
-        ) as time_all_mock, patch(
-            "wandb.sdk.lib.mailbox._MailboxSlot._wait", new=_wait
-        ) as event_mock, patch(
-            "wandb.sdk.lib.mailbox._MailboxWaitAll._wait", new=_wait
-        ) as event_all_mock:
-            self.time_obj.add_time_mock(time_mock)
-            self.time_obj.add_time_mock(time_all_mock)
-            yield (event_mock, event_all_mock)
+    with patch("wandb.sdk.lib.mailbox.MailboxHandle._time") as time_mock, patch(
+        "wandb.sdk.lib.mailbox.Mailbox._time"
+    ) as time_all_mock, patch(
+        "wandb.sdk.lib.mailbox._MailboxSlot._wait", new=_wait
+    ) as event_mock, patch(
+        "wandb.sdk.lib.mailbox._MailboxWaitAll._wait", new=_wait
+    ) as event_all_mock:
+        time_obj.add_time_mock(time_mock)
+        time_obj.add_time_mock(time_all_mock)
+        yield (event_mock, event_all_mock)
 
-    def test_on_probe(self):
-        def on_probe(probe_handle):
-            pass
 
-        with self._patch_mailbox() as (event_mock, _):
-            mailbox, handle, result = get_test_setup()
-            mock_on_probe = Mock(spec=on_probe)
-            handle.add_probe(mock_on_probe)
-            _ = handle.wait(timeout=3)
-            self.assertEqual(mock_on_probe.call_count, 2)
-            if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-                self.assertIsInstance(mock_on_probe.call_args.args[0], MailboxProbe)
-            self.assertTrue(self.time_obj.elapsed_time >= 3)
+def test_on_probe():
+    def on_probe(probe_handle):
+        pass
 
-    def test_on_progress(self):
-        def on_progress(progress_handle):
-            pass
+    time_obj = TimeObject()
 
-        with self._patch_mailbox() as (event_mock, _):
-            mailbox, handle, result = get_test_setup()
-            mock_on_progress = Mock(spec=on_progress)
-            handle.add_progress(mock_on_progress)
-            _ = handle.wait(timeout=3)
-            self.assertEqual(mock_on_progress.call_count, 2)
-            if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-                self.assertIsInstance(
-                    mock_on_progress.call_args.args[0], MailboxProgress
-                )
+    with _patch_mailbox(time_obj):
+        mailbox, handle, result = get_test_setup()
+        mock_on_probe = Mock(spec=on_probe)
+        handle.add_probe(mock_on_probe)
+        _ = handle.wait(timeout=3)
+        assert mock_on_probe.call_count == 2
+        if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
+            assert isinstance(mock_on_probe.call_args.args[0], MailboxProbe)
+        assert time_obj.elapsed_time >= 3
 
-    def test_keepalive(self):
-        """Make sure mock keepalive is called."""
-        with self._patch_mailbox() as (event_mock, _):
-            mailbox = Mailbox()
-            mailbox.enable_keepalive()
 
-            record = pb.Record()
-            iface = Mock(
-                spec_set=[
-                    "publish",
-                    "_publish",
-                    "transport_failed",
-                    "_transport_mark_failed",
-                    "_transport_mark_success",
-                    "_transport_keepalive_failed",
-                ]
-            )
-            iface.transport_failed = Mock(return_value=False)
-            iface._transport_keepalive_failed = Mock(return_value=False)
+def test_on_progress():
+    def on_progress(progress_handle):
+        pass
 
-            handle = mailbox._deliver_record(record, iface)
-            _ = handle.wait(timeout=2)
-            self.assertEqual(iface._transport_keepalive_failed.call_count, 2)
+    with _patch_mailbox():
+        mailbox, handle, result = get_test_setup()
+        mock_on_progress = Mock(spec=on_progress)
+        handle.add_progress(mock_on_progress)
+        _ = handle.wait(timeout=3)
+        assert mock_on_progress.call_count == 2
+        if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
+            assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
 
-    def test_wait_stop(self):
-        def on_progress(progress_handle):
-            progress_handle.wait_stop()
 
-        with self._patch_mailbox() as (event_mock, _):
-            mailbox, handle, result = get_test_setup()
-            mock_on_progress = Mock(spec=on_progress, side_effect=on_progress)
-            handle.add_progress(mock_on_progress)
+def test_keepalive():
+    """Make sure mock keepalive is called."""
+    with _patch_mailbox():
+        mailbox = Mailbox()
+        mailbox.enable_keepalive()
 
-            result.control.mailbox_slot = handle.address
-            self.time_obj.add_timed_event(2, lambda: mailbox.deliver(result))
+        record = pb.Record()
+        iface = Mock(
+            spec_set=[
+                "publish",
+                "_publish",
+                "transport_failed",
+                "_transport_mark_failed",
+                "_transport_mark_success",
+                "_transport_keepalive_failed",
+            ]
+        )
+        iface.transport_failed = Mock(return_value=False)
+        iface._transport_keepalive_failed = Mock(return_value=False)
 
-            result = handle.wait(timeout=3)
-            self.assertEqual(result, None)
-            self.assertEqual(mock_on_progress.call_count, 1)
-            if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
-                self.assertIsInstance(
-                    mock_on_progress.call_args.args[0], MailboxProgress
-                )
+        handle = mailbox._deliver_record(record, iface)
+        _ = handle.wait(timeout=2)
+        assert iface._transport_keepalive_failed.call_count == 2
 
-    @parameterized.expand(
-        [
-            # deliver1_offset, deliver2_offset, expected, elapsed
-            (-1, -1, False, 8),
-            (1, -1, False, 8),
-            (-1, 1, False, 8),
-            (2, 4, True, 4),
-        ]
-    )
-    def test_wait_all(self, deliver1_offset, deliver2_offset, expected, elapsed):
-        def on_progress_all(progress_all_handle):
-            pass
 
-        with self._patch_mailbox() as (
-            event_mock,
-            event_all_mock,
-        ):
-            mailbox = Mailbox()
-            handle1 = mailbox.get_handle()
-            handle2 = mailbox.get_handle()
+def test_wait_stop():
+    def on_progress(progress_handle):
+        progress_handle.wait_stop()
 
-            result1 = pb.Result()
-            result1.control.mailbox_slot = handle1.address
-            self.time_obj.add_timed_event(
-                deliver1_offset, lambda: mailbox.deliver(result1)
-            )
+    time_obj = TimeObject()
 
-            result2 = pb.Result()
-            result2.control.mailbox_slot = handle2.address
-            self.time_obj.add_timed_event(
-                deliver2_offset, lambda: mailbox.deliver(result2)
-            )
+    with _patch_mailbox(time_obj):
+        mailbox, handle, result = get_test_setup()
+        mock_on_progress = Mock(spec=on_progress, side_effect=on_progress)
+        handle.add_progress(mock_on_progress)
 
-            got = mailbox.wait_all(
-                [handle1, handle2], on_progress_all=on_progress_all, timeout=8
-            )
-            self.assertEqual(got, expected)
-            self.assertEqual(self.time_obj.elapsed_time, elapsed)
+        result.control.mailbox_slot = handle.address
+        time_obj.add_timed_event(2, lambda: mailbox.deliver(result))
+
+        result = handle.wait(timeout=3)
+        assert result is None
+        assert mock_on_progress.call_count == 1
+        if sys.version_info[:2] >= (3, 8):  # call_args.args only in 3.8+
+            assert isinstance(mock_on_progress.call_args.args[0], MailboxProgress)
+
+
+@parameterized.expand(
+    [
+        # deliver1_offset, deliver2_offset, expected, elapsed
+        (-1, -1, False, 8),
+        (1, -1, False, 8),
+        (-1, 1, False, 8),
+        (2, 4, True, 4),
+    ]
+)
+def test_wait_all(deliver1_offset, deliver2_offset, expected, elapsed):
+    def on_progress_all(progress_all_handle):
+        pass
+
+    time_obj = TimeObject()
+
+    with _patch_mailbox(time_obj):
+        mailbox = Mailbox()
+        handle1 = mailbox.get_handle()
+        handle2 = mailbox.get_handle()
+
+        result1 = pb.Result()
+        result1.control.mailbox_slot = handle1.address
+        time_obj.add_timed_event(deliver1_offset, lambda: mailbox.deliver(result1))
+
+        result2 = pb.Result()
+        result2.control.mailbox_slot = handle2.address
+        time_obj.add_timed_event(deliver2_offset, lambda: mailbox.deliver(result2))
+
+        got = mailbox.wait_all(
+            [handle1, handle2], on_progress_all=on_progress_all, timeout=8
+        )
+        assert got == expected
+        assert time_obj.elapsed_time == elapsed

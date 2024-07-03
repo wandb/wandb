@@ -224,7 +224,7 @@ class TerminalEmulator:
     def carriage_return(self):
         self.cursor.x = 0
 
-    def cursor_postion(self, line, column):
+    def cursor_position(self, line, column):
         self.cursor.x = min(column, 1) - 1
         self.cursor.y = min(line, 1) - 1
 
@@ -393,25 +393,30 @@ class TerminalEmulator:
                         p = (int(p[0]), 1)
                     else:
                         p = (1, 1)
-                    self.cursor_postion(*p)
+                    self.cursor_position(*p)
         except Exception:
             pass
 
     def _get_line(self, n):
         line = self.buffer[n]
         line_len = self._get_line_len(n)
-        # We have to loop through each character in the line and check if foreground, background and
-        # other attributes (italics, bold, underline, etc) of the ith character are different from those of the
-        # (i-1)th character. If different, the appropriate ascii character for switching the color/attribute
-        # should be appended to the output string before appending the actual character. This loop and subsequent
-        # checks can be expensive, especially because 99% of terminal output use default colors and formatting. Even
-        # in outputs that do contain colors and styles, its unlikely that they will change on a per character basis.
+        # We have to loop through each character in the line and check if foreground,
+        # background and other attributes (italics, bold, underline, etc) of the ith
+        # character are different from those of the (i-1)th character. If different, the
+        # appropriate ascii character for switching the color/attribute should be
+        # appended to the output string before appending the actual character. This loop
+        # and subsequent checks can be expensive, especially because 99% of terminal
+        # output use default colors and formatting. Even in outputs that do contain
+        # colors and styles, its unlikely that they will change on a per character
+        # basis.
 
-        # So instead we create a character list without any ascii codes (`out`), and a list of all the foregrounds
-        # in the line (`fgs`) on which we call np.diff() and np.where() to find the indices where the foreground change,
-        # and insert the ascii characters in the output list (`out`) on those indices. All of this is the done ony if
-        # there are more than 1 foreground color in the line in the first place (`if len(set(fgs)) > 1 else None`).
-        # Same logic is repeated for background colors and other attributes.
+        # So instead we create a character list without any ascii codes (`out`), and a
+        # list of all the foregrounds in the line (`fgs`) on which we call np.diff() and
+        # np.where() to find the indices where the foreground change, and insert the
+        # ascii characters in the output list (`out`) on those indices. All of this is
+        # the done only if there are more than 1 foreground color in the line in the
+        # first place (`if len(set(fgs)) > 1 else None`). Same logic is repeated for
+        # background colors and other attributes.
 
         out = [line[i].data for i in range(line_len)]
 
@@ -499,7 +504,7 @@ class RedirectBase:
 
     @property
     def src_stream(self):
-        return getattr(sys, "__%s__" % self.src)
+        return getattr(sys, "__{}__".format(self.src))
 
     @property
     def src_fd(self):

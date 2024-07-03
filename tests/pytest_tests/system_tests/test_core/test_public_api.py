@@ -1,6 +1,5 @@
 """Tests for the `wandb.apis.PublicApi` module."""
 
-
 import json
 from typing import Dict, List, Optional
 from unittest import mock
@@ -720,3 +719,138 @@ def test_query_user_multiple(relay_server, inject_users):
         api = Api()
         assert api.user(email).email == email
         assert len(api.users(email)) == 2
+
+
+def test_runs_histories(
+    inject_run, inject_history, inject_graphql_response, relay_server
+):
+    # Inject the dummy run data
+    inject_response = [inject_run(id="test_1")]
+
+    # Inject the dummy project and run data required by the Runs class
+    body = {
+        "data": {
+            "project": {
+                "runCount": 1,
+                "runs": {
+                    "edges": [
+                        {
+                            "node": {
+                                "name": "test_1",
+                                "historyKeys": None,
+                                "sweepName": None,
+                                "state": "finished",
+                                "config": "{}",
+                                "systemMetrics": "{}",
+                                "summaryMetrics": "{}",
+                                "tags": [],
+                                "description": None,
+                                "notes": None,
+                                "createdAt": "2023-11-05T17:46:35",
+                                "heartbeatAt": "2023-11-05T17:46:36",
+                                "user": {
+                                    "name": "test",
+                                    "username": "test",
+                                },
+                            }
+                        },
+                    ],
+                    "pageInfo": {"endCursor": None, "hasNextPage": False},
+                },
+            },
+        },
+    }
+
+    inject_project_runs_response = inject_graphql_response(
+        body=json.dumps(body),
+        query_match_fn=lambda query, _: "query Runs(" in query,
+        application_pattern="1",
+    )
+
+    inject_response.append(inject_project_runs_response)
+
+    # Inject dummy history data for the run
+    history_run_1 = [
+        {
+            "_step": 1,
+            "metric1": 0.1,
+            "metric2": 0.2,
+            "metric3": 0.3,  # test for different shape
+            "system_metric1": 10,
+            "run_id": "test_1",
+        },
+        {
+            "_step": 2,
+            "metric1": 0.4,
+            "metric2": 0.5,
+            "system_metric1": 20,
+            "run_id": "test_1",
+        },
+    ]
+
+    inject_responses = [
+        inject_history(history=history_run_1),
+    ]
+
+    inject_response.extend(inject_responses)
+
+    with relay_server(inject=inject_response):
+        api = Api()
+        runs = api.runs("test/test")
+
+        all_histories = runs.histories(samples=2, format="default")
+        assert len(all_histories) == 2
+        assert all_histories[0]["_step"] == 1
+        assert all_histories[0]["metric1"] == 0.1
+        assert all_histories[0]["metric2"] == 0.2
+        assert all_histories[0]["metric3"] == 0.3
+        assert all_histories[0]["system_metric1"] == 10
+        assert all_histories[1]["_step"] == 2
+        assert all_histories[1]["metric1"] == 0.4
+        assert all_histories[1]["metric2"] == 0.5
+        assert all_histories[1]["system_metric1"] == 20
+
+        all_histories_pandas = runs.histories(samples=2, format="pandas")
+        assert all_histories_pandas.shape == (2, 6)
+        assert "_step" in all_histories_pandas.columns
+        assert "metric1" in all_histories_pandas.columns
+        assert "metric2" in all_histories_pandas.columns
+        assert "metric3" in all_histories_pandas.columns
+        assert "system_metric1" in all_histories_pandas.columns
+
+        all_histories_polars = runs.histories(samples=2, format="polars")
+        assert all_histories_polars.shape == (2, 6)
+        assert "_step" in all_histories_polars.columns
+        assert "metric1" in all_histories_polars.columns
+        assert "metric2" in all_histories_polars.columns
+        assert "metric3" in all_histories_polars.columns
+        assert "system_metric1" in all_histories_polars.columns
+
+
+def test_runs_histories_empty(inject_graphql_response, relay_server):
+    # Inject the dummy project and run data required by the Runs class
+    body = {
+        "data": {
+            "project": {
+                "runCount": 1,
+                "runs": {
+                    "edges": [],
+                    "pageInfo": {"endCursor": None, "hasNextPage": False},
+                },
+            },
+        },
+    }
+
+    inject_project_runs_response = inject_graphql_response(
+        body=json.dumps(body),
+        query_match_fn=lambda query, _: "query Runs(" in query,
+        application_pattern="1",
+    )
+
+    with relay_server(inject=[inject_project_runs_response]):
+        api = Api()
+        runs = api.runs("test/test")
+
+        assert not runs.histories(format="default")  # empty list
+        for format in ("pandas", "polars"):
+            assert runs.histories(samples=2, format=format).shape == (0, 0)

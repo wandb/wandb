@@ -25,37 +25,6 @@ def dict_from_proto_list(obj_list):
     return d
 
 
-def update_from_proto(config_dict, config_proto):
-    for item in config_proto.update:
-        key_list = item.nested_key or (item.key,)
-        assert key_list, "key or nested key must be set"
-        target = config_dict
-        # recurse down the dictionary structure:
-        for prop in key_list[:-1]:
-            if not target.get(prop):
-                target[prop] = {}
-            target = target[prop]
-        # use the last element of the key to write the leaf:
-        target[key_list[-1]] = json.loads(item.value_json)
-    for item in config_proto.remove:
-        key_list = item.nested_key or (item.key,)
-        assert key_list, "key or nested key must be set"
-        target = config_dict
-        # recurse down the dictionary structure:
-        for prop in key_list[:-1]:
-            target = target[prop]
-        # use the last element of the key to write the leaf:
-        del target[key_list[-1]]
-        # TODO(jhr): should we delete empty parents?
-
-
-def dict_add_value_dict(config_dict):
-    d = dict()
-    for k, v in config_dict.items():
-        d[k] = dict(desc=None, value=v)
-    return d
-
-
 def dict_strip_value_dict(config_dict):
     d = dict()
     for k, v in config_dict.items():
@@ -97,13 +66,13 @@ def dict_from_config_file(
 ) -> Optional[Dict[str, Any]]:
     if not os.path.exists(filename):
         if must_exist:
-            raise ConfigError("config file %s doesn't exist" % filename)
-        logger.debug("no default config file found in %s" % filename)
+            raise ConfigError("config file {} doesn't exist".format(filename))
+        logger.debug("no default config file found in {}".format(filename))
         return None
     try:
         conf_file = open(filename)
     except OSError:
-        raise ConfigError("Couldn't read config file: %s" % filename)
+        raise ConfigError("Couldn't read config file: {}".format(filename))
     try:
         loaded = load_yaml(conf_file)
     except yaml.parser.ParserError:

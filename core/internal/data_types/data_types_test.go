@@ -1,9 +1,10 @@
 package data_types_test
 
 import (
-	"encoding/json"
 	"reflect"
 	"testing"
+
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/internal/data_types"
 )

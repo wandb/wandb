@@ -7,9 +7,6 @@ from wandb.sdk.wandb_run import Run
 
 
 class FakeArtifact:
-    def wait(self):
-        pass
-
     def is_draft(self):
         return False
 

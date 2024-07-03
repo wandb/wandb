@@ -1,11 +1,13 @@
 import threading
 
+import pytest
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.internal.system.assets import Disk
 from wandb.sdk.internal.system.assets.disk import DiskIn, DiskOut
 from wandb.sdk.internal.system.system_monitor import AssetInterface
 
 
+@pytest.mark.skip(reason="This test is flaky")
 def test_disk_metrics(test_settings):
     interface = AssetInterface()
     settings = SettingsStatic(

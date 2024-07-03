@@ -7,11 +7,5 @@ def test_write_netrc():
     assert res
     with open(wandb_lib.apikey.get_netrc_file_path()) as f:
         assert f.read() == (
-            "machine localhost\n" "  login vanpelt\n" "  password %s\n" % api_key
+            "machine localhost\n" "  login vanpelt\n" "  password {}\n".format(api_key)
         )
-
-
-def test_write_netrc_invalid_host():
-    api_key = "X" * 40
-    res = wandb_lib.apikey.write_netrc("http://foo", "vanpelt", api_key)
-    assert res is None

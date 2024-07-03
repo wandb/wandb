@@ -16,13 +16,13 @@ subprocess.check_call(cmd)
 
 api = wandb.Api()
 job = api.job(
-    f"{api.settings['entity']}/{api.settings['project']}/job-git_github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
+    f"{api.default_entity}/test-job/job-https___github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
 )
 
 assert job._job_artifact is not None
 assert (
     job.name
-    == f"{api.settings['entity']}/{api.settings['project']}/job-git_github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
+    == f"{api.default_entity}/test-job/job-https___github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0"
 )
 assert job._job_info["source_type"] == "repo"
 assert job._input_types == TypeRegistry.type_of({"foo": "bar", "lr": 0.1, "epochs": 5})
@@ -34,7 +34,7 @@ with pytest.raises(TypeError):
 internal_api = InternalApi()
 kwargs = {
     "uri": None,
-    "job": f"{api.settings['entity']}/{api.settings['project']}/job-git_github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0",
+    "job": f"{api.default_entity}/test-job/job-https___github.com_wandb_wandb.git_tests_functional_tests_t0_main_jobs_job_repo_creation.py:v0",
     "api": internal_api,
     "launch_spec": {},
     "target_entity": api.default_entity,
@@ -50,7 +50,7 @@ kwargs = {
 lp = LaunchProject(**kwargs)
 
 job.configure_launch_project(lp)
-command = lp.get_single_entry_point().compute_command({})
+command = lp.get_job_entry_point().compute_command({})
 print(LogicalPath(command[1]))
 assert (
     LogicalPath(command[1])

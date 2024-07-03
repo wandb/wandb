@@ -2,7 +2,10 @@ import pathlib
 import runpy
 from unittest import mock
 
+import pytest
 
+
+@pytest.mark.wandb_core_only
 def test_mode_shared(user, relay_server, copy_asset):
     # copy assets to test directory:
     pathlib.Path("scripts").mkdir()

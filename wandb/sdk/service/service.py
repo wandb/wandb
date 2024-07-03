@@ -2,6 +2,7 @@
 
 Backend server process can be connected to using tcp sockets transport.
 """
+
 import datetime
 import os
 import pathlib
@@ -14,8 +15,9 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import error_reporting_enabled
-from wandb.errors import Error
+from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
+from wandb.errors import Error, WandbCoreNotAvailableError
+from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
@@ -108,7 +110,8 @@ class _Service:
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable.",
+                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    f"\n{context}",
                     context=context,
                 )
             if not os.path.isfile(fname):
@@ -160,26 +163,39 @@ class _Service:
                 exec_cmd_list += ["coverage", "run", "-m"]
 
             service_args = []
-            # NOTE: "wandb-core" is the name of the package that will be distributed
-            #       as the stable version of the wandb core library.
-            #
-            #       Environment variable _WANDB_CORE_PATH is a temporary development feature
-            #       to assist in running the core service from a live development directory.
-            core_path = get_core_path()
-            if core_path:
+
+            if is_require_core():
+                try:
+                    core_path = get_core_path()
+                except WandbCoreNotAvailableError as e:
+                    _sentry.reraise(e)
+
                 service_args.extend([core_path])
-                if not error_reporting_enabled():
+
+                if not core_error_reporting_enabled(default="True"):
                     service_args.append("--no-observability")
+
+                if core_debug(default="False"):
+                    service_args.append("--debug")
+
+                trace_filename = os.environ.get("_WANDB_TRACE")
+                if trace_filename is not None:
+                    service_args.extend(["--trace", trace_filename])
+
                 exec_cmd_list = []
+                termlog(
+                    "Using wandb-core as the SDK backend."
+                    f" Please refer to {wburls.get('wandb_core')} for more information.",
+                    repeat=False,
+                )
             else:
-                service_args.extend(["wandb", "service"])
+                service_args.extend(["wandb", "service", "--debug"])
 
             service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
                 pid,
-                "--debug",
             ]
             service_args.append("--serve-sock")
 

@@ -1,5 +1,5 @@
 import json
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, MagicMock, Mock
 
 import pytest
 import wandb
@@ -9,286 +9,6 @@ from wandb.sdk.launch.errors import LaunchError
 REPO_CONST = "test-repo"
 IMAGE_CONST = "fake-image"
 QUEUE_NAME = "test_queue"
-
-
-def _setup(mocker):
-    pass
-
-
-@pytest.mark.timeout(200)
-@pytest.mark.parametrize(
-    "args,override_config",
-    [
-        (
-            ["--build", "--queue", QUEUE_NAME],
-            {"registry": {"url": REPO_CONST}},
-        ),
-        (
-            ["--queue", "--build", "--repository", REPO_CONST],
-            {
-                "registry": {"url": "testing123"},
-                "docker": {"args": ["--container_arg", "9-rams"]},
-            },
-        ),
-    ],
-    ids=[
-        "queue default build",
-        "repository and docker args override",
-    ],
-)
-def test_launch_build_succeeds(
-    relay_server,
-    user,
-    monkeypatch,
-    runner,
-    args,
-    override_config,
-):
-    base_args = [
-        "-u",
-        "https://github.com/wandb/examples.git",
-        "--entity",
-        user,
-        "--entry-point",
-        "python main.py",
-        "-c",
-        json.dumps(override_config),
-    ]
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        lambda: None,
-    )
-
-    async def patched_launch_add(*args, **kwargs):
-        if not kwargs.get("build"):
-            raise Exception(kwargs)
-
-        if "--repository" in args:
-            if not kwargs.get("repository"):
-                raise Exception(kwargs)
-
-        if args[3]:  # config
-            assert args[3] == override_config
-
-    monkeypatch.setattr(
-        "wandb.cli.cli._launch_add",
-        patched_launch_add,
-    )
-
-    with runner.isolated_filesystem(), relay_server():
-        result = runner.invoke(cli.launch, base_args + args)
-
-        assert result.exit_code == 0
-
-
-@pytest.mark.timeout(100)
-@pytest.mark.parametrize(
-    "args",
-    [(["--build"]), (["--build=builder"])],
-    ids=["no queue flag", "builder argument"],
-)
-def test_launch_build_fails(
-    relay_server,
-    user,
-    monkeypatch,
-    runner,
-    args,
-):
-    base_args = [
-        "-u",
-        "https://foo:bar@github.com/FooTest/Foo.git",
-        "--entity",
-        user,
-        "--entry-point",
-        "python main.py",
-    ]
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        lambda: None,
-    )
-
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
-    )
-
-    monkeypatch.setattr(
-        "wandb.docker",
-        lambda: "docker",
-    )
-
-    with runner.isolated_filesystem(), relay_server():
-        result = runner.invoke(cli.launch, base_args + args)
-
-        if args == ["--build"]:
-            assert result.exit_code == 1
-            assert "Build flag requires a queue to be set" in result.output
-        elif args == ["--build=builder"]:
-            assert result.exit_code == 2
-            assert (
-                "Option '--build' does not take a value" in result.output
-                or "Error: --build option does not take a value" in result.output
-            )
-
-
-@pytest.mark.timeout(300)
-@pytest.mark.parametrize(
-    "args",
-    [
-        (["--repository=test_repo", "--resource=local"]),
-        (["--repository="]),
-        (["--repository"]),
-    ],
-    ids=["set repository", "set repository empty", "set repository empty2"],
-)
-def test_launch_repository_arg(
-    relay_server,
-    monkeypatch,
-    runner,
-    args,
-    user,
-    wandb_init,
-    test_settings,
-):
-    base_args = [
-        "-u",
-        "https://github.com/wandb/examples",
-        "--entity",
-        user,
-    ]
-
-    async def patched_launch(
-        uri,
-        job,
-        api,
-        name,
-        project,
-        entity,
-        docker_image,
-        resource,
-        entry_point,
-        version,
-        resource_args,
-        launch_config,
-        synchronous,
-        run_id,
-        repository,
-    ):
-        assert repository or "--repository=" in args or "--repository" in args
-
-        mock_run = Mock()
-        rv = Mock()
-        rv.state = "finished"
-
-        async def _mock_get_status():
-            return rv
-
-        mock_run.get_status = _mock_get_status
-        return mock_run
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch._launch._launch",
-        patched_launch,
-    )
-
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
-    monkeypatch.setattr(
-        "wandb.sdk.launch._launch.fetch_and_validate_project",
-        patched_fetch_and_val,
-    )
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        lambda: None,
-    )
-
-    monkeypatch.setattr(
-        "wandb.docker",
-        lambda: "testing",
-    )
-
-    with runner.isolated_filesystem(), relay_server():
-        result = runner.invoke(cli.launch, base_args + args)
-
-        if "--respository=" in args or "--repository" in args:  # incorrect param
-            assert result.exit_code == 2
-        else:
-            assert result.exit_code == 0
-
-
-def test_launch_bad_api_key(runner, monkeypatch, user):
-    args = [
-        "-u",
-        "https://wandb.ai/mock_server_entity/test_project/runs/run",
-        "--entity",
-        user,
-        "--queue=default",
-    ]
-    monkeypatch.setenv("WANDB_API_KEY", "4" * 40)
-    monkeypatch.setattr("wandb.sdk.internal.internal_api.Api.viewer", lambda a: False)
-    with runner.isolated_filesystem():
-        result = runner.invoke(cli.launch, args)
-
-        assert "Could not connect with current API-key." in result.output
-
-
-def test_launch_build_with_local(
-    relay_server,
-    user,
-    monkeypatch,
-    runner,
-):
-    base_args = [
-        "-u",
-        "https://foo:bar@github.com/FooTest/Foo.git",
-        "--entity",
-        user,
-        "--entry-point",
-        "python main.py",
-        "--build",
-        "--queue=default",
-        "--resource=local-process",
-    ]
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "validate_docker_installation",
-        lambda: None,
-    )
-
-    def patched_fetch_and_val(launch_project, _):
-        return launch_project
-
-    monkeypatch.setattr(
-        wandb.sdk.launch.builder.build,
-        "fetch_and_validate_project",
-        lambda *args, **kwargs: patched_fetch_and_val(*args, **kwargs),
-    )
-
-    monkeypatch.setattr(
-        "wandb.docker",
-        lambda: "docker",
-    )
-
-    with runner.isolated_filesystem(), relay_server():
-        result = runner.invoke(cli.launch, base_args)
-        print(result.output)
-        assert result.exit_code == 1
-        assert (
-            "Cannot build a docker image for the resource: local-process"
-            in result.output
-        )
 
 
 def _setup_agent(monkeypatch, pop_func):
@@ -405,26 +125,6 @@ def test_launch_agent_launch_error_continue(runner, monkeypatch, user, test_sett
 @pytest.mark.parametrize(
     "path,job_type",
     [
-        ("./test.py", "code"),
-        ("test.py", "code"),
-    ],
-)
-def test_create_job_no_reqs(path, job_type, runner, user):
-    with runner.isolated_filesystem():
-        with open("test.py", "w") as f:
-            f.write("print('hello world')\n")
-
-        result = runner.invoke(
-            cli.job,
-            ["create", job_type, path, "--entity", user, "--project", "proj"],
-        )
-        print(result.output)
-        assert "Could not find requirements.txt file" in result.output
-
-
-@pytest.mark.parametrize(
-    "path,job_type",
-    [
         ("./test.py", "123"),
         ("./test.py", ""),
         (".test.py", "docker"),
@@ -441,7 +141,7 @@ def test_create_job_bad_type(path, job_type, runner, user):
 
         result = runner.invoke(
             cli.job,
-            ["create", job_type, path, "--entity", user, "--project", "proj"],
+            ["create", job_type, path, "--entity", user],
         )
         print(result.output)
         assert (
@@ -617,9 +317,9 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
     ]
     expected_template_variables = {"test_str": "str1", "test_int": 2, "test_num": 2.5}
 
-    async def patched_launch_add(*args, **kwargs):
+    def patched_launch_add(*args, **kwargs):
         # Assert template variables are as expected
-        if not isinstance(args[4], dict) or args[4] != expected_template_variables:
+        if not isinstance(args[3], dict) or args[3] != expected_template_variables:
             raise Exception(args)
 
     monkeypatch.setattr(
@@ -656,3 +356,43 @@ def test_launch_template_vars(command_inputs, expected_error, runner, monkeypatc
         assert result.exit_code == 1
     else:
         assert result.exit_code == 0
+
+
+def test_launch_from_uri_creates_job(
+    runner,
+    mocker,
+    test_settings,
+    user,
+):
+    mock_job_artifact = MagicMock()
+    mock_job_artifact.name = "test:latest"
+    mock_create_job_function = MagicMock(return_value=(mock_job_artifact, None, None))
+    mock_launch_function = AsyncMock()
+    mocker.patch("wandb.sdk.launch._launch._launch", mock_launch_function)
+    mocker.patch("wandb.sdk.launch.create_job._create_job", mock_create_job_function)
+
+    result = "none"
+    with runner.isolated_filesystem():
+        result = runner.invoke(
+            cli.launch,
+            [
+                "--project",
+                "test",
+                "--uri",
+                "https://github.com/test/test.git",
+                "--entry-point",
+                "python test.py",
+                "--job-name",
+                "test-job",
+            ],
+        )
+
+    assert result.exit_code == 0
+    mock_create_job_function.assert_called_once()
+    mock_launch_function.assert_called_once()
+    create_job_args = mock_create_job_function.call_args[0]
+    launch_args = mock_launch_function.call_args[0]
+
+    assert create_job_args[1] == "git"
+    assert create_job_args[2] == "https://github.com/test/test.git"
+    assert launch_args[1].endswith("/test/test:latest")

@@ -20,13 +20,21 @@ type DefaultFileTransfer struct {
 
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
+
+	// fileTransferStats is used to track upload/download progress
+	fileTransferStats FileTransferStats
 }
 
 // NewDefaultFileTransfer creates a new fileTransfer
-func NewDefaultFileTransfer(logger *observability.CoreLogger, client *retryablehttp.Client) *DefaultFileTransfer {
+func NewDefaultFileTransfer(
+	client *retryablehttp.Client,
+	logger *observability.CoreLogger,
+	fileTransferStats FileTransferStats,
+) *DefaultFileTransfer {
 	fileTransfer := &DefaultFileTransfer{
-		logger: logger,
-		client: client,
+		logger:            logger,
+		client:            client,
+		fileTransferStats: fileTransferStats,
 	}
 	return fileTransfer
 }
@@ -43,18 +51,60 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	defer func(file *os.File) {
 		err := file.Close()
 		if err != nil {
-			ft.logger.CaptureError("file transfer: upload: error closing file", err, "path", task.Path)
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: upload: error closing file %s: %v",
+					task.Path,
+					err,
+				))
 		}
 	}(file)
 
 	stat, err := file.Stat()
 	if err != nil {
-		ft.logger.CaptureError("file transfer: upload: error getting file size", err, "path", task.Path)
-		return err
+		return fmt.Errorf(
+			"file transfer: upload: error when stat-ing %s: %v",
+			task.Path,
+			err,
+		)
 	}
-	task.Size = stat.Size()
 
-	progressReader, err := NewProgressReader(file, task.Size, task.ProgressCallback)
+	// Don't try to upload directories.
+	if stat.IsDir() {
+		return fmt.Errorf(
+			"file transfer: upload: cannot upload directory %v",
+			task.Path,
+		)
+	}
+
+	if task.Offset+task.Size > stat.Size() {
+		// If the range exceeds the file size, there was some kind of error upstream.
+		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
+	}
+
+	if task.Size == 0 {
+		// If Size is 0, upload the remainder of the file.
+		task.Size = stat.Size() - task.Offset
+	}
+
+	reader := io.NewSectionReader(file, task.Offset, task.Size)
+
+	progressReader, err := NewProgressReader(
+		reader,
+		task.Size,
+		func(processed int, total int) {
+			if task.ProgressCallback != nil {
+				task.ProgressCallback(processed, total)
+			}
+
+			ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+				FileKind:      task.FileKind,
+				Path:          task.Path,
+				UploadedBytes: int64(processed),
+				TotalBytes:    int64(total),
+			})
+		},
+	)
 	if err != nil {
 		return err
 	}
@@ -63,14 +113,23 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		return err
 	}
 	for _, header := range task.Headers {
-		parts := strings.Split(header, ":")
+		parts := strings.SplitN(header, ":", 2)
+		if len(parts) != 2 {
+			ft.logger.Error("file transfer: upload: invalid header", "header", header)
+			continue
+		}
 		req.Header.Set(parts[0], parts[1])
 	}
-
-	if _, err = ft.client.Do(req); err != nil {
+	if task.Context != nil {
+		req = req.WithContext(task.Context)
+	}
+	resp, err := ft.client.Do(req)
+	if err != nil {
 		return err
 	}
-
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+	}
 	return nil
 }
 
@@ -91,28 +150,38 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 		return err
 	}
 
+	// TODO: redo it to use the progress writer, to track the download progress
+	resp, err := ft.client.Get(task.Url)
+	if err != nil {
+		return err
+	}
+
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
 	if err != nil {
 		return err
 	}
 	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing file", err, "path", task.Path)
+		if err := file.Close(); err != nil {
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: download: error closing file %s: %v",
+					task.Path,
+					err,
+				))
 		}
 	}(file)
 
-	resp, err := ft.client.Get(task.Url)
-	if err != nil {
-		return err
-	}
 	defer func(file io.ReadCloser) {
-		err := file.Close()
-		if err != nil {
-			ft.logger.CaptureError("file transfer: download: error closing response reader", err, "path", task.Path)
+		if err := file.Close(); err != nil {
+			ft.logger.CaptureError(
+				fmt.Errorf(
+					"file transfer: download: error closing response reader: %v",
+					err,
+				))
 		}
 	}(resp.Body)
+
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
 		return err
@@ -121,25 +190,25 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 }
 
 type ProgressReader struct {
-	*os.File
+	io.ReadSeeker
 	len      int
 	read     int
 	callback func(processed, total int)
 }
 
-func NewProgressReader(file *os.File, size int64, callback func(processed, total int)) (*ProgressReader, error) {
+func NewProgressReader(reader io.ReadSeeker, size int64, callback func(processed, total int)) (*ProgressReader, error) {
 	if size > math.MaxInt {
 		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
 	}
 	return &ProgressReader{
-		File:     file,
-		len:      int(size),
-		callback: callback,
+		ReadSeeker: reader,
+		len:        int(size),
+		callback:   callback,
 	}, nil
 }
 
 func (pr *ProgressReader) Read(p []byte) (int, error) {
-	n, err := pr.File.Read(p)
+	n, err := pr.ReadSeeker.Read(p)
 	if err != nil {
 		return n, err // Return early if there's an error
 	}

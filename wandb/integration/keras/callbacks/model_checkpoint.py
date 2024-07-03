@@ -187,7 +187,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     @property
     def is_old_tf_keras_version(self) -> Optional[bool]:
         if self._is_old_tf_keras_version is None:
-            from pkg_resources import parse_version
+            from wandb.util import parse_version
 
             try:
                 if parse_version(tf.keras.__version__) < parse_version("2.6.0"):

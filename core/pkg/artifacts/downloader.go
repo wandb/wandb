@@ -3,13 +3,13 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const BATCH_SIZE int = 10000
@@ -19,21 +19,30 @@ type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
-	DownloadManager *filetransfer.FileTransferManager
+	DownloadManager filetransfer.FileTransferManager
+	FileCache       Cache
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
-	AllowMissingReferences *bool
+	AllowMissingReferences bool   // Currently unused
+	SkipCache              bool   // Currently unused
+	PathPrefix             string // Currently unused
 }
 
 func NewArtifactDownloader(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	downloadManager *filetransfer.FileTransferManager,
+	downloadManager filetransfer.FileTransferManager,
 	artifactID string,
 	downloadRoot string,
-	allowMissingReferences *bool,
+	allowMissingReferences bool,
+	skipCache bool,
+	pathPrefix string,
 ) *ArtifactDownloader {
+	fileCache := NewHashOnlyCache()
+	if !skipCache {
+		fileCache = NewFileCache(UserCacheDir())
+	}
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
@@ -41,6 +50,9 @@ func NewArtifactDownloader(
 		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
 		AllowMissingReferences: allowMissingReferences,
+		SkipCache:              skipCache,
+		PathPrefix:             pathPrefix,
+		FileCache:              fileCache,
 	}
 }
 
@@ -135,29 +147,21 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				for _, entry := range manifestEntriesBatch {
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(ad.DownloadRoot, *entry.LocalPath)
-					// Skip downloading the file if it already exists and has the same digest.
-					exists, err := utils.FileExists(downloadLocalPath)
-					if err != nil {
-						return err
-					}
-					if exists {
-						existingDigest, err := utils.ComputeFileB64MD5(downloadLocalPath)
-						if err != nil {
-							return err
-						}
-						if existingDigest == entry.Digest {
-							numDone++
-							continue
-						}
+					// If we're skipping the cache, the HashOnlyCache still checks the destination
+					// and returns true if the file is there and has the correct hash.
+					if success := ad.FileCache.RestoreTo(entry, downloadLocalPath); success {
+						numDone++
+						continue
 					}
 					task := &filetransfer.Task{
-						Type: filetransfer.DownloadTask,
-						Path: downloadLocalPath,
-						Url:  *entry.DownloadURL,
+						FileKind: filetransfer.RunFileKindArtifact,
+						Type:     filetransfer.DownloadTask,
+						Path:     downloadLocalPath,
+						Url:      *entry.DownloadURL,
 					}
-					task.AddCompletionCallback(
-						func(task *filetransfer.Task) {
-							taskResultsChan <- TaskResult{task, *entry.LocalPath}
+					task.SetCompletionCallback(
+						func(t *filetransfer.Task) {
+							taskResultsChan <- TaskResult{t, *entry.LocalPath}
 						},
 					)
 					numInProgress++
@@ -178,6 +182,13 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					continue
 				}
 				numDone++
+				digest := manifest.Contents[result.Name].Digest
+				go func() {
+					err := ad.FileCache.AddFileAndCheckDigest(result.Task.Path, digest)
+					if err != nil {
+						slog.Error("Error adding file to cache", "err", err)
+					}
+				}()
 			}
 		}
 	}

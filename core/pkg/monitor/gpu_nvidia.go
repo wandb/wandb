@@ -7,7 +7,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
@@ -251,7 +251,10 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
-	nvml.Shutdown()
+	err := nvml.Shutdown()
+	if err != nvml.SUCCESS {
+		return
+	}
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {

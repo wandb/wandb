@@ -211,13 +211,13 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
 
     """
     if "args" not in command:
-        raise ValueError('No "args" found in command: %s' % command)
+        raise ValueError('No "args" found in command: {}'.format(command))
     # four different formats of command args
     # (1) standard command line flags (e.g. --foo=bar)
     flags: List[str] = []
     # (2) flags without hyphens (e.g. foo=bar)
     flags_no_hyphens: List[str] = []
-    # (3) flags with false booleans ommited  (e.g. --foo)
+    # (3) flags with false booleans omitted  (e.g. --foo)
     flags_no_booleans: List[str] = []
     # (4) flags as a dictionary (used for constructing a json)
     flags_dict: Dict[str, Any] = {}
@@ -228,7 +228,7 @@ def create_sweep_command_args(command: Dict) -> Dict[str, Any]:
         try:
             _value: Any = config["value"]
         except KeyError:
-            raise ValueError('No "value" found for command["args"]["%s"]' % param)
+            raise ValueError('No "value" found for command["args"]["{}"]'.format(param))
 
         _flag: str = f"{param}={_value}"
         flags.append("--" + _flag)
@@ -257,7 +257,7 @@ def make_launch_sweep_entrypoint(
     """Use args dict from create_sweep_command_args to construct entrypoint.
 
     If replace is True, remove macros from entrypoint, fill them in with args
-    and then return the args in seperate return value.
+    and then return the args in separate return value.
     """
     if not command:
         return None, None
@@ -296,7 +296,7 @@ def check_job_exists(public_api: "PublicApi", job: Optional[str]) -> bool:
 
 
 def get_previous_args(
-    run_spec: Dict[str, Any]
+    run_spec: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Parse through previous scheduler run_spec.
 

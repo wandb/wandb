@@ -5,11 +5,12 @@ package monitor
 import (
 	"fmt"
 	"log"
+	"os"
 	"os/exec"
 	"strings"
 	"sync"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -54,9 +55,38 @@ func NewGPUAMD(settings *service.Settings) *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
+func GetRocmSMICmd() (string, error) {
+	if foundCmd, err := exec.LookPath("rocm-smi"); err == nil {
+		return foundCmd, nil
+	}
+	// try to use the default path
+	if _, err := os.Stat(rocmSMICmd); err == nil {
+		return rocmSMICmd, nil
+	}
+	return "", fmt.Errorf("rocm-smi not found")
+}
+
 func (g *GPUAMD) IsAvailable() bool {
-	_, err := exec.LookPath(rocmSMICmd)
-	return err == nil
+	_, err := GetRocmSMICmd()
+	if err != nil {
+		return false
+	}
+
+	isDriverInitialized := false
+	fileContent, err := os.ReadFile("/sys/module/amdgpu/initstate")
+	if err == nil && strings.Contains(string(fileContent), "live") {
+		isDriverInitialized = true
+	}
+
+	canReadRocmSmi := false
+	if stats, err := getROCMSMIStats(); err == nil {
+		// check if stats is not nil or empty
+		if len(stats) > 0 {
+			canReadRocmSmi = true
+		}
+	}
+
+	return isDriverInitialized && canReadRocmSmi
 }
 
 func (g *GPUAMD) getCards() map[int]Stats {
@@ -187,6 +217,10 @@ func (g *GPUAMD) Samples() map[string][]float64 {
 }
 
 func getROCMSMIStats() (InfoDict, error) {
+	rocmSMICmd, err := GetRocmSMICmd()
+	if err != nil {
+		return nil, err
+	}
 	cmd := exec.Command(rocmSMICmd, "-a", "--json")
 	output, err := cmd.Output()
 	if err != nil {

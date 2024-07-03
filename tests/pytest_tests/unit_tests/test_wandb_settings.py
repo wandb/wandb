@@ -4,15 +4,16 @@ import os
 import subprocess
 import sys
 import tempfile
-from typing import Any, Dict, List, Mapping, Optional, Sequence, Set, Tuple, Union
+from typing import Any, Dict, List, Mapping, Sequence, Set, Tuple, Union
 from unittest import mock
 
 import pytest
 import wandb
 from click.testing import CliRunner
 from wandb.errors import UsageError
-from wandb.sdk import wandb_login, wandb_settings
+from wandb.sdk import wandb_settings
 from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
+from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
@@ -481,6 +482,21 @@ def test_ignore_globs_env():
     )
 
 
+def test_token_file_env():
+    s = Settings()
+    s._apply_env_vars({"WANDB_IDENTITY_TOKEN_FILE": "jwt.txt"})
+    assert s.identity_token_file == ("jwt.txt")
+
+
+def test_credentials_file_env():
+    s = Settings()
+    assert s.credentials_file == str(DEFAULT_WANDB_CREDENTIALS_FILE)
+
+    s = Settings()
+    s._apply_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
+    assert s.credentials_file == "/tmp/credentials.json"
+
+
 def test_quiet():
     s = Settings()
     assert s.quiet is None
@@ -782,12 +798,10 @@ def test_strict():
     assert not settings.strict
 
 
-def test_validate_console_problem_anonymous():
+def test_validate_console_anonymous():
     s = Settings()
     with pytest.raises(UsageError):
         s.update(console="lol")
-    with pytest.raises(UsageError):
-        s.update(problem="lol")
     with pytest.raises(UsageError):
         s.update(anonymous="lol")
 
@@ -838,53 +852,6 @@ def test_log_internal(test_settings):
     assert run_id == test_settings.run_id
     assert log_dir == "logs"
     assert fname == "debug-internal.log"
-
-
-class TestAsyncUploadConcurrency:
-    def test_default_is_none(self, test_settings):
-        settings = test_settings()
-        assert settings._async_upload_concurrency_limit is None
-
-    @pytest.mark.parametrize(
-        ["value", "ok"],
-        [
-            (None, True),
-            (1, True),
-            (2, True),
-            (10, True),
-            (100, True),
-            (99999999, True),
-            (-10, False),
-            ("not an int", False),
-        ],
-    )
-    def test_err_iff_bad_value(self, value: Optional[int], ok: bool, test_settings):
-        if ok:
-            settings = test_settings({"_async_upload_concurrency_limit": value})
-            assert settings._async_upload_concurrency_limit == value
-        else:
-            with pytest.raises((UsageError, ValueError)):
-                test_settings({"_async_upload_concurrency_limit": value})
-
-    @pytest.mark.parametrize(
-        ["value", "warn"], [(None, False), (1, False), (9999999, True)]
-    )
-    @mock.patch("wandb.termwarn")
-    def test_warns_if_exceeds_filelimit(
-        self,
-        termwarn: mock.Mock,
-        test_settings,
-        value: Optional[int],
-        warn: bool,
-    ):
-        pytest.importorskip("resource")
-        test_settings({"_async_upload_concurrency_limit": value})
-
-        if warn:
-            termwarn.assert_called_once()
-            assert "exceeds this process's limit" in termwarn.call_args[0][0]
-        else:
-            termwarn.assert_not_called()
 
 
 # --------------------------
@@ -1010,21 +977,6 @@ def test_code_saving_disable_code(mock_run, test_settings):
         settings._infer_settings_from_environment()
         run = mock_run(settings=settings)
         assert run.settings.save_code is False
-
-
-def test_override_login_settings(test_settings):
-    wlogin = wandb_login._WandbLogin()
-    login_settings = test_settings().copy()
-    login_settings.update(show_emoji=True)
-    wlogin.setup({"_settings": login_settings})
-    assert wlogin._settings.show_emoji is True
-
-
-def test_override_login_settings_with_dict():
-    wlogin = wandb_login._WandbLogin()
-    login_settings = dict(show_emoji=True)
-    wlogin.setup({"_settings": login_settings})
-    assert wlogin._settings.show_emoji is True
 
 
 def test_setup_offline(test_settings):
