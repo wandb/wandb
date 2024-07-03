@@ -299,8 +299,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_LogArtifact:
 		h.handleRequestLogArtifact(record)
 	case *service.Request_LinkArtifact:
-		h.handleLinkArtifact(record)
-		// response = nil
+		h.handleRequestLinkArtifact(record)
 	case *service.Request_DownloadArtifact:
 		h.handleRequestDownloadArtifact(record)
 	case *service.Request_Attach:
@@ -495,7 +494,7 @@ func (h *Handler) handleRequestDownloadArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleLinkArtifact(record *service.Record) {
+func (h *Handler) handleRequestLinkArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 

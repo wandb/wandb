@@ -2896,9 +2896,7 @@ class Run:
                 assert result is not None
                 response = result.response.link_artifact_response
                 if response.error_message:
-                    raise ValueError(
-                        f"Error linking artifact: {response.error_message}"
-                    )
+                    wandb.termerror(response.error_message)
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
