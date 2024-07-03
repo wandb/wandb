@@ -749,7 +749,7 @@ class InterfaceBase:
         self,
         include_paths: List[List[str]],
         exclude_paths: List[List[str]],
-        input_schema: dict,
+        input_schema: Optional[dict],
         run_config: bool = False,
         file_path: str = "",
     ):
