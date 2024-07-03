@@ -621,7 +621,7 @@ func (s *Sender) sendLinkArtifact(record *service.Record, msg *service.LinkArtif
 	err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
-		s.logger.CaptureError("senderError: sendLinkArtifact: link failure", err)
+		s.logger.CaptureError(err)
 	}
 
 	result := &service.Result{
