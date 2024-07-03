@@ -37,7 +37,7 @@ func (al *ArtifactLinker) Link() error {
 	var err error
 	switch {
 	case serverId != "":
-		response, err = gql.LinkArtifact(
+		_, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -48,7 +48,7 @@ func (al *ArtifactLinker) Link() error {
 			&serverId,
 		)
 	case clientId != "":
-		response, err = gql.LinkArtifact(
+		_, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -59,7 +59,7 @@ func (al *ArtifactLinker) Link() error {
 			nil,
 		)
 	default:
-		return fmt.Errorf(
+		err = fmt.Errorf(
 			"LinkArtifact: %s,"+
 				" error: artifact must have either server id or client id",
 			portfolioName,
@@ -67,13 +67,13 @@ func (al *ArtifactLinker) Link() error {
 	}
 
 	if err != nil {
-		return fmt.Errorf(
-			"LinkArtifact: %s, error: %v, response: %v",
+		err = fmt.Errorf(
+			"LinkArtifact: %s, error: %w",
 			portfolioName,
 			err,
-			response,
 		)
+		al.Logger.CaptureError(err)
 	}
 
-	return nil
+	return err
 }
