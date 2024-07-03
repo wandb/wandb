@@ -17,8 +17,7 @@ func ComputeB64MD5(data []byte) string {
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 }
 
-// ComputeHexMD5 computes the MD5 hash of the given data and returns the result as a
-// hexadecimal string.
+// ComputeHexMD5 returns the MD5 hash of data as a hexadecimal string.
 func ComputeHexMD5(data []byte) string {
 	hasher := md5.New()
 	_, _ = hasher.Write(data)
