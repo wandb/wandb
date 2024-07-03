@@ -832,3 +832,51 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+def get_latest_go_version() -> str:
+    import requests
+
+    url = "https://go.dev/VERSION?m=text"
+    response = requests.get(url)
+    if response.status_code == 200:
+        # Parse the version from the response
+        match = re.search(r"go(\d+\.\d+\.\d+)", response.text)
+        if match:
+            return match.group(1)
+        raise ValueError("Failed to parse the latest Go version")
+    else:
+        raise ValueError("Failed to fetch the latest Go version")
+
+
+@nox.session(name="bump-go-version")
+def bump_go_version(session: nox.Session) -> None:
+    """Bump the Go version."""
+    install_timed(session, "bump2version", "requests", "nox")
+
+    # Get the latest Go version
+    latest_version = session.run(
+        "python",
+        "-c",
+        "import sys; sys.path.append('.'); "
+        "from noxfile import get_latest_go_version; "
+        "print(get_latest_go_version())",
+        silent=True,
+        external=True,
+    )
+    latest_version = latest_version.strip()
+
+    session.log(f"Latest Go version: {latest_version}")
+
+    # Run bump2version with the fetched version
+    session.run(
+        "bump2version",
+        "patch",
+        "--new-version",
+        latest_version,
+        "--config-file",
+        ".bumpversion.go.cfg",
+        "--no-commit",
+        "--allow-dirty",
+        external=True,
+    )
