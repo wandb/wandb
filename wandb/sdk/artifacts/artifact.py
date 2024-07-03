@@ -1802,7 +1802,7 @@ class Artifact:
                         # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
-                    if not path_prefix or entry.path.startswith(str(path_prefix)):
+                    if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = fetch_url_batch_size
