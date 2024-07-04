@@ -3,6 +3,7 @@ package monitor
 import (
 	"context"
 	"fmt"
+	"golang.org/x/time/rate"
 	"os"
 	"strings"
 	"sync"
@@ -91,7 +92,7 @@ type SystemMonitor struct {
 	samplingInterval time.Duration
 
 	// samplesToAverage is the number of samples to average before sending the metrics
-	samplesToAverage int32
+	samplesToAverage int
 
 	// logger is the logger for the system monitor
 	logger *observability.CoreLogger
@@ -127,7 +128,7 @@ func NewSystemMonitor(
 		systemMonitor.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
 	}
 	if sta := settings.XStatsSamplesToAverage; sta != nil {
-		systemMonitor.samplesToAverage = int32(sta.GetValue())
+		systemMonitor.samplesToAverage = int(sta.GetValue())
 	}
 
 	systemMonitor.logger.Debug(
@@ -228,53 +229,37 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	ticker := time.NewTicker(sm.samplingInterval)
 	defer ticker.Stop()
 
-	// Create a new channel and immediately send a signal to it.
-	// This is to ensure that the first sample is taken immediately.
-	tickChan := make(chan time.Time, 1)
-	tickChan <- time.Now()
+	sometimes := rate.Sometimes{Every: sm.samplesToAverage}
 
-	// Forward signals from the ticker to tickChan
-	go func() {
-		for t := range ticker.C {
-			tickChan <- t
-		}
-	}()
-
-	samplesCollected := int32(0)
 	for {
 		select {
 		case <-sm.ctx.Done():
 			return
-		case <-tickChan:
+		case <-ticker.C:
 			asset.SampleMetrics()
-			samplesCollected++
 
-			if samplesCollected == sm.samplesToAverage {
+			sometimes.Do(func() {
 				aggregatedMetrics := asset.AggregateMetrics()
-				if len(aggregatedMetrics) > 0 {
-					ts := timestamppb.Now()
-					// store in buffer
-					for k, v := range aggregatedMetrics {
-						if sm.buffer != nil {
-							sm.buffer.push(k, ts, v)
-						}
-					}
+				asset.ClearMetrics()
 
-					// publish metrics
-					record := makeStatsRecord(aggregatedMetrics, ts)
-					// ensure that the context is not done before sending the record
-					select {
-					case <-sm.ctx.Done():
-						return
-					default:
-						sm.outChan <- record
+				if len(aggregatedMetrics) == 0 {
+					return // nothing to do
+				}
+				ts := timestamppb.Now()
+				// Also store aggregated metrics in the buffer if we have one
+				if sm.buffer != nil {
+					for k, v := range aggregatedMetrics {
+						sm.buffer.push(k, ts, v)
 					}
-					asset.ClearMetrics()
 				}
 
-				// reset samplesCollected
-				samplesCollected = int32(0)
-			}
+				// publish metrics
+				select {
+				case <-sm.ctx.Done():
+					return
+				case sm.outChan <- makeStatsRecord(aggregatedMetrics, ts):
+				}
+			})
 		}
 	}
 
