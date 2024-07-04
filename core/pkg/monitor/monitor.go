@@ -3,11 +3,12 @@ package monitor
 import (
 	"context"
 	"fmt"
-	"golang.org/x/time/rate"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 
 	"github.com/wandb/segmentio-encoding/json"
 
