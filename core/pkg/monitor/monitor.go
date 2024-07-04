@@ -35,28 +35,28 @@ func Average(nums []float64) float64 {
 }
 
 func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
-	record := &service.Record{
-		RecordType: &service.Record_Stats{
-			Stats: &service.StatsRecord{
-				StatsType: service.StatsRecord_SYSTEM,
-				Timestamp: timeStamp,
-			},
-		},
-		Control: &service.Control{AlwaysSend: true},
-	}
-
+	statsItems := make([]*service.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := json.Marshal(v)
 		if err != nil {
 			continue
 		}
-		record.GetStats().Item = append(record.GetStats().Item, &service.StatsItem{
+		statsItems = append(statsItems, &service.StatsItem{
 			Key:       k,
 			ValueJson: string(jsonData),
 		})
 	}
 
-	return record
+	return &service.Record{
+		RecordType: &service.Record_Stats{
+			Stats: &service.StatsRecord{
+				StatsType: service.StatsRecord_SYSTEM,
+				Timestamp: timeStamp,
+				Item:      statsItems,
+			},
+		},
+		Control: &service.Control{AlwaysSend: true},
+	}
 }
 
 type Asset interface {
