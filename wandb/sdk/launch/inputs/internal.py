@@ -237,7 +237,11 @@ def handle_run_config_input(
     If there is no active run, the include and exclude paths are staged and sent
     when a run is created.
     """
-    if isinstance(input_schema, BaseModel):
+    # Support both input_schema=Schema or input_schema=Schema()
+    if isinstance(input_schema, BaseModel) or (
+        hasattr(input_schema, "model_json_schema")
+        and callable(input_schema.model_json_schema)
+    ):
         input_schema = _convert_model_to_jsonschema(input_schema)
     arguments = JobInputArguments(
         include=include,
