@@ -3,6 +3,7 @@ package filetransfer
 import (
 	"context"
 	"fmt"
+	"net/http"
 )
 
 type TaskType int
@@ -40,6 +41,9 @@ type Task struct {
 
 	// Offset is the beginning of the file segment to upload
 	Offset int64
+
+	// Response is the response from the upload or download request.
+	Response *http.Response
 
 	// Error, if any.
 	Err error

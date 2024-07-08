@@ -38,18 +38,23 @@ type ArtifactSaver struct {
 	startTime        time.Time
 }
 
-type MultipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
+type multipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
 
 type serverFileResponse struct {
-	Name            string
-	BirthArtifactID string
-	UploadUrl       *string
-	UploadHeaders   []string
+	name            string
+	birthArtifactID string
+	uploadUrl       *string
+	uploadHeaders   []string
 
 	// Used only for multipart uploads.
-	UploadID            string
-	StoragePath         *string
-	MultipartUploadInfo MultipartUploadInfo
+	uploadID            string
+	storagePath         *string
+	multipartUploadInfo multipartUploadInfo
+}
+
+type uploadResult struct {
+	name string
+	err  error
 }
 
 func NewArtifactSaver(
@@ -206,7 +211,7 @@ func (as *ArtifactSaver) processFiles(
 	readyChan := make(chan serverFileResponse)
 	errorChan := make(chan error)
 
-	doneChan := make(chan *filetransfer.Task)
+	doneChan := make(chan uploadResult, len(namedFileSpecs))
 	mustRetry := map[string]gql.CreateArtifactFileSpecInput{}
 
 	numActive := 0
@@ -227,29 +232,31 @@ func (as *ArtifactSaver) processFiles(
 		select {
 		// Start any uploads that are ready.
 		case fileInfo := <-readyChan:
-			entry := manifest.Contents[fileInfo.Name]
-			entry.BirthArtifactID = &fileInfo.BirthArtifactID
-			manifest.Contents[fileInfo.Name] = entry
+			entry := manifest.Contents[fileInfo.name]
+			entry.BirthArtifactID = &fileInfo.birthArtifactID
+			manifest.Contents[fileInfo.name] = entry
 			as.cacheEntry(entry)
-			if fileInfo.UploadUrl == nil {
+			if fileInfo.uploadUrl == nil {
 				// The server already has this file.
 				numActive--
 				as.numDone++
 				continue
 			}
-			if fileInfo.MultipartUploadInfo != nil {
-				partData := namedFileSpecs[fileInfo.Name].UploadPartsInput
+			if fileInfo.multipartUploadInfo != nil {
+				partData := namedFileSpecs[fileInfo.name].UploadPartsInput
 				go as.uploadMultipart(*entry.LocalPath, fileInfo, partData, doneChan)
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
-				task.SetCompletionCallback(func(t *filetransfer.Task) { doneChan <- t })
+				task.SetCompletionCallback(func(t *filetransfer.Task) {
+					doneChan <- uploadResult{name: fileInfo.name, err: t.Err}
+				})
 				as.FileTransferManager.AddTask(task)
 			}
 		// Listen for completed uploads, adding to the retry list if they failed.
 		case result := <-doneChan:
 			numActive--
-			if result.Err != nil {
-				mustRetry[result.Name] = namedFileSpecs[result.Name]
+			if result.err != nil {
+				mustRetry[result.name] = namedFileSpecs[result.name]
 			} else {
 				as.numDone++
 			}
@@ -282,15 +289,15 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 	}
 	for i, edge := range batchDetails {
 		resp := serverFileResponse{
-			Name:            batch[i].Name,
-			BirthArtifactID: edge.Node.Artifact.Id,
-			UploadUrl:       edge.Node.UploadUrl,
-			UploadHeaders:   edge.Node.UploadHeaders,
-			StoragePath:     edge.Node.StoragePath,
+			name:            batch[i].Name,
+			birthArtifactID: edge.Node.Artifact.Id,
+			uploadUrl:       edge.Node.UploadUrl,
+			uploadHeaders:   edge.Node.UploadHeaders,
+			storagePath:     edge.Node.StoragePath,
 		}
 		if edge.Node.UploadMultipartUrls != nil {
-			resp.UploadID = edge.Node.UploadMultipartUrls.UploadID
-			resp.MultipartUploadInfo = edge.Node.UploadMultipartUrls.UploadUrlParts
+			resp.uploadID = edge.Node.UploadMultipartUrls.UploadID
+			resp.multipartUploadInfo = edge.Node.UploadMultipartUrls.UploadUrlParts
 		}
 		resultChan <- resp
 	}
@@ -322,15 +329,16 @@ func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.
 		FileKind: filetransfer.RunFileKindArtifact,
 		Type:     filetransfer.UploadTask,
 		Path:     localPath,
-		Name:     fileInfo.Name,
-		Url:      *fileInfo.UploadUrl,
-		Headers:  fileInfo.UploadHeaders,
+		Name:     fileInfo.name,
+		Url:      *fileInfo.uploadUrl,
+		Headers:  fileInfo.uploadHeaders,
 	}
 }
 
 const (
-	S3MinMultiUploadSize = 2 << 30 // 2 GiB, the threshold we've chosen to switch to multipart
-	S3MaxMultiUploadSize = 5 << 40 // 5 TiB, maximum possible object size
+	S3MinMultiUploadSize = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
+	S3MaxMultiUploadSize = 5 << 40   // 5 TiB, maximum possible object size
+	S3DefaultChunkSize   = 100 << 20 // 1 MiB
 	S3MaxParts           = 10000
 )
 
@@ -356,7 +364,7 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	defer file.Close()
 
 	partsInfo := []gql.UploadPartsInput{}
-	partNumber := int64(0)
+	partNumber := int64(1)
 	buffer := make([]byte, getChunkSize(fileSize))
 	for {
 		bytesRead, err := file.Read(buffer)
@@ -376,33 +384,59 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 }
 
 func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileResponse,
-	partData []gql.UploadPartsInput, doneChan chan<- *filetransfer.Task,
+	partData []gql.UploadPartsInput, doneChan chan<- uploadResult,
 ) {
 	statInfo, err := os.Stat(path)
 	if err != nil {
-		doneChan <- &filetransfer.Task{Err: err}
+		doneChan <- uploadResult{name: fileInfo.name, err: err}
 		return
 	}
 	chunkSize := getChunkSize(statInfo.Size())
 
+	type partResponse struct {
+		partNumber int64
+		task       *filetransfer.Task
+	}
+
 	wg := sync.WaitGroup{}
-	subChan := make(chan *filetransfer.Task)
+	subChan := make(chan partResponse, len(partData))
 	// TODO: add mid-upload cancel.
 
-	partInfo := fileInfo.MultipartUploadInfo
+	var contentType string
+	for _, h := range fileInfo.uploadHeaders {
+		if strings.HasPrefix(h, "Content-Type:") {
+			contentType = strings.TrimPrefix(h, "Content-Type:")
+			break
+		}
+	}
+	if contentType == "" {
+		err := fmt.Errorf("content-type header is required for multipart uploads")
+		doneChan <- uploadResult{name: fileInfo.name, err: err}
+		return
+	}
+
+	partInfo := fileInfo.multipartUploadInfo
 	for i, part := range partInfo {
 		task := newUploadTask(fileInfo, path)
-		task.Offset = part.PartNumber * chunkSize
+		task.Url = part.UploadUrl
+		task.Offset = int64(i) * chunkSize
 		remainingSize := statInfo.Size() - task.Offset
 		if remainingSize < chunkSize {
 			task.Size = remainingSize
 		} else {
 			task.Size = chunkSize
 		}
-		task.Headers = append(task.Headers, "content-md5:"+partData[i].HexMD5)
-		task.Headers = append(task.Headers, "content-length:"+strconv.FormatInt(task.Size, 10))
+		b64md5, err := utils.HexToB64(partData[i].HexMD5)
+		if err != nil {
+			panic(err)
+		}
+		task.Headers = []string{
+			"Content-Md5:" + b64md5,
+			"Content-Length:" + strconv.FormatInt(task.Size, 10),
+			"Content-Type:" + contentType,
+		}
 		task.SetCompletionCallback(func(t *filetransfer.Task) {
-			subChan <- t
+			subChan <- partResponse{partNumber: partData[i].PartNumber, task: t}
 			wg.Done()
 		})
 		wg.Add(1)
@@ -414,26 +448,40 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 		close(subChan)
 	}()
 
+	partEtags := make([]gql.UploadPartsInput, len(partData))
+
 	for t := range subChan {
-		if t.Err != nil {
-			doneChan <- t
+		err := t.task.Err
+		if err == nil && t.task.Response == nil {
+			err = fmt.Errorf("no response in task %v", t.task.Name)
+		}
+		etag := ""
+		if err == nil && t.task.Response != nil {
+			etag = t.task.Response.Header.Get("ETag")
+			if etag == "" {
+				err = fmt.Errorf("no ETag in response %v", t.task.Response.Header)
+			}
+		}
+		if err != nil {
+			doneChan <- uploadResult{name: fileInfo.name, err: err}
 			return
 		}
+		partEtags[t.partNumber-1] = gql.UploadPartsInput{
+			PartNumber: t.partNumber,
+			HexMD5:     etag,
+		}
 	}
+
 	_, err = gql.CompleteMultipartUploadArtifact(
-		as.Ctx, as.GraphqlClient, gql.CompleteMultipartActionComplete, partData,
-		fileInfo.BirthArtifactID, *fileInfo.StoragePath, fileInfo.UploadID,
+		as.Ctx, as.GraphqlClient, gql.CompleteMultipartActionComplete, partEtags,
+		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
 	)
-	task := newUploadTask(fileInfo, path)
-	task.Err = err
-	doneChan <- task
+	doneChan <- uploadResult{name: fileInfo.name, err: err}
 }
 
 func getChunkSize(fileSize int64) int64 {
-	// Default to 100MiB chunks
-	const defaultChunkSize = int64(100 * 1024 * 1024)
-	if fileSize < defaultChunkSize*S3MaxParts {
-		return defaultChunkSize
+	if fileSize < S3DefaultChunkSize*S3MaxParts {
+		return S3DefaultChunkSize
 	}
 	// Use a larger chunk size if we would need more than 10,000 chunks.
 	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
