@@ -227,7 +227,7 @@ def handle_config_file_input(
 def handle_run_config_input(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[dict | BaseModel] = None,
+    input_schema: Optional[Any] = None,
 ):
     """Declare wandb.config as an overridable configuration for a launch job.
 
