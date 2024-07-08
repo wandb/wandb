@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/core
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/Khan/genqlient v0.7.0

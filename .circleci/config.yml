@@ -49,7 +49,7 @@ parameters:
     default: 1
   go_version:
     type: string
-    default: "1.22.4"
+    default: "1.22.5"
   container_registry:
     type: string
     default: "us-central1-docker.pkg.dev"
@@ -550,8 +550,12 @@ jobs:
             setx PATH '/c/nox-tests-python/python/tools;%PATH%'
 
       - run:
-          name: Install system deps (ffmpeg)
+          name: "Install system deps: ffmpeg"
           command: choco install -y ffmpeg
+      - run:
+          # We install mingw so that gcc is available, which is needed for cgo.
+          name: "Install system deps: mingw"
+          command: choco install -y mingw --version 12.2 --allow-downgrade
 
       - install_go
       - run-nox-tests:
@@ -750,6 +754,7 @@ jobs:
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 
+  # NOTE: This is deprecated and being replaced by nox-tests-win.
   win:
     parameters:
       python_version_major:
@@ -796,6 +801,10 @@ jobs:
       - when:
           condition: << parameters.execute >>
           steps:
+            - run:
+                # We install mingw so that gcc is available, which is needed for cgo.
+                name: "Install system deps: mingw"
+                command: choco install -y mingw --version 12.2 --allow-downgrade
             - run:
                 name: Install python dependencies
                 command: |

@@ -36,6 +36,11 @@ def install_timed(session: nox.Session, *args, **kwargs):
 
 
 def install_wandb(session: nox.Session):
+    """Builds and installs wandb."""
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
     else:
@@ -219,10 +224,6 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
 
     install_timed(
@@ -242,10 +243,6 @@ def unit_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
     install_timed(
         session,
@@ -269,10 +266,6 @@ def system_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
     install_timed(
         session,
@@ -839,3 +832,32 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+@nox.session(name="bump-go-version")
+def bump_go_version(session: nox.Session) -> None:
+    """Bump the Go version."""
+    install_timed(session, "bump2version", "requests")
+
+    # Get the latest Go version
+    latest_version = session.run(
+        "./tools/get-go-version.py",
+        silent=True,
+        external=True,
+    )
+    latest_version = latest_version.strip()
+
+    session.log(f"Latest Go version: {latest_version}")
+
+    # Run bump2version with the fetched version
+    session.run(
+        "bump2version",
+        "patch",
+        "--new-version",
+        latest_version,
+        "--config-file",
+        ".bumpversion.go.cfg",
+        "--no-commit",
+        "--allow-dirty",
+        external=True,
+    )
