@@ -2893,10 +2893,10 @@ class Run:
                 result = handle.wait(timeout=-1)
                 if result is None:
                     handle.abandon()
-                assert result is not None
-                response = result.response.link_artifact_response
-                if response.error_message:
-                    wandb.termerror(response.error_message)
+                else:
+                    response = result.response.link_artifact_response
+                    if response.error_message:
+                        wandb.termerror(response.error_message)
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError

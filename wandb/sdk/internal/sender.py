@@ -1474,7 +1474,10 @@ class SendManager:
         pass
 
     def send_request_link_artifact(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
+        if not (record.control.req_resp or record.control.mailbox_slot):
+            raise ValueError(
+                f"Expected either `req_resp` or `mailbox_slot`, got: {record.control!r}"
+            )
         result = proto_util._result_from_record(record)
         link = record.request.link_artifact
         client_id = link.client_id
