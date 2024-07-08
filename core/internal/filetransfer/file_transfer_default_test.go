@@ -55,6 +55,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	content, err := os.ReadFile(task.Path)
 	assert.NoError(t, err)
 	assert.Equal(t, contentExpected, content)
+	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
 }
 
 func TestDefaultFileTransfer_Upload(t *testing.T) {
@@ -116,6 +117,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	// Performing the upload
 	err = ft.Upload(task)
 	assert.NoError(t, err)
+	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
 }
 
 func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
@@ -266,6 +268,7 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 
 	err = ft.Upload(task)
 	assert.Error(t, err)
+	assert.Nil(t, task.Response)
 	assert.Contains(t, err.Error(), "connection refused")
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
