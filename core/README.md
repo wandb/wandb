@@ -102,7 +102,7 @@ Get started with wandb-core in four steps:
 ```bash
 pip install wandb
 ```
-***Note: ensure you have `wandb>=0.17.0`.***
+***Note: ensure you have `wandb>=0.17.4`.***
 
 3. Third, log into W&B:
 
