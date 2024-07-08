@@ -44,6 +44,8 @@ def manage_config_file(
             relative and must not contain backwards traversal, i.e. `..`.
         include (List[str]): A list of keys to include in the configuration file.
         exclude (List[str]): A list of keys to exclude from the configuration file.
+        input_schema (dict): A JSON Schema describing which attributes will be
+            editable from the Launch drawer.
 
     Raises:
         LaunchError: If the path is not valid, or if there is no active run.
@@ -88,6 +90,8 @@ def manage_wandb_config(
     Args:
         include (List[str]): A list of subtrees to include in the configuration.
         exclude (List[str]): A list of subtrees to exclude from the configuration.
+        input_schema (dict): A JSON Schema describing which attributes will be
+            editable from the Launch drawer.
 
     Raises:
         LaunchError: If there is no active run.
