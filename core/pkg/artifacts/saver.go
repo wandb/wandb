@@ -383,8 +383,11 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	return partsInfo, nil
 }
 
-func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileResponse,
-	partData []gql.UploadPartsInput, doneChan chan<- uploadResult,
+func (as *ArtifactSaver) uploadMultipart(
+	path string,
+	fileInfo serverFileResponse,
+	partData []gql.UploadPartsInput,
+	doneChan chan<- uploadResult,
 ) {
 	statInfo, err := os.Stat(path)
 	if err != nil {
@@ -421,11 +424,7 @@ func (as *ArtifactSaver) uploadMultipart(path string, fileInfo serverFileRespons
 		task.Url = part.UploadUrl
 		task.Offset = int64(i) * chunkSize
 		remainingSize := statInfo.Size() - task.Offset
-		if remainingSize < chunkSize {
-			task.Size = remainingSize
-		} else {
-			task.Size = chunkSize
-		}
+		task.Size = min(remainingSize, chunkSize)
 		b64md5, err := utils.HexToB64(partData[i].HexMD5)
 		if err != nil {
 			panic(err)
@@ -485,7 +484,8 @@ func getChunkSize(fileSize int64) int64 {
 	}
 	// Use a larger chunk size if we would need more than 10,000 chunks.
 	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
-	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096) // Round up to the nearest multiple of 4096.
+	// Round up to the nearest multiple of 4096.
+	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096)
 	return chunkSize
 }
 
