@@ -2,12 +2,14 @@
 
 from typing import List, Optional
 
+from pydantic import BaseModel
+
 
 def manage_config_file(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[dict] = None,
+    input_schema: Optional[dict | BaseModel] = None,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -58,7 +60,7 @@ def manage_config_file(
 def manage_wandb_config(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[dict] = None,
+    input_schema: Optional[dict | BaseModel] = None,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 

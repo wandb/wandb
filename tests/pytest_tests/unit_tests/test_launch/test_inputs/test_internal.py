@@ -1,14 +1,17 @@
 """Test internal methods of the job input management sdk."""
 
+from enum import Enum
 from unittest.mock import MagicMock
 
 import pytest
+from pydantic import BaseModel, Field
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.inputs.internal import (
     ConfigTmpDir,
     JobInputArguments,
     StagedLaunchInputs,
     _publish_job_input,
+    _replace_refs_and_allofs,
     _split_on_unesc_dot,
     handle_config_file_input,
     handle_run_config_input,
@@ -18,6 +21,98 @@ from wandb.sdk.launch.inputs.internal import (
 @pytest.fixture
 def reset_staged_inputs():
     StagedLaunchInputs._instance = None
+
+
+@pytest.fixture
+def test_json_schema():
+    return {
+        "$defs": {
+            "DatasetEnum": {
+                "enum": ["cifar10", "cifar100"],
+                "title": "DatasetEnum",
+                "type": "string",
+            },
+            "Trainer": {
+                "properties": {
+                    "learning_rate": {
+                        "description": "Learning rate of the model",
+                        "title": "Learning Rate",
+                        "type": "number",
+                    },
+                    "batch_size": {
+                        "description": "Number of samples per batch",
+                        "maximum": 256,
+                        "minimum": 1,
+                        "title": "Batch Size",
+                        "type": "integer",
+                    },
+                    "dataset": {
+                        "allOf": [{"$ref": "#/$defs/DatasetEnum"}],
+                        "description": "Name of the dataset to use",
+                    },
+                },
+                "required": ["learning_rate", "batch_size", "dataset"],
+                "title": "Trainer",
+                "type": "object",
+            },
+        },
+        "properties": {"trainer": {"$ref": "#/$defs/Trainer"}},
+        "required": ["trainer"],
+        "title": "Schema",
+        "type": "object",
+    }
+
+
+@pytest.fixture
+def expected_json_schema():
+    return {
+        "properties": {
+            "trainer": {
+                "properties": {
+                    "learning_rate": {
+                        "description": "Learning rate of the model",
+                        "title": "Learning Rate",
+                        "type": "number",
+                    },
+                    "batch_size": {
+                        "description": "Number of samples per batch",
+                        "maximum": 256,
+                        "minimum": 1,
+                        "title": "Batch Size",
+                        "type": "integer",
+                    },
+                    "dataset": {
+                        "enum": ["cifar10", "cifar100"],
+                        "title": "DatasetEnum",
+                        "type": "string",
+                        "description": "Name of the dataset to use",
+                    },
+                },
+                "required": ["learning_rate", "batch_size", "dataset"],
+                "title": "Trainer",
+                "type": "object",
+            }
+        },
+        "required": ["trainer"],
+        "title": "Schema",
+        "type": "object",
+    }
+
+
+class DatasetEnum(str, Enum):
+    cifar10 = "cifar10"
+    cifar100 = "cifar100"
+
+
+class Trainer(BaseModel):
+    learning_rate: float = Field(description="Learning rate of the model")
+    batch_size: int = Field(ge=1, le=256, description="Number of samples per batch")
+    dataset: DatasetEnum = Field(description="Name of the dataset to use")
+    myvar: str
+
+
+class TestSchema(BaseModel):
+    trainer: Trainer
 
 
 @pytest.mark.parametrize(
@@ -77,6 +172,12 @@ def test_publish_job_input(mocker):
     )
 
 
+def test_replace_refs_and_allofs(test_json_schema, expected_json_schema):
+    defs = test_json_schema.pop("$defs")
+    resp = _replace_refs_and_allofs(test_json_schema, defs)
+    assert resp == expected_json_schema
+
+
 def test_handle_config_file_input(mocker):
     """Test handle_config_file_input function."""
     mocker.patch("wandb.sdk.launch.inputs.internal.override_file")
@@ -92,6 +193,30 @@ def test_handle_config_file_input(mocker):
         exclude_paths=[["exclude"]],
         run_config=False,
         input_schema=None,
+        file_path="path",
+    )
+
+
+def handle_config_file_input_pydantic(
+    mocker,
+    expected_json_schema,
+):
+    """Test handle_config_file_input function with a Pydantic model schema."""
+    mocker.patch("wandb.sdk.launch.inputs.internal.override_file")
+    mocker.patch("wandb.sdk.launch.inputs.internal.config_path_is_valid")
+    mocker.patch("wandb.sdk.launch.inputs.internal.ConfigTmpDir")
+    mocker.patch("wandb.sdk.launch.inputs.internal.shutil.copy")
+
+    wandb_run = MagicMock()
+    mocker.patch("wandb.sdk.launch.inputs.internal.wandb.run", wandb_run)
+    handle_config_file_input(
+        "path", include=["include"], exclude=["exclude"], input_schema=TestSchema
+    )
+    wandb_run._backend.interface.publish_job_input.assert_called_once_with(
+        include_paths=[["include"]],
+        exclude_paths=[["exclude"]],
+        run_config=False,
+        input_schema=expected_json_schema,
         file_path="path",
     )
 
