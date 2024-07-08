@@ -314,6 +314,7 @@ class SettingsData:
     _disable_machine_info: bool  # Disable automatic machine info collection
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_max_bytes: int  # max size for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
@@ -661,6 +662,7 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
+            _file_stream_max_bytes={"preprocessor": int},
             _file_stream_retry_max={"preprocessor": int},
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},

@@ -121,32 +121,96 @@ type FileStreamRequestReader struct {
 	// consoleLineRuns is consecutive runs of console lines.
 	//
 	// The first run is sent; the rest are kept for the next request.
-	consoleLineRuns []sparselist.Run[string]
+	consoleLineRuns    []sparselist.Run[string]
+	consoleLinesToSend int // how many lines to send from consoleLineRuns[0]
 
 	// isFullRequest is whether the entire [FileStreamRequest] can
 	// be represented by a single JSON request.
 	isFullRequest bool
 }
 
-// NewRequestReader makes a request reader.
+// NewRequestReader makes a request reader and computes the request's size.
 //
 // The reader takes ownership of the request. Ownership is returned
 // to the caller if the reader is discarded; otherwise, the caller
 // must call [Next] to get the updated request (minus the data that
 // was consumed).
-func NewRequestReader(request *FileStreamRequest) *FileStreamRequestReader {
-	reader := &FileStreamRequestReader{
-		request:            request,
-		historyLinesToSend: len(request.HistoryLines),
-		eventsLinesToSend:  len(request.EventsLines),
+//
+// requestSizeLimitBytes is an approximate limit to the amount of
+// data to include in the JSON request. The second return value
+// indicates whether the request would be truncated to fit this.
+func NewRequestReader(
+	request *FileStreamRequest,
+	requestSizeLimitBytes int,
+) (*FileStreamRequestReader, bool) {
+	requestSizeApprox := 0
+	isAtMaxSize := false
 
-		// TODO: This is not necessarily lightweight.
-		consoleLineRuns: request.ConsoleLines.ToRuns(),
+	// Increases requestSizeApprox and returns the number of strings to
+	// send from the list.
+	addStringsToRequest := func(data []string) int {
+		for i, line := range data {
+			nextSize := requestSizeApprox + len(line)
+
+			if nextSize > requestSizeLimitBytes {
+				isAtMaxSize = true
+
+				// As a special case, if the first line is larger than the limit
+				// and we're not sending any other data, send the line and hope
+				// it goes through.
+				if requestSizeApprox == 0 && i == 0 {
+					requestSizeApprox = nextSize
+					return 1
+				} else {
+					return i
+				}
+			}
+
+			requestSizeApprox = nextSize
+		}
+
+		return len(data)
 	}
 
-	reader.isFullRequest = len(reader.consoleLineRuns) <= 1
+	// We always send the summary.
+	requestSizeApprox += len(request.LatestSummary)
 
-	return reader
+	historyLinesToSend := addStringsToRequest(request.HistoryLines)
+	eventsLinesToSend := addStringsToRequest(request.EventsLines)
+
+	consoleLineRuns := request.ConsoleLines.ToRuns()
+	consoleLinesToSend := 0
+	if len(consoleLineRuns) > 0 {
+		consoleLinesToSend = addStringsToRequest(consoleLineRuns[0].Items)
+	}
+
+	reader := &FileStreamRequestReader{
+		request:            request,
+		historyLinesToSend: historyLinesToSend,
+		eventsLinesToSend:  eventsLinesToSend,
+
+		consoleLineRuns:    consoleLineRuns,
+		consoleLinesToSend: consoleLinesToSend,
+	}
+
+	switch {
+	case historyLinesToSend != len(request.HistoryLines):
+		reader.isFullRequest = false
+	case eventsLinesToSend != len(request.EventsLines):
+		reader.isFullRequest = false
+	case len(consoleLineRuns) > 1:
+		reader.isFullRequest = false
+	case len(consoleLineRuns) == 1 && consoleLinesToSend != len(consoleLineRuns[0].Items):
+		reader.isFullRequest = false
+
+	default:
+		reader.isFullRequest = true
+	}
+
+	// isAtMaxSize is different from isFullRequest: a request could be partial
+	// but still below the size limit if it contains nonconsecutive console
+	// lines.
+	return reader, isAtMaxSize
 }
 
 // FileStreamState is state necessary to turn a [FileStreamRequest]
@@ -206,7 +270,7 @@ func (r *FileStreamRequestReader) GetJSON(
 		run := r.consoleLineRuns[0]
 		json.Files[OutputFileName] = offsetAndContent{
 			Offset:  state.ConsoleLineOffset + run.Start,
-			Content: run.Items,
+			Content: run.Items[:r.consoleLinesToSend],
 		}
 	}
 
@@ -241,7 +305,14 @@ func (r *FileStreamRequestReader) Next() (*FileStreamRequest, bool) {
 			r.request.EventsLines[r.eventsLinesToSend:]),
 	}
 
-	if len(r.consoleLineRuns) > 1 {
+	if len(r.consoleLineRuns) > 0 {
+		// All unsent lines from the first block.
+		run0 := r.consoleLineRuns[0]
+		for i := r.consoleLinesToSend; i < len(run0.Items); i++ {
+			next.ConsoleLines.Put(run0.Start+i, run0.Items[i])
+		}
+
+		// All other unsent blocks.
 		for _, run := range r.consoleLineRuns[1:] {
 			for i, line := range run.Items {
 				next.ConsoleLines.Put(run.Start+i, line)
