@@ -789,7 +789,8 @@ class InterfaceBase:
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
         request.input_source.CopyFrom(source)
-        request.input_schema = json_dumps_safer(input_schema)
+        if input_schema:
+            request.input_schema = json_dumps_safer(input_schema)
 
         return self._publish_job_input(request)
 
