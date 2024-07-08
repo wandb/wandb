@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 	"golang.org/x/time/rate"
 )
 
@@ -75,7 +75,7 @@ type fileStream struct {
 	feedbackWait *sync.WaitGroup
 
 	// settings is the settings for the filestream
-	settings *service.Settings
+	settings *settings.Settings
 
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
@@ -99,7 +99,7 @@ type fileStream struct {
 }
 
 type FileStreamParams struct {
-	Settings           *service.Settings
+	Settings           *settings.Settings
 	Logger             *observability.CoreLogger
 	Printer            *observability.Printer
 	ApiClient          api.Client
@@ -160,7 +160,11 @@ func (fs *fileStream) Start(
 
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
-	fs.processChan <- update
+	select {
+	case fs.processChan <- update:
+	case <-fs.deadChan:
+		// Ignore everything if the filestream is dead.
+	}
 }
 
 func (fs *fileStream) FinishWithExit(exitCode int32) {
