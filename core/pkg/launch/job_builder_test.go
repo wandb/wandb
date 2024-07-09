@@ -857,7 +857,9 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	metadataInputSchemas := artifactMetadata["input_schemas"].([]interface{})
+	assert.Equal(t, 1, len(metadataInputSchemas))
+	schema := metadataInputSchemas[0].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -873,7 +875,7 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 				},
 			},
 		},
-	}, metadataInputSchema)
+	}, schema)
 }
 
 func TestConfigFileParameters(t *testing.T) {
@@ -1023,7 +1025,9 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	metadataInputSchemas := artifactMetadata["input_schemas"].([]interface{})
+	assert.Equal(t, 1, len(metadataInputSchemas))
+	schema := metadataInputSchemas[0].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
 		"type": "object",
 		"properties": map[string]interface{}{
@@ -1039,5 +1043,5 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 				},
 			},
 		},
-	}, metadataInputSchema)
+	}, schema)
 }
