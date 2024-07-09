@@ -137,7 +137,7 @@ config.learning_rate = 0.01
 for i in range(10):
     run.log({"loss": loss})
     
-run.finish(
+run.finish()
 ```
 
 
