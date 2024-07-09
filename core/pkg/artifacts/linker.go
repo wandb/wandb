@@ -72,7 +72,6 @@ func (al *ArtifactLinker) Link() error {
 			portfolioName,
 			err,
 		)
-		al.Logger.CaptureError(err)
 	}
 
 	return err
