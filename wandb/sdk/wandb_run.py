@@ -2392,7 +2392,6 @@ class Run:
 
         except Exception as e:
             self._console_stop()
-            self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
             raise
