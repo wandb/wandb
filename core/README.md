@@ -164,9 +164,16 @@ If it is not supported for your platform, you will see an error if you try to st
 
 To revert to the old SDK backend, simply remove `wandb.require("core")` from your script.
 
+## Contributing
+Your contributions are welcome! Please follow our [contributing guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more details.
+
+## Feedback and bug reporting
+We're eager to hear your thoughts on `wandb-core`. Your feedback and bug reports are invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
+
 ## Feature support status
 
-Below is an overview of the feature support status in `wandb-core`.
+<details>
+<summary>Click to expand for feature support status in `wandb-core`</summary>
 
 Status legend:
 - ✅: Available: The feature is relatively stable and ready for use.
@@ -228,9 +235,3 @@ Status legend:
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
     commands.
-
-## Contributing
-Your contributions are welcome! Please follow our [contributing guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more details.
-
-## Feedback and bug reporting
-We're eager to hear your thoughts on `wandb-core`. Your feedback and bug reports are invaluable. If you encounter any issues, please raise a [GitHub issue](https://github.com/wandb/wandb/issues/new/choose) and mention your use of `wandb-core`.
