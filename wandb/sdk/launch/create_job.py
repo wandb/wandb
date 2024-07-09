@@ -185,6 +185,7 @@ def _create_job(
 
     # build job artifact, loads wandb-metadata and creates wandb-job.json here
     artifact = job_builder.build(
+        api.api,
         dockerfile=dockerfile,
         build_context=build_context,
     )
@@ -210,7 +211,7 @@ def _create_job(
         project_name=project,
         run_name=run.id,  # type: ignore # run will be deleted after creation
         description=description,
-        metadata=metadata,
+        metadata={"_partial": True},
         is_user_created=True,
         aliases=[{"artifactCollectionName": name, "alias": a} for a in aliases],
     )
@@ -244,7 +245,7 @@ def _make_metadata_for_partial_job(
     entrypoint: Optional[str],
 ) -> Tuple[Optional[Dict[str, Any]], Optional[List[str]]]:
     """Create metadata for partial jobs, return metadata and requirements."""
-    metadata = {"_partial": "v0"}
+    metadata = {}
     if job_type == "git":
         assert entrypoint is not None
         repo_metadata = _create_repo_metadata(
@@ -287,6 +288,14 @@ def _make_metadata_for_partial_job(
     return None, None
 
 
+def _maybe_warn_python_no_executable(entrypoint: str):
+    entrypoint_list = entrypoint.split(" ")
+    if len(entrypoint_list) == 1 and entrypoint_list[0].endswith(".py"):
+        wandb.termwarn(
+            f"Entrypoint {entrypoint} is a python file without an executable, you may want to use `python {entrypoint}` as the entrypoint instead."
+        )
+
+
 def _create_repo_metadata(
     path: str,
     tempdir: str,
@@ -298,6 +307,9 @@ def _create_repo_metadata(
     if entrypoint and ".." in entrypoint:
         wandb.termerror("Entrypoint cannot contain backward path traversal")
         return None
+
+    _maybe_warn_python_no_executable(entrypoint)
+
     if not _is_git_uri(path):
         wandb.termerror("Path must be a git URI")
         return None
@@ -326,7 +338,7 @@ def _create_repo_metadata(
             with open(os.path.join(local_dir, ".python-version")) as f:
                 python_version = f.read().strip().splitlines()[0]
         else:
-            _, python_version = get_current_python_version()
+            python_version, _ = get_current_python_version()
 
     python_version = _clean_python_version(python_version)
 
@@ -349,13 +361,11 @@ def _create_artifact_metadata(
     if not os.path.isdir(path):
         wandb.termerror("Path must be a valid file or directory")
         return {}, []
+
+    _maybe_warn_python_no_executable(entrypoint)
+
     entrypoint_list = entrypoint.split(" ")
     entrypoint_file = get_entrypoint_file(entrypoint_list)
-    if not entrypoint_file:
-        wandb.termerror(
-            f"Entrypoint {entrypoint} is invalid. An entrypoint should include both an executable and a file, for example 'python train.py'"
-        )
-        return None, None
 
     # read local requirements.txt and dump to temp dir for builder
     requirements = []
@@ -363,6 +373,9 @@ def _create_artifact_metadata(
     if os.path.exists(depspath):
         with open(depspath) as f:
             requirements = f.read().splitlines()
+
+    if not any(["wandb" in r for r in requirements]):
+        wandb.termwarn("wandb is not present in requirements.txt.")
 
     if runtime:
         python_version = _clean_python_version(runtime)
@@ -394,6 +407,7 @@ def _configure_job_builder_for_partial(tmpdir: str, job_source: str) -> JobBuild
         settings=settings,  # type: ignore
         verbose=True,
     )
+    job_builder._partial = True
     # never allow notebook runs
     job_builder._is_notebook_run = False
     # set run inputs and outputs to empty dicts

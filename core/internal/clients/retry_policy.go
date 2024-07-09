@@ -14,7 +14,7 @@ const CtxRetryPolicyKey ContextKey = "retryFunc"
 func DefaultRetryPolicy(ctx context.Context, resp *http.Response, err error) (bool, error) {
 	statusCode := resp.StatusCode
 	switch {
-	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request or 409 conflict
+	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
 		return false, err
 	case statusCode == http.StatusUnauthorized: // don't retry on 401 unauthorized
 		return false, err

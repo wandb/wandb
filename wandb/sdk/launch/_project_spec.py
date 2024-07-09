@@ -141,7 +141,7 @@ class LaunchProject:
         elif self.job is not None:
             self.source = LaunchSource.JOB
             self.project_dir = tempfile.mkdtemp()
-        if self.uri and self.uri.startswith("placeholder"):
+        elif self.uri and self.uri.startswith("placeholder"):
             self.source = LaunchSource.SCHEDULER
             self.project_dir = os.getcwd()
             self._entry_point = self.override_entrypoint
@@ -486,6 +486,8 @@ class LaunchProject:
                         _logger.warn(f"Unable to parse requirements.txt: {e}")
                         continue
             requirements_line += "WANDB_ONLY_INCLUDE={} ".format(",".join(include_only))
+            if "wandb" not in requirements_line:
+                wandb.termwarn(f"{LOG_PREFIX}wandb is not present in requirements.txt.")
         return requirements_line
 
 

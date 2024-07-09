@@ -13,34 +13,22 @@ type Storage int
 
 const (
 	bufferSize              = 32
-	defaultConcurrencyLimit = 128
+	DefaultConcurrencyLimit = 128
 )
 
-type FileTransfer interface {
-	Upload(task *Task) error
-	Download(task *Task) error
-}
-
-// A manager of asynchronous file upload tasks.
+// FileTransferManager uploads and downloads files.
 type FileTransferManager interface {
-	// Asynchronously begins the main loop of the file transfer manager.
-	Start()
-
-	// Waits for all asynchronous work to finish.
-	Close()
-
-	// Schedules a file upload operation.
+	// AddTask schedules a file upload or download operation.
 	AddTask(task *Task)
+
+	// Close waits for all tasks to complete.
+	Close()
 }
 
 // FileTransferManager handles the upload/download of files
 type fileTransferManager struct {
-	// inChan is the channel for incoming messages
-	inChan chan *Task
-
-	// fileTransfer is the uploader/downloader
-	// todo: make this a map of uploaders for different destination storage types
-	fileTransfer FileTransfer
+	// fileTransfers is the map of fileTransfer uploader/downloaders
+	fileTransfers *FileTransfers
 
 	// fileTransferStats keeps track of upload/download statistics
 	fileTransferStats FileTransferStats
@@ -56,9 +44,6 @@ type fileTransferManager struct {
 
 	// wg is the wait group
 	wg *sync.WaitGroup
-
-	// active is true if the file transfer is active
-	active bool
 }
 
 type FileTransferManagerOption func(fm *fileTransferManager)
@@ -75,9 +60,9 @@ func WithSettings(settings *service.Settings) FileTransferManagerOption {
 	}
 }
 
-func WithFileTransfer(fileTransfer FileTransfer) FileTransferManagerOption {
+func WithFileTransfers(fileTransfers *FileTransfers) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
-		fm.fileTransfer = fileTransfer
+		fm.fileTransfers = fileTransfers
 	}
 }
 
@@ -90,9 +75,8 @@ func WithFileTransferStats(fileTransferStats FileTransferStats) FileTransferMana
 func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManager {
 
 	fm := fileTransferManager{
-		inChan:    make(chan *Task, bufferSize),
 		wg:        &sync.WaitGroup{},
-		semaphore: make(chan struct{}, defaultConcurrencyLimit),
+		semaphore: make(chan struct{}, DefaultConcurrencyLimit),
 	}
 
 	for _, opt := range opts {
@@ -102,41 +86,31 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 	return &fm
 }
 
-func (fm *fileTransferManager) Start() {
-	if fm.active {
-		return
-	}
+func (fm *fileTransferManager) AddTask(task *Task) {
+	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
+
 	fm.wg.Add(1)
 	go func() {
-		fm.active = true
-		for task := range fm.inChan {
-			// add a task to the wait group
-			fm.wg.Add(1)
-			fm.logger.Debug("fileTransfer: got task", "task", task)
-			// spin up a goroutine per task
-			go func(task *Task) {
-				// Acquire the semaphore
-				fm.semaphore <- struct{}{}
-				task.Err = fm.transfer(task)
-				// Release the semaphore
-				<-fm.semaphore
+		defer fm.wg.Done()
 
-				if task.Err != nil {
-					fm.logger.CaptureError(
-						"filetransfer: uploader: error uploading",
-						task.Err,
-						"path", task.Path, "url", task.Url,
-					)
-				}
+		// Guard by a semaphore to limit number of concurrent uploads.
+		fm.semaphore <- struct{}{}
+		task.Err = fm.transfer(task)
+		<-fm.semaphore
 
-				// Execute the callback.
-				fm.completeTask(task)
-
-				// mark the task as done
-				fm.wg.Done()
-			}(task)
+		if task.Err != nil {
+			fm.logger.CaptureError(
+				fmt.Errorf(
+					"filetransfer: uploader: error uploading to %v: %v",
+					task.Url,
+					task.Err,
+				),
+				"path", task.Path,
+			)
 		}
-		fm.wg.Done()
+
+		// Execute the callback.
+		fm.completeTask(task)
 	}()
 }
 
@@ -154,36 +128,27 @@ func (fm *fileTransferManager) completeTask(task *Task) {
 	}
 }
 
-func (fm *fileTransferManager) AddTask(task *Task) {
-	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
-	fm.inChan <- task
-}
-
 func (fm *fileTransferManager) Close() {
-	if !fm.active {
-		return
-	}
 	fm.logger.Debug("fileTransfer: Close")
-	if fm.inChan == nil {
-		return
-	}
-	// todo: review this, we don't want to cause a panic
-	close(fm.inChan)
 	fm.wg.Wait()
-	fm.active = false
 }
 
 // Uploads or downloads a file.
 func (fm *fileTransferManager) transfer(task *Task) error {
+	fileTransfer := fm.fileTransfers.GetFileTransferForTask(task)
+	if fileTransfer == nil {
+		return fmt.Errorf("fileTransfer: no transfer for task URL %v", task.Url)
+	}
+
 	var err error
 	switch task.Type {
 	case UploadTask:
-		err = fm.fileTransfer.Upload(task)
+		err = fileTransfer.Upload(task)
 	case DownloadTask:
-		err = fm.fileTransfer.Download(task)
+		err = fileTransfer.Download(task)
 	default:
-		err = fmt.Errorf("unknown task type")
-		fm.logger.CaptureFatalAndPanic("fileTransfer", err)
+		fm.logger.CaptureFatalAndPanic(
+			fmt.Errorf("fileTransfer: unknown task type: %v", task.Type))
 	}
 	return err
 }

@@ -144,7 +144,9 @@ def test_project_fetch_and_validate_project_docker_image():
     project._fetch_job.assert_not_called()
 
 
-def test_project_parse_existing_requirements(tmp_path):
+def test_project_parse_existing_requirements(mocker, tmp_path):
+    mocker.termwarn = MagicMock()
+    mocker.patch("wandb.termwarn", mocker.termwarn)
     mock_args = {
         "job": None,
         "api": MagicMock(),
@@ -167,6 +169,14 @@ def test_project_parse_existing_requirements(tmp_path):
         # Trailing space in the expected string is intentional.
         project.parse_existing_requirements() == "WANDB_ONLY_INCLUDE=mock-requirement "
     )
+    warn_msg = mocker.termwarn.call_args.args[0]
+    assert "wandb is not present in requirements.txt." in warn_msg
+
+    # Test with wandb in requirements
+    mocker.termwarn.reset_mock()
+    (tmp_path / "requirements.txt").write_text("\nwandb")
+    project.parse_existing_requirements()
+    mocker.termwarn.assert_not_called()
 
 
 @pytest.fixture
@@ -248,5 +258,8 @@ def test_get_env_vars_dict_with_low_max_length(mock_project_args, test_api):
 def test_init_source_placeholder_uri(mock_project_args):
     """Test that the source placeholder URI is correctly initialized."""
     mock_project_args["uri"] = "placeholder-uri"
-    project = LaunchProject(**mock_project_args)
-    assert project.source == LaunchSource.SCHEDULER
+    project_1 = LaunchProject(**mock_project_args)
+    assert project_1.source == LaunchSource.DOCKER
+    mock_project_args["docker_config"] = {}
+    project_2 = LaunchProject(**mock_project_args)
+    assert project_2.source == LaunchSource.SCHEDULER

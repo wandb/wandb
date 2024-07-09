@@ -9,11 +9,12 @@ import (
 	"context"
 
 	"github.com/Khan/genqlient/graphql"
+	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/filestream"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -26,12 +27,12 @@ type Uploader interface {
 	// UploadNow asynchronously uploads a run file.
 	//
 	// The path is relative to the run's file directory.
-	UploadNow(path string)
+	UploadNow(path paths.RelativePath)
 
 	// UploadAtEnd marks a file to be uploaded at the end of the run.
 	//
 	// The path is relative to the run's file directory.
-	UploadAtEnd(path string)
+	UploadAtEnd(path paths.RelativePath)
 
 	// UploadRemaining asynchronously uploads all files that should be
 	// uploaded at the end of the run.

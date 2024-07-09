@@ -1,6 +1,9 @@
 package filetransfer
 
-import "context"
+import (
+	"context"
+	"fmt"
+)
 
 type TaskType int
 
@@ -29,8 +32,14 @@ type Task struct {
 	// Headers to send on the upload
 	Headers []string
 
-	// Size is the size of the file
+	// Size is the number of bytes to upload
+	//
+	// If this is zero, then all bytes starting at `Offset` are uploaded; if non-zero,
+	// then that many bytes starting from `Offset` are uploaded.
 	Size int64
+
+	// Offset is the beginning of the file segment to upload
+	Offset int64
 
 	// Error, if any.
 	Err error
@@ -51,4 +60,11 @@ func (ut *Task) SetProgressCallback(callback func(int, int)) {
 
 func (ut *Task) SetCompletionCallback(callback func(*Task)) {
 	ut.CompletionCallback = callback
+}
+
+func (ut *Task) String() string {
+	return fmt.Sprintf(
+		"Task{FileKind: %d, Type: %d, Path: %s, Name: %s, Url: %s, Size: %d}",
+		ut.FileKind, ut.Type, ut.Path, ut.Name, ut.Url, ut.Size,
+	)
 }

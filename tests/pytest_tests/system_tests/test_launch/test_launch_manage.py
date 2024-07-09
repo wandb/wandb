@@ -70,7 +70,7 @@ def test_manage_config_file(
         run_api_object = api.run(run.path)
         poll = 1
         while poll < 8:
-            file = run_api_object.file("configs/config.yaml")
+            file = run_api_object.file("_wandb_configs/config.yaml")
             if file.size == len(config_str):
                 break
             time.sleep(poll)
@@ -116,7 +116,6 @@ def test_manage_config_file(
                         "wb_type": "typedDict",
                     }
                 },
-                "@wandb.config": {"params": {"type_map": {}}, "wb_type": "typedDict"},
             },
             "output_types": {"wb_type": "unknown"},
         }

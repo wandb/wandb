@@ -552,6 +552,7 @@ type RunResumeStatusModelProjectBucketRun struct {
 	EventsTail       *string  `json:"eventsTail"`
 	Config           *string  `json:"config"`
 	Tags             []string `json:"tags"`
+	WandbConfig      *string  `json:"wandbConfig"`
 }
 
 // GetId returns RunResumeStatusModelProjectBucketRun.Id, and is useful for accessing the field via an interface.
@@ -586,6 +587,9 @@ func (v *RunResumeStatusModelProjectBucketRun) GetConfig() *string { return v.Co
 
 // GetTags returns RunResumeStatusModelProjectBucketRun.Tags, and is useful for accessing the field via an interface.
 func (v *RunResumeStatusModelProjectBucketRun) GetTags() []string { return v.Tags }
+
+// GetWandbConfig returns RunResumeStatusModelProjectBucketRun.WandbConfig, and is useful for accessing the field via an interface.
+func (v *RunResumeStatusModelProjectBucketRun) GetWandbConfig() *string { return v.WandbConfig }
 
 // RunResumeStatusModelProjectEntity includes the requested fields of the GraphQL type Entity.
 type RunResumeStatusModelProjectEntity struct {
@@ -672,6 +676,34 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetLatestVersionString() st
 func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceString() string {
 	return v.VersionOnThisInstanceString
 }
+
+// UpdateArtifactResponse is returned by UpdateArtifact on success.
+type UpdateArtifactResponse struct {
+	UpdateArtifact *UpdateArtifactUpdateArtifactUpdateArtifactPayload `json:"updateArtifact"`
+}
+
+// GetUpdateArtifact returns UpdateArtifactResponse.UpdateArtifact, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactResponse) GetUpdateArtifact() *UpdateArtifactUpdateArtifactUpdateArtifactPayload {
+	return v.UpdateArtifact
+}
+
+// UpdateArtifactUpdateArtifactUpdateArtifactPayload includes the requested fields of the GraphQL type UpdateArtifactPayload.
+type UpdateArtifactUpdateArtifactUpdateArtifactPayload struct {
+	Artifact UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact `json:"artifact"`
+}
+
+// GetArtifact returns UpdateArtifactUpdateArtifactUpdateArtifactPayload.Artifact, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactUpdateArtifactUpdateArtifactPayload) GetArtifact() UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact {
+	return v.Artifact
+}
+
+// UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact includes the requested fields of the GraphQL type Artifact.
+type UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact struct {
+	Id string `json:"id"`
+}
+
+// GetId returns UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact.Id, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactUpdateArtifactUpdateArtifactPayloadArtifact) GetId() string { return v.Id }
 
 type UploadPartsInput struct {
 	PartNumber int64  `json:"partNumber"`
@@ -1133,6 +1165,18 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
+
+// __UpdateArtifactInput is used internally by genqlient
+type __UpdateArtifactInput struct {
+	ArtifactID string  `json:"artifactID"`
+	Metadata   *string `json:"metadata"`
+}
+
+// GetArtifactID returns __UpdateArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetMetadata returns __UpdateArtifactInput.Metadata, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactInput) GetMetadata() *string { return v.Metadata }
 
 // __UpsertBucketInput is used internally by genqlient
 type __UpsertBucketInput struct {
@@ -1730,6 +1774,7 @@ query RunResumeStatus ($project: String, $entity: String, $name: String!) {
 			eventsTail
 			config
 			tags
+			wandbConfig(keys: ["t"])
 		}
 	}
 }
@@ -1831,6 +1876,45 @@ func ServerInfo(
 	var err_ error
 
 	var data_ ServerInfoResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by UpdateArtifact.
+const UpdateArtifact_Operation = `
+mutation UpdateArtifact ($artifactID: ID!, $metadata: JSONString) {
+	updateArtifact(input: {artifactID:$artifactID,metadata:$metadata}) {
+		artifact {
+			id
+		}
+	}
+}
+`
+
+func UpdateArtifact(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactID string,
+	metadata *string,
+) (*UpdateArtifactResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "UpdateArtifact",
+		Query:  UpdateArtifact_Operation,
+		Variables: &__UpdateArtifactInput{
+			ArtifactID: artifactID,
+			Metadata:   metadata,
+		},
+	}
+	var err_ error
+
+	var data_ UpdateArtifactResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

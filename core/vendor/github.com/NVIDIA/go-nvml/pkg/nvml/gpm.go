@@ -51,20 +51,31 @@ func (g *nvmlGpmMetricsGetType) convert() *GpmMetricsGetType {
 
 // nvml.GpmMetricsGet()
 type GpmMetricsGetVType struct {
-	metricsGet *nvmlGpmMetricsGetType
+	metricsGet *GpmMetricsGetType
 }
 
 func (l *library) GpmMetricsGetV(metricsGet *GpmMetricsGetType) GpmMetricsGetVType {
-	return GpmMetricsGetVType{metricsGet.convert()}
+	return GpmMetricsGetVType{metricsGet}
 }
+
+// nvmlGpmMetricsGetStub is a stub function that can be overridden for testing.
+var nvmlGpmMetricsGetStub = nvmlGpmMetricsGet
+
 func (metricsGetV GpmMetricsGetVType) V1() Return {
 	metricsGetV.metricsGet.Version = 1
-	return nvmlGpmMetricsGet(metricsGetV.metricsGet)
+	return gpmMetricsGet(metricsGetV.metricsGet)
 }
 
 func (l *library) GpmMetricsGet(metricsGet *GpmMetricsGetType) Return {
 	metricsGet.Version = GPM_METRICS_GET_VERSION
-	return nvmlGpmMetricsGet(metricsGet.convert())
+	return gpmMetricsGet(metricsGet)
+}
+
+func gpmMetricsGet(metricsGet *GpmMetricsGetType) Return {
+	nvmlMetricsGet := metricsGet.convert()
+	ret := nvmlGpmMetricsGetStub(nvmlMetricsGet)
+	*metricsGet = *nvmlMetricsGet.convert()
+	return ret
 }
 
 // nvml.GpmSampleFree()
@@ -93,7 +104,7 @@ func (device nvmlDevice) GpmSampleGet(gpmSample GpmSample) Return {
 }
 
 func (gpmSample nvmlGpmSample) Get(device Device) Return {
-	return nvmlGpmSampleGet(device.(nvmlDevice), gpmSample)
+	return nvmlGpmSampleGet(nvmlDeviceHandle(device), gpmSample)
 }
 
 // nvml.GpmQueryDeviceSupport()
@@ -137,5 +148,25 @@ func (device nvmlDevice) GpmMigSampleGet(gpuInstanceId int, gpmSample GpmSample)
 }
 
 func (gpmSample nvmlGpmSample) MigGet(device Device, gpuInstanceId int) Return {
-	return nvmlGpmMigSampleGet(device.(nvmlDevice), uint32(gpuInstanceId), gpmSample)
+	return nvmlGpmMigSampleGet(nvmlDeviceHandle(device), uint32(gpuInstanceId), gpmSample)
+}
+
+// nvml.GpmQueryIfStreamingEnabled()
+func (l *library) GpmQueryIfStreamingEnabled(device Device) (uint32, Return) {
+	return device.GpmQueryIfStreamingEnabled()
+}
+
+func (device nvmlDevice) GpmQueryIfStreamingEnabled() (uint32, Return) {
+	var state uint32
+	ret := nvmlGpmQueryIfStreamingEnabled(device, &state)
+	return state, ret
+}
+
+// nvml.GpmSetStreamingEnabled()
+func (l *library) GpmSetStreamingEnabled(device Device, state uint32) Return {
+	return device.GpmSetStreamingEnabled(state)
+}
+
+func (device nvmlDevice) GpmSetStreamingEnabled(state uint32) Return {
+	return nvmlGpmSetStreamingEnabled(device, state)
 }

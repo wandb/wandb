@@ -507,7 +507,7 @@ class FileStreamApi:
             wandb.termerror(
                 "Dropped streaming file chunk (see wandb/debug-internal.log)"
             )
-            logger.exception("dropped chunk %s" % response)
+            logger.exception("dropped chunk {}".format(response))
             self._dropped_chunks += 1
         else:
             parsed: Optional[dict] = None

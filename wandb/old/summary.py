@@ -390,6 +390,11 @@ class HTTPSummary(Summary):
         self._client = client
         self._started = time.time()
 
+    def __delitem__(self, key):
+        if key not in self._json_dict:
+            raise KeyError(key)
+        del self._json_dict[key]
+
     def load(self):
         pass
 

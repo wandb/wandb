@@ -259,10 +259,12 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
+        settings = wandb.Settings(disable_job_creation=True)
         run: SdkRun = wandb.init(  # type: ignore
             name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
+            settings=settings,
         )
         return run
 
@@ -668,6 +670,8 @@ class Scheduler(ABC):
         launch_config = copy.deepcopy(self._wandb_run.config.get("launch", {}))
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
+        if "run_config" not in launch_config["overrides"]:
+            launch_config["overrides"]["run_config"] = {}
         launch_config["overrides"]["run_config"].update(args["args_dict"])
 
         if macro_args:  # pipe in hyperparam args as params to launch

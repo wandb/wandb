@@ -165,9 +165,9 @@ def run(ctx):
             "name": ctx["requested_file"],
             "sizeBytes": 20,
             "md5": "XXX",
-            "url": base_url + "/storage?file=%s" % ctx["requested_file"],
+            "url": base_url + "/storage?file={}".format(ctx["requested_file"]),
             "directUrl": base_url
-            + "/storage?file=%s&direct=true" % ctx["requested_file"],
+            + "/storage?file={}&direct=true".format(ctx["requested_file"]),
         }
     if ctx["run_script_type"] == "notebook":
         program_name = "one_cell.ipynb"
@@ -1164,7 +1164,7 @@ def create_app(user_ctx=None):
         if "mutation PrepareFiles(" in body["query"]:
             nodes = []
             for i, file_spec in enumerate(body["variables"]["fileSpecs"]):
-                url = base_url + "/storage?file=%s" % file_spec["name"]
+                url = base_url + "/storage?file={}".format(file_spec["name"])
                 nodes.append(
                     {
                         "node": {
@@ -2410,7 +2410,7 @@ index 30d74d2..9a2c773 100644
                 200,
             )
 
-        return "ARTIFACT %s" % digest, 200
+        return "ARTIFACT {}".format(digest), 200
 
     @app.route("/files/<entity>/<project>/<run>/file_stream", methods=["POST"])
     @snoop.relay
