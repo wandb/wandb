@@ -11,7 +11,7 @@ import os
 import pathlib
 import shutil
 import tempfile
-from typing import Any, List, Optional
+from typing import Any, Dict, List, Optional
 
 import wandb
 import wandb.data_types
@@ -136,7 +136,7 @@ def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
     2. Removes any "allOf" lists that only have one item, "lifting" the item up
     See test_internal.py for examples
     """
-    ret = {}
+    ret: Dict[str, Any] = {}
     if "$ref" in schema:
         # Reference found, replace it with its definition
         def_key = schema["$ref"].split("#/$defs/")[1]
@@ -145,21 +145,25 @@ def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
     for key, val in schema.items():
         if isinstance(val, dict):
             # Step into dicts recursively
-            new_val = _replace_refs_and_allofs(val, defs)
-            ret[key] = new_val
+            new_val_dict = _replace_refs_and_allofs(val, defs)
+            ret[key] = new_val_dict
         elif isinstance(val, list):
             # Step into each item in the list
-            new_val = []
+            new_val_list = []
             for item in val:
                 if isinstance(item, dict):
-                    new_val.append(_replace_refs_and_allofs(item, defs))
+                    new_val_list.append(_replace_refs_and_allofs(item, defs))
                 else:
-                    new_val.append(item)
+                    new_val_list.append(item)
             # Lift up allOf blocks with only one item
-            if key == "allOf" and len(new_val) == 1 and isinstance(new_val[0], dict):
-                ret.update(new_val[0])
+            if (
+                key == "allOf"
+                and len(new_val_list) == 1
+                and isinstance(new_val_list[0], dict)
+            ):
+                ret.update(new_val_list[0])
             else:
-                ret[key] = new_val
+                ret[key] = new_val_list
         else:
             # For anything else (str, int, etc) keep it as-is
             ret[key] = val
@@ -171,7 +175,7 @@ def _convert_pydantic_model_to_jsonschema(model: Any) -> dict:
     defs = schema.pop("$defs")
     if not defs:
         return schema
-    schema = _replace_refs_and_allofs(schema, defs)
+    return _replace_refs_and_allofs(schema, defs)
 
 
 def handle_config_file_input(
@@ -202,7 +206,7 @@ def handle_config_file_input(
     )
     # This supports both input_schema=Schema or input_schema=Schema()
     if hasattr(input_schema, "model_json_schema") and callable(
-        input_schema.model_json_schema
+        input_schema.model_json_schema  # type: ignore
     ):
         input_schema = _convert_pydantic_model_to_jsonschema(input_schema)
     arguments = JobInputArguments(
@@ -234,7 +238,7 @@ def handle_run_config_input(
     """
     # This supports both input_schema=Schema or input_schema=Schema()
     if hasattr(input_schema, "model_json_schema") and callable(
-        input_schema.model_json_schema
+        input_schema.model_json_schema  # type: ignore
     ):
         input_schema = _convert_pydantic_model_to_jsonschema(input_schema)
     arguments = JobInputArguments(
