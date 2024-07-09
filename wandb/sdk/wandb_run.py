@@ -2100,36 +2100,56 @@ class Run:
         return self._finish(exit_code, quiet)
 
     def _finish(
-        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+        self,
+        exit_code: Optional[int] = None,
+        quiet: Optional[bool] = None,
     ) -> None:
-        if quiet is not None:
-            self._quiet = quiet
+        logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info(f"finishing run {self._get_path()}")
-        # detach jupyter hooks / others that needs to happen before backend shutdown
+
+        if quiet is not None:
+            self._quiet = quiet
+
+        # Pop this run (hopefully) from the run stack, to support the "reinit"
+        # functionality of wandb.init().
+        #
+        # TODO: It's not clear how _global_run_stack could have length other
+        # than 1 at this point in the code. If you're reading this, consider
+        # refactoring this thing.
+        if self._wl and len(self._wl._global_run_stack) > 0:
+            self._wl._global_run_stack.pop()
+
+        # Run hooks that need to happen before the last messages to the
+        # internal service, like Jupyter hooks.
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
 
-        self._atexit_cleanup(exit_code=exit_code)
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
-        # detach logger / others meant to be run after we've shutdown the backend
-        for hook in self._teardown_hooks:
-            if hook.stage == TeardownStage.LATE:
-                hook.call()
-        self._teardown_hooks = []
-        module.unset_globals()
-
-        # inform manager this run is finished
-        manager = self._wl and self._wl._get_manager()
-        if manager:
-            manager._inform_finish(run_id=self._run_id)
-
+        # Early-stage hooks may use methods that require _is_finished
+        # to be False, so we set this after running those hooks.
         self._is_finished = True
-        # end sentry session
-        wandb._sentry.end_session()
+
+        try:
+            self._atexit_cleanup(exit_code=exit_code)
+
+            # Run hooks that should happen after the last messages to the
+            # internal service, like detaching the logger.
+            for hook in self._teardown_hooks:
+                if hook.stage == TeardownStage.LATE:
+                    hook.call()
+            self._teardown_hooks = []
+
+            # Inform the service that we're done sending messages for this run.
+            #
+            # TODO: Why not do this in _atexit_cleanup()?
+            manager = self._wl and self._wl._get_manager()
+            if manager:
+                manager._inform_finish(run_id=self._run_id)
+
+        finally:
+            module.unset_globals()
+            wandb._sentry.end_session()
 
     @_run_decorator._noop
     @_run_decorator._attach
@@ -2345,36 +2365,49 @@ class Run:
             return
         self._atexit_cleanup_called = True
 
-        exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
+        exit_code = (
+            exit_code  #
+            or (self._hooks and self._hooks.exit_code)
+            or 0
+        )
+        self._exit_code = exit_code
         logger.info(f"got exitcode: {exit_code}")
+
+        # Delete this run's "resume" file if the run finished successfully.
+        #
+        # This is used by the "auto" resume mode, which resumes from the last
+        # failed (or unfinished/crashed) run. If we reach this line, then this
+        # run shouldn't be a candidate for "auto" resume.
         if exit_code == 0:
-            # Cleanup our resume file on a clean exit
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
 
-        self._exit_code = exit_code
-        report_failure = False
         try:
             self._on_finish()
-        except KeyboardInterrupt as ki:
-            if wandb.wandb_agent._is_running():
-                raise ki
-            wandb.termerror("Control-C detected -- Run data was not synced")
-            if not self._settings._notebook:
-                os._exit(-1)
+
+        except KeyboardInterrupt:
+            if not wandb.wandb_agent._is_running():
+                wandb.termerror("Control-C detected -- Run data was not synced")
+            raise
+
         except Exception as e:
-            if not self._settings._notebook:
-                report_failure = True
             self._console_stop()
-            self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exc()
-        else:
-            self._on_final()
-        finally:
-            if report_failure:
-                os._exit(-1)
+            raise
+
+        Run._footer(
+            sampled_history=self._sampled_history,
+            final_summary=self._final_summary,
+            poll_exit_response=self._poll_exit_response,
+            server_info_response=self._server_info_response,
+            check_version_response=self._check_version,
+            internal_messages_response=self._internal_messages_response,
+            reporter=self._reporter,
+            quiet=self._quiet,
+            settings=self._settings,
+            printer=self._printer,
+        )
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
@@ -2658,20 +2691,6 @@ class Run:
         import_telemetry_set = telemetry.list_telemetry_imports()
         for module_name in import_telemetry_set:
             unregister_post_import_hook(module_name, run_id)
-
-    def _on_final(self) -> None:
-        self._footer(
-            sampled_history=self._sampled_history,
-            final_summary=self._final_summary,
-            poll_exit_response=self._poll_exit_response,
-            server_info_response=self._server_info_response,
-            check_version_response=self._check_version,
-            internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
-            quiet=self._quiet,
-            settings=self._settings,
-            printer=self._printer,
-        )
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
