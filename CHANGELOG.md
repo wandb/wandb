@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.4] - 2024-07-03
+
 ### Added
 
 - Support queue template variables in launch sweep scheduelr jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
