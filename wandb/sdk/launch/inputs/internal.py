@@ -13,8 +13,6 @@ import shutil
 import tempfile
 from typing import Any, List, Optional
 
-from pydantic import BaseModel
-
 import wandb
 import wandb.data_types
 from wandb.sdk.launch.errors import LaunchError
@@ -168,14 +166,12 @@ def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
     return ret
 
 
-def _convert_model_to_jsonschema(model: BaseModel) -> dict:
+def _convert_pydantic_model_to_jsonschema(model: Any) -> dict:
     schema = model.model_json_schema()
     defs = schema.pop("$defs")
     if not defs:
         return schema
     schema = _replace_refs_and_allofs(schema, defs)
-    # Pull up allOf blocks with only one item
-    # schema = _recursive_replace_allof(schema)
 
 
 def handle_config_file_input(
@@ -204,12 +200,11 @@ def handle_config_file_input(
         path,
         dest,
     )
-    # Support both input_schema=Schema or input_schema=Schema()
-    if isinstance(input_schema, BaseModel) or (
-        hasattr(input_schema, "model_json_schema")
-        and callable(input_schema.model_json_schema)
+    # This supports both input_schema=Schema or input_schema=Schema()
+    if hasattr(input_schema, "model_json_schema") and callable(
+        input_schema.model_json_schema
     ):
-        input_schema = _convert_model_to_jsonschema(input_schema)
+        input_schema = _convert_pydantic_model_to_jsonschema(input_schema)
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
@@ -237,12 +232,11 @@ def handle_run_config_input(
     If there is no active run, the include and exclude paths are staged and sent
     when a run is created.
     """
-    # Support both input_schema=Schema or input_schema=Schema()
-    if isinstance(input_schema, BaseModel) or (
-        hasattr(input_schema, "model_json_schema")
-        and callable(input_schema.model_json_schema)
+    # This supports both input_schema=Schema or input_schema=Schema()
+    if hasattr(input_schema, "model_json_schema") and callable(
+        input_schema.model_json_schema
     ):
-        input_schema = _convert_model_to_jsonschema(input_schema)
+        input_schema = _convert_pydantic_model_to_jsonschema(input_schema)
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
