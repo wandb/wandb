@@ -373,6 +373,7 @@ def test_manage_wandb_config_with_input_schema(
     }
 
 
+@pytest.mark.wandb_core_only
 def test_manage_both_with_input_schema(
     test_settings,
     wandb_init,
@@ -432,6 +433,7 @@ def test_manage_both_with_input_schema(
         job_artifact = [*run_api_object.used_artifacts()][0]
         assert job_artifact.metadata == {
             "input_types": {
+                "@wandb.config": {"params": {"type_map": {}}, "wb_type": "typedDict"},
                 "files": {
                     "config.yaml": {
                         "params": {
