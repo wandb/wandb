@@ -2393,7 +2393,6 @@ class Run:
             self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exc()
             raise
 
         Run._footer(
