@@ -130,6 +130,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 		observability.WithTags(observability.Tags{}),
 		observability.WithCaptureMessage(sentryClient.CaptureMessage),
 		observability.WithCaptureException(sentryClient.CaptureException),
+		observability.WithReraise(sentryClient.Reraise),
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
