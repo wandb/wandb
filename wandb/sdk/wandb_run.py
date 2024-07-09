@@ -2111,8 +2111,6 @@ class Run:
         if quiet is not None:
             self._quiet = quiet
 
-        self._is_finished = True
-
         # Pop this run (hopefully) from the run stack, to support the "reinit"
         # functionality of wandb.init().
         #
@@ -2127,6 +2125,10 @@ class Run:
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
+
+        # Early-stage hooks may use methods that require _is_finished
+        # to be False, so we set this after running those hooks.
+        self._is_finished = True
 
         try:
             self._atexit_cleanup(exit_code=exit_code)
