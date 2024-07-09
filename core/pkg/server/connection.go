@@ -156,7 +156,9 @@ func (nc *Connection) readConnection() {
 	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
 		panic(scanner.Err())
 	}
+	nc.stream.RemoveConnection(nc.id)
 	close(nc.inChan)
+
 }
 
 // handleServerRequest handles outgoing messages from the server
@@ -243,8 +245,11 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
+	// WGConnection.AddConnID(nc.id)
+
 	nc.stream = NewStream(settings, streamId, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+	nc.stream.AddConnection(nc.id)
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 

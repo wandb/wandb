@@ -82,6 +82,9 @@ type Stream struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// connections is the WireGuard connection.
+	connections *WGConnection
 }
 
 func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) *observability.CoreLogger {
@@ -163,6 +166,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 		outChan:      make(chan *service.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
 		sentryClient: sentryClient,
+		connections:  NewWGConnection(),
 	}
 
 	hostname, err := os.Hostname()
@@ -293,6 +297,22 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 	s.dispatcher.AddResponders(entries...)
 }
 
+// AddConnectionID adds a connection ID to the stream's WireGuard connection.
+func (s *Stream) AddConnection(connID string) {
+	if s == nil {
+		return
+	}
+	s.connections.Add(connID)
+}
+
+// RemoveConnectionID removes a connection ID from the stream's WireGuard connection.
+func (s *Stream) RemoveConnection(connID string) {
+	if s == nil {
+		return
+	}
+	s.connections.Remove(connID)
+}
+
 // Start starts the stream's handler, writer, sender, and dispatcher.
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
@@ -392,6 +412,7 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.AddResponders(ResponderEntry{s, internalConnectionId})
 
 	if !s.settings.IsSync() {
+		s.connections.Wait()
 		// send exit record to handler
 		record := &service.Record{
 			RecordType: &service.Record_Exit{
