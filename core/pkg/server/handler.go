@@ -215,6 +215,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleHeader(record)
 	case *service.Record_History:
 		h.handleHistory(x.History)
+	case *service.Record_NoopLinkArtifact:
+		// Removed but kept to avoid panics
 	case *service.Record_Metric:
 		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
