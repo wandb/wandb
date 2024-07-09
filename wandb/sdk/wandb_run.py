@@ -2897,7 +2897,7 @@ class Run:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
-                self._backend.interface.publish_link_artifact(
+                handle = self._backend.interface.deliver_link_artifact(
                     self,
                     artifact,
                     portfolio,
@@ -2909,6 +2909,13 @@ class Run:
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
+                result = handle.wait(timeout=-1)
+                if result is None:
+                    handle.abandon()
+                else:
+                    response = result.response.link_artifact_response
+                    if response.error_message:
+                        wandb.termerror(response.error_message)
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
