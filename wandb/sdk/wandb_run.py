@@ -2493,9 +2493,9 @@ class Run:
                 os.remove(self._settings.resume_fname)
 
         # atexit hook to ensure we close the socket connection
-        atexit.register(self.close)
+        atexit.register(self._close)
 
-    def close(self):
+    def _close(self):
         if not self._is_finished:
             self._backend.interface.join()
 
