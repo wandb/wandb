@@ -857,23 +857,25 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	schema := artifactMetadata["input_schema"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"key1": map[string]interface{}{
-				"type": "string",
-			},
-			"key3": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"key5": map[string]interface{}{
-						"type": "string",
+		WandbConfigKey: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"key1": map[string]interface{}{
+					"type": "string",
+				},
+				"key3": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key5": map[string]interface{}{
+							"type": "string",
+						},
 					},
 				},
 			},
 		},
-	}, metadataInputSchema)
+	}, schema)
 }
 
 func TestConfigFileParameters(t *testing.T) {
@@ -1024,20 +1026,23 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
 	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	files := metadataInputSchema["files"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"key1": map[string]interface{}{
-				"type": "string",
-			},
-			"key3": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"key5": map[string]interface{}{
-						"type": "string",
+		"config.yaml": map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"key1": map[string]interface{}{
+					"type": "string",
+				},
+				"key3": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key5": map[string]interface{}{
+							"type": "string",
+						},
 					},
 				},
 			},
 		},
-	}, metadataInputSchema)
+	}, files)
 }

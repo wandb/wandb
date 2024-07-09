@@ -177,7 +177,6 @@ type JobBuilder struct {
 	wandbConfigParameters *launchWandbConfigParameters
 	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
-	inputSchema           *string
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -703,12 +702,25 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	input_types := make(map[string]interface{})
+	input_schemas := make(map[string]interface{})
 	if len(j.configFiles) > 0 {
 		files := make(map[string]interface{})
+		file_schemas := make(map[string]interface{})
 		for _, configFile := range j.configFiles {
 			files[configFile.relpath] = j.generateConfigFileSchema(configFile)
+			if configFile.inputSchema != nil {
+				var inputSchemaMap map[string]interface{}
+				err := json.Unmarshal([]byte(*configFile.inputSchema), &inputSchemaMap)
+				if err != nil {
+					return "", err
+				}
+				file_schemas[configFile.relpath] = inputSchemaMap
+			}
 		}
 		input_types["files"] = files
+		if len(file_schemas) > 0 {
+			input_schemas["files"] = file_schemas
+		}
 	}
 	if j.runConfig != nil && j.wandbConfigParameters != nil {
 		runConfigTypes, err := j.inferRunConfigTypes()
@@ -717,20 +729,24 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 		} else {
 			j.logger.Debug("jobBuilder: error inferring run config types", "error", err)
 		}
+		if j.wandbConfigParameters.inputSchema != nil {
+			var inputSchemaMap map[string]interface{}
+			err = json.Unmarshal([]byte(*j.wandbConfigParameters.inputSchema), &inputSchemaMap)
+			if err != nil {
+				return "", err
+			}
+			input_schemas[WandbConfigKey] = inputSchemaMap
+		}
 	}
+
 	metadata["input_types"] = input_types
 	if output != nil {
 		metadata["output_types"] = data_types.ResolveTypes(*output)
 	}
-
-	if j.inputSchema != nil {
-		var inputSchemaMap map[string]interface{}
-		err := json.Unmarshal([]byte(*j.inputSchema), &inputSchemaMap)
-		if err != nil {
-			return "", err
-		}
-		metadata["input_schema"] = &inputSchemaMap
+	if len(input_schemas) > 0 {
+		metadata["input_schema"] = input_schemas
 	}
+
 	metadataBytes, err := json.Marshal(metadata)
 	if err != nil {
 		return "", err
@@ -774,10 +790,18 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 	source := request.GetInputSource()
 	switch source := source.GetSource().(type) {
 	case *service.JobInputSource_File:
+		var schemaPtr *string
+		schema := request.GetInputSchema()
+		if schema == "" {
+			schemaPtr = nil
+		} else {
+			schemaPtr = &schema
+		}
 		newInput, err := newFileInputFromProto(
 			source,
 			request.GetIncludePaths(),
 			request.GetExcludePaths(),
+			schemaPtr,
 		)
 		if err != nil {
 			j.logger.Error("jobBuilder: error creating file input from request", "error", err)
@@ -790,8 +814,8 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
-	}
-	if request.InputSchema != "" {
-		j.inputSchema = &request.InputSchema
+		if request.InputSchema != "" {
+			j.wandbConfigParameters.inputSchema = &request.InputSchema
+		}
 	}
 }
