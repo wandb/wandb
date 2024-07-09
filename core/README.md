@@ -85,8 +85,8 @@ See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_mediu
 
 * 🚀 **Logging performance:** Experience up to 88% performance improvements when logging with multiple processes.
 * 🤏 **Reduced resource consumption:** Lower memory footprint allows you to run more experiments on your machines.
-* 📊 **Improved Table logging:** Experience up to 40% faster table logging performance! 
-* ⚡ **Faster startups & shutdowns:** Enjoy up to 36% faster startup and shutdown times.  
+* 📊 **Improved Table logging:** Experience up to 40% faster table logging performance!
+* ⚡ **Faster startups & shutdowns:** Enjoy up to 36% faster startup and shutdown times.
 * ⏩ **Enhanced artifact handling:** Experience up to 33% faster Artifact uploads speed and up to 27% faster Artifact retrieval!
 * 🌐 **Faster offline sync:** Keep your long-running experiments synced effortlessly with improved offline speeds.
 
@@ -136,7 +136,7 @@ config.learning_rate = 0.01
 # Log metrics over time to visualize performance with wandb.log
 for i in range(10):
     run.log({"loss": loss})
-    
+
 run.finish()
 ```
 
