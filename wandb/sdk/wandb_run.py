@@ -2492,6 +2492,13 @@ class Run:
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
 
+        # atexit hook to ensure we close the socket connection
+        atexit.register(self.close)
+
+    def close(self):
+        if not self._is_finished:
+            self._backend.interface.join()
+
     def _detect_and_apply_job_inputs(self) -> None:
         """If the user has staged launch inputs, apply them to the run."""
         from wandb.sdk.launch.inputs.internal import StagedLaunchInputs
