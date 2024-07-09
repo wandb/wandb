@@ -1,15 +1,13 @@
 """Functions for declaring overridable configuration for launch jobs."""
 
-from typing import List, Optional
-
-from pydantic import BaseModel
+from typing import Any, List, Optional
 
 
 def manage_config_file(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[dict | BaseModel] = None,
+    input_schema: Optional[Any] = None,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -46,8 +44,8 @@ def manage_config_file(
             relative and must not contain backwards traversal, i.e. `..`.
         include (List[str]): A list of keys to include in the configuration file.
         exclude (List[str]): A list of keys to exclude from the configuration file.
-        input_schema (dict): A JSON Schema describing which attributes will be
-            editable from the Launch drawer.
+        input_schema (dict | Pydantic model): A JSON Schema or Pydantic model
+            describing which attributes will be editable from the Launch drawer.
 
     Raises:
         LaunchError: If the path is not valid, or if there is no active run.
@@ -60,7 +58,7 @@ def manage_config_file(
 def manage_wandb_config(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[dict | BaseModel] = None,
+    input_schema: Optional[Any] = None,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 
@@ -92,8 +90,8 @@ def manage_wandb_config(
     Args:
         include (List[str]): A list of subtrees to include in the configuration.
         exclude (List[str]): A list of subtrees to exclude from the configuration.
-        input_schema (dict): A JSON Schema describing which attributes will be
-            editable from the Launch drawer.
+        input_schema (dict | Pydantic model): A JSON Schema or Pydantic model
+            describing which attributes will be editable from the Launch drawer.
 
     Raises:
         LaunchError: If there is no active run.
