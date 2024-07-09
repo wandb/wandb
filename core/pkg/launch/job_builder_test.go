@@ -857,20 +857,20 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchemas := artifactMetadata["input_schemas"].([]interface{})
-	assert.Equal(t, 1, len(metadataInputSchemas))
-	schema := metadataInputSchemas[0].(map[string]interface{})
+	schema := artifactMetadata["input_schema"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"key1": map[string]interface{}{
-				"type": "string",
-			},
-			"key3": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"key5": map[string]interface{}{
-						"type": "string",
+		WandbConfigKey: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"key1": map[string]interface{}{
+					"type": "string",
+				},
+				"key3": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key5": map[string]interface{}{
+							"type": "string",
+						},
 					},
 				},
 			},
@@ -1025,23 +1025,24 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchemas := artifactMetadata["input_schemas"].([]interface{})
-	assert.Equal(t, 1, len(metadataInputSchemas))
-	schema := metadataInputSchemas[0].(map[string]interface{})
+	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	files := metadataInputSchema["files"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
-		"type": "object",
-		"properties": map[string]interface{}{
-			"key1": map[string]interface{}{
-				"type": "string",
-			},
-			"key3": map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"key5": map[string]interface{}{
-						"type": "string",
+		"config.yaml": map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"key1": map[string]interface{}{
+					"type": "string",
+				},
+				"key3": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key5": map[string]interface{}{
+							"type": "string",
+						},
 					},
 				},
 			},
 		},
-	}, schema)
+	}, files)
 }

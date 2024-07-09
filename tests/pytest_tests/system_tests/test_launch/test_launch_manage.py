@@ -229,7 +229,7 @@ def test_manage_config_file_with_input_schema(
                 },
             },
             "output_types": {"wb_type": "unknown"},
-            "input_schema": test_input_schema,
+            "input_schema": {"files": {"config.yaml": test_input_schema}},
         }
 
 
@@ -367,5 +367,7 @@ def test_manage_wandb_config_with_input_schema(
             }
         },
         "output_types": {"wb_type": "unknown"},
-        "input_schema": test_input_schema,
+        "input_schema": {
+            "@wandb.config": test_input_schema,
+        },
     }
