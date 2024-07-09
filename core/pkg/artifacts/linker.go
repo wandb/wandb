@@ -59,11 +59,7 @@ func (al *ArtifactLinker) Link() error {
 			nil,
 		)
 	default:
-		err = fmt.Errorf(
-			"LinkArtifact: %s,"+
-				" error: artifact must have either server id or client id",
-			portfolioName,
-		)
+		err = fmt.Errorf("artifact must have either server id or client id")
 	}
 
 	if err != nil {
