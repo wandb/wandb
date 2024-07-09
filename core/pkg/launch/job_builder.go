@@ -177,7 +177,6 @@ type JobBuilder struct {
 	wandbConfigParameters *launchWandbConfigParameters
 	configFiles           []*configFileParameter
 	saveShapeToMetadata   bool
-	inputSchema           *string
 }
 
 func MakeArtifactNameSafe(name string) string {
@@ -703,10 +702,10 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
 	metadata := make(map[string]interface{})
 	input_types := make(map[string]interface{})
-	input_schema := make(map[string]interface{})
+	input_schemas := make(map[string]interface{})
 	if len(j.configFiles) > 0 {
 		files := make(map[string]interface{})
-		schema_files := make(map[string]interface{})
+		file_schemas := make(map[string]interface{})
 		for _, configFile := range j.configFiles {
 			files[configFile.relpath] = j.generateConfigFileSchema(configFile)
 			if configFile.inputSchema != nil {
@@ -715,12 +714,12 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 				if err != nil {
 					return "", err
 				}
-				schema_files[configFile.relpath] = inputSchemaMap
+				file_schemas[configFile.relpath] = inputSchemaMap
 			}
 		}
 		input_types["files"] = files
-		if len(schema_files) > 0 {
-			input_schema["files"] = schema_files
+		if len(file_schemas) > 0 {
+			input_schemas["files"] = file_schemas
 		}
 	}
 	if j.runConfig != nil && j.wandbConfigParameters != nil {
@@ -730,13 +729,13 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 		} else {
 			j.logger.Debug("jobBuilder: error inferring run config types", "error", err)
 		}
-		if j.inputSchema != nil {
+		if j.wandbConfigParameters.inputSchema != nil {
 			var inputSchemaMap map[string]interface{}
-			err = json.Unmarshal([]byte(*j.inputSchema), &inputSchemaMap)
+			err = json.Unmarshal([]byte(*j.wandbConfigParameters.inputSchema), &inputSchemaMap)
 			if err != nil {
 				return "", err
 			}
-			input_schema[WandbConfigKey] = inputSchemaMap
+			input_schemas[WandbConfigKey] = inputSchemaMap
 		}
 	}
 
@@ -744,8 +743,8 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 	if output != nil {
 		metadata["output_types"] = data_types.ResolveTypes(*output)
 	}
-	if len(input_schema) > 0 {
-		metadata["input_schema"] = input_schema
+	if len(input_schemas) > 0 {
+		metadata["input_schema"] = input_schemas
 	}
 
 	metadataBytes, err := json.Marshal(metadata)
@@ -816,7 +815,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
 		if request.InputSchema != "" {
-			j.inputSchema = &request.InputSchema
+			j.wandbConfigParameters.inputSchema = &request.InputSchema
 		}
 	}
 }
