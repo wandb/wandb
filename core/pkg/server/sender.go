@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -146,9 +145,6 @@ type Sender struct {
 	// that allow users to re-run the run with different configurations
 	jobBuilder *launch.JobBuilder
 
-	// wgFileTransfer is a wait group for file transfers
-	wgFileTransfer sync.WaitGroup
-
 	// networkPeeker is a helper for peeking into network responses
 	networkPeeker *observability.Peeker
 
@@ -180,7 +176,6 @@ func NewSender(
 		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
-		wgFileTransfer:      sync.WaitGroup{},
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
@@ -209,6 +204,7 @@ func NewSender(
 			ConsoleOutputFile: outputFileName,
 			Settings:          params.Settings,
 			Logger:            params.Logger,
+			Ctx:               ctx,
 			LoopbackChan:      params.FwdChan,
 			FileStreamOrNil:   params.FileStream,
 		}),
@@ -329,7 +325,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Run:
 		s.sendRun(record, x.Run)
 	case *service.Record_Exit:
-		s.sendExit(record, x.Exit)
+		s.sendExit(record)
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *service.Record_Metric:
@@ -354,8 +350,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(x.Preempting)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
-	case *service.Record_LinkArtifact:
-		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
@@ -382,6 +376,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendRequestLogArtifact(record, x.LogArtifact)
 	case *service.Request_ServerInfo:
 		s.sendRequestServerInfo(record, x.ServerInfo)
+	case *service.Request_LinkArtifact:
+		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *service.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
 	case *service.Request_Sync:
@@ -437,10 +433,6 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.RunRecord.GetRunId(),
 			s.resumeState.GetFileStreamOffset(),
 		)
-	}
-
-	if s.fileTransferManager != nil {
-		s.fileTransferManager.Start()
 	}
 }
 
@@ -548,7 +540,6 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
 		s.fileWatcher.Finish()
-		s.wgFileTransfer.Wait()
 		if s.fileTransferManager != nil {
 			s.runfilesUploader.Finish()
 			s.fileTransferManager.Close()
@@ -560,7 +551,13 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case service.DeferRequest_FLUSH_FS:
 		if s.fileStream != nil {
-			s.fileStream.Close()
+			if s.exitRecord != nil {
+				s.fileStream.FinishWithExit(s.exitRecord.GetExit().GetExitCode())
+			} else {
+				s.logger.CaptureError(
+					fmt.Errorf("sender: no exit code on finish"))
+				s.fileStream.FinishWithoutExit()
+			}
 		}
 		request.State++
 		s.fwdRequestDefer(request)
@@ -608,21 +605,32 @@ func (s *Sender) sendPreempting(record *service.RunPreemptingRecord) {
 	s.fileStream.StreamUpdate(&fs.PreemptingUpdate{Record: record})
 }
 
-func (s *Sender) sendLinkArtifact(record *service.Record) {
+func (s *Sender) sendLinkArtifact(record *service.Record, msg *service.LinkArtifactRequest) {
+	var response service.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.ctx,
 		Logger:        s.logger,
-		LinkArtifact:  record.GetLinkArtifact(),
+		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
 	}
 	err := linker.Link()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendLinkArtifact: link failure: %v", err))
+		response.ErrorMessage = err.Error()
+		s.logger.CaptureError(err)
 	}
 
-	// why is this here?
-	s.respond(record, &service.Response{})
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_LinkArtifactResponse{
+					LinkArtifactResponse: &response,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
 }
 
 func (s *Sender) sendUseArtifact(record *service.Record) {
@@ -701,6 +709,14 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 // sendRun sends a run record to the server and updates the run record
 func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if s.graphqlClient != nil {
+		// TODO: we use the same record type for the initial run upsert and the
+		//  follow-up run updates, such as setting the name, tags, and notes.
+		//  The client only expects a response for the initial upsert, the
+		//  consequent updates are fire-and-forget and thus don't have a mailbox
+		//  slot.
+		//  We should probably separate the initial upsert from the updates.
+		runRecordIsSet := s.RunRecord != nil
+
 		// The first run record sent by the client is encoded incorrectly,
 		// causing it to overwrite the entire "_wandb" config key rather than
 		// just the necessary part ("_wandb/code_path"). This can overwrite
@@ -717,7 +733,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
 
-		if s.RunRecord == nil {
+		if !runRecordIsSet {
 			var ok bool
 			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 			if !ok {
@@ -759,9 +775,12 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			// if this times out, we cancel the global context
 			// as there is no need to proceed with the run
 			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
-		} else {
-			// this should never happen
-			s.logger.CaptureError(errors.New("sender: sendRun: no mailbox slot"))
+		} else if !runRecordIsSet {
+			// this should never happen:
+			// the initial run upsert record should have a mailbox slot set by the client
+			s.logger.CaptureFatalAndPanic(
+				errors.New("sender: sendRun: mailbox slot not set"),
+			)
 		}
 
 		data, err := gql.UpsertBucket(
@@ -1048,13 +1067,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 }
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
-func (s *Sender) sendExit(record *service.Record, exitRecord *service.RunExitRecord) {
+func (s *Sender) sendExit(record *service.Record) {
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
-
-	if s.fileStream != nil {
-		s.fileStream.StreamUpdate(&fs.ExitUpdate{Record: exitRecord})
-	}
 
 	// send a defer request to the handler to indicate that the user requested to finish the stream
 	// and the defer state machine can kick in triggering the shutdown process
@@ -1139,20 +1154,20 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
-	// TODO: this should be handled by a separate service startup mechanism
-	s.fileTransferManager.Start()
-
 	var response service.DownloadArtifactResponse
-	downloader := artifacts.NewArtifactDownloader(
-		s.ctx, s.graphqlClient, s.fileTransferManager, msg.ArtifactId, msg.DownloadRoot,
-		msg.AllowMissingReferences, msg.SkipCache, msg.PathPrefix)
-	err := downloader.Download()
-	if err != nil {
+
+	if err := artifacts.NewArtifactDownloader(
+		s.ctx,
+		s.graphqlClient,
+		s.fileTransferManager,
+		msg.ArtifactId,
+		msg.DownloadRoot,
+		msg.AllowMissingReferences,
+		msg.SkipCache,
+		msg.PathPrefix,
+	).Download(); err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf(
-				"senderError: downloadArtifact: failed to download artifact: %v",
-				err,
-			))
+			fmt.Errorf("sender: failed to download artifact: %v", err))
 		response.ErrorMessage = err.Error()
 	}
 

@@ -16,23 +16,17 @@ const (
 	DefaultConcurrencyLimit = 128
 )
 
-// A manager of asynchronous file upload tasks.
+// FileTransferManager uploads and downloads files.
 type FileTransferManager interface {
-	// Asynchronously begins the main loop of the file transfer manager.
-	Start()
-
-	// Waits for all asynchronous work to finish.
-	Close()
-
-	// Schedules a file upload operation.
+	// AddTask schedules a file upload or download operation.
 	AddTask(task *Task)
+
+	// Close waits for all tasks to complete.
+	Close()
 }
 
 // FileTransferManager handles the upload/download of files
 type fileTransferManager struct {
-	// inChan is the channel for incoming messages
-	inChan chan *Task
-
 	// fileTransfers is the map of fileTransfer uploader/downloaders
 	fileTransfers *FileTransfers
 
@@ -50,9 +44,6 @@ type fileTransferManager struct {
 
 	// wg is the wait group
 	wg *sync.WaitGroup
-
-	// active is true if the file transfer is active
-	active bool
 }
 
 type FileTransferManagerOption func(fm *fileTransferManager)
@@ -84,7 +75,6 @@ func WithFileTransferStats(fileTransferStats FileTransferStats) FileTransferMana
 func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManager {
 
 	fm := fileTransferManager{
-		inChan:    make(chan *Task, bufferSize),
 		wg:        &sync.WaitGroup{},
 		semaphore: make(chan struct{}, DefaultConcurrencyLimit),
 	}
@@ -96,43 +86,31 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 	return &fm
 }
 
-func (fm *fileTransferManager) Start() {
-	if fm.active {
-		return
-	}
+func (fm *fileTransferManager) AddTask(task *Task) {
+	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
+
 	fm.wg.Add(1)
 	go func() {
-		fm.active = true
-		for task := range fm.inChan {
-			// add a task to the wait group
-			fm.wg.Add(1)
-			fm.logger.Debug("fileTransfer: got task", "task", task.String())
-			// spin up a goroutine per task
-			go func(task *Task) {
-				// Acquire the semaphore
-				fm.semaphore <- struct{}{}
-				task.Err = fm.transfer(task)
-				// Release the semaphore
-				<-fm.semaphore
+		defer fm.wg.Done()
 
-				if task.Err != nil {
-					fm.logger.CaptureError(
-						fmt.Errorf(
-							"filetransfer: uploader: error uploading path=%s url=%s: %v",
-							task.Path,
-							task.Url,
-							task.Err,
-						))
-				}
+		// Guard by a semaphore to limit number of concurrent uploads.
+		fm.semaphore <- struct{}{}
+		task.Err = fm.transfer(task)
+		<-fm.semaphore
 
-				// Execute the callback.
-				fm.completeTask(task)
-
-				// mark the task as done
-				fm.wg.Done()
-			}(task)
+		if task.Err != nil {
+			fm.logger.CaptureError(
+				fmt.Errorf(
+					"filetransfer: uploader: error uploading to %v: %v",
+					task.Url,
+					task.Err,
+				),
+				"path", task.Path,
+			)
 		}
-		fm.wg.Done()
+
+		// Execute the callback.
+		fm.completeTask(task)
 	}()
 }
 
@@ -150,30 +128,16 @@ func (fm *fileTransferManager) completeTask(task *Task) {
 	}
 }
 
-func (fm *fileTransferManager) AddTask(task *Task) {
-	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
-	fm.inChan <- task
-}
-
 func (fm *fileTransferManager) Close() {
-	if !fm.active {
-		return
-	}
 	fm.logger.Debug("fileTransfer: Close")
-	if fm.inChan == nil {
-		return
-	}
-	// todo: review this, we don't want to cause a panic
-	close(fm.inChan)
 	fm.wg.Wait()
-	fm.active = false
 }
 
 // Uploads or downloads a file.
 func (fm *fileTransferManager) transfer(task *Task) error {
 	fileTransfer := fm.fileTransfers.GetFileTransferForTask(task)
 	if fileTransfer == nil {
-		return fmt.Errorf("file transfer not found for task")
+		return fmt.Errorf("fileTransfer: no transfer for task URL %v", task.Url)
 	}
 
 	var err error

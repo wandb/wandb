@@ -89,6 +89,12 @@ func (l *SparseList[T]) Get(index int) (T, bool) {
 	return item, ok
 }
 
+// GetOrZero returns an item at an index in the list, or the zero value.
+func (l *SparseList[T]) GetOrZero(index int) T {
+	x, _ := l.Get(index)
+	return x
+}
+
 // Delete clears an index in the list.
 //
 // Viewing `SparseList[T]` as `[]*T`, this is equivalent to replacing
@@ -109,6 +115,24 @@ func (l *SparseList[T]) Update(other SparseList[T]) {
 
 	maps.Copy(l.items, other.items)
 	l.boundsCached = false
+}
+
+// ForEach invokes a callback on each value in the list.
+func (l *SparseList[T]) ForEach(fn func(int, T)) {
+	for i, x := range l.items {
+		fn(i, x)
+	}
+}
+
+// Map returns a new list by applying a transformation to each element.
+func Map[T, U any](list SparseList[T], fn func(T) U) SparseList[U] {
+	result := SparseList[U]{}
+
+	list.ForEach(func(i int, x T) {
+		result.Put(i, fn(x))
+	})
+
+	return result
 }
 
 // Run is a sequence of consecutive values in a sparse list.

@@ -2,16 +2,20 @@
 package runconsolelogs
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -31,9 +35,10 @@ type Sender struct {
 	// console messages.
 	consoleOutputFile paths.RelativePath
 
-	outputFileWriter *outputFileWriter
-	logger           *observability.CoreLogger
-	loopbackChan     chan<- *service.Record
+	writer *debouncedWriter
+
+	logger       *observability.CoreLogger
+	loopbackChan chan<- *service.Record
 }
 
 type Params struct {
@@ -42,11 +47,24 @@ type Params struct {
 	Settings *settings.Settings
 	Logger   *observability.CoreLogger
 
+	// Ctx is a cancellation context that can be used to abruptly stop
+	// processing terminal output.
+	//
+	// `Finish` should still be invoked after cancellation to wait for
+	// all goroutines to complete. A file upload record for the logs
+	// file is emitted regardless of cancellation.
+	Ctx context.Context
+
 	// LoopbackChan is for emitting new records.
 	LoopbackChan chan<- *service.Record
 
 	// FileStreamOrNil is the filestream API.
 	FileStreamOrNil filestream.FileStream
+
+	// GetNow is an optional function that returns the current time.
+	//
+	// It is used for testing.
+	GetNow func() time.Time
 }
 
 func New(params Params) *Sender {
@@ -55,8 +73,14 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: Settings is nil")
 	case params.Logger == nil:
 		panic("runconsolelogs: Logger is nil")
+	case params.Ctx == nil:
+		panic("runconsolelogs: Ctx is nil")
 	case params.LoopbackChan == nil:
 		panic("runconsolelogs: LoopbackChan is nil")
+	}
+
+	if params.GetNow == nil {
+		params.GetNow = time.Now
 	}
 
 	var fsWriter *filestreamWriter
@@ -80,18 +104,24 @@ func New(params Params) *Sender {
 			))
 	}
 
-	model := &RunLogsChangeModel{
-		maxLines:      maxTerminalLines,
-		maxLineLength: maxTerminalLineLength,
-		onChange: func(lineNum int, line RunLogsLine) {
+	writer := NewDebouncedWriter(
+		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
+		params.Ctx,
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
-				fileWriter.WriteToFile(lineNum, line)
+				fileWriter.WriteToFile(lines)
 			}
 
 			if fsWriter != nil {
-				fsWriter.SendChanged(lineNum, line)
+				fsWriter.SendChanged(lines)
 			}
 		},
+	)
+	model := &RunLogsChangeModel{
+		maxLines:      maxTerminalLines,
+		maxLineLength: maxTerminalLineLength,
+		onChange:      writer.OnChanged,
+		getNow:        params.GetNow,
 	}
 
 	return &Sender{
@@ -106,9 +136,9 @@ func New(params Params) *Sender {
 
 		consoleOutputFile: params.ConsoleOutputFile,
 
-		outputFileWriter: fileWriter,
-		logger:           params.Logger,
-		loopbackChan:     params.LoopbackChan,
+		writer:       writer,
+		logger:       params.Logger,
+		loopbackChan: params.LoopbackChan,
 	}
 }
 
@@ -116,10 +146,7 @@ func New(params Params) *Sender {
 //
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
-	if s.outputFileWriter != nil {
-		s.outputFileWriter.Finish()
-	}
-
+	s.writer.Wait()
 	s.uploadOutputFile()
 }
 

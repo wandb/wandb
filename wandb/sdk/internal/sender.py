@@ -1473,8 +1473,13 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def send_link_artifact(self, record: "Record") -> None:
-        link = record.link_artifact
+    def send_request_link_artifact(self, record: "Record") -> None:
+        if not (record.control.req_resp or record.control.mailbox_slot):
+            raise ValueError(
+                f"Expected either `req_resp` or `mailbox_slot`, got: {record.control!r}"
+            )
+        result = proto_util._result_from_record(record)
+        link = record.request.link_artifact
         client_id = link.client_id
         server_id = link.server_id
         portfolio_name = link.portfolio_name
@@ -1490,7 +1495,9 @@ class SendManager:
                     client_id, server_id, portfolio_name, entity, project, aliases
                 )
             except Exception as e:
+                result.response.log_artifact_response.error_message = f'error linking artifact to "{entity}/{project}/{portfolio_name}"; error: {e}'
                 logger.warning("Failed to link artifact to portfolio: %s", e)
+        self._respond_result(result)
 
     def send_use_artifact(self, record: "Record") -> None:
         """Pretend to send a used artifact.

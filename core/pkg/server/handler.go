@@ -215,8 +215,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleHeader(record)
 	case *service.Record_History:
 		h.handleHistory(x.History)
-	case *service.Record_LinkArtifact:
-		h.handleLinkArtifact(record)
+	case *service.Record_NoopLinkArtifact:
+		// Removed but kept to avoid panics
 	case *service.Record_Metric:
 		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
@@ -300,6 +300,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRequestStopStatus(record)
 	case *service.Request_LogArtifact:
 		h.handleRequestLogArtifact(record)
+	case *service.Request_LinkArtifact:
+		h.handleRequestLinkArtifact(record)
 	case *service.Request_DownloadArtifact:
 		h.handleRequestDownloadArtifact(record)
 	case *service.Request_Attach:
@@ -412,6 +414,8 @@ func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRec
 		}
 		h.handleStepMetric(metric.GetStepMetric())
 		h.fwdRecord(record)
+	case metric.GetStepMetric() != "":
+		// this is an explicitly-defined x axis, no need to process it
 	default:
 		h.logger.CaptureError(
 			fmt.Errorf("invalid metric"),
@@ -492,7 +496,7 @@ func (h *Handler) handleRequestDownloadArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleLinkArtifact(record *service.Record) {
+func (h *Handler) handleRequestLinkArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 
@@ -1234,7 +1238,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 			h.handleHistory(history)
 			h.runHistory = runhistory.NewWithStep(step)
 		} else if step < current {
-			h.logger.CaptureWarn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
+			h.logger.Warn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
 			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
 				"that is less than the current step (%d) this data will be ignored. if you need to log data out of order, "+
 				"please see: https://wandb.me/define-metric", step, current)
