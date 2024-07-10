@@ -35,7 +35,7 @@ func TestConfigUpdate(t *testing.T) {
 
 	assert.Equal(t,
 		pathtree.TreeData{
-			"a": 1.0,
+			"a": int64(1),
 			"b": pathtree.TreeData{
 				"c": "text",
 				"d": 123.0,

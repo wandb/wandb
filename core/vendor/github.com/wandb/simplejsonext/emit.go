@@ -27,8 +27,18 @@ var (
 	hexChars = [...]byte{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'}
 )
 
+// Reusable object that can encode simple JSON values to any Writer.
 type Emitter interface {
+	// Writes the given value to the wrapped Writer. If the value or part of the
+	// value is not a supported type, an error will be returned with JSON only
+	// partially written.
+	//
+	// Supported types include: nil, bool, integers, floats, string, []byte
+	// (as a base64 encoded string), time.Time (written as an RFC3339 string),
+	// error (written as a string), and pointers/slices/string-keyed maps of
+	// supported types.
 	Emit(val any) error
+	// Replaces the Writer that this Emitter writes to.
 	Reset(io.Writer)
 }
 
@@ -38,6 +48,7 @@ type emitter struct {
 	a [128]byte
 }
 
+// Creates a new Emitter wrapping the given Writer.
 func NewEmitter(w io.Writer) Emitter {
 	e := &emitter{w: w}
 	e.s = e.a[:0]
