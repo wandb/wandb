@@ -350,8 +350,6 @@ func (s *Sender) sendRecord(record *service.Record) {
 		s.sendPreempting(x.Preempting)
 	case *service.Record_Request:
 		s.sendRequest(record, x.Request)
-	case *service.Record_LinkArtifact:
-		s.sendLinkArtifact(record)
 	case *service.Record_UseArtifact:
 		s.sendUseArtifact(record)
 	case *service.Record_Artifact:
@@ -378,6 +376,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendRequestLogArtifact(record, x.LogArtifact)
 	case *service.Request_ServerInfo:
 		s.sendRequestServerInfo(record, x.ServerInfo)
+	case *service.Request_LinkArtifact:
+		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *service.Request_DownloadArtifact:
 		s.sendRequestDownloadArtifact(record, x.DownloadArtifact)
 	case *service.Request_Sync:
@@ -605,21 +605,32 @@ func (s *Sender) sendPreempting(record *service.RunPreemptingRecord) {
 	s.fileStream.StreamUpdate(&fs.PreemptingUpdate{Record: record})
 }
 
-func (s *Sender) sendLinkArtifact(record *service.Record) {
+func (s *Sender) sendLinkArtifact(record *service.Record, msg *service.LinkArtifactRequest) {
+	var response service.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
 		Ctx:           s.ctx,
 		Logger:        s.logger,
-		LinkArtifact:  record.GetLinkArtifact(),
+		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
 	}
 	err := linker.Link()
 	if err != nil {
-		s.logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: sendLinkArtifact: link failure: %v", err))
+		response.ErrorMessage = err.Error()
+		s.logger.CaptureError(err)
 	}
 
-	// why is this here?
-	s.respond(record, &service.Response{})
+	result := &service.Result{
+		ResultType: &service.Result_Response{
+			Response: &service.Response{
+				ResponseType: &service.Response_LinkArtifactResponse{
+					LinkArtifactResponse: &response,
+				},
+			},
+		},
+		Control: record.Control,
+		Uuid:    record.Uuid,
+	}
+	s.outChan <- result
 }
 
 func (s *Sender) sendUseArtifact(record *service.Record) {

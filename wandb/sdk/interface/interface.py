@@ -358,7 +358,7 @@ class InterfaceBase:
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
-    def publish_link_artifact(
+    def deliver_link_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -366,8 +366,8 @@ class InterfaceBase:
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
-    ) -> None:
-        link_artifact = pb.LinkArtifactRecord()
+    ) -> MailboxHandle:
+        link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
             link_artifact.client_id = artifact._client_id
         else:
@@ -377,10 +377,12 @@ class InterfaceBase:
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
 
-        self._publish_link_artifact(link_artifact)
+        return self._deliver_link_artifact(link_artifact)
 
     @abstractmethod
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+    def _deliver_link_artifact(
+        self, link_artifact: pb.LinkArtifactRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     @staticmethod
