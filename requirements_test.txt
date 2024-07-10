@@ -12,6 +12,5 @@ parameterized
 flask>2.0.0
 pandas
 responses
-pydantic>=2.4
 
 coverage[toml]
