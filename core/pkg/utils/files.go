@@ -52,8 +52,8 @@ func CopyFile(src, dst string) error {
 	return nil
 }
 
-func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, digest string, size int64, rerr error) {
-	data, rerr := json.Marshal(marshallable)
+func WriteJsonToFileWithDigest(data any) (filename string, digest string, size int64, rerr error) {
+	dataJSON, rerr := json.Marshal(data)
 	if rerr != nil {
 		return
 	}
@@ -63,7 +63,7 @@ func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, diges
 		return
 	}
 	defer f.Close()
-	_, rerr = f.Write(data)
+	_, rerr = f.Write(dataJSON)
 	if rerr != nil {
 		return
 	}
@@ -73,6 +73,6 @@ func WriteJsonToFileWithDigest(marshallable interface{}) (filename string, diges
 		size = stat.Size()
 	}
 
-	digest = ComputeB64MD5(data)
+	digest = ComputeB64MD5(dataJSON)
 	return
 }
