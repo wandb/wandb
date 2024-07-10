@@ -1,6 +1,6 @@
 module github.com/wandb/wandb/experimental/client-go
 
-go 1.22.4
+go 1.22.5
 
 require (
 	github.com/wandb/segmentio-encoding v0.0.0-20240626235424-a08f80ebfb91

@@ -41,7 +41,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 170
+// Next ID: 173
 message Settings {
   reserved 12, 94;
 
@@ -85,6 +85,20 @@ message Settings {
 
   // Indicate whether wandb-core is to be used.
   google.protobuf.BoolValue _require_core = 36;
+
+  // Path to file containing an identity token for authentication.
+  google.protobuf.StringValue identity_token_file = 170;
+
+  // Path to file for writing temporary access tokens.
+  google.protobuf.StringValue credentials_file = 171;
+
+  // An approximate maximum request size for the filestream API.
+  //
+  // This applies when wandb-core is enabled. Its purpose is to prevent
+  // HTTP requests from failing due to containing too much data.
+  //
+  // This number is approximate: requests will be slightly larger.
+  google.protobuf.Int32Value _file_stream_max_bytes = 172;
 
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;

@@ -20,7 +20,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_wandb"] = true
 	timestamp := float64(u.Record.GetTimestamp().Seconds) + float64(u.Record.GetTimestamp().Nanos)/1e9
 	row["_timestamp"] = timestamp
-	row["_runtime"] = timestamp - ctx.Settings.XStartTime.GetValue()
+	row["_runtime"] = u.Record.Timestamp.AsTime().Sub(ctx.Settings.GetStartTime()).Seconds()
 
 	for _, item := range u.Record.Item {
 		var val interface{}
@@ -55,18 +55,10 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 			"max", maxFileLineBytes,
 		)
 	default:
-		ctx.ModifyRequest(&collectorStatsUpdate{
-			lines: []string{string(line)},
+		ctx.MakeRequest(&FileStreamRequest{
+			EventsLines: []string{string(line)},
 		})
 	}
 
 	return nil
-}
-
-type collectorStatsUpdate struct {
-	lines []string
-}
-
-func (u *collectorStatsUpdate) Apply(state *CollectorState) {
-	state.EventsLines = append(state.EventsLines, u.lines...)
 }
