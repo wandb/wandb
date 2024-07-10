@@ -173,7 +173,7 @@ def test_manage_config_file_with_input_schema(
                 "config.yaml",
                 include=["key2"],
                 exclude=["key2.key4.key6.key8", "key2.key3"],
-                input_schema=test_input_schema,
+                schema=test_input_schema,
             )
             run.log({"test": 1})
 
@@ -324,7 +324,7 @@ def test_manage_wandb_config_with_input_schema(
         launch.manage_wandb_config(
             include=["key2"],
             exclude=["key2.key4.key6.key8", "key2.key3"],
-            input_schema=test_input_schema,
+            schema=test_input_schema,
         )
         run.log({"test": 1})
 
@@ -409,11 +409,11 @@ def test_manage_both_with_input_schema(
                 "config.yaml",
                 include=["key2"],
                 exclude=["key2.key4.key6.key8", "key2.key3"],
-                input_schema=test_input_schema,
+                schema=test_input_schema,
             )
             launch.manage_wandb_config(
                 include=["key1"],
-                input_schema=wandb_config_schema,
+                schema=wandb_config_schema,
             )
             run.log({"test": 1})
 

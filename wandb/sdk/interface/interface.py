@@ -767,6 +767,8 @@ class InterfaceBase:
         Args:
             include_paths: paths within config to include as job inputs.
             exclude_paths: paths within config to exclude as job inputs.
+            input_schema: A JSON Schema describing which attributes will be
+                editable from the Launch drawer.
             run_config: bool indicating whether wandb.config is the input source.
             file_path: path to file to include as a job input.
         """
