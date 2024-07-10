@@ -108,7 +108,7 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 		pathtree.TreeData{
 			"_wandb": pathtree.TreeData{
 				"t": corelib.ProtoEncodeToDict(telemetry),
-				"m": []map[int]any{},
+				"m": []map[string]any{},
 			},
 		},
 		runConfig.Tree(),
