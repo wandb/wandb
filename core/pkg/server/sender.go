@@ -22,11 +22,11 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runbranching"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runmetric"
-	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -109,7 +109,7 @@ type Sender struct {
 	RunRecord *service.RunRecord
 
 	// resumeState is the resume state
-	resumeState *runresume.State
+	resumeState *runbranching.ResumeState
 
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
@@ -670,16 +670,24 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if s.graphqlClient == nil {
 		return nil
 	}
-	resume := runresume.ResumeMode(s.settings.GetResume().GetValue())
+	resumeMode := runbranching.ResumeMode(s.settings.GetResume().GetValue())
 
 	// There was no resume status set, so we don't need to do anything
-	if resume == runresume.None {
+	if resumeMode == runbranching.None {
 		return nil
 	}
 
-	// init resume state if it doesn't exist
-	s.resumeState = runresume.NewResumeState(s.logger, resume)
 	run := s.RunRecord
+
+	// init resume state if it doesn't exist
+	s.resumeState = runbranching.NewResumeState(
+		run.Project,
+		run.RunId,
+		s.runConfig,
+		run.Tags,
+		resumeMode,
+		s.logger,
+	)
 	// If we couldn't get the resume status, we should fail if resume is set
 	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
 	if err != nil {
@@ -694,16 +702,32 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		return err
 	}
 
-	if result, err := s.resumeState.Update(
-		data,
-		s.RunRecord,
-		s.runConfig,
-	); err != nil {
+	if result, err := s.resumeState.Update(data); err != nil {
 		s.respond(record, result)
 		return err
 	}
 
 	return nil
+}
+
+func (s *Sender) checkAndUpdateForkState(record *service.Record) error {
+	if s.graphqlClient == nil {
+		return nil
+	}
+
+	run := s.RunRecord
+
+	fmt.Printf("%v\n", s.settings.ForkFrom)
+
+	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
+
+	var bucket *runbranching.Bucket
+	if data.GetModel() != nil && data.GetModel().GetBucket() != nil {
+		bucket = data.GetModel().GetBucket()
+	}
+	fmt.Printf("%v\n", bucket)
+
+	return err
 }
 
 // sendRun sends a run record to the server and updates the run record
@@ -744,6 +768,13 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			if err := s.checkAndUpdateResumeState(record); err != nil {
 				s.logger.Error(
 					"sender: sendRun: failed to checkAndUpdateResumeState",
+					"error", err)
+				return
+			}
+
+			if err := s.checkAndUpdateForkState(record); err != nil {
+				s.logger.Error(
+					"sender: sendRun: failed to checkAndUpdateForkState",
 					"error", err)
 				return
 			}
