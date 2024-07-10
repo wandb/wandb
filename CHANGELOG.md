@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
+
 ## [0.17.4] - 2024-07-03
 
 ### Added
