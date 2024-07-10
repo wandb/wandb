@@ -265,6 +265,7 @@ class KanikoBuilder(AbstractBuilder):
 
         if (
             not launch_project.build_required()
+            and not DOCKER_CONFIG_SECRET
             and await self.registry.check_image_exists(image_uri)
         ):
             return image_uri
@@ -286,7 +287,10 @@ class KanikoBuilder(AbstractBuilder):
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
         try:
-            if isinstance(self.registry, AzureContainerRegistry):
+            if (
+                isinstance(self.registry, AzureContainerRegistry)
+                and not DOCKER_CONFIG_SECRET
+            ):
                 dockerfile_config_map = client.V1ConfigMap(
                     metadata=client.V1ObjectMeta(
                         name=f"docker-config-{build_job_name}"
@@ -344,7 +348,10 @@ class KanikoBuilder(AbstractBuilder):
         finally:
             wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:
-                if isinstance(self.registry, AzureContainerRegistry):
+                if (
+                    isinstance(self.registry, AzureContainerRegistry)
+                    and not DOCKER_CONFIG_SECRET
+                ):
                     await core_v1.delete_namespaced_config_map(
                         f"docker-config-{build_job_name}", "wandb"
                     )
@@ -498,7 +505,10 @@ class KanikoBuilder(AbstractBuilder):
                     "readOnly": True,
                 }
             )
-        if isinstance(self.registry, AzureContainerRegistry):
+        if (
+            isinstance(self.registry, AzureContainerRegistry)
+            and not DOCKER_CONFIG_SECRET
+        ):
             # Add the docker config map
             volumes.append(
                 {
@@ -533,7 +543,10 @@ class KanikoBuilder(AbstractBuilder):
         # Apply the rest of our defaults
         pod_labels["wandb"] = "launch"
         # This annotation is required to enable azure workload identity.
-        if isinstance(self.registry, AzureContainerRegistry):
+        if (
+            isinstance(self.registry, AzureContainerRegistry)
+            and not DOCKER_CONFIG_SECRET
+        ):
             pod_labels["azure.workload.identity/use"] = "true"
         pod_spec["restartPolicy"] = pod_spec.get("restartPolicy", "Never")
         pod_spec["activeDeadlineSeconds"] = pod_spec.get(
