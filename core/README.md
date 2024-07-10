@@ -231,6 +231,6 @@ Status legend:
 [^E.12]: Unsupported settings:
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^CLI.1]: The command is namespaced under `wandb beta` group.
-[^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some
-    commands.    
+[^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some commands.
+
 <details>
