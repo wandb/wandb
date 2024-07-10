@@ -2,7 +2,7 @@
 
 from pathlib import PurePosixPath
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union, List
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
 import wandb
@@ -127,7 +127,7 @@ class AzureHandler(StorageHandler):
                     )
                 ]
 
-        entries = []
+        entries: List[ArtifactManifestEntry] = []
         container_client = blob_service_client.get_container_client(container_name)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         for blob_properties in container_client.list_blobs(
