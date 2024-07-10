@@ -2,7 +2,7 @@
 
 from pathlib import PurePosixPath
 from types import ModuleType
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union, List
+from typing import TYPE_CHECKING, Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import ParseResult, parse_qsl, urlparse
 
 import wandb
