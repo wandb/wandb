@@ -3,7 +3,7 @@ package runconfig
 import (
 	"fmt"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -50,9 +50,10 @@ func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
 
 	switch format {
 	case FormatYaml:
+		// TODO: Does `yaml` support NaN and +-Infinity?
 		return yaml.Marshal(value)
 	case FormatJson:
-		return json.Marshal(value)
+		return simplejsonext.Marshal(value)
 	default:
 		return nil, fmt.Errorf("unsupported format: %v", format)
 	}
@@ -68,11 +69,12 @@ func (rc *RunConfig) ApplyChangeRecord(
 ) {
 	updates := make([]*pathtree.PathItem, 0, len(configRecord.GetUpdate()))
 	for _, item := range configRecord.GetUpdate() {
-		var value any
-		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
+		value, err := simplejsonext.UnmarshalString(item.GetValueJson())
+		if err != nil {
 			onError(err)
 			continue
 		}
+
 		updates = append(updates, &pathtree.PathItem{
 			Path:  keyPath(item),
 			Value: value,

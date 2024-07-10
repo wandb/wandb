@@ -1,9 +1,9 @@
 package runhistory
 
 import (
+	"strconv"
 	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -24,9 +24,9 @@ func NewRunHistorySampler() *RunHistorySampler {
 // This must be called on history rows in order.
 func (s *RunHistorySampler) SampleNext(history *service.HistoryRecord) {
 	for _, item := range history.Item {
-		var value float32
-		if err := json.Unmarshal([]byte(item.ValueJson), &value); err != nil {
-			// Skip items that we cannot sample.
+		// Skip any values that aren't numbers.
+		value, err := strconv.ParseFloat(item.ValueJson, 32)
+		if err != nil {
 			continue
 		}
 
@@ -38,7 +38,7 @@ func (s *RunHistorySampler) SampleNext(history *service.HistoryRecord) {
 			s.samples[key] = sample
 		}
 
-		sample.Add(value)
+		sample.Add(float32(value))
 	}
 }
 

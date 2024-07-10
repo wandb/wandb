@@ -3,7 +3,7 @@ package runhistory
 import (
 	"fmt"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -54,20 +54,21 @@ func (rh *RunHistory) ApplyChangeRecord(
 	onError func(error),
 ) {
 	updates := make([]*pathtree.PathItem, 0, len(historyRecord))
+
 	for _, item := range historyRecord {
-		var update interface{}
-		// custom unmarshal function that handles NaN and +-Inf
-		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
+		update, err := simplejsonext.UnmarshalString(item.GetValueJson())
 		if err != nil {
 			onError(err)
 			continue
 		}
+
 		updates = append(updates,
 			&pathtree.PathItem{
 				Path:  keyPath(item),
 				Value: update,
 			})
 	}
+
 	rh.pathTree.ApplyUpdate(updates, onError)
 }
 
@@ -79,7 +80,7 @@ func (rh *RunHistory) ApplyChangeRecord(
 func (rh *RunHistory) Serialize() ([]byte, error) {
 	// A configuration dict in the format expected by the backend.
 	value := rh.pathTree.Tree()
-	return json.Marshal(value)
+	return simplejsonext.Marshal(value)
 }
 
 // Flatten returns a flat list of history items.
@@ -102,7 +103,7 @@ func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 			)
 		}
 
-		value, err := json.Marshal(leaf.Value)
+		value, err := simplejsonext.Marshal(leaf.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"runhistory: failed to marshal value for item %v: %v",

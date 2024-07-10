@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -183,10 +183,11 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 		return err
 	}
 
-	var history []string
-	if err := json.Unmarshal([]byte(*resumed), &history); err != nil {
+	historyAny, err := simplejsonext.UnmarshalString(*resumed)
+	history, ok := historyAny.([]string)
+	if err != nil || !ok {
 		err = fmt.Errorf(
-			"sender: updateHistory:failed to unmarshal history tail: %s", err)
+			"sender: updateHistory: failed to unmarshal history tail: %s", err)
 		return err
 	}
 
@@ -194,8 +195,8 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 		return nil
 	}
 
-	var historyTail map[string]any
-	if err := json.Unmarshal([]byte(history[0]), &historyTail); err != nil {
+	historyTail, err := simplejsonext.UnmarshalObjectString(history[0])
+	if err != nil {
 		err = fmt.Errorf(
 			"sender: updateHistory: failed to unmarshal history tail map: %s",
 			err)
@@ -229,9 +230,8 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 
 	// If we are unable to parse the summary, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it
-	// TODO: potential issue with unsupported types like NaN/Inf
-	var summary map[string]interface{}
-	if err := json.Unmarshal([]byte(*resumed), &summary); err != nil {
+	summary, err := simplejsonext.UnmarshalObjectString(*resumed)
+	if err != nil {
 		err = fmt.Errorf(
 			"sender: updateSummary: failed to unmarshal summary metrics: %s",
 			err)
@@ -240,7 +240,7 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 
 	record := service.SummaryRecord{}
 	for key, value := range summary {
-		valueJson, _ := json.Marshal(value)
+		valueJson, _ := simplejsonext.Marshal(value)
 		record.Update = append(record.Update, &service.SummaryItem{
 			Key:       key,
 			ValueJson: string(valueJson),
@@ -264,10 +264,8 @@ func (r *State) updateConfig(
 
 	// If we are unable to parse the config, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it
-	// TODO: potential issue with unsupported types like NaN/Inf
-	var cfg map[string]interface{}
-
-	if err := json.Unmarshal([]byte(*resumed), &cfg); err != nil {
+	cfg, err := simplejsonext.UnmarshalObjectString(*resumed)
+	if err != nil {
 		err = fmt.Errorf(
 			"sender: updateConfig: failed to unmarshal config: %s", err)
 		return err
@@ -290,7 +288,7 @@ func (r *State) updateConfig(
 		}
 	}
 
-	err := config.MergeResumedConfig(deserializedConfig)
+	err = config.MergeResumedConfig(deserializedConfig)
 	if err != nil {
 		r.logger.Error(
 			fmt.Sprintf(

@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -54,12 +54,8 @@ func (g *GPUApple) parseStats() (map[string]interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	stats := make(map[string]interface{})
-	err = json.Unmarshal(rawStats, &stats)
-	if err != nil {
-		return nil, err
-	}
-	return stats, nil
+
+	return simplejsonext.UnmarshalObject(rawStats)
 }
 
 func (g *GPUApple) Name() string { return g.name }

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -1335,7 +1335,7 @@ func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryIt
 	// TODO: avoid using json marshalling
 	// we use the summary value of the metric as the algorithm for imputing the step metric
 	if value, ok := h.runSummary.Tree()[key]; ok {
-		v, err := json.Marshal(value)
+		v, err := simplejsonext.Marshal(value)
 		if err != nil {
 			h.logger.CaptureError(
 				fmt.Errorf("error marshalling step metric value: %v", err))

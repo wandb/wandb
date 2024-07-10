@@ -10,10 +10,9 @@ import (
 
 	"golang.org/x/time/rate"
 
-	"github.com/wandb/segmentio-encoding/json"
-
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -38,7 +37,7 @@ func Average(nums []float64) float64 {
 func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
 	statsItems := make([]*service.StatsItem, 0, len(stats))
 	for k, v := range stats {
-		jsonData, err := json.Marshal(v)
+		jsonData, err := simplejsonext.Marshal(v)
 		if err != nil {
 			continue
 		}

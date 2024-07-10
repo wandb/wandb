@@ -10,8 +10,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/segmentio-encoding/json"
-
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -227,12 +226,7 @@ func getROCMSMIStats() (InfoDict, error) {
 		return nil, err
 	}
 
-	var stats InfoDict
-	err = json.Unmarshal(output, &stats)
-	if err != nil {
-		return nil, err
-	}
-	return stats, nil
+	return simplejsonext.UnmarshalObject(output)
 }
 
 func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
