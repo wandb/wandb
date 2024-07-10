@@ -210,7 +210,7 @@ def handle_config_file_input(
         schema.model_json_schema  # type: ignore
     ):
         schema = _convert_pydantic_model_to_jsonschema(schema)
-    if not isinstance(schema, dict):
+    if schema and not isinstance(schema, dict):
         raise LaunchError(
             "schema must be a dict, Pydantic model instance, or Pydantic model class."
         )
@@ -247,7 +247,7 @@ def handle_run_config_input(
         schema.model_json_schema  # type: ignore
     ):
         schema = _convert_pydantic_model_to_jsonschema(schema)
-    if not isinstance(schema, dict):
+    if schema and not isinstance(schema, dict):
         raise LaunchError(
             "schema must be a dict, Pydantic model instance, or Pydantic model class."
         )
