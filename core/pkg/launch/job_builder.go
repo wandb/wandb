@@ -792,9 +792,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 	case *service.JobInputSource_File:
 		var schemaPtr *string
 		schema := request.GetInputSchema()
-		if schema == "" {
-			schemaPtr = nil
-		} else {
+		if schema != "" {
 			schemaPtr = &schema
 		}
 		newInput, err := newFileInputFromProto(
