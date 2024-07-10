@@ -33,10 +33,10 @@ func TestApplyUpdate(t *testing.T) {
 		})
 
 	expectedTree := pathtree.TreeData{
-		"setting1": float64(69),
+		"setting1": int64(69),
 		"config": pathtree.TreeData{
 			"setting2": pathtree.TreeData{
-				"value": float64(42),
+				"value": int64(42),
 			},
 		},
 	}

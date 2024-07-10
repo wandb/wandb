@@ -141,18 +141,27 @@ func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) error {
 	return nil
 }
 
-// Returns the "_wandb" subtree of the config.
+// internalSubtree returns the "_wandb" subtree of the config.
 func (rc *RunConfig) internalSubtree() pathtree.TreeData {
 	node, found := rc.pathTree.Tree()["_wandb"]
-
 	if !found {
-		wandbInternal := make(pathtree.TreeData)
-		rc.pathTree.Tree()["_wandb"] = wandbInternal
-		return wandbInternal
+		return rc.setEmptyInternalSubtree()
 	}
 
 	// Panic if the type is wrong, which should never happen.
-	return node.(pathtree.TreeData)
+	wandbInternal := node.(pathtree.TreeData)
+	if wandbInternal == nil {
+		return rc.setEmptyInternalSubtree()
+	}
+
+	return wandbInternal
+}
+
+// setEmptyInternalSubtree sets the "_wandb" key to an empty map and returns it.
+func (rc *RunConfig) setEmptyInternalSubtree() pathtree.TreeData {
+	wandbInternal := make(pathtree.TreeData)
+	rc.pathTree.Tree()["_wandb"] = wandbInternal
+	return wandbInternal
 }
 
 func (rc *RunConfig) Tree() pathtree.TreeData {
