@@ -204,11 +204,12 @@ def handle_config_file_input(
         path,
         dest,
     )
-    # This supports both input_schema=Schema or input_schema=Schema()
-    if hasattr(input_schema, "model_json_schema") and callable(
-        input_schema.model_json_schema  # type: ignore
+    # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+    # or the BaseModel class itself (e.g. schema=MySchema)
+    if hasattr(schema, "model_json_schema") and callable(
+        schema.model_json_schema  # type: ignore
     ):
-        input_schema = _convert_pydantic_model_to_jsonschema(input_schema)
+        schema = _convert_pydantic_model_to_jsonschema(schema)
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
@@ -236,11 +237,12 @@ def handle_run_config_input(
     If there is no active run, the include and exclude paths are staged and sent
     when a run is created.
     """
-    # This supports both input_schema=Schema or input_schema=Schema()
-    if hasattr(input_schema, "model_json_schema") and callable(
-        input_schema.model_json_schema  # type: ignore
+    # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+    # or the BaseModel class itself (e.g. schema=MySchema)
+    if hasattr(schema, "model_json_schema") and callable(
+        schema.model_json_schema  # type: ignore
     ):
-        input_schema = _convert_pydantic_model_to_jsonschema(input_schema)
+        schema = _convert_pydantic_model_to_jsonschema(schema)
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,

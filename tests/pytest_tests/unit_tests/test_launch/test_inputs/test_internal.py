@@ -197,7 +197,7 @@ def test_handle_config_file_input(mocker):
     )
 
 
-def handle_config_file_input_pydantic(
+def test_handle_config_file_input_pydantic(
     mocker,
     expected_json_schema,
 ):
