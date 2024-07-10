@@ -215,8 +215,8 @@ func (h *Handler) handleRecord(record *service.Record) {
 		h.handleHeader(record)
 	case *service.Record_History:
 		h.handleHistory(x.History)
-	case *service.Record_LinkArtifact:
-		h.handleLinkArtifact(record)
+	case *service.Record_NoopLinkArtifact:
+		// Removed but kept to avoid panics
 	case *service.Record_Metric:
 		h.handleMetric(record, x.Metric)
 	case *service.Record_Output:
@@ -300,6 +300,8 @@ func (h *Handler) handleRequest(record *service.Record) {
 		h.handleRequestStopStatus(record)
 	case *service.Request_LogArtifact:
 		h.handleRequestLogArtifact(record)
+	case *service.Request_LinkArtifact:
+		h.handleRequestLinkArtifact(record)
 	case *service.Request_DownloadArtifact:
 		h.handleRequestDownloadArtifact(record)
 	case *service.Request_Attach:
@@ -494,7 +496,7 @@ func (h *Handler) handleRequestDownloadArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleLinkArtifact(record *service.Record) {
+func (h *Handler) handleRequestLinkArtifact(record *service.Record) {
 	h.fwdRecord(record)
 }
 
