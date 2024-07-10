@@ -136,14 +136,19 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "clientId",
-				ServerId:         "serverId",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_LinkArtifact{
+					LinkArtifact: &service.LinkArtifactRequest{
+						ClientId:         "clientId",
+						ServerId:         "serverId",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
+		},
 		Control: &service.Control{
 			MailboxSlot: "junk",
 		},
@@ -170,16 +175,18 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "clientId",
-				ServerId:         "",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_LinkArtifact{
+					LinkArtifact: &service.LinkArtifactRequest{
+						ClientId:         "clientId",
+						ServerId:         "",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
 		},
 	}
 
@@ -204,16 +211,18 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	// 3. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "",
-				ServerId:         "serverId",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_LinkArtifact{
+					LinkArtifact: &service.LinkArtifactRequest{
+						ClientId:         "",
+						ServerId:         "serverId",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
 		},
 	}
 
