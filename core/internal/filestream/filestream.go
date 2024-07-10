@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 	"golang.org/x/time/rate"
 )
 
@@ -38,13 +38,6 @@ const (
 	SummaryChunk
 )
 
-var chunkFilename = map[ChunkTypeEnum]string{
-	HistoryChunk: HistoryFileName,
-	OutputChunk:  OutputFileName,
-	EventsChunk:  EventsFileName,
-	SummaryChunk: SummaryFileName,
-}
-
 type FileStream interface {
 	// Start asynchronously begins to upload to the backend.
 	//
@@ -59,8 +52,13 @@ type FileStream interface {
 		offsetMap FileStreamOffsetMap,
 	)
 
-	// Close waits for all work to be completed.
-	Close()
+	// FinishWithExit marks the run as complete and blocks until all
+	// uploads finish.
+	FinishWithExit(exitCode int32)
+
+	// FinishWithoutExit blocks until all uploads finish but does not
+	// mark the run as complete.
+	FinishWithoutExit()
 
 	// StreamUpdate uploads information through the filestream API.
 	StreamUpdate(update Update)
@@ -77,7 +75,7 @@ type fileStream struct {
 	feedbackWait *sync.WaitGroup
 
 	// settings is the settings for the filestream
-	settings *service.Settings
+	settings *settings.Settings
 
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
@@ -101,7 +99,7 @@ type fileStream struct {
 }
 
 type FileStreamParams struct {
-	Settings           *service.Settings
+	Settings           *settings.Settings
 	Logger             *observability.CoreLogger
 	Printer            *observability.Printer
 	ApiClient          api.Client
@@ -162,10 +160,19 @@ func (fs *fileStream) Start(
 
 func (fs *fileStream) StreamUpdate(update Update) {
 	fs.logger.Debug("filestream: stream update", "update", update)
-	fs.processChan <- update
+	select {
+	case fs.processChan <- update:
+	case <-fs.deadChan:
+		// Ignore everything if the filestream is dead.
+	}
 }
 
-func (fs *fileStream) Close() {
+func (fs *fileStream) FinishWithExit(exitCode int32) {
+	fs.StreamUpdate(&ExitUpdate{ExitCode: exitCode})
+	fs.FinishWithoutExit()
+}
+
+func (fs *fileStream) FinishWithoutExit() {
 	close(fs.processChan)
 	fs.feedbackWait.Wait()
 	fs.logger.Debug("filestream: closed")

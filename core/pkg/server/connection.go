@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -55,7 +55,7 @@ type Connection struct {
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.Client
+	sentryClient *sentry_ext.Client
 }
 
 // NewConnection creates a new connection
@@ -63,7 +63,7 @@ func NewConnection(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
-	sentryClient *sentry.Client,
+	sentryClient *sentry_ext.Client,
 ) *Connection {
 
 	nc := &Connection{
@@ -267,7 +267,6 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
-		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("wandb-core", nil)

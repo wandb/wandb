@@ -7,7 +7,7 @@ def manage_config_file(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[Any] = None,
+    schema: Optional[Any] = None,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -44,7 +44,7 @@ def manage_config_file(
             relative and must not contain backwards traversal, i.e. `..`.
         include (List[str]): A list of keys to include in the configuration file.
         exclude (List[str]): A list of keys to exclude from the configuration file.
-        input_schema (dict | Pydantic model): A JSON Schema or Pydantic model
+        schema (dict | Pydantic model): A JSON Schema or Pydantic model describing
             describing which attributes will be editable from the Launch drawer.
 
     Raises:
@@ -52,13 +52,13 @@ def manage_config_file(
     """
     from .internal import handle_config_file_input
 
-    return handle_config_file_input(path, include, exclude, input_schema)
+    return handle_config_file_input(path, include, exclude, schema)
 
 
 def manage_wandb_config(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    input_schema: Optional[Any] = None,
+    schema: Optional[Any] = None,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 
@@ -90,7 +90,7 @@ def manage_wandb_config(
     Args:
         include (List[str]): A list of subtrees to include in the configuration.
         exclude (List[str]): A list of subtrees to exclude from the configuration.
-        input_schema (dict | Pydantic model): A JSON Schema or Pydantic model
+        schema (dict | Pydantic model): A JSON Schema or Pydantic model describing
             describing which attributes will be editable from the Launch drawer.
 
     Raises:
@@ -98,4 +98,4 @@ def manage_wandb_config(
     """
     from .internal import handle_run_config_input
 
-    handle_run_config_input(include, exclude, input_schema)
+    handle_run_config_input(include, exclude, schema)

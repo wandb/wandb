@@ -1,28 +1,17 @@
 package filestream
 
-import "github.com/wandb/wandb/core/pkg/service"
-
-// ExitUpdate contains the run's script's exit code.
+// ExitUpdate marks the run as complete and sets its exit code.
+//
+// This should be the last update to filestream.
 type ExitUpdate struct {
-	Record *service.RunExitRecord
+	ExitCode int32
 }
 
 func (u *ExitUpdate) Apply(ctx UpdateContext) error {
-
-	ctx.ModifyRequest(&collectorExitUpdate{
-		exitCode: u.Record.ExitCode,
+	ctx.MakeRequest(&FileStreamRequest{
+		Complete: true,
+		ExitCode: u.ExitCode,
 	})
 
 	return nil
-}
-
-type collectorExitUpdate struct {
-	exitCode int32
-}
-
-func (u *collectorExitUpdate) Apply(state *CollectorState) {
-	boolTrue := true
-
-	state.ExitCode = &u.exitCode
-	state.Complete = &boolTrue
 }
