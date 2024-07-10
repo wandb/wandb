@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- When using wandb-core, support multipart uploads to S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
+
 ### Changed
 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
@@ -20,7 +24,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Support queue template variables in launch sweep scheduler jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
-- When using wandb-core, support multipart uploads to S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
 
 ### Fixed
 
