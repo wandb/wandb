@@ -3,9 +3,8 @@
 package monitor_test
 
 import (
+	"encoding/json"
 	"testing"
-
-	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/monitor"

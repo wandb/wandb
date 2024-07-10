@@ -1,12 +1,12 @@
 package artifacts
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
