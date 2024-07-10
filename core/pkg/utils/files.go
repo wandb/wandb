@@ -1,13 +1,12 @@
 package utils
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-
-	"github.com/wandb/segmentio-encoding/json"
 )
 
 func FileExists(path string) (bool, error) {
