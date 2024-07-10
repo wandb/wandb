@@ -38,3 +38,11 @@ func TestVerifyFileHash(t *testing.T) {
 	b64md5 := ComputeB64MD5([]byte(`foobar`))
 	assert.True(t, VerifyFileHash(testFile.Name(), b64md5))
 }
+
+func TestComputeHexMD5(t *testing.T) {
+	data := []byte(`example data`)
+	expectedHexMD5 := "5c71dbb287630d65ca93764c34d9aa0d"
+
+	hexMD5 := ComputeHexMD5(data)
+	assert.Equal(t, expectedHexMD5, hexMD5)
+}
