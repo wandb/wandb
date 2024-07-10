@@ -14,7 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
-- `run.link_artifact()` now uses mailbox and can surface server errors. (@ibindlish in https://github.com/wandb/wandb/pull/6941)
+- `run.link_artifact()` can now surface server errors. (@ibindlish in https://github.com/wandb/wandb/pull/6941)
 
 ## [0.17.4] - 2024-07-03
 
