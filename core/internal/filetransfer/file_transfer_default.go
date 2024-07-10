@@ -130,6 +130,8 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
 	}
+	task.Response = resp
+
 	return nil
 }
 
@@ -155,6 +157,7 @@ func (ft *DefaultFileTransfer) Download(task *Task) error {
 	if err != nil {
 		return err
 	}
+	task.Response = resp
 
 	// open the file for writing and defer closing it
 	file, err := os.Create(task.Path)
