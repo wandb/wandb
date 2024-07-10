@@ -93,7 +93,7 @@ func (rc *RunConfig) ApplyChangeRecord(
 // Inserts W&B-internal values into the run's configuration.
 func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
-	metrics []map[int]interface{},
+	metrics []map[string]interface{},
 ) {
 	wandbInternal := rc.internalSubtree()
 

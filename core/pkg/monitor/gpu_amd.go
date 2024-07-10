@@ -171,7 +171,7 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 	for _, stats := range cards {
 		gpuInfo := service.GpuAmdInfo{}
 		for key, statKey := range keyMapping {
-			if value, ok := stats[statKey].(string); ok {
+			if value, ok := queryMapString(stats, statKey); ok {
 				switch key {
 				case "Id":
 					gpuInfo.Id = value
@@ -252,7 +252,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 			return nil
 		},
 		"Average Graphics Package Power (W)": func(s string) *Stats {
-			maxPowerWatts, ok := stats["Max Graphics Package Power (W)"].(string)
+			maxPowerWatts, ok := queryMapString(stats, "Max Graphics Package Power (W)")
 			if !ok {
 				return nil
 			}
@@ -266,7 +266,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 			return nil
 		},
 	} {
-		strVal, ok := stats[key].(string)
+		strVal, ok := queryMapString(stats, key)
 		if ok {
 			partialStats := statFunc(strVal)
 			if partialStats != nil {

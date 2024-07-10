@@ -101,14 +101,14 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 
 	runConfig.AddTelemetryAndMetrics(
 		telemetry,
-		[]map[int]interface{}{},
+		[]map[string]any{},
 	)
 
 	assert.Equal(t,
 		pathtree.TreeData{
 			"_wandb": pathtree.TreeData{
 				"t": corelib.ProtoEncodeToDict(telemetry),
-				"m": []map[int]interface{}{},
+				"m": []map[int]any{},
 			},
 		},
 		runConfig.Tree(),
