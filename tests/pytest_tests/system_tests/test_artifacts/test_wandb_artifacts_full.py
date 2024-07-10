@@ -588,9 +588,9 @@ def test_log_and_download_with_path_prefix(wandb_init, tmp_path):
     assert (download_dir / "some-prefix" / "one.txt").is_file()
     assert not (download_dir / "some-prefix-two.txt").exists()
     assert not (download_dir / "other-thing.txt").exists()
-    
+
     shutil.rmtree(download_dir)
-    
+
     with wandb_init() as run:
         logged_artifact = run.use_artifact("test-artifact:latest")
         download_dir = Path(logged_artifact.download(path_prefix=""))
