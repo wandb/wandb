@@ -198,7 +198,7 @@ def test_handle_config_file_input(mocker):
 
 
 @pytest.mark.skipif(
-    sys.version_info < (3, 8),
+    sys.version_info <= (3, 8),
     reason="Pydantic versions <2.4 doesn't support json schema",
 )
 def test_handle_config_file_input_pydantic(
