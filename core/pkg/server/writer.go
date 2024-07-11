@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/proto"
 )
 
 type WriterOption func(*Writer)
@@ -154,9 +155,10 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
+	recordCopy := proto.Clone(record).(*service.Record)
 	w.recordNum += 1
-	record.Num = w.recordNum
-	w.storeChan <- record
+	recordCopy.Num = w.recordNum
+	w.storeChan <- recordCopy
 }
 
 func (w *Writer) fwdRecord(record *service.Record) {
