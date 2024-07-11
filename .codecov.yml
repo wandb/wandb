@@ -9,15 +9,22 @@ comment:
   require_changes: no
 
 ignore:
+  # Ignore all vendored files.
   - "wandb/vendor"
-  - "wandb/proto"
-  - "core/pkg/service"
-  - "core/internal/gql"
+  - "core/vendor"
 
   # Ignore all generated proto files.
   - "**/*.pb.go"
   - "**/*_pb2.py"
   - "**/*_pb2.pyi"
+
+  # Ignore generated GraphQL files.
+  - "core/internal/gql"
+
+  # Specific scripts and generated files that should be ignored.
+  - "wandb/proto/wandb_deprecated.py"
+  - "wandb/proto/wandb_generate_deprecated.py"
+  - "wandb/proto/wandb_generate_proto.py"
 
 coverage:
   precision: 2
