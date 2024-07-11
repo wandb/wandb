@@ -550,7 +550,6 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
     assert downloaded == art_dir / name_path
 
 
-@pytest.mark.wandb_core_failure(feature="path_prefix downloads")
 def test_log_and_download_with_path_prefix(wandb_init, tmp_path):
     artifact = wandb.Artifact(name="test-artifact", type="dataset")
     file_paths = [
