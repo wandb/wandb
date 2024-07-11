@@ -36,7 +36,7 @@ func NewFrom(tree TreeData) *PathTree {
 	return &PathTree{tree}
 }
 
-// Returns the underlying config tree.
+// Returns the underlying tree.
 //
 // Provided temporarily as part of a refactor. Avoid using this, especially
 // mutating it.
@@ -187,7 +187,7 @@ func getOrMakeSubtree(
 	tree TreeData,
 	path TreePath,
 ) (TreeData, error) {
-	for _, key := range path {
+	for i, key := range path {
 		node, exists := tree[key]
 		if !exists {
 			node = make(TreeData)
@@ -197,9 +197,8 @@ func getOrMakeSubtree(
 		subtree, ok := node.(TreeData)
 		if !ok {
 			return nil, fmt.Errorf(
-				"config: value at path %v is type %T, not a map",
-				path,
-				node,
+				"value at key %d (%v) in path %v is type %T, not a map",
+				i, key, path, node,
 			)
 		}
 

@@ -1,6 +1,7 @@
 package observability
 
 import (
+	"fmt"
 	"sync"
 	"time"
 )
@@ -60,13 +61,24 @@ func (p *Printer) Write(message string) {
 	p.messages = append(p.messages, message)
 }
 
+// Writef adds a Sprintf-formatted message to the console.
+func (p *Printer) Writef(format string, args ...any) {
+	p.Lock()
+	defer p.Unlock()
+	p.messages = append(p.messages, fmt.Sprintf(format, args...))
+}
+
 // AtMostEvery allows rate-limiting how often a message is printed.
 //
 // Usage:
 //
 //	printer.
 //		AtMostEvery(time.Minute).
-//		Write(message)
+//		Writef("Got number %d", dynamicNumber)
+//
+// The format string is used as the key for rate limiting. In the
+// above example, the statement may run with different values of
+// `dynamicNumber`, but a message will only be printed once a minute.
 //
 // Note, this doesn't affect regular `printer.Write(message)` calls.
 // The duration is only checked when `AtMostEvery()` is used.
@@ -75,31 +87,32 @@ func (p *Printer) Write(message string) {
 // changes, the message is blocked until its last duration completes.
 func (p *Printer) AtMostEvery(duration time.Duration) writeDSL {
 	return writeDSL{
-		printer:  p,
-		duration: duration,
+		printer:         p,
+		rateLimitPeriod: duration,
 	}
 }
 
 type writeDSL struct {
-	printer  *Printer
-	duration time.Duration
+	printer         *Printer
+	rateLimitPeriod time.Duration
 }
 
-// See [Printer.Write].
-func (dsl writeDSL) Write(message string) {
+// See [Printer.Writef].
+func (dsl writeDSL) Writef(format string, args ...any) {
 	dsl.printer.Lock()
 	defer dsl.printer.Unlock()
 
-	if dsl.duration > 0 {
-		blockUntil := dsl.printer.rateLimits[message]
+	if dsl.rateLimitPeriod > 0 {
+		blockUntil := dsl.printer.rateLimits[format]
 
 		now := dsl.printer.getNow()
 		if now.Before(blockUntil) {
 			return
 		}
 
-		dsl.printer.rateLimits[message] = now.Add(dsl.duration)
+		dsl.printer.rateLimits[format] = now.Add(dsl.rateLimitPeriod)
 	}
 
-	dsl.printer.messages = append(dsl.printer.messages, message)
+	dsl.printer.messages = append(dsl.printer.messages,
+		fmt.Sprintf(format, args...))
 }

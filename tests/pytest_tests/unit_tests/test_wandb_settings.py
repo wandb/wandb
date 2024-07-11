@@ -13,6 +13,7 @@ from click.testing import CliRunner
 from wandb.errors import UsageError
 from wandb.sdk import wandb_settings
 from wandb.sdk.lib._settings_toposort_generate import _get_modification_order
+from wandb.sdk.lib.credentials import DEFAULT_WANDB_CREDENTIALS_FILE
 
 if sys.version_info >= (3, 8):
     from typing import get_type_hints
@@ -479,6 +480,21 @@ def test_ignore_globs_env():
         "foo",
         "bar",
     )
+
+
+def test_token_file_env():
+    s = Settings()
+    s._apply_env_vars({"WANDB_IDENTITY_TOKEN_FILE": "jwt.txt"})
+    assert s.identity_token_file == ("jwt.txt")
+
+
+def test_credentials_file_env():
+    s = Settings()
+    assert s.credentials_file == str(DEFAULT_WANDB_CREDENTIALS_FILE)
+
+    s = Settings()
+    s._apply_env_vars({"WANDB_CREDENTIALS_FILE": "/tmp/credentials.json"})
+    assert s.credentials_file == "/tmp/credentials.json"
 
 
 def test_quiet():

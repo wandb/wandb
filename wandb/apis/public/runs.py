@@ -2,10 +2,16 @@
 
 import json
 import os
+import sys
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+
+if sys.version_info >= (3, 8):
+    from typing import Literal
+else:
+    from typing_extensions import Literal
 
 from wandb_gql import gql
 
@@ -160,6 +166,104 @@ class Runs(Paginator):
                 run.sweep = sweep
 
         return objs
+
+    @normalize_exceptions
+    def histories(
+        self,
+        samples: int = 500,
+        keys: Optional[List[str]] = None,
+        x_axis: str = "_step",
+        format: Literal["default", "pandas", "polars"] = "default",
+        stream: Literal["default", "system"] = "default",
+    ):
+        """Return sampled history metrics for all runs that fit the filters conditions.
+
+        Arguments:
+            samples : (int, optional) The number of samples to return per run
+            keys : (list[str], optional) Only return metrics for specific keys
+            x_axis : (str, optional) Use this metric as the xAxis defaults to _step
+            format : (Literal, optional) Format to return data in, options are "default", "pandas", "polars"
+            stream : (Literal, optional) "default" for metrics, "system" for machine metrics
+        Returns:
+            pandas.DataFrame: If format="pandas", returns a `pandas.DataFrame` of history metrics.
+            polars.DataFrame: If format="polars", returns a `polars.DataFrame` of history metrics.
+            list of dicts: If format="default", returns a list of dicts containing history metrics with a run_id key.
+        """
+        if format not in ("default", "pandas", "polars"):
+            raise ValueError(
+                f"Invalid format: {format}. Must be one of 'default', 'pandas', 'polars'"
+            )
+
+        histories = []
+
+        if format == "default":
+            for run in self:
+                history_data = run.history(
+                    samples=samples,
+                    keys=keys,
+                    x_axis=x_axis,
+                    pandas=False,
+                    stream=stream,
+                )
+                if not history_data:
+                    continue
+                for entry in history_data:
+                    entry["run_id"] = run.id
+                histories.extend(history_data)
+
+            return histories
+
+        if format == "pandas":
+            pd = util.get_module(
+                "pandas", required="Exporting pandas DataFrame requires pandas"
+            )
+            for run in self:
+                history_data = run.history(
+                    samples=samples,
+                    keys=keys,
+                    x_axis=x_axis,
+                    pandas=False,
+                    stream=stream,
+                )
+                if not history_data:
+                    continue
+                df = pd.DataFrame.from_records(history_data)
+                df["run_id"] = run.id
+                histories.append(df)
+            if not histories:
+                return pd.DataFrame()
+            combined_df = pd.concat(histories)
+            combined_df.sort_values("run_id", inplace=True)
+            combined_df.reset_index(drop=True, inplace=True)
+            # sort columns for consistency
+            combined_df = combined_df[(sorted(combined_df.columns))]
+
+            return combined_df
+
+        if format == "polars":
+            pl = util.get_module(
+                "polars", required="Exporting polars DataFrame requires polars"
+            )
+            for run in self:
+                history_data = run.history(
+                    samples=samples,
+                    keys=keys,
+                    x_axis=x_axis,
+                    pandas=False,
+                    stream=stream,
+                )
+                if not history_data:
+                    continue
+                df = pl.from_records(history_data)
+                df = df.with_columns(pl.lit(run.id).alias("run_id"))
+                histories.append(df)
+            if not histories:
+                return pl.DataFrame()
+            combined_df = pl.concat(histories, how="align")
+            # sort columns for consistency
+            combined_df = combined_df.select(sorted(combined_df.columns)).sort("run_id")
+
+            return combined_df
 
     def __repr__(self):
         return f"<Runs {self.entity}/{self.project}>"
@@ -583,9 +687,9 @@ class Run(Attrs):
         else:
             lines = self._full_history(samples=samples, stream=stream)
         if pandas:
-            pandas = util.get_module("pandas")
-            if pandas:
-                lines = pandas.DataFrame.from_records(lines)
+            pd = util.get_module("pandas")
+            if pd:
+                lines = pd.DataFrame.from_records(lines)
             else:
                 print("Unable to load pandas, call history with pandas=False")
         return lines
@@ -603,10 +707,11 @@ class Run(Attrs):
             losses = [row["Loss"] for row in history]
             ```
 
-
         Arguments:
             keys ([str], optional): only fetch these keys, and only fetch rows that have all of keys defined.
-            page_size (int, optional): size of pages to fetch from the api
+            page_size (int, optional): size of pages to fetch from the api.
+            min_step (int, optional): the minimum number of pages to scan at a time.
+            max_step (int, optional): the maximum number of pages to scan at a time.
 
         Returns:
             An iterable collection over history records (dict).

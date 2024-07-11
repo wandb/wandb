@@ -3,7 +3,7 @@ package filestream
 import (
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -20,17 +20,17 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_wandb"] = true
 	timestamp := float64(u.Record.GetTimestamp().Seconds) + float64(u.Record.GetTimestamp().Nanos)/1e9
 	row["_timestamp"] = timestamp
-	row["_runtime"] = timestamp - ctx.Settings.XStartTime.GetValue()
+	row["_runtime"] = u.Record.Timestamp.AsTime().Sub(ctx.Settings.GetStartTime()).Seconds()
 
 	for _, item := range u.Record.Item {
 		var val interface{}
 		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
-			e := fmt.Errorf("json unmarshal error: %v, items: %v", err, item)
-			errMsg := fmt.Sprintf(
-				"filestream: failed to marshal StatsItem key: %s",
-				item.Key,
-			)
-			ctx.Logger.CaptureError(errMsg, e)
+			ctx.Logger.CaptureError(
+				fmt.Errorf(
+					"filestream: failed to marshal StatsItem for key %s: %v",
+					item.Key,
+					err,
+				))
 			continue
 		}
 
@@ -43,9 +43,10 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
 		ctx.Logger.CaptureError(
-			"filestream: failed to marshal system metrics",
-			err,
-		)
+			fmt.Errorf(
+				"filestream: failed to marshal system metrics: %v",
+				err,
+			))
 	case len(line) > maxFileLineBytes:
 		// This is a non-blocking failure as well.
 		ctx.Logger.CaptureWarn(
@@ -54,19 +55,10 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 			"max", maxFileLineBytes,
 		)
 	default:
-		ctx.ModifyRequest(&collectorStatsUpdate{
-			lines: []string{string(line)},
+		ctx.MakeRequest(&FileStreamRequest{
+			EventsLines: []string{string(line)},
 		})
 	}
 
 	return nil
-}
-
-type collectorStatsUpdate struct {
-	lines []string
-}
-
-func (u *collectorStatsUpdate) Apply(state *CollectorState) {
-	state.Buffer.EventsLines =
-		append(state.Buffer.EventsLines, u.lines...)
 }

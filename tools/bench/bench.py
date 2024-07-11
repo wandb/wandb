@@ -7,6 +7,7 @@ from typing import List, Tuple
 
 import _load_profiles
 import _timing
+import numpy
 import wandb
 
 VERSION: str = "v1-2024-04-11-0"
@@ -30,12 +31,20 @@ def run_one(args, n=0, m=0):
             for i in range(args.history_floats):
                 d[f"f_{i}"] = float(n + m + e + i)
             for i in range(args.history_ints):
-                d[f"i_{i}"] = n + m + e + i
+                d[f"n_{i}"] = n + m + e + i
             for i in range(args.history_strings):
                 d[f"s_{i}"] = str(n + m + e + i)
             for i in range(args.history_tables):
                 d[f"t_{i}"] = wandb.Table(
                     columns=["a", "b", "c", "d"], data=[[n + m, e, i, i + 1]]
+                )
+            for i in range(args.history_images):
+                d[f"i_{i}"] = wandb.Image(
+                    numpy.random.randint(
+                        255,
+                        size=(args.history_images_dim, args.history_images_dim, 3),
+                        dtype=numpy.uint8,
+                    )
                 )
             run.log(d)
 
@@ -61,7 +70,9 @@ def run_parallel(args):
 
 def setup(args):
     if args.core == "true":
-        wandb.require("core")
+        os.environ["WANDB__REQUIRE_CORE"] = "true"
+    elif args.core == "false":
+        os.environ["WANDB__REQUIRE_CORE"] = "false"
 
 
 def teardown(args):
@@ -92,7 +103,7 @@ def main():
     parser.add_argument("--test_variant", type=str, default="")
     parser.add_argument("--server_version", type=str, default="")
     parser.add_argument("--server_type", type=str, default="")
-    parser.add_argument("--client_version", type=str, default="")
+    parser.add_argument("--client_version", type=str, default=wandb.__version__)
     parser.add_argument("--client_type", type=str, default="")
     parser.add_argument("--num_sequential", type=int, default=1)
     parser.add_argument("--num_parallel", type=int, default=1)
@@ -101,12 +112,20 @@ def main():
     parser.add_argument("--history_ints", type=int, default=0)
     parser.add_argument("--history_strings", type=int, default=0)
     parser.add_argument("--history_tables", type=int, default=0)
+    parser.add_argument("--history_images", type=int, default=0)
+    parser.add_argument("--history_images_dim", type=int, default=16)
     parser.add_argument(
         "--mode", type=str, default="online", choices=("online", "offline")
     )
     parser.add_argument("--core", type=str, default="", choices=("true", "false"))
+    parser.add_argument("--use-spawn", action="store_true")
 
     args = parser.parse_args()
+
+    # required by golang experimental client when testing multiprocessing workloads
+    if args.use_spawn:
+        multiprocessing.set_start_method("spawn")
+
     args_list = []
     if args.test_profile:
         args_list = _load_profiles.parse_profile(parser, args, copy_fields=BENCH_FIELDS)

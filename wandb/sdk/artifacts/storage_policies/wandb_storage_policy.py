@@ -118,7 +118,9 @@ class WandbStoragePolicy(StoragePolicy):
         manifest_entry: "ArtifactManifestEntry",
         dest_path: Optional[str] = None,
     ) -> FilePathStr:
-        self._cache._override_cache_path = dest_path
+        if dest_path is not None:
+            self._cache._override_cache_path = dest_path
+
         path, hit, cache_open = self._cache.check_md5_obj_path(
             B64MD5(manifest_entry.digest),  # TODO(spencerpearson): unsafe cast
             manifest_entry.size if manifest_entry.size is not None else 0,
@@ -135,14 +137,17 @@ class WandbStoragePolicy(StoragePolicy):
                 manifest_entry._download_url = None
         if manifest_entry._download_url is None:
             auth = None
-            if not _thread_local_api_settings.cookies:
-                assert self._api.api_key is not None
-                auth = ("api", self._api.api_key)
+            http_headers = _thread_local_api_settings.headers or {}
+            if self._api.access_token is not None:
+                http_headers["Authorization"] = f"Bearer {self._api.access_token}"
+            elif _thread_local_api_settings.cookies is None:
+                auth = ("api", self._api.api_key or "")
+
             response = self._session.get(
                 self._file_url(self._api, artifact.entity, manifest_entry),
                 auth=auth,
                 cookies=_thread_local_api_settings.cookies,
-                headers=_thread_local_api_settings.headers,
+                headers=http_headers,
                 stream=True,
             )
             response.raise_for_status()
@@ -172,7 +177,7 @@ class WandbStoragePolicy(StoragePolicy):
     ) -> Union[FilePathStr, URIStr]:
         assert manifest_entry.ref is not None
         used_handler = self._handler._get_handler(manifest_entry.ref)
-        if hasattr(used_handler, "_cache"):
+        if hasattr(used_handler, "_cache") and (dest_path is not None):
             used_handler._cache._override_cache_path = dest_path
         return self._handler.load_path(manifest_entry, local)
 

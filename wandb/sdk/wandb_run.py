@@ -256,7 +256,7 @@ class RunStatusChecker:
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
-            wait_time = max(self._stop_polling_interval - time_elapsed, 0)
+            wait_time = max(timeout - time_elapsed, 0)
             join_requested = self._join_event.wait(timeout=wait_time)
 
     def check_network_status(self) -> None:
@@ -318,19 +318,19 @@ class RunStatusChecker:
             for msg in internal_messages.messages.warning:
                 wandb.termwarn(msg)
 
-            try:
-                self._loop_check_status(
-                    lock=self._internal_messages_lock,
-                    set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                    timeout=1,
-                    request=self._interface.deliver_internal_messages,
-                    process=_process_internal_messages,
-                )
-            except BrokenPipeError:
-                self._abandon_status_check(
-                    self._internal_messages_lock,
-                    self._internal_messages_handle,
-                )
+        try:
+            self._loop_check_status(
+                lock=self._internal_messages_lock,
+                set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
+                timeout=1,
+                request=self._interface.deliver_internal_messages,
+                process=_process_internal_messages,
+            )
+        except BrokenPipeError:
+            self._abandon_status_check(
+                self._internal_messages_lock,
+                self._internal_messages_handle,
+            )
 
     def stop(self) -> None:
         self._join_event.set()
@@ -704,6 +704,12 @@ class Run:
             config[wandb_key]["branch_point"] = {
                 "run_id": self._settings.fork_from.run,
                 "step": self._settings.fork_from.value,
+            }
+
+        if self._settings.resume_from is not None:
+            config[wandb_key]["branch_point"] = {
+                "run_id": self._settings.resume_from.run,
+                "step": self._settings.resume_from.value,
             }
 
         self._config._update(config, ignore_locked=True)
@@ -2094,36 +2100,56 @@ class Run:
         return self._finish(exit_code, quiet)
 
     def _finish(
-        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+        self,
+        exit_code: Optional[int] = None,
+        quiet: Optional[bool] = None,
     ) -> None:
-        if quiet is not None:
-            self._quiet = quiet
+        logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info(f"finishing run {self._get_path()}")
-        # detach jupyter hooks / others that needs to happen before backend shutdown
+
+        if quiet is not None:
+            self._quiet = quiet
+
+        # Pop this run (hopefully) from the run stack, to support the "reinit"
+        # functionality of wandb.init().
+        #
+        # TODO: It's not clear how _global_run_stack could have length other
+        # than 1 at this point in the code. If you're reading this, consider
+        # refactoring this thing.
+        if self._wl and len(self._wl._global_run_stack) > 0:
+            self._wl._global_run_stack.pop()
+
+        # Run hooks that need to happen before the last messages to the
+        # internal service, like Jupyter hooks.
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
 
-        self._atexit_cleanup(exit_code=exit_code)
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
-        # detach logger / others meant to be run after we've shutdown the backend
-        for hook in self._teardown_hooks:
-            if hook.stage == TeardownStage.LATE:
-                hook.call()
-        self._teardown_hooks = []
-        module.unset_globals()
-
-        # inform manager this run is finished
-        manager = self._wl and self._wl._get_manager()
-        if manager:
-            manager._inform_finish(run_id=self._run_id)
-
+        # Early-stage hooks may use methods that require _is_finished
+        # to be False, so we set this after running those hooks.
         self._is_finished = True
-        # end sentry session
-        wandb._sentry.end_session()
+
+        try:
+            self._atexit_cleanup(exit_code=exit_code)
+
+            # Run hooks that should happen after the last messages to the
+            # internal service, like detaching the logger.
+            for hook in self._teardown_hooks:
+                if hook.stage == TeardownStage.LATE:
+                    hook.call()
+            self._teardown_hooks = []
+
+            # Inform the service that we're done sending messages for this run.
+            #
+            # TODO: Why not do this in _atexit_cleanup()?
+            manager = self._wl and self._wl._get_manager()
+            if manager:
+                manager._inform_finish(run_id=self._run_id)
+
+        finally:
+            module.unset_globals()
+            wandb._sentry.end_session()
 
     @_run_decorator._noop
     @_run_decorator._attach
@@ -2339,36 +2365,49 @@ class Run:
             return
         self._atexit_cleanup_called = True
 
-        exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
+        exit_code = (
+            exit_code  #
+            or (self._hooks and self._hooks.exit_code)
+            or 0
+        )
+        self._exit_code = exit_code
         logger.info(f"got exitcode: {exit_code}")
+
+        # Delete this run's "resume" file if the run finished successfully.
+        #
+        # This is used by the "auto" resume mode, which resumes from the last
+        # failed (or unfinished/crashed) run. If we reach this line, then this
+        # run shouldn't be a candidate for "auto" resume.
         if exit_code == 0:
-            # Cleanup our resume file on a clean exit
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
 
-        self._exit_code = exit_code
-        report_failure = False
         try:
             self._on_finish()
-        except KeyboardInterrupt as ki:
-            if wandb.wandb_agent._is_running():
-                raise ki
-            wandb.termerror("Control-C detected -- Run data was not synced")
-            if not self._settings._notebook:
-                os._exit(-1)
+
+        except KeyboardInterrupt:
+            if not wandb.wandb_agent._is_running():
+                wandb.termerror("Control-C detected -- Run data was not synced")
+            raise
+
         except Exception as e:
-            if not self._settings._notebook:
-                report_failure = True
             self._console_stop()
-            self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exc()
-        else:
-            self._on_final()
-        finally:
-            if report_failure:
-                os._exit(-1)
+            raise
+
+        Run._footer(
+            sampled_history=self._sampled_history,
+            final_summary=self._final_summary,
+            poll_exit_response=self._poll_exit_response,
+            server_info_response=self._server_info_response,
+            check_version_response=self._check_version,
+            internal_messages_response=self._internal_messages_response,
+            reporter=self._reporter,
+            quiet=self._quiet,
+            settings=self._settings,
+            printer=self._printer,
+        )
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
@@ -2608,11 +2647,6 @@ class Run:
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
-        # this message is confusing, we should remove it
-        # self._footer_exit_status_info(
-        #     self._exit_code, settings=self._settings, printer=self._printer
-        # )
-
         # wait for the exit to complete
         _ = exit_handle.wait(timeout=-1, on_progress=self._on_progress_exit)
 
@@ -2657,20 +2691,6 @@ class Run:
         import_telemetry_set = telemetry.list_telemetry_imports()
         for module_name in import_telemetry_set:
             unregister_post_import_hook(module_name, run_id)
-
-    def _on_final(self) -> None:
-        self._footer(
-            sampled_history=self._sampled_history,
-            final_summary=self._final_summary,
-            poll_exit_response=self._poll_exit_response,
-            server_info_response=self._server_info_response,
-            check_version_response=self._check_version,
-            internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
-            quiet=self._quiet,
-            settings=self._settings,
-            printer=self._printer,
-        )
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
@@ -2750,12 +2770,14 @@ class Run:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
+        # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
@@ -2771,6 +2793,9 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_step_sync = True
 
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2782,8 +2807,6 @@ class Run:
         )
         m._set_callback(self._metric_callback)
         m._commit()
-        with telemetry.context(run=self) as tel:
-            tel.feature.metric = True
         return m
 
     # TODO(jhr): annotate this
@@ -2874,7 +2897,7 @@ class Run:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
-                self._backend.interface.publish_link_artifact(
+                handle = self._backend.interface.deliver_link_artifact(
                     self,
                     artifact,
                     portfolio,
@@ -2886,6 +2909,13 @@ class Run:
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
+                result = handle.wait(timeout=-1)
+                if result is None:
+                    handle.abandon()
+                else:
+                    response = result.response.link_artifact_response
+                    if response.error_message:
+                        wandb.termerror(response.error_message)
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
@@ -3018,8 +3048,7 @@ class Run:
                     - `s3://bucket/path`
                 You can also pass an Artifact object created by calling
                 `wandb.Artifact`.
-            name: (str, optional) An artifact name. May be prefixed with entity/project.
-                Valid names can be in the following forms:
+            name: (str, optional) An artifact name. Valid names can be in the following forms:
                     - name:version
                     - name:alias
                     - digest
@@ -3665,7 +3694,11 @@ class Run:
         project_url = settings.project_url
         sweep_url = settings.sweep_url
 
-        run_state_str = "Resuming run" if settings.resumed else "Syncing run"
+        run_state_str = (
+            "Resuming run"
+            if settings.resumed or settings.resume_from
+            else "Syncing run"
+        )
         run_name = settings.run_name
         if not run_name:
             return
@@ -3755,6 +3788,11 @@ class Run:
             settings=settings,
             printer=printer,
         )
+        Run._footer_notify_wandb_core(
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
         Run._footer_local_warn(
             server_info_response=server_info_response,
             quiet=quiet,
@@ -3776,26 +3814,6 @@ class Run:
             settings=settings,
             printer=printer,
         )
-
-    @staticmethod
-    def _footer_exit_status_info(
-        exit_code: Optional[int],
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if settings.silent:
-            return
-
-        status = "(success)." if not exit_code else f"(failed {exit_code})."
-        info = [
-            f"Waiting for W&B process to finish... {printer.status(status, bool(exit_code))}"
-        ]
-
-        if not settings._offline and exit_code:
-            info.append(f"Press {printer.abort()} to abort syncing.")
-
-        printer.display(f'{" ".join(info)}')
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
     @staticmethod
@@ -4144,6 +4162,24 @@ class Run:
         package_problem = check_version.delete_message or check_version.yank_message
         if package_problem and check_version.upgrade_message:
             printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_notify_wandb_core(
+        *,
+        quiet: Optional[bool] = None,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        """Prints a message advertising the upcoming core release."""
+        if quiet or settings._require_core:
+            return
+
+        printer.display(
+            "The new W&B backend becomes opt-out in version 0.18.0;"
+            ' try it out with `wandb.require("core")`!'
+            " See https://wandb.me/wandb-core for more information.",
+            level="warn",
+        )
 
     @staticmethod
     def _footer_reporter_warn_err(

@@ -3,8 +3,17 @@ package filetransfer
 import (
 	"context"
 	"net/http"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+)
+
+const (
+	DefaultRetryMax     = 20
+	DefaultRetryWaitMin = 2 * time.Second
+	DefaultRetryWaitMax = 60 * time.Second
+	// wait forever by default
+	DefaultNonRetryTimeout = 0 * time.Second
 )
 
 // FileTransferRetryPolicy is the retry policy to be used for file operations.
@@ -13,14 +22,7 @@ func FileTransferRetryPolicy(
 	resp *http.Response,
 	err error,
 ) (bool, error) {
-	// Abort on any error from the HTTP transport.
-	//
-	// This happens if reading the file fails, for example if it is a directory
-	// or if it doesn't exist. retryablehttp's default policy for this situation
-	// is to retry, which we do not want.
-	if err != nil {
-		return false, err
-	}
+	// TODO(WB-18702): Add explicit cases for (non-)retryable errors.
 
 	return retryablehttp.ErrorPropagatedRetryPolicy(ctx, resp, err)
 }

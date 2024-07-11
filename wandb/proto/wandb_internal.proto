@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
@@ -44,7 +45,8 @@ message Record {
     HeaderRecord header = 21;
     FooterRecord footer = 22;
     RunPreemptingRecord preempting = 23;
-    LinkArtifactRecord link_artifact = 24;
+    // Removed but kept to avoid panics in `wandb sync`.
+    google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
 
     // request field does not belong here longterm
@@ -477,9 +479,9 @@ message ArtifactResult {}
 message LinkArtifactResult {}
 
 /*
- * LinkArtifactRecord: link artifact to portfolio
+ * LinkArtifactRequest: link artifact to portfolio
  */
-message LinkArtifactRecord {
+message LinkArtifactRequest {
   string client_id = 1;
   string server_id = 2;
   string portfolio_name = 3;
@@ -489,14 +491,42 @@ message LinkArtifactRecord {
   _RecordInfo _info = 200;
 }
 
-/*
- * TBRecord: store tb locations
- */
+message LinkArtifactResponse {
+  string error_message = 1;
+}
+
+// Indicates a directory of TensorBoard tfevents files to sync with the run.
 message TBRecord {
-  string log_dir = 1;
-  bool save = 2;
-  string root_dir = 3;
   _RecordInfo _info = 200;
+
+  // A directory containing tfevents files to watch.
+  //
+  // This may be an absolute or relative path.
+  string log_dir = 1;
+
+  // An optional path to an ancestor of `log_dir` used for namespacing.
+  //
+  // This may be an absolute or relative path.
+  //
+  // If set, then each event from tfevents files under `log_dir` is
+  // prefixed by the file's path relative to this directory. Additionally,
+  // if `save` is true, then each file's upload path is also its path
+  // relative to `root_dir`.
+  //
+  // For example, with `root_dir` set as "tb/logs" and `log_dir` as
+  // "tb/logs/train":
+  //
+  // * Files are uploaded to "train/events.out.tfevents"
+  // * A tfevents value tagged "epoch_loss" is logged as "train/epoch_loss"
+  //
+  // If this is unset, then it is inferred using unspecified rules.
+  string root_dir = 3;
+
+  // Whether to save tfevents files with the run.
+  //
+  // When true, this uploads the tfevents files, enabling the "TensorBoard"
+  // tab in W&B.
+  bool save = 2;
 }
 
 message TBResult {}
@@ -558,6 +588,7 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     SyncRequest sync = 76;
     JobInputRequest job_input = 77;
+    LinkArtifactRequest link_artifact = 78;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -588,6 +619,7 @@ message Response {
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
     SyncResponse sync_response = 70;
+    LinkArtifactResponse link_artifact_response = 71;
     TestInjectResponse test_inject_response = 1000;
   }
 }

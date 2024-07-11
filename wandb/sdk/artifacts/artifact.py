@@ -427,7 +427,7 @@ class Artifact:
 
         A collection is an ordered group of artifact versions.
         If this artifact was retrieved from a portfolio / linked collection, that
-        collection will be returned rather than the the collection
+        collection will be returned rather than the collection
         that an artifact version originated from. The collection
         that an artifact originates from is known as the source sequence.
         """
@@ -1300,7 +1300,8 @@ class Artifact:
                 automatic integrity validation. Disabling checksumming will speed up
                 artifact creation but reference directories will not iterated through so the
                 objects in the directory will not be saved to the artifact. We recommend
-                adding reference objects in the case checksumming is false.
+                setting `checksum=False` when adding reference objects, in which case
+                a new version will only be created if the reference URI changes.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
                 the maximum number of objects allowed for Amazon S3,
@@ -1627,16 +1628,19 @@ class Artifact:
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
-        Existing files located within `root` are not modified. Explicitly delete
-        `root` before you call `download` if you want the contents of `root` to exactly
-        match the artifact.
+        Existing files located within `root` are not modified. Explicitly delete `root`
+        before you call `download` if you want the contents of `root` to exactly match
+        the artifact.
 
         Arguments:
             root: The directory W&B stores the artifact's files.
             allow_missing_references: If set to `True`, any invalid reference paths
                 will be ignored while downloading referenced files.
-            skip_cache: If set to `True`, the artifact cache will be skipped when downloading
-                and W&B will download each file into the default root or specified download directory.
+            skip_cache: If set to `True`, the artifact cache will be skipped when
+                downloading and W&B will download each file into the default root or
+                specified download directory.
+            path_prefix: If specified, only files with a path that starts with the given
+                prefix will be downloaded. Uses unix format (forward slashes).
 
         Returns:
             The path to the downloaded contents.
@@ -1655,6 +1659,8 @@ class Artifact:
                 skip_cache=skip_cache,
                 path_prefix=path_prefix,
                 allow_missing_references=allow_missing_references,
+                skip_cache=bool(skip_cache),
+                path_prefix=path_prefix,
             )
         return self._download(
             root=root,
@@ -1662,23 +1668,6 @@ class Artifact:
             skip_cache=skip_cache,
             path_prefix=path_prefix,
         )
-
-    @classmethod
-    def path_contains_dir_prefix(cls, path: StrPath, dir_path: StrPath) -> bool:
-        """Returns true if `path` contains `dir_path` as a prefix."""
-        if not dir_path:
-            return True
-        path_parts = PurePosixPath(path).parts
-        dir_parts = PurePosixPath(dir_path).parts
-        return path_parts[: len(dir_parts)] == dir_parts
-
-    @classmethod
-    def should_download_entry(
-        cls, entry: ArtifactManifestEntry, prefix: Optional[StrPath]
-    ) -> bool:
-        if prefix is None:
-            return True
-        return cls.path_contains_dir_prefix(entry.path, prefix)
 
     def _download_using_core(
         self,
@@ -1816,7 +1805,7 @@ class Artifact:
                         # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
-                    if self.should_download_entry(entry, prefix=path_prefix):
+                    if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = fetch_url_batch_size
@@ -2021,16 +2010,23 @@ class Artifact:
     def delete(self, delete_aliases: bool = False) -> None:
         """Delete an artifact and its files.
 
+        If called on a linked artifact (i.e. a member of a portfolio collection): only the link is deleted, and the
+        source artifact is unaffected.
+
         Arguments:
             delete_aliases: If set to `True`, deletes all aliases associated with the artifact.
                 Otherwise, this raises an exception if the artifact has existing
                 aliases.
+                This parameter is ignored if the artifact is linked (i.e. a member of a portfolio collection).
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
         """
         self._ensure_logged("delete")
-        self._delete(delete_aliases)
+        if self.collection.is_sequence():
+            self._delete(delete_aliases)
+        else:
+            self._unlink()
 
     @normalize_exceptions
     def _delete(self, delete_aliases: bool = False) -> None:
@@ -2063,13 +2059,13 @@ class Artifact:
 
         Arguments:
             target_path: The path to the portfolio inside a project.
-            The target path must adhere to one of the following
-            schemas `{portfolio}`, `{project}/{portfolio}` or
-            `{entity}/{project}/{portfolio}`.
-            To link the artifact to the Model Registry, rather than to a generic
-            portfolio inside a project, set `target_path` to the following
-            schema `{"model-registry"}/{Registered Model Name}` or
-            `{entity}/{"model-registry"}/{Registered Model Name}`.
+                The target path must adhere to one of the following
+                schemas `{portfolio}`, `{project}/{portfolio}` or
+                `{entity}/{project}/{portfolio}`.
+                To link the artifact to the Model Registry, rather than to a generic
+                portfolio inside a project, set `target_path` to the following
+                schema `{"model-registry"}/{Registered Model Name}` or
+                `{entity}/{"model-registry"}/{Registered Model Name}`.
             aliases: A list of strings that uniquely identifies the artifact inside the
                 specified portfolio.
 
@@ -2086,6 +2082,48 @@ class Artifact:
                 run.link_artifact(self, target_path, aliases)
         else:
             wandb.run.link_artifact(self, target_path, aliases)
+
+    def unlink(self) -> None:
+        """Unlink this artifact if it is currently a member of a portfolio (a promoted collection of artifacts).
+
+        Raises:
+            ArtifactNotLoggedError: If the artifact is not logged.
+            ValueError: If the artifact is not linked, i.e. it is not a member of a portfolio collection.
+        """
+        self._ensure_logged("unlink")
+
+        # Fail early if this isn't a linked artifact to begin with
+        if self.collection.is_sequence():
+            raise ValueError(
+                f"Artifact {self.qualified_name!r} is not a linked artifact and cannot be unlinked.  "
+                f"To delete it, use {self.delete.__qualname__!r} instead."
+            )
+
+        self._unlink()
+
+    @normalize_exceptions
+    def _unlink(self) -> None:
+        mutation = gql(
+            """
+            mutation UnlinkArtifact($artifactID: ID!, $artifactPortfolioID: ID!) {
+                unlinkArtifact(
+                    input: { artifactID: $artifactID, artifactPortfolioID: $artifactPortfolioID }
+                ) {
+                    artifactID
+                    success
+                    clientMutationId
+                }
+            }
+            """
+        )
+        assert self._client is not None
+        self._client.execute(
+            mutation,
+            variable_values={
+                "artifactID": self.id,
+                "artifactPortfolioID": self.collection.id,
+            },
+        )
 
     def used_by(self) -> List[Run]:
         """Get a list of the runs that have used this artifact.

@@ -42,8 +42,8 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 	}
 }
 
-func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {
-	filename, digest, size, err := utils.WriteJsonToFileWithDigest(dataMap)
+func (b *ArtifactBuilder) AddData(name string, data any) error {
+	filename, digest, size, err := utils.WriteJsonToFileWithDigest(data)
 	if err != nil {
 		return err
 	}
