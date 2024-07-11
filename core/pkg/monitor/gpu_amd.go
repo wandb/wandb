@@ -3,6 +3,7 @@
 package monitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -10,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -226,7 +226,12 @@ func getROCMSMIStats() (InfoDict, error) {
 		return nil, err
 	}
 
-	return simplejsonext.UnmarshalObject(output)
+	var stats InfoDict
+	if err := json.Unmarshal(output, &stats); err != nil {
+		return nil, err
+	}
+
+	return stats, nil
 }
 
 func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {

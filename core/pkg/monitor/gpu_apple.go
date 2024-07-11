@@ -1,13 +1,13 @@
 package monitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
 
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -49,13 +49,19 @@ func NewGPUApple(settings *service.Settings) *GPUApple {
 	return gpu
 }
 
-func (g *GPUApple) parseStats() (map[string]interface{}, error) {
+func (g *GPUApple) parseStats() (map[string]any, error) {
 	rawStats, err := exec.Command(g.exPath).Output()
 	if err != nil {
 		return nil, err
 	}
 
-	return simplejsonext.UnmarshalObject(rawStats)
+	var stats map[string]any
+	err = json.Unmarshal(rawStats, &stats)
+	if err != nil {
+		return nil, err
+	}
+
+	return stats, nil
 }
 
 func (g *GPUApple) Name() string { return g.name }

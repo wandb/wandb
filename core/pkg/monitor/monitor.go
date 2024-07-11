@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -12,7 +13,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -37,7 +37,7 @@ func Average(nums []float64) float64 {
 func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
 	statsItems := make([]*service.StatsItem, 0, len(stats))
 	for k, v := range stats {
-		jsonData, err := simplejsonext.Marshal(v)
+		jsonData, err := json.Marshal(v)
 		if err != nil {
 			continue
 		}

@@ -9,10 +9,8 @@ func queryMapNumber(jsonObj map[string]any, key string) (float64, bool) {
 		return 0, false
 	}
 
-	// simplejsonext returns all numbers as int64 or float64.
+	// encoding/json returns all numbers as float64.
 	switch x := value.(type) {
-	case int64:
-		return float64(x), true
 	case float64:
 		return x, true
 	default:
