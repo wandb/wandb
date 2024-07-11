@@ -16,6 +16,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
 - `run.link_artifact()` can now surface server errors. (@ibindlish in https://github.com/wandb/wandb/pull/6941)
 
+### Fixed
+
+- `Artifact.download()` now respects `skip_cache=True` when using wandb-core by @moredatarequired in https://github.com/wandb/wandb/pull/7640
+
 ## [0.17.4] - 2024-07-03
 
 ### Added

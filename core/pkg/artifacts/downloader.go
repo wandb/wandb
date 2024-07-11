@@ -25,8 +25,9 @@ type ArtifactDownloader struct {
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
-	AllowMissingReferences bool   // Currently unused
-	PathPrefix             string // Currently unused
+	AllowMissingReferences bool // Currently unused
+	SkipCache              bool // Currently unused
+	PathPrefix             string
 }
 
 func NewArtifactDownloader(
@@ -50,6 +51,7 @@ func NewArtifactDownloader(
 		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
 		AllowMissingReferences: allowMissingReferences,
+		SkipCache:              skipCache,
 		PathPrefix:             pathPrefix,
 		FileCache:              fileCache,
 	}
