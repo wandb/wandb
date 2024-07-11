@@ -34,6 +34,8 @@ type ArtifactSaver struct {
 	startTime        time.Time
 }
 
+type updateArtifactManifestAttrs = gql.UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest
+
 type serverFileResponse struct {
 	Name            string
 	BirthArtifactID string
@@ -140,7 +142,7 @@ func (as *ArtifactSaver) createManifest(
 
 func (as *ArtifactSaver) updateManifest(
 	artifactManifestId string, manifestDigest string,
-) (attrs gql.UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest, rerr error) {
+) (attrs updateArtifactManifestAttrs, rerr error) {
 	response, err := gql.UpdateArtifactManifest(
 		as.Ctx,
 		as.GraphqlClient,
@@ -150,14 +152,14 @@ func (as *ArtifactSaver) updateManifest(
 		true,
 	)
 	if err != nil {
-		return gql.UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest{}, err
+		return updateArtifactManifestAttrs{}, err
 	}
 	return response.GetUpdateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) updateOrCreateManifest(
+func (as *ArtifactSaver) upsertManifest(
 	artifactId string, baseArtifactId *string, artifactManifestId string, manifestDigest string,
-) (*string, []string, error) {
+) (uploadUrl *string, uploadHeaders []string, rerr error) {
 	if as.Artifact.IncrementalBeta1 || as.Artifact.DistributedId != "" {
 		updateManifestAttrs, err := as.updateManifest(artifactManifestId, manifestDigest)
 		if err != nil {
@@ -484,9 +486,9 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	}
 	defer os.Remove(manifestFile)
 
-	uploadUrl, uploadHeaders, err := as.updateOrCreateManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
+	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
 	if err != nil {
-		return "", fmt.Errorf("ArtifactSaver.updateOrCreateManifest: %w", err)
+		return "", fmt.Errorf("ArtifactSaver.upsertManifest: %w", err)
 	}
 
 	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders, ch)
