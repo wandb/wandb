@@ -823,7 +823,7 @@ class SendManager:
         self._resume_state.events = resume_status["eventsLineCount"]
         self._resume_state.output = resume_status["logLineCount"]
         self._resume_state.config = config
-        self._resume_state.summary = summary
+        self._resume_state.summary = {}
         self._resume_state.tags = tags
         self._resume_state.resumed = True
         logger.info("configured resuming with: {}".format(self._resume_state))
