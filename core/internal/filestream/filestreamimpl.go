@@ -1,12 +1,12 @@
 package filestream
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"sync"
 
-	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
 )
 

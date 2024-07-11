@@ -1,6 +1,6 @@
 package gqlmock
 
-import "github.com/wandb/segmentio-encoding/json"
+import "encoding/json"
 
 // Converts a value to a map by marshalling to JSON and unmarshalling.
 func jsonMarshallToMap(value any) (ret map[string]any) {
