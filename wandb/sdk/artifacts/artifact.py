@@ -1300,7 +1300,8 @@ class Artifact:
                 automatic integrity validation. Disabling checksumming will speed up
                 artifact creation but reference directories will not iterated through so the
                 objects in the directory will not be saved to the artifact. We recommend
-                adding reference objects in the case checksumming is false.
+                setting `checksum=False` when adding reference objects, in which case
+                a new version will only be created if the reference URI changes.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
                 the maximum number of objects allowed for Amazon S3,
