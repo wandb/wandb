@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 import wandb
-from wandb import Api
+from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
@@ -165,35 +165,34 @@ def test_artifact_finish_distributed_id(wandb_init):
 
 @pytest.mark.parametrize("incremental", [False, True])
 def test_add_file_respects_incremental(tmp_path, wandb_init, api, incremental):
-    artifact_name = "incremental-test"
-    artifact_type = "dataset"
+    art_name = "incremental-test"
+    art_type = "dataset"
 
     # Setup: create and log the original artifact
+    orig_filepath = tmp_path / "orig.txt"
+    orig_filepath.write_text("orig data")
     with wandb_init() as orig_run:
-        orig_filepath = tmp_path / "orig.txt"
-        orig_filepath.write_text("orig data")
-
-        orig_artifact = wandb.Artifact(artifact_name, type=artifact_type)
+        orig_artifact = Artifact(art_name, art_type)
         orig_artifact.add_file(str(orig_filepath))
 
         orig_run.log_artifact(orig_artifact)
 
     # Now add data from a new file to the same artifact, with or without `incremental=True`
+    new_filepath = tmp_path / "new.txt"
+    new_filepath.write_text("new data")
     with wandb_init() as new_run:
-        new_filepath = tmp_path / "new.txt"
-        new_filepath.write_text("new data")
-
-        new_artifact = wandb.Artifact(artifact_name, type=artifact_type, incremental=incremental)
+        new_artifact = Artifact(art_name, art_type, incremental=incremental)
         new_artifact.add_file(str(new_filepath))
 
         new_run.log_artifact(new_artifact)
 
     # If `incremental=True` was used, expect both files in the artifact.  If not, expect only the last one.
-    final_artifact = api.artifact(f"{artifact_name}:latest")
+    final_artifact = api.artifact(f"{art_name}:latest")
+    final_manifest_entry_keys = final_artifact.manifest.entries.keys()
     if incremental is True:
-        assert final_artifact.manifest.entries.keys() == {orig_filepath.name, new_filepath.name}
+        assert final_manifest_entry_keys == {orig_filepath.name, new_filepath.name}
     else:
-        assert final_artifact.manifest.entries.keys() == {new_filepath.name}
+        assert final_manifest_entry_keys == {new_filepath.name}
 
 
 @pytest.mark.flaky
