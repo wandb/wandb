@@ -154,6 +154,9 @@ func (as *ArtifactSaver) updateManifest(
 	if err != nil {
 		return updateArtifactManifestAttrs{}, err
 	}
+	if response == nil || response.GetUpdateArtifactManifest() == nil {
+		return updateArtifactManifestAttrs{}, fmt.Errorf("received invalid response from UpdateArtifactManifest")
+	}
 	return response.GetUpdateArtifactManifest().ArtifactManifest, nil
 }
 
