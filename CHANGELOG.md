@@ -14,6 +14,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
+- `run.link_artifact()` can now surface server errors. (@ibindlish in https://github.com/wandb/wandb/pull/6941)
+
+### Fixed
+
+- Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
 
 ## [0.17.4] - 2024-07-03
 
@@ -26,7 +31,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Use `sys.exit()` instead of `os._exit()` if an internal subprocess exits with a non-zero code (@timoffex in https://github.com/wandb/wandb/pull/7866)
 - Fix an occasional race condition when using `core` that could affect run logs (@timoffex in https://github.com/wandb/wandb/pull/7889)
 - Fix OSError on `Artifact.download(skip_cache=True)` when encountering different filesystems by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7835
-- Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
 
 ## [0.17.3] - 2024-06-24
 

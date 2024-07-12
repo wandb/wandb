@@ -3,13 +3,13 @@ package gqlmock
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"slices"
 	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
-	"github.com/wandb/segmentio-encoding/json"
 )
 
 // MockClient is a mock implementation of the genqlient Client interface.

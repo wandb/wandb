@@ -3,6 +3,7 @@ package launch
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -634,7 +634,12 @@ func (j *JobBuilder) Build(
 	return j.buildArtifact(baseArtifact, sourceInfo, fileDir, *sourceType)
 }
 
-func (j *JobBuilder) buildArtifact(baseArtifact *service.ArtifactRecord, sourceInfo JobSourceMetadata, fileDir string, sourceType SourceType) (*service.ArtifactRecord, error) {
+func (j *JobBuilder) buildArtifact(
+	baseArtifact *service.ArtifactRecord,
+	sourceInfo JobSourceMetadata,
+	fileDir string,
+	sourceType SourceType,
+) (*service.ArtifactRecord, error) {
 	artifactBuilder := artifacts.NewArtifactBuilder(baseArtifact)
 
 	err := artifactBuilder.AddFile(filepath.Join(fileDir, REQUIREMENTS_FNAME), FROZEN_REQUIREMENTS_FNAME)
@@ -642,19 +647,7 @@ func (j *JobBuilder) buildArtifact(baseArtifact *service.ArtifactRecord, sourceI
 		return nil, err
 	}
 
-	stringSourceInfo, err := json.Marshal(sourceInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	var mapSourceInfo map[string]interface{}
-
-	err = json.Unmarshal(stringSourceInfo, &mapSourceInfo)
-	if err != nil {
-		return nil, err
-	}
-
-	err = artifactBuilder.AddData("wandb-job.json", mapSourceInfo)
+	err = artifactBuilder.AddData("wandb-job.json", sourceInfo)
 	if err != nil {
 		return nil, err
 	}
