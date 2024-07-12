@@ -123,9 +123,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	// handle updates
-	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
-
 	for _, item := range summaryRecord.GetUpdate() {
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
@@ -183,28 +180,19 @@ func (rs *RunSummary) ApplyChangeRecord(
 			update = updateMap
 		}
 
-		// store the update
-		updates = append(updates, &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: update,
-		})
+		rs.pathTree.Set(keyPath(item), update)
 
 	}
-	rs.pathTree.ApplyUpdate(updates, onError)
 
-	// handle removes
-	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
 	for _, item := range summaryRecord.GetRemove() {
-		removes = append(removes, &pathtree.PathItem{
-			Path: keyPath(item),
-		})
+		rs.pathTree.Remove(keyPath(item))
+
 		// remove the stats
 		err := rs.stats.DeleteNode(keyPath(item))
 		if err != nil {
 			onError(err)
 		}
 	}
-	rs.pathTree.ApplyRemove(removes)
 }
 
 // Flatten the summary tree into a slice of SummaryItems.
