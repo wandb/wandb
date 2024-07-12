@@ -426,6 +426,8 @@ func (s *Sender) updateSettings() {
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	s.updateSettings()
 
+	fmt.Printf("sender: resumeState: %v\n", s.resumeState)
+
 	if s.fileStream != nil {
 		s.fileStream.Start(
 			s.RunRecord.GetEntity(),
