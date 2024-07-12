@@ -281,7 +281,7 @@ func (r *ResumeState) updateConfig(bucket *Bucket) error {
 		}
 	}
 
-	config.MergeResumedConfig(deserializedConfig)
+	r.Config.MergeResumedConfig(deserializedConfig)
 	return nil
 }
 
