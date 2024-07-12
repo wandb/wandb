@@ -12,7 +12,7 @@ import (
 
 // Peeker stores HTTP responses for failed requests.
 type Peeker struct {
-	sync.Mutex
+	sync.RWMutex
 	responses []*service.HttpResponse
 }
 
@@ -37,18 +37,29 @@ func (p *Peeker) Peek(_ *http.Request, resp *http.Response) {
 	// If the status code is not a success code (2xx), we need to send the response to
 	// the user so they can see what happened.
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		// We need to read the response body to send it to the user
-		buf, _ := io.ReadAll(resp.Body)
-
 		p.Lock()
+		defer p.Unlock()
+
+		// Create a tee reader to read the body while also writing it to a buffer
+		var buf bytes.Buffer
+		tee := io.TeeReader(resp.Body, &buf)
+
+		// Read the entire body
+		bodyBytes, err := io.ReadAll(tee)
+		if err != nil {
+			return
+		}
+
+		// Close the original body
+		resp.Body.Close()
+
+		// Store the response
 		p.responses = append(p.responses, &service.HttpResponse{
 			HttpStatusCode:   int32(resp.StatusCode),
-			HttpResponseText: string(buf),
+			HttpResponseText: string(bodyBytes),
 		})
-		p.Unlock()
 
-		// Restore the body so it can be read again
-		reader := io.NopCloser(bytes.NewReader(buf))
-		resp.Body = reader
+		// Restore the body with the buffered content
+		resp.Body = io.NopCloser(&buf)
 	}
 }
