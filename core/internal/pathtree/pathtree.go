@@ -9,7 +9,7 @@ import "github.com/wandb/segmentio-encoding/json"
 //   - Any caller-provided type
 //
 // TODO: Remove this---it should not be exported.
-type TreeData = map[string]any
+type TreeData map[string]any
 
 // TreePath is a list of strings mapping to a value.
 type TreePath []string
