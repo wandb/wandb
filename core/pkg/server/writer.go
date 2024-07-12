@@ -140,11 +140,11 @@ func (w *Writer) Close() {
 func (w *Writer) writeRecord(record *service.Record) {
 	switch record.RecordType.(type) {
 	case *service.Record_Stats:
-		w.logger.Debug("writer: received", "record", record)
+		w.logger.Info("writer: received", "record", record)
 		w.fwdRecord(record)
-		w.logger.Debug("writer: forwarded", "record", record)
+		w.logger.Info("writer: forwarded", "record", record)
 		w.storeRecord(record)
-		w.logger.Debug("writer: send to storage", "record", record)
+		w.logger.Info("writer: send to storage", "record", record)
 	case *service.Record_Request:
 		w.fwdRecord(record)
 	case nil:
