@@ -7,25 +7,29 @@ import (
 
 	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type RunSummary struct {
 	pathTree *pathtree.PathTree
 	stats    *Node
-	mh       *runmetric.MetricHandler
+	mh       RunSummaryMetricHandler
+}
+
+type RunSummaryMetricHandler interface {
+	// Hack to prevent an import cycle in the middle of a refactor.
+	//
+	// The RunSummary will soon be refactored.
+
+	HackGetDefinedMetrics() map[string]*service.MetricRecord
+	HackGetGlobMetrics() map[string]*service.MetricRecord
 }
 
 type Params struct {
-	MetricHandler *runmetric.MetricHandler
+	MetricHandler RunSummaryMetricHandler
 }
 
 func New(params Params) *RunSummary {
-	if params.MetricHandler == nil {
-		params.MetricHandler = runmetric.NewMetricHandler()
-	}
-
 	rs := &RunSummary{
 		pathTree: pathtree.New(),
 		stats:    NewNode(),
@@ -52,7 +56,6 @@ func NewFrom(tree pathtree.TreeData) *RunSummary {
 	return &RunSummary{
 		pathTree: pathtree.NewFrom(tree),
 		stats:    statsTreeFromPathTree(tree),
-		mh:       runmetric.NewMetricHandler(),
 	}
 }
 
@@ -62,6 +65,10 @@ func NewFrom(tree pathtree.TreeData) *RunSummary {
 // It first checked the concrete metrics and then the glob metrics.
 // The first match wins. If no match is found, it returns Latest.
 func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
+	if rs.mh == nil {
+		return nil
+	}
+
 	// look for a matching rule
 	// TODO: properly implement dot notation for nested keys,
 	// see test_metric_full.py::test_metric_dotted for an example
@@ -69,7 +76,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 
 	types := make([]SummaryType, 0)
 
-	for pattern, definedMetric := range rs.mh.DefinedMetrics {
+	for pattern, definedMetric := range rs.mh.HackGetDefinedMetrics() {
 		if pattern == name {
 			summary := definedMetric.GetSummary()
 			if summary.GetNone() {
@@ -89,7 +96,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 			}
 		}
 	}
-	for pattern, globMetric := range rs.mh.GlobMetrics {
+	for pattern, globMetric := range rs.mh.HackGetGlobMetrics() {
 		// match the key against the glob pattern:
 		// note check for no error
 		if match, err := filepath.Match(pattern, name); err == nil && match {

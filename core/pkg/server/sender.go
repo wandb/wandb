@@ -1388,8 +1388,7 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 // encodeMetricHints encodes the metric hints for the given metric record. The metric hints
 // are used to configure the plots in the UI.
 func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-
-	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
+	err := s.metricSender.AddNonGlobMetric(metric)
 	if err != nil {
 		return
 	}
