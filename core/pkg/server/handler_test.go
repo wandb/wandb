@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -20,6 +21,7 @@ func makeHandler(
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
+			MetricHandler:   runmetric.NewMetricHandler(),
 		},
 	)
 

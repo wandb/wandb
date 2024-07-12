@@ -23,7 +23,7 @@ func NewMetricHandler() *MetricHandler {
 	}
 }
 
-// Exists returns whether a non-glob metric is defined.
+// Exists reports whether a non-glob metric is defined.
 func (mh *MetricHandler) Exists(key string) bool {
 	_, exists := mh.metricDefs[key]
 	return exists
