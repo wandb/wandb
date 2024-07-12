@@ -71,8 +71,8 @@ Each test is defined as a profile is parameterized with a load specification.  S
 | --- | --- | --- |
 | Startup/Shutdown Time | Offline | 36% improvement |
 | Startup/Shutdown Time | Online | 23% improvement |
-| Parallel logging performance | Offline | 83% improvement |
-| Parallel logging performance | Online | 88% improvement |
+| Parallel scalar logging performance | Offline | 83% improvement |
+| Parallel scalar logging performance | Online | 88% improvement |
 | Table logging performance | Offline | 18% improvement |
 | Table logging performance | Online | 40% improvement |
 
