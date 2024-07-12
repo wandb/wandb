@@ -281,16 +281,7 @@ func (r *ResumeState) updateConfig(bucket *Bucket) error {
 		}
 	}
 
-	err := r.Config.MergeResumedConfig(deserializedConfig)
-	if err != nil {
-		r.logger.Error(
-			fmt.Sprintf(
-				"sender: updateConfig: failed to merge"+
-					" resumed config: %s",
-				err,
-			),
-		)
-	}
+	config.MergeResumedConfig(deserializedConfig)
 	return nil
 }
 
