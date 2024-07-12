@@ -238,20 +238,18 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 }
 
 // CloneTree clones the tree. This is useful for creating a snapshot of the tree.
-func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
-
+func (rs *RunSummary) CloneTree() pathtree.TreeData {
 	return rs.pathTree.CloneTree()
 }
 
-// Tree returns the tree data.
-func (rs *RunSummary) Tree() pathtree.TreeData {
-
-	return rs.pathTree.Tree()
+// Get returns the summary value for a metric.
+func (rs *RunSummary) Get(key string) (any, bool) {
+	return rs.pathTree.GetLeaf(pathtree.TreePath{key})
 }
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
-	return json.Marshal(rs.Tree())
+	return rs.pathTree.ToExtendedJSON()
 }
 
 // keyPath returns the key path for the given config item.

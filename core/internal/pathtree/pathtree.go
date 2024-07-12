@@ -1,5 +1,7 @@
 package pathtree
 
+import "github.com/wandb/segmentio-encoding/json"
+
 // TreeData is an internal representation for a nested key-value pair.
 //
 // This is a map where values are either
@@ -13,8 +15,9 @@ type TreeData = map[string]any
 type TreePath []string
 
 // PathTree is a tree with a string at each non-leaf node.
+//
+// If the leaves are JSON values, then this is essentially a JSON object.
 type PathTree struct {
-	// The underlying configuration tree.
 	tree TreeData
 }
 
@@ -28,25 +31,16 @@ func New() *PathTree {
 	return &PathTree{make(TreeData)}
 }
 
+// TODO: remove this, it is only used in tests
 func NewFrom(tree TreeData) *PathTree {
 	return &PathTree{tree}
 }
 
-// Returns the underlying tree.
+// CloneTree returns a nested-map representation of the tree.
 //
-// Provided temporarily as part of a refactor. Avoid using this, especially
-// mutating it.
-func (pt *PathTree) Tree() TreeData {
-	return pt.tree
-}
-
-// Makes and returns a deep copy of the underlying tree.
-func (pt *PathTree) CloneTree() (TreeData, error) {
-	clone, err := deepCopy(pt.tree)
-	if err != nil {
-		return nil, err
-	}
-	return clone, nil
+// This always allocates a new map.
+func (pt *PathTree) CloneTree() TreeData {
+	return deepCopy(pt.tree)
 }
 
 // Set changes the value of the leaf node at the given path.
@@ -143,6 +137,14 @@ func flatten(tree TreeData, prefix []string) []PathItem {
 	return leaves
 }
 
+// ToExtendedJSON encodes the tree as an extension of JSON that supports NaN
+// and +-Infinity.
+//
+// Values must be JSON-encodable.
+func (pt *PathTree) ToExtendedJSON() ([]byte, error) {
+	return json.Marshal(pt.tree)
+}
+
 // getSubtree returns the subtree at the path or nil if the path doesn't lead
 // to a non-leaf node.
 func getSubtree(
@@ -197,19 +199,15 @@ func getOrMakeSubtree(
 // Returns a deep copy of the given tree.
 //
 // Slice values are copied by reference, which is fine for our use case.
-func deepCopy(tree TreeData) (TreeData, error) {
+func deepCopy(tree TreeData) TreeData {
 	clone := make(TreeData)
 	for key, value := range tree {
 		switch value := value.(type) {
 		case TreeData:
-			innerClone, err := deepCopy(value)
-			if err != nil {
-				return nil, err
-			}
-			clone[key] = innerClone
+			clone[key] = deepCopy(value)
 		default:
 			clone[key] = value
 		}
 	}
-	return clone, nil
+	return clone
 }

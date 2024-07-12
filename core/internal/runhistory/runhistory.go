@@ -67,14 +67,8 @@ func (rh *RunHistory) ApplyChangeRecord(
 }
 
 // Serialize the object to send to the backend.
-//
-// The object is serialized to a JSON string.
-// This is needed to send the history to the the backend, which expects a JSON
-// string.
 func (rh *RunHistory) Serialize() ([]byte, error) {
-	// A configuration dict in the format expected by the backend.
-	value := rh.pathTree.Tree()
-	return json.Marshal(value)
+	return rh.pathTree.ToExtendedJSON()
 }
 
 // Flatten returns a flat list of history items.
@@ -121,9 +115,27 @@ func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 	return history, nil
 }
 
-// Clone returns a deep copy of the history tree.
-func (rh *RunHistory) Tree() pathtree.TreeData {
-	return rh.pathTree.Tree()
+// GetNumber returns the value of a number-valued metric.
+func (rh *RunHistory) GetNumber(path ...string) (float64, bool) {
+	value, exists := rh.pathTree.GetLeaf(pathtree.TreePath(path))
+	if !exists {
+		return 0, false
+	}
+
+	switch x := value.(type) {
+	case int64:
+		return float64(x), true
+	case float64:
+		return x, true
+	default:
+		return 0, false
+	}
+}
+
+// Contains returns whether there is a value for a metric.
+func (rh *RunHistory) Contains(key string) bool {
+	_, exists := rh.pathTree.GetLeaf(pathtree.TreePath{key})
+	return exists
 }
 
 // keyPath returns the key path for the given config item.

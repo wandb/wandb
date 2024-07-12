@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestApplyUpdate(t *testing.T) {
-
-	rh := runsummary.New(runsummary.Params{})
+	rs := runsummary.New(runsummary.Params{})
 	summary := &service.SummaryRecord{
 		Update: []*service.SummaryItem{
 			{
@@ -27,27 +27,24 @@ func TestApplyUpdate(t *testing.T) {
 		},
 	}
 
-	rh.ApplyChangeRecord(summary,
+	rs.ApplyChangeRecord(summary,
 		func(err error) {
 			t.Error("onError should not be called", err)
 		})
 
-	expectedTree := pathtree.TreeData{
-		"setting1": float64(69),
-		"config": pathtree.TreeData{
-			"setting2": pathtree.TreeData{
-				"value": float64(42),
+	assert.Equal(t,
+		pathtree.TreeData{
+			"setting1": float64(69),
+			"config": pathtree.TreeData{
+				"setting2": pathtree.TreeData{
+					"value": float64(42),
+				},
 			},
 		},
-	}
-
-	if !reflect.DeepEqual(rh.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rh.Tree())
-	}
+		rs.CloneTree())
 }
 
 func TestApplyRemove(t *testing.T) {
-
 	rs := runsummary.NewFrom(pathtree.TreeData{
 		"setting0": 69,
 		"config": pathtree.TreeData{
@@ -68,16 +65,14 @@ func TestApplyRemove(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	expectedTree := pathtree.TreeData{
-		"setting0": int(69),
-		"config": pathtree.TreeData{
-			"setting1": int(42),
+	assert.Equal(t,
+		pathtree.TreeData{
+			"setting0": int(69),
+			"config": pathtree.TreeData{
+				"setting1": int(42),
+			},
 		},
-	}
-
-	if !reflect.DeepEqual(rs.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rs.Tree())
-	}
+		rs.CloneTree())
 }
 
 func key(item *service.SummaryItem) []string {

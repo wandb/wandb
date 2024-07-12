@@ -44,7 +44,7 @@ func NewFrom(tree pathtree.TreeData) *RunConfig {
 func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
 
 	value := make(map[string]any)
-	for treeKey, treeValue := range rc.pathTree.Tree() {
+	for treeKey, treeValue := range rc.pathTree.CloneTree() {
 		value[treeKey] = map[string]any{"value": treeValue}
 	}
 
@@ -86,20 +86,28 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
 	metrics []map[int]interface{},
 ) {
-	wandbInternal := rc.internalSubtree()
-
 	if telemetry.GetCliVersion() != "" {
-		wandbInternal["cli_version"] = telemetry.CliVersion
+		rc.pathTree.Set(
+			pathtree.TreePath{"_wandb", "cli_version"},
+			telemetry.CliVersion,
+		)
 	}
 	if telemetry.GetPythonVersion() != "" {
-		wandbInternal["python_version"] = telemetry.PythonVersion
+		rc.pathTree.Set(
+			pathtree.TreePath{"_wandb", "python_version"},
+			telemetry.PythonVersion,
+		)
 	}
 
-	wandbInternal["t"] = corelib.ProtoEncodeToDict(telemetry)
+	rc.pathTree.Set(
+		pathtree.TreePath{"_wandb", "t"},
+		corelib.ProtoEncodeToDict(telemetry),
+	)
 
-	if metrics != nil {
-		wandbInternal["m"] = metrics
-	}
+	rc.pathTree.Set(
+		pathtree.TreePath{"_wandb", "m"},
+		metrics,
+	)
 }
 
 // Incorporates the config from a run that's being resumed.
@@ -124,25 +132,7 @@ func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) {
 	)
 }
 
-// Returns the "_wandb" subtree of the config.
-func (rc *RunConfig) internalSubtree() pathtree.TreeData {
-	node, found := rc.pathTree.Tree()["_wandb"]
-
-	if !found {
-		wandbInternal := make(pathtree.TreeData)
-		rc.pathTree.Tree()["_wandb"] = wandbInternal
-		return wandbInternal
-	}
-
-	// Panic if the type is wrong, which should never happen.
-	return node.(pathtree.TreeData)
-}
-
-func (rc *RunConfig) Tree() pathtree.TreeData {
-	return rc.pathTree.Tree()
-}
-
-func (rc *RunConfig) CloneTree() (pathtree.TreeData, error) {
+func (rc *RunConfig) CloneTree() pathtree.TreeData {
 	return rc.pathTree.CloneTree()
 }
 

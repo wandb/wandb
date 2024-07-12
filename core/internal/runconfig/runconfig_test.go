@@ -41,7 +41,7 @@ func TestConfigUpdate(t *testing.T) {
 				"d": 123.0,
 			},
 		},
-		runConfig.Tree(),
+		runConfig.CloneTree(),
 	)
 }
 
@@ -65,7 +65,7 @@ func TestConfigRemove(t *testing.T) {
 
 	assert.Equal(t,
 		pathtree.TreeData{"b": pathtree.TreeData{"d": 123.0}},
-		runConfig.Tree(),
+		runConfig.CloneTree(),
 	)
 }
 
@@ -111,7 +111,7 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 				"m": []map[int]interface{}{},
 			},
 		},
-		runConfig.Tree(),
+		runConfig.CloneTree(),
 	)
 }
 
@@ -125,7 +125,7 @@ func TestCloneTree(t *testing.T) {
 			"text": "xyz",
 		},
 	})
-	cloned, _ := runConfig.CloneTree()
+	cloned := runConfig.CloneTree()
 	assert.Equal(t,
 		pathtree.TreeData{
 			"number": 9,
@@ -148,6 +148,6 @@ func TestCloneTree(t *testing.T) {
 				"text": "xyz",
 			},
 		},
-		runConfig.Tree(),
+		runConfig.CloneTree(),
 	)
 }

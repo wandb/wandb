@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -30,18 +31,12 @@ func TestApplyUpdate(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	expectedTree := pathtree.TreeData{
-		"setting1": float64(69),
-		"config": pathtree.TreeData{
-			"setting2": pathtree.TreeData{
-				"value": float64(42),
-			},
-		},
-	}
-
-	if !reflect.DeepEqual(rh.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rh.Tree())
-	}
+	setting1, ok := rh.GetNumber("setting1")
+	assert.True(t, ok)
+	assert.EqualValues(t, 69, setting1)
+	setting2, ok := rh.GetNumber("config", "setting2", "value")
+	assert.True(t, ok)
+	assert.EqualValues(t, 42, setting2)
 }
 
 func key(item *service.HistoryItem) []string {
