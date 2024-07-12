@@ -73,7 +73,12 @@ func (rc *RunConfig) ApplyChangeRecord(
 			continue
 		}
 
-		rc.pathTree.Set(keyPath(item), value)
+		switch x := value.(type) {
+		case map[string]any:
+			rc.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rc.pathTree.Set(keyPath(item), x)
+		}
 	}
 
 	for _, item := range configRecord.GetRemove() {
