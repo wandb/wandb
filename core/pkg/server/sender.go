@@ -703,11 +703,13 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		s.respond(record, result)
 		return err
 	}
-
+	fmt.Println(data)
+	fmt.Printf("before update: %+v\n", s.resumeState)
 	if result, err := s.resumeState.Update(data); err != nil {
 		s.respond(record, result)
 		return err
 	}
+	fmt.Printf("after update %+v\n", s.resumeState)
 
 	return nil
 }
