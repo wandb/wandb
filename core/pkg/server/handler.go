@@ -925,33 +925,7 @@ func (h *Handler) handleRequestGetSummary(record *service.Record) {
 }
 
 func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
-	sm := h.systemMonitor.GetBuffer()
 
-	response := &service.Response{}
-
-	response.ResponseType = &service.Response_GetSystemMetricsResponse{
-		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
-			SystemMetrics: make(map[string]*service.SystemMetricsBuffer),
-		},
-	}
-
-	for key, samples := range sm {
-		buffer := make([]*service.SystemMetricSample, 0, len(samples.GetElements()))
-
-		// convert samples to buffer:
-		for _, sample := range samples.GetElements() {
-			buffer = append(buffer, &service.SystemMetricSample{
-				Timestamp: sample.Timestamp,
-				Value:     float32(sample.Value),
-			})
-		}
-		// add to response as map key: buffer
-		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
-			Record: buffer,
-		}
-	}
-
-	h.respond(record, response)
 }
 
 func (h *Handler) handleRequestInternalMessages(record *service.Record) {

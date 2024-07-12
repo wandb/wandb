@@ -83,9 +83,6 @@ type SystemMonitor struct {
 	//	outChan is the channel for outgoing messages
 	outChan chan *service.Record
 
-	// Buffer is the metrics buffer for the system monitor
-	buffer *Buffer
-
 	// settings is the settings for the system monitor
 	settings *service.Settings
 
@@ -105,21 +102,12 @@ func NewSystemMonitor(
 	settings *service.Settings,
 	outChan chan *service.Record,
 ) *SystemMonitor {
-	sbs := settings.XStatsBufferSize.GetValue()
-	var buffer *Buffer
-	// if buffer size is 0, don't create a buffer
-	// a positive buffer size restricts the number of metrics that are kept in memory
-	// value of -1 indicates that all sampled metrics will be kept in memory
-	if sbs != 0 {
-		buffer = NewBuffer(sbs)
-	}
 
 	systemMonitor := &SystemMonitor{
 		wg:               sync.WaitGroup{},
 		settings:         settings,
 		logger:           logger,
 		outChan:          outChan,
-		buffer:           buffer,
 		samplingInterval: defaultSamplingInterval,
 		samplesToAverage: defaultSamplesToAverage,
 	}
@@ -225,12 +213,6 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 					return // nothing to do
 				}
 				ts := timestamppb.Now()
-				// Also store aggregated metrics in the buffer if we have one
-				if sm.buffer != nil {
-					for k, v := range aggregatedMetrics {
-						sm.buffer.push(k, ts, v)
-					}
-				}
 
 				// publish metrics
 				select {
@@ -244,13 +226,11 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 
 }
 
-func (sm *SystemMonitor) GetBuffer() map[string]List {
-	if sm == nil || sm.buffer == nil {
+func (sm *SystemMonitor) GetBuffer() map[string][]*service.Record {
+	if sm == nil {
 		return nil
 	}
-	sm.buffer.mutex.Lock()
-	defer sm.buffer.mutex.Unlock()
-	return sm.buffer.elements
+	return nil
 }
 
 func (sm *SystemMonitor) Stop() {
