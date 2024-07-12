@@ -142,27 +142,10 @@ func NewSystemMonitor(
 
 	// if stats are disabled, return early
 	if settings.XDisableStats.GetValue() {
-		return systemMonitor
+		return nil
 	}
 
-	assets := []Asset{
-		NewMemory(settings),
-		NewCPU(settings),
-		NewDisk(settings),
-		NewNetwork(settings),
-		NewGPUNvidia(settings),
-		NewGPUAMD(settings),
-		NewGPUApple(settings),
-	}
-
-	// if asset is available, add it to the list of assets to monitor
-	for _, asset := range assets {
-		if asset.IsAvailable() {
-			systemMonitor.assets = append(systemMonitor.assets, asset)
-		}
-	}
-
-	return systemMonitor
+	return nil
 }
 
 func (sm *SystemMonitor) Do() {
@@ -173,11 +156,6 @@ func (sm *SystemMonitor) Do() {
 	sm.ctx, sm.cancel = context.WithCancel(context.Background())
 
 	sm.logger.Info("Starting system monitor")
-	// start monitoring the assets
-	for _, asset := range sm.assets {
-		sm.wg.Add(1)
-		go sm.Monitor(asset)
-	}
 }
 
 func getSlurmEnvVars() map[string]string {

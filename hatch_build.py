@@ -127,7 +127,7 @@ class CustomBuildHook(BuildHookInterface):
             output_path=output,
             with_code_coverage=with_coverage,
             with_race_detection=with_race_detection,
-            wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT) or self._git_commit_sha(),
+            wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT, self._git_commit_sha()),
         )
 
         # NOTE: as_posix() is used intentionally. Hatch expects forward slashes

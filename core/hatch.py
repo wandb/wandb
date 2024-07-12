@@ -62,23 +62,6 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
         f"main.commit={wandb_commit_sha or ''}",
     ]
 
-    if platform.system().lower() == "linux" and platform.machine().lower() in (
-        "x86_64",
-        "amd64",
-    ):
-        ext_ld_flags = " ".join(
-            [
-                # Use https://en.wikipedia.org/wiki/Gold_(linker)
-                "-fuse-ld=gold",
-                # Set the --weak-unresolved-symbols option in gold, converting
-                # unresolved symbols to weak references. This is necessary to
-                # build a Go binary with cgo on Linux, where the NVML libraries
-                # needed for Nvidia GPU monitoring may not be available at build time.
-                "-Wl,--weak-unresolved-symbols",
-            ]
-        )
-        flags += ["-extldflags", f'"{ext_ld_flags}"']
-
     return " ".join(flags)
 
 
@@ -91,19 +74,9 @@ def _go_env(with_race_detection: bool) -> Mapping[str, str]:
         env["GORACE"] = "halt_on_error=1"
 
     system = platform.system().lower()
-    arch = platform.machine().lower()
-    if (system, arch) in [
-        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        ("linux", "amd64"),
-        ("linux", "x86_64"),
-        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
-        # system metrics are unavailable.
-        ("darwin", "arm64"),
-        ("darwin", "aarch64"),
-    ] or (
-        # On Windows, -race requires cgo.
-        system == "windows" and with_race_detection
-    ):
+
+    # On Windows, -race requires cgo.
+    if system == "windows" and with_race_detection:
         env["CGO_ENABLED"] = "1"
 
     return env
