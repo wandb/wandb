@@ -66,26 +66,19 @@ func (rc *RunConfig) ApplyChangeRecord(
 	configRecord *service.ConfigRecord,
 	onError func(error),
 ) {
-	updates := make([]*pathtree.PathItem, 0, len(configRecord.GetUpdate()))
 	for _, item := range configRecord.GetUpdate() {
 		var value any
 		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
 			onError(err)
 			continue
 		}
-		updates = append(updates, &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: value,
-		})
+
+		rc.pathTree.Set(keyPath(item), value)
 	}
-	rc.pathTree.ApplyUpdate(updates, onError)
-	removes := make([]*pathtree.PathItem, 0, len(configRecord.GetRemove()))
+
 	for _, item := range configRecord.GetRemove() {
-		removes = append(removes, &pathtree.PathItem{
-			Path: keyPath(item),
-		})
+		rc.pathTree.Remove(keyPath(item))
 	}
-	rc.pathTree.ApplyRemove(removes)
 }
 
 // Inserts W&B-internal values into the run's configuration.
@@ -110,33 +103,25 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 }
 
 // Incorporates the config from a run that's being resumed.
-func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) error {
+func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) {
 	// Add any top-level keys that aren't already set.
-	if err := rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.pathTree.AddUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{},
-	); err != nil {
-		return err
-	}
+	)
 
 	// When a user logs visualizations, we unfortunately store them in the
 	// run's config. When resuming a run, we want to avoid erasing previously
 	// logged visualizations, hence this special handling.
-	if err := rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.pathTree.AddUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "visualize"},
-	); err != nil {
-		return err
-	}
+	)
 
-	if err := rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.pathTree.AddUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "viz"},
-	); err != nil {
-		return err
-	}
-
-	return nil
+	)
 }
 
 // Returns the "_wandb" subtree of the config.
