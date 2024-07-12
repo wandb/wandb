@@ -45,6 +45,8 @@ func (pt *PathTree) CloneTree() TreeData {
 
 // Set changes the value of the leaf node at the given path.
 //
+// Map values do not affect the tree structure---see SetSubtree instead.
+//
 // If the path doesn't refer to a node in the tree, nodes are inserted
 // and a new leaf is created.
 //
@@ -56,6 +58,23 @@ func (pt *PathTree) Set(path TreePath, value any) {
 
 	subtree := getOrMakeSubtree(pt.tree, pathPrefix)
 	subtree[key] = value
+}
+
+// SetSubtree recusrively replaces the subtree at the given path.
+//
+// The subtree is represented by a map from strings to subtrees or
+// leaf values. This tree structure is copied to update the path
+// tree.
+func (pt *PathTree) SetSubtree(path TreePath, subtree map[string]any) {
+	// TODO: this is inefficient---it has repeated getOrMakeSubtree calls
+	for key, value := range subtree {
+		switch x := value.(type) {
+		case map[string]any:
+			pt.SetSubtree(append(path, key), x)
+		default:
+			pt.Set(append(path, key), x)
+		}
+	}
 }
 
 // Remove deletes a node from the tree.

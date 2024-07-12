@@ -180,8 +180,12 @@ func (rs *RunSummary) ApplyChangeRecord(
 			update = updateMap
 		}
 
-		rs.pathTree.Set(keyPath(item), update)
-
+		switch x := update.(type) {
+		case map[string]any:
+			rs.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rs.pathTree.Set(keyPath(item), x)
+		}
 	}
 
 	for _, item := range summaryRecord.GetRemove() {

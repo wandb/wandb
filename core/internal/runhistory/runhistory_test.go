@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -31,12 +32,14 @@ func TestApplyUpdate(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	setting1, ok := rh.GetNumber("setting1")
-	assert.True(t, ok)
-	assert.EqualValues(t, 69, setting1)
-	setting2, ok := rh.GetNumber("config", "setting2", "value")
-	assert.True(t, ok)
-	assert.EqualValues(t, 42, setting2)
+	encoded, err := rh.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"setting1": 69,
+			"config": {"setting2": {"value": 42}}
+		}`,
+		string(encoded))
 }
 
 func key(item *service.HistoryItem) []string {

@@ -62,7 +62,12 @@ func (rh *RunHistory) ApplyChangeRecord(
 			continue
 		}
 
-		rh.pathTree.Set(keyPath(item), update)
+		switch x := update.(type) {
+		case map[string]any:
+			rh.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rh.pathTree.Set(keyPath(item), x)
+		}
 	}
 }
 
@@ -113,23 +118,6 @@ func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 	}
 
 	return history, nil
-}
-
-// GetNumber returns the value of a number-valued metric.
-func (rh *RunHistory) GetNumber(path ...string) (float64, bool) {
-	value, exists := rh.pathTree.GetLeaf(pathtree.TreePath(path))
-	if !exists {
-		return 0, false
-	}
-
-	switch x := value.(type) {
-	case int64:
-		return float64(x), true
-	case float64:
-		return x, true
-	default:
-		return 0, false
-	}
 }
 
 // Contains returns whether there is a value for a metric.

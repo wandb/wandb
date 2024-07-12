@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -32,16 +33,14 @@ func TestApplyUpdate(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	assert.Equal(t,
-		pathtree.TreeData{
-			"setting1": float64(69),
-			"config": pathtree.TreeData{
-				"setting2": pathtree.TreeData{
-					"value": float64(42),
-				},
-			},
-		},
-		rs.CloneTree())
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"setting1": 69,
+			"config": {"setting2": {"value": 42}}
+		}`,
+		string(encoded))
 }
 
 func TestApplyRemove(t *testing.T) {
@@ -65,14 +64,14 @@ func TestApplyRemove(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	assert.Equal(t,
-		pathtree.TreeData{
-			"setting0": int(69),
-			"config": pathtree.TreeData{
-				"setting1": int(42),
-			},
-		},
-		rs.CloneTree())
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"setting0": 69,
+			"config": {"setting1": 42}
+		}`,
+		string(encoded))
 }
 
 func key(item *service.SummaryItem) []string {
