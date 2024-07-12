@@ -841,6 +841,7 @@ func (h *Handler) handleRequestResume() {
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {
+	h.logger.Debug("handler: handleSystemMetrics", "record", record)
 	h.fwdRecord(record)
 }
 

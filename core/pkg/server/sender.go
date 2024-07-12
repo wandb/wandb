@@ -1019,8 +1019,9 @@ func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 	if s.fileStream == nil {
 		return
 	}
-
+	s.logger.Debug("sender: got", "record", record)
 	s.fileStream.StreamUpdate(&fs.StatsUpdate{Record: record})
+	s.logger.Debug("sender: sent", "record", record)
 }
 
 func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
