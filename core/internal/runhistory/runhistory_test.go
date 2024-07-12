@@ -54,3 +54,55 @@ func TestNaN(t *testing.T) {
 		`{"+inf":Infinity,"-inf":-Infinity,"nan":NaN}`,
 		string(encoded))
 }
+
+func TestSetInt(t *testing.T) {
+	rh := runhistory.New()
+
+	rh.SetInt("int", 123)
+
+	x, exists := rh.GetNumber("int")
+	assert.True(t, exists)
+	assert.EqualValues(t, 123, x)
+	encoded, _ := rh.ToExtendedJSON()
+	assert.Equal(t, `{"int":123}`, string(encoded))
+}
+
+func TestSetFloat(t *testing.T) {
+	rh := runhistory.New()
+
+	rh.SetFloat("float", 1.23)
+
+	x, exists := rh.GetNumber("float")
+	assert.True(t, exists)
+	assert.EqualValues(t, 1.23, x)
+	encoded, _ := rh.ToExtendedJSON()
+	assert.Equal(t, `{"float":1.23}`, string(encoded))
+}
+
+func TestSetString(t *testing.T) {
+	rh := runhistory.New()
+
+	rh.SetString("string", "abc")
+
+	x, exists := rh.GetString("string")
+	assert.True(t, exists)
+	assert.Equal(t, "abc", x)
+	encoded, _ := rh.ToExtendedJSON()
+	assert.Equal(t, `{"string":"abc"}`, string(encoded))
+}
+
+func TestGetNonExistent(t *testing.T) {
+	rh := runhistory.New()
+	rh.SetFloat("num", 1.23)
+	rh.SetString("string", "abc")
+
+	_, stringIsNumber := rh.GetNumber("string")
+	_, numberIsString := rh.GetString("num")
+	_, badKeyIsNumber := rh.GetNumber("nope")
+	_, badKeyIsString := rh.GetString("nope")
+
+	assert.False(t, stringIsNumber)
+	assert.False(t, numberIsString)
+	assert.False(t, badKeyIsNumber)
+	assert.False(t, badKeyIsString)
+}

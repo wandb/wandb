@@ -1159,7 +1159,11 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 // nextStep is ignored.
 func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Don't log anything if there are no metrics.
-	if h.partialHistory.Size() == 0 {
+	if h.partialHistory == nil || h.partialHistory.Size() == 0 {
+		if useStep {
+			h.partialHistoryStep = nextStep
+		}
+
 		return
 	}
 
