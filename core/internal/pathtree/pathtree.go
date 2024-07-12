@@ -40,7 +40,7 @@ func NewFrom(tree TreeData) *PathTree {
 //
 // This always allocates a new map.
 func (pt *PathTree) CloneTree() TreeData {
-	return deepCopy(pt.tree)
+	return toNestedMaps(pt.tree)
 }
 
 // Set changes the value of the leaf node at the given path.
@@ -218,12 +218,12 @@ func getOrMakeSubtree(
 // Returns a deep copy of the given tree.
 //
 // Slice values are copied by reference, which is fine for our use case.
-func deepCopy(tree TreeData) TreeData {
-	clone := make(TreeData)
+func toNestedMaps(tree TreeData) map[string]any {
+	clone := make(map[string]any)
 	for key, value := range tree {
 		switch value := value.(type) {
 		case TreeData:
-			clone[key] = deepCopy(value)
+			clone[key] = toNestedMaps(value)
 		default:
 			clone[key] = value
 		}
