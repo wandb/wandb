@@ -1158,6 +1158,11 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 // step, and partialHistoryStep is updated to nextStep. Otherwise,
 // nextStep is ignored.
 func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
+	// Don't log anything if there are no metrics.
+	if h.partialHistory.Size() == 0 {
+		return
+	}
+
 	h.partialHistory.SetFloat(
 		"_runtime",
 		h.runTimer.Elapsed().Seconds(),

@@ -112,6 +112,11 @@ func (rh *RunHistory) ForEachKey(fn func(key string) bool) {
 	}
 }
 
+// Size returns the number of metrics.
+func (rh *RunHistory) Size() int {
+	return len(rh.metrics)
+}
+
 // Contains returns whether there is a value for the metric.
 func (rh *RunHistory) Contains(key string) bool {
 	_, exists := rh.metrics[key]
