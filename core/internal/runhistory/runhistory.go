@@ -53,7 +53,6 @@ func (rh *RunHistory) ApplyChangeRecord(
 	historyRecord []*service.HistoryItem,
 	onError func(error),
 ) {
-	updates := make([]*pathtree.PathItem, 0, len(historyRecord))
 	for _, item := range historyRecord {
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
@@ -62,13 +61,9 @@ func (rh *RunHistory) ApplyChangeRecord(
 			onError(err)
 			continue
 		}
-		updates = append(updates,
-			&pathtree.PathItem{
-				Path:  keyPath(item),
-				Value: update,
-			})
+
+		rh.pathTree.Set(keyPath(item), update)
 	}
-	rh.pathTree.ApplyUpdate(updates, onError)
 }
 
 // Serialize the object to send to the backend.
