@@ -34,6 +34,8 @@ type ArtifactSaver struct {
 	startTime        time.Time
 }
 
+type updateArtifactManifestAttrs = gql.UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest
+
 type serverFileResponse struct {
 	Name            string
 	BirthArtifactID string
@@ -136,6 +138,44 @@ func (as *ArtifactSaver) createManifest(
 		return gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest{}, err
 	}
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
+}
+
+func (as *ArtifactSaver) updateManifest(
+	artifactManifestId string, manifestDigest string,
+) (attrs updateArtifactManifestAttrs, rerr error) {
+	response, err := gql.UpdateArtifactManifest(
+		as.Ctx,
+		as.GraphqlClient,
+		artifactManifestId,
+		&manifestDigest,
+		nil,
+		true,
+	)
+	if err != nil {
+		return updateArtifactManifestAttrs{}, err
+	}
+	if response == nil || response.GetUpdateArtifactManifest() == nil {
+		return updateArtifactManifestAttrs{}, fmt.Errorf("received invalid response from UpdateArtifactManifest")
+	}
+	return response.GetUpdateArtifactManifest().ArtifactManifest, nil
+}
+
+func (as *ArtifactSaver) upsertManifest(
+	artifactId string, baseArtifactId *string, artifactManifestId string, manifestDigest string,
+) (uploadUrl *string, uploadHeaders []string, rerr error) {
+	if as.Artifact.IncrementalBeta1 || as.Artifact.DistributedId != "" {
+		updateManifestAttrs, err := as.updateManifest(artifactManifestId, manifestDigest)
+		if err != nil {
+			return nil, nil, fmt.Errorf("ArtifactSaver.updateManifest: %w", err)
+		}
+		return updateManifestAttrs.File.UploadUrl, updateManifestAttrs.File.UploadHeaders, nil
+	} else {
+		manifestAttrs, err := as.createManifest(artifactId, baseArtifactId, manifestDigest, true /* includeUpload */)
+		if err != nil {
+			return nil, nil, fmt.Errorf("ArtifactSaver.createManifest: %w", err)
+		}
+		return manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, nil
+	}
 }
 
 func (as *ArtifactSaver) uploadFiles(
@@ -448,11 +488,13 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
 	defer os.Remove(manifestFile)
-	manifestAttrs, err = as.createManifest(artifactID, baseArtifactId, manifestDigest, true /* includeUpload */)
+
+	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
 	if err != nil {
-		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
+		return "", fmt.Errorf("ArtifactSaver.upsertManifest: %w", err)
 	}
-	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, ch)
+
+	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders, ch)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}
@@ -460,7 +502,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	if as.Artifact.Finalize {
 		err = as.commitArtifact(artifactID)
 		if err != nil {
-			return "", fmt.Errorf("ArtifactSacer.commitArtifact: %w", err)
+			return "", fmt.Errorf("ArtifactSaver.commitArtifact: %w", err)
 		}
 
 		if as.Artifact.UseAfterCommit {
