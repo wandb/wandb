@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -44,13 +43,13 @@ func TestApplyUpdate(t *testing.T) {
 }
 
 func TestApplyRemove(t *testing.T) {
-	rs := runsummary.NewFrom(pathtree.TreeData{
-		"setting0": 69,
-		"config": pathtree.TreeData{
-			"setting1": 42,
-			"setting2": "goodbye",
+	rs := runsummary.New(runsummary.Params{})
+	rs.ApplyChangeRecord(&service.SummaryRecord{
+		Update: []*service.SummaryItem{
+			{Key: "setting0", ValueJson: "69"},
+			{Key: "config", ValueJson: `{"setting1": 42, "setting2": "goodbye"}`},
 		},
-	})
+	}, func(err error) {})
 	summary := &service.SummaryRecord{
 		Remove: []*service.SummaryItem{
 			{
@@ -132,12 +131,12 @@ func TestApplyUpdateSpecialValues(t *testing.T) {
 }
 
 func TestSerialize(t *testing.T) {
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
+	rs := runsummary.New(runsummary.Params{})
+	rs.ApplyChangeRecord(&service.SummaryRecord{
+		Update: []*service.SummaryItem{
+			{Key: "config", ValueJson: `{"setting1":"value1"}`},
 		},
-	}
-	rs := runsummary.NewFrom(treeData)
+	}, func(err error) {})
 	actualJson, err := rs.Serialize()
 	if err != nil {
 		t.Fatal("Serialize failed:", err)

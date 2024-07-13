@@ -8,7 +8,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -96,12 +95,12 @@ func TestApplyUpdateSpecialValues(t *testing.T) {
 }
 
 func TestSerialize(t *testing.T) {
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
-		},
-	}
-	rh := runhistory.NewFrom(treeData)
+	rh := runhistory.New()
+
+	rh.ApplyChangeRecord([]*service.HistoryItem{
+		{Key: "config", ValueJson: `{"setting1":"value1"}`},
+	}, func(err error) {})
+
 	actualJson, err := rh.Serialize()
 	if err != nil {
 		t.Fatal("Serialize failed:", err)

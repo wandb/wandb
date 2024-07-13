@@ -34,10 +34,10 @@ func New(params Params) *RunSummary {
 	return rs
 }
 
-func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
+func statsTreeFromPathTree(tree map[string]any) *Node {
 	stats := NewNode()
 	for k, v := range tree {
-		if subtree, ok := v.(pathtree.TreeData); ok {
+		if subtree, ok := v.(map[string]any); ok {
 			stats.nodes[k] = statsTreeFromPathTree(subtree)
 		} else {
 			stats.nodes[k] = &Node{
@@ -46,14 +46,6 @@ func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
 		}
 	}
 	return stats
-}
-
-func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{
-		pathTree: pathtree.NewFrom(tree),
-		stats:    statsTreeFromPathTree(tree),
-		mh:       runmetric.NewMetricHandler(),
-	}
 }
 
 // GetSummaryTypes matches the path against the defined metrics and returns the
@@ -242,7 +234,7 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 }
 
 // CloneTree clones the tree. This is useful for creating a snapshot of the tree.
-func (rs *RunSummary) CloneTree() pathtree.TreeData {
+func (rs *RunSummary) CloneTree() map[string]any {
 	return rs.pathTree.CloneTree()
 }
 

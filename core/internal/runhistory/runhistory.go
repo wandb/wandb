@@ -25,12 +25,6 @@ func New() *RunHistory {
 	}
 }
 
-func NewFrom(tree pathtree.TreeData) *RunHistory {
-	return &RunHistory{
-		pathTree: pathtree.NewFrom(tree),
-	}
-}
-
 // NewWithStep creates a new RunHistory with the given step.
 //
 // The step is the step of the run that this history is for.

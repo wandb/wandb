@@ -5,14 +5,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestConfigUpdate(t *testing.T) {
-	runConfig := runconfig.NewFrom(pathtree.TreeData{
-		"b": pathtree.TreeData{
+	runConfig := runconfig.NewFrom(map[string]any{
+		"b": map[string]any{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -34,9 +33,9 @@ func TestConfigUpdate(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		pathtree.TreeData{
+		map[string]any{
 			"a": 1.0,
-			"b": pathtree.TreeData{
+			"b": map[string]any{
 				"c": "text",
 				"d": 123.0,
 			},
@@ -46,9 +45,9 @@ func TestConfigUpdate(t *testing.T) {
 }
 
 func TestConfigRemove(t *testing.T) {
-	runConfig := runconfig.NewFrom(pathtree.TreeData{
+	runConfig := runconfig.NewFrom(map[string]any{
 		"a": 9,
-		"b": pathtree.TreeData{
+		"b": map[string]any{
 			"c": 321.0,
 			"d": 123.0,
 		},
@@ -64,15 +63,15 @@ func TestConfigRemove(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		pathtree.TreeData{"b": pathtree.TreeData{"d": 123.0}},
+		map[string]any{"b": map[string]any{"d": 123.0}},
 		runConfig.CloneTree(),
 	)
 }
 
 func TestConfigSerialize(t *testing.T) {
-	runConfig := runconfig.NewFrom(pathtree.TreeData{
+	runConfig := runconfig.NewFrom(map[string]any{
 		"number": 9,
-		"nested": pathtree.TreeData{
+		"nested": map[string]any{
 			"list": []string{"a", "b", "c"},
 			"text": "xyz",
 		},
@@ -105,8 +104,8 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 	)
 
 	assert.Equal(t,
-		pathtree.TreeData{
-			"_wandb": pathtree.TreeData{
+		map[string]any{
+			"_wandb": map[string]any{
 				"t": corelib.ProtoEncodeToDict(telemetry),
 				"m": []map[int]interface{}{},
 			},
@@ -118,18 +117,18 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 func ignoreError(_err error) {}
 
 func TestCloneTree(t *testing.T) {
-	runConfig := runconfig.NewFrom(pathtree.TreeData{
+	runConfig := runconfig.NewFrom(map[string]any{
 		"number": 9,
-		"nested": pathtree.TreeData{
+		"nested": map[string]any{
 			"list": []string{"a", "b", "c"},
 			"text": "xyz",
 		},
 	})
 	cloned := runConfig.CloneTree()
 	assert.Equal(t,
-		pathtree.TreeData{
+		map[string]any{
 			"number": 9,
-			"nested": pathtree.TreeData{
+			"nested": map[string]any{
 				"list": []string{"a", "b", "c"},
 				"text": "xyz",
 			},
@@ -139,11 +138,11 @@ func TestCloneTree(t *testing.T) {
 	assert.NotEqual(t, runConfig, cloned)
 	// Delete elements from the cloned tree and check that the original is unchanged.
 	delete(cloned, "number")
-	delete(cloned["nested"].(pathtree.TreeData), "list")
+	delete(cloned["nested"].(map[string]any), "list")
 	assert.Equal(t,
-		pathtree.TreeData{
+		map[string]any{
 			"number": 9,
-			"nested": pathtree.TreeData{
+			"nested": map[string]any{
 				"list": []string{"a", "b", "c"},
 				"text": "xyz",
 			},

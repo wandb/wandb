@@ -35,10 +35,19 @@ func New() *RunConfig {
 	}
 }
 
-func NewFrom(tree pathtree.TreeData) *RunConfig {
-	return &RunConfig{
-		pathTree: pathtree.NewFrom(tree),
+func NewFrom(tree map[string]any) *RunConfig {
+	rc := New()
+
+	for key, value := range tree {
+		switch x := value.(type) {
+		case map[string]any:
+			rc.pathTree.SetSubtree(pathtree.TreePath{key}, x)
+		default:
+			rc.pathTree.Set(pathtree.TreePath{key}, x)
+		}
 	}
+
+	return rc
 }
 
 func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
@@ -116,9 +125,9 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 }
 
 // Incorporates the config from a run that's being resumed.
-func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) {
+func (rc *RunConfig) MergeResumedConfig(oldConfig map[string]any) {
 	// Add any top-level keys that aren't already set.
-	rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.addUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{},
 	)
@@ -126,18 +135,52 @@ func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) {
 	// When a user logs visualizations, we unfortunately store them in the
 	// run's config. When resuming a run, we want to avoid erasing previously
 	// logged visualizations, hence this special handling.
-	rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.addUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "visualize"},
 	)
 
-	rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.addUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "viz"},
 	)
 }
 
-func (rc *RunConfig) CloneTree() pathtree.TreeData {
+func (rc *RunConfig) addUnsetKeysFromSubtree(
+	oldConfig map[string]any,
+	prefix []string,
+) {
+	for _, part := range prefix {
+		x, ok := oldConfig[part]
+
+		if !ok {
+			return
+		}
+
+		switch subtree := x.(type) {
+		case map[string]any:
+			oldConfig = subtree
+		default:
+			return
+		}
+	}
+
+	for key, value := range oldConfig {
+		if rc.pathTree.HasNode(pathtree.TreePath{key}) {
+			continue
+		}
+
+		subtreePath := append(prefix, key)
+		switch x := value.(type) {
+		case map[string]any:
+			rc.pathTree.SetSubtree(subtreePath, x)
+		default:
+			rc.pathTree.Set(subtreePath, x)
+		}
+	}
+}
+
+func (rc *RunConfig) CloneTree() map[string]any {
 	return rc.pathTree.CloneTree()
 }
 
