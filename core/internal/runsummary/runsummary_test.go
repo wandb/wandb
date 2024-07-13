@@ -47,7 +47,8 @@ func TestApplyRemove(t *testing.T) {
 	rs.ApplyChangeRecord(&service.SummaryRecord{
 		Update: []*service.SummaryItem{
 			{Key: "setting0", ValueJson: "69"},
-			{Key: "config", ValueJson: `{"setting1": 42, "setting2": "goodbye"}`},
+			{NestedKey: []string{"config", "setting1"}, ValueJson: "42"},
+			{NestedKey: []string{"config", "setting2"}, ValueJson: `"goodbye"`},
 		},
 	}, func(err error) {})
 	summary := &service.SummaryRecord{
