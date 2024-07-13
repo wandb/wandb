@@ -19,7 +19,7 @@ type Bucket = gql.RunResumeStatusModelProjectBucketRun
 type Mode uint8
 
 const (
-	None Mode = iota
+	NoResume Mode = iota
 	Must
 	Allow
 	Never
@@ -40,7 +40,7 @@ func ResumeMode(mode string) Mode {
 	case "never":
 		return Never
 	default:
-		return None
+		return NoResume
 	}
 }
 
@@ -52,7 +52,7 @@ func NewResumeState(
 	mode Mode,
 	logger *observability.CoreLogger,
 ) *ResumeState {
-	State := NewState(BranchTypeNone, project, runId, config, tags)
+	State := NewState(None, project, runId, config, tags)
 	return &ResumeState{
 		State:  *State,
 		resume: mode,
@@ -129,7 +129,7 @@ func (r *ResumeState) Update(data *gql.RunResumeStatusResponse) (*service.RunUpd
 			}
 			return result, err
 		}
-		r.Type = BranchTypeResume
+		r.Type = Resume
 		return nil, nil
 	}
 }
