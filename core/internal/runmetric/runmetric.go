@@ -76,9 +76,9 @@ func (mh *MetricHandler) hackInsertLatestValue(
 	// numbers into float64 or int64, but this is a brittle assumption.
 	switch x := value.(type) {
 	case float64:
-		history.SetNumber(pathtree.TreePath{stepMetricKey}, x)
+		history.SetFloat(pathtree.TreePath{stepMetricKey}, x)
 	case int64:
-		history.SetNumber(pathtree.TreePath{stepMetricKey}, float64(x))
+		history.SetInt(pathtree.TreePath{stepMetricKey}, x)
 	}
 }
 

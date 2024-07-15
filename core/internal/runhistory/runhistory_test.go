@@ -73,6 +73,7 @@ func TestNaN(t *testing.T) {
 
 func TestForEachNumber(t *testing.T) {
 	rh := runhistory.New()
+	rh.SetInt(pathtree.TreePath{"the", "number", "five"}, 5)
 	_ = rh.SetFromRecord(
 		&service.HistoryItem{
 			Key: "x",
@@ -93,7 +94,8 @@ func TestForEachNumber(t *testing.T) {
 		return true
 	})
 
-	assert.Len(t, numbers, 5)
+	assert.Len(t, numbers, 6)
+	assert.Equal(t, 5.0, numbers["the.number.five"])
 	assert.Equal(t, 1.0, numbers["x.a"])
 	assert.Equal(t, 2.5, numbers["x.b"])
 	assert.Equal(t, math.Inf(1), numbers["x.c"])

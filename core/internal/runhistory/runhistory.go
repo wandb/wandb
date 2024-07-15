@@ -59,6 +59,8 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 
 // ForEachNumber runs a callback on every numeric metric.
 //
+// All numbers are converted to float64, which may lose precision.
+//
 // The callbacks must not modify the history. The callbacks return true
 // to continue iteration, or false to stop early.
 func (rh *RunHistory) ForEachNumber(
@@ -67,10 +69,13 @@ func (rh *RunHistory) ForEachNumber(
 	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
 		switch x := value.(type) {
 
-		// Numeric metrics are always float64 because encoding/json always
-		// decodes numbers as float64.
+		// Numeric metrics are always float64 or int64 because all our JSON
+		// libraries decode numbers as float64/int64 and because the only
+		// allowed setters are for float64/int64.
 		case float64:
 			return fn(path, x)
+		case int64:
+			return fn(path, float64(x))
 
 		default:
 			return true
@@ -99,8 +104,18 @@ func (rh *RunHistory) Contains(path ...string) bool {
 	return exists
 }
 
-// SetNumber sets the value of a numeric metric.
-func (rh *RunHistory) SetNumber(path pathtree.TreePath, value float64) {
+// SetFloat sets the value of a float-valued metric.
+func (rh *RunHistory) SetFloat(path pathtree.TreePath, value float64) {
+	rh.metrics.Set(path, value)
+}
+
+// SetInt sets the value of an int-valued metric.
+func (rh *RunHistory) SetInt(path pathtree.TreePath, value int64) {
+	rh.metrics.Set(path, value)
+}
+
+// SetString sets the value of a string-valued metric.
+func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 	rh.metrics.Set(path, value)
 }
 
