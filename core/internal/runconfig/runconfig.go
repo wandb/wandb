@@ -2,6 +2,7 @@ package runconfig
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/internal/corelib"
@@ -166,9 +167,7 @@ func (rc *RunConfig) addUnsetKeysFromSubtree(
 	}
 
 	// Clone `prefix` so that it's safe to use for appending.
-	// Set the capacity to length+1 since we always append one
-	// more element.
-	prefixCopy := prefix[: len(prefix) : len(prefix)+1]
+	prefixCopy := slices.Clone(prefix)
 
 	for key, value := range oldConfig {
 		if rc.pathTree.HasNode(pathtree.TreePath{key}) {
