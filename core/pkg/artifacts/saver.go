@@ -465,6 +465,15 @@ func (as *ArtifactSaver) uploadMultipart(
 				return uploadResult{name: fileInfo.name, err: err}
 			}
 		}
+		// Part numbers should be unique values from 1 to len(partData).
+		if t.partNumber < 1 || t.partNumber > int64(len(partData)) {
+			err = fmt.Errorf("invalid part number: %d", t.partNumber)
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		if partEtags[t.partNumber-1].PartNumber != 0 {
+			err = fmt.Errorf("duplicate part number: %d", t.partNumber)
+			return uploadResult{name: fileInfo.name, err: err}
+		}
 		partEtags[t.partNumber-1] = gql.UploadPartsInput{
 			PartNumber: t.partNumber,
 			HexMD5:     etag,
