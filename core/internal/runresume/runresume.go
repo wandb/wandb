@@ -209,8 +209,7 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 	if ok {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
-		switch x := step.(type) {
-		case int64:
+		if x, ok := step.(int64); ok {
 			if x > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
 				run.StartingStep = x + 1
 			}
