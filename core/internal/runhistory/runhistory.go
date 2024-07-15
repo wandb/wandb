@@ -25,12 +25,6 @@ func New() *RunHistory {
 	}
 }
 
-func NewFrom(tree pathtree.TreeData) *RunHistory {
-	return &RunHistory{
-		pathTree: pathtree.NewFrom(tree),
-	}
-}
-
 // NewWithStep creates a new RunHistory with the given step.
 //
 // The step is the step of the run that this history is for.
@@ -53,7 +47,6 @@ func (rh *RunHistory) ApplyChangeRecord(
 	historyRecord []*service.HistoryItem,
 	onError func(error),
 ) {
-	updates := make([]*pathtree.PathItem, 0, len(historyRecord))
 	for _, item := range historyRecord {
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
@@ -62,24 +55,19 @@ func (rh *RunHistory) ApplyChangeRecord(
 			onError(err)
 			continue
 		}
-		updates = append(updates,
-			&pathtree.PathItem{
-				Path:  keyPath(item),
-				Value: update,
-			})
+
+		switch x := update.(type) {
+		case map[string]any:
+			rh.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rh.pathTree.Set(keyPath(item), x)
+		}
 	}
-	rh.pathTree.ApplyUpdate(updates, onError)
 }
 
 // Serialize the object to send to the backend.
-//
-// The object is serialized to a JSON string.
-// This is needed to send the history to the the backend, which expects a JSON
-// string.
 func (rh *RunHistory) Serialize() ([]byte, error) {
-	// A configuration dict in the format expected by the backend.
-	value := rh.pathTree.Tree()
-	return json.Marshal(value)
+	return rh.pathTree.ToExtendedJSON()
 }
 
 // Flatten returns a flat list of history items.
@@ -126,9 +114,10 @@ func (rh *RunHistory) Flatten() ([]*service.HistoryItem, error) {
 	return history, nil
 }
 
-// Clone returns a deep copy of the history tree.
-func (rh *RunHistory) Tree() pathtree.TreeData {
-	return rh.pathTree.Tree()
+// Contains returns whether there is a value for a metric.
+func (rh *RunHistory) Contains(key string) bool {
+	_, exists := rh.pathTree.GetLeaf(pathtree.TreePath{key})
+	return exists
 }
 
 // keyPath returns the key path for the given config item.
