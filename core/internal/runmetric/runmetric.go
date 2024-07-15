@@ -71,17 +71,14 @@ func (mh *MetricHandler) hackInsertLatestValue(
 		return
 	}
 
-	path := pathtree.TreePath{stepMetricKey}
-
+	// NOTE: This assumes that the source value is always a float64 or int64
+	// if it is a number. This is true because all JSON libraries we use decode
+	// numbers into float64 or int64, but this is a brittle assumption.
 	switch x := value.(type) {
-	case bool:
-		history.SetBool(path, x)
-	case int64:
-		history.SetInt(path, x)
 	case float64:
-		history.SetFloat(path, x)
-	case string:
-		history.SetString(path, x)
+		history.SetNumber(pathtree.TreePath{stepMetricKey}, x)
+	case int64:
+		history.SetNumber(pathtree.TreePath{stepMetricKey}, float64(x))
 	}
 }
 
@@ -161,8 +158,7 @@ func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) {
 		if metric.GetXControl().GetOverwrite() || !exists {
 			mh.globMetricDefs[metric.GlobName] = metric
 		} else {
-			// TODO: No!!!
-			proto.Merge(prev, metric)
+			mh.metricDefs[metric.Name] = mergeMetric(prev, metric)
 		}
 
 	case metric.Name != "":
@@ -171,9 +167,28 @@ func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) {
 		if metric.GetXControl().GetOverwrite() || !exists {
 			mh.metricDefs[metric.Name] = metric
 		} else {
-			// TODO: No!!!
-			proto.Merge(prev, metric)
+			mh.metricDefs[metric.Name] = mergeMetric(prev, metric)
 		}
+	}
+}
+
+// mergeMetric return a new record combining `old` and `new`.
+//
+// All scalars come from `new`. Submessages come from `new` if they're
+// set, or `old` otherwise. Repeated fields are the concatentation of
+// their values in `old` and `new`.
+func mergeMetric(
+	old *service.MetricRecord,
+	new *service.MetricRecord,
+) *service.MetricRecord {
+	oldCloned := proto.Clone(old)
+
+	switch x := oldCloned.(type) {
+	case *service.MetricRecord:
+		proto.Merge(x, new)
+		return x
+	default:
+		return new
 	}
 }
 

@@ -11,12 +11,6 @@ import (
 )
 
 // RunHistory is a set of metrics in a single step of a run.
-//
-// Metric values are always one of:
-//   - bool
-//   - int64
-//   - float64
-//   - string
 type RunHistory struct {
 	metrics *pathtree.PathTree
 }
@@ -63,32 +57,24 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 	return records, errors.Join(errs...)
 }
 
-// ForEach runs a callback on every metric according to its type.
+// ForEachNumber runs a callback on every numeric metric.
 //
 // The callbacks must not modify the history. The callbacks return true
 // to continue iteration, or false to stop early.
-func (rh *RunHistory) ForEach(
-	onBool func(path pathtree.TreePath, value bool) bool,
-	onInt func(path pathtree.TreePath, value int64) bool,
-	onFloat func(path pathtree.TreePath, value float64) bool,
-	onString func(path pathtree.TreePath, value string) bool,
+func (rh *RunHistory) ForEachNumber(
+	fn func(path pathtree.TreePath, value float64) bool,
 ) {
 	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
 		switch x := value.(type) {
-		case bool:
-			return onBool(path, x)
 
-		case int64:
-			return onInt(path, x)
-
+		// Numeric metrics are always float64 because encoding/json always
+		// decodes numbers as float64.
 		case float64:
-			return onFloat(path, x)
+			return fn(path, x)
 
-		case string:
-			return onString(path, x)
+		default:
+			return true
 		}
-
-		return true
 	})
 }
 
@@ -113,23 +99,8 @@ func (rh *RunHistory) Contains(path ...string) bool {
 	return exists
 }
 
-// SetBool sets a metric to a boolean value.
-func (rh *RunHistory) SetBool(path pathtree.TreePath, value bool) {
-	rh.metrics.Set(path, value)
-}
-
-// SetInt sets a metric to an integer value.
-func (rh *RunHistory) SetInt(path pathtree.TreePath, value int64) {
-	rh.metrics.Set(path, value)
-}
-
-// SetFloat sets a metric to a float value.
-func (rh *RunHistory) SetFloat(path pathtree.TreePath, value float64) {
-	rh.metrics.Set(path, value)
-}
-
-// SetString sets a metric to a string value.
-func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
+// SetNumber sets the value of a numeric metric.
+func (rh *RunHistory) SetNumber(path pathtree.TreePath, value float64) {
 	rh.metrics.Set(path, value)
 }
 
@@ -141,13 +112,14 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
 	var pathAppendSafe pathtree.TreePath
 
-	if len(record.NestedKey) > 0 {
+	switch {
+	case len(record.NestedKey) > 0:
 		// We clone the nested key so that it's safe to append to it
 		// without further cloning.
 		pathAppendSafe = slices.Clone(record.NestedKey)
-	} else if len(record.Key) > 0 {
+	case len(record.Key) > 0:
 		pathAppendSafe = pathtree.TreePath{record.Key}
-	} else {
+	default:
 		return errors.New("empty history item key")
 	}
 
@@ -157,45 +129,26 @@ func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)
 	}
 
-	return rh.setFromUnmarshalledJSON(pathAppendSafe, value)
+	rh.setFromUnmarshalledJSON(pathAppendSafe, value)
+	return nil
 }
 
 // setFromUnmarshalledJSON sets metrics from a decoded JSON string.
 func (rh *RunHistory) setFromUnmarshalledJSON(
 	pathAppendSafe pathtree.TreePath,
 	value any,
-) error {
+) {
 	switch x := value.(type) {
-
-	case bool:
-		rh.SetBool(pathAppendSafe, x)
-		return nil
-
-	// encoding/json and segmentio-encoding/json decode all numbers as float64.
-	case float64:
-		rh.SetFloat(pathAppendSafe, x)
-		return nil
-
-	case string:
-		rh.SetString(pathAppendSafe, x)
-		return nil
-
+	// Recurse for maps to maintain their tree structure.
 	case map[string]any:
-		var errs []error
-
 		for subkey, value := range x {
 			subpath := pathAppendSafe
 			subpath = append(subpath, subkey)
 
-			err := rh.setFromUnmarshalledJSON(subpath, value)
-			if err != nil {
-				errs = append(errs, err)
-			}
+			rh.setFromUnmarshalledJSON(subpath, value)
 		}
 
-		return errors.Join(errs...)
-
 	default:
-		return fmt.Errorf("unexpected type for history value: %T", x)
+		rh.metrics.Set(pathAppendSafe, x)
 	}
 }

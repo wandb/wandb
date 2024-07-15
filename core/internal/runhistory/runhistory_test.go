@@ -2,6 +2,7 @@ package runhistory_test
 
 import (
 	"math"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -56,9 +57,9 @@ func TestSetRecord_UnmarshalError(t *testing.T) {
 func TestNaN(t *testing.T) {
 	rh := runhistory.New()
 
-	rh.SetFloat(pathtree.TreePath{"+inf"}, math.Inf(1))
-	rh.SetFloat(pathtree.TreePath{"-inf"}, math.Inf(-1))
-	rh.SetFloat(pathtree.TreePath{"nan"}, math.NaN())
+	_ = rh.SetFromRecord(&service.HistoryItem{Key: "+inf", ValueJson: "Infinity"})
+	_ = rh.SetFromRecord(&service.HistoryItem{Key: "-inf", ValueJson: "-Infinity"})
+	_ = rh.SetFromRecord(&service.HistoryItem{Key: "nan", ValueJson: "NaN"})
 
 	encoded, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
@@ -70,38 +71,32 @@ func TestNaN(t *testing.T) {
 	assert.True(t, math.IsNaN(asMap["nan"].(float64))) // NaN != NaN
 }
 
-func TestSetBool(t *testing.T) {
+func TestForEachNumber(t *testing.T) {
 	rh := runhistory.New()
+	_ = rh.SetFromRecord(
+		&service.HistoryItem{
+			Key: "x",
+			ValueJson: `{
+				"a": 1,
+				"b": 2.5,
+				"c": Infinity,
+				"d": -Infinity,
+				"e": NaN,
+				"f": "ignored",
+				"g": [5, 7, 8]
+			}`,
+		})
 
-	rh.SetBool(pathtree.TreePath{"bool"}, true)
+	numbers := make(map[string]float64)
+	rh.ForEachNumber(func(path pathtree.TreePath, value float64) bool {
+		numbers[strings.Join(path, ".")] = value
+		return true
+	})
 
-	encoded, _ := rh.ToExtendedJSON()
-	assert.Equal(t, `{"bool":true}`, string(encoded))
-}
-
-func TestSetInt(t *testing.T) {
-	rh := runhistory.New()
-
-	rh.SetInt(pathtree.TreePath{"int"}, 123)
-
-	encoded, _ := rh.ToExtendedJSON()
-	assert.Equal(t, `{"int":123}`, string(encoded))
-}
-
-func TestSetFloat(t *testing.T) {
-	rh := runhistory.New()
-
-	rh.SetFloat(pathtree.TreePath{"float"}, 1.23)
-
-	encoded, _ := rh.ToExtendedJSON()
-	assert.Equal(t, `{"float":1.23}`, string(encoded))
-}
-
-func TestSetString(t *testing.T) {
-	rh := runhistory.New()
-
-	rh.SetString(pathtree.TreePath{"string"}, "abc")
-
-	encoded, _ := rh.ToExtendedJSON()
-	assert.Equal(t, `{"string":"abc"}`, string(encoded))
+	assert.Len(t, numbers, 5)
+	assert.Equal(t, 1.0, numbers["x.a"])
+	assert.Equal(t, 2.5, numbers["x.b"])
+	assert.Equal(t, math.Inf(1), numbers["x.c"])
+	assert.Equal(t, math.Inf(-1), numbers["x.d"])
+	assert.True(t, math.IsNaN(numbers["x.e"])) // NaN != NaN
 }
