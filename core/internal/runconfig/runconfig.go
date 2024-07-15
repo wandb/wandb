@@ -165,12 +165,18 @@ func (rc *RunConfig) addUnsetKeysFromSubtree(
 		}
 	}
 
+	// Clone `prefix` so that it's safe to use for appending.
+	// Set the capacity to length+1 since we always append one
+	// more element.
+	prefixCopy := prefix[: len(prefix) : len(prefix)+1]
+
 	for key, value := range oldConfig {
 		if rc.pathTree.HasNode(pathtree.TreePath{key}) {
 			continue
 		}
 
-		subtreePath := append(prefix, key)
+		subtreePath := prefixCopy
+		subtreePath = append(subtreePath, key)
 		switch x := value.(type) {
 		case map[string]any:
 			rc.pathTree.SetSubtree(subtreePath, x)
