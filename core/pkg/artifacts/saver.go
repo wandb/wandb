@@ -405,15 +405,8 @@ func (as *ArtifactSaver) uploadMultipart(
 	partResponses := make(chan partResponse, len(partData))
 	// TODO: add mid-upload cancel.
 
-	var contentType string
-	for _, h := range fileInfo.uploadHeaders {
-		if strings.HasPrefix(h, "Content-Type:") {
-			contentType = strings.TrimPrefix(h, "Content-Type:")
-			break
-		}
-	}
-	if contentType == "" {
-		err := fmt.Errorf("content-type header is required for multipart uploads")
+	contentType, err := getContentType(fileInfo.uploadHeaders)
+	if err != nil {
 		return uploadResult{name: fileInfo.name, err: err}
 	}
 
@@ -485,6 +478,15 @@ func (as *ArtifactSaver) uploadMultipart(
 		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
 	)
 	return uploadResult{name: fileInfo.name, err: err}
+}
+
+func getContentType(headers []string) (string, error) {
+	for _, h := range headers {
+		if strings.HasPrefix(h, "Content-Type:") {
+			return strings.TrimPrefix(h, "Content-Type:"), nil
+		}
+	}
+	return "", fmt.Errorf("content-type header is required for multipart uploads")
 }
 
 func getChunkSize(fileSize int64) int64 {
