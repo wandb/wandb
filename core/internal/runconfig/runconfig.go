@@ -2,6 +2,7 @@ package runconfig
 
 import (
 	"fmt"
+	"slices"
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/corelib"
@@ -35,16 +36,25 @@ func New() *RunConfig {
 	}
 }
 
-func NewFrom(tree pathtree.TreeData) *RunConfig {
-	return &RunConfig{
-		pathTree: pathtree.NewFrom(tree),
+func NewFrom(tree map[string]any) *RunConfig {
+	rc := New()
+
+	for key, value := range tree {
+		switch x := value.(type) {
+		case map[string]any:
+			rc.pathTree.SetSubtree(pathtree.TreePath{key}, x)
+		default:
+			rc.pathTree.Set(pathtree.TreePath{key}, x)
+		}
 	}
+
+	return rc
 }
 
 func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
 
 	value := make(map[string]any)
-	for treeKey, treeValue := range rc.pathTree.Tree() {
+	for treeKey, treeValue := range rc.pathTree.CloneTree() {
 		value[treeKey] = map[string]any{"value": treeValue}
 	}
 
@@ -67,7 +77,6 @@ func (rc *RunConfig) ApplyChangeRecord(
 	configRecord *service.ConfigRecord,
 	onError func(error),
 ) {
-	updates := make([]*pathtree.PathItem, 0, len(configRecord.GetUpdate()))
 	for _, item := range configRecord.GetUpdate() {
 		value, err := simplejsonext.UnmarshalString(item.GetValueJson())
 		if err != nil {
@@ -75,19 +84,17 @@ func (rc *RunConfig) ApplyChangeRecord(
 			continue
 		}
 
-		updates = append(updates, &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: value,
-		})
+		switch x := value.(type) {
+		case map[string]any:
+			rc.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rc.pathTree.Set(keyPath(item), x)
+		}
 	}
-	rc.pathTree.ApplyUpdate(updates, onError)
-	removes := make([]*pathtree.PathItem, 0, len(configRecord.GetRemove()))
+
 	for _, item := range configRecord.GetRemove() {
-		removes = append(removes, &pathtree.PathItem{
-			Path: keyPath(item),
-		})
+		rc.pathTree.Remove(keyPath(item))
 	}
-	rc.pathTree.ApplyRemove(removes)
 }
 
 // Inserts W&B-internal values into the run's configuration.
@@ -95,80 +102,91 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
 	metrics []map[string]interface{},
 ) {
-	wandbInternal := rc.internalSubtree()
-
 	if telemetry.GetCliVersion() != "" {
-		wandbInternal["cli_version"] = telemetry.CliVersion
+		rc.pathTree.Set(
+			pathtree.TreePath{"_wandb", "cli_version"},
+			telemetry.CliVersion,
+		)
 	}
 	if telemetry.GetPythonVersion() != "" {
-		wandbInternal["python_version"] = telemetry.PythonVersion
+		rc.pathTree.Set(
+			pathtree.TreePath{"_wandb", "python_version"},
+			telemetry.PythonVersion,
+		)
 	}
 
-	wandbInternal["t"] = corelib.ProtoEncodeToDict(telemetry)
+	rc.pathTree.Set(
+		pathtree.TreePath{"_wandb", "t"},
+		corelib.ProtoEncodeToDict(telemetry),
+	)
 
-	if metrics != nil {
-		wandbInternal["m"] = metrics
-	}
+	rc.pathTree.Set(
+		pathtree.TreePath{"_wandb", "m"},
+		metrics,
+	)
 }
 
 // Incorporates the config from a run that's being resumed.
-func (rc *RunConfig) MergeResumedConfig(oldConfig pathtree.TreeData) error {
+func (rc *RunConfig) MergeResumedConfig(oldConfig map[string]any) {
 	// Add any top-level keys that aren't already set.
-	if err := rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.addUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{},
-	); err != nil {
-		return err
-	}
+	)
 
 	// When a user logs visualizations, we unfortunately store them in the
 	// run's config. When resuming a run, we want to avoid erasing previously
 	// logged visualizations, hence this special handling.
-	if err := rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.addUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "visualize"},
-	); err != nil {
-		return err
-	}
+	)
 
-	if err := rc.pathTree.AddUnsetKeysFromSubtree(
+	rc.addUnsetKeysFromSubtree(
 		oldConfig,
 		pathtree.TreePath{"_wandb", "viz"},
-	); err != nil {
-		return err
+	)
+}
+
+func (rc *RunConfig) addUnsetKeysFromSubtree(
+	oldConfig map[string]any,
+	prefix []string,
+) {
+	for _, part := range prefix {
+		x, ok := oldConfig[part]
+
+		if !ok {
+			return
+		}
+
+		switch subtree := x.(type) {
+		case map[string]any:
+			oldConfig = subtree
+		default:
+			return
+		}
 	}
 
-	return nil
-}
+	// Clone `prefix` so that it's safe to use for appending.
+	prefixCopy := slices.Clone(prefix)
 
-// internalSubtree returns the "_wandb" subtree of the config.
-func (rc *RunConfig) internalSubtree() pathtree.TreeData {
-	node, found := rc.pathTree.Tree()["_wandb"]
-	if !found {
-		return rc.setEmptyInternalSubtree()
+	for key, value := range oldConfig {
+		if rc.pathTree.HasNode(pathtree.TreePath{key}) {
+			continue
+		}
+
+		subtreePath := prefixCopy
+		subtreePath = append(subtreePath, key)
+		switch x := value.(type) {
+		case map[string]any:
+			rc.pathTree.SetSubtree(subtreePath, x)
+		default:
+			rc.pathTree.Set(subtreePath, x)
+		}
 	}
-
-	// Panic if the type is wrong, which should never happen.
-	wandbInternal := node.(pathtree.TreeData)
-	if wandbInternal == nil {
-		return rc.setEmptyInternalSubtree()
-	}
-
-	return wandbInternal
 }
 
-// setEmptyInternalSubtree sets the "_wandb" key to an empty map and returns it.
-func (rc *RunConfig) setEmptyInternalSubtree() pathtree.TreeData {
-	wandbInternal := make(pathtree.TreeData)
-	rc.pathTree.Tree()["_wandb"] = wandbInternal
-	return wandbInternal
-}
-
-func (rc *RunConfig) Tree() pathtree.TreeData {
-	return rc.pathTree.Tree()
-}
-
-func (rc *RunConfig) CloneTree() (pathtree.TreeData, error) {
+func (rc *RunConfig) CloneTree() map[string]any {
 	return rc.pathTree.CloneTree()
 }
 

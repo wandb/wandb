@@ -3,9 +3,13 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"io"
+	"math"
 	"net/url"
 	"os"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -34,11 +38,24 @@ type ArtifactSaver struct {
 	startTime        time.Time
 }
 
+type multipartUploadInfo = []gql.CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart
+type updateArtifactManifestAttrs = gql.UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest
+
 type serverFileResponse struct {
-	Name            string
-	BirthArtifactID string
-	UploadUrl       *string
-	UploadHeaders   []string
+	name            string
+	birthArtifactID string
+	uploadUrl       *string
+	uploadHeaders   []string
+
+	// Used only for multipart uploads.
+	uploadID            string
+	storagePath         *string
+	multipartUploadInfo multipartUploadInfo
+}
+
+type uploadResult struct {
+	name string
+	err  error
 }
 
 func NewArtifactSaver(
@@ -138,6 +155,44 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
+func (as *ArtifactSaver) updateManifest(
+	artifactManifestId string, manifestDigest string,
+) (attrs updateArtifactManifestAttrs, rerr error) {
+	response, err := gql.UpdateArtifactManifest(
+		as.Ctx,
+		as.GraphqlClient,
+		artifactManifestId,
+		&manifestDigest,
+		nil,
+		true,
+	)
+	if err != nil {
+		return updateArtifactManifestAttrs{}, err
+	}
+	if response == nil || response.GetUpdateArtifactManifest() == nil {
+		return updateArtifactManifestAttrs{}, fmt.Errorf("received invalid response from UpdateArtifactManifest")
+	}
+	return response.GetUpdateArtifactManifest().ArtifactManifest, nil
+}
+
+func (as *ArtifactSaver) upsertManifest(
+	artifactId string, baseArtifactId *string, artifactManifestId string, manifestDigest string,
+) (uploadUrl *string, uploadHeaders []string, rerr error) {
+	if as.Artifact.IncrementalBeta1 || as.Artifact.DistributedId != "" {
+		updateManifestAttrs, err := as.updateManifest(artifactManifestId, manifestDigest)
+		if err != nil {
+			return nil, nil, fmt.Errorf("ArtifactSaver.updateManifest: %w", err)
+		}
+		return updateManifestAttrs.File.UploadUrl, updateManifestAttrs.File.UploadHeaders, nil
+	} else {
+		manifestAttrs, err := as.createManifest(artifactId, baseArtifactId, manifestDigest, true /* includeUpload */)
+		if err != nil {
+			return nil, nil, fmt.Errorf("ArtifactSaver.createManifest: %w", err)
+		}
+		return manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, nil
+	}
+}
+
 func (as *ArtifactSaver) uploadFiles(
 	artifactID string, manifest *Manifest, manifestID string, _ chan<- *service.Record,
 ) error {
@@ -147,11 +202,16 @@ func (as *ArtifactSaver) uploadFiles(
 		if entry.LocalPath == nil {
 			continue
 		}
+		parts, err := multiPartRequest(*entry.LocalPath)
+		if err != nil {
+			return err
+		}
 		fileSpec := gql.CreateArtifactFileSpecInput{
 			ArtifactID:         artifactID,
 			Name:               name,
 			Md5:                entry.Digest,
 			ArtifactManifestID: &manifestID,
+			UploadPartsInput:   parts,
 		}
 		namedFileSpecs[name] = fileSpec
 	}
@@ -190,7 +250,7 @@ func (as *ArtifactSaver) processFiles(
 	readyChan := make(chan serverFileResponse)
 	errorChan := make(chan error)
 
-	doneChan := make(chan *filetransfer.Task)
+	doneChan := make(chan uploadResult, len(namedFileSpecs))
 	mustRetry := map[string]gql.CreateArtifactFileSpecInput{}
 
 	numActive := 0
@@ -211,24 +271,33 @@ func (as *ArtifactSaver) processFiles(
 		select {
 		// Start any uploads that are ready.
 		case fileInfo := <-readyChan:
-			entry := manifest.Contents[fileInfo.Name]
-			entry.BirthArtifactID = &fileInfo.BirthArtifactID
-			manifest.Contents[fileInfo.Name] = entry
+			entry := manifest.Contents[fileInfo.name]
+			entry.BirthArtifactID = &fileInfo.birthArtifactID
+			manifest.Contents[fileInfo.name] = entry
 			as.cacheEntry(entry)
-			if fileInfo.UploadUrl == nil {
+			if fileInfo.uploadUrl == nil {
 				// The server already has this file.
 				numActive--
 				as.numDone++
 				continue
 			}
-			task := newUploadTask(fileInfo, *entry.LocalPath)
-			task.SetCompletionCallback(func(t *filetransfer.Task) { doneChan <- t })
-			as.FileTransferManager.AddTask(task)
+			if fileInfo.multipartUploadInfo != nil {
+				partData := namedFileSpecs[fileInfo.name].UploadPartsInput
+				go func() {
+					doneChan <- as.uploadMultipart(*entry.LocalPath, fileInfo, partData)
+				}()
+			} else {
+				task := newUploadTask(fileInfo, *entry.LocalPath)
+				task.SetCompletionCallback(func(t *filetransfer.Task) {
+					doneChan <- uploadResult{name: fileInfo.name, err: t.Err}
+				})
+				as.FileTransferManager.AddTask(task)
+			}
 		// Listen for completed uploads, adding to the retry list if they failed.
 		case result := <-doneChan:
 			numActive--
-			if result.Err != nil {
-				mustRetry[result.Name] = namedFileSpecs[result.Name]
+			if result.err != nil {
+				mustRetry[result.name] = namedFileSpecs[result.name]
 			} else {
 				as.numDone++
 			}
@@ -260,12 +329,18 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 		return
 	}
 	for i, edge := range batchDetails {
-		resultChan <- serverFileResponse{
-			Name:            batch[i].Name,
-			BirthArtifactID: edge.Node.Artifact.Id,
-			UploadUrl:       edge.Node.UploadUrl,
-			UploadHeaders:   edge.Node.UploadHeaders,
+		resp := serverFileResponse{
+			name:            batch[i].Name,
+			birthArtifactID: edge.Node.Artifact.Id,
+			uploadUrl:       edge.Node.UploadUrl,
+			uploadHeaders:   edge.Node.UploadHeaders,
+			storagePath:     edge.Node.StoragePath,
 		}
+		if edge.Node.UploadMultipartUrls != nil {
+			resp.uploadID = edge.Node.UploadMultipartUrls.UploadID
+			resp.multipartUploadInfo = edge.Node.UploadMultipartUrls.UploadUrlParts
+		}
+		resultChan <- resp
 	}
 }
 
@@ -295,10 +370,173 @@ func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.
 		FileKind: filetransfer.RunFileKindArtifact,
 		Type:     filetransfer.UploadTask,
 		Path:     localPath,
-		Name:     fileInfo.Name,
-		Url:      *fileInfo.UploadUrl,
-		Headers:  fileInfo.UploadHeaders,
+		Name:     fileInfo.name,
+		Url:      *fileInfo.uploadUrl,
+		Headers:  fileInfo.uploadHeaders,
 	}
+}
+
+const (
+	S3MinMultiUploadSize = 2 << 30   // 2 GiB, the threshold we've chosen to switch to multipart
+	S3MaxMultiUploadSize = 5 << 40   // 5 TiB, maximum possible object size
+	S3DefaultChunkSize   = 100 << 20 // 1 MiB
+	S3MaxParts           = 10000
+)
+
+func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get file size for path %s: %w", path, err)
+	}
+	fileSize := fileInfo.Size()
+
+	if fileSize < S3MinMultiUploadSize {
+		// We don't need to use multipart for small files.
+		return nil, nil
+	}
+	if fileSize > S3MaxMultiUploadSize {
+		return nil, fmt.Errorf("file size exceeds maximum S3 object size: %v", fileSize)
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	partsInfo := []gql.UploadPartsInput{}
+	partNumber := int64(1)
+	buffer := make([]byte, getChunkSize(fileSize))
+	for {
+		bytesRead, err := file.Read(buffer)
+		if err != nil && err != io.EOF {
+			return nil, err
+		}
+		if bytesRead == 0 {
+			break
+		}
+		partsInfo = append(partsInfo, gql.UploadPartsInput{
+			PartNumber: partNumber,
+			HexMD5:     utils.ComputeHexMD5(buffer[:bytesRead]),
+		})
+		partNumber++
+	}
+	return partsInfo, nil
+}
+
+func (as *ArtifactSaver) uploadMultipart(
+	path string,
+	fileInfo serverFileResponse,
+	partData []gql.UploadPartsInput,
+) uploadResult {
+	statInfo, err := os.Stat(path)
+	if err != nil {
+		return uploadResult{name: fileInfo.name, err: err}
+	}
+	chunkSize := getChunkSize(statInfo.Size())
+
+	type partResponse struct {
+		partNumber int64
+		task       *filetransfer.Task
+	}
+
+	wg := sync.WaitGroup{}
+	partResponses := make(chan partResponse, len(partData))
+	// TODO: add mid-upload cancel.
+
+	contentType, err := getContentType(fileInfo.uploadHeaders)
+	if err != nil {
+		return uploadResult{name: fileInfo.name, err: err}
+	}
+
+	partInfo := fileInfo.multipartUploadInfo
+	for i, part := range partInfo {
+		task := newUploadTask(fileInfo, path)
+		task.Url = part.UploadUrl
+		task.Offset = int64(i) * chunkSize
+		remainingSize := statInfo.Size() - task.Offset
+		task.Size = min(remainingSize, chunkSize)
+		b64md5, err := utils.HexToB64(partData[i].HexMD5)
+		if err != nil {
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		task.Headers = []string{
+			"Content-Md5:" + b64md5,
+			"Content-Length:" + strconv.FormatInt(task.Size, 10),
+			"Content-Type:" + contentType,
+		}
+		task.SetCompletionCallback(func(t *filetransfer.Task) {
+			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: t}
+			wg.Done()
+		})
+		wg.Add(1)
+		as.FileTransferManager.AddTask(task)
+	}
+
+	go func() {
+		wg.Wait()
+		close(partResponses)
+	}()
+
+	partEtags := make([]gql.UploadPartsInput, len(partData))
+
+	for t := range partResponses {
+		err := t.task.Err
+		if err != nil {
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		if t.task.Response == nil {
+			err = fmt.Errorf("no response in task %v", t.task.Name)
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		etag := ""
+		if t.task.Response != nil {
+			etag = t.task.Response.Header.Get("ETag")
+			if etag == "" {
+				err = fmt.Errorf("no ETag in response %v", t.task.Response.Header)
+				return uploadResult{name: fileInfo.name, err: err}
+			}
+		}
+		// Part numbers should be unique values from 1 to len(partData).
+		if t.partNumber < 1 || t.partNumber > int64(len(partData)) {
+			err = fmt.Errorf("invalid part number: %d", t.partNumber)
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		if partEtags[t.partNumber-1].PartNumber != 0 {
+			err = fmt.Errorf("duplicate part number: %d", t.partNumber)
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		partEtags[t.partNumber-1] = gql.UploadPartsInput{
+			PartNumber: t.partNumber,
+			HexMD5:     etag,
+		}
+	}
+
+	_, err = gql.CompleteMultipartUploadArtifact(
+		as.Ctx, as.GraphqlClient, gql.CompleteMultipartActionComplete, partEtags,
+		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
+	)
+	return uploadResult{name: fileInfo.name, err: err}
+}
+
+func getContentType(headers []string) (string, error) {
+	for _, h := range headers {
+		if strings.HasPrefix(h, "Content-Type:") {
+			return strings.TrimPrefix(h, "Content-Type:"), nil
+		}
+	}
+	return "", fmt.Errorf("content-type header is required for multipart uploads")
+}
+
+func getChunkSize(fileSize int64) int64 {
+	if fileSize < S3DefaultChunkSize*S3MaxParts {
+		return S3DefaultChunkSize
+	}
+	// Use a larger chunk size if we would need more than 10,000 chunks.
+	chunkSize := int64(math.Ceil(float64(fileSize) / float64(S3MaxParts)))
+	// Round up to the nearest multiple of 4096.
+	chunkSize = int64(math.Ceil(float64(chunkSize)/4096) * 4096)
+	return chunkSize
 }
 
 func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {
@@ -448,11 +686,13 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.writeManifest: %w", err)
 	}
 	defer os.Remove(manifestFile)
-	manifestAttrs, err = as.createManifest(artifactID, baseArtifactId, manifestDigest, true /* includeUpload */)
+
+	uploadUrl, uploadHeaders, err := as.upsertManifest(artifactID, baseArtifactId, manifestAttrs.Id, manifestDigest)
 	if err != nil {
-		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
+		return "", fmt.Errorf("ArtifactSaver.upsertManifest: %w", err)
 	}
-	err = as.uploadManifest(manifestFile, manifestAttrs.File.UploadUrl, manifestAttrs.File.UploadHeaders, ch)
+
+	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders, ch)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}
@@ -460,7 +700,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 	if as.Artifact.Finalize {
 		err = as.commitArtifact(artifactID)
 		if err != nil {
-			return "", fmt.Errorf("ArtifactSacer.commitArtifact: %w", err)
+			return "", fmt.Errorf("ArtifactSaver.commitArtifact: %w", err)
 		}
 
 		if as.Artifact.UseAfterCommit {

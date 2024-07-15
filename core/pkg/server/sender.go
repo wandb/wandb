@@ -465,13 +465,7 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	output, err := s.runSummary.CloneTree()
-	if err != nil {
-		s.logger.Error(
-			"sender: sendJobFlush: failed to copy run summary", "error", err,
-		)
-		return
-	}
+	output := s.runSummary.CloneTree()
 
 	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
@@ -1388,8 +1382,7 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 // encodeMetricHints encodes the metric hints for the given metric record. The metric hints
 // are used to configure the plots in the UI.
 func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-
-	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
+	err := s.metricSender.AddNonGlobMetric(metric)
 	if err != nil {
 		return
 	}

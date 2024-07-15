@@ -10,7 +10,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -269,7 +268,6 @@ func (r *State) updateConfig(
 	bucket *Bucket,
 	config *runconfig.RunConfig,
 ) error {
-
 	resumed := bucket.GetConfig()
 	if resumed == nil {
 		return errors.New(
@@ -299,7 +297,7 @@ func (r *State) updateConfig(
 		)
 	}
 
-	deserializedConfig := make(pathtree.TreeData)
+	deserializedConfig := make(map[string]any)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]any)
 
@@ -316,16 +314,7 @@ func (r *State) updateConfig(
 		}
 	}
 
-	err = config.MergeResumedConfig(deserializedConfig)
-	if err != nil {
-		r.logger.Error(
-			fmt.Sprintf(
-				"sender: updateConfig: failed to merge"+
-					" resumed config: %s",
-				err,
-			),
-		)
-	}
+	config.MergeResumedConfig(deserializedConfig)
 	return nil
 }
 

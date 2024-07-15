@@ -2,8 +2,11 @@ package server_test
 
 import (
 	"context"
+	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -20,6 +23,7 @@ func makeHandler(
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
+			MetricHandler:   runmetric.NewMetricHandler(),
 		},
 	)
 
@@ -55,7 +59,7 @@ func makePartialHistoryRecord(d data) *service.Record {
 	items := []*service.HistoryItem{}
 	for k, v := range d.items {
 		items = append(items, &service.HistoryItem{
-			Key:       k,
+			NestedKey: strings.Split(k, "."),
 			ValueJson: v,
 		})
 	}
@@ -87,7 +91,7 @@ func makeHistoryRecord(d data) *service.Record {
 	items := []*service.HistoryItem{}
 	for k, v := range d.items {
 		items = append(items, &service.HistoryItem{
-			Key:       k,
+			NestedKey: strings.Split(k, "."),
 			ValueJson: v,
 		})
 	}
@@ -118,7 +122,7 @@ func makeOutput(record *service.Record) data {
 			// if strings.HasPrefix(item.Key, "_") {
 			// 	continue
 			// }
-			items[item.Key] = item.ValueJson
+			items[strings.Join(item.NestedKey, ".")] = item.ValueJson
 		}
 		return data{
 			items: items,
@@ -718,20 +722,14 @@ func TestHandlePartialHistory(t *testing.T) {
 
 			inChan <- makeFlushRecord()
 
-			for _, d := range tc.expected {
+			for i, d := range tc.expected {
 				record := <-fwdChan
 				actual := makeOutput(record)
-				if actual.step != d.step {
-					t.Errorf("expected step %v, got %v", d.step, actual.step)
-				}
+				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				for k, v := range d.items {
-					if actual.items[k] != v {
-						t.Errorf("expected %v, got %v", v, actual.items[k])
-					}
+					assert.Equal(t, v, actual.items[k], "key=%s", k)
 				}
-				if d.flush != actual.flush {
-					t.Errorf("expected %v, got %v", d.flush, d.flush)
-				}
+				assert.Equal(t, d.flush, actual.flush, "wrong value of flush in record %d", i)
 			}
 		},
 		)

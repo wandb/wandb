@@ -7,25 +7,29 @@ import (
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type RunSummary struct {
 	pathTree *pathtree.PathTree
 	stats    *Node
-	mh       *runmetric.MetricHandler
+	mh       RunSummaryMetricHandler
+}
+
+type RunSummaryMetricHandler interface {
+	// Hack to prevent an import cycle in the middle of a refactor.
+	//
+	// The RunSummary will soon be refactored.
+
+	HackGetDefinedMetrics() map[string]*service.MetricRecord
+	HackGetGlobMetrics() map[string]*service.MetricRecord
 }
 
 type Params struct {
-	MetricHandler *runmetric.MetricHandler
+	MetricHandler RunSummaryMetricHandler
 }
 
 func New(params Params) *RunSummary {
-	if params.MetricHandler == nil {
-		params.MetricHandler = runmetric.NewMetricHandler()
-	}
-
 	rs := &RunSummary{
 		pathTree: pathtree.New(),
 		stats:    NewNode(),
@@ -34,34 +38,16 @@ func New(params Params) *RunSummary {
 	return rs
 }
 
-func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
-	stats := NewNode()
-	for k, v := range tree {
-		if subtree, ok := v.(pathtree.TreeData); ok {
-			stats.nodes[k] = statsTreeFromPathTree(subtree)
-		} else {
-			stats.nodes[k] = &Node{
-				stats: &Stats{},
-			}
-		}
-	}
-	return stats
-}
-
-func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{
-		pathTree: pathtree.NewFrom(tree),
-		stats:    statsTreeFromPathTree(tree),
-		mh:       runmetric.NewMetricHandler(),
-	}
-}
-
 // GetSummaryTypes matches the path against the defined metrics and returns the
 // requested summary type for the metric.
 //
 // It first checked the concrete metrics and then the glob metrics.
 // The first match wins. If no match is found, it returns Latest.
 func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
+	if rs.mh == nil {
+		return nil
+	}
+
 	// look for a matching rule
 	// TODO: properly implement dot notation for nested keys,
 	// see test_metric_full.py::test_metric_dotted for an example
@@ -69,7 +55,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 
 	types := make([]SummaryType, 0)
 
-	for pattern, definedMetric := range rs.mh.DefinedMetrics {
+	for pattern, definedMetric := range rs.mh.HackGetDefinedMetrics() {
 		if pattern == name {
 			summary := definedMetric.GetSummary()
 			if summary.GetNone() {
@@ -89,7 +75,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 			}
 		}
 	}
-	for pattern, globMetric := range rs.mh.GlobMetrics {
+	for pattern, globMetric := range rs.mh.HackGetGlobMetrics() {
 		// match the key against the glob pattern:
 		// note check for no error
 		if match, err := filepath.Match(pattern, name); err == nil && match {
@@ -123,9 +109,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	// handle updates
-	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
-
 	for _, item := range summaryRecord.GetUpdate() {
 		update, err := simplejsonext.UnmarshalString(item.GetValueJson())
 		if err != nil {
@@ -181,28 +164,23 @@ func (rs *RunSummary) ApplyChangeRecord(
 			update = updateMap
 		}
 
-		// store the update
-		updates = append(updates, &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: update,
-		})
-
+		switch x := update.(type) {
+		case map[string]any:
+			rs.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rs.pathTree.Set(keyPath(item), x)
+		}
 	}
-	rs.pathTree.ApplyUpdate(updates, onError)
 
-	// handle removes
-	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
 	for _, item := range summaryRecord.GetRemove() {
-		removes = append(removes, &pathtree.PathItem{
-			Path: keyPath(item),
-		})
+		rs.pathTree.Remove(keyPath(item))
+
 		// remove the stats
 		err := rs.stats.DeleteNode(keyPath(item))
 		if err != nil {
 			onError(err)
 		}
 	}
-	rs.pathTree.ApplyRemove(removes)
 }
 
 // Flatten the summary tree into a slice of SummaryItems.
@@ -248,20 +226,18 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 }
 
 // CloneTree clones the tree. This is useful for creating a snapshot of the tree.
-func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
-
+func (rs *RunSummary) CloneTree() map[string]any {
 	return rs.pathTree.CloneTree()
 }
 
-// Tree returns the tree data.
-func (rs *RunSummary) Tree() pathtree.TreeData {
-
-	return rs.pathTree.Tree()
+// Get returns the summary value for a metric.
+func (rs *RunSummary) Get(key string) (any, bool) {
+	return rs.pathTree.GetLeaf(pathtree.TreePath{key})
 }
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
-	return simplejsonext.Marshal(rs.Tree())
+	return rs.pathTree.ToExtendedJSON()
 }
 
 // keyPath returns the key path for the given config item.
