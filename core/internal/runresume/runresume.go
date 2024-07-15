@@ -205,16 +205,26 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 		return err
 	}
 
-	if step, ok := historyTail["_step"].(int64); ok {
+	step, ok := historyTail["_step"]
+	if ok {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
-		if step > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
-			run.StartingStep = step + 1
+		switch x := step.(type) {
+		case int64:
+			if x > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
+				run.StartingStep = x + 1
+			}
 		}
 	}
 
-	if runtime, ok := historyTail["_runtime"].(int64); ok {
-		run.Runtime = int32(runtime)
+	runtime, ok := historyTail["_runtime"]
+	if ok {
+		switch x := runtime.(type) {
+		case int64:
+			run.Runtime = int32(x)
+		case float64:
+			run.Runtime = int32(x)
+		}
 	}
 
 	return nil
