@@ -1,0 +1,19 @@
+mutation CompleteMultipartUploadArtifact(
+  $completeMultipartAction: CompleteMultipartAction!
+  $completedParts: [UploadPartsInput!]!
+  $artifactID: ID!
+  $storagePath: String!
+  $uploadID: String!
+) {
+  completeMultipartUploadArtifact(
+    input: {
+      completeMultipartAction: $completeMultipartAction
+      completedParts: $completedParts
+      artifactID: $artifactID
+      storagePath: $storagePath
+      uploadID: $uploadID
+    }
+  ) {
+    digest
+  }
+}

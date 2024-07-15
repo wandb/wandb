@@ -271,8 +271,9 @@ func TestUpdate(t *testing.T) {
 				}
 
 				if tc.expectConfigUpdate {
-					require.Len(t, configCopy.Tree(), 1)
-					value, ok := configCopy.Tree()["lr"]
+					tree := configCopy.CloneTree()
+					require.Len(t, tree, 1)
+					value, ok := tree["lr"]
 					require.True(t, ok, "Expected key 'lr' in config")
 					assert.Equal(t, 0.001, value)
 				}
