@@ -677,6 +677,64 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceStr
 	return v.VersionOnThisInstanceString
 }
 
+// UpdateArtifactManifestResponse is returned by UpdateArtifactManifest on success.
+type UpdateArtifactManifestResponse struct {
+	UpdateArtifactManifest *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload `json:"updateArtifactManifest"`
+}
+
+// GetUpdateArtifactManifest returns UpdateArtifactManifestResponse.UpdateArtifactManifest, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestResponse) GetUpdateArtifactManifest() *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload {
+	return v.UpdateArtifactManifest
+}
+
+// UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload includes the requested fields of the GraphQL type UpdateArtifactManifestPayload.
+type UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload struct {
+	ArtifactManifest UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest `json:"artifactManifest"`
+}
+
+// GetArtifactManifest returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload.ArtifactManifest, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload) GetArtifactManifest() UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest {
+	return v.ArtifactManifest
+}
+
+// UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest includes the requested fields of the GraphQL type ArtifactManifest.
+type UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest struct {
+	Id   string                                                                                        `json:"id"`
+	File UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile `json:"file"`
+}
+
+// GetId returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest.Id, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest) GetId() string {
+	return v.Id
+}
+
+// GetFile returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest.File, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest) GetFile() UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile {
+	return v.File
+}
+
+// UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile includes the requested fields of the GraphQL type File.
+type UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile struct {
+	Id            string   `json:"id"`
+	UploadUrl     *string  `json:"uploadUrl"`
+	UploadHeaders []string `json:"uploadHeaders"`
+}
+
+// GetId returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile.Id, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile) GetId() string {
+	return v.Id
+}
+
+// GetUploadUrl returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile.UploadUrl, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile) GetUploadUrl() *string {
+	return v.UploadUrl
+}
+
+// GetUploadHeaders returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile.UploadHeaders, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile) GetUploadHeaders() []string {
+	return v.UploadHeaders
+}
+
 // UpdateArtifactResponse is returned by UpdateArtifact on success.
 type UpdateArtifactResponse struct {
 	UpdateArtifact *UpdateArtifactUpdateArtifactUpdateArtifactPayload `json:"updateArtifact"`
@@ -1177,6 +1235,26 @@ func (v *__UpdateArtifactInput) GetArtifactID() string { return v.ArtifactID }
 
 // GetMetadata returns __UpdateArtifactInput.Metadata, and is useful for accessing the field via an interface.
 func (v *__UpdateArtifactInput) GetMetadata() *string { return v.Metadata }
+
+// __UpdateArtifactManifestInput is used internally by genqlient
+type __UpdateArtifactManifestInput struct {
+	ArtifactManifestID string  `json:"artifactManifestID"`
+	Digest             *string `json:"digest"`
+	BaseArtifactID     *string `json:"baseArtifactID"`
+	IncludeUpload      bool    `json:"includeUpload"`
+}
+
+// GetArtifactManifestID returns __UpdateArtifactManifestInput.ArtifactManifestID, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetArtifactManifestID() string { return v.ArtifactManifestID }
+
+// GetDigest returns __UpdateArtifactManifestInput.Digest, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetDigest() *string { return v.Digest }
+
+// GetBaseArtifactID returns __UpdateArtifactManifestInput.BaseArtifactID, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetBaseArtifactID() *string { return v.BaseArtifactID }
+
+// GetIncludeUpload returns __UpdateArtifactManifestInput.IncludeUpload, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetIncludeUpload() bool { return v.IncludeUpload }
 
 // __UpsertBucketInput is used internally by genqlient
 type __UpsertBucketInput struct {
@@ -1915,6 +1993,54 @@ func UpdateArtifact(
 	var err_ error
 
 	var data_ UpdateArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by UpdateArtifactManifest.
+const UpdateArtifactManifest_Operation = `
+mutation UpdateArtifactManifest ($artifactManifestID: ID!, $digest: String, $baseArtifactID: ID, $includeUpload: Boolean!) {
+	updateArtifactManifest(input: {artifactManifestID:$artifactManifestID,digest:$digest,baseArtifactID:$baseArtifactID}) {
+		artifactManifest {
+			id
+			file {
+				id
+				uploadUrl @include(if: $includeUpload)
+				uploadHeaders @include(if: $includeUpload)
+			}
+		}
+	}
+}
+`
+
+func UpdateArtifactManifest(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactManifestID string,
+	digest *string,
+	baseArtifactID *string,
+	includeUpload bool,
+) (*UpdateArtifactManifestResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "UpdateArtifactManifest",
+		Query:  UpdateArtifactManifest_Operation,
+		Variables: &__UpdateArtifactManifestInput{
+			ArtifactManifestID: artifactManifestID,
+			Digest:             digest,
+			BaseArtifactID:     baseArtifactID,
+			IncludeUpload:      includeUpload,
+		},
+	}
+	var err_ error
+
+	var data_ UpdateArtifactManifestResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

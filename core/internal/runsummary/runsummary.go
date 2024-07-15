@@ -38,27 +38,6 @@ func New(params Params) *RunSummary {
 	return rs
 }
 
-func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
-	stats := NewNode()
-	for k, v := range tree {
-		if subtree, ok := v.(pathtree.TreeData); ok {
-			stats.nodes[k] = statsTreeFromPathTree(subtree)
-		} else {
-			stats.nodes[k] = &Node{
-				stats: &Stats{},
-			}
-		}
-	}
-	return stats
-}
-
-func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{
-		pathTree: pathtree.NewFrom(tree),
-		stats:    statsTreeFromPathTree(tree),
-	}
-}
-
 // GetSummaryTypes matches the path against the defined metrics and returns the
 // requested summary type for the metric.
 //
@@ -130,9 +109,6 @@ func (rs *RunSummary) ApplyChangeRecord(
 	summaryRecord *service.SummaryRecord,
 	onError func(error),
 ) {
-	// handle updates
-	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
-
 	for _, item := range summaryRecord.GetUpdate() {
 		var update interface{}
 		// custom unmarshal function that handles NaN and +-Inf
@@ -190,28 +166,23 @@ func (rs *RunSummary) ApplyChangeRecord(
 			update = updateMap
 		}
 
-		// store the update
-		updates = append(updates, &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: update,
-		})
-
+		switch x := update.(type) {
+		case map[string]any:
+			rs.pathTree.SetSubtree(keyPath(item), x)
+		default:
+			rs.pathTree.Set(keyPath(item), x)
+		}
 	}
-	rs.pathTree.ApplyUpdate(updates, onError)
 
-	// handle removes
-	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
 	for _, item := range summaryRecord.GetRemove() {
-		removes = append(removes, &pathtree.PathItem{
-			Path: keyPath(item),
-		})
+		rs.pathTree.Remove(keyPath(item))
+
 		// remove the stats
 		err := rs.stats.DeleteNode(keyPath(item))
 		if err != nil {
 			onError(err)
 		}
 	}
-	rs.pathTree.ApplyRemove(removes)
 }
 
 // Flatten the summary tree into a slice of SummaryItems.
@@ -257,20 +228,18 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 }
 
 // CloneTree clones the tree. This is useful for creating a snapshot of the tree.
-func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
-
+func (rs *RunSummary) CloneTree() map[string]any {
 	return rs.pathTree.CloneTree()
 }
 
-// Tree returns the tree data.
-func (rs *RunSummary) Tree() pathtree.TreeData {
-
-	return rs.pathTree.Tree()
+// Get returns the summary value for a metric.
+func (rs *RunSummary) Get(key string) (any, bool) {
+	return rs.pathTree.GetLeaf(pathtree.TreePath{key})
 }
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
-	return json.Marshal(rs.Tree())
+	return rs.pathTree.ToExtendedJSON()
 }
 
 // keyPath returns the key path for the given config item.

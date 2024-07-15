@@ -1,6 +1,7 @@
 package runhistory
 
 import (
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/sampler"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -20,16 +21,26 @@ func NewRunHistorySampler() *RunHistorySampler {
 //
 // This must be called on history rows in order.
 func (s *RunHistorySampler) SampleNext(history *RunHistory) {
+	// TODO: Support sampling nested metrics.
 	history.ForEach(
-		func(key string, value int64) bool {
-			s.sampleInt(key, value)
+		func(path pathtree.TreePath, value bool) bool { return true },
+		func(path pathtree.TreePath, value int64) bool {
+			if len(path) != 1 {
+				return true
+			}
+
+			s.sampleInt(path[0], value)
 			return true
 		},
-		func(key string, value float64) bool {
-			s.sampleFloat(key, value)
+		func(path pathtree.TreePath, value float64) bool {
+			if len(path) != 1 {
+				return true
+			}
+
+			s.sampleFloat(path[0], value)
 			return true
 		},
-		func(key, value string) bool { return true },
+		func(path pathtree.TreePath, value string) bool { return true },
 	)
 }
 

@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -19,9 +21,9 @@ func TestSetFromRecord_NestedKey(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	x, exists := rh.GetNumber("a.b")
-	assert.True(t, exists)
-	assert.EqualValues(t, 1, x)
+	encoded, err := rh.ToExtendedJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"a": {"b": 1}}`, string(encoded))
 }
 
 func TestSetRecord_NestedValue(t *testing.T) {
@@ -29,40 +31,59 @@ func TestSetRecord_NestedValue(t *testing.T) {
 
 	err := rh.SetFromRecord(&service.HistoryItem{
 		Key:       "a",
-		ValueJson: `{"b": 1, "c": {"d": 2.5, "e": "e"}}`,
+		ValueJson: `{"b": 1, "c": {"d": 2.5, "e": "e", "f": false}}`,
 	})
 
 	require.NoError(t, err)
-	ab, _ := rh.GetNumber("a.b")
-	acd, _ := rh.GetNumber("a.c.d")
-	ace, _ := rh.GetString("a.c.e")
-	assert.EqualValues(t, 1, ab)
-	assert.EqualValues(t, 2.5, acd)
-	assert.Equal(t, "e", ace)
+	encoded, err := rh.ToExtendedJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"a": {"b": 1, "c": {"d": 2.5, "e": "e", "f": false}}}`,
+		string(encoded))
+}
+
+func TestSetRecord_UnmarshalError(t *testing.T) {
+	rh := runhistory.New()
+
+	err := rh.SetFromRecord(&service.HistoryItem{
+		Key:       "a",
+		ValueJson: "invalid",
+	})
+
+	assert.ErrorContains(t, err, "failed to unmarshal")
 }
 
 func TestNaN(t *testing.T) {
 	rh := runhistory.New()
 
-	rh.SetFloat("+inf", math.Inf(1))
-	rh.SetFloat("-inf", math.Inf(-1))
-	rh.SetFloat("nan", math.NaN())
+	rh.SetFloat(pathtree.TreePath{"+inf"}, math.Inf(1))
+	rh.SetFloat(pathtree.TreePath{"-inf"}, math.Inf(-1))
+	rh.SetFloat(pathtree.TreePath{"nan"}, math.NaN())
 
 	encoded, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
-	assert.Equal(t,
-		`{"+inf":Infinity,"-inf":-Infinity,"nan":NaN}`,
-		string(encoded))
+	var asMap map[string]any
+	err = json.Unmarshal(encoded, &asMap)
+	require.NoError(t, err)
+	assert.Equal(t, asMap["+inf"], math.Inf(1))
+	assert.Equal(t, asMap["-inf"], math.Inf(-1))
+	assert.True(t, math.IsNaN(asMap["nan"].(float64))) // NaN != NaN
+}
+
+func TestSetBool(t *testing.T) {
+	rh := runhistory.New()
+
+	rh.SetBool(pathtree.TreePath{"bool"}, true)
+
+	encoded, _ := rh.ToExtendedJSON()
+	assert.Equal(t, `{"bool":true}`, string(encoded))
 }
 
 func TestSetInt(t *testing.T) {
 	rh := runhistory.New()
 
-	rh.SetInt("int", 123)
+	rh.SetInt(pathtree.TreePath{"int"}, 123)
 
-	x, exists := rh.GetNumber("int")
-	assert.True(t, exists)
-	assert.EqualValues(t, 123, x)
 	encoded, _ := rh.ToExtendedJSON()
 	assert.Equal(t, `{"int":123}`, string(encoded))
 }
@@ -70,11 +91,8 @@ func TestSetInt(t *testing.T) {
 func TestSetFloat(t *testing.T) {
 	rh := runhistory.New()
 
-	rh.SetFloat("float", 1.23)
+	rh.SetFloat(pathtree.TreePath{"float"}, 1.23)
 
-	x, exists := rh.GetNumber("float")
-	assert.True(t, exists)
-	assert.EqualValues(t, 1.23, x)
 	encoded, _ := rh.ToExtendedJSON()
 	assert.Equal(t, `{"float":1.23}`, string(encoded))
 }
@@ -82,27 +100,8 @@ func TestSetFloat(t *testing.T) {
 func TestSetString(t *testing.T) {
 	rh := runhistory.New()
 
-	rh.SetString("string", "abc")
+	rh.SetString(pathtree.TreePath{"string"}, "abc")
 
-	x, exists := rh.GetString("string")
-	assert.True(t, exists)
-	assert.Equal(t, "abc", x)
 	encoded, _ := rh.ToExtendedJSON()
 	assert.Equal(t, `{"string":"abc"}`, string(encoded))
-}
-
-func TestGetNonExistent(t *testing.T) {
-	rh := runhistory.New()
-	rh.SetFloat("num", 1.23)
-	rh.SetString("string", "abc")
-
-	_, stringIsNumber := rh.GetNumber("string")
-	_, numberIsString := rh.GetString("num")
-	_, badKeyIsNumber := rh.GetNumber("nope")
-	_, badKeyIsString := rh.GetString("nope")
-
-	assert.False(t, stringIsNumber)
-	assert.False(t, numberIsString)
-	assert.False(t, badKeyIsNumber)
-	assert.False(t, badKeyIsString)
 }

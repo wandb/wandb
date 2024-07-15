@@ -14,6 +14,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
@@ -1159,7 +1160,7 @@ func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryReques
 // nextStep is ignored.
 func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Don't log anything if there are no metrics.
-	if h.partialHistory == nil || h.partialHistory.Size() == 0 {
+	if h.partialHistory == nil || h.partialHistory.IsEmpty() {
 		if useStep {
 			h.partialHistoryStep = nextStep
 		}
@@ -1168,7 +1169,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}
 
 	h.partialHistory.SetFloat(
-		"_runtime",
+		pathtree.TreePath{"_runtime"},
 		h.runTimer.Elapsed().Seconds(),
 	)
 
@@ -1178,9 +1179,15 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// came from the same writer. Otherwise, we must set the step explicitly.
 	if h.settings.GetXShared().GetValue() {
 		// TODO: useStep must be false here
-		h.partialHistory.SetString("_client_id", h.clientID)
+		h.partialHistory.SetString(
+			pathtree.TreePath{"_client_id"},
+			h.clientID,
+		)
 	} else if useStep {
-		h.partialHistory.SetInt("_step", h.partialHistoryStep)
+		h.partialHistory.SetInt(
+			pathtree.TreePath{"_step"},
+			h.partialHistoryStep,
+		)
 	}
 
 	newMetricDefs := h.metricHandler.CreateGlobMetrics(h.partialHistory)

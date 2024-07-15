@@ -3,37 +3,26 @@ package runhistory
 import (
 	"errors"
 	"fmt"
-	"strings"
+	"slices"
 
 	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // RunHistory is a set of metrics in a single step of a run.
 //
-// Keys for metrics logged using a nested dictionary, like
-//
-//	run.log({"a": {"b": 1}})
-//
-// get joined with ".", so that the above is equivalent to
-//
-//	run.log({"a.b": 1})
-//
-// The W&B UI supports nested metrics using "/"-separted keys,
-// but this does not interact with dictionary nesting (much to
-// the surprise of everyone).
+// Metric values are always one of:
+//   - bool
+//   - int64
+//   - float64
+//   - string
 type RunHistory struct {
-	// metrics maps .-separated metric keys to values.
-	//
-	// Metric values are always one of:
-	//  - int64
-	//  - float64
-	//  - string
-	metrics map[string]any
+	metrics *pathtree.PathTree
 }
 
 func New() *RunHistory {
-	return &RunHistory{metrics: make(map[string]any)}
+	return &RunHistory{metrics: pathtree.New()}
 }
 
 // ToExtendedJSON returns the corresponding wandb-history.jsonl line.
@@ -41,7 +30,7 @@ func New() *RunHistory {
 // This serializes to an extension of JSON that supports +-Infinity
 // and NaN numbers.
 func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
-	return json.Marshal(rh.metrics)
+	return rh.metrics.ToExtendedJSON()
 }
 
 // ToRecords returns the history as a slice of records.
@@ -54,20 +43,22 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 	var records []*service.HistoryItem
 	var errs []error
 
-	for key, value := range rh.metrics {
+	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
 		valueJSON, err := json.Marshal(value)
 
 		if err != nil {
 			errs = append(errs,
-				fmt.Errorf("failed to marshal key %s: %v", key, err))
-			continue
+				fmt.Errorf("failed to marshal key %v: %v", path, err))
+			return true
 		}
 
 		records = append(records, &service.HistoryItem{
-			NestedKey: strings.Split(key, "."),
+			NestedKey: path,
 			ValueJson: string(valueJSON),
 		})
-	}
+
+		return true
+	})
 
 	return records, errors.Join(errs...)
 }
@@ -77,109 +68,69 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 // The callbacks must not modify the history. The callbacks return true
 // to continue iteration, or false to stop early.
 func (rh *RunHistory) ForEach(
-	onInt func(key string, value int64) bool,
-	onFloat func(key string, value float64) bool,
-	onString func(key string, value string) bool,
+	onBool func(path pathtree.TreePath, value bool) bool,
+	onInt func(path pathtree.TreePath, value int64) bool,
+	onFloat func(path pathtree.TreePath, value float64) bool,
+	onString func(path pathtree.TreePath, value string) bool,
 ) {
-	for key, value := range rh.metrics {
+	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
 		switch x := value.(type) {
+		case bool:
+			return onBool(path, x)
+
 		case int64:
-			if !onInt(key, x) {
-				return
-			}
+			return onInt(path, x)
 
 		case float64:
-			if !onFloat(key, x) {
-				return
-			}
+			return onFloat(path, x)
 
 		case string:
-			if !onString(key, x) {
-				return
-			}
+			return onString(path, x)
 		}
-	}
+
+		return true
+	})
 }
 
 // ForEachKey runs a callback on the key of each metric that has a value.
 //
 // Iteration stops if the callback returns false.
-func (rh *RunHistory) ForEachKey(fn func(key string) bool) {
-	for key := range rh.metrics {
-		if !fn(key) {
-			return
-		}
-	}
+func (rh *RunHistory) ForEachKey(fn func(path pathtree.TreePath) bool) {
+	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
+		return fn(path)
+	})
 }
 
-// Size returns the number of metrics.
-func (rh *RunHistory) Size() int {
-	return len(rh.metrics)
+// IsEmpty returns true if no metrics are logged.
+func (rh *RunHistory) IsEmpty() bool {
+	return rh.metrics.IsEmpty()
 }
 
 // Contains returns whether there is a value for the metric.
-func (rh *RunHistory) Contains(key string) bool {
-	_, exists := rh.metrics[key]
+func (rh *RunHistory) Contains(path ...string) bool {
+	// TODO: should this work for non-leaf values?
+	_, exists := rh.metrics.GetLeaf(path)
 	return exists
 }
 
-// GetNumber returns the value of a number-valued metric.
-//
-// Integer-valued metrics are coerced to float64. Returns a boolean
-// indicating whether there was a number-valued metric for the key.
-func (rh *RunHistory) GetNumber(key string) (float64, bool) {
-	value, exists := rh.metrics[key]
-	if !exists {
-		return 0, false
-	}
-
-	switch x := value.(type) {
-	case int64:
-		return float64(x), true
-	case float64:
-		return x, true
-	default:
-		return 0, false
-	}
-}
-
-// GetString returns the value of a string-valued metric.
-//
-// Returns a boolean indicating whether there was a string-valued metric
-// for the key.
-func (rh *RunHistory) GetString(key string) (string, bool) {
-	value, exists := rh.metrics[key]
-	if !exists {
-		return "", false
-	}
-
-	switch x := value.(type) {
-	case string:
-		return x, true
-	default:
-		return "", false
-	}
+// SetBool sets a metric to a boolean value.
+func (rh *RunHistory) SetBool(path pathtree.TreePath, value bool) {
+	rh.metrics.Set(path, value)
 }
 
 // SetInt sets a metric to an integer value.
-//
-// See the [RunHistory] documentation about keys.
-func (rh *RunHistory) SetInt(key string, value int64) {
-	rh.metrics[key] = value
+func (rh *RunHistory) SetInt(path pathtree.TreePath, value int64) {
+	rh.metrics.Set(path, value)
 }
 
 // SetFloat sets a metric to a float value.
-//
-// See the [RunHistory] documentation about keys.
-func (rh *RunHistory) SetFloat(key string, value float64) {
-	rh.metrics[key] = value
+func (rh *RunHistory) SetFloat(path pathtree.TreePath, value float64) {
+	rh.metrics.Set(path, value)
 }
 
 // SetString sets a metric to a string value.
-//
-// See the [RunHistory] documentation about keys.
-func (rh *RunHistory) SetString(key string, value string) {
-	rh.metrics[key] = value
+func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
+	rh.metrics.Set(path, value)
 }
 
 // SetFromRecord records one or more metrics specified in a history proto.
@@ -188,16 +139,15 @@ func (rh *RunHistory) SetString(key string, value string) {
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
 // and any errors are joined and returned.
 func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
-	var key string
+	var pathAppendSafe pathtree.TreePath
 
 	if len(record.NestedKey) > 0 {
-		// See the documentation on Set for nested keys.
-		key = strings.Join(record.NestedKey, ".")
+		// We clone the nested key so that it's safe to append to it
+		// without further cloning.
+		pathAppendSafe = slices.Clone(record.NestedKey)
+	} else if len(record.Key) > 0 {
+		pathAppendSafe = pathtree.TreePath{record.Key}
 	} else {
-		key = record.Key
-	}
-
-	if key == "" {
 		return errors.New("empty history item key")
 	}
 
@@ -207,31 +157,37 @@ func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)
 	}
 
-	return rh.setFromUnmarshalledJSON(key, value)
+	return rh.setFromUnmarshalledJSON(pathAppendSafe, value)
 }
 
 // setFromUnmarshalledJSON sets metrics from a decoded JSON string.
-//
-// Given a JSON object with nested keys, field paths are concatenated
-// using "." to create metric keys. So if key="k" and value={"a": {"b": 3}},
-// then the metric "k.a.b" is set to 3.
-func (rh *RunHistory) setFromUnmarshalledJSON(key string, value any) error {
+func (rh *RunHistory) setFromUnmarshalledJSON(
+	pathAppendSafe pathtree.TreePath,
+	value any,
+) error {
 	switch x := value.(type) {
+
+	case bool:
+		rh.SetBool(pathAppendSafe, x)
+		return nil
 
 	// encoding/json and segmentio-encoding/json decode all numbers as float64.
 	case float64:
-		rh.SetFloat(key, x)
+		rh.SetFloat(pathAppendSafe, x)
 		return nil
 
 	case string:
-		rh.SetString(key, x)
+		rh.SetString(pathAppendSafe, x)
 		return nil
 
 	case map[string]any:
 		var errs []error
 
 		for subkey, value := range x {
-			err := rh.setFromUnmarshalledJSON(key+"."+subkey, value)
+			subpath := pathAppendSafe
+			subpath = append(subpath, subkey)
+
+			err := rh.setFromUnmarshalledJSON(subpath, value)
 			if err != nil {
 				errs = append(errs, err)
 			}

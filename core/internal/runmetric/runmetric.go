@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -65,18 +66,22 @@ func (mh *MetricHandler) hackInsertLatestValue(
 	history *runhistory.RunHistory,
 	summary *runsummary.RunSummary,
 ) {
-	value, exists := summary.Tree()[stepMetricKey]
+	value, exists := summary.Get(stepMetricKey)
 	if !exists {
 		return
 	}
 
+	path := pathtree.TreePath{stepMetricKey}
+
 	switch x := value.(type) {
+	case bool:
+		history.SetBool(path, x)
 	case int64:
-		history.SetInt(stepMetricKey, x)
+		history.SetInt(path, x)
 	case float64:
-		history.SetFloat(stepMetricKey, x)
+		history.SetFloat(path, x)
 	case string:
-		history.SetString(stepMetricKey, x)
+		history.SetString(path, x)
 	}
 }
 
@@ -87,7 +92,13 @@ func (mh *MetricHandler) CreateGlobMetrics(
 ) []*service.MetricRecord {
 	var newMetrics []*service.MetricRecord
 
-	history.ForEachKey(func(key string) bool {
+	history.ForEachKey(func(path pathtree.TreePath) bool {
+		// TODO: Support nested keys.
+		if len(path) != 1 {
+			return true
+		}
+		key := path[0]
+
 		// Skip metrics prefixed by an underscore, which are internal to W&B.
 		if strings.HasPrefix(key, "_") {
 			return true
