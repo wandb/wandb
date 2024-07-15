@@ -244,7 +244,9 @@ func (as *ArtifactSaver) processFiles(
 			}
 			if fileInfo.multipartUploadInfo != nil {
 				partData := namedFileSpecs[fileInfo.name].UploadPartsInput
-				go as.uploadMultipart(*entry.LocalPath, fileInfo, partData, doneChan)
+				go func() {
+					doneChan <- as.uploadMultipart(*entry.LocalPath, fileInfo, partData)
+				}()
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
 				task.SetCompletionCallback(func(t *filetransfer.Task) {
@@ -387,12 +389,10 @@ func (as *ArtifactSaver) uploadMultipart(
 	path string,
 	fileInfo serverFileResponse,
 	partData []gql.UploadPartsInput,
-	doneChan chan<- uploadResult,
-) {
+) uploadResult {
 	statInfo, err := os.Stat(path)
 	if err != nil {
-		doneChan <- uploadResult{name: fileInfo.name, err: err}
-		return
+		return uploadResult{name: fileInfo.name, err: err}
 	}
 	chunkSize := getChunkSize(statInfo.Size())
 
@@ -414,8 +414,7 @@ func (as *ArtifactSaver) uploadMultipart(
 	}
 	if contentType == "" {
 		err := fmt.Errorf("content-type header is required for multipart uploads")
-		doneChan <- uploadResult{name: fileInfo.name, err: err}
-		return
+		return uploadResult{name: fileInfo.name, err: err}
 	}
 
 	partInfo := fileInfo.multipartUploadInfo
@@ -427,7 +426,7 @@ func (as *ArtifactSaver) uploadMultipart(
 		task.Size = min(remainingSize, chunkSize)
 		b64md5, err := utils.HexToB64(partData[i].HexMD5)
 		if err != nil {
-			panic(err)
+			return uploadResult{name: fileInfo.name, err: err}
 		}
 		task.Headers = []string{
 			"Content-Md5:" + b64md5,
@@ -462,8 +461,7 @@ func (as *ArtifactSaver) uploadMultipart(
 			}
 		}
 		if err != nil {
-			doneChan <- uploadResult{name: fileInfo.name, err: err}
-			return
+			return uploadResult{name: fileInfo.name, err: err}
 		}
 		partEtags[t.partNumber-1] = gql.UploadPartsInput{
 			PartNumber: t.partNumber,
@@ -475,7 +473,7 @@ func (as *ArtifactSaver) uploadMultipart(
 		as.Ctx, as.GraphqlClient, gql.CompleteMultipartActionComplete, partEtags,
 		fileInfo.birthArtifactID, *fileInfo.storagePath, fileInfo.uploadID,
 	)
-	doneChan <- uploadResult{name: fileInfo.name, err: err}
+	return uploadResult{name: fileInfo.name, err: err}
 }
 
 func getChunkSize(fileSize int64) int64 {
