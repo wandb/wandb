@@ -34,20 +34,6 @@ func New(params Params) *RunSummary {
 	return rs
 }
 
-func statsTreeFromPathTree(tree map[string]any) *Node {
-	stats := NewNode()
-	for k, v := range tree {
-		if subtree, ok := v.(map[string]any); ok {
-			stats.nodes[k] = statsTreeFromPathTree(subtree)
-		} else {
-			stats.nodes[k] = &Node{
-				stats: &Stats{},
-			}
-		}
-	}
-	return stats
-}
-
 // GetSummaryTypes matches the path against the defined metrics and returns the
 // requested summary type for the metric.
 //
