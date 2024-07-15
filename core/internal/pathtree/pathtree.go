@@ -1,22 +1,23 @@
 package pathtree
 
-// TreeData is an internal representation for a nested key-value pair.
-//
-// This is a map where values are either
-//   - TreeData
-//   - Any caller-provided type
-//
-// TODO: Remove this---it should not be exported.
-type TreeData = map[string]any
+import "github.com/wandb/segmentio-encoding/json"
 
 // TreePath is a list of strings mapping to a value.
 type TreePath []string
 
 // PathTree is a tree with a string at each non-leaf node.
+//
+// If the leaves are JSON values, then this is essentially a JSON object.
 type PathTree struct {
-	// The underlying configuration tree.
-	tree TreeData
+	tree treeData
 }
+
+// treeData is an internal representation for a nested key-value pair.
+//
+// This is a map where values are either
+//   - TreeData
+//   - Any caller-provided type
+type treeData map[string]any
 
 // PathItem is the value at a leaf node and the path to that leaf.
 type PathItem struct {
@@ -25,31 +26,19 @@ type PathItem struct {
 }
 
 func New() *PathTree {
-	return &PathTree{make(TreeData)}
+	return &PathTree{make(treeData)}
 }
 
-func NewFrom(tree TreeData) *PathTree {
-	return &PathTree{tree}
-}
-
-// Returns the underlying tree.
+// CloneTree returns a nested-map representation of the tree.
 //
-// Provided temporarily as part of a refactor. Avoid using this, especially
-// mutating it.
-func (pt *PathTree) Tree() TreeData {
-	return pt.tree
-}
-
-// Makes and returns a deep copy of the underlying tree.
-func (pt *PathTree) CloneTree() (TreeData, error) {
-	clone, err := deepCopy(pt.tree)
-	if err != nil {
-		return nil, err
-	}
-	return clone, nil
+// This always allocates a new map.
+func (pt *PathTree) CloneTree() map[string]any {
+	return toNestedMaps(pt.tree)
 }
 
 // Set changes the value of the leaf node at the given path.
+//
+// Map values do not affect the tree structure---see SetSubtree instead.
 //
 // If the path doesn't refer to a node in the tree, nodes are inserted
 // and a new leaf is created.
@@ -60,8 +49,25 @@ func (pt *PathTree) Set(path TreePath, value any) {
 	pathPrefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	subtree := getOrMakeSubtree(pt.tree, pathPrefix)
+	subtree := pt.getOrMakeSubtree(pathPrefix)
 	subtree[key] = value
+}
+
+// SetSubtree recusrively replaces the subtree at the given path.
+//
+// The subtree is represented by a map from strings to subtrees or
+// leaf values. This tree structure is copied to update the path
+// tree.
+func (pt *PathTree) SetSubtree(path TreePath, subtree map[string]any) {
+	// TODO: this is inefficient---it has repeated getOrMakeSubtree calls
+	for key, value := range subtree {
+		switch x := value.(type) {
+		case map[string]any:
+			pt.SetSubtree(append(path, key), x)
+		default:
+			pt.Set(append(path, key), x)
+		}
+	}
 }
 
 // Remove deletes a node from the tree.
@@ -70,7 +76,7 @@ func (pt *PathTree) Remove(path TreePath) {
 	key := path[len(path)-1]
 
 	// TODO: This can leave empty trees around.
-	subtree := getSubtree(pt.tree, prefix)
+	subtree := pt.getSubtree(prefix)
 	if subtree != nil {
 		delete(subtree, key)
 	}
@@ -84,7 +90,7 @@ func (pt *PathTree) GetLeaf(path TreePath) (any, bool) {
 	prefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	subtree := getSubtree(pt.tree, prefix)
+	subtree := pt.getSubtree(prefix)
 	if subtree == nil {
 		return nil, false
 	}
@@ -95,31 +101,25 @@ func (pt *PathTree) GetLeaf(path TreePath) (any, bool) {
 	}
 
 	switch value.(type) {
-	case TreeData:
+	case treeData:
 		return nil, false
 	default:
 		return value, true
 	}
 }
 
-// AddUnsetKeysFromSubtree uses the given subtree for keys that aren't
-// already set.
-func (pt *PathTree) AddUnsetKeysFromSubtree(
-	tree TreeData,
-	path TreePath,
-) {
-	oldSubtree := getSubtree(tree, path)
-	if oldSubtree == nil {
-		return
+// HasNode returns whether a node exists at the path.
+func (pt *PathTree) HasNode(path TreePath) bool {
+	prefix := path[:len(path)-1]
+	key := path[len(path)-1]
+
+	subtree := pt.getSubtree(prefix)
+	if subtree == nil {
+		return false
 	}
 
-	newSubtree := getOrMakeSubtree(pt.tree, path)
-
-	for key, value := range oldSubtree {
-		if _, exists := newSubtree[key]; !exists {
-			newSubtree[key] = value
-		}
-	}
+	_, exists := subtree[key]
+	return exists
 }
 
 // Flatten returns all the leaves of the tree.
@@ -130,11 +130,11 @@ func (pt *PathTree) Flatten() []PathItem {
 }
 
 // flatten returns the leaves of the tree, prepending a prefix to paths.
-func flatten(tree TreeData, prefix []string) []PathItem {
+func flatten(tree treeData, prefix []string) []PathItem {
 	var leaves []PathItem
 	for key, value := range tree {
 		switch value := value.(type) {
-		case TreeData:
+		case treeData:
 			leaves = append(leaves, flatten(value, append(prefix, key))...)
 		default:
 			leaves = append(leaves, PathItem{append(prefix, key), value})
@@ -143,19 +143,26 @@ func flatten(tree TreeData, prefix []string) []PathItem {
 	return leaves
 }
 
+// ToExtendedJSON encodes the tree as an extension of JSON that supports NaN
+// and +-Infinity.
+//
+// Values must be JSON-encodable.
+func (pt *PathTree) ToExtendedJSON() ([]byte, error) {
+	return json.Marshal(pt.tree)
+}
+
 // getSubtree returns the subtree at the path or nil if the path doesn't lead
 // to a non-leaf node.
-func getSubtree(
-	tree TreeData,
-	path TreePath,
-) TreeData {
+func (pt *PathTree) getSubtree(path TreePath) treeData {
+	tree := pt.tree
+
 	for _, key := range path {
 		node, ok := tree[key]
 		if !ok {
 			return nil
 		}
 
-		subtree, ok := node.(TreeData)
+		subtree, ok := node.(treeData)
 		if !ok {
 			return nil
 		}
@@ -169,22 +176,21 @@ func getSubtree(
 // getOrMakeSubtree returns the subtree at the path, creating it if necessary.
 //
 // Any leaf nodes along the path get overwritten.
-func getOrMakeSubtree(
-	tree TreeData,
-	path TreePath,
-) TreeData {
+func (pt *PathTree) getOrMakeSubtree(path TreePath) treeData {
+	tree := pt.tree
+
 	for _, key := range path {
 		node, exists := tree[key]
 		if !exists {
-			subtree := make(TreeData)
+			subtree := make(treeData)
 			tree[key] = subtree
 			tree = subtree
 			continue
 		}
 
-		subtree, ok := node.(TreeData)
+		subtree, ok := node.(treeData)
 		if !ok {
-			subtree = make(TreeData)
+			subtree = make(treeData)
 			tree[key] = subtree
 		}
 
@@ -197,19 +203,15 @@ func getOrMakeSubtree(
 // Returns a deep copy of the given tree.
 //
 // Slice values are copied by reference, which is fine for our use case.
-func deepCopy(tree TreeData) (TreeData, error) {
-	clone := make(TreeData)
+func toNestedMaps(tree treeData) map[string]any {
+	clone := make(map[string]any)
 	for key, value := range tree {
 		switch value := value.(type) {
-		case TreeData:
-			innerClone, err := deepCopy(value)
-			if err != nil {
-				return nil, err
-			}
-			clone[key] = innerClone
+		case treeData:
+			clone[key] = toNestedMaps(value)
 		default:
 			clone[key] = value
 		}
 	}
-	return clone, nil
+	return clone
 }
