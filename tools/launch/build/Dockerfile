@@ -22,6 +22,15 @@ RUN apt-get update && apt-get upgrade -y \
 ARG REF="main"
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir git+https://github.com/wandb/wandb.git@$REF#egg=wandb[launch]
+
+# Install Docker client
+RUN apt-get update && \
+    apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg | apt-key add - && \
+    add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/debian $(lsb_release -cs) stable" && \
+    apt-get update && \
+    apt-get install -y docker-ce-cli
+
 # user set up
 RUN useradd -m -s /bin/bash --create-home --no-log-init -u 1000 -g 0 launch_agent
 USER launch_agent
