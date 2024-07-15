@@ -402,7 +402,7 @@ func (as *ArtifactSaver) uploadMultipart(
 	}
 
 	wg := sync.WaitGroup{}
-	subChan := make(chan partResponse, len(partData))
+	partResponses := make(chan partResponse, len(partData))
 	// TODO: add mid-upload cancel.
 
 	var contentType string
@@ -434,7 +434,7 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Type:" + contentType,
 		}
 		task.SetCompletionCallback(func(t *filetransfer.Task) {
-			subChan <- partResponse{partNumber: partData[i].PartNumber, task: t}
+			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: t}
 			wg.Done()
 		})
 		wg.Add(1)
@@ -443,25 +443,27 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	go func() {
 		wg.Wait()
-		close(subChan)
+		close(partResponses)
 	}()
 
 	partEtags := make([]gql.UploadPartsInput, len(partData))
 
-	for t := range subChan {
+	for t := range partResponses {
 		err := t.task.Err
-		if err == nil && t.task.Response == nil {
+		if err != nil {
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		if t.task.Response == nil {
 			err = fmt.Errorf("no response in task %v", t.task.Name)
+			return uploadResult{name: fileInfo.name, err: err}
 		}
 		etag := ""
-		if err == nil && t.task.Response != nil {
+		if t.task.Response != nil {
 			etag = t.task.Response.Header.Get("ETag")
 			if etag == "" {
 				err = fmt.Errorf("no ETag in response %v", t.task.Response.Header)
+				return uploadResult{name: fileInfo.name, err: err}
 			}
-		}
-		if err != nil {
-			return uploadResult{name: fileInfo.name, err: err}
 		}
 		partEtags[t.partNumber-1] = gql.UploadPartsInput{
 			PartNumber: t.partNumber,
