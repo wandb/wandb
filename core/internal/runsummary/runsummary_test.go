@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestApplyUpdate(t *testing.T) {
-
-	rh := runsummary.New(runsummary.Params{})
+	rs := runsummary.New(runsummary.Params{})
 	summary := &service.SummaryRecord{
 		Update: []*service.SummaryItem{
 			{
@@ -27,34 +27,30 @@ func TestApplyUpdate(t *testing.T) {
 		},
 	}
 
-	rh.ApplyChangeRecord(summary,
+	rs.ApplyChangeRecord(summary,
 		func(err error) {
 			t.Error("onError should not be called", err)
 		})
 
-	expectedTree := pathtree.TreeData{
-		"setting1": float64(69),
-		"config": pathtree.TreeData{
-			"setting2": pathtree.TreeData{
-				"value": float64(42),
-			},
-		},
-	}
-
-	if !reflect.DeepEqual(rh.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rh.Tree())
-	}
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"setting1": 69,
+			"config": {"setting2": {"value": 42}}
+		}`,
+		string(encoded))
 }
 
 func TestApplyRemove(t *testing.T) {
-
-	rs := runsummary.NewFrom(pathtree.TreeData{
-		"setting0": 69,
-		"config": pathtree.TreeData{
-			"setting1": 42,
-			"setting2": "goodbye",
+	rs := runsummary.New(runsummary.Params{})
+	rs.ApplyChangeRecord(&service.SummaryRecord{
+		Update: []*service.SummaryItem{
+			{Key: "setting0", ValueJson: "69"},
+			{NestedKey: []string{"config", "setting1"}, ValueJson: "42"},
+			{NestedKey: []string{"config", "setting2"}, ValueJson: `"goodbye"`},
 		},
-	})
+	}, func(err error) {})
 	summary := &service.SummaryRecord{
 		Remove: []*service.SummaryItem{
 			{
@@ -68,16 +64,14 @@ func TestApplyRemove(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	expectedTree := pathtree.TreeData{
-		"setting0": int(69),
-		"config": pathtree.TreeData{
-			"setting1": int(42),
-		},
-	}
-
-	if !reflect.DeepEqual(rs.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rs.Tree())
-	}
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"setting0": 69,
+			"config": {"setting1": 42}
+		}`,
+		string(encoded))
 }
 
 func key(item *service.SummaryItem) []string {
@@ -138,12 +132,12 @@ func TestApplyUpdateSpecialValues(t *testing.T) {
 }
 
 func TestSerialize(t *testing.T) {
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
+	rs := runsummary.New(runsummary.Params{})
+	rs.ApplyChangeRecord(&service.SummaryRecord{
+		Update: []*service.SummaryItem{
+			{Key: "config", ValueJson: `{"setting1":"value1"}`},
 		},
-	}
-	rs := runsummary.NewFrom(treeData)
+	}, func(err error) {})
 	actualJson, err := rs.Serialize()
 	if err != nil {
 		t.Fatal("Serialize failed:", err)

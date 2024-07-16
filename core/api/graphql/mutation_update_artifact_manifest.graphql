@@ -1,0 +1,23 @@
+mutation UpdateArtifactManifest(
+  $artifactManifestID: ID!
+  $digest: String
+  $baseArtifactID: ID
+  $includeUpload: Boolean!
+) {
+  updateArtifactManifest(
+    input: {
+      artifactManifestID: $artifactManifestID
+      digest: $digest
+      baseArtifactID: $baseArtifactID
+    }
+  ) {
+    artifactManifest {
+      id
+      file {
+        id
+        uploadUrl @include(if: $includeUpload)
+        uploadHeaders @include(if: $includeUpload)
+      }
+    }
+  }
+}
