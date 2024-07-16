@@ -704,7 +704,7 @@ func (j *JobBuilder) MakeFilesAndSchemas() (map[string]any, map[string]any, erro
 	for _, configFile := range j.configFiles {
 		files[configFile.relpath] = j.generateConfigFileSchema(configFile)
 		if configFile.inputSchema != nil {
-			var inputSchemaMap map[string]interface{}
+			var inputSchemaMap map[string]any
 			err := json.Unmarshal([]byte(*configFile.inputSchema), &inputSchemaMap)
 			if err != nil {
 				return nil, nil, err
@@ -738,7 +738,7 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 			j.logger.Debug("jobBuilder: error inferring run config types", "error", err)
 		}
 		if j.wandbConfigParameters.inputSchema != nil {
-			var inputSchemaMap map[string]interface{}
+			var inputSchemaMap map[string]any
 			err = json.Unmarshal([]byte(*j.wandbConfigParameters.inputSchema), &inputSchemaMap)
 			if err != nil {
 				return "", err
