@@ -150,7 +150,7 @@ func (mh *MetricHandler) matchGlobMetric(key string) *service.MetricRecord {
 }
 
 // AddMetric registers a new defined metric.
-func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) {
+func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) error {
 	switch {
 	case metric.GlobName != "":
 		prev, exists := mh.globMetricDefs[metric.GlobName]
@@ -161,6 +161,8 @@ func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) {
 			mh.metricDefs[metric.Name] = mergeMetric(prev, metric)
 		}
 
+		return nil
+
 	case metric.Name != "":
 		prev, exists := mh.metricDefs[metric.Name]
 
@@ -169,6 +171,15 @@ func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) {
 		} else {
 			mh.metricDefs[metric.Name] = mergeMetric(prev, metric)
 		}
+
+		return nil
+
+	case metric.StepMetric != "":
+		// This is an explicit X-axis, so it's a valid case, but it's a no-op.
+		return nil
+
+	default:
+		return errors.New("invalid metric")
 	}
 }
 
