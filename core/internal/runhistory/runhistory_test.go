@@ -6,7 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -30,18 +31,14 @@ func TestApplyUpdate(t *testing.T) {
 			t.Error("onError should not be called", err)
 		})
 
-	expectedTree := pathtree.TreeData{
-		"setting1": float64(69),
-		"config": pathtree.TreeData{
-			"setting2": pathtree.TreeData{
-				"value": float64(42),
-			},
-		},
-	}
-
-	if !reflect.DeepEqual(rh.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rh.Tree())
-	}
+	encoded, err := rh.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"setting1": 69,
+			"config": {"setting2": {"value": 42}}
+		}`,
+		string(encoded))
 }
 
 func key(item *service.HistoryItem) []string {
@@ -98,12 +95,12 @@ func TestApplyUpdateSpecialValues(t *testing.T) {
 }
 
 func TestSerialize(t *testing.T) {
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
-		},
-	}
-	rh := runhistory.NewFrom(treeData)
+	rh := runhistory.New()
+
+	rh.ApplyChangeRecord([]*service.HistoryItem{
+		{Key: "config", ValueJson: `{"setting1":"value1"}`},
+	}, func(err error) {})
+
 	actualJson, err := rh.Serialize()
 	if err != nil {
 		t.Fatal("Serialize failed:", err)

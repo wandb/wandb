@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- When using wandb-core, support multipart uploads to S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
+
 ### Changed
 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
@@ -19,12 +23,13 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
+- Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
 
 ## [0.17.4] - 2024-07-03
 
 ### Added
 
-- Support queue template variables in launch sweep scheduelr jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
+- Support queue template variables in launch sweep scheduler jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
 
 ### Fixed
 

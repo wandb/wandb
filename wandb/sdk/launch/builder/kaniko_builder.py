@@ -263,6 +263,8 @@ class KanikoBuilder(AbstractBuilder):
         repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 
+        # The DOCKER_CONFIG_SECRET option is mutually exclusive with the
+        # registry classes, so we can safely skip the check in that case.
         if (
             not launch_project.build_required()
             and not DOCKER_CONFIG_SECRET
@@ -287,6 +289,8 @@ class KanikoBuilder(AbstractBuilder):
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
         try:
+            # DOCKER_CONFIG_SECRET is a user provided dockerconfigjson. Skip our
+            # dockerconfig handling if it's set.
             if (
                 isinstance(self.registry, AzureContainerRegistry)
                 and not DOCKER_CONFIG_SECRET
@@ -543,6 +547,7 @@ class KanikoBuilder(AbstractBuilder):
         # Apply the rest of our defaults
         pod_labels["wandb"] = "launch"
         # This annotation is required to enable azure workload identity.
+        # Don't add this label if using a docker config secret for auth.
         if (
             isinstance(self.registry, AzureContainerRegistry)
             and not DOCKER_CONFIG_SECRET
