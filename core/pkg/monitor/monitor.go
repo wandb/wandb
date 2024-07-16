@@ -2,6 +2,7 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -9,8 +10,6 @@ import (
 	"time"
 
 	"golang.org/x/time/rate"
-
-	"github.com/wandb/segmentio-encoding/json"
 
 	"google.golang.org/protobuf/proto"
 

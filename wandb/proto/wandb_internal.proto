@@ -1256,4 +1256,5 @@ message JobInputRequest {
   JobInputSource input_source = 1;
   repeated JobInputPath include_paths = 2;
   repeated JobInputPath exclude_paths = 3;
+  string input_schema = 4;
 }

@@ -72,6 +72,7 @@ def test_publish_job_input(mocker):
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=True,
+        input_schema=None,
         file_path="path",
     )
 
@@ -90,6 +91,7 @@ def test_handle_config_file_input(mocker):
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=False,
+        input_schema=None,
         file_path="path",
     )
 
@@ -104,6 +106,7 @@ def test_handle_run_config_input(mocker):
         include_paths=[["include"]],
         exclude_paths=[["exclude"]],
         run_config=True,
+        input_schema=None,
         file_path="",
     )
 

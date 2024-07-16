@@ -30,6 +30,24 @@ def test_config():
     }
 
 
+@pytest.fixture
+def test_input_schema():
+    return {
+        "type": "object",
+        "properties": {
+            "key2": {
+                "type": "object",
+                "properties": {
+                    "key4": {
+                        "type": "object",
+                        "properties": {"key5": {"type": "string"}},
+                    }
+                },
+            }
+        },
+    }
+
+
 @pytest.mark.wandb_core_only
 def test_manage_config_file(
     test_settings,
@@ -122,6 +140,100 @@ def test_manage_config_file(
 
 
 @pytest.mark.wandb_core_only
+def test_manage_config_file_with_input_schema(
+    test_settings,
+    wandb_init,
+    tmp_path,
+    test_config,
+    test_input_schema,
+    monkeypatch,
+    relay_server,
+):
+    """Test that calling `manage_config_file` has the expected side effects.
+
+    If `manage_config_file` is called and a job is created then the run should
+    have the config file saved in its files and the job should have the config
+    file schema.
+    """
+    monkeypatch.chdir(tmp_path)
+    config_str = yaml.dump(test_config)
+
+    (tmp_path / "config.yaml").write_text(config_str)
+    settings = test_settings()
+    settings.update(
+        {
+            "program_relpath": "./blah/test_program.py",
+            "git_remote_url": "https://github.com/test/repo",
+            "git_commit": "asdasdasdasd",
+        }
+    )
+    with relay_server():
+        with wandb_init(settings=settings) as run:
+            launch.manage_config_file(
+                "config.yaml",
+                include=["key2"],
+                exclude=["key2.key4.key6.key8", "key2.key3"],
+                schema=test_input_schema,
+            )
+            run.log({"test": 1})
+
+        api = wandb.Api()
+        run_api_object = api.run(run.path)
+        poll = 1
+        while poll < 8:
+            file = run_api_object.file("_wandb_configs/config.yaml")
+            if file.size == len(config_str):
+                break
+            time.sleep(poll)
+            poll *= 2
+            run_api_object.update()
+        else:
+            raise ValueError("File was not uploaded")
+
+        job_artifact = [*run_api_object.used_artifacts()][0]
+        assert job_artifact.metadata == {
+            "input_types": {
+                "files": {
+                    "config.yaml": {
+                        "params": {
+                            "type_map": {
+                                "key2": {
+                                    "params": {
+                                        "type_map": {
+                                            "key4": {
+                                                "params": {
+                                                    "type_map": {
+                                                        "key5": {"wb_type": "string"},
+                                                        "key6": {
+                                                            "params": {
+                                                                "type_map": {
+                                                                    "key7": {
+                                                                        "wb_type": "number"
+                                                                    }
+                                                                }
+                                                            },
+                                                            "wb_type": "typedDict",
+                                                        },
+                                                    }
+                                                },
+                                                "wb_type": "typedDict",
+                                            }
+                                        }
+                                    },
+                                    "wb_type": "typedDict",
+                                }
+                            }
+                        },
+                        "wb_type": "typedDict",
+                    }
+                },
+            },
+            "output_types": {"wb_type": "unknown"},
+            "input_schema": {"files": {"config.yaml": test_input_schema}},
+        }
+
+
+@pytest.mark.wandb_core_only
 def test_manage_wandb_config(
     test_settings,
     wandb_init,
@@ -186,3 +298,180 @@ def test_manage_wandb_config(
         },
         "output_types": {"wb_type": "unknown"},
     }
+
+
+@pytest.mark.wandb_core_only
+def test_manage_wandb_config_with_input_schema(
+    test_settings,
+    wandb_init,
+    test_config,
+    test_input_schema,
+):
+    """Test that calling `manage_wandb_config` has the expected side effects.
+
+    If `manage_wandb_config` is called and a job is created then the job should
+    have the wandb config schema saved in its metadata.
+    """
+    settings = test_settings()
+    settings.update(
+        {
+            "program_relpath": "./blah/test_program.py",
+            "git_remote_url": "https://github.com/test/repo",
+            "git_commit": "asdasdasdasd",
+        }
+    )
+    with wandb_init(settings=settings, config=test_config) as run:
+        launch.manage_wandb_config(
+            include=["key2"],
+            exclude=["key2.key4.key6.key8", "key2.key3"],
+            schema=test_input_schema,
+        )
+        run.log({"test": 1})
+
+    api = wandb.Api()
+    run_api_object = api.run(run.path)
+    job_artifact = [*run_api_object.used_artifacts()][0]
+    assert job_artifact.metadata == {
+        "input_types": {
+            "@wandb.config": {
+                "params": {
+                    "type_map": {
+                        "key2": {
+                            "params": {
+                                "type_map": {
+                                    "key4": {
+                                        "params": {
+                                            "type_map": {
+                                                "key5": {"wb_type": "string"},
+                                                "key6": {
+                                                    "params": {
+                                                        "type_map": {
+                                                            "key7": {
+                                                                "wb_type": "number"
+                                                            }
+                                                        }
+                                                    },
+                                                    "wb_type": "typedDict",
+                                                },
+                                            }
+                                        },
+                                        "wb_type": "typedDict",
+                                    }
+                                }
+                            },
+                            "wb_type": "typedDict",
+                        }
+                    }
+                },
+                "wb_type": "typedDict",
+            }
+        },
+        "output_types": {"wb_type": "unknown"},
+        "input_schema": {
+            "@wandb.config": test_input_schema,
+        },
+    }
+
+
+@pytest.mark.wandb_core_only
+def test_manage_both_with_input_schema(
+    test_settings,
+    wandb_init,
+    tmp_path,
+    test_config,
+    test_input_schema,
+    monkeypatch,
+    relay_server,
+):
+    monkeypatch.chdir(tmp_path)
+    config_str = yaml.dump(test_config)
+
+    (tmp_path / "config.yaml").write_text(config_str)
+    settings = test_settings()
+    settings.update(
+        {
+            "program_relpath": "./blah/test_program.py",
+            "git_remote_url": "https://github.com/test/repo",
+            "git_commit": "asdasdasdasd",
+        }
+    )
+    wandb_config_schema = {
+        "type": "object",
+        "properties": {
+            "key1": {
+                "type": "integer",
+            }
+        },
+    }
+    with relay_server():
+        with wandb_init(settings=settings) as run:
+            launch.manage_config_file(
+                "config.yaml",
+                include=["key2"],
+                exclude=["key2.key4.key6.key8", "key2.key3"],
+                schema=test_input_schema,
+            )
+            launch.manage_wandb_config(
+                include=["key1"],
+                schema=wandb_config_schema,
+            )
+            run.log({"test": 1})
+
+        api = wandb.Api()
+        run_api_object = api.run(run.path)
+        poll = 1
+        while poll < 8:
+            file = run_api_object.file("_wandb_configs/config.yaml")
+            if file.size == len(config_str):
+                break
+            time.sleep(poll)
+            poll *= 2
+            run_api_object.update()
+        else:
+            raise ValueError("File was not uploaded")
+
+        job_artifact = [*run_api_object.used_artifacts()][0]
+        assert job_artifact.metadata == {
+            "input_types": {
+                "@wandb.config": {"params": {"type_map": {}}, "wb_type": "typedDict"},
+                "files": {
+                    "config.yaml": {
+                        "params": {
+                            "type_map": {
+                                "key2": {
+                                    "params": {
+                                        "type_map": {
+                                            "key4": {
+                                                "params": {
+                                                    "type_map": {
+                                                        "key5": {"wb_type": "string"},
+                                                        "key6": {
+                                                            "params": {
+                                                                "type_map": {
+                                                                    "key7": {
+                                                                        "wb_type": "number"
+                                                                    }
+                                                                }
+                                                            },
+                                                            "wb_type": "typedDict",
+                                                        },
+                                                    }
+                                                },
+                                                "wb_type": "typedDict",
+                                            }
+                                        }
+                                    },
+                                    "wb_type": "typedDict",
+                                }
+                            }
+                        },
+                        "wb_type": "typedDict",
+                    }
+                },
+            },
+            "output_types": {"wb_type": "unknown"},
+            "input_schema": {
+                "files": {"config.yaml": test_input_schema},
+                "@wandb.config": wandb_config_schema,
+            },
+        }

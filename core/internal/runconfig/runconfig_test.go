@@ -34,7 +34,7 @@ func TestConfigUpdate(t *testing.T) {
 
 	assert.Equal(t,
 		map[string]any{
-			"a": 1.0,
+			"a": int64(1),
 			"b": map[string]any{
 				"c": "text",
 				"d": 123.0,
@@ -100,14 +100,14 @@ func TestAddTelemetryAndMetrics(t *testing.T) {
 
 	runConfig.AddTelemetryAndMetrics(
 		telemetry,
-		[]map[int]interface{}{},
+		[]map[string]any{},
 	)
 
 	assert.Equal(t,
 		map[string]any{
 			"_wandb": map[string]any{
 				"t": corelib.ProtoEncodeToDict(telemetry),
-				"m": []map[int]interface{}{},
+				"m": []map[string]any{},
 			},
 		},
 		runConfig.CloneTree(),

@@ -264,13 +264,16 @@ class KanikoBuilder(AbstractBuilder):
         image_uri = repo_uri + ":" + image_tag
 
         # The DOCKER_CONFIG_SECRET option is mutually exclusive with the
-        # registry classes, so we can safely skip the check in that case.
-        if (
-            not launch_project.build_required()
-            and not DOCKER_CONFIG_SECRET
-            and await self.registry.check_image_exists(image_uri)
-        ):
-            return image_uri
+        # registry classes, so we must skip the check for image existence in
+        # that case.
+        if not launch_project.build_required():
+            if DOCKER_CONFIG_SECRET:
+                wandb.termlog(
+                    f"Skipping check for existing image {image_uri} due to custom dockerconfig."
+                )
+            else:
+                if await self.registry.check_image_exists(image_uri):
+                    return image_uri
 
         _logger.info(f"Building image {image_uri}...")
         _, api_client = await get_kube_context_and_api_client(

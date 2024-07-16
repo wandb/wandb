@@ -2,9 +2,8 @@ package runconfig
 
 import (
 	"fmt"
-	"slices"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -42,9 +41,9 @@ func NewFrom(tree map[string]any) *RunConfig {
 	for key, value := range tree {
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(pathtree.TreePath{key}, x)
+			rc.pathTree.SetSubtree(pathtree.PathOf(key), x)
 		default:
-			rc.pathTree.Set(pathtree.TreePath{key}, x)
+			rc.pathTree.Set(pathtree.PathOf(key), x)
 		}
 	}
 
@@ -60,9 +59,10 @@ func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
 
 	switch format {
 	case FormatYaml:
+		// TODO: Does `yaml` support NaN and +-Infinity?
 		return yaml.Marshal(value)
 	case FormatJson:
-		return json.Marshal(value)
+		return simplejsonext.Marshal(value)
 	default:
 		return nil, fmt.Errorf("unsupported format: %v", format)
 	}
@@ -77,8 +77,8 @@ func (rc *RunConfig) ApplyChangeRecord(
 	onError func(error),
 ) {
 	for _, item := range configRecord.GetUpdate() {
-		var value any
-		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
+		value, err := simplejsonext.UnmarshalString(item.GetValueJson())
+		if err != nil {
 			onError(err)
 			continue
 		}
@@ -99,28 +99,28 @@ func (rc *RunConfig) ApplyChangeRecord(
 // Inserts W&B-internal values into the run's configuration.
 func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
-	metrics []map[int]interface{},
+	metrics []map[string]interface{},
 ) {
 	if telemetry.GetCliVersion() != "" {
 		rc.pathTree.Set(
-			pathtree.TreePath{"_wandb", "cli_version"},
+			pathtree.PathOf("_wandb", "cli_version"),
 			telemetry.CliVersion,
 		)
 	}
 	if telemetry.GetPythonVersion() != "" {
 		rc.pathTree.Set(
-			pathtree.TreePath{"_wandb", "python_version"},
+			pathtree.PathOf("_wandb", "python_version"),
 			telemetry.PythonVersion,
 		)
 	}
 
 	rc.pathTree.Set(
-		pathtree.TreePath{"_wandb", "t"},
+		pathtree.PathOf("_wandb", "t"),
 		corelib.ProtoEncodeToDict(telemetry),
 	)
 
 	rc.pathTree.Set(
-		pathtree.TreePath{"_wandb", "m"},
+		pathtree.PathOf("_wandb", "m"),
 		metrics,
 	)
 }
@@ -128,22 +128,19 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 // Incorporates the config from a run that's being resumed.
 func (rc *RunConfig) MergeResumedConfig(oldConfig map[string]any) {
 	// Add any top-level keys that aren't already set.
-	rc.addUnsetKeysFromSubtree(
-		oldConfig,
-		pathtree.TreePath{},
-	)
+	rc.addUnsetKeysFromSubtree(oldConfig, nil)
 
 	// When a user logs visualizations, we unfortunately store them in the
 	// run's config. When resuming a run, we want to avoid erasing previously
 	// logged visualizations, hence this special handling.
 	rc.addUnsetKeysFromSubtree(
 		oldConfig,
-		pathtree.TreePath{"_wandb", "visualize"},
+		[]string{"_wandb", "visualize"},
 	)
 
 	rc.addUnsetKeysFromSubtree(
 		oldConfig,
-		pathtree.TreePath{"_wandb", "viz"},
+		[]string{"_wandb", "viz"},
 	)
 }
 
@@ -166,21 +163,17 @@ func (rc *RunConfig) addUnsetKeysFromSubtree(
 		}
 	}
 
-	// Clone `prefix` so that it's safe to use for appending.
-	prefixCopy := slices.Clone(prefix)
-
 	for key, value := range oldConfig {
-		if rc.pathTree.HasNode(pathtree.TreePath{key}) {
+		if rc.pathTree.HasNode(pathtree.PathOf(key)) {
 			continue
 		}
 
-		subtreePath := prefixCopy
-		subtreePath = append(subtreePath, key)
+		path := pathtree.PathWithPrefix(prefix, key)
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(subtreePath, x)
+			rc.pathTree.SetSubtree(path, x)
 		default:
-			rc.pathTree.Set(subtreePath, x)
+			rc.pathTree.Set(path, x)
 		}
 	}
 }
@@ -192,9 +185,11 @@ func (rc *RunConfig) CloneTree() map[string]any {
 // keyPath returns the key path for the given config item.
 // If the item has a nested key, it returns the nested key.
 // Otherwise, it returns a slice with the key.
-func keyPath(item *service.ConfigItem) []string {
+func keyPath(item *service.ConfigItem) pathtree.TreePath {
 	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
+		key := item.GetNestedKey()
+		return pathtree.PathOf(key[0], key[1:]...)
 	}
-	return []string{item.GetKey()}
+
+	return pathtree.PathOf(item.GetKey())
 }
