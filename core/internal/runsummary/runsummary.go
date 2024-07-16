@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -110,9 +110,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 	onError func(error),
 ) {
 	for _, item := range summaryRecord.GetUpdate() {
-		var update interface{}
-		// custom unmarshal function that handles NaN and +-Inf
-		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
+		update, err := simplejsonext.UnmarshalString(item.GetValueJson())
 		if err != nil {
 			onError(err)
 			continue
@@ -155,7 +153,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 
 		if len(updateMap) > 0 {
 			// update summaryRecord with the new value
-			jsonValue, err := json.Marshal(updateMap)
+			jsonValue, err := simplejsonext.Marshal(updateMap)
 			if err != nil {
 				onError(err)
 				continue
@@ -204,7 +202,7 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 			)
 		}
 
-		value, err := json.Marshal(leaf.Value)
+		value, err := simplejsonext.Marshal(leaf.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"runhistory: failed to marshal value for item %v: %v",

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -60,9 +60,10 @@ func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
 
 	switch format {
 	case FormatYaml:
+		// TODO: Does `yaml` support NaN and +-Infinity?
 		return yaml.Marshal(value)
 	case FormatJson:
-		return json.Marshal(value)
+		return simplejsonext.Marshal(value)
 	default:
 		return nil, fmt.Errorf("unsupported format: %v", format)
 	}
@@ -77,8 +78,8 @@ func (rc *RunConfig) ApplyChangeRecord(
 	onError func(error),
 ) {
 	for _, item := range configRecord.GetUpdate() {
-		var value any
-		if err := json.Unmarshal([]byte(item.GetValueJson()), &value); err != nil {
+		value, err := simplejsonext.UnmarshalString(item.GetValueJson())
+		if err != nil {
 			onError(err)
 			continue
 		}
@@ -99,7 +100,7 @@ func (rc *RunConfig) ApplyChangeRecord(
 // Inserts W&B-internal values into the run's configuration.
 func (rc *RunConfig) AddTelemetryAndMetrics(
 	telemetry *service.TelemetryRecord,
-	metrics []map[int]interface{},
+	metrics []map[string]interface{},
 ) {
 	if telemetry.GetCliVersion() != "" {
 		rc.pathTree.Set(

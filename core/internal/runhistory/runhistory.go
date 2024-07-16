@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -38,7 +38,7 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 	var errs []error
 
 	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
-		valueJSON, err := json.Marshal(value)
+		valueJSON, err := simplejsonext.Marshal(value)
 
 		if err != nil {
 			errs = append(errs,
@@ -138,9 +138,8 @@ func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
 		return errors.New("empty history item key")
 	}
 
-	// NOTE: ValueJson uses extended JSON; see documentation on ToEncodedJSON.
-	var value any
-	if err := json.Unmarshal([]byte(record.ValueJson), &value); err != nil {
+	value, err := simplejsonext.UnmarshalString(record.ValueJson)
+	if err != nil {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)
 	}
 

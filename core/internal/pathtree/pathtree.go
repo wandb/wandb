@@ -3,7 +3,7 @@ package pathtree
 import (
 	"slices"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 )
 
 // TreePath is a list of strings mapping to a value.
@@ -210,7 +210,7 @@ func flatten(tree treeData, prefix []string) []PathItem {
 //
 // Values must be JSON-encodable.
 func (pt *PathTree) ToExtendedJSON() ([]byte, error) {
-	return json.Marshal(pt.tree)
+	return simplejsonext.Marshal(toNestedMaps(pt.tree))
 }
 
 // getSubtree returns the subtree at the path or nil if the path doesn't lead

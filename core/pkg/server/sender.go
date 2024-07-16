@@ -639,7 +639,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 //
 // Uses the given telemetry
 func (s *Sender) updateConfigPrivate() {
-	metrics := []map[int]interface{}(nil)
+	metrics := []map[string]interface{}(nil)
 	if s.metricSender != nil {
 		metrics = s.metricSender.ConfigMetrics
 	}

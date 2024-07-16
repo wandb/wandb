@@ -214,14 +214,14 @@ func (mh *MetricHandler) HackGetGlobMetrics() map[string]*service.MetricRecord {
 type MetricSender struct {
 	DefinedMetrics map[string]*service.MetricRecord
 	MetricIndex    map[string]int32
-	ConfigMetrics  []map[int]interface{}
+	ConfigMetrics  []map[string]interface{}
 }
 
 func NewMetricSender() *MetricSender {
 	return &MetricSender{
 		DefinedMetrics: make(map[string]*service.MetricRecord),
 		MetricIndex:    make(map[string]int32),
-		ConfigMetrics:  make([]map[int]interface{}, 0),
+		ConfigMetrics:  make([]map[string]interface{}, 0),
 	}
 }
 
