@@ -224,8 +224,7 @@ func (ms *MetricSender) AddNonGlobMetric(metric *service.MetricRecord) error {
 	if metric.GetXControl().GetOverwrite() || !exists {
 		ms.DefinedMetrics[metric.Name] = metric
 	} else {
-		// TODO: No!!!
-		proto.Merge(prev, metric)
+		ms.DefinedMetrics[metric.Name] = mergeMetric(prev, metric)
 	}
 
 	return nil
