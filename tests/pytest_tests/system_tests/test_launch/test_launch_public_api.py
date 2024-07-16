@@ -47,3 +47,17 @@ def test_run_queue(user):
         assert queue.type == "local-container"
     finally:
         queue.delete()
+
+
+def test_run_queue_create(user):
+    rq = wandb.apis.public.RunQueue().create(
+        name="test-queue",
+        entity=user,
+        type="local-container",
+    )
+    try:
+        assert rq.name == "test-queue"
+        assert rq.access == "PROJECT"
+        assert rq.type == "local-container"
+    finally:
+        rq.delete()
