@@ -3,7 +3,7 @@ package filestream
 import (
 	"fmt"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -23,8 +23,8 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_runtime"] = u.Record.Timestamp.AsTime().Sub(ctx.Settings.GetStartTime()).Seconds()
 
 	for _, item := range u.Record.Item {
-		var val interface{}
-		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
+		val, err := simplejsonext.UnmarshalString(item.ValueJson)
+		if err != nil {
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
 					"filestream: failed to marshal StatsItem for key %s: %v",
@@ -37,8 +37,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 		row["system."+item.Key] = val
 	}
 
-	// marshal the row
-	line, err := json.Marshal(row)
+	line, err := simplejsonext.Marshal(row)
 	switch {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.

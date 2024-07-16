@@ -6,9 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -16,6 +14,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
@@ -82,8 +81,12 @@ type Handler struct {
 	// runRecord is the runRecord record received from the server
 	runRecord *service.RunRecord
 
-	// runHistory is the current active history entry being updated
-	runHistory *runhistory.RunHistory
+	// partialHistory is a set of run metrics accumulated for the current step.
+	partialHistory *runhistory.RunHistory
+
+	// partialHistoryStep is the next history "step" to emit
+	// when not running in shared mode.
+	partialHistoryStep int64
 
 	// runHistorySampler tracks samples of all metrics in the run's history.
 	//
@@ -123,6 +126,10 @@ func NewHandler(
 	ctx context.Context,
 	params HandlerParams,
 ) *Handler {
+	if params.MetricHandler == nil {
+		panic("handler: nil MetricHandler")
+	}
+
 	return &Handler{
 		ctx:                   ctx,
 		runTimer:              timer.New(),
@@ -214,11 +221,11 @@ func (h *Handler) handleRecord(record *service.Record) {
 	case *service.Record_Header:
 		h.handleHeader(record)
 	case *service.Record_History:
-		h.handleHistory(x.History)
+		h.handleHistoryDirectly(x.History)
 	case *service.Record_NoopLinkArtifact:
 		// Removed but kept to avoid panics
 	case *service.Record_Metric:
-		h.handleMetric(record, x.Metric)
+		h.handleMetric(record)
 	case *service.Record_Output:
 		h.handleOutput(record)
 	case *service.Record_OutputRaw:
@@ -364,63 +371,38 @@ func (h *Handler) handleRequestShutdown(record *service.Record) {
 	h.respond(record, &service.Response{})
 }
 
-// handleStepMetric handles the step metric for a given metric key. If the step metric is not
-// defined, it will be added to the defined metrics map.
-func (h *Handler) handleStepMetric(key string) {
-	if key == "" {
-		return
-	}
-
-	// already exists no need to add
-	if _, defined := h.metricHandler.DefinedMetrics[key]; defined {
-		return
-	}
-
-	metric, err := runmetric.AddMetric(key, key, &h.metricHandler.DefinedMetrics)
-
-	if err != nil {
+func (h *Handler) handleMetric(record *service.Record) {
+	metric := record.GetMetric()
+	if metric == nil {
 		h.logger.CaptureError(
-			fmt.Errorf("error adding metric to map: %v", err))
+			errors.New("handler: bad record type for handleMetric"))
 		return
 	}
 
-	stepRecord := &service.Record{
-		RecordType: &service.Record_Metric{
-			Metric: metric,
-		},
-		Control: &service.Control{
-			Local: true,
-		},
-	}
-	h.fwdRecord(stepRecord)
-}
-
-func (h *Handler) handleMetric(record *service.Record, metric *service.MetricRecord) {
-	// metric can have a glob name or a name
-	// TODO: replace glob-name/name with one-of field
-	switch {
-	case metric.GetGlobName() != "":
-		if _, err := runmetric.AddMetric(metric, metric.GetGlobName(), &h.metricHandler.GlobMetrics); err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("error adding metric to map: %v", err))
-			return
-		}
-		h.fwdRecord(record)
-	case metric.GetName() != "":
-		if _, err := runmetric.AddMetric(metric, metric.GetName(), &h.metricHandler.DefinedMetrics); err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("error adding metric to map: %v", err))
-			return
-		}
-		h.handleStepMetric(metric.GetStepMetric())
-		h.fwdRecord(record)
-	case metric.GetStepMetric() != "":
-		// this is an explicitly-defined x axis, no need to process it
-	default:
+	if err := h.metricHandler.AddMetric(metric); err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("invalid metric"),
+			fmt.Errorf("handler: cannot add metric: %v", err),
 			"metric", metric)
+		return
 	}
+
+	if metric.StepMetric != "" && !h.metricHandler.Exists(metric.StepMetric) {
+		stepMetric := &service.MetricRecord{Name: metric.StepMetric}
+
+		if err := h.metricHandler.AddMetric(stepMetric); err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("handler: cannot add step metric: %v", err),
+				"stepMetric", stepMetric)
+			return
+		}
+
+		h.fwdRecord(&service.Record{
+			RecordType: &service.Record_Metric{Metric: stepMetric},
+			Control:    &service.Control{Local: true},
+		})
+	}
+
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestDefer(record *service.Record, request *service.DeferRequest) {
@@ -1036,52 +1018,10 @@ func (h *Handler) handleTBrecord(record *service.TBRecord) {
 // new metrics if needed. It also handles step metric in case it needs to be
 // synced, but not part of the history record. This function is also responsible
 // for sampling history items.
-func (h *Handler) handleHistory(history *service.HistoryRecord) {
-	// TODO replace history encoding with a map,
-	//  this will make it easier to handle history
-
+func (h *Handler) handleHistoryDirectly(history *service.HistoryRecord) {
 	if len(history.GetItem()) == 0 {
 		return
 	}
-
-	runtime := h.runTimer.Elapsed().Seconds()
-	history.Item = append(history.Item, &service.HistoryItem{
-		Key:       "_runtime",
-		ValueJson: fmt.Sprintf("%f", runtime),
-	})
-
-	// When running in "shared" mode, there can be multiple writers to the same
-	// run (for example running on different machines). In that case, the
-	// backend determines the step, and the client ID identifies which metrics
-	// came from the same writer. Otherwise, we must set the step explicitly.
-	if h.settings.GetXShared().GetValue() {
-		history.Item = append(history.Item, &service.HistoryItem{
-			Key:       "_client_id",
-			ValueJson: fmt.Sprintf(`"%s"`, h.clientID),
-		})
-	} else {
-		history.Item = append(history.Item, &service.HistoryItem{
-			Key:       "_step",
-			ValueJson: fmt.Sprintf("%d", history.GetStep().GetNum()),
-		})
-	}
-
-	// handles all history items. It is responsible for matching current history
-	// items with defined metrics, and creating new metrics if needed. It also handles step metric in case
-	// it needs to be synced, but not part of the history record.
-	// This means that there are metrics defined for this run
-	if h.metricHandler != nil {
-		items := make([]*service.HistoryItem, 0, len(history.GetItem()))
-		for _, item := range history.GetItem() {
-			// TODO: handle nested metric metrics (e.g. metric defined by another metric)
-			if metric := h.imputeStepMetric(item); metric != nil {
-				items = append(items, metric)
-			}
-		}
-		history.Item = append(history.Item, items...)
-	}
-
-	h.runHistorySampler.SampleNext(history)
 
 	record := &service.Record{
 		RecordType: &service.Record_History{
@@ -1140,31 +1080,27 @@ func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *servic
 // received. This is the asynchronous version of handlePartialHistory.
 // In this mode, the server will assign a step number to the history record.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
-	// This is the first partial history record we receive
-	if h.runHistory == nil {
-		h.runHistory = runhistory.New()
+	if h.partialHistory == nil {
+		// NOTE: We ignore the step in shared mode.
+		h.partialHistory = runhistory.New()
 	}
-	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(),
-		func(err error) {
-			h.logger.CaptureError(
-				fmt.Errorf("error updating run history: %v", err))
-		})
 
-	// Flush the history record and start to collect a new one
-	if request.GetAction() == nil || request.GetAction().GetFlush() {
-		items, err := h.runHistory.Flatten()
+	// Append the history items from the request to the current history record.
+	//
+	// We do this on a best-effort basis: errors are logged and problematic
+	// metrics are ignored.
+	for _, item := range request.GetItem() {
+		err := h.partialHistory.SetFromRecord(item)
+
 		if err != nil {
 			h.logger.CaptureError(
-				fmt.Errorf("error flattening run history: %v", err))
-			h.terminalPrinter.Write(
-				"Failed to process history record, skipping syncing.")
-			return
+				fmt.Errorf("handler: failed to set history metric: %v", err),
+				"item", item)
 		}
-		h.handleHistory(&service.HistoryRecord{
-			Item: items,
-		})
-		h.runHistory = runhistory.New()
+	}
+
+	if request.GetAction() == nil || request.Action.GetFlush() {
+		h.flushPartialHistory(false, 0)
 	}
 }
 
@@ -1176,187 +1112,134 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 // The client is responsible for ensuring that the step number is monotonically
 // increasing.
 func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryRequest) {
-
-	// This is the first partial history record we receive
-	// for this step, so we need to initialize the history record
-	// and step. If the user provided a step in the request,
-	// use that, otherwise use 0.
-	if h.runHistory == nil {
-
-		step := h.runRecord.GetStartingStep()
-		h.runHistory = runhistory.NewWithStep(step)
+	if h.partialHistory == nil {
+		h.partialHistory = runhistory.New()
+		h.partialHistoryStep = h.runRecord.GetStartingStep()
 	}
 
-	// The HistoryRecord struct is responsible for tracking data related to
-	//	a single step in the history. Users can send multiple partial history
-	//	records for a single step. Each partial history record contains a
-	//	step number, a flush flag, and a list of history items.
-	//
-	// The step number indicates the step number for the history record. The
-	// flush flag determines whether the history record should be flushed
-	// after processing the request. The history items are appended to the
-	// existing history record.
-	//
-	// The following logic is used to process the request:
-	//
-	// -  If the request includes a step number and the step number is greater
-	//		than the current step number, the current history record is flushed
-	//		and a new history record is created.
-	// - If the step number in the request is less than the current step number,
-	//		we ignore the request and log a warning.
-	// 		NOTE: the server requires the steps of the history records
-	// 		to be monotonically increasing.
-	// -  If the step number in the request matches the current step number, the
-	//		history items are appended to the current history record.
-	//
-	// - If the request has a flush flag, another flush might occur after for
-	// the current history record after processing the request.
-	//
-	// - If the request doesn't have a step, and doesn't have a flush flag, this
-	// is equivalent to step being equal to the current step number and a flush
-	// flag being set to true.
 	if request.GetStep() != nil {
 		step := request.Step.GetNum()
-		current := h.runHistory.GetStep()
+		current := h.partialHistoryStep
 		if step > current {
-			items, err := h.runHistory.Flatten()
-			if err != nil {
-				h.logger.CaptureError(
-					fmt.Errorf("error flattening run history: %v", err))
-				h.terminalPrinter.Writef(
-					"Failed to process history record for step %d, skipping...",
-					h.runHistory.GetStep(),
-				)
-				return
-			}
-			history := &service.HistoryRecord{
-				Step: &service.HistoryStep{
-					Num: h.runHistory.GetStep(),
-				},
-				Item: items,
-			}
-			h.handleHistory(history)
-			h.runHistory = runhistory.NewWithStep(step)
+			h.flushPartialHistory(true, step)
 		} else if step < current {
-			h.logger.Warn("handlePartialHistorySync: ignoring history record", "step", step, "current", current)
-			msg := fmt.Sprintf("steps must be monotonically increasing, received history record for a step (%d) "+
-				"that is less than the current step (%d) this data will be ignored. if you need to log data out of order, "+
-				"please see: https://wandb.me/define-metric", step, current)
-			h.terminalPrinter.Write(msg)
-			return
-		}
-	}
-
-	// Append the history items from the request to the current history record.
-	h.runHistory.ApplyChangeRecord(request.GetItem(),
-		func(err error) {
-			h.logger.CaptureError(
-				fmt.Errorf("error updating run history: %v", err))
-		})
-
-	// Flush the history record and start to collect a new one with
-	// the next step number.
-	if (request.GetStep() == nil && request.GetAction() == nil) || request.GetAction().GetFlush() {
-		items, err := h.runHistory.Flatten()
-		if err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("error flattening run history: %v", err))
-			msg := fmt.Sprintf(
-				"Failed to process history record, for step %d, skipping...",
-				h.runHistory.GetStep(),
+			h.logger.Warn(
+				"handler: ignoring partial history record",
+				"step", step,
+				"current", current,
 			)
-			h.terminalPrinter.Write(msg)
+
+			h.terminalPrinter.Writef(
+				"Tried to log to step %d that is less than the current step %d."+
+					" Steps must be monotonically increasing, so this data"+
+					" will be ignored. See https://wandb.me/define-metric"+
+					" to log data out of order.",
+				step,
+				current,
+			)
 			return
 		}
-		history := &service.HistoryRecord{
-			Step: &service.HistoryStep{
-				Num: h.runHistory.GetStep(),
-			},
-			Item: items,
-		}
-		h.handleHistory(history)
-		step := h.runHistory.GetStep() + 1
-		h.runHistory = runhistory.NewWithStep(step)
-	}
-}
-
-// matchHistoryItemMetric matches a history item with a defined metric or creates a new metric if needed.
-func (h *Handler) matchHistoryItemMetric(item *service.HistoryItem) *service.MetricRecord {
-
-	// ignore internal history items
-	if strings.HasPrefix(item.Key, "_") {
-		return nil
 	}
 
-	// check if history item matches a defined metric exactly, if it does return the metric
-	if metric, ok := h.metricHandler.DefinedMetrics[item.Key]; ok {
-		return metric
-	}
-
-	// if a new metric was created, we need to handle it
-	metric := h.metricHandler.CreateMatchingGlobMetric(item.Key)
-	if metric != nil {
-		record := &service.Record{
-			RecordType: &service.Record_Metric{
-				Metric: metric,
-			},
-			Control: &service.Control{
-				Local: true,
-			},
-		}
-		h.handleMetric(record, metric)
-	}
-	return metric
-}
-
-// sync history item with step metric if needed
-//
-// This function checks if a history item matches a defined metric or a glob
-// metric. If the step metric is not part of the history record, and it needs to
-// be synced, the function imputes the step metric and returns it.
-func (h *Handler) imputeStepMetric(item *service.HistoryItem) *service.HistoryItem {
-
-	// check if history item matches a defined metric or a glob metric
-	metric := h.matchHistoryItemMetric(item)
-
-	key := metric.GetStepMetric()
-	// check if step metric is defined and if it needs to be synced
-	if !(metric.GetOptions().GetStepSync() && key != "") {
-		return nil
-	}
-
-	// check if step metric is already in history
-	// TODO: avoid using the Tree method
-	if _, ok := h.runHistory.Tree()[key]; ok {
-		return nil
-	}
-
-	// TODO: avoid using the tree representation of the summary
-	// TODO: avoid using json marshalling
-	// we use the summary value of the metric as the algorithm for imputing the step metric
-	if value, ok := h.runSummary.Tree()[key]; ok {
-		v, err := json.Marshal(value)
+	for _, item := range request.GetItem() {
+		err := h.partialHistory.SetFromRecord(item)
 		if err != nil {
 			h.logger.CaptureError(
-				fmt.Errorf("error marshalling step metric value: %v", err))
-			return nil
+				fmt.Errorf("handler: failed to set history metric: %v", err),
+				"item", item)
 		}
-		item := []*service.HistoryItem{
-			{
-				Key:       key,
-				ValueJson: string(v),
-			},
-		}
-		h.runHistory.ApplyChangeRecord(
-			item,
-			func(err error) {
-				h.logger.CaptureError(
-					fmt.Errorf("error updating run history: %v", err))
-			},
-		)
-		return item[0]
 	}
-	return nil
+
+	var shouldFlush bool
+	if request.GetAction() != nil {
+		shouldFlush = request.GetAction().GetFlush()
+	} else {
+		// Default to flushing if the step is not provided.
+		shouldFlush = request.GetStep() == nil
+	}
+	if !shouldFlush {
+		return
+	}
+
+	h.flushPartialHistory(true, h.partialHistoryStep+1)
+}
+
+// flushPartialHistory finalizes and resets the accumulated run history.
+//
+// If useStep is true, then the emitted history record has an explicit
+// step, and partialHistoryStep is updated to nextStep. Otherwise,
+// nextStep is ignored.
+func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
+	// Don't log anything if there are no metrics.
+	if h.partialHistory == nil || h.partialHistory.IsEmpty() {
+		if useStep {
+			h.partialHistoryStep = nextStep
+		}
+
+		return
+	}
+
+	h.partialHistory.SetFloat(
+		pathtree.TreePath{"_runtime"},
+		h.runTimer.Elapsed().Seconds(),
+	)
+
+	// When running in "shared" mode, there can be multiple writers to the same
+	// run (for example running on different machines). In that case, the
+	// backend determines the step, and the client ID identifies which metrics
+	// came from the same writer. Otherwise, we must set the step explicitly.
+	if h.settings.GetXShared().GetValue() {
+		// TODO: useStep must be false here
+		h.partialHistory.SetString(
+			pathtree.TreePath{"_client_id"},
+			h.clientID,
+		)
+	} else if useStep {
+		h.partialHistory.SetInt(
+			pathtree.TreePath{"_step"},
+			h.partialHistoryStep,
+		)
+	}
+
+	newMetricDefs := h.metricHandler.CreateGlobMetrics(h.partialHistory)
+	for _, newMetric := range newMetricDefs {
+		h.handleMetric(&service.Record{
+			RecordType: &service.Record_Metric{Metric: newMetric},
+			Control:    &service.Control{Local: true},
+		})
+	}
+
+	h.metricHandler.InsertStepMetrics(h.partialHistory, h.runSummary)
+
+	h.runHistorySampler.SampleNext(h.partialHistory)
+
+	items, err := h.partialHistory.ToRecords()
+	currentStep := h.partialHistoryStep
+
+	h.partialHistory = runhistory.New()
+	if useStep {
+		h.partialHistoryStep = nextStep
+	}
+
+	// Report errors, but continue anyway to drop as little data as possible.
+	if err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf(
+				"handler: error flattening run history: %v",
+				err,
+			))
+		h.terminalPrinter.Writef(
+			"There was an issue processing run metrics in step %d;"+
+				" some data may be missing.",
+			currentStep,
+		)
+	}
+
+	historyRecord := &service.HistoryRecord{Item: items}
+	if useStep {
+		historyRecord.Step = &service.HistoryStep{Num: currentStep}
+	}
+	h.handleHistoryDirectly(historyRecord)
 }
 
 // samples history items and updates the history record with the sampled values

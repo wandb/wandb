@@ -3862,34 +3862,33 @@ class Run:
         if not poll_exit_response:
             return
 
-        progress = poll_exit_response.pusher_stats
-        done = poll_exit_response.done
+        stats = poll_exit_response.pusher_stats
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded"
-        if progress.deduped_bytes > 0:
-            line += f" ({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
-        else:
-            line += "\r"
-
-        percent_done = (
-            1.0
-            if progress.total_bytes == 0
-            else progress.uploaded_bytes / progress.total_bytes
+        line = (
+            f"{stats.uploaded_bytes / megabyte:.3f} MB"
+            f" of {stats.total_bytes / megabyte:.3f} MB uploaded"
         )
+        if stats.deduped_bytes > 0:
+            line += f" ({stats.deduped_bytes / megabyte:.3f} MB deduped)"
+        line += "\r"
 
-        printer.progress_update(line, percent_done)
-        if done:
+        if stats.total_bytes > 0:
+            printer.progress_update(line, stats.uploaded_bytes / stats.total_bytes)
+        else:
+            printer.progress_update(line, 1.0)
+
+        if poll_exit_response.done:
             printer.progress_close()
 
-            dedupe_fraction = (
-                progress.deduped_bytes / float(progress.total_bytes)
-                if progress.total_bytes > 0
-                else 0
-            )
-            if dedupe_fraction > 0.01:
+            if stats.total_bytes > 0:
+                dedupe_fraction = stats.deduped_bytes / float(stats.total_bytes)
+            else:
+                dedupe_fraction = 0
+
+            if stats.deduped_bytes > 0.01:
                 printer.display(
-                    f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
+                    f"W&B sync reduced upload amount by {dedupe_fraction:.1%}"
                 )
 
     @staticmethod

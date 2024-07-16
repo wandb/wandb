@@ -11,22 +11,31 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- When using wandb-core, support multipart uploads to S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
+
 ### Changed
 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
+- `run.link_artifact()` can now surface server errors. (@ibindlish in https://github.com/wandb/wandb/pull/6941)
+
+### Fixed
+
+- Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
+- Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
 
 ## [0.17.4] - 2024-07-03
 
 ### Added
 
-- Support queue template variables in launch sweep scheduelr jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
+- Support queue template variables in launch sweep scheduler jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
 
 ### Fixed
 
 - Use `sys.exit()` instead of `os._exit()` if an internal subprocess exits with a non-zero code (@timoffex in https://github.com/wandb/wandb/pull/7866)
 - Fix an occasional race condition when using `core` that could affect run logs (@timoffex in https://github.com/wandb/wandb/pull/7889)
 - Fix OSError on `Artifact.download(skip_cache=True)` when encountering different filesystems by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7835
-- Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
 
 ## [0.17.3] - 2024-06-24
 
