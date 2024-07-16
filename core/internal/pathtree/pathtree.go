@@ -1,13 +1,80 @@
 package pathtree
 
 import (
-	"slices"
-
 	"github.com/wandb/simplejsonext"
 )
 
-// TreePath is a list of strings mapping to a value.
-type TreePath []string
+// TreePath is the list of node labels along the path from the root
+// of a PathTree to a node.
+type TreePath struct {
+	// labels is a non-empty slice defining the path.
+	labels []string
+}
+
+// PathOf creates a TreePath from a list of labels.
+func PathOf(first string, rest ...string) TreePath {
+	labels := make([]string, 0, 1+len(rest))
+	labels = append(labels, first)
+	labels = append(labels, rest...)
+	return TreePath{labels}
+}
+
+// PathWithPrefix creates a TreePath from a prefix and an end label.
+func PathWithPrefix(prefix []string, key string) TreePath {
+	labels := make([]string, 0, len(prefix)+1)
+	labels = append(labels, prefix...)
+	labels = append(labels, key)
+	return TreePath{labels}
+}
+
+// With returns a TreePath extended by the additional labels.
+func (p TreePath) With(more ...string) TreePath {
+	if len(more) == 0 {
+		return p
+	}
+
+	labels := make([]string, 0, len(p.labels)+len(more))
+	labels = append(labels, p.labels...)
+	labels = append(labels, more...)
+	return TreePath{labels}
+}
+
+// Parent returns this path without the last component.
+//
+// Returns true as the second value if the path has a parent,
+// and false otherwise. If this returns false, the resulting
+// TreePath is invalid and must not be used.
+func (p TreePath) Parent() (TreePath, bool) {
+	if len(p.labels) <= 1 {
+		return TreePath{}, false
+	}
+
+	return TreePath{p.labels[:len(p.labels)-1]}, true
+}
+
+// Len returns the number of labels in the path, which is always >0.
+func (p TreePath) Len() int {
+	return len(p.labels)
+}
+
+// Labels returns the path as a list of labels.
+//
+// The returned slice must not be modified.
+func (p TreePath) Labels() []string {
+	return p.labels
+}
+
+// Prefix returns all but the last label in the path.
+//
+// The returned slice must not be modified.
+func (p TreePath) Prefix() []string {
+	return p.labels[:len(p.labels)-1]
+}
+
+// End returns the last label in the path.
+func (p TreePath) End() string {
+	return p.labels[len(p.labels)-1]
+}
 
 // PathTree is a tree with a string at each non-leaf node.
 //
@@ -50,11 +117,8 @@ func (pt *PathTree) CloneTree() map[string]any {
 // If path refers to a non-leaf node, that node is replaced by a leaf
 // and the subtree is discarded.
 func (pt *PathTree) Set(path TreePath, value any) {
-	pathPrefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := pt.getOrMakeSubtree(pathPrefix)
-	subtree[key] = value
+	subtree := pt.getOrMakeSubtree(path.Prefix())
+	subtree[path.End()] = value
 }
 
 // SetSubtree recusrively replaces the subtree at the given path.
@@ -63,44 +127,36 @@ func (pt *PathTree) Set(path TreePath, value any) {
 // leaf values. This tree structure is copied to update the path
 // tree.
 func (pt *PathTree) SetSubtree(path TreePath, subtree map[string]any) {
-	// Clone the path so that it is safe to append to it.
-	path = slices.Clone(path)
-
 	// TODO: this is inefficient---it has repeated getOrMakeSubtree calls
 	for key, value := range subtree {
 		switch x := value.(type) {
 		case map[string]any:
-			pt.SetSubtree(append(path, key), x)
+			pt.SetSubtree(path.With(key), x)
 		default:
-			pt.Set(append(path, key), x)
+			pt.Set(path.With(key), x)
 		}
 	}
 }
 
 // Remove deletes a node from the tree.
 func (pt *PathTree) Remove(path TreePath) {
-	if len(path) == 0 {
-		return
-	}
-
-	prefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := pt.getSubtree(prefix)
+	subtree := pt.getSubtree(path.Prefix())
 	if subtree == nil {
 		return
 	}
 
-	delete(subtree, key)
+	delete(subtree, path.End())
 
 	// Remove from parents to avoid keeping around empty maps.
-	parentIdx := len(path) - 2
-	for len(subtree) == 0 && parentIdx >= 0 {
-		parent := pt.getSubtree(path[:parentIdx])
-		delete(parent, path[parentIdx])
+	for len(subtree) == 0 {
+		var ok bool
+		path, ok = path.Parent()
+		if !ok {
+			return
+		}
 
-		parentIdx -= 1
-		subtree = parent
+		subtree = pt.getSubtree(path.Prefix())
+		delete(subtree, path.End())
 	}
 }
 
@@ -114,15 +170,12 @@ func (pt *PathTree) IsEmpty() bool {
 // Returns nil and false if the path doesn't lead to a leaf node.
 // Otherwise, returns the leaf value and true.
 func (pt *PathTree) GetLeaf(path TreePath) (any, bool) {
-	prefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := pt.getSubtree(prefix)
+	subtree := pt.getSubtree(path.Prefix())
 	if subtree == nil {
 		return nil, false
 	}
 
-	value, exists := subtree[key]
+	value, exists := subtree[path.End()]
 	if !exists {
 		return nil, false
 	}
@@ -137,15 +190,12 @@ func (pt *PathTree) GetLeaf(path TreePath) (any, bool) {
 
 // HasNode returns whether a node exists at the path.
 func (pt *PathTree) HasNode(path TreePath) bool {
-	prefix := path[:len(path)-1]
-	key := path[len(path)-1]
-
-	subtree := pt.getSubtree(prefix)
+	subtree := pt.getSubtree(path.Prefix())
 	if subtree == nil {
 		return false
 	}
 
-	_, exists := subtree[key]
+	_, exists := subtree[path.End()]
 	return exists
 }
 
@@ -164,13 +214,11 @@ func forEachLeaf(
 	fn func(path TreePath, value any) bool,
 ) bool {
 	for key, value := range tree {
-		// We must clone each time because the callback may store
-		// a reference to the slice we create.
-		path := append(slices.Clone(prefix), key)
+		path := PathWithPrefix(prefix, key)
 
 		switch x := value.(type) {
 		case treeData:
-			if !forEachLeaf(x, path, fn) {
+			if !forEachLeaf(x, path.Labels(), fn) {
 				return false
 			}
 
@@ -195,11 +243,13 @@ func (pt *PathTree) Flatten() []PathItem {
 func flatten(tree treeData, prefix []string) []PathItem {
 	var leaves []PathItem
 	for key, value := range tree {
+		path := PathWithPrefix(prefix, key)
+
 		switch value := value.(type) {
 		case treeData:
-			leaves = append(leaves, flatten(value, append(prefix, key))...)
+			leaves = append(leaves, flatten(value, path.Labels())...)
 		default:
-			leaves = append(leaves, PathItem{append(prefix, key), value})
+			leaves = append(leaves, PathItem{path, value})
 		}
 	}
 	return leaves
@@ -215,7 +265,7 @@ func (pt *PathTree) ToExtendedJSON() ([]byte, error) {
 
 // getSubtree returns the subtree at the path or nil if the path doesn't lead
 // to a non-leaf node.
-func (pt *PathTree) getSubtree(path TreePath) treeData {
+func (pt *PathTree) getSubtree(path []string) treeData {
 	tree := pt.tree
 
 	for _, key := range path {
@@ -238,7 +288,7 @@ func (pt *PathTree) getSubtree(path TreePath) treeData {
 // getOrMakeSubtree returns the subtree at the path, creating it if necessary.
 //
 // Any leaf nodes along the path get overwritten.
-func (pt *PathTree) getOrMakeSubtree(path TreePath) treeData {
+func (pt *PathTree) getOrMakeSubtree(path []string) treeData {
 	tree := pt.tree
 
 	for _, key := range path {

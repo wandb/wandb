@@ -3,7 +3,6 @@ package runhistory
 import (
 	"errors"
 	"fmt"
-	"slices"
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -47,7 +46,7 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 		}
 
 		records = append(records, &service.HistoryItem{
-			NestedKey: path,
+			NestedKey: path.Labels(),
 			ValueJson: string(valueJSON),
 		})
 
@@ -98,7 +97,7 @@ func (rh *RunHistory) IsEmpty() bool {
 }
 
 // Contains returns whether there is a value for the metric.
-func (rh *RunHistory) Contains(path ...string) bool {
+func (rh *RunHistory) Contains(path pathtree.TreePath) bool {
 	// TODO: should this work for non-leaf values?
 	_, exists := rh.metrics.GetLeaf(path)
 	return exists
@@ -125,15 +124,13 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
 // and any errors are joined and returned.
 func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
-	var pathAppendSafe pathtree.TreePath
+	var path pathtree.TreePath
 
 	switch {
 	case len(record.NestedKey) > 0:
-		// We clone the nested key so that it's safe to append to it
-		// without further cloning.
-		pathAppendSafe = slices.Clone(record.NestedKey)
+		path = pathtree.PathOf(record.NestedKey[0], record.NestedKey[1:]...)
 	case len(record.Key) > 0:
-		pathAppendSafe = pathtree.TreePath{record.Key}
+		path = pathtree.PathOf(record.Key)
 	default:
 		return errors.New("empty history item key")
 	}
@@ -143,26 +140,23 @@ func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
 		return fmt.Errorf("failed to unmarshal history item value: %v", err)
 	}
 
-	rh.setFromUnmarshalledJSON(pathAppendSafe, value)
+	rh.setFromUnmarshalledJSON(path, value)
 	return nil
 }
 
 // setFromUnmarshalledJSON sets metrics from a decoded JSON string.
 func (rh *RunHistory) setFromUnmarshalledJSON(
-	pathAppendSafe pathtree.TreePath,
+	path pathtree.TreePath,
 	value any,
 ) {
 	switch x := value.(type) {
 	// Recurse for maps to maintain their tree structure.
 	case map[string]any:
 		for subkey, value := range x {
-			subpath := pathAppendSafe
-			subpath = append(subpath, subkey)
-
-			rh.setFromUnmarshalledJSON(subpath, value)
+			rh.setFromUnmarshalledJSON(path.With(subkey), value)
 		}
 
 	default:
-		rh.metrics.Set(pathAppendSafe, x)
+		rh.metrics.Set(path, x)
 	}
 }

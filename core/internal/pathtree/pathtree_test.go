@@ -10,11 +10,11 @@ import (
 func TestSet_NewNode(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a", "b"}, 1)
-	tree.Set(pathtree.TreePath{"a", "c", "d"}, 2)
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+	tree.Set(pathtree.PathOf("a", "c", "d"), 2)
 
-	ab, abExists := tree.GetLeaf(pathtree.TreePath{"a", "b"})
-	acd, acdExists := tree.GetLeaf(pathtree.TreePath{"a", "c", "d"})
+	ab, abExists := tree.GetLeaf(pathtree.PathOf("a", "b"))
+	acd, acdExists := tree.GetLeaf(pathtree.PathOf("a", "c", "d"))
 	assert.True(t, abExists)
 	assert.Equal(t, 1, ab)
 	assert.True(t, acdExists)
@@ -24,11 +24,11 @@ func TestSet_NewNode(t *testing.T) {
 func TestSet_OverwriteLeaf(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a"}, 1)
-	tree.Set(pathtree.TreePath{"a", "b"}, 2)
+	tree.Set(pathtree.PathOf("a"), 1)
+	tree.Set(pathtree.PathOf("a", "b"), 2)
 
-	a, aExists := tree.GetLeaf(pathtree.TreePath{"a"})
-	ab, abExists := tree.GetLeaf(pathtree.TreePath{"a", "b"})
+	a, aExists := tree.GetLeaf(pathtree.PathOf("a"))
+	ab, abExists := tree.GetLeaf(pathtree.PathOf("a", "b"))
 	assert.False(t, aExists)
 	assert.Nil(t, a)
 	assert.True(t, abExists)
@@ -38,12 +38,12 @@ func TestSet_OverwriteLeaf(t *testing.T) {
 func TestRemove_Leaf(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a", "b"}, 1)
-	tree.Set(pathtree.TreePath{"a", "c"}, 2)
-	tree.Remove(pathtree.TreePath{"a", "b"})
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+	tree.Set(pathtree.PathOf("a", "c"), 2)
+	tree.Remove(pathtree.PathOf("a", "b"))
 
-	ab, abExists := tree.GetLeaf(pathtree.TreePath{"a", "b"})
-	ac, acExists := tree.GetLeaf(pathtree.TreePath{"a", "c"})
+	ab, abExists := tree.GetLeaf(pathtree.PathOf("a", "b"))
+	ac, acExists := tree.GetLeaf(pathtree.PathOf("a", "c"))
 	assert.False(t, abExists)
 	assert.Nil(t, ab)
 	assert.True(t, acExists)
@@ -53,12 +53,12 @@ func TestRemove_Leaf(t *testing.T) {
 func TestRemove_Node(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a", "b", "c"}, 1)
-	tree.Set(pathtree.TreePath{"a", "d"}, 2)
-	tree.Remove(pathtree.TreePath{"a", "b"})
+	tree.Set(pathtree.PathOf("a", "b", "c"), 1)
+	tree.Set(pathtree.PathOf("a", "d"), 2)
+	tree.Remove(pathtree.PathOf("a", "b"))
 
-	abc, abcExists := tree.GetLeaf(pathtree.TreePath{"a", "b", "c"})
-	ad, adExists := tree.GetLeaf(pathtree.TreePath{"a", "d"})
+	abc, abcExists := tree.GetLeaf(pathtree.PathOf("a", "b", "c"))
+	ad, adExists := tree.GetLeaf(pathtree.PathOf("a", "d"))
 	assert.False(t, abcExists)
 	assert.Nil(t, abc)
 	assert.True(t, adExists)
@@ -68,8 +68,8 @@ func TestRemove_Node(t *testing.T) {
 func TestRemove_DeletesParentMaps(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a", "b", "c"}, 1)
-	tree.Remove(pathtree.TreePath{"a", "b", "c"})
+	tree.Set(pathtree.PathOf("a", "b", "c"), 1)
+	tree.Remove(pathtree.PathOf("a", "b", "c"))
 
 	// IsEmpty() just checks the length of the root map. If we don't
 	// remove parent maps, this will fail.
@@ -79,9 +79,9 @@ func TestRemove_DeletesParentMaps(t *testing.T) {
 func TestGetLeaf_UnderLeaf(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a"}, 1)
+	tree.Set(pathtree.PathOf("a"), 1)
 
-	x, exists := tree.GetLeaf(pathtree.TreePath{"a", "b"})
+	x, exists := tree.GetLeaf(pathtree.PathOf("a", "b"))
 	assert.False(t, exists)
 	assert.Nil(t, x)
 }
@@ -89,25 +89,25 @@ func TestGetLeaf_UnderLeaf(t *testing.T) {
 func TestFlatten(t *testing.T) {
 	tree := pathtree.New()
 
-	tree.Set(pathtree.TreePath{"a", "b"}, 1)
-	tree.Set(pathtree.TreePath{"a", "c"}, 2)
-	tree.Set(pathtree.TreePath{"a", "d", "e"}, 3)
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+	tree.Set(pathtree.PathOf("a", "c"), 2)
+	tree.Set(pathtree.PathOf("a", "d", "e"), 3)
 	leaves := tree.Flatten()
 
 	assert.Len(t, leaves, 3)
 	assert.Contains(t, leaves,
 		pathtree.PathItem{
-			Path:  pathtree.TreePath{"a", "b"},
+			Path:  pathtree.PathOf("a", "b"),
 			Value: 1,
 		})
 	assert.Contains(t, leaves,
 		pathtree.PathItem{
-			Path:  pathtree.TreePath{"a", "c"},
+			Path:  pathtree.PathOf("a", "c"),
 			Value: 2,
 		})
 	assert.Contains(t, leaves,
 		pathtree.PathItem{
-			Path:  pathtree.TreePath{"a", "d", "e"},
+			Path:  pathtree.PathOf("a", "d", "e"),
 			Value: 3,
 		})
 }
