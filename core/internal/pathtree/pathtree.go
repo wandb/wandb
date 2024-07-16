@@ -1,6 +1,10 @@
 package pathtree
 
-import "github.com/wandb/segmentio-encoding/json"
+import (
+	"slices"
+
+	"github.com/wandb/segmentio-encoding/json"
+)
 
 // TreePath is a list of strings mapping to a value.
 type TreePath []string
@@ -59,6 +63,9 @@ func (pt *PathTree) Set(path TreePath, value any) {
 // leaf values. This tree structure is copied to update the path
 // tree.
 func (pt *PathTree) SetSubtree(path TreePath, subtree map[string]any) {
+	// Clone the path so that it is safe to append to it.
+	path = slices.Clone(path)
+
 	// TODO: this is inefficient---it has repeated getOrMakeSubtree calls
 	for key, value := range subtree {
 		switch x := value.(type) {
@@ -72,14 +79,34 @@ func (pt *PathTree) SetSubtree(path TreePath, subtree map[string]any) {
 
 // Remove deletes a node from the tree.
 func (pt *PathTree) Remove(path TreePath) {
+	if len(path) == 0 {
+		return
+	}
+
 	prefix := path[:len(path)-1]
 	key := path[len(path)-1]
 
-	// TODO: This can leave empty trees around.
 	subtree := pt.getSubtree(prefix)
-	if subtree != nil {
-		delete(subtree, key)
+	if subtree == nil {
+		return
 	}
+
+	delete(subtree, key)
+
+	// Remove from parents to avoid keeping around empty maps.
+	parentIdx := len(path) - 2
+	for len(subtree) == 0 && parentIdx >= 0 {
+		parent := pt.getSubtree(path[:parentIdx])
+		delete(parent, path[parentIdx])
+
+		parentIdx -= 1
+		subtree = parent
+	}
+}
+
+// IsEmpty returns whether the tree is empty.
+func (pt *PathTree) IsEmpty() bool {
+	return len(pt.tree) == 0
 }
 
 // GetLeaf returns the leaf value at path.
@@ -120,6 +147,41 @@ func (pt *PathTree) HasNode(path TreePath) bool {
 
 	_, exists := subtree[key]
 	return exists
+}
+
+// ForEachLeaf runs a callback on each leaf value in the tree.
+//
+// The order is unspecified and non-deterministic.
+//
+// The callback returns true to continue and false to stop iteration early.
+func (pt *PathTree) ForEachLeaf(fn func(path TreePath, value any) bool) {
+	_ = forEachLeaf(pt.tree, nil, fn)
+}
+
+func forEachLeaf(
+	tree treeData,
+	prefix []string,
+	fn func(path TreePath, value any) bool,
+) bool {
+	for key, value := range tree {
+		// We must clone each time because the callback may store
+		// a reference to the slice we create.
+		path := append(slices.Clone(prefix), key)
+
+		switch x := value.(type) {
+		case treeData:
+			if !forEachLeaf(x, path, fn) {
+				return false
+			}
+
+		default:
+			if !fn(path, value) {
+				return false
+			}
+		}
+	}
+
+	return true
 }
 
 // Flatten returns all the leaves of the tree.

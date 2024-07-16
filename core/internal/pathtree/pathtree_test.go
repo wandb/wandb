@@ -65,6 +65,17 @@ func TestRemove_Node(t *testing.T) {
 	assert.Equal(t, 2, ad)
 }
 
+func TestRemove_DeletesParentMaps(t *testing.T) {
+	tree := pathtree.New()
+
+	tree.Set(pathtree.TreePath{"a", "b", "c"}, 1)
+	tree.Remove(pathtree.TreePath{"a", "b", "c"})
+
+	// IsEmpty() just checks the length of the root map. If we don't
+	// remove parent maps, this will fail.
+	assert.True(t, tree.IsEmpty())
+}
+
 func TestGetLeaf_UnderLeaf(t *testing.T) {
 	tree := pathtree.New()
 
