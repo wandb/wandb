@@ -232,14 +232,14 @@ class Api:
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
+        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
-        self._extra_http_headers.update(_thread_local_api_settings.headers or {})
+        extra_http_headers.update(_thread_local_api_settings.headers or {})
 
         auth = None
         if self.access_token is not None:
-            self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
+            extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
         elif _thread_local_api_settings.cookies is None:
             auth = ("api", self.api_key or "")
 
@@ -253,7 +253,7 @@ class Api:
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                    **self._extra_http_headers,
+                    **extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
