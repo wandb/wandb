@@ -10,6 +10,7 @@ from wandb.sdk.launch.agent.job_status_tracker import JobAndRunStatusTracker
 from wandb.sdk.launch.builder.abstract import AbstractBuilder, registry_from_uri
 from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.registry.azure_container_registry import AzureContainerRegistry
 
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchDockerError, LaunchError
@@ -96,6 +97,8 @@ class DockerBuilder(AbstractBuilder):
         if isinstance(self.registry, LocalRegistry):
             _logger.info(f"{LOG_PREFIX}No registry configured, skipping login.")
         elif isinstance(self.registry, AnonynmousRegistry):
+            _logger.info(f"{LOG_PREFIX}Anonymous registry, skipping login.")
+        elif isinstance(self.registry, AzureContainerRegistry):
             _logger.info(f"{LOG_PREFIX}Anonymous registry, skipping login.")
         else:
             username, password = await self.registry.get_username_password()
