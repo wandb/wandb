@@ -4041,6 +4041,8 @@ class JobInputRequest(google.protobuf.message.Message):
     INPUT_SOURCE_FIELD_NUMBER: builtins.int
     INCLUDE_PATHS_FIELD_NUMBER: builtins.int
     EXCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    INPUT_SCHEMA_FIELD_NUMBER: builtins.int
+    input_schema: builtins.str
     @property
     def input_source(self) -> global___JobInputSource: ...
     @property
@@ -4053,8 +4055,9 @@ class JobInputRequest(google.protobuf.message.Message):
         input_source: global___JobInputSource | None = ...,
         include_paths: collections.abc.Iterable[global___JobInputPath] | None = ...,
         exclude_paths: collections.abc.Iterable[global___JobInputPath] | None = ...,
+        input_schema: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["input_source", b"input_source"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_source", b"input_source"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_schema", b"input_schema", "input_source", b"input_source"]) -> None: ...
 
 global___JobInputRequest = JobInputRequest

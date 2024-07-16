@@ -751,6 +751,7 @@ class InterfaceBase:
         self,
         include_paths: List[List[str]],
         exclude_paths: List[List[str]],
+        input_schema: Optional[dict],
         run_config: bool = False,
         file_path: str = "",
     ):
@@ -768,6 +769,8 @@ class InterfaceBase:
         Args:
             include_paths: paths within config to include as job inputs.
             exclude_paths: paths within config to exclude as job inputs.
+            input_schema: A JSON Schema describing which attributes will be
+                editable from the Launch drawer.
             run_config: bool indicating whether wandb.config is the input source.
             file_path: path to file to include as a job input.
         """
@@ -790,6 +793,8 @@ class InterfaceBase:
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
         request.input_source.CopyFrom(source)
+        if input_schema:
+            request.input_schema = json_dumps_safer(input_schema)
 
         return self._publish_job_input(request)
 
