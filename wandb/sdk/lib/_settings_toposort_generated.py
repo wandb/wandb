@@ -13,6 +13,7 @@ else:
 _Setting = Literal[
     "_args",
     "_aws_lambda",
+    "_branching_mode",
     "_cli_only_mode",
     "_code_path_local",
     "_colab",
@@ -196,6 +197,10 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "run_id",
     "start_method",
     "_aws_lambda",
+    "fork_from",
+    "resume",
+    "resume_from",
+    "_branching_mode",
     "program",
     "_code_path_local",
     "_colab",

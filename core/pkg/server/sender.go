@@ -667,7 +667,7 @@ func (s *Sender) checkAndUpdateResumeState(_ *service.Record) error {
 	}
 	resumeMode := runbranching.ResumeMode(s.settings.GetResume().GetValue())
 
-	fmt.Println(resumeMode)
+	fmt.Println("resumeMode", resumeMode)
 
 	// There was no resume status set, so we don't need to do anything
 	// if resumeMode == runbranching.None {
