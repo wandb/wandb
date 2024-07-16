@@ -7,6 +7,7 @@ def manage_config_file(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
+    schema: Optional[dict] = None,
 ):
     r"""Declare an overridable configuration file for a launch job.
 
@@ -43,18 +44,21 @@ def manage_config_file(
             relative and must not contain backwards traversal, i.e. `..`.
         include (List[str]): A list of keys to include in the configuration file.
         exclude (List[str]): A list of keys to exclude from the configuration file.
+        schema (dict): A JSON Schema describing which attributes will be
+            editable from the Launch drawer.
 
     Raises:
         LaunchError: If the path is not valid, or if there is no active run.
     """
     from .internal import handle_config_file_input
 
-    return handle_config_file_input(path, include, exclude)
+    return handle_config_file_input(path, include, exclude, schema)
 
 
 def manage_wandb_config(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
+    schema: Optional[dict] = None,
 ):
     r"""Declare wandb.config as an overridable configuration for a launch job.
 
@@ -86,10 +90,12 @@ def manage_wandb_config(
     Args:
         include (List[str]): A list of subtrees to include in the configuration.
         exclude (List[str]): A list of subtrees to exclude from the configuration.
+        schema (dict): A JSON Schema describing which attributes will be
+            editable from the Launch drawer.
 
     Raises:
         LaunchError: If there is no active run.
     """
     from .internal import handle_run_config_input
 
-    handle_run_config_input(include, exclude)
+    handle_run_config_input(include, exclude, schema)

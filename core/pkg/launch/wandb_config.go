@@ -12,10 +12,11 @@ import (
 type launchWandbConfigParameters struct {
 	includePaths []ConfigPath
 	excludePaths []ConfigPath
+	inputSchema  *string
 }
 
 func newWandbConfigParameters() *launchWandbConfigParameters {
-	return &launchWandbConfigParameters{[]ConfigPath{}, []ConfigPath{}}
+	return &launchWandbConfigParameters{[]ConfigPath{}, []ConfigPath{}, nil}
 }
 
 func (p *launchWandbConfigParameters) appendIncludePaths(
