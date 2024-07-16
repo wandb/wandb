@@ -30,8 +30,8 @@ func isBoolMessage(m protoreflect.Message) bool {
 //     or strings
 //
 // All keys in the result and its nested maps are strings, and all values are
-// string/int64 so that the result can be converted to JSON using
-// wandb/simplejsonext.
+// string/int64/float64/slices and maps of those so that the result can be
+// converted to JSON using wandb/simplejsonext.
 func ProtoEncodeToDict(p proto.Message) map[string]any {
 	pm := p.ProtoReflect()
 
