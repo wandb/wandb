@@ -29,8 +29,9 @@ func isBoolMessage(m protoreflect.Message) bool {
 //   - Nested messages are only supported if they consist entirely of bools
 //     or strings
 //
-// All keys in the result and its nested maps are strings so that the result
-// can be converted to JSON using wandb/simplejsonext.
+// All keys in the result and its nested maps are strings, and all values are
+// string/int64 so that the result can be converted to JSON using
+// wandb/simplejsonext.
 func ProtoEncodeToDict(p proto.Message) map[string]any {
 	pm := p.ProtoReflect()
 
@@ -51,16 +52,16 @@ func ProtoEncodeToDict(p proto.Message) map[string]any {
 			m[strconv.Itoa(int(num))] = v.String()
 
 		case protoreflect.EnumKind:
-			m[strconv.Itoa(int(num))] = v.Enum()
+			m[strconv.Itoa(int(num))] = int64(v.Enum())
 
 		case protoreflect.MessageKind:
 			pm2 := pm.Get(fd).Message()
 			// TODO(perf2): cache isBoolMessage based on field number
 			bmsg := isBoolMessage(pm2)
 			if bmsg {
-				var lst []int
+				var lst []int64
 				pm2.Range(func(fd2 protoreflect.FieldDescriptor, v2 protoreflect.Value) bool {
-					lst = append(lst, int(fd2.Number()))
+					lst = append(lst, int64(fd2.Number()))
 					return true
 				})
 				m[strconv.Itoa(int(num))] = lst
