@@ -216,6 +216,32 @@ func (v *CommitArtifactResponse) GetCommitArtifact() *CommitArtifactCommitArtifa
 	return v.CommitArtifact
 }
 
+type CompleteMultipartAction string
+
+const (
+	CompleteMultipartActionComplete CompleteMultipartAction = "Complete"
+)
+
+// CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload includes the requested fields of the GraphQL type CompleteMultipartUploadArtifactPayload.
+type CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload struct {
+	Digest *string `json:"digest"`
+}
+
+// GetDigest returns CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload.Digest, and is useful for accessing the field via an interface.
+func (v *CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload) GetDigest() *string {
+	return v.Digest
+}
+
+// CompleteMultipartUploadArtifactResponse is returned by CompleteMultipartUploadArtifact on success.
+type CompleteMultipartUploadArtifactResponse struct {
+	CompleteMultipartUploadArtifact *CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload `json:"completeMultipartUploadArtifact"`
+}
+
+// GetCompleteMultipartUploadArtifact returns CompleteMultipartUploadArtifactResponse.CompleteMultipartUploadArtifact, and is useful for accessing the field via an interface.
+func (v *CompleteMultipartUploadArtifactResponse) GetCompleteMultipartUploadArtifact() *CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload {
+	return v.CompleteMultipartUploadArtifact
+}
+
 // CreateArtifactCreateArtifactCreateArtifactPayload includes the requested fields of the GraphQL type CreateArtifactPayload.
 type CreateArtifactCreateArtifactCreateArtifactPayload struct {
 	Artifact CreateArtifactCreateArtifactCreateArtifactPayloadArtifact `json:"artifact"`
@@ -327,9 +353,16 @@ func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFi
 
 // CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
 type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile struct {
-	UploadUrl     *string                                                                                                           `json:"uploadUrl"`
-	UploadHeaders []string                                                                                                          `json:"uploadHeaders"`
-	Artifact      *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact `json:"artifact"`
+	StoragePath         *string                                                                                                                      `json:"storagePath"`
+	UploadUrl           *string                                                                                                                      `json:"uploadUrl"`
+	UploadHeaders       []string                                                                                                                     `json:"uploadHeaders"`
+	UploadMultipartUrls *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls `json:"uploadMultipartUrls"`
+	Artifact            *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact            `json:"artifact"`
+}
+
+// GetStoragePath returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.StoragePath, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile) GetStoragePath() *string {
+	return v.StoragePath
 }
 
 // GetUploadUrl returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.UploadUrl, and is useful for accessing the field via an interface.
@@ -340,6 +373,11 @@ func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFi
 // GetUploadHeaders returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.UploadHeaders, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile) GetUploadHeaders() []string {
 	return v.UploadHeaders
+}
+
+// GetUploadMultipartUrls returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.UploadMultipartUrls, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile) GetUploadMultipartUrls() *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls {
+	return v.UploadMultipartUrls
 }
 
 // GetArtifact returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.Artifact, and is useful for accessing the field via an interface.
@@ -355,6 +393,38 @@ type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileCo
 // GetId returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact) GetId() string {
 	return v.Id
+}
+
+// CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls includes the requested fields of the GraphQL type UploadMultipartUrls.
+type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls struct {
+	UploadID       string                                                                                                                                                   `json:"uploadID"`
+	UploadUrlParts []CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart `json:"uploadUrlParts"`
+}
+
+// GetUploadID returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls.UploadID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls) GetUploadID() string {
+	return v.UploadID
+}
+
+// GetUploadUrlParts returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls.UploadUrlParts, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls) GetUploadUrlParts() []CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart {
+	return v.UploadUrlParts
+}
+
+// CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart includes the requested fields of the GraphQL type UploadUrlPart.
+type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart struct {
+	PartNumber int64  `json:"partNumber"`
+	UploadUrl  string `json:"uploadUrl"`
+}
+
+// GetPartNumber returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart.PartNumber, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart) GetPartNumber() int64 {
+	return v.PartNumber
+}
+
+// GetUploadUrl returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart.UploadUrl, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart) GetUploadUrl() string {
+	return v.UploadUrl
 }
 
 // CreateArtifactFilesResponse is returned by CreateArtifactFiles on success.
@@ -998,6 +1068,34 @@ type __CommitArtifactInput struct {
 // GetArtifactID returns __CommitArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
 func (v *__CommitArtifactInput) GetArtifactID() string { return v.ArtifactID }
 
+// __CompleteMultipartUploadArtifactInput is used internally by genqlient
+type __CompleteMultipartUploadArtifactInput struct {
+	CompleteMultipartAction CompleteMultipartAction `json:"completeMultipartAction"`
+	CompletedParts          []UploadPartsInput      `json:"completedParts"`
+	ArtifactID              string                  `json:"artifactID"`
+	StoragePath             string                  `json:"storagePath"`
+	UploadID                string                  `json:"uploadID"`
+}
+
+// GetCompleteMultipartAction returns __CompleteMultipartUploadArtifactInput.CompleteMultipartAction, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetCompleteMultipartAction() CompleteMultipartAction {
+	return v.CompleteMultipartAction
+}
+
+// GetCompletedParts returns __CompleteMultipartUploadArtifactInput.CompletedParts, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetCompletedParts() []UploadPartsInput {
+	return v.CompletedParts
+}
+
+// GetArtifactID returns __CompleteMultipartUploadArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetStoragePath returns __CompleteMultipartUploadArtifactInput.StoragePath, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetStoragePath() string { return v.StoragePath }
+
+// GetUploadID returns __CompleteMultipartUploadArtifactInput.UploadID, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetUploadID() string { return v.UploadID }
+
 // __CreateArtifactFilesInput is used internally by genqlient
 type __CreateArtifactFilesInput struct {
 	ArtifactFiles []CreateArtifactFileSpecInput `json:"artifactFiles"`
@@ -1518,6 +1616,49 @@ func CommitArtifact(
 	return &data_, err_
 }
 
+// The query or mutation executed by CompleteMultipartUploadArtifact.
+const CompleteMultipartUploadArtifact_Operation = `
+mutation CompleteMultipartUploadArtifact ($completeMultipartAction: CompleteMultipartAction!, $completedParts: [UploadPartsInput!]!, $artifactID: ID!, $storagePath: String!, $uploadID: String!) {
+	completeMultipartUploadArtifact(input: {completeMultipartAction:$completeMultipartAction,completedParts:$completedParts,artifactID:$artifactID,storagePath:$storagePath,uploadID:$uploadID}) {
+		digest
+	}
+}
+`
+
+func CompleteMultipartUploadArtifact(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	completeMultipartAction CompleteMultipartAction,
+	completedParts []UploadPartsInput,
+	artifactID string,
+	storagePath string,
+	uploadID string,
+) (*CompleteMultipartUploadArtifactResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "CompleteMultipartUploadArtifact",
+		Query:  CompleteMultipartUploadArtifact_Operation,
+		Variables: &__CompleteMultipartUploadArtifactInput{
+			CompleteMultipartAction: completeMultipartAction,
+			CompletedParts:          completedParts,
+			ArtifactID:              artifactID,
+			StoragePath:             storagePath,
+			UploadID:                uploadID,
+		},
+	}
+	var err_ error
+
+	var data_ CompleteMultipartUploadArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
 // The query or mutation executed by CreateArtifact.
 const CreateArtifact_Operation = `
 mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
@@ -1594,8 +1735,16 @@ mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $
 		files {
 			edges {
 				node {
+					storagePath
 					uploadUrl
 					uploadHeaders
+					uploadMultipartUrls {
+						uploadID
+						uploadUrlParts {
+							partNumber
+							uploadUrl
+						}
+					}
 					artifact {
 						id
 					}

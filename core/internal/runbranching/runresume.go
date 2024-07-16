@@ -8,7 +8,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -256,7 +255,7 @@ func (r *ResumeState) updateConfig(bucket *Bucket) error {
 	// If we are unable to parse the config, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it
 	// TODO: potential issue with unsupported types like NaN/Inf
-	var cfg map[string]interface{}
+	var cfg map[string]any
 
 	if err := json.Unmarshal([]byte(*resumed), &cfg); err != nil {
 		err = fmt.Errorf(
@@ -264,15 +263,15 @@ func (r *ResumeState) updateConfig(bucket *Bucket) error {
 		return err
 	}
 
-	deserializedConfig := make(pathtree.TreeData)
+	deserializedConfig := make(map[string]any)
 	for key, value := range cfg {
-		valueDict, ok := value.(map[string]interface{})
+		valueDict, ok := value.(map[string]any)
 
 		if !ok {
 			r.logger.Error(
 				fmt.Sprintf(
 					"sender: updateConfig: config value for '%v'"+
-						" is not a map[string]interface{}",
+						" is not a map[string]any",
 					key,
 				),
 			)

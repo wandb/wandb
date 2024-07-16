@@ -612,7 +612,7 @@ func (j *JobBuilder) Build(
 		if j.runConfig == nil {
 			sourceInfo.InputTypes = data_types.ResolveTypes(map[string]interface{}{})
 		} else {
-			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.Tree())
+			sourceInfo.InputTypes = data_types.ResolveTypes(j.runConfig.CloneTree())
 		}
 	}
 

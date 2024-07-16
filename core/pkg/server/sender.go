@@ -466,13 +466,7 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	output, err := s.runSummary.CloneTree()
-	if err != nil {
-		s.logger.Error(
-			"sender: sendJobFlush: failed to copy run summary", "error", err,
-		)
-		return
-	}
+	output := s.runSummary.CloneTree()
 
 	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
