@@ -379,7 +379,12 @@ func (h *Handler) handleMetric(record *service.Record) {
 		return
 	}
 
-	h.metricHandler.AddMetric(metric)
+	if err := h.metricHandler.AddMetric(metric); err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf("handler: cannot add metric: %v", err),
+			"metric", metric)
+		return
+	}
 
 	if metric.StepMetric != "" && !h.metricHandler.Exists(metric.StepMetric) {
 		stepMetric := &service.MetricRecord{Name: metric.StepMetric}
