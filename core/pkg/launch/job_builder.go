@@ -698,24 +698,32 @@ func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
 	j.PartialJobID = &useArtifact.Id
 }
 
+func (j *JobBuilder) MakeFilesAndSchemas() (map[string]any, map[string]any, error) {
+	files := make(map[string]any)
+	file_schemas := make(map[string]any)
+	for _, configFile := range j.configFiles {
+		files[configFile.relpath] = j.generateConfigFileSchema(configFile)
+		if configFile.inputSchema != nil {
+			var inputSchemaMap map[string]interface{}
+			err := json.Unmarshal([]byte(*configFile.inputSchema), &inputSchemaMap)
+			if err != nil {
+				return nil, nil, err
+			}
+			file_schemas[configFile.relpath] = inputSchemaMap
+		}
+	}
+	return files, file_schemas, nil
+}
+
 // Makes job input schema into a json string to be stored as artifact metadata.
 func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (string, error) {
-	metadata := make(map[string]interface{})
-	input_types := make(map[string]interface{})
-	input_schemas := make(map[string]interface{})
+	metadata := make(map[string]any)
+	input_types := make(map[string]any)
+	input_schemas := make(map[string]any)
 	if len(j.configFiles) > 0 {
-		files := make(map[string]interface{})
-		file_schemas := make(map[string]interface{})
-		for _, configFile := range j.configFiles {
-			files[configFile.relpath] = j.generateConfigFileSchema(configFile)
-			if configFile.inputSchema != nil {
-				var inputSchemaMap map[string]interface{}
-				err := json.Unmarshal([]byte(*configFile.inputSchema), &inputSchemaMap)
-				if err != nil {
-					return "", err
-				}
-				file_schemas[configFile.relpath] = inputSchemaMap
-			}
+		files, file_schemas, err := j.MakeFilesAndSchemas()
+		if err != nil {
+			return "", err
 		}
 		input_types["files"] = files
 		if len(file_schemas) > 0 {
@@ -790,16 +798,12 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 	source := request.GetInputSource()
 	switch source := source.GetSource().(type) {
 	case *service.JobInputSource_File:
-		var schemaPtr *string
-		schema := request.GetInputSchema()
-		if schema != "" {
-			schemaPtr = &schema
-		}
+		schema := utils.NilIfZero(request.GetInputSchema())
 		newInput, err := newFileInputFromProto(
 			source,
 			request.GetIncludePaths(),
 			request.GetExcludePaths(),
-			schemaPtr,
+			schema,
 		)
 		if err != nil {
 			j.logger.Error("jobBuilder: error creating file input from request", "error", err)
@@ -812,8 +816,6 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
-		if request.InputSchema != "" {
-			j.wandbConfigParameters.inputSchema = &request.InputSchema
-		}
+		j.wandbConfigParameters.inputSchema = utils.NilIfZero(request.InputSchema)
 	}
 }
