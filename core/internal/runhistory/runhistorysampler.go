@@ -24,11 +24,11 @@ func (s *RunHistorySampler) SampleNext(history *RunHistory) {
 	// TODO: Support sampling nested metrics.
 	history.ForEachNumber(
 		func(path pathtree.TreePath, value float64) bool {
-			if len(path) != 1 {
+			if path.Len() != 1 {
 				return true
 			}
 
-			key := path[0]
+			key := path.Labels()[0]
 
 			sample, ok := s.samples[key]
 			if !ok {
