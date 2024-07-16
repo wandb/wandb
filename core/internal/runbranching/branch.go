@@ -6,17 +6,21 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-type Type uint8
-
 const (
-	None Type = iota
-	Resume
-	Fork
-	Rewind
+	ModeNone   string = "none"
+	ModeResume string = "resume"
+	ModeFork   string = "fork"
+	ModeRewind string = "rewind"
 )
 
+type RunBranch interface {
+	State() *State
+	PreUpsert() error
+	PostUpsert() error
+}
+
 type State struct {
-	Type             Type
+	Mode             string
 	Project          string
 	RunId            string
 	FileStreamOffset filestream.FileStreamOffsetMap
@@ -28,14 +32,14 @@ type State struct {
 }
 
 func NewState(
-	branchType Type,
+	branchMode string,
 	project string,
 	runId string,
 	config *runconfig.RunConfig,
 	tags []string,
 ) *State {
 	return &State{
-		Type:    branchType,
+		Mode:    branchMode,
 		Project: project,
 		RunId:   runId,
 		Config:  config,

@@ -1,6 +1,7 @@
 package runbranching
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -8,8 +9,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -24,12 +23,6 @@ const (
 	Never
 )
 
-type ResumeState struct {
-	State
-	resume Mode
-	logger *observability.CoreLogger
-}
-
 func ResumeMode(mode string) Mode {
 	switch mode {
 	case "must":
@@ -43,23 +36,6 @@ func ResumeMode(mode string) Mode {
 	}
 }
 
-func NewResumeState(
-	project string,
-	runId string,
-	config *runconfig.RunConfig,
-	tags []string,
-	mode Mode,
-	logger *observability.CoreLogger,
-) *ResumeState {
-	State := NewState(None, project, runId, config, tags)
-	return &ResumeState{
-		State:  *State,
-		resume: mode,
-		logger: logger,
-	}
-
-}
-
 func RunHasStarted(bucket *Bucket) bool {
 	// If bucket is nil, run doesn't exist yet
 	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
@@ -67,7 +43,7 @@ func RunHasStarted(bucket *Bucket) bool {
 	return bucket != nil && bucket.WandbConfig != nil && strings.Contains(*bucket.WandbConfig, `"t":`)
 }
 
-func (r *ResumeState) Update(data *gql.RunResumeStatusResponse) (*service.RunUpdateResult, error) {
+func (r *State) UpdateResume(mode Mode, data *gql.RunResumeStatusResponse) (*service.RunUpdateResult, error) {
 
 	var bucket *Bucket
 	if data.GetModel() != nil && data.GetModel().GetBucket() != nil {
@@ -79,9 +55,9 @@ func (r *ResumeState) Update(data *gql.RunResumeStatusResponse) (*service.RunUpd
 	// If we get that the run is a resume run, we should fail if resume is set to never
 	// for any other case of resume status, we should continue to process the resume response
 	switch {
-	case !RunHasStarted(bucket) && r.resume != Must:
+	case !RunHasStarted(bucket) && mode != Must:
 		return nil, nil
-	case !RunHasStarted(bucket) && r.resume == Must:
+	case !RunHasStarted(bucket) && mode == Must:
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'must' is not a valid option for resuming a run"+
@@ -98,7 +74,7 @@ func (r *ResumeState) Update(data *gql.RunResumeStatusResponse) (*service.RunUpd
 		err := fmt.Errorf(
 			"sender: Update: resume is 'must' for a run that does not exist")
 		return result, err
-	case r.resume == Never && RunHasStarted(bucket):
+	case mode == Never && RunHasStarted(bucket):
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'never' is not a valid option for resuming a"+
@@ -114,7 +90,7 @@ func (r *ResumeState) Update(data *gql.RunResumeStatusResponse) (*service.RunUpd
 			"sender: Update: resume is 'never' for a run that already exists")
 		return result, err
 	default:
-		if err := r.update(bucket); err != nil && r.resume == Must {
+		if err := r.updateResume(bucket); err != nil && mode == Must {
 			message := fmt.Sprintf(
 				"The run (%s/%s) failed to resume, and the `resume` argument"+
 					" was set to 'must'. Please check your inputs and try again"+
@@ -128,47 +104,38 @@ func (r *ResumeState) Update(data *gql.RunResumeStatusResponse) (*service.RunUpd
 			}
 			return result, err
 		}
-		r.Type = Resume
+		r.Mode = ModeResume
 		return nil, nil
 	}
 }
 
-func (r *ResumeState) update(bucket *Bucket) error {
-	var isErr bool
+func (r *State) updateResume(bucket *Bucket) error {
+	var errs []error
 
 	r.AddOffset(filestream.HistoryChunk, *bucket.GetHistoryLineCount())
-	if err := r.updateHistory(bucket); err != nil {
-		r.logger.Error(err.Error())
-		isErr = true
+	if err := r.updateResumeHistory(bucket); err != nil {
+		errs = append(errs, err)
 	}
 
 	r.AddOffset(filestream.EventsChunk, *bucket.GetEventsLineCount())
 
-	if err := r.updateSummary(bucket); err != nil {
-		r.logger.Error(err.Error())
-		isErr = true
+	if err := r.updateResumeSummary(bucket); err != nil {
+		errs = append(errs, err)
 	}
 
 	r.AddOffset(filestream.OutputChunk, *bucket.GetLogLineCount())
-	if err := r.updateConfig(bucket); err != nil {
-		r.logger.Error(err.Error())
-		isErr = true
+	if err := r.updateResumeConfig(bucket); err != nil {
+		errs = append(errs, err)
 	}
 
-	if err := r.updateTags(bucket); err != nil {
-		r.logger.Error(err.Error())
-		isErr = true
+	if err := r.updateResumeTags(bucket); err != nil {
+		errs = append(errs, err)
 	}
 
-	if isErr {
-		err := fmt.Errorf("sender: update: failed to update resume state")
-		return err
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
-func (r *ResumeState) updateHistory(bucket *Bucket) error {
+func (r *State) updateResumeHistory(bucket *Bucket) error {
 
 	resumed := bucket.GetHistoryTail()
 	if resumed == nil {
@@ -211,14 +178,11 @@ func (r *ResumeState) updateHistory(bucket *Bucket) error {
 	return nil
 }
 
-func (r *ResumeState) updateSummary(bucket *Bucket) error {
+func (r *State) updateResumeSummary(bucket *Bucket) error {
 
 	resumed := bucket.GetSummaryMetrics()
 	if resumed == nil {
-		err := fmt.Errorf(
-			"sender: updateSummary: no summary metrics found in resume response")
-		r.logger.Error(err.Error())
-		return err
+		return fmt.Errorf("sender: updateSummary: no summary metrics found in resume response")
 	}
 
 	// If we are unable to parse the summary, we should fail if resume is set to
@@ -245,7 +209,7 @@ func (r *ResumeState) updateSummary(bucket *Bucket) error {
 }
 
 // Merges the original run's config into the current config.
-func (r *ResumeState) updateConfig(bucket *Bucket) error {
+func (r *State) updateResumeConfig(bucket *Bucket) error {
 	resumed := bucket.GetConfig()
 	if resumed == nil {
 		err := fmt.Errorf("sender: updateConfig: no config found in resume response")
@@ -263,28 +227,26 @@ func (r *ResumeState) updateConfig(bucket *Bucket) error {
 		return err
 	}
 
+	var errs []error
 	deserializedConfig := make(map[string]any)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]any)
 
 		if !ok {
-			r.logger.Error(
-				fmt.Sprintf(
-					"sender: updateConfig: config value for '%v'"+
-						" is not a map[string]any",
-					key,
-				),
-			)
+			errs = append(errs, fmt.Errorf(
+				"sender: updateConfig: config value for '%v' is not a map[string]any",
+				key,
+			))
 		} else if val, ok := valueDict["value"]; ok {
 			deserializedConfig[key] = val
 		}
 	}
 
 	r.Config.MergeResumedConfig(deserializedConfig)
-	return nil
+	return errors.Join(errs...)
 }
 
-func (r *ResumeState) updateTags(bucket *Bucket) error {
+func (r *State) updateResumeTags(bucket *Bucket) error {
 	resumed := bucket.GetTags()
 	if resumed == nil {
 		return nil
