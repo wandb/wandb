@@ -1180,7 +1180,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	}
 
 	h.partialHistory.SetFloat(
-		pathtree.TreePath{"_runtime"},
+		pathtree.PathOf("_runtime"),
 		h.runTimer.Elapsed().Seconds(),
 	)
 
@@ -1191,12 +1191,12 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	if h.settings.GetXShared().GetValue() {
 		// TODO: useStep must be false here
 		h.partialHistory.SetString(
-			pathtree.TreePath{"_client_id"},
+			pathtree.PathOf("_client_id"),
 			h.clientID,
 		)
 	} else if useStep {
 		h.partialHistory.SetInt(
-			pathtree.TreePath{"_step"},
+			pathtree.PathOf("_step"),
 			h.partialHistoryStep,
 		)
 	}

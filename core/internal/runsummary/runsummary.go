@@ -117,13 +117,13 @@ func (rs *RunSummary) ApplyChangeRecord(
 		}
 		// update all the stats for the given key path
 		path := keyPath(item)
-		err = rs.stats.UpdateStats(path, update)
+		err = rs.stats.UpdateStats(path.Labels(), update)
 		if err != nil {
 			onError(err)
 			continue
 		}
 		// get the summary type for the item
-		summaryTypes := rs.GetSummaryTypes(path)
+		summaryTypes := rs.GetSummaryTypes(path.Labels())
 
 		// skip if None in the summary type slice
 		if len(summaryTypes) == 1 && summaryTypes[0] == None {
@@ -133,7 +133,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 		// get the requested stats for the item
 		updateMap := make(map[string]interface{})
 		for summaryType := range summaryTypes {
-			update, err := rs.stats.GetStat(path, summaryTypes[summaryType])
+			update, err := rs.stats.GetStat(path.Labels(), summaryTypes[summaryType])
 			if err != nil {
 				onError(err)
 				continue
@@ -176,7 +176,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 		rs.pathTree.Remove(keyPath(item))
 
 		// remove the stats
-		err := rs.stats.DeleteNode(keyPath(item))
+		err := rs.stats.DeleteNode(keyPath(item).Labels())
 		if err != nil {
 			onError(err)
 		}
@@ -194,8 +194,7 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 
 	summary := make([]*service.SummaryItem, 0, len(leaves))
 	for _, leaf := range leaves {
-		pathLen := len(leaf.Path)
-		if pathLen == 0 {
+		if leaf.Path.Len() == 0 {
 			return nil, fmt.Errorf(
 				"runsummary: empty path for item %v",
 				leaf,
@@ -210,14 +209,14 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 			)
 		}
 
-		if pathLen == 1 {
+		if leaf.Path.Len() == 1 {
 			summary = append(summary, &service.SummaryItem{
-				Key:       leaf.Path[0],
+				Key:       leaf.Path.Labels()[0],
 				ValueJson: string(value),
 			})
 		} else {
 			summary = append(summary, &service.SummaryItem{
-				NestedKey: leaf.Path,
+				NestedKey: leaf.Path.Labels(),
 				ValueJson: string(value),
 			})
 		}
@@ -232,7 +231,7 @@ func (rs *RunSummary) CloneTree() map[string]any {
 
 // Get returns the summary value for a metric.
 func (rs *RunSummary) Get(key string) (any, bool) {
-	return rs.pathTree.GetLeaf(pathtree.TreePath{key})
+	return rs.pathTree.GetLeaf(pathtree.PathOf(key))
 }
 
 // Serializes the object to send to the backend.
@@ -243,9 +242,9 @@ func (rs *RunSummary) Serialize() ([]byte, error) {
 // keyPath returns the key path for the given config item.
 // If the item has a nested key, it returns the nested key.
 // Otherwise, it returns a slice with the key.
-func keyPath(item *service.SummaryItem) []string {
+func keyPath(item *service.SummaryItem) pathtree.TreePath {
 	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
+		return pathtree.PathOf(item.NestedKey[0], item.NestedKey[1:]...)
 	}
-	return []string{item.GetKey()}
+	return pathtree.PathOf(item.GetKey())
 }
