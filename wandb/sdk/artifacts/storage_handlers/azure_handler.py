@@ -200,7 +200,7 @@ class AzureHandler(StorageHandler):
         self, blob_properties: "azure.storage.blob.BlobProperties"
     ) -> bool:
         return (
-            "metadata" in blob_properties
-            and "hdi_isfolder" in blob_properties["metadata"]
-            and blob_properties["metadata"]["hdi_isfolder"] == "true"
+            blob_properties.has_key("metadata")
+            and "hdi_isfolder" in blob_properties.metadata
+            and blob_properties.metadata["hdi_isfolder"] == "true"
         )

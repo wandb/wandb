@@ -138,7 +138,7 @@ def mock_gcs(artifact, path=False, hash=True):
 
 
 @pytest.fixture
-def mock_azure_handler():
+def mock_azure_handler():  # noqa: C901
     class BlobServiceClient:
         def __init__(self, account_url, credential):
             pass
@@ -186,6 +186,9 @@ def mock_azure_handler():
             self.etag = etag
             self.size = size
             self.metadata = metadata
+
+        def has_key(self, k):
+            return k in self.__dict__
 
     blobs = [
         BlobProperties(
