@@ -11,7 +11,7 @@ import os
 import pathlib
 import shutil
 import tempfile
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 import wandb
 import wandb.data_types
@@ -129,11 +129,60 @@ def _publish_job_input(
     )
 
 
+def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
+    """Recursively fix JSON schemas with common issues.
+
+    1. Replaces any instances of $ref with their associated definition in defs
+    2. Removes any "allOf" lists that only have one item, "lifting" the item up
+    See test_internal.py for examples
+    """
+    ret: Dict[str, Any] = {}
+    if "$ref" in schema:
+        # Reference found, replace it with its definition
+        def_key = schema["$ref"].split("#/$defs/")[1]
+        # Also run recursive replacement in case a ref contains more refs
+        return _replace_refs_and_allofs(defs.pop(def_key), defs)
+    for key, val in schema.items():
+        if isinstance(val, dict):
+            # Step into dicts recursively
+            new_val_dict = _replace_refs_and_allofs(val, defs)
+            ret[key] = new_val_dict
+        elif isinstance(val, list):
+            # Step into each item in the list
+            new_val_list = []
+            for item in val:
+                if isinstance(item, dict):
+                    new_val_list.append(_replace_refs_and_allofs(item, defs))
+                else:
+                    new_val_list.append(item)
+            # Lift up allOf blocks with only one item
+            if (
+                key == "allOf"
+                and len(new_val_list) == 1
+                and isinstance(new_val_list[0], dict)
+            ):
+                ret.update(new_val_list[0])
+            else:
+                ret[key] = new_val_list
+        else:
+            # For anything else (str, int, etc) keep it as-is
+            ret[key] = val
+    return ret
+
+
+def _convert_pydantic_model_to_jsonschema(model: Any) -> dict:
+    schema = model.model_json_schema()
+    defs = schema.pop("$defs")
+    if not defs:
+        return schema
+    return _replace_refs_and_allofs(schema, defs)
+
+
 def handle_config_file_input(
     path: str,
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    schema: Optional[dict] = None,
+    schema: Optional[Any] = None,
 ):
     """Declare an overridable configuration file for a launch job.
 
@@ -155,6 +204,16 @@ def handle_config_file_input(
         path,
         dest,
     )
+    # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+    # or the BaseModel class itself (e.g. schema=MySchema)
+    if hasattr(schema, "model_json_schema") and callable(
+        schema.model_json_schema  # type: ignore
+    ):
+        schema = _convert_pydantic_model_to_jsonschema(schema)
+    if schema and not isinstance(schema, dict):
+        raise LaunchError(
+            "schema must be a dict, Pydantic model instance, or Pydantic model class."
+        )
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
@@ -172,7 +231,7 @@ def handle_config_file_input(
 def handle_run_config_input(
     include: Optional[List[str]] = None,
     exclude: Optional[List[str]] = None,
-    schema: Optional[dict] = None,
+    schema: Optional[Any] = None,
 ):
     """Declare wandb.config as an overridable configuration for a launch job.
 
@@ -182,6 +241,16 @@ def handle_run_config_input(
     If there is no active run, the include and exclude paths are staged and sent
     when a run is created.
     """
+    # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+    # or the BaseModel class itself (e.g. schema=MySchema)
+    if hasattr(schema, "model_json_schema") and callable(
+        schema.model_json_schema  # type: ignore
+    ):
+        schema = _convert_pydantic_model_to_jsonschema(schema)
+    if schema and not isinstance(schema, dict):
+        raise LaunchError(
+            "schema must be a dict, Pydantic model instance, or Pydantic model class."
+        )
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
