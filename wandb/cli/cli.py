@@ -1418,6 +1418,14 @@ def launch_sweep(
     If passed in, will override the docker image value passed in using a config file.""",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    default=None,
+    metavar="BASE IMAGE",
+    hidden=True,
+    help="""Docker image to run job code in. Incompatible with --docker-image.""",
+)
+@click.option(
     "--config",
     "-c",
     metavar="FILE",
@@ -1508,6 +1516,7 @@ def launch(
     entity,
     project,
     docker_image,
+    base_image,
     config,
     cli_template_vars,
     queue,
@@ -1604,6 +1613,7 @@ def launch(
             git_hash=git_version,
             name=job_name,
             project=project,
+            base_image=base_image,
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
