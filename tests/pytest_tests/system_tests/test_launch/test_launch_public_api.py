@@ -50,7 +50,7 @@ def test_run_queue(user):
 
 
 def test_run_queue_create(user):
-    rq = wandb.apis.public.RunQueue().create(
+    rq = wandb.apis.public.RunQueue.create(
         name="test-queue",
         entity=user,
         type="local-container",
