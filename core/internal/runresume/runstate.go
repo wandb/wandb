@@ -9,9 +9,9 @@ import (
 )
 
 type RunState struct {
-	ctx     context.Context
-	client  graphql.Client
-	Started bool
+	ctx        context.Context
+	client     graphql.Client
+	Intialized bool
 
 	RunID       string
 	Project     string
@@ -34,28 +34,19 @@ type RunState struct {
 func NewRunState(
 	ctx context.Context,
 	client graphql.Client,
-	runID string,
-	project string,
-	entity string,
-	tags []string,
-	started bool,
 ) *RunState {
 	return &RunState{
 		ctx:              ctx,
 		client:           client,
 		FileStreamOffset: make(filestream.FileStreamOffsetMap),
-		RunID:            runID,
-		Project:          project,
-		Entity:           entity,
-		Tags:             tags,
-		Started:          started,
 	}
 }
 
-func (r *RunState) Update(settings *service.Settings) (*service.ErrorInfo, error) {
+func (r *RunState) Update(settings *service.Settings, record *service.RunRecord) (*service.ErrorInfo, error) {
+	r.updateUpsert(record)
 	switch {
 	case settings.GetResume().GetValue() != "":
-		return r.UpdateResume(settings.GetResume().GetValue())
+		return r.updateResume(settings.GetResume().GetValue())
 	case settings.ResumeFrom != nil:
 		return nil, r.UpdateRewind()
 	case settings.ForkFrom != nil:
@@ -65,14 +56,29 @@ func (r *RunState) Update(settings *service.Settings) (*service.ErrorInfo, error
 	}
 }
 
-func (r *RunState) Apply(settings *service.Settings, record *service.RunRecord) {
-	if settings.GetResume().GetValue() != "" {
-		r.ApplyResume(record)
-	}
-	r.ApplyUpsert(record)
+func (r *RunState) updateUpsert(record *service.RunRecord) {
+	record.RunId = r.RunID
+	record.Project = r.Project
+	record.Entity = r.Entity
+	record.DisplayName = r.DisplayName
+	record.SweepId = r.SweepID
+	record.StorageId = r.StorageID
 }
 
-func (r *RunState) ApplyUpsert(record *service.RunRecord) {
+func (r *RunState) Apply(settings *service.Settings, record *service.RunRecord) {
+	switch {
+	case settings.GetResume().GetValue() != "":
+		r.applyResume(record)
+	case settings.ResumeFrom != nil:
+		r.applyRewind(record)
+	case settings.ForkFrom != nil:
+		// r.applyFork(record)
+	default:
+	}
+	r.applyUpsert(record)
+}
+
+func (r *RunState) applyUpsert(record *service.RunRecord) {
 	record.RunId = r.RunID
 	record.Project = r.Project
 	record.Entity = r.Entity

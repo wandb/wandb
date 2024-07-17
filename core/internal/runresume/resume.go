@@ -13,19 +13,19 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
-func (r *RunState) ApplyResume(record *service.RunRecord) {
+func (r *RunState) applyResume(run *service.RunRecord) {
 
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		record.StartingStep = r.step + 1
+		run.StartingStep = r.step + 1
 	}
 
 	// r.RunRecord.StartTime = r.startTime
 
-	record.Runtime = r.runtime
+	run.Runtime = r.runtime
 
 	// update the tags
-	record.Tags = r.Tags
+	run.Tags = append(run.Tags, r.Tags...)
 
 	// update the config
 	config := service.ConfigRecord{}
@@ -36,7 +36,7 @@ func (r *RunState) ApplyResume(record *service.RunRecord) {
 			ValueJson: valueJson,
 		})
 	}
-	record.Config = &config
+	run.Config = &config
 
 	// update the summary
 	summary := service.SummaryRecord{}
@@ -47,10 +47,11 @@ func (r *RunState) ApplyResume(record *service.RunRecord) {
 			ValueJson: valueJson,
 		})
 	}
-	record.Summary = &summary
+	run.Summary = &summary
+
 }
 
-func (r *RunState) UpdateResume(mode string) (*service.ErrorInfo, error) {
+func (r *RunState) updateResume(mode string) (*service.ErrorInfo, error) {
 
 	response, err := gql.RunResumeStatus(
 		r.ctx,
