@@ -14,6 +14,7 @@ from wandb.sdk.launch.inputs.internal import (
     _publish_job_input,
     _replace_refs_and_allofs,
     _split_on_unesc_dot,
+    _validate_schema,
     handle_config_file_input,
     handle_run_config_input,
 )
@@ -269,3 +270,70 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
     assert run_config.exclude == ["exclude"]
     assert run_config.file_path is None
     assert run_config.run_config is True
+
+
+@pytest.mark.parametrize(
+    "schema, expected",
+    [
+        # --- Passing cases ---
+        # Basic test
+        ({"type": "object", "properties": {"key1": {"type": "integer"}}}, []),
+        # Test using all supported keys + nested schemas
+        (
+            {
+                "type": "object",
+                "properties": {
+                    "key1": {"type": "integer", "minimum": 3, "exclusiveMaximum": 6.0},
+                    "key2": {"type": "number", "exclusiveMinimum": 1.2, "maximum": 3},
+                    "key3": {
+                        "type": "object",
+                        "properties": {
+                            "key3": {
+                                "type": "string",
+                                "title": "My cool string",
+                                "description": "It is cool",
+                                "enum": ["value-1", "value-2"],
+                            },
+                            "key4": {"type": "integer", "enum": [3, 4, 5]},
+                            "key5": {"type": "boolean"},
+                        },
+                    },
+                },
+            },
+            [],
+        ),
+        # --- Failing cases ---
+        # Test using a float as a minimum for an integer
+        (
+            {
+                "type": "object",
+                "properties": {"key1": {"type": "integer", "minimum": 1.5}},
+            },
+            ["1.5 is not of type 'integer'"],
+        ),
+        # Test setting "minimum" on a type that doesn't support it
+        (
+            {
+                "type": "object",
+                "properties": {"key1": {"type": "string", "minimum": 1}},
+            },
+            ["Unevaluated properties are not allowed ('minimum' was unexpected)"],
+        ),
+        # Test using an unsupported key
+        (
+            {
+                "type": "object",
+                "properties": {"key1": {"type": "integer", "default": 5}},
+            },
+            ["Unevaluated properties are not allowed ('default' was unexpected)"],
+        ),
+    ],
+)
+def test_validate_schema(mocker, mock_wandb_log, schema, expected):
+    """Test that valid schemas show no warnings, and invalid schemas do."""
+    _validate_schema(schema)
+    warns = "".join(mock_wandb_log._logs(mock_wandb_log._termwarn))
+    for e in expected:
+        assert e in warns
+    if not expected:
+        assert not warns
