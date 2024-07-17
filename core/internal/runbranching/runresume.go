@@ -173,7 +173,7 @@ func (r *State) updateResumeHistory(bucket *Bucket) error {
 		// to be the next step after the last step we ran
 		if x, ok := step.(int64); ok {
 			if x > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
-				run.StartingStep = x + 1
+				r.RunRecord.StartingStep = x + 1
 			}
 		}
 	}
@@ -182,9 +182,9 @@ func (r *State) updateResumeHistory(bucket *Bucket) error {
 	if ok {
 		switch x := runtime.(type) {
 		case int64:
-			run.Runtime = int32(x)
+			r.RunRecord.Runtime = int32(x)
 		case float64:
-			run.Runtime = int32(x)
+			r.RunRecord.Runtime = int32(x)
 		}
 	}
 
