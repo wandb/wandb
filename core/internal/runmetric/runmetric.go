@@ -47,12 +47,12 @@ func (mh *MetricHandler) InsertStepMetrics(
 		}
 
 		// Skip if the step is already set.
-		if history.Contains(metricDef.StepMetric) {
+		if history.Contains(pathtree.PathOf(metricDef.StepMetric)) {
 			continue
 		}
 
 		// Skip if the metric doesn't show up in history.
-		if !history.Contains(metricDef.Name) {
+		if !history.Contains(pathtree.PathOf(metricDef.Name)) {
 			continue
 		}
 
@@ -76,9 +76,9 @@ func (mh *MetricHandler) hackInsertLatestValue(
 	// numbers into float64 or int64, but this is a brittle assumption.
 	switch x := value.(type) {
 	case float64:
-		history.SetFloat(pathtree.TreePath{stepMetricKey}, x)
+		history.SetFloat(pathtree.PathOf(stepMetricKey), x)
 	case int64:
-		history.SetInt(pathtree.TreePath{stepMetricKey}, x)
+		history.SetInt(pathtree.PathOf(stepMetricKey), x)
 	}
 }
 
@@ -91,10 +91,10 @@ func (mh *MetricHandler) CreateGlobMetrics(
 
 	history.ForEachKey(func(path pathtree.TreePath) bool {
 		// TODO: Support nested keys.
-		if len(path) != 1 {
+		if path.Len() != 1 {
 			return true
 		}
-		key := path[0]
+		key := path.Labels()[0]
 
 		// Skip metrics prefixed by an underscore, which are internal to W&B.
 		if strings.HasPrefix(key, "_") {
