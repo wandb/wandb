@@ -302,7 +302,7 @@ def test_handle_run_config_input_staged(mocker, reset_staged_inputs):
             },
             [],
         ),
-        # --- Failing cases ---
+        # --- Warning cases ---
         # Test using a float as a minimum for an integer
         (
             {
