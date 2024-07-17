@@ -636,7 +636,7 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 //
 // Uses the given telemetry
 func (s *Sender) updateConfigPrivate() {
-	metrics := []map[int]interface{}(nil)
+	metrics := []map[string]interface{}(nil)
 	if s.metricSender != nil {
 		metrics = s.metricSender.ConfigMetrics
 	}
@@ -1398,8 +1398,7 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 // encodeMetricHints encodes the metric hints for the given metric record. The metric hints
 // are used to configure the plots in the UI.
 func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-
-	_, err := runmetric.AddMetric(metric, metric.GetName(), &s.metricSender.DefinedMetrics)
+	err := s.metricSender.AddNonGlobMetric(metric)
 	if err != nil {
 		return
 	}

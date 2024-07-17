@@ -1,11 +1,12 @@
 package runbranching
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -110,7 +111,7 @@ func (r *State) UpdateResume(mode Mode, data *gql.RunResumeStatusResponse) (*ser
 }
 
 func (r *State) updateResume(bucket *Bucket) error {
-	var errs []error
+	errs := make([]error, 0)
 
 	r.AddOffset(filestream.HistoryChunk, *bucket.GetHistoryLineCount())
 	if err := r.updateResumeHistory(bucket); err != nil {
@@ -144,35 +145,47 @@ func (r *State) updateResumeHistory(bucket *Bucket) error {
 		return err
 	}
 
+	// Since we just expect a list of strings, we unmarshal using the
+	// standard JSON library.
 	var history []string
 	if err := json.Unmarshal([]byte(*resumed), &history); err != nil {
-		err = fmt.Errorf(
-			"sender: updateHistory:failed to unmarshal history tail: %s", err)
-		return err
+		return fmt.Errorf(
+			"sender: updateHistory: failed to unmarshal history: %v",
+			err,
+		)
 	}
 
 	if len(history) == 0 {
 		return nil
 	}
 
-	var historyTail map[string]any
-	if err := json.Unmarshal([]byte(history[0]), &historyTail); err != nil {
+	historyTail, err := simplejsonext.UnmarshalObjectString(history[0])
+	if err != nil {
 		err = fmt.Errorf(
 			"sender: updateHistory: failed to unmarshal history tail map: %s",
 			err)
 		return err
 	}
 
-	if step, ok := historyTail["_step"].(float64); ok {
+	step, ok := historyTail["_step"]
+	if ok {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
-		if step > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
-			r.RunRecord.StartingStep = int64(step) + 1
+		if x, ok := step.(int64); ok {
+			if x > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
+				run.StartingStep = x + 1
+			}
 		}
 	}
 
-	if runtime, ok := historyTail["_runtime"].(float64); ok {
-		r.RunRecord.Runtime = int32(runtime)
+	runtime, ok := historyTail["_runtime"]
+	if ok {
+		switch x := runtime.(type) {
+		case int64:
+			run.Runtime = int32(x)
+		case float64:
+			run.Runtime = int32(x)
+		}
 	}
 
 	return nil
@@ -182,26 +195,39 @@ func (r *State) updateResumeSummary(bucket *Bucket) error {
 
 	resumed := bucket.GetSummaryMetrics()
 	if resumed == nil {
-		return fmt.Errorf("sender: updateSummary: no summary metrics found in resume response")
+		return errors.New(
+			"sender: updateSummary: no summary metrics found in resume response",
+		)
 	}
 
 	// If we are unable to parse the summary, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it
-	// TODO: potential issue with unsupported types like NaN/Inf
-	var summary map[string]interface{}
-	if err := json.Unmarshal([]byte(*resumed), &summary); err != nil {
-		err = fmt.Errorf(
+	summaryVal, err := simplejsonext.UnmarshalString(*resumed)
+	if err != nil {
+		return fmt.Errorf(
 			"sender: updateSummary: failed to unmarshal summary metrics: %s",
-			err)
-		return err
+			err,
+		)
+	}
+
+	var summary map[string]any
+	switch x := summaryVal.(type) {
+	case nil: // OK, summary is nil
+	case map[string]any:
+		summary = x
+	default:
+		return fmt.Errorf(
+			"sender: updateSummary: got type %T for %s",
+			x, *resumed,
+		)
 	}
 
 	record := service.SummaryRecord{}
 	for key, value := range summary {
-		valueJson, _ := json.Marshal(value)
+		valueJson, _ := simplejsonext.MarshalToString(value)
 		record.Update = append(record.Update, &service.SummaryItem{
 			Key:       key,
-			ValueJson: string(valueJson),
+			ValueJson: valueJson,
 		})
 	}
 	r.RunRecord.Summary = &record
@@ -212,19 +238,31 @@ func (r *State) updateResumeSummary(bucket *Bucket) error {
 func (r *State) updateResumeConfig(bucket *Bucket) error {
 	resumed := bucket.GetConfig()
 	if resumed == nil {
-		err := fmt.Errorf("sender: updateConfig: no config found in resume response")
-		return err
+		return errors.New(
+			"sender: updateConfig: no config found in resume response",
+		)
 	}
 
 	// If we are unable to parse the config, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it
-	// TODO: potential issue with unsupported types like NaN/Inf
-	var cfg map[string]any
+	cfgVal, err := simplejsonext.UnmarshalString(*resumed)
+	if err != nil {
+		return fmt.Errorf(
+			"sender: updateConfig: failed to unmarshal config: %s",
+			err,
+		)
+	}
 
-	if err := json.Unmarshal([]byte(*resumed), &cfg); err != nil {
-		err = fmt.Errorf(
-			"sender: updateConfig: failed to unmarshal config: %s", err)
-		return err
+	var cfg map[string]any
+	switch x := cfgVal.(type) {
+	case nil: // OK, cfg is nil
+	case map[string]any:
+		cfg = x
+	default:
+		return fmt.Errorf(
+			"sender: updateConfig: got type %T for %s",
+			x, *resumed,
+		)
 	}
 
 	var errs []error

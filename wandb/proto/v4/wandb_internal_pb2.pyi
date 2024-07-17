@@ -4034,20 +4034,23 @@ class JobInputRequest(google.protobuf.message.Message):
     INPUT_SOURCE_FIELD_NUMBER: builtins.int
     INCLUDE_PATHS_FIELD_NUMBER: builtins.int
     EXCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    INPUT_SCHEMA_FIELD_NUMBER: builtins.int
     @property
     def input_source(self) -> global___JobInputSource: ...
     @property
     def include_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___JobInputPath]: ...
     @property
     def exclude_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___JobInputPath]: ...
+    input_schema: builtins.str
     def __init__(
         self,
         *,
         input_source: global___JobInputSource | None = ...,
         include_paths: collections.abc.Iterable[global___JobInputPath] | None = ...,
         exclude_paths: collections.abc.Iterable[global___JobInputPath] | None = ...,
+        input_schema: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["input_source", b"input_source"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_source", b"input_source"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_schema", b"input_schema", "input_source", b"input_source"]) -> None: ...
 
 global___JobInputRequest = JobInputRequest

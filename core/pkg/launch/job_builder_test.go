@@ -784,6 +784,99 @@ func TestWandbConfigParameters(t *testing.T) {
 	}, inputs)
 }
 
+func TestWandbConfigParametersWithInputSchema(t *testing.T) {
+	// Test that if InputSchema is set on the job builder
+	// then the schema is persisted in the artifact metadata
+
+	ctx := context.Background()
+	gql := gqlmock.NewMockClient()
+	metadata := map[string]interface{}{
+		"python": "3.11.2",
+		"git": map[string]interface{}{
+			"commit": "1234567890",
+			"remote": "example.com",
+		},
+		"codePath": "/path/to/train.py",
+	}
+
+	fdir := filepath.Join(os.TempDir(), "test")
+	err := os.MkdirAll(fdir, 0777)
+	assert.Nil(t, err)
+	writeRequirements(t, fdir)
+	writeDiffFile(t, fdir)
+	writeWandbMetadata(t, fdir, metadata)
+
+	defer os.RemoveAll(fdir)
+	settings := &service.Settings{
+		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+	}
+	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+	jobBuilder.SetRunConfig(*runconfig.NewFrom(
+		map[string]interface{}{
+			"key1": "value1",
+			"key2": "value2",
+			"key3": map[string]interface{}{
+				"key4": map[string]interface{}{
+					"key6": "value6",
+					"key7": "value7",
+				},
+				"key5": "value5",
+			},
+		},
+	))
+	inputSchema, _ := json.Marshal(map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"key1": map[string]interface{}{
+				"type": "string",
+			},
+			"key3": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"key5": map[string]interface{}{
+						"type": "string",
+					},
+				},
+			},
+		},
+	})
+	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
+		InputSource: &service.JobInputSource{
+			Source: &service.JobInputSource_RunConfig{},
+		},
+		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
+		InputSchema:  string(inputSchema),
+	})
+	artifact, err := jobBuilder.Build(ctx, gql, nil)
+	assert.Nil(t, err)
+	var artifactMetadata map[string]interface{}
+	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
+	assert.Nil(t, err)
+	schema := artifactMetadata["input_schema"].(map[string]interface{})
+	assert.Equal(t, map[string]interface{}{
+		WandbConfigKey: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"key1": map[string]interface{}{
+					"type": "string",
+				},
+				"key3": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key5": map[string]interface{}{
+							"type": "string",
+						},
+					},
+				},
+			},
+		},
+	}, schema)
+}
+
 func TestConfigFileParameters(t *testing.T) {
 	// Test that if ConfigFileParametersRecord is set on the job builder
 	// then inputs will be filtered to only include the parameters specified
@@ -859,6 +952,96 @@ func TestConfigFileParameters(t *testing.T) {
 				},
 			},
 			"wb_type": "typedDict",
+		},
+	}, files)
+}
+
+func TestConfigFileParametersWithInputSchema(t *testing.T) {
+	// Test that if InputSchema is set on the job builder
+	// then the schema is persisted in the artifact metadata
+
+	ctx := context.Background()
+	gql := gqlmock.NewMockClient()
+	metadata := map[string]interface{}{
+		"python": "3.11.2",
+		"git": map[string]interface{}{
+			"commit": "1234567890",
+			"remote": "example.com",
+		},
+		"codePath": "/path/to/train.py",
+	}
+	fdir := filepath.Join(os.TempDir(), "test")
+	err := os.MkdirAll(fdir, 0777)
+	assert.Nil(t, err)
+	writeRequirements(t, fdir)
+	writeDiffFile(t, fdir)
+	writeWandbMetadata(t, fdir, metadata)
+	configDir := filepath.Join(fdir, LAUNCH_MANAGED_CONFIGS_DIR)
+	err = os.Mkdir(configDir, 0777)
+	assert.Nil(t, err)
+	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
+	writeFile(t, configDir, "config.yaml", yamlContents)
+	defer os.RemoveAll(fdir)
+	settings := &service.Settings{
+		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
+		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
+		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
+		FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
+	}
+	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
+
+	inputSchema, _ := json.Marshal(map[string]interface{}{
+		"type": "object",
+		"properties": map[string]interface{}{
+			"key1": map[string]interface{}{
+				"type": "string",
+			},
+			"key3": map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"key5": map[string]interface{}{
+						"type": "string",
+					},
+				},
+			},
+		},
+	})
+	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
+		InputSource: &service.JobInputSource{
+			Source: &service.JobInputSource_File{
+				File: &service.JobInputSource_ConfigFileSource{
+					Path: "config.yaml",
+				},
+			},
+		},
+		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
+		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4"}}},
+		InputSchema:  string(inputSchema),
+	})
+	artifact, err := jobBuilder.Build(ctx, gql, nil)
+
+	assert.Nil(t, err)
+	var artifactMetadata map[string]interface{}
+	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
+	assert.Nil(t, err)
+	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	files := metadataInputSchema["files"].(map[string]interface{})
+	assert.Equal(t, map[string]interface{}{
+		"config.yaml": map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"key1": map[string]interface{}{
+					"type": "string",
+				},
+				"key3": map[string]interface{}{
+					"type": "object",
+					"properties": map[string]interface{}{
+						"key5": map[string]interface{}{
+							"type": "string",
+						},
+					},
+				},
+			},
 		},
 	}, files)
 }

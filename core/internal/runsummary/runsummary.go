@@ -5,27 +5,31 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type RunSummary struct {
 	pathTree *pathtree.PathTree
 	stats    *Node
-	mh       *runmetric.MetricHandler
+	mh       RunSummaryMetricHandler
+}
+
+type RunSummaryMetricHandler interface {
+	// Hack to prevent an import cycle in the middle of a refactor.
+	//
+	// The RunSummary will soon be refactored.
+
+	HackGetDefinedMetrics() map[string]*service.MetricRecord
+	HackGetGlobMetrics() map[string]*service.MetricRecord
 }
 
 type Params struct {
-	MetricHandler *runmetric.MetricHandler
+	MetricHandler RunSummaryMetricHandler
 }
 
 func New(params Params) *RunSummary {
-	if params.MetricHandler == nil {
-		params.MetricHandler = runmetric.NewMetricHandler()
-	}
-
 	rs := &RunSummary{
 		pathTree: pathtree.New(),
 		stats:    NewNode(),
@@ -40,6 +44,10 @@ func New(params Params) *RunSummary {
 // It first checked the concrete metrics and then the glob metrics.
 // The first match wins. If no match is found, it returns Latest.
 func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
+	if rs.mh == nil {
+		return nil
+	}
+
 	// look for a matching rule
 	// TODO: properly implement dot notation for nested keys,
 	// see test_metric_full.py::test_metric_dotted for an example
@@ -47,7 +55,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 
 	types := make([]SummaryType, 0)
 
-	for pattern, definedMetric := range rs.mh.DefinedMetrics {
+	for pattern, definedMetric := range rs.mh.HackGetDefinedMetrics() {
 		if pattern == name {
 			summary := definedMetric.GetSummary()
 			if summary.GetNone() {
@@ -67,7 +75,7 @@ func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
 			}
 		}
 	}
-	for pattern, globMetric := range rs.mh.GlobMetrics {
+	for pattern, globMetric := range rs.mh.HackGetGlobMetrics() {
 		// match the key against the glob pattern:
 		// note check for no error
 		if match, err := filepath.Match(pattern, name); err == nil && match {
@@ -102,22 +110,20 @@ func (rs *RunSummary) ApplyChangeRecord(
 	onError func(error),
 ) {
 	for _, item := range summaryRecord.GetUpdate() {
-		var update interface{}
-		// custom unmarshal function that handles NaN and +-Inf
-		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
+		update, err := simplejsonext.UnmarshalString(item.GetValueJson())
 		if err != nil {
 			onError(err)
 			continue
 		}
 		// update all the stats for the given key path
 		path := keyPath(item)
-		err = rs.stats.UpdateStats(path, update)
+		err = rs.stats.UpdateStats(path.Labels(), update)
 		if err != nil {
 			onError(err)
 			continue
 		}
 		// get the summary type for the item
-		summaryTypes := rs.GetSummaryTypes(path)
+		summaryTypes := rs.GetSummaryTypes(path.Labels())
 
 		// skip if None in the summary type slice
 		if len(summaryTypes) == 1 && summaryTypes[0] == None {
@@ -127,7 +133,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 		// get the requested stats for the item
 		updateMap := make(map[string]interface{})
 		for summaryType := range summaryTypes {
-			update, err := rs.stats.GetStat(path, summaryTypes[summaryType])
+			update, err := rs.stats.GetStat(path.Labels(), summaryTypes[summaryType])
 			if err != nil {
 				onError(err)
 				continue
@@ -147,7 +153,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 
 		if len(updateMap) > 0 {
 			// update summaryRecord with the new value
-			jsonValue, err := json.Marshal(updateMap)
+			jsonValue, err := simplejsonext.Marshal(updateMap)
 			if err != nil {
 				onError(err)
 				continue
@@ -170,7 +176,7 @@ func (rs *RunSummary) ApplyChangeRecord(
 		rs.pathTree.Remove(keyPath(item))
 
 		// remove the stats
-		err := rs.stats.DeleteNode(keyPath(item))
+		err := rs.stats.DeleteNode(keyPath(item).Labels())
 		if err != nil {
 			onError(err)
 		}
@@ -188,15 +194,14 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 
 	summary := make([]*service.SummaryItem, 0, len(leaves))
 	for _, leaf := range leaves {
-		pathLen := len(leaf.Path)
-		if pathLen == 0 {
+		if leaf.Path.Len() == 0 {
 			return nil, fmt.Errorf(
 				"runsummary: empty path for item %v",
 				leaf,
 			)
 		}
 
-		value, err := json.Marshal(leaf.Value)
+		value, err := simplejsonext.Marshal(leaf.Value)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"runhistory: failed to marshal value for item %v: %v",
@@ -204,14 +209,14 @@ func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
 			)
 		}
 
-		if pathLen == 1 {
+		if leaf.Path.Len() == 1 {
 			summary = append(summary, &service.SummaryItem{
-				Key:       leaf.Path[0],
+				Key:       leaf.Path.Labels()[0],
 				ValueJson: string(value),
 			})
 		} else {
 			summary = append(summary, &service.SummaryItem{
-				NestedKey: leaf.Path,
+				NestedKey: leaf.Path.Labels(),
 				ValueJson: string(value),
 			})
 		}
@@ -226,7 +231,7 @@ func (rs *RunSummary) CloneTree() map[string]any {
 
 // Get returns the summary value for a metric.
 func (rs *RunSummary) Get(key string) (any, bool) {
-	return rs.pathTree.GetLeaf(pathtree.TreePath{key})
+	return rs.pathTree.GetLeaf(pathtree.PathOf(key))
 }
 
 // Serializes the object to send to the backend.
@@ -237,9 +242,9 @@ func (rs *RunSummary) Serialize() ([]byte, error) {
 // keyPath returns the key path for the given config item.
 // If the item has a nested key, it returns the nested key.
 // Otherwise, it returns a slice with the key.
-func keyPath(item *service.SummaryItem) []string {
+func keyPath(item *service.SummaryItem) pathtree.TreePath {
 	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
+		return pathtree.PathOf(item.NestedKey[0], item.NestedKey[1:]...)
 	}
-	return []string{item.GetKey()}
+	return pathtree.PathOf(item.GetKey())
 }

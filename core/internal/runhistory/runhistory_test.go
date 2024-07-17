@@ -1,115 +1,103 @@
 package runhistory_test
 
 import (
-	"reflect"
-	"sort"
+	"math"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/simplejsonext"
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func TestApplyUpdate(t *testing.T) {
-
+func TestSetFromRecord_NestedKey(t *testing.T) {
 	rh := runhistory.New()
-	items := []*service.HistoryItem{
-		{
-			Key:       "setting1",
-			ValueJson: "69",
-		},
-		{
-			NestedKey: []string{"config", "setting2"},
-			ValueJson: `{"value": 42}`,
-		},
-	}
 
-	rh.ApplyChangeRecord(items,
-		func(err error) {
-			t.Error("onError should not be called", err)
-		})
+	err := rh.SetFromRecord(&service.HistoryItem{
+		NestedKey: []string{"a", "b"},
+		ValueJson: "1",
+	})
 
-	encoded, err := rh.Serialize()
+	require.NoError(t, err)
+	encoded, err := rh.ToExtendedJSON()
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"a": {"b": 1}}`, string(encoded))
+}
+
+func TestSetRecord_NestedValue(t *testing.T) {
+	rh := runhistory.New()
+
+	err := rh.SetFromRecord(&service.HistoryItem{
+		Key:       "a",
+		ValueJson: `{"b": 1, "c": {"d": 2.5, "e": "e", "f": false}}`,
+	})
+
+	require.NoError(t, err)
+	encoded, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
 	assert.JSONEq(t,
-		`{
-			"setting1": 69,
-			"config": {"setting2": {"value": 42}}
-		}`,
+		`{"a": {"b": 1, "c": {"d": 2.5, "e": "e", "f": false}}}`,
 		string(encoded))
 }
 
-func key(item *service.HistoryItem) []string {
-	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
-	}
-	return []string{item.GetKey()}
+func TestSetRecord_UnmarshalError(t *testing.T) {
+	rh := runhistory.New()
+
+	err := rh.SetFromRecord(&service.HistoryItem{
+		Key:       "a",
+		ValueJson: "invalid",
+	})
+
+	assert.ErrorContains(t, err, "failed to unmarshal")
 }
 
-// TestApplyUpdateSpecialValues checks behavior with NaN and Inf values.
-// These values are supported by our special json package and should not return an error.
-func TestApplyUpdateSpecialValues(t *testing.T) {
-
+func TestNaN(t *testing.T) {
 	rh := runhistory.New()
-	expectedItems := []*service.HistoryItem{
-		{
-			Key:       "nan",
-			ValueJson: `NaN`,
-		},
-		{
-			Key:       "inf",
-			ValueJson: `Infinity`,
-		},
-		{
-			NestedKey: []string{"special", "ninf"},
-			ValueJson: `-Infinity`,
-		},
-	}
-	rh.ApplyChangeRecord(expectedItems,
-		func(err error) {
-			t.Error("onError should not be called", err)
+
+	_ = rh.SetFromRecord(&service.HistoryItem{Key: "+inf", ValueJson: "Infinity"})
+	_ = rh.SetFromRecord(&service.HistoryItem{Key: "-inf", ValueJson: "-Infinity"})
+	_ = rh.SetFromRecord(&service.HistoryItem{Key: "nan", ValueJson: "NaN"})
+
+	encoded, err := rh.ToExtendedJSON()
+	require.NoError(t, err)
+	asMap, err := simplejsonext.UnmarshalObject(encoded)
+	require.NoError(t, err)
+	assert.Equal(t, asMap["+inf"], math.Inf(1))
+	assert.Equal(t, asMap["-inf"], math.Inf(-1))
+	assert.True(t, math.IsNaN(asMap["nan"].(float64))) // NaN != NaN
+}
+
+func TestForEachNumber(t *testing.T) {
+	rh := runhistory.New()
+	rh.SetInt(pathtree.PathOf("the", "number", "five"), 5)
+	_ = rh.SetFromRecord(
+		&service.HistoryItem{
+			Key: "x",
+			ValueJson: `{
+				"a": 1,
+				"b": 2.5,
+				"c": Infinity,
+				"d": -Infinity,
+				"e": NaN,
+				"f": "ignored",
+				"g": [5, 7, 8]
+			}`,
 		})
 
-	actualItems, err := rh.Flatten()
-	if err != nil {
-		t.Fatal("Flatten failed:", err)
-	}
-
-	// Sort slices by joining keys into a single string for comparison
-	// (since order is not guaranteed)
-	sort.Slice(actualItems, func(i, j int) bool {
-		return strings.Join(key(actualItems[i]), ".") <
-			strings.Join(key(actualItems[j]), ".")
+	numbers := make(map[string]float64)
+	rh.ForEachNumber(func(path pathtree.TreePath, value float64) bool {
+		numbers[strings.Join(path.Labels(), ".")] = value
+		return true
 	})
 
-	sort.Slice(expectedItems, func(i, j int) bool {
-		return strings.Join(key(expectedItems[i]), ".") <
-			strings.Join(key(expectedItems[j]), ".")
-	})
-
-	if !reflect.DeepEqual(actualItems, expectedItems) {
-		t.Errorf("Expected %v, got %v", expectedItems, actualItems)
-	}
-}
-
-func TestSerialize(t *testing.T) {
-	rh := runhistory.New()
-
-	rh.ApplyChangeRecord([]*service.HistoryItem{
-		{Key: "config", ValueJson: `{"setting1":"value1"}`},
-	}, func(err error) {})
-
-	actualJson, err := rh.Serialize()
-	if err != nil {
-		t.Fatal("Serialize failed:", err)
-	}
-
-	expectedJson := "{\"config\":{\"setting1\":\"value1\"}}"
-
-	if string(actualJson) != expectedJson {
-		t.Errorf("Expected %v, got %v", expectedJson, string(actualJson))
-	}
-
+	assert.Len(t, numbers, 6)
+	assert.Equal(t, 5.0, numbers["the.number.five"])
+	assert.Equal(t, 1.0, numbers["x.a"])
+	assert.Equal(t, 2.5, numbers["x.b"])
+	assert.Equal(t, math.Inf(1), numbers["x.c"])
+	assert.Equal(t, math.Inf(-1), numbers["x.d"])
+	assert.True(t, math.IsNaN(numbers["x.e"])) // NaN != NaN
 }
