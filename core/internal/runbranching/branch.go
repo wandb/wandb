@@ -21,30 +21,11 @@ type RunBranch interface {
 
 type State struct {
 	Mode             string
-	Project          string
-	RunId            string
+	Started          bool
 	FileStreamOffset filestream.FileStreamOffsetMap
-	StartingStep     int64
-	Runtime          int32
+	RunRecord        *service.RunRecord
 	Summary          *service.SummaryRecord
 	Config           *runconfig.RunConfig
-	Tags             []string
-}
-
-func NewState(
-	branchMode string,
-	project string,
-	runId string,
-	config *runconfig.RunConfig,
-	tags []string,
-) *State {
-	return &State{
-		Mode:    branchMode,
-		Project: project,
-		RunId:   runId,
-		Config:  config,
-		Tags:    tags,
-	}
 }
 
 func (s *State) GetFileStreamOffset() filestream.FileStreamOffsetMap {

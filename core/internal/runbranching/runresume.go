@@ -65,7 +65,7 @@ func (r *State) UpdateResume(mode Mode, data *gql.RunResumeStatusResponse) (*ser
 				" try again with a valid value for the `resume` argument.\n"+
 				"If you are trying to start a new run, please omit the"+
 				" `resume` argument or use `resume='allow'`",
-			r.Project, r.RunId)
+			r.RunRecord.Project, r.RunRecord.RunId)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: message,
@@ -80,7 +80,7 @@ func (r *State) UpdateResume(mode Mode, data *gql.RunResumeStatusResponse) (*ser
 				" The value 'never' is not a valid option for resuming a"+
 				" run (%s/%s) that already exists. Please check your inputs"+
 				" and try again with a valid value for the `resume` argument.\n",
-			r.Project, r.RunId)
+			r.RunRecord.Project, r.RunRecord.RunId)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: message,
@@ -95,7 +95,7 @@ func (r *State) UpdateResume(mode Mode, data *gql.RunResumeStatusResponse) (*ser
 				"The run (%s/%s) failed to resume, and the `resume` argument"+
 					" was set to 'must'. Please check your inputs and try again"+
 					" with a valid value for the `resume` argument.\n",
-				r.Project, r.RunId)
+				r.RunRecord.Project, r.RunRecord.RunId)
 			result := &service.RunUpdateResult{
 				Error: &service.ErrorInfo{
 					Message: message,
@@ -167,12 +167,12 @@ func (r *State) updateResumeHistory(bucket *Bucket) error {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
 		if step > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
-			r.StartingStep = int64(step) + 1
+			r.RunRecord.StartingStep = int64(step) + 1
 		}
 	}
 
 	if runtime, ok := historyTail["_runtime"].(float64); ok {
-		r.Runtime = int32(runtime)
+		r.RunRecord.Runtime = int32(runtime)
 	}
 
 	return nil
@@ -204,7 +204,7 @@ func (r *State) updateResumeSummary(bucket *Bucket) error {
 			ValueJson: string(valueJson),
 		})
 	}
-	r.Summary = &record
+	r.RunRecord.Summary = &record
 	return nil
 }
 
@@ -256,8 +256,8 @@ func (r *State) updateResumeTags(bucket *Bucket) error {
 	//   passed to `wandb.init()`.
 	// - to add tags to a resumed run without overwriting its existing tags
 	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
-	if r.Tags == nil {
-		r.Tags = append(r.Tags, resumed...)
+	if r.RunRecord.Tags == nil {
+		r.RunRecord.Tags = append(r.RunRecord.Tags, resumed...)
 	}
 	return nil
 }
