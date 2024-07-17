@@ -15,6 +15,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - `run.finish()` may raise an exception in cases where previously it would `os._exit()` (@timoffex in https://github.com/wandb/wandb/pull/7921)
 
+### Fixed
+
+- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
+
 ## [0.17.4] - 2024-07-03
 
 ### Added
