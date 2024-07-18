@@ -50,7 +50,7 @@ def test_create_build_context_wandb_dockerfile(mock_git_project):
     assert (path / "src" / "entrypoint.py").exists()
     assert (path / "src" / "requirements.txt").exists()
     assert (
-        image_tag == "7fd24842"
+        image_tag == "62143254"
     )  # This is the hash of the Dockerfile + image_source_string.
 
 
@@ -145,5 +145,5 @@ def test_create_build_context_buildx_enabled(mocker, mock_git_project):
     assert (path / "src" / "entrypoint.py").exists()
     assert (path / "src" / "requirements.txt").exists()
     assert (
-        image_tag == "de70c825"
+        image_tag == "f17a9120"
     )  # This is the hash of the Dockerfile + image_source_string.
