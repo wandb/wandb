@@ -24,9 +24,6 @@ func (r *State) updateRunResumeMode(run *service.RunRecord) {
 
 	run.Runtime = r.runtime
 
-	// update the tags
-	run.Tags = append(run.Tags, r.Tags...)
-
 	// update the config
 	config := service.ConfigRecord{}
 	for key, value := range r.Config {
@@ -48,7 +45,6 @@ func (r *State) updateRunResumeMode(run *service.RunRecord) {
 		})
 	}
 	run.Summary = &summary
-
 }
 
 func (r *State) updateStateResumeMode(branching *BranchingState) (*service.ErrorInfo, error) {

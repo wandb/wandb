@@ -92,12 +92,22 @@ func (r *State) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
 
 func (r *State) ApplyRunUpdate(run *service.RunRecord) {
 	switch {
-	case r.Branching.Mode == "resume":
+	case r.Branching.Type == "resume":
 		r.updateRunResumeMode(run)
-	case r.Branching.Mode == "rewind":
+	case r.Branching.Type == "rewind":
 		r.updateRunRewindMode(run)
-	case r.Branching.Mode == "fork":
+	case r.Branching.Type == "fork":
 		r.updateRunForkMode(run)
 	default:
 	}
+	r.applyRunUpdate(run)
+}
+
+func (r *State) applyRunUpdate(run *service.RunRecord) {
+	run.Entity = r.Entity
+	run.Project = r.Project
+	run.DisplayName = r.DisplayName
+	run.RunId = r.RunID
+	run.StorageId = r.StorageID
+	run.SweepId = r.SweepID
 }

@@ -716,8 +716,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	proto.Merge(s.telemetry, run.Telemetry)
 	s.updateConfigPrivate()
 
-	var tags []string
-
 	if !s.startState.Intialized {
 		s.startState.Intialized = true
 
@@ -746,8 +744,10 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		}
 
-		// Merge the resumed config and tags into the current state
-		tags = append(tags, s.startState.Tags...)
+		// Merge the resumed tags into the run tags
+		runClone.Tags = append(runClone.Tags, s.startState.Tags...)
+
+		// Merge the resumed config into the run config
 		s.runConfig.MergeResumedConfig(s.startState.Config)
 	}
 
@@ -776,8 +776,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	}
 
 	config, _ := s.serializeConfig(runconfig.FormatJson)
-
-	tags = append(tags, run.Tags...)
 
 	var commit, repo string
 	git := run.GetGit()
@@ -808,7 +806,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		utils.NilIfZero(run.JobType),     // jobType
 		nil,                              // state
 		utils.NilIfZero(run.SweepId),     // sweep
-		tags,                             // tags []string,
+		runClone.Tags,                    // tags []string,
 		nil,                              // summaryMetrics
 	)
 
