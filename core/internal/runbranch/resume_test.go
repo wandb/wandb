@@ -1,4 +1,4 @@
-package runresume_test
+package runbranch_test
 
 import (
 	"testing"
@@ -6,26 +6,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestGetFileStreamOffset_NilReceiver(t *testing.T) {
-	var resumeState *runresume.State
+	var resumeState *runbranch.ResumeState
 	assert.Nil(t, resumeState.GetFileStreamOffset(), "GetFileStreamOffset should return nil when receiver is nil")
 }
 
 func TestGetFileStreamOffset_Empty(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := runresume.NewResumeState(logger, runresume.None)
+	resumeState := runbranch.NewResumeState(logger, runbranch.None)
 	assert.Empty(t, resumeState.GetFileStreamOffset(), "GetFileStreamOffset should return an empty map when no offsets are set")
 }
 
 func TestGetFileStreamOffset_WithOffsets(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := runresume.NewResumeState(logger, runresume.None)
+	resumeState := runbranch.NewResumeState(logger, runbranch.None)
 	resumeState.AddOffset(1, 100)
 	offsets := resumeState.GetFileStreamOffset()
 	assert.Equal(t, 100, offsets[1], "GetFileStreamOffset should return correct offset for a given key")
@@ -33,14 +33,14 @@ func TestGetFileStreamOffset_WithOffsets(t *testing.T) {
 
 func TestAddOffset_InitializeMap(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := runresume.NewResumeState(logger, runresume.None)
+	resumeState := runbranch.NewResumeState(logger, runbranch.None)
 	resumeState.AddOffset(1, 100)
 	assert.Equal(t, 100, resumeState.FileStreamOffset[1], "AddOffset should initialize map and add offset correctly")
 }
 
 func TestAddOffset_UpdateExistingMap(t *testing.T) {
 	logger := observability.NewNoOpLogger()
-	resumeState := runresume.NewResumeState(logger, runresume.None)
+	resumeState := runbranch.NewResumeState(logger, runbranch.None)
 	resumeState.AddOffset(1, 100) // First add
 	resumeState.AddOffset(1, 200) // Update
 	assert.Equal(t, 200, resumeState.FileStreamOffset[1], "AddOffset should update existing offset correctly")
@@ -75,7 +75,7 @@ func TestUpdate(t *testing.T) {
 
 	testCases := []struct {
 		name                string
-		resumeMode          runresume.Mode
+		resumeMode          runbranch.Mode
 		bucket              *gql.RunResumeStatusModelProjectBucketRun
 		run                 *service.RunRecord
 		expectResumed       bool
@@ -88,7 +88,7 @@ func TestUpdate(t *testing.T) {
 	}{
 		{
 			name:          "MustResumeNonExistentRun",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        nil,
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -96,7 +96,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "NeverResumeExistingRun",
-			resumeMode:    runresume.Never,
+			resumeMode:    runbranch.Never,
 			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -104,7 +104,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:               "MustResumeValidHistory",
-			resumeMode:         runresume.Must,
+			resumeMode:         runbranch.Must,
 			bucket:             createBucketRawData(1, 0, 0, &validHistory, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
@@ -114,7 +114,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:               "MustResumeValidHistoryStep0",
-			resumeMode:         runresume.Must,
+			resumeMode:         runbranch.Must,
 			bucket:             createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
@@ -123,7 +123,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:               "MustResumeValidHistoryStep0WithOneLine",
-			resumeMode:         runresume.Must,
+			resumeMode:         runbranch.Must,
 			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
@@ -132,7 +132,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:                "MustResumeValidSummary",
-			resumeMode:          runresume.Must,
+			resumeMode:          runbranch.Must,
 			bucket:              createBucketRawData(0, 0, 0, &nullString, &nullString, &validSummary, nil, &wandbConfigWithTelemetry),
 			run:                 &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:       true,
@@ -141,7 +141,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:               "MustResumeValidConfig",
-			resumeMode:         runresume.Must,
+			resumeMode:         runbranch.Must,
 			bucket:             createBucketRawData(0, 0, 0, &nullString, &validConfig, &nullString, nil, &wandbConfigWithTelemetry),
 			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:      true,
@@ -150,7 +150,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:             "MustResumeValidTags",
-			resumeMode:       runresume.Must,
+			resumeMode:       runbranch.Must,
 			bucket:           createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, []string{"tag1", "tag2"}, &wandbConfigWithTelemetry),
 			run:              &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed:    true,
@@ -159,7 +159,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeInvalidHistoryResponse",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -167,7 +167,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeInvalidHistoryContent",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &invalidHistory, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -175,7 +175,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeInvalidSummaryMetrics",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &invalidHistory, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -183,7 +183,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeInvalidConfig",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistory, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -191,7 +191,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeInvalidConfigContent",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistoryOrConfig, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
@@ -199,7 +199,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeInvalidConfigNoContent",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidConfig, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: true,
@@ -207,7 +207,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeNullHistory",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, nil, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -215,7 +215,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeNullConfig",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &validHistory, nil, nil, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -223,7 +223,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "MustResumeNullSummary",
-			resumeMode:    runresume.Must,
+			resumeMode:    runbranch.Must,
 			bucket:        createBucketRawData(0, 0, 0, &validHistory, &validConfig, nil, nil, &wandbConfigWithTelemetry),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -231,7 +231,7 @@ func TestUpdate(t *testing.T) {
 		},
 		{
 			name:          "AllowResumeNotStartedRun",
-			resumeMode:    runresume.Allow,
+			resumeMode:    runbranch.Allow,
 			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, nil),
 			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
 			expectResumed: false,
@@ -241,7 +241,7 @@ func TestUpdate(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			rs := runresume.NewResumeState(logger, tc.resumeMode)
+			rs := runbranch.NewResumeState(logger, tc.resumeMode)
 			fakeResp := &gql.RunResumeStatusResponse{
 				Model: &gql.RunResumeStatusModelProject{
 					Bucket: tc.bucket,

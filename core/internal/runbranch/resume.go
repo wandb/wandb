@@ -1,4 +1,4 @@
-package runresume
+package runbranch
 
 import (
 	"encoding/json"
@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
-func (r *RunState) updateRunResumeMode(run *service.RunRecord) {
+func (r *State) updateRunResumeMode(run *service.RunRecord) {
 
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
@@ -51,7 +51,7 @@ func (r *RunState) updateRunResumeMode(run *service.RunRecord) {
 
 }
 
-func (r *RunState) updateStateResumeMode(branching BranchingState) (*service.ErrorInfo, error) {
+func (r *State) updateStateResumeMode(branching *BranchingState) (*service.ErrorInfo, error) {
 
 	response, err := gql.RunResumeStatus(
 		r.ctx,
@@ -121,7 +121,7 @@ func (r *RunState) updateStateResumeMode(branching BranchingState) (*service.Err
 	return nil, nil
 }
 
-func (r *RunState) resume(data *gql.RunResumeStatusModelProjectBucketRun) error {
+func (r *State) resume(data *gql.RunResumeStatusModelProjectBucketRun) error {
 	// update the file stream offsets with the data from the server
 	r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	r.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
@@ -183,7 +183,7 @@ func (r *RunState) resume(data *gql.RunResumeStatusModelProjectBucketRun) error 
 	return errors.Join(errs...)
 }
 
-func (r *RunState) resumeHistory(history *string) error {
+func (r *State) resumeHistory(history *string) error {
 
 	// Since we just expect a list of strings, we unmarshal using the
 	// standard JSON library.
@@ -222,7 +222,7 @@ func (r *RunState) resumeHistory(history *string) error {
 	return nil
 }
 
-func (r *RunState) resumeEvents(event *string) error {
+func (r *State) resumeEvents(event *string) error {
 
 	// Since we just expect a list of strings, we unmarshal using the
 	// standard JSON library.
@@ -253,7 +253,7 @@ func (r *RunState) resumeEvents(event *string) error {
 	return nil
 }
 
-func (r *RunState) resumeSummary(summary *string) error {
+func (r *State) resumeSummary(summary *string) error {
 	// If we are unable to parse the summary, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it
 	summaryVal, err := simplejsonext.UnmarshalString(*summary)
@@ -272,7 +272,7 @@ func (r *RunState) resumeSummary(summary *string) error {
 	return nil
 }
 
-func (r *RunState) resumeConfig(config *string) error {
+func (r *State) resumeConfig(config *string) error {
 
 	// If we are unable to parse the config, we should fail if resume is set to
 	// must for any other case of resume status, it is fine to ignore it

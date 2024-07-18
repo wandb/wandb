@@ -1,4 +1,4 @@
-package runresume
+package runbranch
 
 import (
 	"encoding/json"
@@ -26,7 +26,7 @@ const (
 	Never
 )
 
-type State struct {
+type ResumeState struct {
 	resume           Mode
 	FileStreamOffset filestream.FileStreamOffsetMap
 	logger           *observability.CoreLogger
@@ -45,18 +45,18 @@ func ResumeMode(mode string) Mode {
 	}
 }
 
-func NewResumeState(logger *observability.CoreLogger, mode Mode) *State {
-	return &State{logger: logger, resume: mode}
+func NewResumeState(logger *observability.CoreLogger, mode Mode) *ResumeState {
+	return &ResumeState{logger: logger, resume: mode}
 }
 
-func (r *State) GetFileStreamOffset() filestream.FileStreamOffsetMap {
+func (r *ResumeState) GetFileStreamOffset() filestream.FileStreamOffsetMap {
 	if r == nil {
 		return nil
 	}
 	return r.FileStreamOffset
 }
 
-func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
+func (r *ResumeState) AddOffset(key filestream.ChunkTypeEnum, offset int) {
 	if r.FileStreamOffset == nil {
 		r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 	}
@@ -70,7 +70,7 @@ func RunHasStarted(bucket *Bucket) bool {
 	return bucket != nil && bucket.WandbConfig != nil && strings.Contains(*bucket.WandbConfig, `"t":`)
 }
 
-func (r *State) Update(
+func (r *ResumeState) Update(
 	data *gql.RunResumeStatusResponse,
 	run *service.RunRecord,
 	config *runconfig.RunConfig,
@@ -140,7 +140,7 @@ func (r *State) Update(
 	}
 }
 
-func (r *State) update(bucket *Bucket, run *service.RunRecord, config *runconfig.RunConfig) error {
+func (r *ResumeState) update(bucket *Bucket, run *service.RunRecord, config *runconfig.RunConfig) error {
 	errs := make([]error, 0)
 
 	r.AddOffset(filestream.HistoryChunk, *bucket.GetHistoryLineCount())
@@ -174,7 +174,7 @@ func (r *State) update(bucket *Bucket, run *service.RunRecord, config *runconfig
 	return nil
 }
 
-func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
+func (r *ResumeState) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 
 	resumed := bucket.GetHistoryTail()
 	if resumed == nil {
@@ -229,7 +229,7 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 	return nil
 }
 
-func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
+func (r *ResumeState) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 
 	resumed := bucket.GetSummaryMetrics()
 	if resumed == nil {
@@ -273,7 +273,7 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 }
 
 // Merges the original run's config into the current config.
-func (r *State) updateConfig(
+func (r *ResumeState) updateConfig(
 	bucket *Bucket,
 	config *runconfig.RunConfig,
 ) error {
@@ -327,7 +327,7 @@ func (r *State) updateConfig(
 	return nil
 }
 
-func (r *State) updateTags(run *service.RunRecord, bucket *Bucket) error {
+func (r *ResumeState) updateTags(run *service.RunRecord, bucket *Bucket) error {
 	resumed := bucket.GetTags()
 	if resumed == nil {
 		return nil

@@ -1,4 +1,4 @@
-package runresume
+package runbranch
 
 import (
 	"context"
@@ -19,7 +19,7 @@ type RunStateParams struct {
 	SweepID        string
 }
 
-type RunState struct {
+type State struct {
 	ctx        context.Context
 	client     graphql.Client
 	Intialized bool
@@ -43,15 +43,7 @@ type RunState struct {
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
-	Branching BranchingState
-}
-
-type BranchingState struct {
-	RunID     string
-	StepName  string
-	StepValue float64
-	Mode      string
-	Type      string
+	Branching *BranchingState
 }
 
 func NewRunState(
@@ -60,44 +52,21 @@ func NewRunState(
 	resume string,
 	rewind *service.RunMoment,
 	fork *service.RunMoment,
-) *RunState {
+) *State {
 
-	var branching BranchingState
-	switch {
-	case resume != "":
-		branching = BranchingState{
-			Mode: resume,
-			Type: "resume",
-		}
-	case rewind != nil:
-		branching = BranchingState{
-			RunID:     rewind.GetRun(),
-			StepName:  rewind.GetMetric(),
-			StepValue: rewind.GetValue(),
-			Type:      "rewind",
-		}
-	case fork != nil:
-		branching = BranchingState{
-			RunID:     fork.GetRun(),
-			StepName:  fork.GetMetric(),
-			StepValue: fork.GetValue(),
-			Type:      "fork",
-		}
-	default:
-		branching = BranchingState{
-			Type: "none",
-		}
-	}
-
-	return &RunState{
+	return &State{
 		ctx:              ctx,
 		client:           client,
 		FileStreamOffset: make(filestream.FileStreamOffsetMap),
-		Branching:        branching,
+		Branching: NewBranchingState(
+			resume,
+			rewind,
+			fork,
+		),
 	}
 }
 
-func (r *RunState) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
+func (r *State) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
 	switch r.Branching.Type {
 	case "resume":
 		return r.updateStateResumeMode(r.Branching)
@@ -110,7 +79,7 @@ func (r *RunState) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
 	}
 }
 
-func (r *RunState) UpdateState(params RunStateParams) {
+func (r *State) UpdateState(params RunStateParams) {
 	r.RunID = params.RunID
 	r.Project = params.Project
 	r.Entity = params.Entity
@@ -121,7 +90,7 @@ func (r *RunState) UpdateState(params RunStateParams) {
 	r.startTimeNanos = params.StartTimeNanos
 }
 
-func (r *RunState) ApplyRunUpdate(run *service.RunRecord) {
+func (r *State) ApplyRunUpdate(run *service.RunRecord) {
 	switch {
 	case r.Branching.Mode == "resume":
 		r.updateRunResumeMode(run)
