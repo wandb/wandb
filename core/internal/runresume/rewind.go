@@ -2,9 +2,9 @@ package runresume
 
 import "github.com/wandb/wandb/core/pkg/service"
 
-func (r *RunState) UpdateRewind() error {
-	return nil
+func (r *RunState) updateStateRewindMode(branching BranchingState) (*service.ErrorInfo, error) {
+	return nil, nil
 }
 
-func (r *RunState) applyRewind(record *service.RunRecord) {
+func (r *RunState) updateRunRewindMode(record *service.RunRecord) {
 }

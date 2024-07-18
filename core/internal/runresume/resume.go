@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
-func (r *RunState) applyResume(run *service.RunRecord) {
+func (r *RunState) updateRunResumeMode(run *service.RunRecord) {
 
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
@@ -51,7 +51,7 @@ func (r *RunState) applyResume(run *service.RunRecord) {
 
 }
 
-func (r *RunState) updateResume(mode string) (*service.ErrorInfo, error) {
+func (r *RunState) updateStateResumeMode(branching BranchingState) (*service.ErrorInfo, error) {
 
 	response, err := gql.RunResumeStatus(
 		r.ctx,
@@ -72,13 +72,13 @@ func (r *RunState) updateResume(mode string) (*service.ErrorInfo, error) {
 
 	// if we are not in a must resume mode and we don't have data we can just
 	// return without error
-	if data == nil && mode != "must" {
+	if data == nil && branching.Mode != "must" {
 		return nil, nil
 	}
 
 	// if we are in a must resume mode and we don't have data we need to return
 	// an error because we can't resume
-	if data == nil && mode == "must" {
+	if data == nil && branching.Mode == "must" {
 		info := &service.ErrorInfo{
 			Code: service.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
@@ -92,7 +92,7 @@ func (r *RunState) updateResume(mode string) (*service.ErrorInfo, error) {
 
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
-	if data != nil && mode == "never" {
+	if data != nil && branching.Mode == "never" {
 		info := &service.ErrorInfo{
 			Code: service.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
@@ -105,9 +105,9 @@ func (r *RunState) updateResume(mode string) (*service.ErrorInfo, error) {
 
 	// if we have data and we are in a must or allow resume mode we can resume
 	// the run
-	if data != nil && mode != "never" {
+	if data != nil && branching.Mode != "never" {
 		err := r.resume(data)
-		if err != nil && mode == "must" {
+		if err != nil && branching.Mode == "must" {
 			info := &service.ErrorInfo{
 				Code: service.ErrorInfo_USAGE,
 				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
@@ -217,6 +217,8 @@ func (r *RunState) resumeHistory(history *string) error {
 			r.runtime = int32(math.Max(x, float64(r.runtime)))
 		}
 	}
+
+	fmt.Println(">>>History", historyTail)
 	return nil
 }
 
@@ -247,6 +249,7 @@ func (r *RunState) resumeEvents(event *string) error {
 		}
 	}
 
+	fmt.Println(">>>Events", eventTail)
 	return nil
 }
 

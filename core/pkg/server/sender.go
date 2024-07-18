@@ -110,7 +110,7 @@ type Sender struct {
 
 	// // resumeState is the resume state
 	// resumeState *runresume.State
-	runStartState *runresume.RunState
+	startState *runresume.RunState
 
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
@@ -190,9 +190,12 @@ func NewSender(
 		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.FwdChan,
-		runStartState: runresume.NewRunState(
+		startState: runresume.NewRunState(
 			ctx,
 			params.GraphqlClient,
+			params.Settings.GetResume(),
+			params.Settings.GetResumeFrom(),
+			params.Settings.GetForkFrom(),
 		),
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
@@ -405,7 +408,7 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || !s.runStartState.Intialized {
+	if s.settings == nil || !s.startState.Intialized {
 		return
 	}
 
@@ -416,14 +419,14 @@ func (s *Sender) updateSettings() {
 	// }
 
 	// TODO: verify that this is the correct update logic
-	if s.runStartState.Entity != "" {
+	if s.startState.Entity != "" {
 		s.settings.Entity = &wrapperspb.StringValue{
-			Value: s.runStartState.Entity,
+			Value: s.startState.Entity,
 		}
 	}
-	if s.runStartState.Project != "" {
+	if s.startState.Project != "" {
 		s.settings.Project = &wrapperspb.StringValue{
-			Value: s.runStartState.Project,
+			Value: s.startState.Project,
 		}
 	}
 	// if s.runStartState.DisplayName != "" {
@@ -440,10 +443,10 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 
 	if s.fileStream != nil {
 		s.fileStream.Start(
-			s.runStartState.Entity,
-			s.runStartState.Project,
-			s.runStartState.RunID,
-			s.runStartState.FileStreamOffset,
+			s.startState.Entity,
+			s.startState.Project,
+			s.startState.RunID,
+			s.startState.FileStreamOffset,
 		)
 	}
 }
@@ -699,6 +702,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 					Run: runClone,
 				})
 		}
+		return
 	}
 
 	// The first run record sent by the client is encoded incorrectly,
@@ -719,11 +723,21 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	var tags []string
 
-	if !s.runStartState.Intialized {
-		s.runStartState.Intialized = true
+	if !s.startState.Intialized {
+		s.startState.Intialized = true
 
 		// There was no resume status set, so we don't need to do anything
-		if errorInfo, err := s.runStartState.Update(s.settings, runClone); err != nil {
+		s.startState.UpdateState(runresume.RunStateParams{
+			RunID:          run.GetRunId(),
+			Project:        run.GetProject(),
+			Entity:         run.GetEntity(),
+			DisplayName:    run.GetDisplayName(),
+			StartTimeSecs:  run.GetStartTime().GetSeconds(),
+			StartTimeNanos: run.GetStartTime().GetNanos(),
+			StorageID:      run.GetStorageId(),
+			SweepID:        run.GetSweepId(),
+		})
+		if errorInfo, err := s.startState.ApplyBranchingUpdates(); err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
@@ -738,8 +752,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		}
 
 		// Merge the resumed config and tags into the current state
-		tags = append(tags, s.runStartState.Tags...)
-		s.runConfig.MergeResumedConfig(s.runStartState.Config)
+		tags = append(tags, s.startState.Tags...)
+		s.runConfig.MergeResumedConfig(s.startState.Config)
 	}
 
 	// start a new context with an additional argument from the parent context
@@ -758,7 +772,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		// if this times out, we cancel the global context
 		// as there is no need to proceed with the run
 		ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
-	} else if !s.runStartState.Intialized {
+	} else if !s.startState.Intialized {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
 		s.logger.CaptureFatalAndPanic(
@@ -824,21 +838,22 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	// if the response is empty, return an error
 	bucket := data.GetUpsertBucket().GetBucket()
 
-	s.runStartState.StorageID = bucket.GetId()
-	// s.runStartState.RunID = bucket.GetName()
-	s.runStartState.DisplayName = utils.ZeroIfNil(bucket.GetDisplayName())
-	s.runStartState.SweepID = utils.ZeroIfNil(bucket.GetSweepName())
-
 	// if the response project is empty, return an error
 	project := bucket.GetProject()
 
-	s.runStartState.Project = project.GetName()
-
 	entity := project.GetEntity()
-	s.runStartState.Entity = entity.GetName()
+
+	s.startState.UpdateState(runresume.RunStateParams{
+		RunID:       bucket.GetName(),
+		Project:     project.GetName(),
+		Entity:      entity.GetName(),
+		DisplayName: utils.ZeroIfNil(bucket.GetDisplayName()),
+		StorageID:   bucket.GetId(),
+		SweepID:     utils.ZeroIfNil(bucket.GetSweepName()),
+	})
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		s.runStartState.Apply(s.settings, runClone)
+		s.startState.ApplyRunUpdate(runClone)
 		s.respond(record,
 			&service.RunUpdateResult{
 				Run: runClone,
@@ -891,7 +906,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	if !s.runStartState.Intialized {
+	if !s.startState.Intialized {
 		s.logger.Error("sender: upsertConfig: RunRecord is nil")
 		return
 	}
@@ -907,27 +922,27 @@ func (s *Sender) upsertConfig() {
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err = gql.UpsertBucket(
-		ctx,                                      // ctx
-		s.graphqlClient,                          // client
-		nil,                                      // id
-		&s.runStartState.RunID,                   // name
-		utils.NilIfZero(s.runStartState.Project), // project
-		utils.NilIfZero(s.runStartState.Entity),  // entity
-		nil,                                      // groupName
-		nil,                                      // description
-		nil,                                      // displayName
-		nil,                                      // notes
-		nil,                                      // commit
-		&config,                                  // config
-		nil,                                      // host
-		nil,                                      // debug
-		nil,                                      // program
-		nil,                                      // repo
-		nil,                                      // jobType
-		nil,                                      // state
-		nil,                                      // sweep
-		nil,                                      // tags []string,
-		nil,                                      // summaryMetrics
+		ctx,                                   // ctx
+		s.graphqlClient,                       // client
+		nil,                                   // id
+		&s.startState.RunID,                   // name
+		utils.NilIfZero(s.startState.Project), // project
+		utils.NilIfZero(s.startState.Entity),  // entity
+		nil,                                   // groupName
+		nil,                                   // description
+		nil,                                   // displayName
+		nil,                                   // notes
+		nil,                                   // commit
+		&config,                               // config
+		nil,                                   // host
+		nil,                                   // debug
+		nil,                                   // program
+		nil,                                   // repo
+		nil,                                   // jobType
+		nil,                                   // state
+		nil,                                   // sweep
+		nil,                                   // tags []string,
+		nil,                                   // summaryMetrics
 	)
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
@@ -1033,7 +1048,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		return
 	}
 
-	if !s.runStartState.Intialized {
+	if !s.startState.Intialized {
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendAlert: RunRecord not set"))
 	}
@@ -1043,9 +1058,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
 		s.graphqlClient,
-		s.runStartState.Entity,
-		s.runStartState.Project,
-		s.runStartState.RunID,
+		s.startState.Entity,
+		s.startState.Project,
+		s.startState.RunID,
 		alert.Title,
 		alert.Text,
 		&severity,
@@ -1193,14 +1208,14 @@ func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRe
 			}
 
 			var url string
-			if !s.runStartState.Intialized {
+			if !s.startState.Intialized {
 				baseUrl := s.settings.GetBaseUrl().GetValue()
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
 				url = fmt.Sprintf("%s/%s/%s/runs/%s",
 					baseUrl,
-					s.runStartState.Entity,
-					s.runStartState.Project,
-					s.runStartState.RunID,
+					s.startState.Entity,
+					s.startState.Project,
+					s.startState.RunID,
 				)
 			}
 			s.respond(record,
@@ -1237,9 +1252,9 @@ func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRe
 func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopStatusRequest) {
 
 	// TODO: unify everywhere to use settings
-	entity := s.runStartState.Entity
-	project := s.runStartState.Project
-	runId := s.runStartState.RunID
+	entity := s.startState.Entity
+	project := s.startState.Project
+	runId := s.startState.RunID
 
 	var stopResponse *service.StopStatusResponse
 
