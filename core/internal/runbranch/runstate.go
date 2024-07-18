@@ -34,8 +34,8 @@ type State struct {
 	SweepID        string
 
 	// run state fields based on response from the server
-	step    int64
-	runtime int32
+	startingStep int64
+	runtime      int32
 
 	Tags    []string
 	Config  map[string]any
@@ -66,6 +66,17 @@ func NewRunState(
 	}
 }
 
+func (r *State) UpdateState(params RunStateParams) {
+	r.RunID = params.RunID
+	r.Project = params.Project
+	r.Entity = params.Entity
+	r.DisplayName = params.DisplayName
+	r.SweepID = params.SweepID
+	r.StorageID = params.StorageID
+	r.startTimeSecs = params.StartTimeSecs
+	r.startTimeNanos = params.StartTimeNanos
+}
+
 func (r *State) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
 	switch r.Branching.Type {
 	case "resume":
@@ -79,17 +90,6 @@ func (r *State) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
 	}
 }
 
-func (r *State) UpdateState(params RunStateParams) {
-	r.RunID = params.RunID
-	r.Project = params.Project
-	r.Entity = params.Entity
-	r.DisplayName = params.DisplayName
-	r.SweepID = params.SweepID
-	r.StorageID = params.StorageID
-	r.startTimeSecs = params.StartTimeSecs
-	r.startTimeNanos = params.StartTimeNanos
-}
-
 func (r *State) ApplyRunUpdate(run *service.RunRecord) {
 	switch {
 	case r.Branching.Mode == "resume":
@@ -97,7 +97,7 @@ func (r *State) ApplyRunUpdate(run *service.RunRecord) {
 	case r.Branching.Mode == "rewind":
 		r.updateRunRewindMode(run)
 	case r.Branching.Mode == "fork":
-		// r.applyFork(record)
+		r.updateRunForkMode(run)
 	default:
 	}
 }

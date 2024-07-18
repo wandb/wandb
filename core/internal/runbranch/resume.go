@@ -17,7 +17,7 @@ func (r *State) updateRunResumeMode(run *service.RunRecord) {
 
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		run.StartingStep = r.step + 1
+		run.StartingStep = r.startingStep + 1
 	}
 
 	// r.RunRecord.StartTime = r.startTime
@@ -205,7 +205,7 @@ func (r *State) resumeHistory(history *string) error {
 		// if we are resuming, we need to update the starting step
 		// to be the next step after the last step we ran
 		if x, ok := step.(int64); ok {
-			r.step = x
+			r.startingStep = x
 		}
 	}
 

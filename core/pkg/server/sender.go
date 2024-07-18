@@ -22,6 +22,7 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -102,14 +103,9 @@ type Sender struct {
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
 
-	// // RunRecord is the run record
-	// // TODO: remove this and use properly updated settings
-	// //       + a flag indicating whether the run has started
-	// RunRecord *service.RunRecord
-
-	// // resumeState is the resume state
-	// resumeState *runresume.State
-	startState *runresume.RunState
+	// startState is the state of the run at the start
+	// after the first upsert of the run
+	startState *runbranch.State
 
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
@@ -189,7 +185,7 @@ func NewSender(
 		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.FwdChan,
-		startState: runresume.NewRunState(
+		startState: runbranch.NewRunState(
 			ctx,
 			params.GraphqlClient,
 			params.Settings.GetResume(),
@@ -726,7 +722,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.startState.Intialized = true
 
 		// There was no resume status set, so we don't need to do anything
-		s.startState.UpdateState(runresume.RunStateParams{
+		s.startState.UpdateState(runbranch.RunStateParams{
 			RunID:          run.GetRunId(),
 			Project:        run.GetProject(),
 			Entity:         run.GetEntity(),
@@ -842,7 +838,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	entity := project.GetEntity()
 
-	s.startState.UpdateState(runresume.RunStateParams{
+	s.startState.UpdateState(runbranch.RunStateParams{
 		RunID:       bucket.GetName(),
 		Project:     project.GetName(),
 		Entity:      entity.GetName(),
