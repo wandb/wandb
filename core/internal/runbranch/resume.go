@@ -139,7 +139,7 @@ func (r *State) resume(data *gql.RunResumeStatusModelProjectBucketRun) error {
 
 	// Get Summary information
 	summary := data.GetSummaryMetrics()
-	if summary != nil {
+	if summary == nil {
 		err := errors.New("no summary metrics found in resume response")
 		errs = append(errs, err)
 	} else {
@@ -151,7 +151,7 @@ func (r *State) resume(data *gql.RunResumeStatusModelProjectBucketRun) error {
 
 	// Get Config information
 	config := data.GetConfig()
-	if config != nil {
+	if config == nil {
 		err := errors.New("no config found in resume response")
 		errs = append(errs, err)
 	} else {
@@ -163,7 +163,7 @@ func (r *State) resume(data *gql.RunResumeStatusModelProjectBucketRun) error {
 
 	// Get Events (system metrics) information
 	events := data.GetEventsTail()
-	if events != nil {
+	if events == nil {
 		err := errors.New("no events tail found in resume response")
 		errs = append(errs, err)
 	} else {
@@ -192,7 +192,7 @@ func (r *State) resumeHistory(history *string) error {
 		return nil
 	}
 
-	historyTail, err := simplejsonext.UnmarshalObjectString(histories[0])
+	historyTail, err := simplejsonext.UnmarshalObjectString(histories[len(histories)-1])
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,6 @@ func (r *State) resumeHistory(history *string) error {
 		}
 	}
 
-	fmt.Println(">>>History", historyTail)
 	return nil
 }
 
@@ -231,7 +230,7 @@ func (r *State) resumeEvents(event *string) error {
 		return nil
 	}
 
-	eventTail, err := simplejsonext.UnmarshalObjectString(events[0])
+	eventTail, err := simplejsonext.UnmarshalObjectString(events[len(events)-1])
 	if err != nil {
 		return err
 	}
@@ -245,7 +244,6 @@ func (r *State) resumeEvents(event *string) error {
 		}
 	}
 
-	fmt.Println(">>>Events", eventTail)
 	return nil
 }
 
