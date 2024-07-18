@@ -29,7 +29,7 @@ def build_wandb_core(
             empty string.
     """
     coverage_flags = ["-cover"] if with_code_coverage else []
-    race_detect_flags = ["-race"] if with_race_detection else []
+    race_detect_flags = ["-race"] if with_race_detection else ["-race"]
     output_flags = ["-o", str(".." / output_path)]
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
     vendor_flags = ["-mod=vendor"]

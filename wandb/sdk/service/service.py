@@ -232,9 +232,11 @@ class _Service:
                 )
 
             try:
+                env = os.environ.copy()
+                env["GODEBUG"] = "cgocheck=2,invalidptr=1"
                 internal_proc = subprocess.Popen(
                     exec_cmd_list + service_args,
-                    env=os.environ,
+                    env=env,
                     **kwargs,
                 )
             except Exception as e:
