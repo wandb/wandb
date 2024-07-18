@@ -3,6 +3,7 @@ import io
 import json
 import os
 import re
+import base64
 import tempfile
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -228,7 +229,8 @@ class WandbLogger:
         # check results are present
         try:
             results_id = fine_tune.result_files[0]
-            results = cls.openai_client.files.content(file_id=results_id).text
+            encoded_results = cls.openai_client.files.content(file_id=results_id).read()
+            decoded_results = base64.b64decode(encoded_results).decode('utf-8')
         except openai.NotFoundError:
             if show_individual_warnings:
                 wandb.termwarn(
@@ -240,7 +242,7 @@ class WandbLogger:
         cls._run.config.update(cls._get_config(fine_tune))
 
         # log results
-        df_results = pd.read_csv(io.StringIO(results))
+        df_results = pd.read_csv(io.StringIO(decoded_results))
         for _, row in df_results.iterrows():
             metrics = {k: v for k, v in row.items() if not np.isnan(v)}
             step = metrics.pop("step")
