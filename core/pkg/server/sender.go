@@ -424,11 +424,11 @@ func (s *Sender) updateSettings() {
 			Value: s.startState.Project,
 		}
 	}
-	// if s.runStartState.DisplayName != "" {
-	// 	s.settings.RunName = &wrapperspb.StringValue{
-	// 		Value: s.runStartState.DisplayName,
-	// 	}
-	// }
+	if s.startState.DisplayName != "" {
+		s.settings.RunName = &wrapperspb.StringValue{
+			Value: s.startState.DisplayName,
+		}
+	}
 }
 
 // sendRequestRunStart sends a run start request to start all the stream
@@ -730,11 +730,13 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			StorageID:      run.GetStorageId(),
 			SweepID:        run.GetSweepId(),
 		})
-		if errorInfo, err := s.startState.ApplyBranchingUpdates(); err != nil {
+		errorInfo, err := s.startState.ApplyBranchingUpdates()
+		if err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
-		} else if errorInfo != nil {
+		}
+		if errorInfo != nil {
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 				result := &service.RunUpdateResult{
 					Error: errorInfo,

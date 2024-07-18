@@ -83,6 +83,7 @@ func (r *State) updateStateResumeMode(branching *BranchingState) (*service.Error
 				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
 				r.RunID),
 		}
+		fmt.Println(">>>ResumeError", info)
 		return info, errors.New("no data but must resume")
 	}
 
