@@ -233,7 +233,7 @@ class _Service:
 
             try:
                 env = os.environ.copy()
-                env["GODEBUG"] = "cgocheck=2,invalidptr=1"
+                env["GODEBUG"] = "cgocheck=1,invalidptr=1"
                 internal_proc = subprocess.Popen(
                     exec_cmd_list + service_args,
                     env=env,

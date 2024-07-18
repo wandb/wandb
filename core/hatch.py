@@ -106,4 +106,6 @@ def _go_env(with_race_detection: bool) -> Mapping[str, str]:
     ):
         env["CGO_ENABLED"] = "1"
 
+    env["GOEXPERIMENT"] = "cgocheck2"
+
     return env
