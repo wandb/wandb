@@ -103,8 +103,8 @@ type Sender struct {
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
 
-	// startState is the state of the run at the start
-	// after the first upsert of the run
+	// startState tracks the initial state of a run handling
+	// potential branching with resume, fork, and rewind.
 	startState *runbranch.State
 
 	// telemetry record internal implementation of telemetry
@@ -407,11 +407,11 @@ func (s *Sender) updateSettings() {
 		return
 	}
 
-	// if s.settings.XStartTime == nil && run.StartTime != nil {
-	// 	startTime := float64(run.StartTime.Seconds) +
-	// 		float64(run.StartTime.Nanos)/1e9
-	// 	s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
-	// }
+	if s.settings.XStartTime == nil && s.startState.StartTime != nil {
+		startTime := float64(run.StartTime.Seconds) +
+			float64(run.StartTime.Nanos)/1e9
+		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+	}
 
 	// TODO: verify that this is the correct update logic
 	if s.startState.Entity != "" {
@@ -746,8 +746,12 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		}
 
-		// Merge the resumed tags into the run tags
-		runClone.Tags = append(runClone.Tags, s.startState.Tags...)
+		// On the first invocation of sendRun, we overwrite the tags if the user
+		// has set them in wandb.init(). Otherwise, we keep the tags from the
+		// original run, if any.
+		if len(runClone.Tags) == 0 {
+			runClone.Tags = append(runClone.Tags, s.startState.Tags...)
+		}
 
 		// Merge the resumed config into the run config
 		s.runConfig.MergeResumedConfig(s.startState.Config)
