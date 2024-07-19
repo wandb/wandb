@@ -407,11 +407,12 @@ func (s *Sender) updateSettings() {
 		return
 	}
 
-	// if s.settings.XStartTime == nil && s.startState.StartTime != nil {
-	// 	startTime := float64(run.StartTime.Seconds) +
-	// 		float64(run.StartTime.Nanos)/1e9
-	// 	s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
-	// }
+	// StartTime should be generally thought of as the Run last modified time
+	// as it gets updated at a run branching point, such as resume, fork, or rewind
+	if s.settings.XStartTime == nil && !s.startState.StartTime.IsZero() {
+		startTime := float64(s.startState.StartTime.UnixNano()) / 1e9
+		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+	}
 
 	// TODO: verify that this is the correct update logic
 	if s.startState.Entity != "" {
@@ -719,36 +720,37 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	if !s.startState.Intialized {
 		s.startState.Intialized = true
 
-		// There was no resume status set, so we don't need to do anything
+		// update the run state with the initial run record
 		s.startState.UpdateState(runbranch.RunStateParams{
-			RunID:          run.GetRunId(),
-			Project:        run.GetProject(),
-			Entity:         run.GetEntity(),
-			DisplayName:    run.GetDisplayName(),
-			StartTimeSecs:  run.GetStartTime().GetSeconds(),
-			StartTimeNanos: run.GetStartTime().GetNanos(),
-			StorageID:      run.GetStorageId(),
-			SweepID:        run.GetSweepId(),
+			RunID:       run.GetRunId(),
+			Project:     run.GetProject(),
+			Entity:      run.GetEntity(),
+			DisplayName: run.GetDisplayName(),
+			StartTime:   run.GetStartTime().AsTime(),
+			StorageID:   run.GetStorageId(),
+			SweepID:     run.GetSweepId(),
 		})
-		errorInfo, err := s.startState.ApplyBranchingUpdates()
+		err := s.startState.ApplyBranchingUpdates()
 		if err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
 		}
-		if errorInfo != nil {
-			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				result := &service.RunUpdateResult{
-					Error: errorInfo,
+		// provide more info about the error to the user
+		if errType, ok := err.(runbranch.ResumeError); ok {
+			if errType.Response != nil {
+				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+					result := &service.RunUpdateResult{
+						Error: errType.Response,
+					}
+					s.respond(record, result)
 				}
-				s.respond(record, result)
+				return
 			}
-			return
 		}
-
 		// On the first invocation of sendRun, we overwrite the tags if the user
 		// has set them in wandb.init(). Otherwise, we keep the tags from the
-		// original run, if any.
+		// original run.
 		if len(runClone.Tags) == 0 {
 			runClone.Tags = append(runClone.Tags, s.startState.Tags...)
 		}

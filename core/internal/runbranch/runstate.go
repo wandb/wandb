@@ -2,6 +2,7 @@ package runbranch
 
 import (
 	"context"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
@@ -9,29 +10,13 @@ import (
 )
 
 type RunStateParams struct {
-	RunID          string
-	Project        string
-	Entity         string
-	DisplayName    string
-	StartTimeSecs  int64
-	StartTimeNanos int32
-	StorageID      string
-	SweepID        string
-}
-
-type State struct {
-	ctx        context.Context
-	client     graphql.Client
-	Intialized bool
-
-	RunID          string
-	Project        string
-	Entity         string
-	DisplayName    string
-	startTimeSecs  int64
-	startTimeNanos int32
-	StorageID      string
-	SweepID        string
+	RunID       string
+	Project     string
+	Entity      string
+	DisplayName string
+	StartTime   time.Time
+	StorageID   string
+	SweepID     string
 
 	// run state fields based on response from the server
 	startingStep int64
@@ -42,8 +27,14 @@ type State struct {
 	summary map[string]any
 
 	FileStreamOffset filestream.FileStreamOffsetMap
+}
 
-	Branching *BranchingState
+type State struct {
+	RunStateParams
+	ctx        context.Context
+	client     graphql.Client
+	Intialized bool
+	Branching  *BranchingState
 }
 
 func NewRunState(
@@ -55,9 +46,11 @@ func NewRunState(
 ) *State {
 
 	return &State{
-		ctx:              ctx,
-		client:           client,
-		FileStreamOffset: make(filestream.FileStreamOffsetMap),
+		ctx:    ctx,
+		client: client,
+		RunStateParams: RunStateParams{
+			FileStreamOffset: make(filestream.FileStreamOffsetMap),
+		},
 		Branching: NewBranchingState(
 			resume,
 			rewind,
@@ -67,17 +60,48 @@ func NewRunState(
 }
 
 func (r *State) UpdateState(params RunStateParams) {
-	r.RunID = params.RunID
-	r.Project = params.Project
-	r.Entity = params.Entity
-	r.DisplayName = params.DisplayName
-	r.SweepID = params.SweepID
-	r.StorageID = params.StorageID
-	r.startTimeSecs = params.StartTimeSecs
-	r.startTimeNanos = params.StartTimeNanos
+	if params.RunID != "" {
+		r.RunID = params.RunID
+	}
+	if params.Project != "" {
+		r.Project = params.Project
+	}
+	if params.Entity != "" {
+		r.Entity = params.Entity
+	}
+	if params.DisplayName != "" {
+		r.DisplayName = params.DisplayName
+	}
+	if params.SweepID != "" {
+		r.SweepID = params.SweepID
+	}
+	if params.StorageID != "" {
+		r.StorageID = params.StorageID
+	}
+	if !params.StartTime.IsZero() {
+		r.StartTime = params.StartTime
+	}
+	if params.startingStep != 0 {
+		r.startingStep = params.startingStep
+	}
+	if params.runtime != 0 {
+		r.runtime = params.runtime
+	}
+	if len(params.Tags) > 0 {
+		r.Tags = params.Tags
+	}
+	if len(params.Config) > 0 {
+		r.Config = params.Config
+	}
+	if len(params.summary) > 0 {
+		r.summary = params.summary
+	}
+	if len(params.FileStreamOffset) > 0 {
+		r.FileStreamOffset = params.FileStreamOffset
+	}
 }
 
-func (r *State) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
+func (r *State) ApplyBranchingUpdates() error {
 	switch r.Branching.Type {
 	case "resume":
 		return r.updateStateResumeMode(r.Branching)
@@ -86,7 +110,7 @@ func (r *State) ApplyBranchingUpdates() (*service.ErrorInfo, error) {
 	case "fork":
 		return r.updateStateForkMode(r.Branching)
 	default:
-		return nil, nil
+		return nil
 	}
 }
 
