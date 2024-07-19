@@ -13,13 +13,11 @@ import shutil
 import tempfile
 from typing import Any, Dict, List, Optional
 
-import jsonschema
-
 import wandb
 import wandb.data_types
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.wandb_run import Run
-from wandb.util import load_json_yaml_dict
+from wandb.util import get_module, load_json_yaml_dict
 
 from .files import config_path_is_valid, override_file
 
@@ -174,6 +172,10 @@ def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
 
 
 def _validate_schema(schema: dict) -> None:
+    jsonschema = get_module(
+        "jsonschema",
+        required="Setting job schema requires the jsonschema package. Please install it with `pip install 'wandb[launch]'`.",
+    )
     metaschema = load_json_yaml_dict(
         os.path.join(os.path.dirname(__file__), "schema.json")
     )
