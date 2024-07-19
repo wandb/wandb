@@ -20,7 +20,7 @@ func (r *State) updateRunResumeMode(run *service.RunRecord) {
 		run.StartingStep = r.startingStep + 1
 	}
 
-	run.Runtime = r.runtime
+	run.Runtime += r.runtime
 
 	// update the config
 	config := service.ConfigRecord{}
