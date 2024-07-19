@@ -407,11 +407,11 @@ func (s *Sender) updateSettings() {
 		return
 	}
 
-	if s.settings.XStartTime == nil && s.startState.StartTime != nil {
-		startTime := float64(run.StartTime.Seconds) +
-			float64(run.StartTime.Nanos)/1e9
-		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
-	}
+	// if s.settings.XStartTime == nil && s.startState.StartTime != nil {
+	// 	startTime := float64(run.StartTime.Seconds) +
+	// 		float64(run.StartTime.Nanos)/1e9
+	// 	s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
+	// }
 
 	// TODO: verify that this is the correct update logic
 	if s.startState.Entity != "" {
