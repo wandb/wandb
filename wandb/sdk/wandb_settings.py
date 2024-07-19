@@ -197,6 +197,24 @@ def _get_program_relpath(
     return None
 
 
+def _check_branching_mode(
+    resume: Optional[str],
+    fork_from: Optional[RunMoment],
+    resume_from: Optional[RunMoment],
+) -> str:
+    if sum(bool(x) for x in (resume, fork_from, resume_from)) > 1:
+        raise UsageError(
+            "Only one of `resume`, `fork_from`, and `resume_from` can be specified."
+        )
+    if resume is not None:
+        return "resume"
+    if fork_from is not None:
+        return "fork"
+    if resume_from is not None:
+        return "rewind"
+    return "none"
+
+
 def is_instance_recursive(obj: Any, type_hint: Any) -> bool:  # noqa: C901
     if type_hint is Any:
         return True
@@ -298,6 +316,7 @@ class SettingsData:
 
     _args: Sequence[str]
     _aws_lambda: bool
+    _branching_mode: str
     _cli_only_mode: bool  # Avoid running any code specific for runs
     _code_path_local: str
     _colab: bool
@@ -629,6 +648,12 @@ class Settings(SettingsData):
         props: Dict[str, Dict[str, Any]] = dict(
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
+            _branching_mode={
+                "hook": lambda _: _check_branching_mode(
+                    self.resume, self.fork_from, self.resume_from
+                ),
                 "auto_hook": True,
             },
             _code_path_local={
@@ -1378,6 +1403,9 @@ class Settings(SettingsData):
         object.__setattr__(self, "_Settings_start_datetime", None)
         object.__setattr__(self, "_Settings_start_time", None)
 
+        # check branching mode by triggering the hook
+        assert self._branching_mode
+
         # done with init, use self.update() to update attributes from now on
         self.__initialized = True
 
@@ -1508,6 +1536,9 @@ class Settings(SettingsData):
         # update the remaining properties
         for key, value in settings.items():
             self.__dict__[key].update(value, source)
+
+        # check branching mode by triggering the hook
+        assert self._branching_mode
 
     def items(self) -> ItemsView[str, Any]:
         return self.to_dict().items()

@@ -144,8 +144,8 @@ func (w *Writer) writeRecord(record *service.Record) {
 	case nil:
 		w.logger.Error("writer: writeRecord: nil record type")
 	default:
-		w.fwdRecord(record)
 		w.storeRecord(record)
+		w.fwdRecord(record)
 	}
 }
 

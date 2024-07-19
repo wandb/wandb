@@ -1,4 +1,4 @@
-package runresume
+package runbranching
 
 import (
 	"encoding/json"
@@ -10,8 +10,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -20,17 +18,11 @@ type Bucket = gql.RunResumeStatusModelProjectBucketRun
 type Mode uint8
 
 const (
-	None Mode = iota
+	NoResume Mode = iota
 	Must
 	Allow
 	Never
 )
-
-type State struct {
-	resume           Mode
-	FileStreamOffset filestream.FileStreamOffsetMap
-	logger           *observability.CoreLogger
-}
 
 func ResumeMode(mode string) Mode {
 	switch mode {
@@ -41,26 +33,8 @@ func ResumeMode(mode string) Mode {
 	case "never":
 		return Never
 	default:
-		return None
+		return NoResume
 	}
-}
-
-func NewResumeState(logger *observability.CoreLogger, mode Mode) *State {
-	return &State{logger: logger, resume: mode}
-}
-
-func (r *State) GetFileStreamOffset() filestream.FileStreamOffsetMap {
-	if r == nil {
-		return nil
-	}
-	return r.FileStreamOffset
-}
-
-func (r *State) AddOffset(key filestream.ChunkTypeEnum, offset int) {
-	if r.FileStreamOffset == nil {
-		r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
-	}
-	r.FileStreamOffset[key] = offset
 }
 
 func RunHasStarted(bucket *Bucket) bool {
@@ -70,11 +44,7 @@ func RunHasStarted(bucket *Bucket) bool {
 	return bucket != nil && bucket.WandbConfig != nil && strings.Contains(*bucket.WandbConfig, `"t":`)
 }
 
-func (r *State) Update(
-	data *gql.RunResumeStatusResponse,
-	run *service.RunRecord,
-	config *runconfig.RunConfig,
-) (*service.RunUpdateResult, error) {
+func (r *State) UpdateResume(mode Mode, data *gql.RunResumeStatusResponse) (*service.RunUpdateResult, error) {
 
 	var bucket *Bucket
 	if data.GetModel() != nil && data.GetModel().GetBucket() != nil {
@@ -86,9 +56,9 @@ func (r *State) Update(
 	// If we get that the run is a resume run, we should fail if resume is set to never
 	// for any other case of resume status, we should continue to process the resume response
 	switch {
-	case !RunHasStarted(bucket) && r.resume != Must:
+	case !RunHasStarted(bucket) && mode != Must:
 		return nil, nil
-	case !RunHasStarted(bucket) && r.resume == Must:
+	case !RunHasStarted(bucket) && mode == Must:
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'must' is not a valid option for resuming a run"+
@@ -96,7 +66,7 @@ func (r *State) Update(
 				" try again with a valid value for the `resume` argument.\n"+
 				"If you are trying to start a new run, please omit the"+
 				" `resume` argument or use `resume='allow'`",
-			run.Project, run.RunId)
+			r.RunRecord.Project, r.RunRecord.RunId)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: message,
@@ -105,13 +75,13 @@ func (r *State) Update(
 		err := fmt.Errorf(
 			"sender: Update: resume is 'must' for a run that does not exist")
 		return result, err
-	case r.resume == Never && RunHasStarted(bucket):
+	case mode == Never && RunHasStarted(bucket):
 		message := fmt.Sprintf(
 			"You provided an invalid value for the `resume` argument."+
 				" The value 'never' is not a valid option for resuming a"+
 				" run (%s/%s) that already exists. Please check your inputs"+
 				" and try again with a valid value for the `resume` argument.\n",
-			run.Project, run.RunId)
+			r.RunRecord.Project, r.RunRecord.RunId)
 		result := &service.RunUpdateResult{
 			Error: &service.ErrorInfo{
 				Message: message,
@@ -121,12 +91,12 @@ func (r *State) Update(
 			"sender: Update: resume is 'never' for a run that already exists")
 		return result, err
 	default:
-		if err := r.update(bucket, run, config); err != nil && r.resume == Must {
+		if err := r.updateResume(bucket); err != nil && mode == Must {
 			message := fmt.Sprintf(
 				"The run (%s/%s) failed to resume, and the `resume` argument"+
 					" was set to 'must'. Please check your inputs and try again"+
 					" with a valid value for the `resume` argument.\n",
-				run.Project, run.RunId)
+				r.RunRecord.Project, r.RunRecord.RunId)
 			result := &service.RunUpdateResult{
 				Error: &service.ErrorInfo{
 					Message: message,
@@ -135,46 +105,38 @@ func (r *State) Update(
 			}
 			return result, err
 		}
-		run.Resumed = true
+		r.Mode = ModeResume
 		return nil, nil
 	}
 }
 
-func (r *State) update(bucket *Bucket, run *service.RunRecord, config *runconfig.RunConfig) error {
+func (r *State) updateResume(bucket *Bucket) error {
 	errs := make([]error, 0)
 
 	r.AddOffset(filestream.HistoryChunk, *bucket.GetHistoryLineCount())
-	if err := r.updateHistory(run, bucket); err != nil {
-		r.logger.Error(err.Error())
+	if err := r.updateResumeHistory(bucket); err != nil {
 		errs = append(errs, err)
 	}
 
 	r.AddOffset(filestream.EventsChunk, *bucket.GetEventsLineCount())
 
-	if err := r.updateSummary(run, bucket); err != nil {
-		r.logger.Error(err.Error())
+	if err := r.updateResumeSummary(bucket); err != nil {
 		errs = append(errs, err)
 	}
 
 	r.AddOffset(filestream.OutputChunk, *bucket.GetLogLineCount())
-	if err := r.updateConfig(bucket, config); err != nil {
-		r.logger.Error(err.Error())
+	if err := r.updateResumeConfig(bucket); err != nil {
 		errs = append(errs, err)
 	}
 
-	if err := r.updateTags(run, bucket); err != nil {
-		r.logger.Error(err.Error())
+	if err := r.updateResumeTags(bucket); err != nil {
 		errs = append(errs, err)
 	}
 
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-
-	return nil
+	return errors.Join(errs...)
 }
 
-func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
+func (r *State) updateResumeHistory(bucket *Bucket) error {
 
 	resumed := bucket.GetHistoryTail()
 	if resumed == nil {
@@ -211,7 +173,7 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 		// to be the next step after the last step we ran
 		if x, ok := step.(int64); ok {
 			if x > 0 || r.GetFileStreamOffset()[filestream.HistoryChunk] > 0 {
-				run.StartingStep = x + 1
+				r.RunRecord.StartingStep = x + 1
 			}
 		}
 	}
@@ -220,16 +182,16 @@ func (r *State) updateHistory(run *service.RunRecord, bucket *Bucket) error {
 	if ok {
 		switch x := runtime.(type) {
 		case int64:
-			run.Runtime = int32(x)
+			r.RunRecord.Runtime = int32(x)
 		case float64:
-			run.Runtime = int32(x)
+			r.RunRecord.Runtime = int32(x)
 		}
 	}
 
 	return nil
 }
 
-func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
+func (r *State) updateResumeSummary(bucket *Bucket) error {
 
 	resumed := bucket.GetSummaryMetrics()
 	if resumed == nil {
@@ -268,15 +230,12 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 			ValueJson: valueJson,
 		})
 	}
-	run.Summary = &record
+	r.RunRecord.Summary = &record
 	return nil
 }
 
 // Merges the original run's config into the current config.
-func (r *State) updateConfig(
-	bucket *Bucket,
-	config *runconfig.RunConfig,
-) error {
+func (r *State) updateResumeConfig(bucket *Bucket) error {
 	resumed := bucket.GetConfig()
 	if resumed == nil {
 		return errors.New(
@@ -306,28 +265,26 @@ func (r *State) updateConfig(
 		)
 	}
 
+	var errs []error
 	deserializedConfig := make(map[string]any)
 	for key, value := range cfg {
 		valueDict, ok := value.(map[string]any)
 
 		if !ok {
-			r.logger.Error(
-				fmt.Sprintf(
-					"sender: updateConfig: config value for '%v'"+
-						" is not a map[string]any",
-					key,
-				),
-			)
+			errs = append(errs, fmt.Errorf(
+				"sender: updateConfig: config value for '%v' is not a map[string]any",
+				key,
+			))
 		} else if val, ok := valueDict["value"]; ok {
 			deserializedConfig[key] = val
 		}
 	}
 
-	config.MergeResumedConfig(deserializedConfig)
-	return nil
+	r.Config.MergeResumedConfig(deserializedConfig)
+	return errors.Join(errs...)
 }
 
-func (r *State) updateTags(run *service.RunRecord, bucket *Bucket) error {
+func (r *State) updateResumeTags(bucket *Bucket) error {
 	resumed := bucket.GetTags()
 	if resumed == nil {
 		return nil
@@ -337,8 +294,8 @@ func (r *State) updateTags(run *service.RunRecord, bucket *Bucket) error {
 	//   passed to `wandb.init()`.
 	// - to add tags to a resumed run without overwriting its existing tags
 	//   use `run.tags += ["new_tag"]` after `wandb.init()`.
-	if run.Tags == nil {
-		run.Tags = append(run.Tags, resumed...)
+	if r.RunRecord.Tags == nil {
+		r.RunRecord.Tags = append(r.RunRecord.Tags, resumed...)
 	}
 	return nil
 }

@@ -22,11 +22,11 @@ import (
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runbranching"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/internal/runconsolelogs"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runmetric"
-	"github.com/wandb/wandb/core/internal/runresume"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -103,13 +103,9 @@ type Sender struct {
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
 
-	// RunRecord is the run record
-	// TODO: remove this and use properly updated settings
-	//       + a flag indicating whether the run has started
-	RunRecord *service.RunRecord
-
-	// resumeState is the resume state
-	resumeState *runresume.State
+	// branchState keeps the state of the run at
+	// the time of branching for resume, fork, and rewind.
+	branchState *runbranching.State
 
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
@@ -178,6 +174,7 @@ func NewSender(
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
+		branchState:         &runbranching.State{},
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
 		fileWatcher:         params.FileWatcher,
@@ -400,24 +397,24 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || s.RunRecord == nil {
+	if s.settings == nil || !s.branchState.Started {
 		return
 	}
 
-	if s.settings.XStartTime == nil && s.RunRecord.StartTime != nil {
-		startTime := float64(s.RunRecord.StartTime.Seconds) + float64(s.RunRecord.StartTime.Nanos)/1e9
+	if s.settings.XStartTime == nil && s.branchState.RunRecord.StartTime != nil {
+		startTime := float64(s.branchState.RunRecord.StartTime.Seconds) + float64(s.branchState.RunRecord.StartTime.Nanos)/1e9
 		s.settings.XStartTime = &wrapperspb.DoubleValue{Value: startTime}
 	}
 
 	// TODO: verify that this is the correct update logic
-	if s.RunRecord.GetEntity() != "" {
-		s.settings.Entity = &wrapperspb.StringValue{Value: s.RunRecord.Entity}
+	if s.branchState.RunRecord.GetEntity() != "" {
+		s.settings.Entity = &wrapperspb.StringValue{Value: s.branchState.RunRecord.Entity}
 	}
-	if s.RunRecord.GetProject() != "" && s.settings.Project == nil {
-		s.settings.Project = &wrapperspb.StringValue{Value: s.RunRecord.Project}
+	if s.branchState.RunRecord.GetProject() != "" && s.settings.Project == nil {
+		s.settings.Project = &wrapperspb.StringValue{Value: s.branchState.RunRecord.Project}
 	}
-	if s.RunRecord.GetDisplayName() != "" && s.settings.RunName == nil {
-		s.settings.RunName = &wrapperspb.StringValue{Value: s.RunRecord.DisplayName}
+	if s.branchState.RunRecord.GetDisplayName() != "" && s.settings.RunName == nil {
+		s.settings.RunName = &wrapperspb.StringValue{Value: s.branchState.RunRecord.DisplayName}
 	}
 }
 
@@ -428,10 +425,10 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 
 	if s.fileStream != nil {
 		s.fileStream.Start(
-			s.RunRecord.GetEntity(),
-			s.RunRecord.GetProject(),
-			s.RunRecord.GetRunId(),
-			s.resumeState.GetFileStreamOffset(),
+			s.branchState.RunRecord.GetEntity(),
+			s.branchState.RunRecord.GetProject(),
+			s.branchState.RunRecord.GetRunId(),
+			s.branchState.GetFileStreamOffset(),
 		)
 	}
 }
@@ -664,18 +661,27 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 	if s.graphqlClient == nil {
 		return nil
 	}
-	resume := runresume.ResumeMode(s.settings.GetResume().GetValue())
+	resumeMode := runbranching.ResumeMode(s.settings.GetResume().GetValue())
+
+	fmt.Println("resumeMode", resumeMode)
 
 	// There was no resume status set, so we don't need to do anything
-	if resume == runresume.None {
+	if resumeMode == runbranching.NoResume {
 		return nil
 	}
 
-	// init resume state if it doesn't exist
-	s.resumeState = runresume.NewResumeState(s.logger, resume)
-	run := s.RunRecord
+	s.branchState.Mode = runbranching.ModeResume
+	// TODO: rm
+	s.branchState.Config = s.runConfig
+
 	// If we couldn't get the resume status, we should fail if resume is set
-	data, err := gql.RunResumeStatus(s.ctx, s.graphqlClient, &run.Project, utils.NilIfZero(run.Entity), run.RunId)
+	data, err := gql.RunResumeStatus(
+		s.ctx,
+		s.graphqlClient,
+		&s.branchState.RunRecord.Project,
+		utils.NilIfZero(s.branchState.RunRecord.Entity),
+		s.branchState.RunRecord.RunId,
+	)
 	if err != nil {
 		err = fmt.Errorf("failed to get run resume status: %s", err)
 		s.logger.Error("sender: checkAndUpdateResumeState", "error", err)
@@ -687,15 +693,13 @@ func (s *Sender) checkAndUpdateResumeState(record *service.Record) error {
 		s.respond(record, result)
 		return err
 	}
-
-	if result, err := s.resumeState.Update(
-		data,
-		s.RunRecord,
-		s.runConfig,
-	); err != nil {
+	fmt.Println(data)
+	fmt.Printf("before update: %+v\n", s.branchState)
+	if result, err := s.branchState.UpdateResume(resumeMode, data); err != nil {
 		s.respond(record, result)
 		return err
 	}
+	fmt.Printf("after update %+v\n", s.branchState)
 
 	return nil
 }
@@ -709,7 +713,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		//  consequent updates are fire-and-forget and thus don't have a mailbox
 		//  slot.
 		//  We should probably separate the initial upsert from the updates.
-		runRecordIsSet := s.RunRecord != nil
 
 		// The first run record sent by the client is encoded incorrectly,
 		// causing it to overwrite the entire "_wandb" config key rather than
@@ -727,19 +730,28 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		proto.Merge(s.telemetry, run.Telemetry)
 		s.updateConfigPrivate()
 
-		if !runRecordIsSet {
+		if !s.branchState.Started {
+			s.branchState.Started = true
 			var ok bool
-			s.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
+			s.branchState.RunRecord, ok = proto.Clone(run).(*service.RunRecord)
 			if !ok {
 				s.logger.CaptureFatalAndPanic(
 					errors.New("sender: sendRun: failed to clone RunRecord"))
 			}
 
-			if err := s.checkAndUpdateResumeState(record); err != nil {
-				s.logger.Error(
-					"sender: sendRun: failed to checkAndUpdateResumeState",
-					"error", err)
-				return
+			fmt.Println(s.settings.XBranchingMode)
+
+			switch s.settings.GetXBranchingMode().GetValue() {
+			case runbranching.ModeResume:
+				if err := s.checkAndUpdateResumeState(record); err != nil {
+					s.logger.Error(
+						"sender: sendRun: failed to checkAndUpdateResumeState",
+						"error", err)
+					return
+				}
+			case runbranching.ModeFork:
+			case runbranching.ModeRewind:
+			default:
 			}
 		}
 
@@ -769,7 +781,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			// if this times out, we cancel the global context
 			// as there is no need to proceed with the run
 			ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
-		} else if !runRecordIsSet {
+		} else if !s.branchState.Started {
 			// this should never happen:
 			// the initial run upsert record should have a mailbox slot set by the client
 			s.logger.CaptureFatalAndPanic(
@@ -823,19 +835,17 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		bucket := data.GetUpsertBucket().GetBucket()
 		project := bucket.GetProject()
 		entity := project.GetEntity()
-		s.RunRecord.StorageId = bucket.GetId()
-		// s.RunRecord.RunId = bucket.GetName()
-		s.RunRecord.DisplayName = utils.ZeroIfNil(bucket.GetDisplayName())
-		s.RunRecord.Project = project.GetName()
-		s.RunRecord.Entity = entity.GetName()
-		s.RunRecord.SweepId = utils.ZeroIfNil(bucket.GetSweepName())
+		s.branchState.RunRecord.StorageId = bucket.GetId()
+		// s.branchState.RunRecord.RunId = bucket.GetName()
+		s.branchState.RunRecord.DisplayName = utils.ZeroIfNil(bucket.GetDisplayName())
+		s.branchState.RunRecord.Project = project.GetName()
+		s.branchState.RunRecord.Entity = entity.GetName()
+		s.branchState.RunRecord.SweepId = utils.ZeroIfNil(bucket.GetSweepName())
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		runResult := s.RunRecord
-		if runResult == nil {
-			runResult = run
-		}
+		runResult := s.branchState.RunRecord
+
 		s.respond(record,
 			&service.RunUpdateResult{
 				Run: runResult,
@@ -888,7 +898,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	if s.RunRecord == nil {
+	if !s.branchState.Started {
 		s.logger.Error("sender: upsertConfig: RunRecord is nil")
 		return
 	}
@@ -904,27 +914,27 @@ func (s *Sender) upsertConfig() {
 
 	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err = gql.UpsertBucket(
-		ctx,                                  // ctx
-		s.graphqlClient,                      // client
-		nil,                                  // id
-		&s.RunRecord.RunId,                   // name
-		utils.NilIfZero(s.RunRecord.Project), // project
-		utils.NilIfZero(s.RunRecord.Entity),  // entity
-		nil,                                  // groupName
-		nil,                                  // description
-		nil,                                  // displayName
-		nil,                                  // notes
-		nil,                                  // commit
-		&config,                              // config
-		nil,                                  // host
-		nil,                                  // debug
-		nil,                                  // program
-		nil,                                  // repo
-		nil,                                  // jobType
-		nil,                                  // state
-		nil,                                  // sweep
-		nil,                                  // tags []string,
-		nil,                                  // summaryMetrics
+		ctx,                            // ctx
+		s.graphqlClient,                // client
+		nil,                            // id
+		&s.branchState.RunRecord.RunId, // name
+		utils.NilIfZero(s.branchState.RunRecord.Project), // project
+		utils.NilIfZero(s.branchState.RunRecord.Entity),  // entity
+		nil,     // groupName
+		nil,     // description
+		nil,     // displayName
+		nil,     // notes
+		nil,     // commit
+		&config, // config
+		nil,     // host
+		nil,     // debug
+		nil,     // program
+		nil,     // repo
+		nil,     // jobType
+		nil,     // state
+		nil,     // sweep
+		nil,     // tags []string,
+		nil,     // summaryMetrics
 	)
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
@@ -1030,9 +1040,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 		return
 	}
 
-	if s.RunRecord == nil {
+	if !s.branchState.Started {
 		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: sendAlert: RunRecord not set"))
+			errors.New("sender: sendAlert: Run not started"))
 	}
 	// TODO: handle invalid alert levels
 	severity := gql.AlertSeverity(alert.Level)
@@ -1040,9 +1050,9 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	data, err := gql.NotifyScriptableRunAlert(
 		s.ctx,
 		s.graphqlClient,
-		s.RunRecord.Entity,
-		s.RunRecord.Project,
-		s.RunRecord.RunId,
+		s.branchState.RunRecord.Entity,
+		s.branchState.RunRecord.Project,
+		s.branchState.RunRecord.RunId,
 		alert.Title,
 		alert.Text,
 		&severity,
@@ -1190,10 +1200,16 @@ func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRe
 			}
 
 			var url string
-			if s.RunRecord != nil {
+			if s.branchState.Started {
 				baseUrl := s.settings.GetBaseUrl().GetValue()
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
-				url = fmt.Sprintf("%s/%s/%s/runs/%s", baseUrl, s.RunRecord.Entity, s.RunRecord.Project, s.RunRecord.RunId)
+				url = fmt.Sprintf(
+					"%s/%s/%s/runs/%s",
+					baseUrl,
+					s.branchState.RunRecord.Entity,
+					s.branchState.RunRecord.Project,
+					s.branchState.RunRecord.RunId,
+				)
 			}
 			s.respond(record,
 				&service.Response{
@@ -1229,9 +1245,9 @@ func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRe
 func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopStatusRequest) {
 
 	// TODO: unify everywhere to use settings
-	entity := s.RunRecord.GetEntity()
-	project := s.RunRecord.GetProject()
-	runId := s.RunRecord.GetRunId()
+	entity := s.branchState.RunRecord.GetEntity()
+	project := s.branchState.RunRecord.GetProject()
+	runId := s.branchState.RunRecord.GetRunId()
 
 	var stopResponse *service.StopStatusResponse
 

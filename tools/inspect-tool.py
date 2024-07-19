@@ -18,7 +18,10 @@ def _robust_scan(ds):
             raise e
 
 
-def run(wandb_file: str) -> None:
+def run(
+    wandb_file: str,
+    pause: bool = False,
+) -> None:
     ds = datastore.DataStore()
     try:
         ds.open_for_scan(wandb_file)
@@ -37,7 +40,8 @@ def run(wandb_file: str) -> None:
         print(f"RECORD TYPE: {record_type}")
         print(pb)
         print()
-        input()
+        if pause:
+            input()
 
 
 if __name__ == "__main__":
