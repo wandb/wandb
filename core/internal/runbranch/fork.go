@@ -1,10 +1,20 @@
 package runbranch
 
-import "github.com/wandb/wandb/core/pkg/service"
+import (
+	"context"
 
-func (r *State) updateStateForkMode(_ *BranchingState) error {
-	return nil
+	"github.com/Khan/genqlient/graphql"
+)
+
+type ForkBranch struct {
+	runid  string
+	metric string
+	value  float64
 }
 
-func (r *State) updateRunForkMode(record *service.RunRecord) {
+func (f ForkBranch) GetUpdates(ctx context.Context,
+	client graphql.Client,
+	entity, project, runID string,
+) (*RunParams, error) {
+	return nil, nil
 }

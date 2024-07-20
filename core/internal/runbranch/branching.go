@@ -1,50 +1,48 @@
 package runbranch
 
 import (
+	"context"
+
+	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-type BranchingState struct {
-	RunID     string
-	StepName  string
-	StepValue float64
-	Mode      string
-	Type      string
+type Branching interface {
+	GetUpdates(context.Context, graphql.Client, string, string, string) (*RunParams, error)
 }
 
-func NewBranchingState(resume string, rewind, fork *service.RunMoment) *BranchingState {
-	// check that only one of resume, rewind, or fork is set
-	if (resume != "" && rewind != nil) || (resume != "" && fork != nil) || (rewind != nil && fork != nil) {
-		return nil
-	}
+type BranchError struct {
+	Err      error
+	Response *service.ErrorInfo
+}
 
-	if resume != "" {
-		return &BranchingState{
-			Mode: resume,
-			Type: "resume",
-		}
-	}
+func (re BranchError) Error() string {
+	return re.Err.Error()
+}
 
-	if rewind != nil {
-		return &BranchingState{
-			RunID:     rewind.GetRun(),
-			StepName:  rewind.GetMetric(),
-			StepValue: rewind.GetValue(),
-			Type:      "rewind",
-		}
-	}
+type NoBranch struct {
+}
 
-	if fork != nil {
-		return &BranchingState{
-			RunID:     fork.GetRun(),
-			StepName:  fork.GetMetric(),
-			StepValue: fork.GetValue(),
-			Type:      "fork",
-		}
-	}
+func (nb NoBranch) GetUpdates(
+	ctx context.Context,
+	client graphql.Client,
+	entity, project, runID string,
+) (*RunParams, error) {
+	return nil, nil
+}
 
-	return &BranchingState{
-		Type: "none",
-	}
+type InvalidBranch struct {
+	err      error
+	response *service.ErrorInfo
+}
 
+func (ib InvalidBranch) GetUpdates(
+	ctx context.Context,
+	client graphql.Client,
+	entity, project, runID string,
+) (*RunParams, error) {
+	return nil, &BranchError{
+		Err:      ib.err,
+		Response: ib.response,
+	}
 }

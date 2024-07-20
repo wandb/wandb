@@ -185,7 +185,7 @@ func NewSender(
 		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
 		fwdChan:             params.FwdChan,
-		startState: runbranch.NewRunState(
+		startState: runbranch.NewState(
 			ctx,
 			params.GraphqlClient,
 			params.Settings.GetResume(),
@@ -721,39 +721,42 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.startState.Intialized = true
 
 		// update the run state with the initial run record
-		s.startState.UpdateState(runbranch.RunStateParams{
-			RunID:       run.GetRunId(),
-			Project:     run.GetProject(),
-			Entity:      run.GetEntity(),
-			DisplayName: run.GetDisplayName(),
-			StartTime:   run.GetStartTime().AsTime(),
-			StorageID:   run.GetStorageId(),
-			SweepID:     run.GetSweepId(),
+		err := s.startState.ApplyUpdates(&runbranch.RunParams{
+			RunID:       runClone.GetEntity(),
+			Project:     runClone.GetProject(),
+			Entity:      runClone.GetRunId(),
+			DisplayName: runClone.GetDisplayName(),
+			StartTime:   runClone.GetStartTime().AsTime(),
+			StorageID:   runClone.GetStorageId(),
+			SweepID:     runClone.GetSweepId(),
 		})
-		err := s.startState.ApplyBranchingUpdates()
 		if err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
-		}
-		// provide more info about the error to the user
-		if errType, ok := err.(runbranch.ResumeError); ok {
-			if errType.Response != nil {
-				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-					result := &service.RunUpdateResult{
-						Error: errType.Response,
+			// provide more info about the error to the user
+			if errType, ok := err.(runbranch.BranchError); ok {
+				if errType.Response != nil {
+					if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+						result := &service.RunUpdateResult{
+							Error: errType.Response,
+						}
+						s.respond(record, result)
 					}
-					s.respond(record, result)
+					return
 				}
-				return
 			}
 		}
+
 		// On the first invocation of sendRun, we overwrite the tags if the user
 		// has set them in wandb.init(). Otherwise, we keep the tags from the
 		// original run.
 		if len(runClone.Tags) == 0 {
 			runClone.Tags = append(runClone.Tags, s.startState.Tags...)
 		}
+
+		runClone.Runtime = s.startState.Runtime
+		runClone.Resumed = s.startState.Resumed
 
 		// Merge the resumed config into the run config
 		s.runConfig.MergeResumedConfig(s.startState.Config)
@@ -844,7 +847,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	entity := project.GetEntity()
 
-	s.startState.UpdateState(runbranch.RunStateParams{
+	s.startState.Update(&runbranch.RunParams{
 		RunID:       bucket.GetName(),
 		Project:     project.GetName(),
 		Entity:      entity.GetName(),
@@ -854,7 +857,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	})
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		s.startState.ApplyRunUpdate(runClone)
+		proto.Merge(runClone, s.startState.Proto())
 		s.respond(record,
 			&service.RunUpdateResult{
 				Run: runClone,

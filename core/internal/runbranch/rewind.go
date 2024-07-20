@@ -1,10 +1,20 @@
 package runbranch
 
-import "github.com/wandb/wandb/core/pkg/service"
+import (
+	"context"
 
-func (r *State) updateStateRewindMode(_ *BranchingState) error {
-	return nil
+	"github.com/Khan/genqlient/graphql"
+)
+
+type RewindBranch struct {
+	runid  string
+	metric string
+	value  float64
 }
 
-func (r *State) updateRunRewindMode(record *service.RunRecord) {
+func (r RewindBranch) GetUpdates(ctx context.Context,
+	client graphql.Client,
+	entity, project, runID string,
+) (*RunParams, error) {
+	return nil, nil
 }

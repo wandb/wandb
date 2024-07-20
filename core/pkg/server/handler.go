@@ -568,11 +568,10 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	var ok bool
 	run := request.Run
 
-	// start the run timer
-	startTime := run.StartTime.AsTime()
 	// offsset by run.Runtime to account for potential run branching
+	// start the run timer
 	// TODO: verify the logic
-	startTime = startTime.Add(-time.Duration(run.Runtime) * time.Second)
+	startTime := run.StartTime.AsTime().Add(-time.Duration(run.Runtime) * time.Second)
 	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {

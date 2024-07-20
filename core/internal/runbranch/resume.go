@@ -1,11 +1,13 @@
 package runbranch
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
 
+	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
@@ -13,64 +15,31 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
-func (r *State) updateRunResumeMode(run *service.RunRecord) {
-
-	// if we are resuming, we need to update the starting step
-	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		run.StartingStep = r.startingStep + 1
-	}
-
-	run.Runtime += r.runtime
-
-	// update the config
-	config := service.ConfigRecord{}
-	for key, value := range r.Config {
-		valueJson, _ := simplejsonext.MarshalToString(value)
-		config.Update = append(config.Update, &service.ConfigItem{
-			Key:       key,
-			ValueJson: valueJson,
-		})
-	}
-	run.Config = &config
-
-	// update the summary
-	summary := service.SummaryRecord{}
-	for key, value := range r.summary {
-		valueJson, _ := simplejsonext.MarshalToString(value)
-		summary.Update = append(summary.Update, &service.SummaryItem{
-			Key:       key,
-			ValueJson: valueJson,
-		})
-	}
-	run.Summary = &summary
+type ResumeBranch struct {
+	mode string
 }
 
-type ResumeError struct {
-	Err      error
-	Response *service.ErrorInfo
-}
-
-func (re ResumeError) Error() string {
-	return re.Err.Error()
-}
-
-// updateStateResumeMode updates the state based on the resume mode
+// GetUpdates updates the state based on the resume mode
 // and the Run resume status we get from the server
-func (r *State) updateStateResumeMode(branching *BranchingState) error {
+func (r *ResumeBranch) GetUpdates(
+	ctx context.Context,
+	client graphql.Client,
+	entity, project, runID string,
+) (*RunParams, error) {
 	response, err := gql.RunResumeStatus(
-		r.ctx,
-		r.client,
-		&r.Project,
-		utils.NilIfZero(r.Entity),
-		r.RunID,
+		ctx,
+		client,
+		&project,
+		utils.NilIfZero(entity),
+		runID,
 	)
 	// if we get an error we are in an unknown state and we should raise an error
 	if err != nil {
 		info := &service.ErrorInfo{
 			Code:    service.ErrorInfo_COMMUNICATION,
-			Message: fmt.Sprintf("Failed to get resume status for run %s: %s", r.RunID, err),
+			Message: fmt.Sprintf("Failed to get resume status for run %s: %s", runID, err),
 		}
-		return &ResumeError{Err: err, Response: info}
+		return nil, &BranchError{Err: err, Response: info}
 	}
 
 	var data *gql.RunResumeStatusModelProjectBucketRun
@@ -80,66 +49,62 @@ func (r *State) updateStateResumeMode(branching *BranchingState) error {
 
 	// if we are not in the resume mode MUST and we didn't get data, we can just
 	// return without error
-	if data == nil && branching.Mode != "must" {
-		return nil
+	if data == nil && r.mode != "must" {
+		return nil, nil
 	}
 
 	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
 	// we need to return an error because we can't resume
-	if data == nil && branching.Mode == "must" {
+	if data == nil && r.mode == "must" {
 		info := &service.ErrorInfo{
 			Code: service.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
 				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
 				" Please check your inputs and try again with a valid run ID."+
 				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
-				r.RunID),
+				runID),
 		}
 		err = errors.New("no data but must resume")
-		return &ResumeError{Err: err, Response: info}
+		return nil, &BranchError{Err: err, Response: info}
 	}
 
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
-	if data != nil && branching.Mode == "never" {
+	if data != nil && r.mode == "never" {
 		info := &service.ErrorInfo{
 			Code: service.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
 				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
 				"  Please check your inputs and try again with a valid value for the `resume` argument.",
-				r.RunID),
+				runID),
 		}
 		err = errors.New("data but cannot resume")
-		return &ResumeError{Err: err, Response: info}
+		return nil, &BranchError{Err: err, Response: info}
 	}
 
 	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
-	if data != nil && branching.Mode != "never" {
+	if data != nil && r.mode != "never" {
 		update, err := extractRunState(data)
-		if err != nil && branching.Mode == "must" {
+		if err != nil && r.mode == "must" {
 			info := &service.ErrorInfo{
 				Code: service.ErrorInfo_USAGE,
 				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-					r.RunID),
+					runID),
 			}
 			err = fmt.Errorf("could not resume run: %s", err)
-			return &ResumeError{Err: err, Response: info}
+			return nil, &BranchError{Err: err, Response: info}
 		}
-		// TODO: update the state with the resume data
-		if update != nil {
-			r.UpdateState(*update)
-		}
-		return &ResumeError{Err: err}
+		return update, &BranchError{Err: err}
 	}
 
-	return nil
+	return nil, nil
 }
 
 // extractRunState extracts the run state from the data we get from the server
 //
 //gocyclo:ignore
-func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunStateParams, error) {
-	r := RunStateParams{FileStreamOffset: make(filestream.FileStreamOffsetMap)}
+func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
+	r := RunParams{FileStreamOffset: make(filestream.FileStreamOffsetMap)}
 
 	// update the file stream offsets with the data from the server
 	if data.GetHistoryLineCount() != nil {
@@ -188,9 +153,9 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunStateP
 			if runtime, ok := historyTail["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					r.runtime = int32(math.Max(float64(x), float64(r.runtime)))
+					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
 				case float64:
-					r.runtime = int32(math.Max(x, float64(r.runtime)))
+					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
 				}
 			}
 		}
@@ -274,9 +239,9 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunStateP
 			if runtime, ok := eventTail["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					r.runtime = int32(math.Max(float64(x), float64(r.runtime)))
+					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
 				case float64:
-					r.runtime = int32(math.Max(x, float64(r.runtime)))
+					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
 				}
 			}
 		}
@@ -284,6 +249,13 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunStateP
 
 	// Get Tags information
 	r.Tags = data.GetTags()
+
+	// if we are resuming, we need to update the starting step
+	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
+		r.startingStep += 1
+	}
+
+	r.Resumed = true
 
 	return &r, nil
 }
