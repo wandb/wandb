@@ -136,6 +136,7 @@ func (r *State) updateStateResumeMode(branching *BranchingState) error {
 }
 
 // extractRunState extracts the run state from the data we get from the server
+//
 //gocyclo:ignore
 func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunStateParams, error) {
 	r := RunStateParams{FileStreamOffset: make(filestream.FileStreamOffsetMap)}
