@@ -8,11 +8,14 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
+import gzip
 import logging
 import os
+from pathlib import Path
 import sys
 import time
 from abc import abstractmethod
+from secrets import token_hex
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -32,6 +35,7 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
+from wandb.sdk.lib.paths import FilePathStr
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,
@@ -46,6 +50,8 @@ from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
 from .message_future import MessageFuture
+
+MANIFEST_FILE_SIZE_THRESHOLD = 100000
 
 GlobStr = NewType("GlobStr", str)
 
@@ -334,6 +340,12 @@ class InterfaceBase:
         proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
+        # Very large manifests need to be written to file to avoid protobuf size limits.
+        if len(artifact_manifest) > MANIFEST_FILE_SIZE_THRESHOLD:
+            path = self._write_artifact_manifest_file(artifact_manifest)
+            proto_manifest.manifest_file = path
+            return proto_manifest
+
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
@@ -357,6 +369,14 @@ class InterfaceBase:
                 proto_extra.key = k
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
+
+    def _write_artifact_manifest_file(self, manifest: ArtifactManifest) -> str:
+        manifest_dir = Path(get_staging_dir()) / "artifact_manifests"
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        manifest_file = manifest_dir / f"{time.time()}_{token_hex(8)}.manifest.json.gz"
+        with gzip.open(manifest_file, mode="wt", compresslevel=1) as f:
+            json.dump(manifest.to_manifest_json(), f)
+        return str(manifest_file)
 
     def deliver_link_artifact(
         self,

@@ -449,6 +449,7 @@ message ArtifactManifest {
   string storage_policy = 2;
   repeated StoragePolicyConfigItem storage_policy_config = 3;
   repeated ArtifactManifestEntry contents = 4;
+  string manifest_file = 5;
 }
 
 message ArtifactManifestEntry {

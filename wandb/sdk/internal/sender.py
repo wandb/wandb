@@ -1,5 +1,6 @@
 """sender."""
 
+import gzip
 import json
 import logging
 import os
@@ -66,6 +67,7 @@ else:
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
+        ArtifactManifestEntry,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -105,20 +107,11 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
 
 def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     if manifest.version == 1:
+        if manifest.manifest_file:
+            with gzip.open(manifest.manifest_file, "rt") as f:
+                return json.loads(f.read())
         contents = {
-            content.path: {
-                "digest": content.digest,
-                "birthArtifactID": content.birth_artifact_id
-                if content.birth_artifact_id
-                else None,
-                "ref": content.ref if content.ref else None,
-                "size": content.size if content.size is not None else None,
-                "local_path": content.local_path if content.local_path else None,
-                "skip_cache": content.skip_cache,
-                "extra": {
-                    extra.key: json.loads(extra.value_json) for extra in content.extra
-                },
-            }
+            content.path: _manifest_entry_from_proto(content)
             for content in manifest.contents
         }
     else:
@@ -132,6 +125,20 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
             for config in manifest.storage_policy_config
         },
         "contents": contents,
+    }
+
+def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
+    birth_artifact_id = entry.birth_artifact_id if entry.birth_artifact_id else None
+    return {
+        "digest": entry.digest,
+        "birthArtifactID": birth_artifact_id,
+        "ref": entry.ref if entry.ref else None,
+        "size": entry.size if entry.size is not None else None,
+        "local_path": entry.local_path if entry.local_path else None,
+        "skip_cache": entry.skip_cache,
+        "extra": {
+            extra.key: json.loads(extra.value_json) for extra in entry.extra
+        },
     }
 
 
@@ -1586,6 +1593,12 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
+
+        if artifact.manifest.manifest_file:
+            try:
+                os.remove(artifact.manifest.manifest_file)
+            except FileNotFoundError:
+                pass
         return res
 
     def send_alert(self, record: "Record") -> None:

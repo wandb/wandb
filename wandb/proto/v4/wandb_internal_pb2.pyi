@@ -1346,12 +1346,14 @@ class ArtifactManifest(google.protobuf.message.Message):
     STORAGE_POLICY_FIELD_NUMBER: builtins.int
     STORAGE_POLICY_CONFIG_FIELD_NUMBER: builtins.int
     CONTENTS_FIELD_NUMBER: builtins.int
+    MANIFEST_FILE_FIELD_NUMBER: builtins.int
     version: builtins.int
     storage_policy: builtins.str
     @property
     def storage_policy_config(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StoragePolicyConfigItem]: ...
     @property
     def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]: ...
+    manifest_file: builtins.str
     def __init__(
         self,
         *,
@@ -1359,8 +1361,9 @@ class ArtifactManifest(google.protobuf.message.Message):
         storage_policy: builtins.str = ...,
         storage_policy_config: collections.abc.Iterable[global___StoragePolicyConfigItem] | None = ...,
         contents: collections.abc.Iterable[global___ArtifactManifestEntry] | None = ...,
+        manifest_file: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["contents", b"contents", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["contents", b"contents", "manifest_file", b"manifest_file", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
 
 global___ArtifactManifest = ArtifactManifest
 
