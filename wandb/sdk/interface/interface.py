@@ -373,9 +373,13 @@ class InterfaceBase:
     def _write_artifact_manifest_file(self, manifest: ArtifactManifest) -> str:
         manifest_dir = Path(get_staging_dir()) / "artifact_manifests"
         manifest_dir.mkdir(parents=True, exist_ok=True)
-        manifest_file = manifest_dir / f"{time.time()}_{token_hex(8)}.manifest.json.gz"
+        # It would be simpler to use `manifest.to_json()`, but that gets very slow for
+        # large manifests since it encodes the whole thing as a single JSON object.
+        filename = f"{time.time()}_{token_hex(8)}.manifest_contents.jl.gz"
+        manifest_file = manifest_dir / filename
         with gzip.open(manifest_file, mode="wt", compresslevel=1) as f:
-            json.dump(manifest.to_manifest_json(), f)
+            for entry in manifest.entries.values():
+                f.write(f"{json.dumps(entry.to_json())}\n")
         return str(manifest_file)
 
     def deliver_link_artifact(

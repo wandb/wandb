@@ -108,12 +108,17 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
 def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     if manifest.version == 1:
         if manifest.manifest_file:
+            contents = {}
             with gzip.open(manifest.manifest_file, "rt") as f:
-                return json.loads(f.read())
-        contents = {
-            content.path: _manifest_entry_from_proto(content)
-            for content in manifest.contents
-        }
+                for line in f:
+                    entry_json = json.loads(line)
+                    path = entry_json.pop("path")
+                    contents[path] = entry_json
+        else:
+            contents = {
+                content.path: _manifest_entry_from_proto(content)
+                for content in manifest.contents
+            }
     else:
         raise ValueError(f"unknown artifact manifest version: {manifest.version}")
 
@@ -127,6 +132,7 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
         "contents": contents,
     }
 
+
 def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
     birth_artifact_id = entry.birth_artifact_id if entry.birth_artifact_id else None
     return {
@@ -136,9 +142,7 @@ def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
         "size": entry.size if entry.size is not None else None,
         "local_path": entry.local_path if entry.local_path else None,
         "skip_cache": entry.skip_cache,
-        "extra": {
-            extra.key: json.loads(extra.value_json) for extra in entry.extra
-        },
+        "extra": {extra.key: json.loads(extra.value_json) for extra in entry.extra},
     }
 
 

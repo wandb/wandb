@@ -199,6 +199,25 @@ class ArtifactManifestEntry:
             + self.path
         )
 
+    def to_json(self) -> Dict:
+        contents = {
+            "path": self.path,
+            "digest": self.digest,
+        }
+        if self.size is not None:
+            contents["size"] = self.size
+        if self.ref:
+            contents["ref"] = self.ref
+        if self.birth_artifact_id:
+            contents["birthArtifactID"] = self.birth_artifact_id
+        if self.local_path:
+            contents["local_path"] = self.local_path
+        if self.skip_cache:
+            contents["skip_cache"] = self.skip_cache
+        if self.extra:
+            contents["extra"] = self.extra
+        return contents
+
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"
 
