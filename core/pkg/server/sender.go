@@ -721,7 +721,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.startState.Intialized = true
 
 		// update the run state with the initial run record
-		err := s.startState.ApplyUpdates(&runbranch.RunParams{
+		s.startState.Update(&runbranch.RunParams{
 			RunID:       runClone.GetEntity(),
 			Project:     runClone.GetProject(),
 			Entity:      runClone.GetRunId(),
@@ -730,6 +730,12 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			StorageID:   runClone.GetStorageId(),
 			SweepID:     runClone.GetSweepId(),
 		})
+
+		err := s.startState.ApplyUpdates(
+			runClone.GetEntity(),
+			runClone.GetProject(),
+			runClone.GetRunId(),
+		)
 		if err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),

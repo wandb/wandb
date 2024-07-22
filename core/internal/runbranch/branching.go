@@ -1,14 +1,11 @@
 package runbranch
 
 import (
-	"context"
-
-	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type Branching interface {
-	GetUpdates(context.Context, graphql.Client, string, string, string) (*RunParams, error)
+	GetUpdates(string, string, string) (*RunParams, error)
 }
 
 type BranchError struct {
@@ -24,8 +21,6 @@ type NoBranch struct {
 }
 
 func (nb NoBranch) GetUpdates(
-	ctx context.Context,
-	client graphql.Client,
 	entity, project, runID string,
 ) (*RunParams, error) {
 	return nil, nil
@@ -37,8 +32,6 @@ type InvalidBranch struct {
 }
 
 func (ib InvalidBranch) GetUpdates(
-	ctx context.Context,
-	client graphql.Client,
 	entity, project, runID string,
 ) (*RunParams, error) {
 	return nil, &BranchError{

@@ -81,16 +81,15 @@ func (r *RunParams) Update(params *RunParams) {
 
 func (r *RunParams) Proto() *service.RunRecord {
 
-	// // update the config
-	// config := service.ConfigRecord{}
-	// for key, value := range r.Config {
-	// 	valueJson, _ := simplejsonext.MarshalToString(value)
-	// 	config.Update = append(config.Update, &service.ConfigItem{
-	// 		Key:       key,
-	// 		ValueJson: valueJson,
-	// 	})
-	// }
-	// run.Config = &config
+	// update the config
+	config := service.ConfigRecord{}
+	for key, value := range r.Config {
+		valueJson, _ := simplejsonext.MarshalToString(value)
+		config.Update = append(config.Update, &service.ConfigItem{
+			Key:       key,
+			ValueJson: valueJson,
+		})
+	}
 
 	// update the summary
 	summary := service.SummaryRecord{}
@@ -101,7 +100,7 @@ func (r *RunParams) Proto() *service.RunRecord {
 			ValueJson: valueJson,
 		})
 	}
-	return &service.RunRecord{
+	proto := &service.RunRecord{
 		RunId:        r.RunID,
 		Project:      r.Project,
 		Entity:       r.Entity,
@@ -110,7 +109,9 @@ func (r *RunParams) Proto() *service.RunRecord {
 		StorageId:    r.StorageID,
 		SweepId:      r.SweepID,
 		Summary:      &summary,
+		Config:       &config,
 	}
+	return proto
 }
 
 type State struct {
@@ -148,7 +149,9 @@ func NewState(
 		}
 	case resume != "":
 		state.branch = &ResumeBranch{
-			mode: resume,
+			ctx:    ctx,
+			client: client,
+			mode:   resume,
 		}
 	case rewind != nil:
 		state.branch = &RewindBranch{
@@ -168,9 +171,8 @@ func NewState(
 	return state
 }
 
-func (r *State) ApplyUpdates(params *RunParams) error {
-	r.RunParams.Update(params)
-	update, err := r.branch.GetUpdates(r.ctx, r.client, r.Entity, r.Project, r.RunID)
+func (r *State) ApplyUpdates(entity, project, runID string) error {
+	update, err := r.branch.GetUpdates(entity, project, runID)
 	if err != nil {
 		return err
 	}

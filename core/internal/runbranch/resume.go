@@ -16,23 +16,25 @@ import (
 )
 
 type ResumeBranch struct {
-	mode string
+	ctx    context.Context
+	client graphql.Client
+	mode   string
 }
 
 // GetUpdates updates the state based on the resume mode
 // and the Run resume status we get from the server
 func (r *ResumeBranch) GetUpdates(
-	ctx context.Context,
-	client graphql.Client,
 	entity, project, runID string,
 ) (*RunParams, error) {
+
 	response, err := gql.RunResumeStatus(
-		ctx,
-		client,
+		r.ctx,
+		r.client,
 		&project,
 		utils.NilIfZero(entity),
 		runID,
 	)
+
 	// if we get an error we are in an unknown state and we should raise an error
 	if err != nil {
 		info := &service.ErrorInfo{
@@ -93,8 +95,10 @@ func (r *ResumeBranch) GetUpdates(
 			}
 			err = fmt.Errorf("could not resume run: %s", err)
 			return nil, &BranchError{Err: err, Response: info}
+		} else if err != nil {
+			return nil, err
 		}
-		return update, &BranchError{Err: err}
+		return update, nil
 	}
 
 	return nil, nil
@@ -206,16 +210,17 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 			)
 		}
 
-		config := make(map[string]any)
+		if r.Config == nil {
+			r.Config = make(map[string]any)
+		}
 		for key, value := range cfg {
 			valueDict, ok := value.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
 			} else if val, ok := valueDict["value"]; ok {
-				config[key] = val
+				r.Config[key] = val
 			}
 		}
-		r.Config = config
 	}
 
 	// Get Events (system metrics) information
@@ -254,7 +259,6 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
 		r.startingStep += 1
 	}
-
 	r.Resumed = true
 
 	return &r, nil
