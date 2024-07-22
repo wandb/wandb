@@ -11,10 +11,10 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 import gzip
 import logging
 import os
-from pathlib import Path
 import sys
 import time
 from abc import abstractmethod
+from pathlib import Path
 from secrets import token_hex
 from typing import (
     TYPE_CHECKING,
@@ -35,7 +35,6 @@ from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib import json_util as json
-from wandb.sdk.lib.paths import FilePathStr
 from wandb.util import (
     WandBJSONEncoderOld,
     get_h5_typename,

@@ -1,6 +1,6 @@
 """Artifact manifest v1."""
 
-from typing import Any, Dict, Mapping, Optional
+from typing import Dict, Mapping, Optional
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry

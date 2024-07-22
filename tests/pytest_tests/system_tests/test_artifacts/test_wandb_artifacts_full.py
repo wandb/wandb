@@ -322,13 +322,16 @@ def test_large_manifests_passed_by_file(wandb_init, monkeypatch):
         new_writer,
     )
     monkeypatch.setattr(
-        wandb.sdk.interface.interface, "MANIFEST_FILE_SIZE_THRESHOLD", 0,
+        wandb.sdk.interface.interface,
+        "MANIFEST_FILE_SIZE_THRESHOLD",
+        0,
     )
 
     with wandb_init() as run:
         artifact = wandb.Artifact(name="large-manifest", type="dataset")
         with artifact.new_file("test_file.txt") as f:
             f.write("test content")
+        artifact.manifest.entries["test_file.txt"].extra["test_key"] = {"x": 1}
         run.log_artifact(artifact)
         artifact.wait()
 
@@ -339,6 +342,7 @@ def test_large_manifests_passed_by_file(wandb_init, monkeypatch):
     with wandb_init() as run:
         artifact = run.use_artifact("large-manifest:latest")
         assert len(artifact.manifest) == 1
+        assert artifact.manifest.entries["test_file.txt"].extra["test_key"] == {"x": 1}
 
 
 def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
