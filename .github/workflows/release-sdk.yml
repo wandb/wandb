@@ -104,7 +104,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
+        uses: pypa/cibuildwheel@v2.19.2
         with:
            package-dir: .
            output-dir: dist
@@ -126,6 +126,7 @@ jobs:
             delocate-wheel \
               --require-archs {delocate_archs} \
               --ignore-missing-dependencies \
+              --require-target-macos-version 10.14 \
               -w {dest_dir} \
               -v {wheel}
 
