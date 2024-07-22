@@ -63,7 +63,7 @@ def login(
             If set to "must", always log a user in anonymously. If set to
             "allow", only create an anonymous user if the user
             isn't already logged in. If set to "never", never log a 
-            user anonymously. Default set to "never". 
+            user anonymously. Default set to "never".
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
         force: (bool, optional) If true, will force a relogin.
