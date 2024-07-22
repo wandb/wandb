@@ -741,7 +741,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
 			// provide more info about the error to the user
-			if errType, ok := err.(runbranch.BranchError); ok {
+			if errType, ok := err.(*runbranch.BranchError); ok {
 				if errType.Response != nil {
 					if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 						result := &service.RunUpdateResult{
