@@ -175,6 +175,7 @@ def _validate_schema(schema: dict) -> None:
     jsonschema = get_module(
         "jsonschema",
         required="Setting job schema requires the jsonschema package. Please install it with `pip install 'wandb[launch]'`.",
+        lazy=False,
     )
     metaschema = load_json_yaml_dict(
         os.path.join(os.path.dirname(__file__), "schema.json")
