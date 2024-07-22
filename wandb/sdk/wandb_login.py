@@ -54,16 +54,16 @@ def login(
 ) -> bool:
     """Set up W&B login credentials.
 
-    By default, this will only store the credentials locally without
+    By default, this will only store credentials locally without
     verifying them with the W&B server. To verify credentials, pass
-    verify=True.
+    `verify=True`.
 
     Arguments:
         anonymous: (string, optional) Can be "must", "allow", or "never".
-            If set to "must" we'll always log in anonymously, if set to
-            "allow" we'll only create an anonymous user if the user
-            isn't already logged in.
-        key: (string, optional) authentication key.
+            If set to "must", always log a user in anonymously. If set to
+            "allow", only create an anonymous user if the user
+            isn't already logged in. If set to "never", never log a 
+            user anonymously. Default set to "never". 
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
         force: (bool, optional) If true, will force a relogin.
