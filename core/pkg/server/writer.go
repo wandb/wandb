@@ -144,9 +144,20 @@ func (w *Writer) writeRecord(record *service.Record) {
 	case nil:
 		w.logger.Error("writer: writeRecord: nil record type")
 	default:
-		w.fwdRecord(record)
+		// applyRecordNumber() should be called before passing the record to another goroutine
+		w.applyRecordNumber(record)
 		w.storeRecord(record)
+		w.fwdRecord(record)
 	}
+}
+
+// applyRecordNumber labels the protobuf with an increasing number to be stored in transaction log
+func (w *Writer) applyRecordNumber(record *service.Record) {
+	if record.GetControl().GetLocal() {
+		return
+	}
+	w.recordNum += 1
+	record.Num = w.recordNum
 }
 
 // storeRecord stores the record in the append-only log
@@ -154,8 +165,6 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
-	w.recordNum += 1
-	record.Num = w.recordNum
 	w.storeChan <- record
 }
 
