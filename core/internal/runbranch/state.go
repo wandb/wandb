@@ -202,7 +202,7 @@ func (r *RunParams) Merge(other *RunParams) {
 
 	// update the tags
 	if len(other.Tags) > 0 {
-		r.Tags = append(r.Tags, other.Tags...)
+		r.Tags = other.Tags
 	}
 
 	// update the filestream offset
