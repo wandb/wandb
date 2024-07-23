@@ -21,12 +21,12 @@ type RunParams struct {
 	SweepID     string
 
 	// run state fields based on response from the server
-	startingStep int64
+	StartingStep int64
 	Runtime      int32
 
 	Tags    []string
 	Config  map[string]any
-	summary map[string]any
+	Summary map[string]any
 
 	Resumed bool
 
@@ -59,8 +59,8 @@ func (r *RunParams) Update(params *RunParams) {
 	if !params.StartTime.IsZero() {
 		r.StartTime = params.StartTime
 	}
-	if params.startingStep != 0 {
-		r.startingStep = params.startingStep
+	if params.StartingStep != 0 {
+		r.StartingStep = params.StartingStep
 	}
 	if params.Runtime != 0 {
 		r.Runtime = params.Runtime
@@ -71,8 +71,8 @@ func (r *RunParams) Update(params *RunParams) {
 	if len(params.Config) > 0 {
 		r.Config = params.Config
 	}
-	if len(params.summary) > 0 {
-		r.summary = params.summary
+	if len(params.Summary) > 0 {
+		r.Summary = params.Summary
 	}
 	if len(params.FileStreamOffset) > 0 {
 		r.FileStreamOffset = params.FileStreamOffset
@@ -93,7 +93,7 @@ func (r *RunParams) Proto() *service.RunRecord {
 
 	// update the summary
 	summary := service.SummaryRecord{}
-	for key, value := range r.summary {
+	for key, value := range r.Summary {
 		valueJson, _ := simplejsonext.MarshalToString(value)
 		summary.Update = append(summary.Update, &service.SummaryItem{
 			Key:       key,
@@ -105,7 +105,7 @@ func (r *RunParams) Proto() *service.RunRecord {
 		Project:      r.Project,
 		Entity:       r.Entity,
 		DisplayName:  r.DisplayName,
-		StartingStep: r.startingStep,
+		StartingStep: r.StartingStep,
 		StorageId:    r.StorageID,
 		SweepId:      r.SweepID,
 		Summary:      &summary,
@@ -116,8 +116,6 @@ func (r *RunParams) Proto() *service.RunRecord {
 
 type State struct {
 	RunParams
-	ctx        context.Context
-	client     graphql.Client
 	Intialized bool
 	branch     Branching
 }
@@ -131,8 +129,6 @@ func NewState(
 ) *State {
 
 	state := &State{
-		ctx:    ctx,
-		client: client,
 		RunParams: RunParams{
 			FileStreamOffset: make(filestream.FileStreamOffsetMap),
 		},
@@ -171,7 +167,7 @@ func NewState(
 	return state
 }
 
-func (r *State) ApplyUpdates(entity, project, runID string) error {
+func (r *State) ApplyBranchUpdates(entity, project, runID string) error {
 	update, err := r.branch.GetUpdates(entity, project, runID)
 	if err != nil {
 		return err

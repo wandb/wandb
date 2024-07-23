@@ -21,6 +21,39 @@ type ResumeBranch struct {
 	mode   string
 }
 
+// NewResumeBranch creates a new ResumeBranch
+func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *ResumeBranch {
+	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
+}
+
+func runExists(response *gql.RunResumeStatusResponse) bool {
+	// If response is nil, run doesn't exist yet
+	if response == nil {
+		return false
+	}
+
+	// if response doesn't have a model, or the model doesn't have a bucket, the run doesn't exist
+	// or the backend is not returning the expected data
+	if response.GetModel() == nil || response.GetModel().GetBucket() == nil {
+		return false
+	}
+
+	// If bucket is non-nil but WandbConfig has no "t" key, the run exists but hasn't started
+	// (e.g. a sweep run that was created ahead of time)
+	bucket := response.GetModel().GetBucket()
+	if bucket.GetWandbConfig() == nil {
+		return false
+	}
+	var cfg map[string]any
+	if err := json.Unmarshal([]byte(*bucket.GetWandbConfig()), &cfg); err != nil {
+		return false
+	}
+	if _, ok := cfg["t"]; !ok {
+		return false
+	}
+	return true
+}
+
 // GetUpdates updates the state based on the resume mode
 // and the Run resume status we get from the server
 func (r *ResumeBranch) GetUpdates(
@@ -45,7 +78,7 @@ func (r *ResumeBranch) GetUpdates(
 	}
 
 	var data *gql.RunResumeStatusModelProjectBucketRun
-	if response != nil && response.GetModel() != nil && response.GetModel().GetBucket() != nil {
+	if runExists(response) {
 		data = response.GetModel().GetBucket()
 	}
 
@@ -150,7 +183,7 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 				// if we are resuming, we need to update the starting step
 				// to be the next step after the last step we ran
 				if x, ok := step.(int64); ok {
-					r.startingStep = x
+					r.StartingStep = x
 				}
 			}
 
@@ -180,10 +213,30 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 		switch x := summaryVal.(type) {
 		case nil: // OK, summary is nil
 		case map[string]any:
-			r.summary = x
+			r.Summary = x
+			// check if r.summary["wandb"]["runtime"] exists
+			if wandb, ok := r.Summary["wandb"].(map[string]any); ok {
+				if runtime, ok := wandb["runtime"]; ok {
+					switch x := runtime.(type) {
+					case int64:
+						r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
+					case float64:
+						r.Runtime = int32(math.Max(x, float64(r.Runtime)))
+					}
+				}
+			} else if runtime, ok := r.Summary["_runtime"]; ok {
+				switch x := runtime.(type) {
+				case int64:
+					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
+				case float64:
+					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
+				}
+			}
+
 		default:
 			return nil, fmt.Errorf("unexpected type %T for %s", x, *summary)
 		}
+
 	}
 
 	// Get Config information
@@ -257,7 +310,7 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		r.startingStep += 1
+		r.StartingStep += 1
 	}
 	r.Resumed = true
 

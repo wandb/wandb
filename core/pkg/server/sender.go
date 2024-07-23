@@ -731,12 +731,11 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			SweepID:     runClone.GetSweepId(),
 		})
 
-		err := s.startState.ApplyUpdates(
+		if err := s.startState.ApplyBranchUpdates(
 			runClone.GetEntity(),
 			runClone.GetProject(),
 			runClone.GetRunId(),
-		)
-		if err != nil {
+		); err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
@@ -804,27 +803,27 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	program := s.settings.GetProgram().GetValue()
 
 	data, err := gql.UpsertBucket(
-		ctx,                              // ctx
-		s.graphqlClient,                  // client
-		nil,                              // id
-		&run.RunId,                       // name
-		utils.NilIfZero(run.Project),     // project
-		utils.NilIfZero(run.Entity),      // entity
-		utils.NilIfZero(run.RunGroup),    // groupName
-		nil,                              // description
-		utils.NilIfZero(run.DisplayName), // displayName
-		utils.NilIfZero(run.Notes),       // notes
-		utils.NilIfZero(commit),          // commit
-		&config,                          // config
-		utils.NilIfZero(run.Host),        // host
-		nil,                              // debug
-		utils.NilIfZero(program),         // program
-		utils.NilIfZero(repo),            // repo
-		utils.NilIfZero(run.JobType),     // jobType
-		nil,                              // state
-		utils.NilIfZero(run.SweepId),     // sweep
-		runClone.Tags,                    // tags []string,
-		nil,                              // summaryMetrics
+		ctx,                                   // ctx
+		s.graphqlClient,                       // client
+		nil,                                   // id
+		&runClone.RunId,                       // name
+		utils.NilIfZero(runClone.Project),     // project
+		utils.NilIfZero(runClone.Entity),      // entity
+		utils.NilIfZero(runClone.RunGroup),    // groupName
+		nil,                                   // description
+		utils.NilIfZero(runClone.DisplayName), // displayName
+		utils.NilIfZero(runClone.Notes),       // notes
+		utils.NilIfZero(commit),               // commit
+		&config,                               // config
+		utils.NilIfZero(runClone.Host),        // host
+		nil,                                   // debug
+		utils.NilIfZero(program),              // program
+		utils.NilIfZero(repo),                 // repo
+		utils.NilIfZero(runClone.JobType),     // jobType
+		nil,                                   // state
+		utils.NilIfZero(runClone.SweepId),     // sweep
+		runClone.Tags,                         // tags []string,
+		nil,                                   // summaryMetrics
 	)
 
 	if err != nil {

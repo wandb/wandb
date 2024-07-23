@@ -1,289 +1,851 @@
 package runbranch_test
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/internal/runconfig"
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func TestGetFileStreamOffset_NilReceiver(t *testing.T) {
-	var resumeState *runbranch.ResumeState
-	assert.Nil(t, resumeState.GetFileStreamOffset(), "GetFileStreamOffset should return nil when receiver is nil")
+type ResumeResponse struct {
+	Model Model `json:"model"`
+}
+type Model struct {
+	Bucket Bucket `json:"bucket"`
+}
+type Bucket struct {
+	Name             string   `json:"name"`
+	HistoryLineCount int      `json:"historyLineCount"`
+	EventsLineCount  int      `json:"eventsLineCount"`
+	LogLineCount     int      `json:"logLineCount"`
+	HistoryTail      *string  `json:"historyTail"`
+	SummaryMetrics   *string  `json:"summaryMetrics"`
+	Config           *string  `json:"config"`
+	EventsTail       string   `json:"eventsTail"`
+	Tags             []string `json:"tags"`
+	WandbConfig      string   `json:"wandbConfig"`
 }
 
-func TestGetFileStreamOffset_Empty(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	resumeState := runbranch.NewResumeState(logger, runbranch.None)
-	assert.Empty(t, resumeState.GetFileStreamOffset(), "GetFileStreamOffset should return an empty map when no offsets are set")
+func TestNeverResumeEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		`{}`,
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"never")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
-func TestGetFileStreamOffset_WithOffsets(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	resumeState := runbranch.NewResumeState(logger, runbranch.None)
-	resumeState.AddOffset(1, 100)
-	offsets := resumeState.GetFileStreamOffset()
-	assert.Equal(t, 100, offsets[1], "GetFileStreamOffset should return correct offset for a given key")
+func TestAllowResumeEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		`{}`,
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"allow")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Nil(t, err, "GetUpdates should not return an error")
 }
 
-func TestAddOffset_InitializeMap(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	resumeState := runbranch.NewResumeState(logger, runbranch.None)
-	resumeState.AddOffset(1, 100)
-	assert.Equal(t, 100, resumeState.FileStreamOffset[1], "AddOffset should initialize map and add offset correctly")
+func TestMustResumeEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		`{}`,
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	updates, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, updates, "GetUpdates should return nil when response is invalid")
+	assert.NotNil(t, err, "GetUpdates should return an error")
+	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
-func TestAddOffset_UpdateExistingMap(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	resumeState := runbranch.NewResumeState(logger, runbranch.None)
-	resumeState.AddOffset(1, 100) // First add
-	resumeState.AddOffset(1, 200) // Update
-	assert.Equal(t, 200, resumeState.FileStreamOffset[1], "AddOffset should update existing offset correctly")
-}
-
-func createBucketRawData(historyLineCount, eventsLineCount, logLineCount int, history, config, summary *string, tags []string, wandbConfig *string) *gql.RunResumeStatusModelProjectBucketRun {
-
-	return &gql.RunResumeStatusModelProjectBucketRun{
-		HistoryLineCount: &historyLineCount,
-		EventsLineCount:  &eventsLineCount,
-		LogLineCount:     &logLineCount,
-		HistoryTail:      history,
-		Config:           config,
-		SummaryMetrics:   summary,
-		Tags:             tags,
-		WandbConfig:      wandbConfig,
+func TestNeverResumeNoneEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	history := "[]"
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
 	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"never")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+	assert.NotNil(t, err, "GetUpdates should return an error")
+	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
-func TestUpdate(t *testing.T) {
-	logger := observability.NewNoOpLogger()
+func TestAllowResumeNoneEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
 
-	validHistory := `["{\"_step\":1,\"_runtime\":50}"]`
-	validHistoryStep0 := `["{\"_step\":0}"]`
-	validSummary := `{"loss": 0.5}`
-	validConfig := `{"lr": {"value": 0.001}}`
-	invalidHistoryOrConfig := `{"_step":0}`
-	invalidHistory := `["invalid_history"]`
-	invalidConfig := `{"_step": {"other": 2}}`
-	nullString := "null"
-	wandbConfigWithTelemetry := `{"_wandb": {"value": {"t":{"1": "asdasd"}}}}`
+	history := "[]"
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
 
-	testCases := []struct {
-		name                string
-		resumeMode          runbranch.Mode
-		bucket              *gql.RunResumeStatusModelProjectBucketRun
-		run                 *service.RunRecord
-		expectResumed       bool
-		expectStartingStep  int64
-		expectRuntime       int32
-		expectSummaryUpdate bool
-		expectConfigUpdate  bool
-		expectTagsUpdate    bool
-		expectError         bool
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"allow")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestMustResumeNoneEmptyResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	hisotry := "[]"
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &hisotry,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestMustResumeValidHistory(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	history := `["{\"_step\":1,\"_runtime\":50}"]`
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:             "FakeName",
+				HistoryLineCount: 1,
+				HistoryTail:      &history,
+				SummaryMetrics:   &summary,
+				Config:           &config,
+				EventsTail:       "[]",
+				WandbConfig:      `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(50), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestMustResumeZeroHisotry(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	history := "[]"
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestMustResumeHistoryTailStepZero(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	history := `["{\"_step\":1}"]`
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(1), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestMustResumeValidSummary(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	history := `["{\"_step\":1, \"_runtime\":10}"]`
+	config := "{}"
+	summary := `{"loss": 0.5, "_runtime": 20, "wandb": {"runtime": 30}}`
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:             "FakeName",
+				HistoryLineCount: 1,
+				HistoryTail:      &history,
+				SummaryMetrics:   &summary,
+				Config:           &config,
+				EventsTail:       "[]",
+				WandbConfig:      `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(30), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+
+	// check the value of the summary are correct
+	assert.Len(t, params.Summary, 3, "GetUpdates should return correct summary")
+	assert.Equal(t, 0.5, params.Summary["loss"], "GetUpdates should return correct summary")
+	assert.Equal(t, int64(20), params.Summary["_runtime"], "GetUpdates should return correct summary")
+	assert.Equal(t, int64(30), params.Summary["wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
+	fmt.Println(params.Summary)
+
+	assert.Nil(t, err, "GetUpdates should not return an error")
+}
+
+func TestMustResumeValidConfig(t *testing.T) {
+
+	mockGQL := gqlmock.NewMockClient()
+
+	history := "[]"
+	config := `{"lr": {"value": 0.001}}`
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Len(t, params.Config, 1, "GetUpdates should return correct config")
+	assert.Equal(t, 0.001, params.Config["lr"], "GetUpdates should return correct config")
+}
+
+func TestMustResumeValidTags(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+
+	history := "[]"
+	config := "{}"
+	summary := "{}"
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     "[]",
+				Tags:           []string{"tag1", "tag2"},
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(0), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+	assert.Len(t, params.Tags, 2, "GetUpdates should return correct tags")
+	assert.Contains(t, params.Tags, "tag1", "GetUpdates should return correct tags")
+	assert.Contains(t, params.Tags, "tag2", "GetUpdates should return correct tags")
+}
+
+func TestMustResumeValidEvents(t *testing.T) {
+
+	mockGQL := gqlmock.NewMockClient()
+
+	history := `["{\"_runtime\":10}"]`
+	config := "{}"
+	summary := `{ "_runtime": 20, "wandb": {"runtime": 30}}`
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:           "FakeName",
+				HistoryTail:    &history,
+				SummaryMetrics: &summary,
+				Config:         &config,
+				EventsTail:     `["{\"_runtime\":40}", "{\"_runtime\":50}"]`,
+				Tags:           []string{"tag1", "tag2"},
+				WandbConfig:    `{"t": 1}`,
+			},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.Nil(t, err, "GetUpdates should not return an error")
+	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+	assert.Equal(t, int64(0), params.StartingStep, "GetUpdates should return correct starting step")
+	assert.Equal(t, int32(50), params.Runtime, "GetUpdates should return correct runtime")
+	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
+}
+
+func TestMustResumeNullValue(t *testing.T) {
+
+	config := "{}"
+	summary := "{}"
+	history := "[]"
+	testCase := []struct {
+		name     string
+		response ResumeResponse
 	}{
 		{
-			name:          "MustResumeNonExistentRun",
-			resumeMode:    runbranch.Must,
-			bucket:        nil,
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
+			name: "NullHistory",
+			response: ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:           "FakeName",
+						SummaryMetrics: &summary,
+						Config:         &config,
+						EventsTail:     "[]",
+						WandbConfig:    `{"t": 1}`,
+					},
+				},
+			},
 		},
 		{
-			name:          "NeverResumeExistingRun",
-			resumeMode:    runbranch.Never,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
+			name: "NullSummary",
+			response: ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:        "FakeName",
+						HistoryTail: &history,
+						Config:      &config,
+						EventsTail:  "[]",
+					},
+				},
+			},
 		},
 		{
-			name:               "MustResumeValidHistory",
-			resumeMode:         runbranch.Must,
-			bucket:             createBucketRawData(1, 0, 0, &validHistory, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:      true,
-			expectStartingStep: 2,
-			expectRuntime:      50,
-			expectError:        false,
-		},
-		{
-			name:               "MustResumeValidHistoryStep0",
-			resumeMode:         runbranch.Must,
-			bucket:             createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:      true,
-			expectStartingStep: 0,
-			expectError:        false,
-		},
-		{
-			name:               "MustResumeValidHistoryStep0WithOneLine",
-			resumeMode:         runbranch.Must,
-			bucket:             createBucketRawData(1, 0, 0, &validHistoryStep0, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:      true,
-			expectStartingStep: 1,
-			expectError:        false,
-		},
-		{
-			name:                "MustResumeValidSummary",
-			resumeMode:          runbranch.Must,
-			bucket:              createBucketRawData(0, 0, 0, &nullString, &nullString, &validSummary, nil, &wandbConfigWithTelemetry),
-			run:                 &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:       true,
-			expectSummaryUpdate: true,
-			expectError:         false,
-		},
-		{
-			name:               "MustResumeValidConfig",
-			resumeMode:         runbranch.Must,
-			bucket:             createBucketRawData(0, 0, 0, &nullString, &validConfig, &nullString, nil, &wandbConfigWithTelemetry),
-			run:                &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:      true,
-			expectConfigUpdate: true,
-			expectError:        false,
-		},
-		{
-			name:             "MustResumeValidTags",
-			resumeMode:       runbranch.Must,
-			bucket:           createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, []string{"tag1", "tag2"}, &wandbConfigWithTelemetry),
-			run:              &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed:    true,
-			expectTagsUpdate: true,
-			expectError:      false,
-		},
-		{
-			name:          "MustResumeInvalidHistoryResponse",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &invalidHistoryOrConfig, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "MustResumeInvalidHistoryContent",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &invalidHistory, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "MustResumeInvalidSummaryMetrics",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &invalidHistory, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "MustResumeInvalidConfig",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistory, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "MustResumeInvalidConfigContent",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidHistoryOrConfig, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: true,
-			expectError:   false,
-		},
-		{
-			name:          "MustResumeInvalidConfigNoContent",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &invalidConfig, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: true,
-			expectError:   false,
-		},
-		{
-			name:          "MustResumeNullHistory",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, nil, &nullString, &nullString, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "MustResumeNullConfig",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &validHistory, nil, nil, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "MustResumeNullSummary",
-			resumeMode:    runbranch.Must,
-			bucket:        createBucketRawData(0, 0, 0, &validHistory, &validConfig, nil, nil, &wandbConfigWithTelemetry),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   true,
-		},
-		{
-			name:          "AllowResumeNotStartedRun",
-			resumeMode:    runbranch.Allow,
-			bucket:        createBucketRawData(0, 0, 0, &nullString, &nullString, &nullString, nil, nil),
-			run:           &service.RunRecord{Project: "test", RunId: "abc123"},
-			expectResumed: false,
-			expectError:   false,
+			name: "NullConfig",
+			response: ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:           "FakeName",
+						HistoryTail:    &history,
+						SummaryMetrics: &summary,
+						EventsTail:     "[]",
+					},
+				},
+			},
 		},
 	}
+	for _, tc := range testCase {
+		t.Run(tc.name, func(t *testing.T) {
 
+			mockGQL := gqlmock.NewMockClient()
+
+			jsonData, err := json.MarshalIndent(tc.response, "", "    ")
+			assert.Nil(t, err, "Failed to marshal json data")
+
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunResumeStatus"),
+				string(jsonData),
+			)
+			resumeState := runbranch.NewResumeBranch(
+				context.Background(),
+				mockGQL,
+				"must")
+
+			params, err := resumeState.GetUpdates("", "", "")
+			assert.NotNil(t, err, "GetUpdates should return an error")
+			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+		})
+	}
+}
+
+func TestAllowResumeNullValue(t *testing.T) {
+	config := "{}"
+	summary := "{}"
+	history := "[]"
+	testCase := []struct {
+		name     string
+		response ResumeResponse
+	}{
+		{
+			name: "NullHistory",
+			response: ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:           "FakeName",
+						SummaryMetrics: &summary,
+						Config:         &config,
+						EventsTail:     "[]",
+						WandbConfig:    `{"t": 1}`,
+					},
+				},
+			},
+		},
+		{
+			name: "NullSummary",
+			response: ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:        "FakeName",
+						HistoryTail: &history,
+						Config:      &config,
+						EventsTail:  "[]",
+						WandbConfig: `{"t": 1}`,
+					},
+				},
+			},
+		},
+		{
+			name: "NullConfig",
+			response: ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:           "FakeName",
+						HistoryTail:    &history,
+						SummaryMetrics: &summary,
+						EventsTail:     "[]",
+						WandbConfig:    `{"t": 1}`,
+					},
+				},
+			},
+		},
+	}
+	for _, tc := range testCase {
+		t.Run(tc.name, func(t *testing.T) {
+
+			mockGQL := gqlmock.NewMockClient()
+
+			jsonData, err := json.MarshalIndent(tc.response, "", "    ")
+			assert.Nil(t, err, "Failed to marshal json data")
+
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunResumeStatus"),
+				string(jsonData),
+			)
+			resumeState := runbranch.NewResumeBranch(
+				context.Background(),
+				mockGQL,
+				"allow")
+
+			params, err := resumeState.GetUpdates("", "", "")
+			assert.NotNil(t, err, "GetUpdates should return an error")
+			if _, ok := err.(*runbranch.BranchError); ok {
+				t.Errorf("expected a BranchError but got %T", err)
+			}
+
+			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+		})
+	}
+}
+
+func TestMustResumeInvalidHistory(t *testing.T) {
+
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "InvalidContent",
+			value: `["invalid_history"]`,
+		},
+		{
+			name:  "InvalidShape",
+			value: `{"_step":0}`,
+		},
+	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			rs := runbranch.NewResumeState(logger, tc.resumeMode)
-			fakeResp := &gql.RunResumeStatusResponse{
-				Model: &gql.RunResumeStatusModelProject{
-					Bucket: tc.bucket,
+			mockGQL := gqlmock.NewMockClient()
+
+			config := "{}"
+			summary := "{}"
+			rr := ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:             "FakeName",
+						HistoryLineCount: 0,
+						EventsLineCount:  0,
+						LogLineCount:     0,
+						HistoryTail:      &tc.value,
+						SummaryMetrics:   &summary,
+						Config:           &config,
+						EventsTail:       `[]`,
+						WandbConfig:      `{"t": 1}`,
+					},
 				},
 			}
 
-			configCopy := runconfig.New()
-			_, err := rs.Update(fakeResp, tc.run, configCopy)
+			jsonData, err := json.MarshalIndent(rr, "", "    ")
+			assert.Nil(t, err, "Failed to marshal json data")
 
-			if tc.expectError {
-				require.Error(t, err, "Expected error in Update")
-			} else {
-				require.NoError(t, err, "Unexpected error in Update")
-				assert.Equal(t, tc.expectResumed, tc.run.Resumed, "Unexpected resumed state")
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunResumeStatus"),
+				string(jsonData),
+			)
+			resumeState := runbranch.NewResumeBranch(
+				context.Background(),
+				mockGQL,
+				"must")
 
-				if tc.expectStartingStep > 0 {
-					assert.Equal(t, tc.expectStartingStep, tc.run.StartingStep, "Unexpected starting step")
-				}
+			params, err := resumeState.GetUpdates("", "", "")
+			assert.NotNil(t, err, "GetUpdates should return an error")
+			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+		})
+	}
+}
 
-				if tc.expectRuntime > 0 {
-					assert.Equal(t, tc.expectRuntime, tc.run.Runtime, "Unexpected runtime")
-				}
+func TestMustResumeInvalidSummary(t *testing.T) {
 
-				if tc.expectSummaryUpdate {
-					require.Len(t, tc.run.Summary.Update, 1)
-					assert.Equal(t, "loss", tc.run.Summary.Update[0].Key)
-				}
+	mockGQL := gqlmock.NewMockClient()
 
-				if tc.expectConfigUpdate {
-					tree := configCopy.CloneTree()
-					require.Len(t, tree, 1)
-					value, ok := tree["lr"]
-					require.True(t, ok, "Expected key 'lr' in config")
-					assert.Equal(t, 0.001, value)
-				}
+	history := `[]`
+	config := "{}"
+	summary := `[]`
+	rr := ResumeResponse{
+		Model: Model{
+			Bucket: Bucket{
+				Name:             "FakeName",
+				HistoryLineCount: 0,
+				EventsLineCount:  0,
+				LogLineCount:     0,
+				HistoryTail:      &history,
+				SummaryMetrics:   &summary,
+				Config:           &config,
+				EventsTail:       `[]`,
+				WandbConfig:      `{"t": 1}`,
+			},
+		},
+	}
 
-				if tc.expectTagsUpdate {
-					require.Len(t, tc.run.Tags, 2)
-					assert.Contains(t, tc.run.Tags, "tag1")
-					assert.Contains(t, tc.run.Tags, "tag2")
-				}
+	jsonData, err := json.MarshalIndent(rr, "", "    ")
+	assert.Nil(t, err, "Failed to marshal json data")
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(jsonData),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+
+	params, err := resumeState.GetUpdates("", "", "")
+	assert.NotNil(t, err, "GetUpdates should return an error")
+	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+	assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+}
+
+func TestMustResumeInvalidConfig(t *testing.T) {
+
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "ConfigList",
+			value: `[]`,
+		},
+		{
+			name:  "ConfigNotNested",
+			value: `{"_step":0}`,
+		},
+		{
+			name:  "ConfigNestedNotValue",
+			value: `{"_step": {"runtime": 30}`,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			history := `[]`
+			summary := `{}`
+			mockGQL := gqlmock.NewMockClient()
+
+			rr := ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:             "FakeName",
+						HistoryLineCount: 0,
+						EventsLineCount:  0,
+						LogLineCount:     0,
+						HistoryTail:      &history,
+						SummaryMetrics:   &summary,
+						Config:           &tc.value,
+						EventsTail:       `[]`,
+						WandbConfig:      `{"t": 1}`,
+					},
+				},
 			}
+
+			jsonData, err := json.MarshalIndent(rr, "", "    ")
+			assert.Nil(t, err, "Failed to marshal json data")
+
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunResumeStatus"),
+				string(jsonData),
+			)
+			resumeState := runbranch.NewResumeBranch(
+				context.Background(),
+				mockGQL,
+				"must")
+
+			params, err := resumeState.GetUpdates("", "", "")
+			assert.NotNil(t, err, "GetUpdates should return an error")
+			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+		})
+	}
+}
+
+func TestNotNeverResumeFileStreamOffset(t *testing.T) {
+
+	history := `[]`
+	summary := `{}`
+	config := `{}`
+
+	testCases := []struct {
+		name  string
+		value string
+	}{
+		{
+			name:  "Allow",
+			value: "allow",
+		},
+		{
+			name:  "Must",
+			value: "must",
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mockGQL := gqlmock.NewMockClient()
+
+			rr := ResumeResponse{
+				Model: Model{
+					Bucket: Bucket{
+						Name:             "FakeName",
+						HistoryLineCount: 10,
+						EventsLineCount:  13,
+						LogLineCount:     15,
+						HistoryTail:      &history,
+						SummaryMetrics:   &summary,
+						Config:           &config,
+						EventsTail:       `[]`,
+						WandbConfig:      `{"t": 1}`,
+					},
+				},
+			}
+
+			jsonData, err := json.MarshalIndent(rr, "", "    ")
+			assert.Nil(t, err, "Failed to marshal json data")
+
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("RunResumeStatus"),
+				string(jsonData),
+			)
+			resumeState := runbranch.NewResumeBranch(
+				context.Background(),
+				mockGQL,
+				tc.value)
+			params, err := resumeState.GetUpdates("", "", "")
+			assert.Nil(t, err, "GetUpdates should not return an error")
+			assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
+			assert.Len(t, params.FileStreamOffset, 3, "GetUpdates should return correct file stream offset")
+			assert.Equal(t, 10, params.FileStreamOffset[filestream.HistoryChunk], "GetUpdates should return correct file stream offset")
+			assert.Equal(t, 13, params.FileStreamOffset[filestream.EventsChunk], "GetUpdates should return correct file stream offset")
+			assert.Equal(t, 15, params.FileStreamOffset[filestream.OutputChunk], "GetUpdates should return correct file stream offset")
 		})
 	}
 }
