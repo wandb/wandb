@@ -27,48 +27,6 @@ func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *R
 	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
 }
 
-func (r *ResumeBranch) ApplyUpdates(src, dst *RunParams) {
-	if src == nil || dst == nil {
-		return
-	}
-
-	if src.Runtime > 0 {
-		dst.Runtime = src.Runtime
-	}
-
-	if src.StartTime.IsZero() {
-		dst.StartTime = src.StartTime
-	}
-
-	if src.StartingStep > 0 {
-		dst.StartingStep = src.StartingStep
-	}
-
-	if len(src.Tags) > 0 {
-		dst.Tags = src.Tags
-	}
-
-	if len(src.Config) > 0 {
-		dst.Config = src.Config
-	}
-
-	if len(src.Summary) > 0 {
-		dst.Summary = src.Summary
-	}
-
-	dst.Resumed = src.Resumed
-
-	if len(src.FileStreamOffset) > 0 {
-		if dst.FileStreamOffset == nil {
-			dst.FileStreamOffset = make(filestream.FileStreamOffsetMap)
-		}
-		for k, v := range src.FileStreamOffset {
-			dst.FileStreamOffset[k] = v
-		}
-	}
-
-}
-
 // GetUpdates updates the state based on the resume mode
 // and the Run resume status we get from the server
 func (r *ResumeBranch) GetUpdates(

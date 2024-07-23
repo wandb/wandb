@@ -219,6 +219,10 @@ func (r *RunParams) Merge(other *RunParams) {
 	if !other.StartTime.IsZero() {
 		r.StartTime = other.StartTime
 	}
+
+	if other.Resumed {
+		r.Resumed = true
+	}
 }
 
 func NewRunParams() *RunParams {
