@@ -9,7 +9,6 @@ import (
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type RunParams struct {
@@ -104,9 +103,19 @@ func (r *RunParams) Proto() *service.RunRecord {
 		proto.Summary = &summary
 	}
 
-	if !r.StartTime.IsZero() {
-		proto.StartTime = timestamppb.New(r.StartTime)
-	}
+	// Start Time has a special behavior, the current behavior is that start
+	// time is the time when the run was resumed and not when it originally
+	// started, so we are not updating it here.
+	// if !r.StartTime.IsZero() {
+	// 	proto.StartTime = timestamppb.New(r.StartTime)
+	// }
+
+	// Tags are not updated here, because they have a special behavior,
+	// the current behavior is that tags are replaced if provided in init time
+	// and only added if provided in the run update.
+	// if len(r.Tags) > 0 {
+	// 	proto.Tags = r.Tags
+	// }
 
 	return proto
 }
