@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
@@ -26,6 +27,129 @@ func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *R
 	return &ResumeBranch{ctx: ctx, client: client, mode: mode}
 }
 
+func (r *ResumeBranch) ApplyUpdates(src, dst *RunParams) {
+	if src == nil || dst == nil {
+		return
+	}
+
+	if src.Runtime > 0 {
+		dst.Runtime = src.Runtime
+	}
+
+	if !dst.StartTime.IsZero() {
+		dst.StartTime = dst.StartTime.Add(time.Duration(-src.Runtime) * time.Second)
+	}
+
+	if src.StartingStep > 0 {
+		dst.StartingStep = src.StartingStep
+	}
+
+	if len(src.Tags) > 0 {
+		dst.Tags = src.Tags
+	}
+
+	if len(src.Config) > 0 {
+		dst.Config = src.Config
+	}
+
+	if len(src.Summary) > 0 {
+		dst.Summary = src.Summary
+	}
+
+	dst.Resumed = src.Resumed
+
+	if len(src.FileStreamOffset) > 0 {
+		for k, v := range src.FileStreamOffset {
+			dst.FileStreamOffset[k] = v
+		}
+	}
+
+}
+
+// GetUpdates updates the state based on the resume mode
+// and the Run resume status we get from the server
+func (r *ResumeBranch) GetUpdates(
+	runpath RunPath,
+) (*RunParams, error) {
+
+	response, err := gql.RunResumeStatus(
+		r.ctx,
+		r.client,
+		&runpath.Project,
+		utils.NilIfZero(runpath.Entity),
+		runpath.RunID,
+	)
+
+	// if we get an error we are in an unknown state and we should raise an error
+	if err != nil {
+		info := &service.ErrorInfo{
+			Code:    service.ErrorInfo_COMMUNICATION,
+			Message: fmt.Sprintf("Failed to get resume status for run %s: %s", runpath.RunID, err),
+		}
+		return nil, &BranchError{Err: err, Response: info}
+	}
+
+	var data *gql.RunResumeStatusModelProjectBucketRun
+	if runExists(response) {
+		data = response.GetModel().GetBucket()
+	}
+
+	// if we are not in the resume mode MUST and we didn't get data, we can just
+	// return without error
+	if data == nil && r.mode != "must" {
+		return nil, nil
+	}
+
+	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
+	// we need to return an error because we can't resume
+	if data == nil && r.mode == "must" {
+		info := &service.ErrorInfo{
+			Code: service.ErrorInfo_USAGE,
+			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
+				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
+				" Please check your inputs and try again with a valid run ID."+
+				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
+				runpath.RunID),
+		}
+		err = errors.New("no data but must resume")
+		return nil, &BranchError{Err: err, Response: info}
+	}
+
+	// if we have data and we are in a never resume mode we need to return an
+	// error because we are not allowed to resume
+	if data != nil && r.mode == "never" {
+		info := &service.ErrorInfo{
+			Code: service.ErrorInfo_USAGE,
+			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
+				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
+				"  Please check your inputs and try again with a valid value for the `resume` argument.",
+				runpath.RunID),
+		}
+		err = errors.New("data but cannot resume")
+		return nil, &BranchError{Err: err, Response: info}
+	}
+
+	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
+	if data != nil && r.mode != "never" {
+		update, err := extractRunState(data)
+		if err != nil && r.mode == "must" {
+			info := &service.ErrorInfo{
+				Code: service.ErrorInfo_USAGE,
+				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
+					runpath.RunID),
+			}
+			err = fmt.Errorf("could not resume run: %s", err)
+			return nil, &BranchError{Err: err, Response: info}
+		} else if err != nil {
+			return nil, err
+		}
+		return update, nil
+	}
+
+	return nil, nil
+}
+
+// runExists checks if the run exists based on the response we get from the server
 func runExists(response *gql.RunResumeStatusResponse) bool {
 	// If response is nil, run doesn't exist yet
 	if response == nil {
@@ -52,89 +176,6 @@ func runExists(response *gql.RunResumeStatusResponse) bool {
 		return false
 	}
 	return true
-}
-
-// GetUpdates updates the state based on the resume mode
-// and the Run resume status we get from the server
-func (r *ResumeBranch) GetUpdates(
-	entity, project, runID string,
-) (*RunParams, error) {
-
-	response, err := gql.RunResumeStatus(
-		r.ctx,
-		r.client,
-		&project,
-		utils.NilIfZero(entity),
-		runID,
-	)
-
-	// if we get an error we are in an unknown state and we should raise an error
-	if err != nil {
-		info := &service.ErrorInfo{
-			Code:    service.ErrorInfo_COMMUNICATION,
-			Message: fmt.Sprintf("Failed to get resume status for run %s: %s", runID, err),
-		}
-		return nil, &BranchError{Err: err, Response: info}
-	}
-
-	var data *gql.RunResumeStatusModelProjectBucketRun
-	if runExists(response) {
-		data = response.GetModel().GetBucket()
-	}
-
-	// if we are not in the resume mode MUST and we didn't get data, we can just
-	// return without error
-	if data == nil && r.mode != "must" {
-		return nil, nil
-	}
-
-	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
-	// we need to return an error because we can't resume
-	if data == nil && r.mode == "must" {
-		info := &service.ErrorInfo{
-			Code: service.ErrorInfo_USAGE,
-			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
-				" Please check your inputs and try again with a valid run ID."+
-				" If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`.",
-				runID),
-		}
-		err = errors.New("no data but must resume")
-		return nil, &BranchError{Err: err, Response: info}
-	}
-
-	// if we have data and we are in a never resume mode we need to return an
-	// error because we are not allowed to resume
-	if data != nil && r.mode == "never" {
-		info := &service.ErrorInfo{
-			Code: service.ErrorInfo_USAGE,
-			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
-				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
-				"  Please check your inputs and try again with a valid value for the `resume` argument.",
-				runID),
-		}
-		err = errors.New("data but cannot resume")
-		return nil, &BranchError{Err: err, Response: info}
-	}
-
-	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
-	if data != nil && r.mode != "never" {
-		update, err := extractRunState(data)
-		if err != nil && r.mode == "must" {
-			info := &service.ErrorInfo{
-				Code: service.ErrorInfo_USAGE,
-				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
-					runID),
-			}
-			err = fmt.Errorf("could not resume run: %s", err)
-			return nil, &BranchError{Err: err, Response: info}
-		} else if err != nil {
-			return nil, err
-		}
-		return update, nil
-	}
-
-	return nil, nil
 }
 
 // extractRunState extracts the run state from the data we get from the server

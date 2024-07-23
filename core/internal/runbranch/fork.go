@@ -7,7 +7,10 @@ type ForkBranch struct {
 }
 
 func (f ForkBranch) GetUpdates(
-	entity, project, runID string,
+	_ RunPath,
 ) (*RunParams, error) {
 	return nil, nil
+}
+
+func (f ForkBranch) ApplyUpdates(src, dst *RunParams) {
 }

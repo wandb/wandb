@@ -9,6 +9,7 @@ import (
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type RunParams struct {
@@ -33,84 +34,80 @@ type RunParams struct {
 	FileStreamOffset filestream.FileStreamOffsetMap
 }
 
-func (r *RunParams) Update(params *RunParams) {
-	if params == nil {
-		return
-	}
-
-	if params.RunID != "" {
-		r.RunID = params.RunID
-	}
-	if params.Project != "" {
-		r.Project = params.Project
-	}
-	if params.Entity != "" {
-		r.Entity = params.Entity
-	}
-	if params.DisplayName != "" {
-		r.DisplayName = params.DisplayName
-	}
-	if params.SweepID != "" {
-		r.SweepID = params.SweepID
-	}
-	if params.StorageID != "" {
-		r.StorageID = params.StorageID
-	}
-	if !params.StartTime.IsZero() {
-		r.StartTime = params.StartTime
-	}
-	if params.StartingStep != 0 {
-		r.StartingStep = params.StartingStep
-	}
-	if params.Runtime != 0 {
-		r.Runtime = params.Runtime
-	}
-	if len(params.Tags) > 0 {
-		r.Tags = params.Tags
-	}
-	if len(params.Config) > 0 {
-		r.Config = params.Config
-	}
-	if len(params.Summary) > 0 {
-		r.Summary = params.Summary
-	}
-	if len(params.FileStreamOffset) > 0 {
-		r.FileStreamOffset = params.FileStreamOffset
-	}
-}
-
 func (r *RunParams) Proto() *service.RunRecord {
 
+	proto := &service.RunRecord{}
+
+	// update runID if it exists
+	if r.RunID != "" {
+		proto.RunId = r.RunID
+	}
+
+	// update Entity if it exists
+	if r.Entity != "" {
+		proto.Entity = r.Entity
+	}
+
+	// update Project if it exists
+	if r.Project != "" {
+		proto.Project = r.Project
+	}
+
+	// update DisplayName if it exists
+	if r.DisplayName != "" {
+		proto.DisplayName = r.DisplayName
+	}
+
+	// update StartTime if it exists
+	if r.StartingStep != 0 {
+		proto.StartingStep = r.StartingStep
+	}
+
+	// update Runtime if it exists
+	if r.Runtime != 0 {
+		proto.Runtime = r.Runtime
+	}
+
+	// update StorageID if it exists
+	if r.StorageID != "" {
+		proto.StorageId = r.StorageID
+	}
+
+	// update SweepID if it exists
+	if r.SweepID != "" {
+		proto.SweepId = r.SweepID
+	}
+
 	// update the config
-	config := service.ConfigRecord{}
-	for key, value := range r.Config {
-		valueJson, _ := simplejsonext.MarshalToString(value)
-		config.Update = append(config.Update, &service.ConfigItem{
-			Key:       key,
-			ValueJson: valueJson,
-		})
+	if len(r.Config) > 0 {
+		config := service.ConfigRecord{}
+		for key, value := range r.Config {
+			valueJson, _ := simplejsonext.MarshalToString(value)
+			config.Update = append(config.Update, &service.ConfigItem{
+				Key:       key,
+				ValueJson: valueJson,
+			})
+		}
+		proto.Config = &config
 	}
 
 	// update the summary
-	summary := service.SummaryRecord{}
-	for key, value := range r.Summary {
-		valueJson, _ := simplejsonext.MarshalToString(value)
-		summary.Update = append(summary.Update, &service.SummaryItem{
-			Key:       key,
-			ValueJson: valueJson,
-		})
+	if len(r.Summary) > 0 {
+		summary := service.SummaryRecord{}
+		for key, value := range r.Summary {
+			valueJson, _ := simplejsonext.MarshalToString(value)
+			summary.Update = append(summary.Update, &service.SummaryItem{
+				Key:       key,
+				ValueJson: valueJson,
+			})
+		}
+		proto.Summary = &summary
 	}
-	proto := &service.RunRecord{
-		RunId:        r.RunID,
-		Project:      r.Project,
-		Entity:       r.Entity,
-		DisplayName:  r.DisplayName,
-		StartingStep: r.StartingStep,
-		StorageId:    r.StorageID,
-		SweepId:      r.SweepID,
-		Summary:      &summary,
-		Config:       &config,
+
+	if !r.StartTime.IsZero() {
+		proto.StartTime = timestamppb.New(r.StartTime)
 	}
+
 	return proto
 }
 
@@ -167,11 +164,35 @@ func NewState(
 	return state
 }
 
-func (r *State) ApplyBranchUpdates(entity, project, runID string) error {
-	update, err := r.branch.GetUpdates(entity, project, runID)
+func (r *State) ApplyBranchUpdates() error {
+	update, err := r.branch.GetUpdates(
+		RunPath{
+			Entity:  r.Entity,
+			Project: r.Project,
+			RunID:   r.RunID,
+		})
 	if err != nil {
 		return err
 	}
-	r.RunParams.Update(update)
+	r.branch.ApplyUpdates(update, &r.RunParams)
 	return nil
+}
+
+func (r *State) ApplyRunRecordUpdates(params *RunParams) {
+	r.RunParams.RunID = params.RunID
+	r.RunParams.Entity = params.Entity
+	r.RunParams.Project = params.Project
+	r.RunParams.DisplayName = params.DisplayName
+	r.RunParams.StartTime = params.StartTime
+	r.RunParams.StorageID = params.StorageID
+	r.RunParams.SweepID = params.SweepID
+}
+
+func (r *State) ApplyUpsertUpdates(params *RunParams) {
+	r.RunParams.RunID = params.RunID
+	r.RunParams.Entity = params.Entity
+	r.RunParams.Project = params.Project
+	r.RunParams.DisplayName = params.DisplayName
+	r.RunParams.StorageID = params.StorageID
+	r.RunParams.SweepID = params.SweepID
 }

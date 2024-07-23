@@ -6,8 +6,9 @@ type RewindBranch struct {
 	value  float64
 }
 
-func (r RewindBranch) GetUpdates(
-	entity, project, runID string,
-) (*RunParams, error) {
+func (r RewindBranch) GetUpdates(_ RunPath) (*RunParams, error) {
 	return nil, nil
+}
+
+func (r RewindBranch) ApplyUpdates(src, dst *RunParams) {
 }

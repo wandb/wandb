@@ -443,6 +443,7 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.startState.Project,
 			s.startState.RunID,
 			s.startState.FileStreamOffset,
+			s.startState.StartTime,
 		)
 	}
 }
@@ -721,21 +722,19 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.startState.Intialized = true
 
 		// update the run state with the initial run record
-		s.startState.Update(&runbranch.RunParams{
-			RunID:       runClone.GetRunId(),
-			Project:     runClone.GetProject(),
-			Entity:      runClone.GetEntity(),
-			DisplayName: runClone.GetDisplayName(),
-			StartTime:   runClone.GetStartTime().AsTime(),
-			StorageID:   runClone.GetStorageId(),
-			SweepID:     runClone.GetSweepId(),
-		})
+		s.startState.ApplyRunRecordUpdates(
+			&runbranch.RunParams{
+				RunID:       runClone.GetRunId(),
+				Project:     runClone.GetProject(),
+				Entity:      runClone.GetEntity(),
+				DisplayName: runClone.GetDisplayName(),
+				StorageID:   runClone.GetStorageId(),
+				SweepID:     runClone.GetSweepId(),
+				StartTime:   runClone.GetStartTime().AsTime(),
+			},
+		)
 
-		if err := s.startState.ApplyBranchUpdates(
-			runClone.GetEntity(),
-			runClone.GetProject(),
-			runClone.GetRunId(),
-		); err != nil {
+		if err := s.startState.ApplyBranchUpdates(); err != nil {
 			s.logger.CaptureError(
 				fmt.Errorf("send: sendRun: failed to update run state: %s", err),
 			)
@@ -753,15 +752,13 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			}
 		}
 
+		proto.Merge(runClone, s.startState.Proto())
 		// On the first invocation of sendRun, we overwrite the tags if the user
 		// has set them in wandb.init(). Otherwise, we keep the tags from the
 		// original run.
 		if len(runClone.Tags) == 0 {
 			runClone.Tags = append(runClone.Tags, s.startState.Tags...)
 		}
-
-		runClone.Runtime = s.startState.Runtime
-		runClone.Resumed = s.startState.Resumed
 
 		// Merge the resumed config into the run config
 		s.runConfig.MergeResumedConfig(s.startState.Config)
@@ -852,7 +849,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 	entity := project.GetEntity()
 
-	s.startState.Update(&runbranch.RunParams{
+	s.startState.ApplyUpsertUpdates(&runbranch.RunParams{
 		RunID:       bucket.GetName(),
 		Project:     project.GetName(),
 		Entity:      entity.GetName(),
