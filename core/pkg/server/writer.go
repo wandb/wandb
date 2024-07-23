@@ -135,8 +135,8 @@ func (w *Writer) Close() {
 
 // writeRecord Writing messages to the append-only log,
 // and passing them to the sender.
-// We ensure that the messages are written to the log
-// before they are sent to the server.
+// Ensure that the messages are numbered and written to the transaction log
+// before network operations could block processing of the record.
 func (w *Writer) writeRecord(record *service.Record) {
 	switch record.RecordType.(type) {
 	case *service.Record_Request:
