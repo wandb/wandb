@@ -50,7 +50,7 @@ from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
 from .message_future import MessageFuture
 
-MANIFEST_FILE_SIZE_THRESHOLD = 100000
+MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 

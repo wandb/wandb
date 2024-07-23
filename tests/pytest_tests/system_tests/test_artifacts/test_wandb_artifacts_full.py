@@ -302,24 +302,10 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
-def test_large_manifests_passed_by_file(wandb_init, monkeypatch):
-    original_writer = (
-        wandb.sdk.interface.interface.InterfaceBase._write_artifact_manifest_file
-    )
-
-    file_written = None
-
-    def new_writer(self, manifest):
-        result = original_writer(self, manifest)
-        assert os.path.exists(result) and os.path.getsize(result) > 0
-        nonlocal file_written
-        file_written = result
-        return result
-
-    monkeypatch.setattr(
+def test_large_manifests_passed_by_file(wandb_init, monkeypatch, mocker):
+    writer_spy = mocker.spy(
         wandb.sdk.interface.interface.InterfaceBase,
         "_write_artifact_manifest_file",
-        new_writer,
     )
     monkeypatch.setattr(
         wandb.sdk.interface.interface,
@@ -335,6 +321,8 @@ def test_large_manifests_passed_by_file(wandb_init, monkeypatch):
         run.log_artifact(artifact)
         artifact.wait()
 
+    assert writer_spy.call_count == 1
+    file_written = writer_spy.spy_return
     assert file_written is not None
     # The file should have been cleaned up and deleted by the receiving process.
     assert not os.path.exists(file_written)

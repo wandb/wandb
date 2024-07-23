@@ -18,16 +18,11 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
-    import sys
+    from typing_extensions import TypedDict
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-    if sys.version_info >= (3, 8):
-        from typing import TypedDict
-    else:
-        from typing_extensions import TypedDict
-
-    class DictEntry(TypedDict, total=False):
+    class ArtifactManifestEntryDict(TypedDict, total=False):
         path: str
         digest: str
         skip_cache: bool
@@ -216,8 +211,8 @@ class ArtifactManifestEntry:
             + self.path
         )
 
-    def to_json(self) -> "DictEntry":
-        contents: DictEntry = {
+    def to_json(self) -> "ArtifactManifestEntryDict":
+        contents: ArtifactManifestEntryDict = {
             "path": self.path,
             "digest": self.digest,
         }
