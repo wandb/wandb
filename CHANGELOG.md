@@ -24,6 +24,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
 - Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
+- Fill macros in resource arguments to SageMaker by @KyleGoyette https://github.com/wandb/wandb/pull/7993
 
 ## [0.17.4] - 2024-07-03
 
