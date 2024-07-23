@@ -1,15 +1,27 @@
 package runbranch
 
 import (
-	"context"
-	"errors"
 	"time"
 
-	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/pkg/service"
 )
+
+type RunPath struct {
+	Entity  string
+	Project string
+	RunID   string
+}
+
+type BranchError struct {
+	Err      error
+	Response *service.ErrorInfo
+}
+
+func (re BranchError) Error() string {
+	return re.Err.Error()
+}
 
 type RunParams struct {
 	RunID       string
@@ -31,6 +43,8 @@ type RunParams struct {
 	Resumed bool
 
 	FileStreamOffset filestream.FileStreamOffsetMap
+
+	Intialized bool
 }
 
 func (r *RunParams) Proto() *service.RunRecord {
@@ -57,7 +71,7 @@ func (r *RunParams) Proto() *service.RunRecord {
 		proto.DisplayName = r.DisplayName
 	}
 
-	// update StartTime if it exists
+	// update StartingStep if it exists
 	if r.StartingStep != 0 {
 		proto.StartingStep = r.StartingStep
 	}
@@ -120,88 +134,95 @@ func (r *RunParams) Proto() *service.RunRecord {
 	return proto
 }
 
-type State struct {
-	RunParams
-	Intialized bool
-	branch     Branching
-}
-
-func NewState(
-	ctx context.Context,
-	client graphql.Client,
-	resume string,
-	rewind *service.RunMoment,
-	fork *service.RunMoment,
-) *State {
-
-	state := &State{
-		RunParams: RunParams{
-			FileStreamOffset: make(filestream.FileStreamOffsetMap),
-		},
+//gocyclo:ignore
+func (r *RunParams) Merge(other *RunParams) {
+	if other == nil || r == nil {
+		return
 	}
 
-	switch {
-	case resume != "" && rewind != nil || resume != "" && fork != nil || rewind != nil && fork != nil:
-		state.branch = &InvalidBranch{
-			err: errors.New("provide only one of resume, rewind or fork"),
-			response: &service.ErrorInfo{
-				Code:    service.ErrorInfo_USAGE,
-				Message: "provide only one of resume, rewind or fork",
-			},
-		}
-	case resume != "":
-		state.branch = &ResumeBranch{
-			ctx:    ctx,
-			client: client,
-			mode:   resume,
-		}
-	case rewind != nil:
-		state.branch = &RewindBranch{
-			runid:  rewind.GetRun(),
-			metric: rewind.GetMetric(),
-			value:  rewind.GetValue(),
-		}
-	case fork != nil:
-		state.branch = &ForkBranch{
-			runid:  fork.GetRun(),
-			metric: fork.GetMetric(),
-			value:  fork.GetValue(),
-		}
-	default:
-		state.branch = &NoBranch{}
+	// update runID if it exists
+	if other.RunID != "" {
+		r.RunID = other.RunID
 	}
-	return state
-}
 
-func (r *State) ApplyBranchUpdates() error {
-	update, err := r.branch.GetUpdates(
-		RunPath{
-			Entity:  r.Entity,
-			Project: r.Project,
-			RunID:   r.RunID,
-		})
-	if err != nil {
-		return err
+	// update Entity if it exists
+	if other.Entity != "" {
+		r.Entity = other.Entity
 	}
-	r.branch.ApplyUpdates(update, &r.RunParams)
-	return nil
+
+	// update Project if it exists
+	if other.Project != "" {
+		r.Project = other.Project
+	}
+
+	// update DisplayName if it exists
+	if other.DisplayName != "" {
+		r.DisplayName = other.DisplayName
+	}
+
+	// update StartingStep if it exists
+	if other.StartingStep != 0 {
+		r.StartingStep = other.StartingStep
+	}
+
+	// update Runtime if it exists
+	if other.Runtime != 0 {
+		r.Runtime = other.Runtime
+	}
+
+	// update StorageID if it exists
+	if other.StorageID != "" {
+		r.StorageID = other.StorageID
+	}
+
+	// update SweepID if it exists
+	if other.SweepID != "" {
+		r.SweepID = other.SweepID
+	}
+
+	// update the config
+	if len(other.Config) > 0 {
+		if r.Config == nil {
+			r.Config = make(map[string]any)
+		}
+		for key, value := range other.Config {
+			r.Config[key] = value
+		}
+	}
+
+	// update the summary
+	if len(other.Summary) > 0 {
+		if r.Summary == nil {
+			r.Summary = make(map[string]any)
+		}
+		for key, value := range other.Summary {
+			r.Summary[key] = value
+		}
+	}
+
+	// update the tags
+	if len(other.Tags) > 0 {
+		r.Tags = append(r.Tags, other.Tags...)
+	}
+
+	// update the filestream offset
+	if len(other.FileStreamOffset) > 0 {
+		if r.FileStreamOffset == nil {
+			r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+		}
+		for key, value := range other.FileStreamOffset {
+			r.FileStreamOffset[key] = value
+		}
+	}
+
+	// update the start time
+	if !other.StartTime.IsZero() {
+		r.StartTime = other.StartTime
+	}
 }
 
-func (r *State) ApplyRunRecordUpdates(params *RunParams) {
-	r.RunParams.RunID = params.RunID
-	r.RunParams.Entity = params.Entity
-	r.RunParams.Project = params.Project
-	r.RunParams.DisplayName = params.DisplayName
-	r.RunParams.StartTime = params.StartTime
-	r.RunParams.StorageID = params.StorageID
-	r.RunParams.SweepID = params.SweepID
-}
-
-func (r *State) ApplyUpsertUpdates(params *RunParams) {
-	r.RunParams.RunID = params.RunID
-	r.RunParams.Entity = params.Entity
-	r.RunParams.Project = params.Project
-	r.RunParams.DisplayName = params.DisplayName
-	r.RunParams.StorageID = params.StorageID
-	r.RunParams.SweepID = params.SweepID
+func NewRunParams() *RunParams {
+	return &RunParams{
+		FileStreamOffset: make(filestream.FileStreamOffsetMap),
+	}
 }

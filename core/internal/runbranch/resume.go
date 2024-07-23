@@ -36,8 +36,8 @@ func (r *ResumeBranch) ApplyUpdates(src, dst *RunParams) {
 		dst.Runtime = src.Runtime
 	}
 
-	if !dst.StartTime.IsZero() {
-		dst.StartTime = dst.StartTime.Add(time.Duration(-src.Runtime) * time.Second)
+	if src.StartTime.IsZero() {
+		dst.StartTime = src.StartTime
 	}
 
 	if src.StartingStep > 0 {
@@ -59,6 +59,9 @@ func (r *ResumeBranch) ApplyUpdates(src, dst *RunParams) {
 	dst.Resumed = src.Resumed
 
 	if len(src.FileStreamOffset) > 0 {
+		if dst.FileStreamOffset == nil {
+			dst.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+		}
 		for k, v := range src.FileStreamOffset {
 			dst.FileStreamOffset[k] = v
 		}
@@ -69,6 +72,7 @@ func (r *ResumeBranch) ApplyUpdates(src, dst *RunParams) {
 // GetUpdates updates the state based on the resume mode
 // and the Run resume status we get from the server
 func (r *ResumeBranch) GetUpdates(
+	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
 
@@ -131,7 +135,7 @@ func (r *ResumeBranch) GetUpdates(
 
 	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
 	if data != nil && r.mode != "never" {
-		update, err := extractRunState(data)
+		update, err := extractRunState(params, data)
 		if err != nil && r.mode == "must" {
 			info := &service.ErrorInfo{
 				Code: service.ErrorInfo_USAGE,
@@ -181,22 +185,28 @@ func runExists(response *gql.RunResumeStatusResponse) bool {
 // extractRunState extracts the run state from the data we get from the server
 //
 //gocyclo:ignore
-func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
-	r := RunParams{FileStreamOffset: make(filestream.FileStreamOffsetMap)}
+func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
+	if params == nil {
+		params = &RunParams{}
+	}
+
+	if params.FileStreamOffset == nil {
+		params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+	}
 
 	// update the file stream offsets with the data from the server
 	if data.GetHistoryLineCount() != nil {
-		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
+		params.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	} else {
 		return nil, errors.New("no history line count found in resume response")
 	}
 	if data.GetEventsLineCount() != nil {
-		r.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
+		params.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
 	} else {
 		return nil, errors.New("no events line count found in resume response")
 	}
 	if data.GetLogLineCount() != nil {
-		r.FileStreamOffset[filestream.OutputChunk] = *data.GetLogLineCount()
+		params.FileStreamOffset[filestream.OutputChunk] = *data.GetLogLineCount()
 	} else {
 		return nil, errors.New("no log line count found in resume response")
 	}
@@ -224,16 +234,16 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 				// if we are resuming, we need to update the starting step
 				// to be the next step after the last step we ran
 				if x, ok := step.(int64); ok {
-					r.StartingStep = x
+					params.StartingStep = x
 				}
 			}
 
 			if runtime, ok := historyTail["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
+					params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
 				case float64:
-					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
+					params.Runtime = int32(math.Max(x, float64(params.Runtime)))
 				}
 			}
 		}
@@ -254,23 +264,23 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 		switch x := summaryVal.(type) {
 		case nil: // OK, summary is nil
 		case map[string]any:
-			r.Summary = x
+			params.Summary = x
 			// check if r.summary["wandb"]["runtime"] exists
-			if wandb, ok := r.Summary["wandb"].(map[string]any); ok {
+			if wandb, ok := params.Summary["wandb"].(map[string]any); ok {
 				if runtime, ok := wandb["runtime"]; ok {
 					switch x := runtime.(type) {
 					case int64:
-						r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
+						params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
 					case float64:
-						r.Runtime = int32(math.Max(x, float64(r.Runtime)))
+						params.Runtime = int32(math.Max(x, float64(params.Runtime)))
 					}
 				}
-			} else if runtime, ok := r.Summary["_runtime"]; ok {
+			} else if runtime, ok := params.Summary["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
+					params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
 				case float64:
-					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
+					params.Runtime = int32(math.Max(x, float64(params.Runtime)))
 				}
 			}
 
@@ -304,15 +314,15 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 			)
 		}
 
-		if r.Config == nil {
-			r.Config = make(map[string]any)
+		if params.Config == nil {
+			params.Config = make(map[string]any)
 		}
 		for key, value := range cfg {
 			valueDict, ok := value.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
 			} else if val, ok := valueDict["value"]; ok {
-				r.Config[key] = val
+				params.Config[key] = val
 			}
 		}
 	}
@@ -338,22 +348,28 @@ func extractRunState(data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams
 			if runtime, ok := eventTail["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
+					params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
 				case float64:
-					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
+					params.Runtime = int32(math.Max(x, float64(params.Runtime)))
 				}
 			}
 		}
 	}
 
 	// Get Tags information
-	r.Tags = data.GetTags()
+	params.Tags = data.GetTags()
 
 	// if we are resuming, we need to update the starting step
-	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		r.StartingStep += 1
+	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
+		params.StartingStep += 1
 	}
-	r.Resumed = true
+	params.Resumed = true
 
-	return &r, nil
+	if !params.StartTime.IsZero() {
+		fmt.Println("[0]", params.StartTime)
+		params.StartTime = params.StartTime.Add(time.Duration(-params.Runtime) * time.Second)
+		fmt.Println("[1]", params.StartTime)
+	}
+
+	return params, nil
 }

@@ -1,13 +1,13 @@
 package runbranch
 
 type ForkBranch struct {
-	runid  string
-	metric string
-	value  float64
+	// runid  string
+	// metric string
+	// value  float64
 }
 
 func (f ForkBranch) GetUpdates(
-	_ RunPath,
+	_ *RunParams, _ RunPath,
 ) (*RunParams, error) {
 	return nil, nil
 }

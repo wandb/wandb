@@ -1,12 +1,12 @@
 package runbranch
 
 type RewindBranch struct {
-	runid  string
-	metric string
-	value  float64
+	// runid  string
+	// metric string
+	// value  float64
 }
 
-func (r RewindBranch) GetUpdates(_ RunPath) (*RunParams, error) {
+func (r RewindBranch) GetUpdates(_ *RunParams, _ RunPath) (*RunParams, error) {
 	return nil, nil
 }
 
