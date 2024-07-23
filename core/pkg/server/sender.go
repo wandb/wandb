@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -432,6 +433,8 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.RunRecord.GetProject(),
 			s.RunRecord.GetRunId(),
 			s.resumeState.GetFileStreamOffset(),
+			// s.settings.GetXStartTime().GetValue(),
+			time.Now(), // TODO: fix this
 		)
 	}
 }
