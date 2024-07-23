@@ -666,6 +666,23 @@ func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	return string(serializedConfig), nil
 }
 
+func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
+	rewind := s.settings.GetResumeFrom()
+	update, err := runbranch.NewRewindBranch(
+		s.ctx,
+		s.graphqlClient,
+		rewind.GetRun(),
+		rewind.GetMetric(),
+		rewind.GetValue(),
+	).GetUpdates(s.startState, runbranch.RunPath{
+		Entity:  s.startState.Entity,
+		Project: s.startState.Project,
+		RunID:   s.startState.RunID,
+	})
+
+	fmt.Println(update, err)
+}
+
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
 	resume := s.settings.GetResume().GetValue()
 	update, err := runbranch.NewResumeBranch(
@@ -732,7 +749,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	// if there is no graphql client, we don't need to do anything
 	if s.graphqlClient == nil {
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-
 			s.respond(record,
 				&service.RunUpdateResult{
 					Run: runClone,
@@ -791,6 +807,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			s.sendResumeRun(record, runClone)
 			return
 		case isRewind != nil:
+			s.sendRewindRun(record, runClone)
 			// state.branch = &RewindBranch{
 			// 	runid:  isRewind.GetRun(),
 			// 	metric: isRewind.GetMetric(),

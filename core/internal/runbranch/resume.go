@@ -324,9 +324,7 @@ func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 	params.Resumed = true
 
 	if !params.StartTime.IsZero() {
-		fmt.Println("[0]", params.StartTime)
 		params.StartTime = params.StartTime.Add(time.Duration(-params.Runtime) * time.Second)
-		fmt.Println("[1]", params.StartTime)
 	}
 
 	return params, nil
