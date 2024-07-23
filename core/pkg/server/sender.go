@@ -722,9 +722,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 
 		// update the run state with the initial run record
 		s.startState.Update(&runbranch.RunParams{
-			RunID:       runClone.GetEntity(),
+			RunID:       runClone.GetRunId(),
 			Project:     runClone.GetProject(),
-			Entity:      runClone.GetRunId(),
+			Entity:      runClone.GetEntity(),
 			DisplayName: runClone.GetDisplayName(),
 			StartTime:   runClone.GetStartTime().AsTime(),
 			StorageID:   runClone.GetStorageId(),
@@ -862,6 +862,8 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 	})
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		// This will be done only for the initial run upsert record
+		// the consequent updates are fire-and-forget
 		proto.Merge(runClone, s.startState.Proto())
 		s.respond(record,
 			&service.RunUpdateResult{
