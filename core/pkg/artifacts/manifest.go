@@ -47,8 +47,8 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		Contents:            make(map[string]ManifestEntry),
 	}
 
-	if proto.ManifestFile != "" {
-		contents, err := ManifestContentsFromFile(proto.ManifestFile)
+	if proto.ManifestFilePath != "" {
+		contents, err := ManifestContentsFromFile(proto.ManifestFilePath)
 		if err != nil {
 			return Manifest{}, err
 		}

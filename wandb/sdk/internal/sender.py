@@ -1,5 +1,6 @@
 """sender."""
 
+import contextlib
 import gzip
 import json
 import logging
@@ -107,9 +108,9 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
 
 def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     if manifest.version == 1:
-        if manifest.manifest_file:
+        if manifest.manifest_file_path:
             contents = {}
-            with gzip.open(manifest.manifest_file, "rt") as f:
+            with gzip.open(manifest.manifest_file_path, "rt") as f:
                 for line in f:
                     entry_json = json.loads(line)
                     path = entry_json.pop("path")
@@ -1598,11 +1599,9 @@ class SendManager:
 
         self._job_builder._handle_server_artifact(res, artifact)
 
-        if artifact.manifest.manifest_file:
-            try:
-                os.remove(artifact.manifest.manifest_file)
-            except FileNotFoundError:
-                pass
+        if artifact.manifest.manifest_file_path:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(artifact.manifest.manifest_file_path)
         return res
 
     def send_alert(self, record: "Record") -> None:

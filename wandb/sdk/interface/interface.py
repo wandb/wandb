@@ -342,7 +342,7 @@ class InterfaceBase:
         # Very large manifests need to be written to file to avoid protobuf size limits.
         if len(artifact_manifest) > MANIFEST_FILE_SIZE_THRESHOLD:
             path = self._write_artifact_manifest_file(artifact_manifest)
-            proto_manifest.manifest_file = path
+            proto_manifest.manifest_file_path = path
             return proto_manifest
 
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
@@ -375,11 +375,11 @@ class InterfaceBase:
         # It would be simpler to use `manifest.to_json()`, but that gets very slow for
         # large manifests since it encodes the whole thing as a single JSON object.
         filename = f"{time.time()}_{token_hex(8)}.manifest_contents.jl.gz"
-        manifest_file = manifest_dir / filename
-        with gzip.open(manifest_file, mode="wt", compresslevel=1) as f:
+        manifest_file_path = manifest_dir / filename
+        with gzip.open(manifest_file_path, mode="wt", compresslevel=1) as f:
             for entry in manifest.entries.values():
                 f.write(f"{json.dumps(entry.to_json())}\n")
-        return str(manifest_file)
+        return str(manifest_file_path)
 
     def deliver_link_artifact(
         self,
