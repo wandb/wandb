@@ -564,6 +564,7 @@ class _WandbInit:
         self.printer.progress_update(line, percent_done=percent_done)
 
     def init(self) -> Union[Run, RunDisabled]:  # noqa: C901
+        print("init")
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
