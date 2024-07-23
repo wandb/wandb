@@ -8,7 +8,6 @@ import (
 	"maps"
 	"net/http"
 	"net/url"
-	"os"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -106,8 +105,8 @@ func NewGraphQLClient(
 	// sure that the username setting is populated correctly. Leaving this as is
 	// for now just to avoid breakage in the service account feature.
 	graphqlHeaders := map[string]string{
-		"X-WANDB-USERNAME":   os.Getenv("WANDB_USERNAME"),
-		"X-WANDB-USER-EMAIL": os.Getenv("WANDB_USER_EMAIL"),
+		"X-WANDB-USERNAME":   settings.GetUserName(),
+		"X-WANDB-USER-EMAIL": settings.GetEmail(),
 	}
 	maps.Copy(graphqlHeaders, settings.GetExtraHTTPHeaders())
 
