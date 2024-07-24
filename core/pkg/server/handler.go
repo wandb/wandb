@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -567,8 +568,9 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	var ok bool
 	run := request.Run
 
+	// offsset by run.Runtime to account for potential run branching
+	startTime := run.StartTime.AsTime().Add(time.Duration(-run.Runtime) * time.Second)
 	// start the run timer
-	startTime := run.StartTime.AsTime()
 	h.runTimer.Start(&startTime)
 
 	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
