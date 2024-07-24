@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"sync"
 
 	"github.com/shirou/gopsutil/v4/process"
 
@@ -11,24 +10,13 @@ import (
 )
 
 type GPUNvidia struct {
-	name     string
-	metrics  map[string][]float64
 	pid      int
-	mutex    sync.RWMutex
 	nvmlInit nvml.Return
 }
 
 func NewGPUNvidia(pid int) *GPUNvidia {
-	gpu := &GPUNvidia{
-		name:    "gpu",
-		metrics: map[string][]float64{},
-		pid:     pid,
-	}
-
-	return gpu
+	return &GPUNvidia{pid: pid}
 }
-
-func (g *GPUNvidia) Name() string { return g.name }
 
 func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
 	proc, err := process.NewProcess(int32(g.pid))
@@ -75,24 +63,31 @@ func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
 	return intersectionCount > 0
 }
 
-func (g *GPUNvidia) SampleMetrics() {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
+func (g *GPUNvidia) SampleMetrics() map[string]any {
+	metrics := make(map[string]any)
 
 	// we would only call this method if NVML is available
 	if g.nvmlInit != nvml.SUCCESS {
-		return
+		return nil
 	}
 
 	count, ret := nvml.DeviceGetCount()
 	if ret != nvml.SUCCESS {
-		return
+		return nil
 	}
+	metrics["gpu.count"] = count
 
 	for di := 0; di < count; di++ {
 		device, ret := nvml.DeviceGetHandleByIndex(di)
 		if ret != nvml.SUCCESS {
-			return
+			return nil
+		}
+
+		// get device name and total memory
+		name, ret := device.GetName()
+		if ret == nvml.SUCCESS {
+			key := fmt.Sprintf("gpu.%d.name", di)
+			metrics[key] = name
 		}
 
 		// gpu in use by process?
@@ -103,53 +98,45 @@ func (g *GPUNvidia) SampleMetrics() {
 		if ret == nvml.SUCCESS {
 			// gpu utilization rate
 			key := fmt.Sprintf("gpu.%d.gpu", di)
-			g.metrics[key] = append(
-				g.metrics[key],
-				float64(utilization.Gpu),
-			)
+			metrics[key] = float64(utilization.Gpu)
 			// gpu utilization rate (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.gpu", di)
-				g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+				metrics[keyProc] = metrics[key]
 			}
 
 			// memory utilization rate
 			key = fmt.Sprintf("gpu.%d.memory", di)
-			g.metrics[key] = append(
-				g.metrics[key],
-				float64(utilization.Memory),
-			)
+			metrics[key] = float64(utilization.Memory)
 			// memory utilization rate (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.memory", di)
-				g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+				metrics[keyProc] = metrics[key]
 			}
 		}
 
 		memoryInfo, ret := device.GetMemoryInfo()
 		if ret == nvml.SUCCESS {
+			// memory total
+			key := fmt.Sprintf("gpu.%d.memoryTotal", di)
+			metrics[key] = memoryInfo.Total
+
 			// memory allocated
-			key := fmt.Sprintf("gpu.%d.memoryAllocated", di)
-			g.metrics[key] = append(
-				g.metrics[key],
-				float64(memoryInfo.Used)/float64(memoryInfo.Total)*100,
-			)
+			key = fmt.Sprintf("gpu.%d.memoryAllocated", di)
+			metrics[key] = float64(memoryInfo.Used) / float64(memoryInfo.Total) * 100
 			// memory allocated (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.memoryAllocated", di)
-				g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+				metrics[keyProc] = metrics[key]
 			}
 
 			// memory allocated (bytes)
 			key = fmt.Sprintf("gpu.%d.memoryAllocatedBytes", di)
-			g.metrics[key] = append(
-				g.metrics[key],
-				float64(memoryInfo.Used),
-			)
+			metrics[key] = float64(memoryInfo.Used)
 			// memory allocated (bytes) (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.memoryAllocatedBytes", di)
-				g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+				metrics[keyProc] = metrics[key]
 			}
 		}
 
@@ -157,61 +144,50 @@ func (g *GPUNvidia) SampleMetrics() {
 		if ret == nvml.SUCCESS {
 			// gpu temperature
 			key := fmt.Sprintf("gpu.%d.temp", di)
-			g.metrics[key] = append(
-				g.metrics[key],
-				float64(temperature),
-			)
+			metrics[key] = float64(temperature)
 			// gpu temperature (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.temp", di)
-				g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+				metrics[keyProc] = metrics[key]
 			}
 		}
 
 		// gpu power usage (W)
 		powerUsage, ret := device.GetPowerUsage()
-		if ret != nvml.SUCCESS {
-			return
-		}
-		key := fmt.Sprintf("gpu.%d.powerWatts", di)
-		g.metrics[key] = append(
-			g.metrics[key],
-			float64(powerUsage)/1000,
-		)
-		// gpu power usage (W) (if in use by process)
-		if gpuInUseByProcess {
-			keyProc := fmt.Sprintf("gpu.process.%d.powerWatts", di)
-			g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+		if ret == nvml.SUCCESS {
+			key := fmt.Sprintf("gpu.%d.powerWatts", di)
+			metrics[key] = float64(powerUsage) / 1000
+			// gpu power usage (W) (if in use by process)
+			if gpuInUseByProcess {
+				keyProc := fmt.Sprintf("gpu.process.%d.powerWatts", di)
+				metrics[keyProc] = metrics[key]
+			}
 		}
 
 		// gpu power limit (W)
 		powerLimit, ret := device.GetEnforcedPowerLimit()
-		if ret != nvml.SUCCESS {
-			return
-		}
-		key = fmt.Sprintf("gpu.%d.enforcedPowerLimitWatts", di)
-		g.metrics[key] = append(
-			g.metrics[key],
-			float64(powerLimit)/1000,
-		)
-		// gpu power limit (W) (if in use by process)
-		if gpuInUseByProcess {
-			keyProc := fmt.Sprintf("gpu.process.%d.enforcedPowerLimitWatts", di)
-			g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
+		if ret == nvml.SUCCESS {
+			key := fmt.Sprintf("gpu.%d.enforcedPowerLimitWatts", di)
+			metrics[key] = float64(powerLimit) / 1000
+			// gpu power limit (W) (if in use by process)
+			if gpuInUseByProcess {
+				keyProc := fmt.Sprintf("gpu.process.%d.enforcedPowerLimitWatts", di)
+				metrics[keyProc] = metrics[key]
+			}
+
+			// gpu power usage (%)
+			key = fmt.Sprintf("gpu.%d.powerPercent", di)
+			metrics[key] = float64(powerUsage) / float64(powerLimit) * 100
+			// gpu power usage (%) (if in use by process)
+			if gpuInUseByProcess {
+				keyProc := fmt.Sprintf("gpu.process.%d.powerPercent", di)
+				metrics[keyProc] = metrics[key]
+			}
 		}
 
-		// gpu power usage (%)
-		key = fmt.Sprintf("gpu.%d.powerPercent", di)
-		g.metrics[key] = append(
-			g.metrics[key],
-			float64(powerUsage)/float64(powerLimit)*100,
-		)
-		// gpu power usage (%) (if in use by process)
-		if gpuInUseByProcess {
-			keyProc := fmt.Sprintf("gpu.process.%d.powerPercent", di)
-			g.metrics[keyProc] = append(g.metrics[keyProc], g.metrics[key][len(g.metrics[key])-1])
-		}
 	}
+
+	return metrics
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
@@ -231,49 +207,6 @@ func (g *GPUNvidia) Close() {
 	}
 }
 
-type GPU struct {
-	name        string
-	memoryTotal uint64
-}
-
-type GPUInfo struct {
-	count   int
-	devices []GPU
-}
-
-func (g *GPUNvidia) Probe() *GPUInfo {
-	if g.nvmlInit != nvml.SUCCESS {
-		return nil
-	}
-
-	info := GPUInfo{}
-
-	count, ret := nvml.DeviceGetCount()
-	if ret != nvml.SUCCESS {
-		return nil
-	}
-
-	info.count = count
-	devices := make([]GPU, count)
-
-	for di := 0; di < count; di++ {
-		device, ret := nvml.DeviceGetHandleByIndex(di)
-		if ret == nvml.SUCCESS {
-			name, ret := device.GetName()
-			if ret == nvml.SUCCESS {
-				devices[di] = GPU{name: name}
-			}
-			memoryInfo, ret := device.GetMemoryInfo()
-			if ret == nvml.SUCCESS {
-				devices[di].memoryTotal = memoryInfo.Total
-			}
-		}
-	}
-	info.devices = devices
-
-	return &info
-}
-
 func main() {
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 
@@ -286,9 +219,6 @@ func main() {
 		return
 	}
 
-	info := gpu.Probe()
-	fmt.Println(info)
-
-	gpu.SampleMetrics()
-	fmt.Println(gpu.metrics)
+	metrics := gpu.SampleMetrics()
+	fmt.Println(metrics)
 }
