@@ -219,7 +219,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 	}
 
 	mailbox := mailbox.NewMailbox()
-	metricHandler := runmetric.NewMetricHandler()
+	metricHandler := runmetric.New()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -231,7 +231,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(runsummary.Params{MetricHandler: metricHandler}),
+			RunSummary:        runsummary.New(),
 			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
@@ -273,7 +273,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
-			RunSummary:          runsummary.New(runsummary.Params{}),
+			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

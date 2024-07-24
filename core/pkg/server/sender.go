@@ -15,7 +15,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -114,8 +113,8 @@ type Sender struct {
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
-	// metricSender is a service for managing metrics
-	metricSender *runmetric.MetricSender
+	// runConfigMetrics tracks explicitly defined run metrics.
+	runConfigMetrics *runmetric.RunConfigMetrics
 
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -176,6 +175,7 @@ func NewSender(
 		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
+		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
@@ -329,7 +329,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *service.Record_Metric:
-		s.sendMetric(record, x.Metric)
+		s.sendMetric(x.Metric)
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
@@ -471,7 +471,7 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	output := s.runSummary.CloneTree()
+	output := s.runSummary.ToMap()
 
 	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
@@ -642,12 +642,15 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 }
 
 // Inserts W&B-internal information into the run configuration.
-//
-// Uses the given telemetry
 func (s *Sender) updateConfigPrivate() {
-	metrics := []map[string]interface{}(nil)
-	if s.metricSender != nil {
-		metrics = s.metricSender.ConfigMetrics
+	metrics, err := s.runConfigMetrics.ToRunConfigData()
+
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: failed to encode some metrics in the run config: %v",
+				err,
+			))
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -864,11 +867,12 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	update, err := s.runSummary.Flatten()
+	update, err := s.runSummary.ToRecords()
+
+	// `update` may be non-empty even on error.
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("error flattening run summary: %v", err))
-		return
+			fmt.Errorf("sender: error flattening summary: %v", err))
 	}
 
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
@@ -877,15 +881,16 @@ func (s *Sender) streamSummary() {
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
-
-	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	s.runSummary.ApplyChangeRecord(
-		summary,
-		func(err error) {
+	for _, update := range summary.Update {
+		if err := s.runSummary.SetFromRecord(update); err != nil {
 			s.logger.CaptureError(
-				fmt.Errorf("error updating run summary: %v", err))
-		},
-	)
+				fmt.Errorf("sender: error updating summary: %v", err))
+		}
+	}
+
+	for _, remove := range summary.Remove {
+		s.runSummary.Remove(remove.Key)
+	}
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
@@ -1093,17 +1098,9 @@ func (s *Sender) sendExit(record *service.Record) {
 
 // sendMetric sends a metrics record to the file stream,
 // which will then send it to the server
-func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
-	if s.metricSender == nil {
-		s.metricSender = runmetric.NewMetricSender()
-	}
+func (s *Sender) sendMetric(metric *service.MetricRecord) {
+	s.runConfigMetrics.ProcessRecord(metric)
 
-	if metric.GetGlobName() != "" {
-		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
-		return
-	}
-
-	s.encodeMetricHints(record, metric)
 	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
 }
@@ -1383,31 +1380,4 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
-}
-
-// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
-// are used to configure the plots in the UI.
-func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-	err := s.metricSender.AddNonGlobMetric(metric)
-	if err != nil {
-		return
-	}
-
-	if metric.GetStepMetric() != "" {
-		index, ok := s.metricSender.MetricIndex[metric.GetStepMetric()]
-		if ok {
-			metric = proto.Clone(metric).(*service.MetricRecord)
-			metric.StepMetric = ""
-			metric.StepMetricIndex = index + 1
-		}
-	}
-
-	encodeMetric := corelib.ProtoEncodeToDict(metric)
-	if index, ok := s.metricSender.MetricIndex[metric.GetName()]; ok {
-		s.metricSender.ConfigMetrics[index] = encodeMetric
-	} else {
-		nextIndex := len(s.metricSender.ConfigMetrics)
-		s.metricSender.ConfigMetrics = append(s.metricSender.ConfigMetrics, encodeMetric)
-		s.metricSender.MetricIndex[metric.GetName()] = int32(nextIndex)
-	}
 }

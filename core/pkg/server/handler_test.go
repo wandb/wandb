@@ -23,7 +23,7 @@ func makeHandler(
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
-			MetricHandler:   runmetric.NewMetricHandler(),
+			MetricHandler:   runmetric.New(),
 		},
 	)
 

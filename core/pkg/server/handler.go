@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -97,7 +98,12 @@ type Handler struct {
 	// metricHandler is the metric handler for the stream
 	metricHandler *runmetric.MetricHandler
 
-	// runSummary keeps the complete up-to-date summary
+	// runSummary contains summaries of the run's metrics.
+	//
+	// These summaries are up-to-date with respect to the current request being
+	// handled which is crucial for serving the GetSummaryRequest. The Sender
+	// also tracks summaries, but with respect to its own queue of requests,
+	// which may be arbitrarily far behind the Handler.
 	runSummary *runsummary.RunSummary
 
 	// systemMonitor is the system monitor for the stream
@@ -379,27 +385,15 @@ func (h *Handler) handleMetric(record *service.Record) {
 		return
 	}
 
-	if err := h.metricHandler.AddMetric(metric); err != nil {
+	if err := h.metricHandler.ProcessRecord(metric); err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: cannot add metric: %v", err),
 			"metric", metric)
 		return
 	}
 
-	if metric.StepMetric != "" && !h.metricHandler.Exists(metric.StepMetric) {
-		stepMetric := &service.MetricRecord{Name: metric.StepMetric}
-
-		if err := h.metricHandler.AddMetric(stepMetric); err != nil {
-			h.logger.CaptureError(
-				fmt.Errorf("handler: cannot add step metric: %v", err),
-				"stepMetric", stepMetric)
-			return
-		}
-
-		h.fwdRecord(&service.Record{
-			RecordType: &service.Record_Metric{Metric: stepMetric},
-			Control:    &service.Control{Local: true},
-		})
+	if len(metric.Name) > 0 {
+		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
 
 	h.fwdRecord(record)
@@ -860,12 +854,7 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
 
 	if !h.settings.GetXSync().GetValue() {
-		summaryRecord := &service.Record{
-			RecordType: &service.Record_Summary{
-				Summary: &service.SummaryRecord{},
-			},
-		}
-		h.handleSummary(summaryRecord, summaryRecord.GetSummary())
+		h.updateRunTiming()
 	}
 
 	// send the exit record
@@ -890,12 +879,13 @@ func (h *Handler) handleFiles(record *service.Record) {
 func (h *Handler) handleRequestGetSummary(record *service.Record) {
 	response := &service.Response{}
 
-	items, err := h.runSummary.Flatten()
+	items, err := h.runSummary.ToRecords()
+
+	// If there's an error, we still respond with the records we were
+	// able to produce.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf("error flattening run summary: %v", err))
-		h.respond(record, response)
-		return
+			fmt.Errorf("handler: error flattening run summary: %v", err))
 	}
 
 	response.ResponseType = &service.Response_GetSummaryResponse{
@@ -970,35 +960,48 @@ func (h *Handler) handleRequestJobInput(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleSummary(record *service.Record, summary *service.SummaryRecord) {
-	if !h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		runtime := int32(h.runTimer.Elapsed().Seconds())
-
-		// update summary with runtime
-		summary.Update = append(summary.Update, &service.SummaryItem{
-			NestedKey: []string{"_wandb", "runtime"},
-			ValueJson: fmt.Sprintf("%d", runtime),
-		})
+// handleSummary processes an update to the run summary.
+//
+// These records come from one of three sources:
+//   - Explicit updates made by using `run.summary[...] = ...`
+//   - Records from the transaction log when syncing
+//   - `updateRunTiming`
+func (h *Handler) handleSummary(
+	record *service.Record,
+	summary *service.SummaryRecord,
+) {
+	for _, update := range summary.Update {
+		err := h.runSummary.SetFromRecord(update)
+		if err != nil {
+			h.logger.CaptureError(
+				fmt.Errorf("handler: error processing summary: %v", err))
+		}
 	}
 
-	h.runSummary.ApplyChangeRecord(
-		summary,
-		func(err error) {
-			h.logger.CaptureError(
-				fmt.Errorf("error updating run summary: %v", err))
-		},
-	)
+	for _, removal := range summary.Remove {
+		h.runSummary.Remove(removal.Key)
+	}
 
-	h.fwdRecordWithControl(record,
-		func(control *service.Control) {
-			control.AlwaysSend = true
-			// do not write to the transaction log when syncing an offline run
-			if h.settings.GetXSync().GetValue() {
-				control.Local = true
-			}
+	h.fwdRecord(record)
+}
+
+// updateRunTiming updates the `_wandb.runtime` summary metric which
+// tracks the total duration of the run.
+func (h *Handler) updateRunTiming() {
+	runtime := int(h.runTimer.Elapsed().Seconds())
+	record := &service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: []*service.SummaryItem{{
+					Key:       "_wandb.runtime",
+					ValueJson: strconv.Itoa(runtime),
+				}},
+			},
 		},
-	)
+		Control: &service.Control{Local: true},
+	}
+
+	h.handleSummary(record, record.GetSummary())
 }
 
 func (h *Handler) handleTBrecord(record *service.TBRecord) {
@@ -1029,30 +1032,6 @@ func (h *Handler) handleHistoryDirectly(history *service.HistoryRecord) {
 		},
 	}
 	h.fwdRecord(record)
-
-	// TODO add an option to disable summary (this could be quite expensive)
-	if h.runSummary == nil {
-		return
-	}
-
-	summary := make([]*service.SummaryItem, 0, len(history.GetItem()))
-	for _, item := range history.GetItem() {
-		summaryItem := &service.SummaryItem{
-			Key:       item.Key,
-			NestedKey: item.NestedKey,
-			ValueJson: item.ValueJson,
-		}
-		summary = append(summary, summaryItem)
-	}
-
-	record = &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: summary,
-			},
-		},
-	}
-	h.handleSummary(record, record.GetSummary())
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
@@ -1201,17 +1180,19 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
-	newMetricDefs := h.metricHandler.CreateGlobMetrics(h.partialHistory)
+	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
 		h.handleMetric(&service.Record{
 			RecordType: &service.Record_Metric{Metric: newMetric},
 			Control:    &service.Control{Local: true},
 		})
 	}
-
-	h.metricHandler.InsertStepMetrics(h.partialHistory, h.runSummary)
+	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
+
+	h.updateRunTiming()
+	h.updateSummary()
 
 	items, err := h.partialHistory.ToRecords()
 	currentStep := h.partialHistoryStep
@@ -1224,10 +1205,7 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	// Report errors, but continue anyway to drop as little data as possible.
 	if err != nil {
 		h.logger.CaptureError(
-			fmt.Errorf(
-				"handler: error flattening run history: %v",
-				err,
-			))
+			fmt.Errorf("handler: error flattening run history: %v", err))
 		h.terminalPrinter.Writef(
 			"There was an issue processing run metrics in step %d;"+
 				" some data may be missing.",
@@ -1240,6 +1218,32 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		historyRecord.Step = &service.HistoryStep{Num: currentStep}
 	}
 	h.handleHistoryDirectly(historyRecord)
+}
+
+// updateSummary updates the summary based on the current history step.
+func (h *Handler) updateSummary() {
+	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
+
+	// We continue despite errors to update as much of the summary as we can.
+	if err != nil {
+		h.logger.CaptureError(
+			fmt.Errorf("handler: error updating summary: %v", err))
+	}
+
+	if len(updates) == 0 {
+		return
+	}
+
+	// We must forward these changes to the Sender which uses them to build
+	// its own summary.
+	h.fwdRecord(&service.Record{
+		RecordType: &service.Record_Summary{
+			Summary: &service.SummaryRecord{
+				Update: updates,
+			},
+		},
+		Control: &service.Control{Local: true},
+	})
 }
 
 // samples history items and updates the history record with the sampled values
