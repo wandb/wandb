@@ -36,6 +36,7 @@ func NewRewindBranch(
 	}
 }
 
+//gocyclo:ignore
 func (rb RewindBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
