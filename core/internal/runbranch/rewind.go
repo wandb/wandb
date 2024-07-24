@@ -51,12 +51,6 @@ func (rb RewindBranch) GetUpdates(
 		return nil, &BranchError{Err: err, Response: info}
 	}
 
-	r := &RunParams{}
-	r.Merge(params)
-
-	r.StartingStep = int64(rb.metricValue) + 1
-	r.Forked = true
-
 	response, err := gql.RewindRun(
 		rb.ctx,
 		rb.client,
@@ -82,7 +76,9 @@ func (rb RewindBranch) GetUpdates(
 		return nil, &BranchError{Err: fmt.Errorf("run not found"), Response: info}
 	}
 
-	// TODO: check errors
+	r := &RunParams{}
+	r.Merge(params)
+
 	data := response.GetRewindRun().GetRewoundRun()
 
 	if data.GetId() != "" {
@@ -132,7 +128,7 @@ func (rb RewindBranch) GetUpdates(
 			cfg = x
 		default:
 			return nil, fmt.Errorf(
-				"sender: updateConfig: got type %T for %s",
+				"got type %T for %s",
 				x, *config,
 			)
 		}
@@ -149,6 +145,9 @@ func (rb RewindBranch) GetUpdates(
 			}
 		}
 	}
+
+	r.StartingStep = int64(rb.metricValue) + 1
+	r.Forked = true
 
 	return r, nil
 }
