@@ -1087,6 +1087,16 @@ func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 		return
 	}
 
+	// This is a sanity check to ensure that the start time is set
+	// before sending system metrics, it should always be set
+	// when the run is initialized
+	// If it's not set, we log an error and return
+	if s.startState.StartTime.IsZero() {
+		s.logger.CaptureError(
+			errors.New("sender: sendSystemMetrics: start time is zero"))
+		return
+	}
+
 	s.fileStream.StreamUpdate(&fs.StatsUpdate{
 		StartTime: s.startState.StartTime,
 		Record:    record})
