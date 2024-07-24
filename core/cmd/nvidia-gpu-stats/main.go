@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
 
@@ -209,6 +210,7 @@ func (g *GPUNvidia) Close() {
 }
 
 func main() {
+	samplingInterval := flag.Duration("sampling", 1*time.Second, "sampling interval")
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 
 	flag.Parse()
@@ -220,11 +222,17 @@ func main() {
 		return
 	}
 
-	metrics := gpu.SampleMetrics()
-	// print as JSON
-	output, err := json.Marshal(metrics)
-	if err != nil {
-		return
+	// Create a ticker that fires every `samplingInterval` seconds
+	ticker := time.NewTicker(*samplingInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		metrics := gpu.SampleMetrics()
+		// print as JSON
+		output, err := json.Marshal(metrics)
+		if err != nil {
+			return
+		}
+		fmt.Println(string(output))
 	}
-	fmt.Println(string(output))
 }
