@@ -17,7 +17,6 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -219,7 +218,6 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 	}
 
 	mailbox := mailbox.NewMailbox()
-	metricHandler := runmetric.New()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -231,8 +229,6 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(),
-			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},

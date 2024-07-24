@@ -42,13 +42,16 @@ type HandlerParams struct {
 	OutChan           chan *service.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
-	RunSummary        *runsummary.RunSummary
-	MetricHandler     *runmetric.MetricHandler
 	FileTransferStats filetransfer.FileTransferStats
 	RunfilesUploader  runfiles.Uploader
 	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
+
+	// SkipSummary controls whether to skip summary updates.
+	//
+	// This is only useful in a test.
+	SkipSummary bool
 }
 
 // Handler is the handler for a stream it handles the incoming messages, processes them
@@ -106,6 +109,10 @@ type Handler struct {
 	// which may be arbitrarily far behind the Handler.
 	runSummary *runsummary.RunSummary
 
+	// skipSummary is set in tests where certain summary records should be
+	// ignored.
+	skipSummary bool
+
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
@@ -132,10 +139,6 @@ func NewHandler(
 	ctx context.Context,
 	params HandlerParams,
 ) *Handler {
-	if params.MetricHandler == nil {
-		panic("handler: nil MetricHandler")
-	}
-
 	return &Handler{
 		ctx:                   ctx,
 		runTimer:              timer.New(),
@@ -146,9 +149,10 @@ func NewHandler(
 		fwdChan:               params.FwdChan,
 		outChan:               params.OutChan,
 		mailbox:               params.Mailbox,
-		runSummary:            params.RunSummary,
+		runSummary:            runsummary.New(),
+		skipSummary:           params.SkipSummary,
 		runHistorySampler:     runhistory.NewRunHistorySampler(),
-		metricHandler:         params.MetricHandler,
+		metricHandler:         runmetric.New(),
 		fileTransferStats:     params.FileTransferStats,
 		runfilesUploaderOrNil: params.RunfilesUploader,
 		tbHandler:             params.TBHandler,
@@ -1191,8 +1195,10 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	h.runHistorySampler.SampleNext(h.partialHistory)
 
-	h.updateRunTiming()
-	h.updateSummary()
+	if !h.skipSummary {
+		h.updateRunTiming()
+		h.updateSummary()
+	}
 
 	items, err := h.partialHistory.ToRecords()
 	currentStep := h.partialHistoryStep
