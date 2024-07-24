@@ -162,8 +162,3 @@ func (s *Settings) GetResumeFrom() *service.RunMoment {
 func (s *Settings) GetForkFrom() *service.RunMoment {
 	return s.Proto.ForkFrom
 }
-
-// Update StartTime in the settings.
-func (s *Settings) SetStartTime(startTime time.Time) {
-	s.Proto.XStartTime = &wrapperspb.DoubleValue{Value: float64(startTime.UnixNano()) / 1e9}
-}

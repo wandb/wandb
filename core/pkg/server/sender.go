@@ -437,7 +437,6 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.startState.Project,
 			s.startState.RunID,
 			s.startState.FileStreamOffset,
-			s.startState.StartTime,
 		)
 	}
 }
@@ -1088,7 +1087,9 @@ func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.StatsUpdate{Record: record})
+	s.fileStream.StreamUpdate(&fs.StatsUpdate{
+		StartTime: s.startState.StartTime,
+		Record:    record})
 }
 
 func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
