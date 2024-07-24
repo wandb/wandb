@@ -1093,7 +1093,10 @@ func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 	// If it's not set, we log an error and return
 	if s.startState.StartTime.IsZero() {
 		s.logger.CaptureError(
-			errors.New("sender: sendSystemMetrics: start time is zero"))
+			fmt.Errorf("sender: sendSystemMetrics: start time not set"),
+			"startState",
+			s.startState,
+		)
 		return
 	}
 
