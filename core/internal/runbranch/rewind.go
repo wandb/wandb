@@ -36,29 +36,40 @@ func NewRewindBranch(
 	}
 }
 
-func (r RewindBranch) GetUpdates(
+func (rb RewindBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
 	// TODO: check that runid matches runpath.RunID
 
-	if r.metricName != "_step" {
-		return nil, fmt.Errorf("rewind only supports _step metric")
+	if rb.metricName != "_step" {
+		err := fmt.Errorf("rewind only supports `_step` metric name currently")
+		info := &service.ErrorInfo{
+			Code:    service.ErrorInfo_UNSUPPORTED,
+			Message: err.Error(),
+		}
+		return nil, &BranchError{Err: err, Response: info}
 	}
 
+	r := &RunParams{}
+	r.Merge(params)
+
+	r.StartingStep = int64(rb.metricValue) + 1
+	r.Forked = true
+
 	response, err := gql.RewindRun(
-		r.ctx,
-		r.client,
+		rb.ctx,
+		rb.client,
 		runpath.RunID,
 		utils.NilIfZero(runpath.Entity),
 		utils.NilIfZero(runpath.Project),
-		r.metricName,
-		r.metricValue,
+		rb.metricName,
+		rb.metricValue,
 	)
 	if err != nil {
 		info := &service.ErrorInfo{
 			Code:    service.ErrorInfo_COMMUNICATION,
-			Message: fmt.Sprintf("Failed to rewind run: %s", err),
+			Message: fmt.Sprintf("failed to rewind run: %s", err),
 		}
 		return nil, &BranchError{Err: err, Response: info}
 	}
@@ -66,7 +77,7 @@ func (r RewindBranch) GetUpdates(
 	if response.GetRewindRun() == nil || response.GetRewindRun().GetRewoundRun() == nil {
 		info := &service.ErrorInfo{
 			Code:    service.ErrorInfo_COMMUNICATION,
-			Message: "Failed to rewind run: run not found",
+			Message: "failed to rewind run: run not found",
 		}
 		return nil, &BranchError{Err: fmt.Errorf("run not found"), Response: info}
 	}
@@ -74,37 +85,34 @@ func (r RewindBranch) GetUpdates(
 	// TODO: check errors
 	data := response.GetRewindRun().GetRewoundRun()
 
-	params.StartingStep = int64(r.metricValue) + 1
-	params.Forked = true
-
 	if data.GetId() != "" {
-		params.StorageID = data.GetId()
+		r.StorageID = data.GetId()
 	}
 
 	if data.GetName() != "" {
-		params.RunID = data.GetName()
+		r.RunID = data.GetName()
 	}
 
 	if data.GetDisplayName() != nil {
-		params.DisplayName = *data.GetDisplayName()
+		r.DisplayName = *data.GetDisplayName()
 	}
 
 	if data.GetSweepName() != nil {
-		params.SweepID = *data.GetSweepName()
+		r.SweepID = *data.GetSweepName()
 	}
 
 	if data.GetProject() != nil {
 		if data.GetProject().GetName() != "" {
-			params.Project = data.GetProject().GetName()
+			r.Project = data.GetProject().GetName()
 		}
 		entity := data.GetProject().GetEntity()
 		if entity.GetName() != "" {
-			params.Entity = entity.GetName()
+			r.Entity = entity.GetName()
 		}
 	}
 
 	if data.GetHistoryLineCount() != nil {
-		params.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
+		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	}
 
 	// Get Config information
@@ -129,18 +137,18 @@ func (r RewindBranch) GetUpdates(
 			)
 		}
 
-		if params.Config == nil {
-			params.Config = make(map[string]any)
+		if r.Config == nil {
+			r.Config = make(map[string]any)
 		}
 		for key, value := range cfg {
 			valueDict, ok := value.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
 			} else if val, ok := valueDict["value"]; ok {
-				params.Config[key] = val
+				r.Config[key] = val
 			}
 		}
 	}
 
-	return params, nil
+	return r, nil
 }

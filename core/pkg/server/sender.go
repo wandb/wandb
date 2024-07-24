@@ -666,6 +666,10 @@ func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	return string(serializedConfig), nil
 }
 
+func (s *Sender) sendForkRun(_ *service.Record, _ *service.RunRecord) {
+	// TODO: implement fork
+}
+
 func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 	rewind := s.settings.GetResumeFrom()
 	update, err := runbranch.NewRewindBranch(
@@ -706,11 +710,11 @@ func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
-	resume := s.settings.GetResume().GetValue()
+
 	update, err := runbranch.NewResumeBranch(
 		s.ctx,
 		s.graphqlClient,
-		resume,
+		s.settings.GetResume().GetValue(),
 	).GetUpdates(s.startState, runbranch.RunPath{
 		Entity:  s.startState.Entity,
 		Project: s.startState.Project,
@@ -832,13 +836,9 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			s.sendRewindRun(record, runClone)
 			return
 		case isFork != nil:
-			// state.branch = &ForkBranch{
-			// 	runid:  isFork.GetRun(),
-			// 	metric: isFork.GetMetric(),
-			// 	value:  isFork.GetValue(),
-			// }
+			s.sendForkRun(record, runClone)
 		default:
-			// no branching
+			// no resume, rewind, or fork provided
 		}
 	}
 

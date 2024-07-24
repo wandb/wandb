@@ -29,14 +29,14 @@ func NewResumeBranch(ctx context.Context, client graphql.Client, mode string) *R
 
 // GetUpdates updates the state based on the resume mode
 // and the Run resume status we get from the server
-func (r *ResumeBranch) GetUpdates(
+func (rb *ResumeBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
 
 	response, err := gql.RunResumeStatus(
-		r.ctx,
-		r.client,
+		rb.ctx,
+		rb.client,
 		&runpath.Project,
 		utils.NilIfZero(runpath.Entity),
 		runpath.RunID,
@@ -58,13 +58,13 @@ func (r *ResumeBranch) GetUpdates(
 
 	// if we are not in the resume mode MUST and we didn't get data, we can just
 	// return without error
-	if data == nil && r.mode != "must" {
+	if data == nil && rb.mode != "must" {
 		return nil, nil
 	}
 
 	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
 	// we need to return an error because we can't resume
-	if data == nil && r.mode == "must" {
+	if data == nil && rb.mode == "must" {
 		info := &service.ErrorInfo{
 			Code: service.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
@@ -79,7 +79,7 @@ func (r *ResumeBranch) GetUpdates(
 
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
-	if data != nil && r.mode == "never" {
+	if data != nil && rb.mode == "never" {
 		info := &service.ErrorInfo{
 			Code: service.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
@@ -92,9 +92,9 @@ func (r *ResumeBranch) GetUpdates(
 	}
 
 	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
-	if data != nil && r.mode != "never" {
+	if data != nil && rb.mode != "never" {
 		update, err := extractRunState(params, data)
-		if err != nil && r.mode == "must" {
+		if err != nil && rb.mode == "must" {
 			info := &service.ErrorInfo{
 				Code: service.ErrorInfo_USAGE,
 				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
@@ -144,27 +144,26 @@ func runExists(response *gql.RunResumeStatusResponse) bool {
 //
 //gocyclo:ignore
 func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
-	if params == nil {
-		params = &RunParams{}
-	}
+	r := &RunParams{}
+	r.Merge(params)
 
-	if params.FileStreamOffset == nil {
-		params.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+	if r.FileStreamOffset == nil {
+		r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
 	}
 
 	// update the file stream offsets with the data from the server
 	if data.GetHistoryLineCount() != nil {
-		params.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
+		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	} else {
 		return nil, errors.New("no history line count found in resume response")
 	}
 	if data.GetEventsLineCount() != nil {
-		params.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
+		r.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
 	} else {
 		return nil, errors.New("no events line count found in resume response")
 	}
 	if data.GetLogLineCount() != nil {
-		params.FileStreamOffset[filestream.OutputChunk] = *data.GetLogLineCount()
+		r.FileStreamOffset[filestream.OutputChunk] = *data.GetLogLineCount()
 	} else {
 		return nil, errors.New("no log line count found in resume response")
 	}
@@ -192,16 +191,16 @@ func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 				// if we are resuming, we need to update the starting step
 				// to be the next step after the last step we ran
 				if x, ok := step.(int64); ok {
-					params.StartingStep = x
+					r.StartingStep = x
 				}
 			}
 
 			if runtime, ok := historyTail["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
+					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
 				case float64:
-					params.Runtime = int32(math.Max(x, float64(params.Runtime)))
+					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
 				}
 			}
 		}
@@ -222,23 +221,23 @@ func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 		switch x := summaryVal.(type) {
 		case nil: // OK, summary is nil
 		case map[string]any:
-			params.Summary = x
+			r.Summary = x
 			// check if r.summary["wandb"]["runtime"] exists
-			if wandb, ok := params.Summary["wandb"].(map[string]any); ok {
+			if wandb, ok := r.Summary["wandb"].(map[string]any); ok {
 				if runtime, ok := wandb["runtime"]; ok {
 					switch x := runtime.(type) {
 					case int64:
-						params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
+						r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
 					case float64:
-						params.Runtime = int32(math.Max(x, float64(params.Runtime)))
+						r.Runtime = int32(math.Max(x, float64(r.Runtime)))
 					}
 				}
-			} else if runtime, ok := params.Summary["_runtime"]; ok {
+			} else if runtime, ok := r.Summary["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
+					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
 				case float64:
-					params.Runtime = int32(math.Max(x, float64(params.Runtime)))
+					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
 				}
 			}
 
@@ -272,15 +271,15 @@ func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 			)
 		}
 
-		if params.Config == nil {
-			params.Config = make(map[string]any)
+		if r.Config == nil {
+			r.Config = make(map[string]any)
 		}
 		for key, value := range cfg {
 			valueDict, ok := value.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
 			} else if val, ok := valueDict["value"]; ok {
-				params.Config[key] = val
+				r.Config[key] = val
 			}
 		}
 	}
@@ -306,26 +305,26 @@ func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 			if runtime, ok := eventTail["_runtime"]; ok {
 				switch x := runtime.(type) {
 				case int64:
-					params.Runtime = int32(math.Max(float64(x), float64(params.Runtime)))
+					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
 				case float64:
-					params.Runtime = int32(math.Max(x, float64(params.Runtime)))
+					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
 				}
 			}
 		}
 	}
 
 	// Get Tags information
-	params.Tags = data.GetTags()
+	r.Tags = data.GetTags()
 
 	// if we are resuming, we need to update the starting step
-	if params.FileStreamOffset[filestream.HistoryChunk] > 0 {
-		params.StartingStep += 1
+	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
+		r.StartingStep += 1
 	}
-	params.Resumed = true
+	r.Resumed = true
 
-	if !params.StartTime.IsZero() {
-		params.StartTime = params.StartTime.Add(time.Duration(-params.Runtime) * time.Second)
+	if !r.StartTime.IsZero() {
+		r.StartTime = r.StartTime.Add(time.Duration(-r.Runtime) * time.Second)
 	}
 
-	return params, nil
+	return r, nil
 }
