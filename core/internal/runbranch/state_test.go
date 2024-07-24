@@ -89,7 +89,7 @@ func TestMerge(t *testing.T) {
 	assert.Equal(t, r.SweepID, r2.SweepID)
 	assert.Equal(t, r.StartingStep, r2.StartingStep)
 	assert.Equal(t, r.Runtime, r2.Runtime)
-	assert.Equal(t, r.Config, map[string]interface{}{
+	assert.Equal(t, r.Config, map[string]any{
 		"test":  "test",
 		"test2": "test2",
 	})
