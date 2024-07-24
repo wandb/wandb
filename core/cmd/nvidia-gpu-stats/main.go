@@ -227,7 +227,13 @@ func main() {
 	defer ticker.Stop()
 
 	for range ticker.C {
+		timeStamp := time.Now()
 		metrics := gpu.SampleMetrics()
+		if metrics == nil {
+			return
+		}
+		// add timestamp
+		metrics["_timestamp"] = timeStamp.Unix()
 		// print as JSON
 		output, err := json.Marshal(metrics)
 		if err != nil {
