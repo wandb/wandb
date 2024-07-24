@@ -201,7 +201,7 @@ def get_requirements_section(
     # If there is a requirements.txt at root of build context, use that.
     if (base_path / "src" / "requirements.txt").exists():
         requirements_files += ["src/requirements.txt"]
-        deps_install_line = "pip install -r requirements.txt"
+        deps_install_line = "pip install uv && uv pip install -r requirements.txt"
         with open(base_path / "src" / "requirements.txt") as f:
             requirements = f.readlines()
         if not any(["wandb" in r for r in requirements]):
@@ -237,7 +237,9 @@ def get_requirements_section(
                 with open(base_path / "src" / "requirements.txt", "w") as f:
                     f.write("\n".join(project_deps))
                 requirements_files += ["src/requirements.txt"]
-                deps_install_line = "pip install -r requirements.txt"
+                deps_install_line = (
+                    "pip install uv && uv pip install -r requirements.txt"
+                )
                 return PIP_TEMPLATE.format(
                     buildx_optional_prefix=prefix,
                     requirements_files=" ".join(requirements_files),

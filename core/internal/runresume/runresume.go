@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/wandb/simplejsonext"
 
@@ -29,6 +30,7 @@ const (
 type State struct {
 	resume           Mode
 	FileStreamOffset filestream.FileStreamOffsetMap
+	StartTime        time.Time
 	logger           *observability.CoreLogger
 }
 
@@ -171,6 +173,8 @@ func (r *State) update(bucket *Bucket, run *service.RunRecord, config *runconfig
 		return errors.Join(errs...)
 	}
 
+	r.StartTime = run.StartTime.AsTime().Add(-time.Duration(run.Runtime) * time.Second)
+
 	return nil
 }
 
@@ -269,6 +273,7 @@ func (r *State) updateSummary(run *service.RunRecord, bucket *Bucket) error {
 		})
 	}
 	run.Summary = &record
+
 	return nil
 }
 
