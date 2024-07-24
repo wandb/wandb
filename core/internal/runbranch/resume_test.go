@@ -78,6 +78,24 @@ func TestMustResumeEmptyResponse(t *testing.T) {
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
+func TestMustResumeNilResponse(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	nilResponse, _ := json.Marshal(nil)
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("RunResumeStatus"),
+		string(nilResponse),
+	)
+	resumeState := runbranch.NewResumeBranch(
+		context.Background(),
+		mockGQL,
+		"must")
+	updates, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+	assert.Nil(t, updates, "GetUpdates should return nil when response is invalid")
+	assert.NotNil(t, err, "GetUpdates should return an error")
+	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+}
+
 func TestNeverResumeNoneEmptyResponse(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
 	history := "[]"
@@ -1241,7 +1259,7 @@ func TestExtractRunStateAdjustsStartTime(t *testing.T) {
 	resumeState := runbranch.NewResumeBranch(
 		context.Background(),
 		mockGQL,
-		"allow")
+		"must")
 
 	runPath := runbranch.RunPath{
 		Entity:  "test-entity",

@@ -41,7 +41,6 @@ type RunParams struct {
 	Summary map[string]any
 
 	Resumed bool
-	Forked  bool
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
@@ -223,10 +222,6 @@ func (r *RunParams) Merge(other *RunParams) {
 
 	if other.Resumed {
 		r.Resumed = true
-	}
-
-	if other.Forked {
-		r.Forked = true
 	}
 }
 
