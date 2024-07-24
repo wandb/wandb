@@ -3,14 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"strings"
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/process"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type GPUNvidia struct {
@@ -234,41 +231,45 @@ func (g *GPUNvidia) Close() {
 	}
 }
 
-func (g *GPUNvidia) Probe() *service.MetadataRequest {
+type GPU struct {
+	name        string
+	memoryTotal uint64
+}
+
+type GPUInfo struct {
+	count   int
+	devices []GPU
+}
+
+func (g *GPUNvidia) Probe() *GPUInfo {
 	if g.nvmlInit != nvml.SUCCESS {
 		return nil
 	}
 
-	info := service.MetadataRequest{
-		GpuNvidia: []*service.GpuNvidiaInfo{},
-	}
+	info := GPUInfo{}
 
 	count, ret := nvml.DeviceGetCount()
 	if ret != nvml.SUCCESS {
 		return nil
 	}
 
-	info.GpuCount = uint32(count)
-	names := make([]string, count)
+	info.count = count
+	devices := make([]GPU, count)
 
 	for di := 0; di < count; di++ {
 		device, ret := nvml.DeviceGetHandleByIndex(di)
-		gpuInfo := &service.GpuNvidiaInfo{}
 		if ret == nvml.SUCCESS {
 			name, ret := device.GetName()
 			if ret == nvml.SUCCESS {
-				gpuInfo.Name = name
-				names[di] = name
+				devices[di] = GPU{name: name}
 			}
 			memoryInfo, ret := device.GetMemoryInfo()
 			if ret == nvml.SUCCESS {
-				gpuInfo.MemoryTotal = memoryInfo.Total
+				devices[di].memoryTotal = memoryInfo.Total
 			}
 		}
-		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
 	}
-
-	info.GpuType = "[" + strings.Join(names, ", ") + "]"
+	info.devices = devices
 
 	return &info
 }
@@ -284,6 +285,9 @@ func main() {
 	if !gpu.IsAvailable() {
 		return
 	}
+
+	info := gpu.Probe()
+	fmt.Println(info)
 
 	gpu.SampleMetrics()
 	fmt.Println(gpu.metrics)
