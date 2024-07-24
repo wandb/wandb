@@ -93,7 +93,7 @@ func TestMerge(t *testing.T) {
 		"test":  "test",
 		"test2": "test2",
 	})
-	assert.Equal(t, r.Summary, map[string]interface{}{
+	assert.Equal(t, r.Summary, map[string]any{
 		"test":  "test",
 		"test2": "test2",
 	})
