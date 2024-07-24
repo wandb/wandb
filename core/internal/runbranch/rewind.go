@@ -2,7 +2,6 @@ package runbranch
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
@@ -43,6 +42,10 @@ func (r RewindBranch) GetUpdates(
 ) (*RunParams, error) {
 	// TODO: check that runid matches runpath.RunID
 
+	if r.metricName != "_step" {
+		return nil, fmt.Errorf("rewind only supports _step metric")
+	}
+
 	response, err := gql.RewindRun(
 		r.ctx,
 		r.client,
@@ -60,23 +63,36 @@ func (r RewindBranch) GetUpdates(
 		return nil, &BranchError{Err: err, Response: info}
 	}
 
+	if response.GetRewindRun() == nil || response.GetRewindRun().GetRewoundRun() == nil {
+		info := &service.ErrorInfo{
+			Code:    service.ErrorInfo_COMMUNICATION,
+			Message: "Failed to rewind run: run not found",
+		}
+		return nil, &BranchError{Err: fmt.Errorf("run not found"), Response: info}
+	}
+
 	// TODO: check errors
 	data := response.GetRewindRun().GetRewoundRun()
 
-	fmt.Println(data)
+	params.StartingStep = int64(r.metricValue) + 1
+	params.Forked = true
 
 	if data.GetId() != "" {
 		params.StorageID = data.GetId()
 	}
+
 	if data.GetName() != "" {
 		params.RunID = data.GetName()
 	}
+
 	if data.GetDisplayName() != nil {
 		params.DisplayName = *data.GetDisplayName()
 	}
+
 	if data.GetSweepName() != nil {
 		params.SweepID = *data.GetSweepName()
 	}
+
 	if data.GetProject() != nil {
 		if data.GetProject().GetName() != "" {
 			params.Project = data.GetProject().GetName()
@@ -86,15 +102,14 @@ func (r RewindBranch) GetUpdates(
 			params.Entity = entity.GetName()
 		}
 	}
+
 	if data.GetHistoryLineCount() != nil {
 		params.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	}
 
 	// Get Config information
 	config := data.GetConfig()
-	if config == nil {
-		return nil, errors.New("no config found in resume response")
-	} else {
+	if config != nil {
 		// If we are unable to parse the config, we should fail if resume is set to
 		// must for any other case of resume status, it is fine to ignore it
 		cfgVal, err := simplejsonext.UnmarshalString(*config)
@@ -127,8 +142,5 @@ func (r RewindBranch) GetUpdates(
 		}
 	}
 
-	return nil, nil
-}
-
-func (r RewindBranch) ApplyUpdates(src, dst *RunParams) {
+	return params, nil
 }

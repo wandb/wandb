@@ -680,7 +680,29 @@ func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 		RunID:   s.startState.RunID,
 	})
 
-	fmt.Println(update, err)
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
+		)
+		// provide more info about the error to the user
+		if errType, ok := err.(*runbranch.BranchError); ok {
+			if errType.Response != nil {
+				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+					result := &service.RunUpdateResult{
+						Error: errType.Response,
+					}
+					s.respond(record, result)
+				}
+			}
+			return
+		}
+	}
+
+	s.startState.Merge(update)
+	// Merge the resumed config into the run config
+	s.runConfig.MergeResumedConfig(s.startState.Config)
+
+	proto.Merge(run, s.startState.Proto())
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
@@ -808,11 +830,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		case isRewind != nil:
 			s.sendRewindRun(record, runClone)
-			// state.branch = &RewindBranch{
-			// 	runid:  isRewind.GetRun(),
-			// 	metric: isRewind.GetMetric(),
-			// 	value:  isRewind.GetValue(),
-			// }
+			return
 		case isFork != nil:
 			// state.branch = &ForkBranch{
 			// 	runid:  isFork.GetRun(),

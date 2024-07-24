@@ -41,6 +41,7 @@ type RunParams struct {
 	Summary map[string]any
 
 	Resumed bool
+	Forked  bool
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
