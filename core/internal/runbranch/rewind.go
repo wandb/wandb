@@ -108,6 +108,9 @@ func (rb RewindBranch) GetUpdates(
 	}
 
 	if data.GetHistoryLineCount() != nil {
+		if r.FileStreamOffset == nil {
+			r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+		}
 		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	}
 

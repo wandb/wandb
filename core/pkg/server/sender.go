@@ -672,6 +672,7 @@ func (s *Sender) sendForkRun(_ *service.Record, _ *service.RunRecord) {
 
 func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 	rewind := s.settings.GetResumeFrom()
+	fmt.Println("rewind", rewind)
 	update, err := runbranch.NewRewindBranch(
 		s.ctx,
 		s.graphqlClient,
@@ -703,10 +704,18 @@ func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 	}
 
 	s.startState.Merge(update)
+	fmt.Printf("startState %+v\n", s.startState)
 	// Merge the resumed config into the run config
 	s.runConfig.MergeResumedConfig(s.startState.Config)
 
-	proto.Merge(run, s.startState.Proto())
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		proto.Merge(run, s.startState.Proto())
+		s.respond(record,
+			&service.RunUpdateResult{
+				Run: run,
+			},
+		)
+	}
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {

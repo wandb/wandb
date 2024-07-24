@@ -224,6 +224,10 @@ func (r *RunParams) Merge(other *RunParams) {
 	if other.Resumed {
 		r.Resumed = true
 	}
+
+	if other.Forked {
+		r.Forked = true
+	}
 }
 
 func NewRunParams() *RunParams {
