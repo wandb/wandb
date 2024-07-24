@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 
@@ -220,5 +221,10 @@ func main() {
 	}
 
 	metrics := gpu.SampleMetrics()
-	fmt.Println(metrics)
+	// print as JSON
+	output, err := json.Marshal(metrics)
+	if err != nil {
+		return
+	}
+	fmt.Println(string(output))
 }
