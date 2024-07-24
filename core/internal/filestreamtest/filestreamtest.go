@@ -3,6 +3,7 @@ package filestreamtest
 import (
 	"slices"
 	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -57,6 +58,7 @@ func (fs *FakeFileStream) Start(
 	project string,
 	runID string,
 	offsetMap filestream.FileStreamOffsetMap,
+	startTime time.Time,
 ) {
 }
 

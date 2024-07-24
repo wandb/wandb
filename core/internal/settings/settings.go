@@ -147,3 +147,8 @@ func (s *Settings) GetHTTPProxy() string {
 func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
+
+// Update StartTime in the settings.
+func (s *Settings) SetStartTime(startTime time.Time) {
+	s.Proto.XStartTime = &wrapperspb.DoubleValue{Value: float64(startTime.UnixNano()) / 1e9}
+}

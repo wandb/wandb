@@ -426,12 +426,18 @@ func (s *Sender) updateSettings() {
 func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 	s.updateSettings()
 
+	startTime := s.RunRecord.GetStartTime().AsTime()
+	if s.resumeState != nil {
+		startTime = s.resumeState.StartTime
+	}
+
 	if s.fileStream != nil {
 		s.fileStream.Start(
 			s.RunRecord.GetEntity(),
 			s.RunRecord.GetProject(),
 			s.RunRecord.GetRunId(),
 			s.resumeState.GetFileStreamOffset(),
+			startTime,
 		)
 	}
 }
