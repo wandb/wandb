@@ -670,52 +670,8 @@ func (s *Sender) sendForkRun(_ *service.Record, _ *service.RunRecord) {
 	// TODO: implement fork
 }
 
-func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
-	rewind := s.settings.GetResumeFrom()
-	fmt.Println("rewind", rewind)
-	update, err := runbranch.NewRewindBranch(
-		s.ctx,
-		s.graphqlClient,
-		rewind.GetRun(),
-		rewind.GetMetric(),
-		rewind.GetValue(),
-	).GetUpdates(s.startState, runbranch.RunPath{
-		Entity:  s.startState.Entity,
-		Project: s.startState.Project,
-		RunID:   s.startState.RunID,
-	})
-
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
-		)
-		// provide more info about the error to the user
-		if errType, ok := err.(*runbranch.BranchError); ok {
-			if errType.Response != nil {
-				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-					result := &service.RunUpdateResult{
-						Error: errType.Response,
-					}
-					s.respond(record, result)
-				}
-			}
-			return
-		}
-	}
-
-	s.startState.Merge(update)
-	fmt.Printf("startState %+v\n", s.startState)
-	// Merge the resumed config into the run config
-	s.runConfig.MergeResumedConfig(s.startState.Config)
-
-	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		proto.Merge(run, s.startState.Proto())
-		s.respond(record,
-			&service.RunUpdateResult{
-				Run: run,
-			},
-		)
-	}
+func (s *Sender) sendRewindRun(_ *service.Record, _ *service.RunRecord) {
+	// TODO: implement rewind
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
@@ -846,6 +802,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			return
 		case isFork != nil:
 			s.sendForkRun(record, runClone)
+			return
 		default:
 			// no resume, rewind, or fork provided
 		}
