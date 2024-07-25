@@ -6,6 +6,10 @@ import platform
 import subprocess
 from typing import Mapping, Optional
 
+from click import command
+
+import c
+
 
 def build_wandb_core(
     go_binary: pathlib.Path,
@@ -43,17 +47,21 @@ def build_wandb_core(
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
+    cmd = [
+        str(go_binary),
+        "build",
+        *coverage_flags,
+        *race_detect_flags,
+        *ld_flags,
+        *output_flags,
+        *vendor_flags,
+        str(pathlib.Path("cmd", "wandb-core", "main.go")),
+    ]
+    print()
+    print(cmd)
+    print()
     subprocess.check_call(
-        [
-            str(go_binary),
-            "build",
-            *coverage_flags,
-            *race_detect_flags,
-            *ld_flags,
-            *output_flags,
-            *vendor_flags,
-            str(pathlib.Path("cmd", "wandb-core", "main.go")),
-        ],
+        cmd,
         cwd="./core",
         env=_go_env(with_race_detection=with_race_detection, maybe_with_cgo=False),
     )
