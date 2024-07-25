@@ -147,3 +147,18 @@ func (s *Settings) GetHTTPProxy() string {
 func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
 }
+
+// Resume mode for the run.
+func (s *Settings) GetResume() string {
+	return s.Proto.Resume.GetValue()
+}
+
+// ResumeFrom (or Rewind) information for the run.
+func (s *Settings) GetResumeFrom() *service.RunMoment {
+	return s.Proto.ResumeFrom
+}
+
+// Fork information for the run.
+func (s *Settings) GetForkFrom() *service.RunMoment {
+	return s.Proto.ForkFrom
+}

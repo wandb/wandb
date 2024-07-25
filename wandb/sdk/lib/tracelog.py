@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 ANNOTATE_QUEUE_NAME = "_DEBUGLOG_QUEUE_NAME"
 
 # capture stdout and stderr before anyone messes with them
-stdout_write = sys.__stdout__.write
-stderr_write = sys.__stderr__.write
+stdout_write = sys.__stdout__.write  # type: ignore
+stderr_write = sys.__stderr__.write  # type: ignore
 
 
 def _log(
