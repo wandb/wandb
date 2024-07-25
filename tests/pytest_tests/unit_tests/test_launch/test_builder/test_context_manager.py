@@ -46,11 +46,11 @@ def test_create_build_context_wandb_dockerfile(mock_git_project):
     path = pathlib.Path(path)
     dockerfile = (path / "Dockerfile.wandb").read_text()
     assert "FROM python:3.8" in dockerfile
-    assert "pip install -r requirements.txt" in dockerfile
+    assert "uv pip install -r requirements.txt" in dockerfile
     assert (path / "src" / "entrypoint.py").exists()
     assert (path / "src" / "requirements.txt").exists()
     assert (
-        image_tag == "0c0f4554"
+        image_tag == "62143254"
     )  # This is the hash of the Dockerfile + image_source_string.
 
 
@@ -140,10 +140,10 @@ def test_create_build_context_buildx_enabled(mocker, mock_git_project):
     path = pathlib.Path(path)
     dockerfile = (path / "Dockerfile.wandb").read_text()
     assert "FROM python:3.8" in dockerfile
-    assert "pip install -r requirements.txt" in dockerfile
+    assert "uv pip install -r requirements.txt" in dockerfile
     assert "RUN WANDB_DISABLE_CACHE=true" not in dockerfile
     assert (path / "src" / "entrypoint.py").exists()
     assert (path / "src" / "requirements.txt").exists()
     assert (
-        image_tag == "a3a51084"
+        image_tag == "f17a9120"
     )  # This is the hash of the Dockerfile + image_source_string.
