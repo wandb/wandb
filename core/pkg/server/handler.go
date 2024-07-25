@@ -768,7 +768,7 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 		Indent: "  ",
 		// EmitUnpopulated: true,
 	}
-	jsonBytes, err := mo.Marshal(request)
+	jsonBytes, err := mo.Marshal(h.metadata)
 	if err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("error marshalling metadata: %v", err))
