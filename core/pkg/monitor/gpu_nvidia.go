@@ -14,7 +14,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func getExecPath() (string, error) {
+func getCmdPath() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
 		return "", err
@@ -43,7 +43,8 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		settings: settings,
 	}
 
-	if exPath, err := getExecPath(); err != nil {
+	exPath, err := getCmdPath()
+	if err != nil {
 		return gpu
 	}
 
@@ -56,18 +57,18 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	cmd := exec.Command(
 		exPath,
 		fmt.Sprintf("-s=%fs", samplingInterval),
-		fmt.Sprintf("-pid=%d", g.settings.XStatsPid.GetValue()),
+		fmt.Sprintf("-pid=%d", settings.XStatsPid.GetValue()),
 	)
 
 	// Get a pipe to read from the command's stdout
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
-		return
+		return gpu
 	}
 
 	// Start the command
 	if err := cmd.Start(); err != nil {
-		return
+		return gpu
 	}
 
 	// Start goroutine to read and process output
