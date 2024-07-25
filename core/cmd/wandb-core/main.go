@@ -4,9 +4,7 @@ import (
 	"context"
 	"flag"
 	"log/slog"
-	_ "net/http/pprof"
 	"os"
-	"runtime"
 	"runtime/trace"
 
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -25,9 +23,9 @@ const (
 // this is set by the build script and used by the observability package
 var commit string
 
-func init() {
-	runtime.SetBlockProfileRate(1)
-}
+// func init() {
+// 	runtime.SetBlockProfileRate(1)
+// }
 
 func main() {
 	// Flags to control the server
