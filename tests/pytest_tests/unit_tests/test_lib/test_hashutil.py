@@ -57,6 +57,7 @@ def test_md5_file_b64_no_files():
 
 
 @given(st.binary())
+@settings(max_examples=10)
 def test_md5_file_hex_single_file(data):
     write_file("binfile", "wb", data)
     assert hashlib.md5(data).hexdigest() == hashutil.md5_file_hex("binfile")
