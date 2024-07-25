@@ -21,21 +21,26 @@ type GPUNvidia struct {
 }
 
 func NewGPUNvidia(pid int) *GPUNvidia {
-	return &GPUNvidia{pid: pid}
+	start := time.Now()
+	g := &GPUNvidia{pid: pid}
+	fmt.Printf("NewGPUNvidia duration: %v\n", time.Since(start))
+	return g
 }
 
 func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
+	start := time.Now()
+	defer func() {
+		fmt.Printf("gpuInUseByProcess duration: %v\n", time.Since(start))
+	}()
+
 	proc, err := process.NewProcess(int32(g.pid))
 	if err != nil {
-		// user process does not exist
 		return false
 	}
 
 	ourPids := make(map[int32]struct{})
-	// add user process pid
 	ourPids[int32(g.pid)] = struct{}{}
 
-	// find user process's children
 	childProcs, err := proc.Children()
 	if err == nil {
 		for _, childProc := range childProcs {
@@ -70,11 +75,13 @@ func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
 }
 
 func (g *GPUNvidia) SampleMetrics() map[string]any {
-	startTime := time.Now()
-	metrics := make(map[string]any)
-	timings := make(map[string]float64)
+	start := time.Now()
+	defer func() {
+		fmt.Printf("SampleMetrics total duration: %v\n", time.Since(start))
+	}()
 
-	// we would only call this method if NVML is available
+	metrics := make(map[string]any)
+
 	if g.nvmlInit != nvml.SUCCESS {
 		return nil
 	}
@@ -86,38 +93,31 @@ func (g *GPUNvidia) SampleMetrics() map[string]any {
 	metrics["gpu.count"] = count
 
 	for di := 0; di < count; di++ {
-		deviceStartTime := time.Now()
+		deviceStart := time.Now()
 		device, ret := nvml.DeviceGetHandleByIndex(di)
 		if ret != nvml.SUCCESS {
 			return nil
 		}
 
-		// get device name and total memory
 		name, ret := device.GetName()
 		if ret == nvml.SUCCESS {
 			key := fmt.Sprintf("gpu.%d.name", di)
 			metrics[key] = name
 		}
 
-		// gpu in use by process?
 		gpuInUseByProcess := g.gpuInUseByProcess(device)
 
-		// device utilization
 		utilization, ret := device.GetUtilizationRates()
 		if ret == nvml.SUCCESS {
-			// gpu utilization rate
 			key := fmt.Sprintf("gpu.%d.gpu", di)
 			metrics[key] = float64(utilization.Gpu)
-			// gpu utilization rate (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.gpu", di)
 				metrics[keyProc] = metrics[key]
 			}
 
-			// memory utilization rate
 			key = fmt.Sprintf("gpu.%d.memory", di)
 			metrics[key] = float64(utilization.Memory)
-			// memory utilization rate (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.memory", di)
 				metrics[keyProc] = metrics[key]
@@ -126,23 +126,18 @@ func (g *GPUNvidia) SampleMetrics() map[string]any {
 
 		memoryInfo, ret := device.GetMemoryInfo()
 		if ret == nvml.SUCCESS {
-			// memory total
 			key := fmt.Sprintf("gpu.%d.memoryTotal", di)
 			metrics[key] = memoryInfo.Total
 
-			// memory allocated
 			key = fmt.Sprintf("gpu.%d.memoryAllocated", di)
 			metrics[key] = float64(memoryInfo.Used) / float64(memoryInfo.Total) * 100
-			// memory allocated (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.memoryAllocated", di)
 				metrics[keyProc] = metrics[key]
 			}
 
-			// memory allocated (bytes)
 			key = fmt.Sprintf("gpu.%d.memoryAllocatedBytes", di)
 			metrics[key] = float64(memoryInfo.Used)
-			// memory allocated (bytes) (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.memoryAllocatedBytes", di)
 				metrics[keyProc] = metrics[key]
@@ -151,61 +146,53 @@ func (g *GPUNvidia) SampleMetrics() map[string]any {
 
 		temperature, ret := device.GetTemperature(nvml.TEMPERATURE_GPU)
 		if ret == nvml.SUCCESS {
-			// gpu temperature
 			key := fmt.Sprintf("gpu.%d.temp", di)
 			metrics[key] = float64(temperature)
-			// gpu temperature (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.temp", di)
 				metrics[keyProc] = metrics[key]
 			}
 		}
 
-		// gpu power usage (W)
 		powerUsage, ret := device.GetPowerUsage()
 		if ret == nvml.SUCCESS {
 			key := fmt.Sprintf("gpu.%d.powerWatts", di)
 			metrics[key] = float64(powerUsage) / 1000
-			// gpu power usage (W) (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.powerWatts", di)
 				metrics[keyProc] = metrics[key]
 			}
 		}
 
-		// gpu power limit (W)
 		powerLimit, ret := device.GetEnforcedPowerLimit()
 		if ret == nvml.SUCCESS {
 			key := fmt.Sprintf("gpu.%d.enforcedPowerLimitWatts", di)
 			metrics[key] = float64(powerLimit) / 1000
-			// gpu power limit (W) (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.enforcedPowerLimitWatts", di)
 				metrics[keyProc] = metrics[key]
 			}
 
-			// gpu power usage (%)
 			key = fmt.Sprintf("gpu.%d.powerPercent", di)
 			metrics[key] = float64(powerUsage) / float64(powerLimit) * 100
-			// gpu power usage (%) (if in use by process)
 			if gpuInUseByProcess {
 				keyProc := fmt.Sprintf("gpu.process.%d.powerPercent", di)
 				metrics[keyProc] = metrics[key]
 			}
 		}
 
-		deviceEndTime := time.Now()
-		timings[fmt.Sprintf("device_%d_duration", di)] = deviceEndTime.Sub(deviceStartTime).Seconds()
+		fmt.Printf("Device %d sampling duration: %v\n", di, time.Since(deviceStart))
 	}
-
-	endTime := time.Now()
-	timings["total_sample_duration"] = endTime.Sub(startTime).Seconds()
-	metrics["_timings"] = timings
 
 	return metrics
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
+	start := time.Now()
+	defer func() {
+		fmt.Printf("IsAvailable duration: %v\n", time.Since(start))
+	}()
+
 	defer func() {
 		if r := recover(); r != nil {
 			g.nvmlInit = nvml.ERROR_UNINITIALIZED
@@ -216,13 +203,16 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
+	start := time.Now()
 	err := nvml.Shutdown()
+	fmt.Printf("Close duration: %v\n", time.Since(start))
 	if err != nvml.SUCCESS {
 		return
 	}
 }
 
 func main() {
+	start := time.Now()
 	samplingInterval := flag.Duration("s", 1*time.Second, "sampling interval")
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 
@@ -235,14 +225,11 @@ func main() {
 		return
 	}
 
-	// Create a channel to receive OS signals
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
-	// Create a ticker that fires every `samplingInterval` seconds
 	ticker := time.NewTicker(*samplingInterval)
 
-	// Create a channel to signal the goroutine to stop
 	done := make(chan struct{})
 
 	wg := sync.WaitGroup{}
@@ -254,37 +241,31 @@ func main() {
 			case <-done:
 				return
 			case <-ticker.C:
-				loopStartTime := time.Now()
+				loopStart := time.Now()
 				timeStamp := time.Now()
 				metrics := gpu.SampleMetrics()
 				if metrics == nil {
 					continue
 				}
-				// add timestamp
 				metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
-				// print as JSON to stdout
-				jsonStartTime := time.Now()
+				jsonStart := time.Now()
 				output, err := json.Marshal(metrics)
+				jsonDuration := time.Since(jsonStart)
 				if err != nil {
 					continue
 				}
-				jsonEndTime := time.Now()
 				fmt.Println(string(output))
-				loopEndTime := time.Now()
-
-				if timings, ok := metrics["_timings"].(map[string]float64); ok {
-					timings["json_marshal_duration"] = jsonEndTime.Sub(jsonStartTime).Seconds()
-					timings["total_loop_duration"] = loopEndTime.Sub(loopStartTime).Seconds()
-				}
+				fmt.Printf("JSON marshal duration: %v\n", jsonDuration)
+				fmt.Printf("Total loop duration: %v\n", time.Since(loopStart))
 			}
 		}
 	}()
 
-	// Wait for a signal
 	<-sigChan
 
-	// Cleanup
 	close(done)
 	ticker.Stop()
 	wg.Wait()
+
+	fmt.Printf("Total main duration: %v\n", time.Since(start))
 }
