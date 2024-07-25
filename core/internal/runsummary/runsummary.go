@@ -70,7 +70,9 @@ func (rs *RunSummary) UpdateSummaries(
 
 	history.ForEach(
 		func(path pathtree.TreePath, value float64) bool {
-			update, err := rs.updateSummaryFloat(path, value)
+			update, err := rs.updateSummary(path, func(ms *metricSummary) {
+				ms.UpdateFloat(value)
+			})
 
 			if err != nil {
 				errs = append(errs, err)
@@ -82,7 +84,9 @@ func (rs *RunSummary) UpdateSummaries(
 			return true
 		},
 		func(path pathtree.TreePath, value int64) bool {
-			update, err := rs.updateSummaryInt(path, value)
+			update, err := rs.updateSummary(path, func(ms *metricSummary) {
+				ms.UpdateInt(value)
+			})
 
 			if err != nil {
 				errs = append(errs, err)
@@ -94,7 +98,9 @@ func (rs *RunSummary) UpdateSummaries(
 			return true
 		},
 		func(path pathtree.TreePath, value any) bool {
-			update, err := rs.updateSummaryOther(path, value)
+			update, err := rs.updateSummary(path, func(ms *metricSummary) {
+				ms.UpdateOther(value)
+			})
 
 			if err != nil {
 				errs = append(errs, err)
@@ -108,33 +114,6 @@ func (rs *RunSummary) UpdateSummaries(
 	)
 
 	return updates, errors.Join(errs...)
-}
-
-func (rs *RunSummary) updateSummaryFloat(
-	path pathtree.TreePath,
-	value float64,
-) (*service.SummaryItem, error) {
-	return rs.updateSummary(path, func(ms *metricSummary) {
-		ms.UpdateFloat(value)
-	})
-}
-
-func (rs *RunSummary) updateSummaryInt(
-	path pathtree.TreePath,
-	value int64,
-) (*service.SummaryItem, error) {
-	return rs.updateSummary(path, func(ms *metricSummary) {
-		ms.UpdateInt(value)
-	})
-}
-
-func (rs *RunSummary) updateSummaryOther(
-	path pathtree.TreePath,
-	value any,
-) (*service.SummaryItem, error) {
-	return rs.updateSummary(path, func(ms *metricSummary) {
-		ms.UpdateOther(value)
-	})
 }
 
 func (rs *RunSummary) updateSummary(

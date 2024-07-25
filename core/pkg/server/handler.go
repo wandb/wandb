@@ -993,6 +993,8 @@ func (h *Handler) handleSummary(
 
 // updateRunTiming updates the `_wandb.runtime` summary metric which
 // tracks the total duration of the run.
+//
+// This emits a summary record that is written to the transaction log.
 func (h *Handler) updateRunTiming() {
 	runtime := int(h.runTimer.Elapsed().Seconds())
 	record := &service.Record{
@@ -1004,7 +1006,6 @@ func (h *Handler) updateRunTiming() {
 				}},
 			},
 		},
-		Control: &service.Control{Local: true},
 	}
 
 	h.handleSummary(record, record.GetSummary())
@@ -1188,9 +1189,10 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 
 	newMetricDefs := h.metricHandler.UpdateMetrics(h.partialHistory)
 	for _, newMetric := range newMetricDefs {
+		// We don't mark the record 'Local' because partial history updates
+		// are not already written to the transaction log.
 		h.handleMetric(&service.Record{
 			RecordType: &service.Record_Metric{Metric: newMetric},
-			Control:    &service.Control{Local: true},
 		})
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
@@ -1229,6 +1231,8 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 }
 
 // updateSummary updates the summary based on the current history step.
+//
+// This emits a summary record that is written to the transaction log.
 func (h *Handler) updateSummary() {
 	updates, err := h.runSummary.UpdateSummaries(h.partialHistory)
 
@@ -1250,7 +1254,6 @@ func (h *Handler) updateSummary() {
 				Update: updates,
 			},
 		},
-		Control: &service.Control{Local: true},
 	})
 }
 
