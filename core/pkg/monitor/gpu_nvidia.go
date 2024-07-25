@@ -179,7 +179,9 @@ func (g *GPUNvidia) IsAvailable() bool {
 func (g *GPUNvidia) Close() {
 	// semd signal to close
 	if isRunning(g.cmd) {
-		g.cmd.Process.Signal(os.Kill)
+		if err := g.cmd.Process.Signal(os.Kill); err != nil {
+			return
+		}
 	}
 }
 
