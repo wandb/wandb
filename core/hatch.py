@@ -122,6 +122,7 @@ def _go_env(
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
 
+    env["CGO_ENABLED"] = "0"
     if maybe_with_cgo:
         system = platform.system().lower()
         arch = platform.machine().lower()
@@ -138,7 +139,5 @@ def _go_env(
             system == "windows" and with_race_detection
         ):
             env["CGO_ENABLED"] = "1"
-        else:
-            env["CGO_ENABLED"] = "0"
 
     return env
