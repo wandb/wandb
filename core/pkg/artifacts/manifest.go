@@ -28,13 +28,13 @@ type StoragePolicyConfig struct {
 
 type ManifestEntry struct {
 	// Fields from the service.ArtifactManifestEntry proto.
-	Digest          string                 `json:"digest"`
-	Ref             *string                `json:"ref,omitempty"`
-	Size            int64                  `json:"size"`
-	LocalPath       *string                `json:"local_path,omitempty"`
-	BirthArtifactID *string                `json:"birthArtifactID,omitempty"`
-	SkipCache       bool                   `json:"skip_cache"`
-	Extra           map[string]interface{} `json:"extra,omitempty"`
+	Digest          string         `json:"digest"`
+	Ref             *string        `json:"ref,omitempty"`
+	Size            int64          `json:"size"`
+	LocalPath       *string        `json:"local_path,omitempty"`
+	BirthArtifactID *string        `json:"birthArtifactID,omitempty"`
+	SkipCache       bool           `json:"skip_cache"`
+	Extra           map[string]any `json:"extra,omitempty"`
 	// Added and used during download.
 	DownloadURL *string `json:"-"`
 }
@@ -55,9 +55,9 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		manifest.Contents = contents
 	}
 	for _, entry := range proto.Contents {
-		extra := map[string]interface{}{}
+		extra := map[string]any{}
 		for _, item := range entry.Extra {
-			var value interface{}
+			var value any
 			err := json.Unmarshal([]byte(item.ValueJson), &value)
 			if err != nil {
 				return Manifest{}, fmt.Errorf(
@@ -102,7 +102,7 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 
 	for scanner.Scan() {
 		var entry ManifestEntry
-		var record map[string]interface{}
+		var record map[string]any
 		line := scanner.Bytes()
 		if err := json.Unmarshal(line, &record); err != nil {
 			return nil, fmt.Errorf("could not unmarshal json: %w", err)
@@ -138,9 +138,9 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 		}
 
 		// "extra" is itself a JSON object.
-		entry.Extra, ok = record["extra"].(map[string]interface{})
+		entry.Extra, ok = record["extra"].(map[string]any)
 		if !ok {
-			entry.Extra = make(map[string]interface{})
+			entry.Extra = make(map[string]any)
 		}
 		contents[path] = entry
 	}
