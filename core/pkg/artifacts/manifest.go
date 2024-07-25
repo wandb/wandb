@@ -80,14 +80,14 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 }
 
 func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
+	// Whether or not we successfully decode the manifest, we should clean up the file.
+	defer os.Remove(path)
+
 	manifestFile, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("error opening manifest file: %w", err)
 	}
 	defer manifestFile.Close()
-
-	// Whether or not we successfully decode the manifest, we should clean up the file.
-	defer os.Remove(path)
 
 	// The file is gzipped and needs to be decompressed.
 	gzReader, err := gzip.NewReader(manifestFile)
