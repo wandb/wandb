@@ -80,7 +80,7 @@ def build_nvidia_gpu_stats(
             str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
         ],
         cwd="./core",
-        env=_go_env(),
+        env=_go_env(with_race_detection=False),
     )
 
 
