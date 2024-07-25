@@ -6,10 +6,6 @@ import platform
 import subprocess
 from typing import Mapping, Optional
 
-from click import command
-
-import c
-
 
 def build_wandb_core(
     go_binary: pathlib.Path,
