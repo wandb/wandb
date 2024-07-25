@@ -208,6 +208,7 @@ func (g *GPUNvidia) IsAvailable() bool {
 
 func (g *GPUNvidia) Close() {
 	err := nvml.Shutdown()
+	fmt.Printf("nvml.Shutdown() returned %v\n", err)
 	if err != nvml.SUCCESS {
 		return
 	}
