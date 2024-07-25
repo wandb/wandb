@@ -9,7 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"sync"
+	"syscall"
 
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -28,9 +30,24 @@ func getCmdPath() (string, error) {
 	return exPath, nil
 }
 
+func isRunning(cmd *exec.Cmd) bool {
+	if cmd.Process == nil {
+		return false
+	}
+
+	process, err := os.FindProcess(cmd.Process.Pid)
+	if err != nil {
+		return false
+	}
+
+	err = process.Signal(syscall.Signal(0))
+	return err == nil
+}
+
 type GPUNvidia struct {
 	name     string
-	metrics  map[string][]float64
+	sample   map[string]any
+	metrics  map[string][]any
 	settings *service.Settings
 	mutex    sync.RWMutex
 	cmd      *exec.Cmd
@@ -39,7 +56,8 @@ type GPUNvidia struct {
 func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	gpu := &GPUNvidia{
 		name:     "gpu",
-		metrics:  map[string][]float64{},
+		sample:   map[string]any{},
+		metrics:  map[string][]any{},
 		settings: settings,
 	}
 
@@ -59,6 +77,7 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		fmt.Sprintf("-s=%fs", samplingInterval),
 		fmt.Sprintf("-pid=%d", settings.XStatsPid.GetValue()),
 	)
+	gpu.cmd = cmd
 
 	// Get a pipe to read from the command's stdout
 	stdout, err := cmd.StdoutPipe()
@@ -78,18 +97,21 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 			line := scanner.Text()
 
 			// Try to parse the line as JSON
-			var data map[string]interface{}
+			var data map[string]any
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
-				fmt.Printf("Error parsing JSON: %v\n", err)
 				continue
 			}
 
 			// Process the JSON data
-			fmt.Printf("Received JSON: %+v\n", data)
+			gpu.mutex.Lock()
+			for key, value := range data {
+				gpu.sample[key] = value
+			}
+			gpu.mutex.Unlock()
 		}
 
 		if err := scanner.Err(); err != nil {
-			fmt.Printf("Error reading stdout: %v\n", err)
+			return
 		}
 	}()
 
@@ -102,7 +124,20 @@ func (g *GPUNvidia) SampleMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	g.metrics = map[string][]float64{}
+	if !isRunning(g.cmd) {
+		return
+	}
+
+	// do not sample if the last timestamp is the same
+	if len(g.sample) > 0 &&
+		len(g.metrics) > 0 &&
+		g.sample["_timestamp"] == g.metrics["_timestamp"][len(g.metrics["_timestamp"])-1] {
+		return
+	}
+
+	for key, value := range g.sample {
+		g.metrics[key] = append(g.metrics[key], value)
+	}
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
@@ -112,7 +147,14 @@ func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {
 		if len(samples) > 0 {
-			aggregates[metric] = Average(samples)
+			// can cast to float64? then calculate average and store
+			if _, ok := samples[0].(float64); ok {
+				floatSamples := make([]float64, len(samples))
+				for i, v := range samples {
+					floatSamples[i] = v.(float64)
+				}
+				aggregates[metric] = Average(floatSamples)
+			}
 		}
 	}
 	return aggregates
@@ -122,22 +164,25 @@ func (g *GPUNvidia) ClearMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
-	g.metrics = map[string][]float64{}
+	g.metrics = map[string][]any{}
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
-	// TODO: fixme
-	return true
+	return isRunning(g.cmd)
 }
 
 func (g *GPUNvidia) Close() {
 	// semd signal to close
-	if g.cmd != nil {
+	if isRunning(g.cmd) {
 		g.cmd.Process.Signal(os.Interrupt)
 	}
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
+	if !g.IsAvailable() || len(g.sample) == 0 {
+		return nil
+	}
+
 	info := service.MetadataRequest{
 		GpuNvidia: []*service.GpuNvidiaInfo{},
 	}
@@ -147,27 +192,33 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	// 	return nil
 	// }
 
-	// info.GpuCount = uint32(count)
-	// names := make([]string, count)
+	if count, ok := g.sample["gpu.count"].(float64); ok {
+		info.GpuCount = uint32(count)
+	} else {
+		return nil
+	}
 
-	// for di := 0; di < count; di++ {
-	// 	device, ret := nvml.DeviceGetHandleByIndex(di)
-	// 	gpuInfo := &service.GpuNvidiaInfo{}
-	// 	if ret == nvml.SUCCESS {
-	// 		name, ret := device.GetName()
-	// 		if ret == nvml.SUCCESS {
-	// 			gpuInfo.Name = name
-	// 			names[di] = name
-	// 		}
-	// 		memoryInfo, ret := device.GetMemoryInfo()
-	// 		if ret == nvml.SUCCESS {
-	// 			gpuInfo.MemoryTotal = memoryInfo.Total
-	// 		}
-	// 	}
-	// 	info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
-	// }
+	names := make([]string, info.GpuCount)
 
-	// info.GpuType = "[" + strings.Join(names, ", ") + "]"
+	for di := 0; di < int(info.GpuCount); di++ {
+
+		gpuInfo := &service.GpuNvidiaInfo{}
+		name := fmt.Sprintf("gpu.%d.name", di)
+		if v, ok := g.sample[name]; ok {
+			gpuInfo.Name = v.(string)
+			names[di] = gpuInfo.Name
+		}
+
+		memTotal := fmt.Sprintf("gpu.%d.memoryTotal", di)
+		if v, ok := g.sample[memTotal]; ok {
+			gpuInfo.MemoryTotal = uint64(v)
+		}
+
+		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
+
+	}
+
+	info.GpuType = "[" + strings.Join(names, ", ") + "]"
 
 	return &info
 }
