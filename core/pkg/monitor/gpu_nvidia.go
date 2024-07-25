@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -136,6 +137,10 @@ func (g *GPUNvidia) SampleMetrics() {
 	}
 
 	for key, value := range g.sample {
+		// skip _timestamp, gpu.count, and gpu.%d.memoryTotal
+		if key == "_timestamp" || key == "gpu.count" || strings.HasSuffix(key, ".memoryTotal") {
+			continue
+		}
 		g.metrics[key] = append(g.metrics[key], value)
 	}
 }
@@ -179,18 +184,25 @@ func (g *GPUNvidia) Close() {
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
-	if !g.IsAvailable() || len(g.sample) == 0 {
+	if !g.IsAvailable() {
 		return nil
+	}
+
+	// wait for the first sample
+	for {
+		g.mutex.RLock()
+		_, ok := g.sample["gpu.count"]
+		g.mutex.RUnlock()
+		if ok {
+			break
+		}
+		// sleep for a while
+		time.Sleep(100 * time.Millisecond)
 	}
 
 	info := service.MetadataRequest{
 		GpuNvidia: []*service.GpuNvidiaInfo{},
 	}
-
-	// count, ret := nvml.DeviceGetCount()
-	// if ret != nvml.SUCCESS {
-	// 	return nil
-	// }
 
 	if count, ok := g.sample["gpu.count"].(float64); ok {
 		info.GpuCount = uint32(count)
