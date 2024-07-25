@@ -2719,6 +2719,7 @@ class Run:
                 Supported aggregations include "min", "max", "mean", "last",
                 "best", "copy" and "none". "best" is used together with the
                 goal parameter. "none" prevents a summary from being generated.
+                "copy" is deprecated and should not be used.
             goal: Specify how to interpret the "best" summary type.
                 Supported options are "minimize" and "maximize".
             overwrite: If false, then this call is merged with previous
@@ -2730,6 +2731,13 @@ class Run:
         Returns:
             An object that represents this call but can otherwise be discarded.
         """
+        if summary and "copy" in summary:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_copy,
+                "define_metric(summary='copy') is deprecated and will be removed.",
+                self,
+            )
+
         return self._define_metric(
             name,
             step_metric,
