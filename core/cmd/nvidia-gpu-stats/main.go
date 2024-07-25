@@ -70,7 +70,9 @@ func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
 }
 
 func (g *GPUNvidia) SampleMetrics() map[string]any {
+	startTime := time.Now()
 	metrics := make(map[string]any)
+	timings := make(map[string]float64)
 
 	// we would only call this method if NVML is available
 	if g.nvmlInit != nvml.SUCCESS {
@@ -84,6 +86,7 @@ func (g *GPUNvidia) SampleMetrics() map[string]any {
 	metrics["gpu.count"] = count
 
 	for di := 0; di < count; di++ {
+		deviceStartTime := time.Now()
 		device, ret := nvml.DeviceGetHandleByIndex(di)
 		if ret != nvml.SUCCESS {
 			return nil
@@ -191,7 +194,13 @@ func (g *GPUNvidia) SampleMetrics() map[string]any {
 			}
 		}
 
+		deviceEndTime := time.Now()
+		timings[fmt.Sprintf("device_%d_duration", di)] = deviceEndTime.Sub(deviceStartTime).Seconds()
 	}
+
+	endTime := time.Now()
+	timings["total_sample_duration"] = endTime.Sub(startTime).Seconds()
+	metrics["_timings"] = timings
 
 	return metrics
 }
@@ -245,6 +254,7 @@ func main() {
 			case <-done:
 				return
 			case <-ticker.C:
+				loopStartTime := time.Now()
 				timeStamp := time.Now()
 				metrics := gpu.SampleMetrics()
 				if metrics == nil {
@@ -253,11 +263,19 @@ func main() {
 				// add timestamp
 				metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
 				// print as JSON to stdout
+				jsonStartTime := time.Now()
 				output, err := json.Marshal(metrics)
 				if err != nil {
 					continue
 				}
+				jsonEndTime := time.Now()
 				fmt.Println(string(output))
+				loopEndTime := time.Now()
+
+				if timings, ok := metrics["_timings"].(map[string]float64); ok {
+					timings["json_marshal_duration"] = jsonEndTime.Sub(jsonStartTime).Seconds()
+					timings["total_loop_duration"] = loopEndTime.Sub(loopStartTime).Seconds()
+				}
 			}
 		}
 	}()
