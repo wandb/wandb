@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -233,6 +234,8 @@ func main() {
 	ticker := time.NewTicker(*samplingInterval)
 	defer ticker.Stop()
 
+	wg := sync.WaitGroup{}
+	wg.Add(1)
 	go func() {
 		for range ticker.C {
 			timeStamp := time.Now()
@@ -249,6 +252,8 @@ func main() {
 			}
 			fmt.Println(string(output))
 		}
+		fmt.Println("Exiting")
+		wg.Done()
 	}()
 
 	// Wait for a signal
@@ -256,4 +261,5 @@ func main() {
 
 	// Cleanup
 	ticker.Stop()
+	wg.Wait()
 }
