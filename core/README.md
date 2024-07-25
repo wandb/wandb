@@ -12,69 +12,6 @@
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
-
-# Documentation
-
-<p align='center'>
-<a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/experiments-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/experiments-light.svg" width="14.0%">
-  <img alt="Weights and Biases Experiments" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/reports?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/reports-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/reports-light.svg" width="14.0%">
-  <img alt="Weights and Biases Reports" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/artifacts?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/artifacts-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/artifacts-light.svg" width="14.0%">
-  <img alt="Weights and Biases Artifacts" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/tables?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/tables-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/tables-light.svg" width="14.0%">
-  <img alt="Weights and Biases Tables" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/sweeps?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/sweeps-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/sweeps-light.svg" width="14.0%">
-  <img alt="Weights and Biases Sweeps" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/launch?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/launch-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/launch-light.svg" width="14.0%">
-  <img alt="Weights and Biases Launch" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/model_registry?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/model-registry-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/model-registry-light.svg" width="14.0%">
-  <img alt="Weights and Biases Model Management" src="">
-</picture>
-</a>
-<a target="_blank" href="https://docs.wandb.ai/guides/artifacts/project-scoped-automations?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="../assets/Product_Icons_dark_background/automations-dark.svg" width="14.0%">
-  <source media="(prefers-color-scheme: light)" srcset="../assets/Product_Icons_light/automations-light.svg" width="14.0%">
-  <img alt="Weights and Biases Prompts" src="">
-</picture>
-</p>
-
-See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
-
 # `wandb-core`: A new backend for the W&B SDK
 
 ## Introduction
@@ -232,5 +169,4 @@ Status legend:
     (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
 [^CLI.1]: The command is namespaced under `wandb beta` group.
 [^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some commands.
-
 <details>
