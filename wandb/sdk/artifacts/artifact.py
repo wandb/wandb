@@ -1653,10 +1653,10 @@ class Artifact:
 
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
-        
+
         if env.is_offline():
             raise ValueError("Cannot download artifacts in offline mode.")
-        
+
         if is_require_core():
             return self._download_using_core(
                 root=root,
