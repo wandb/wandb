@@ -245,10 +245,10 @@ message Deprecated {
   bool api__artifact_versions = 13;  // wandb.Api().artifact_versions(...) called
 
   // wandb.sdk.artifact_collection.ArtifactCollection.change_type(...) called
-  bool artifact_collection__change_type = 14;  
+  bool artifact_collection__change_type = 14;
 
   // wandb.run.define_metric() called with summary="copy"
-  bool run__define_metric_copy = 15; 
+  bool run__define_metric_copy = 15;
 }
 
 message Issues {
