@@ -17,6 +17,7 @@ import wandb
 import wandb.data_types
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.wandb_run import Run
+from wandb.util import get_module, load_json_yaml_dict
 
 from .files import config_path_is_valid, override_file
 
@@ -129,7 +130,7 @@ def _publish_job_input(
     )
 
 
-def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
+def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
     """Recursively fix JSON schemas with common issues.
 
     1. Replaces any instances of $ref with their associated definition in defs
@@ -137,7 +138,7 @@ def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
     See test_internal.py for examples
     """
     ret: Dict[str, Any] = {}
-    if "$ref" in schema:
+    if "$ref" in schema and defs:
         # Reference found, replace it with its definition
         def_key = schema["$ref"].split("#/$defs/")[1]
         # Also run recursive replacement in case a ref contains more refs
@@ -170,12 +171,19 @@ def _replace_refs_and_allofs(schema: dict, defs: dict) -> dict:
     return ret
 
 
-def _convert_pydantic_model_to_jsonschema(model: Any) -> dict:
-    schema = model.model_json_schema()
-    defs = schema.pop("$defs")
-    if not defs:
-        return schema
-    return _replace_refs_and_allofs(schema, defs)
+def _validate_schema(schema: dict) -> None:
+    jsonschema = get_module(
+        "jsonschema",
+        required="Setting job schema requires the jsonschema package. Please install it with `pip install 'wandb[launch]'`.",
+        lazy=False,
+    )
+    metaschema = load_json_yaml_dict(
+        os.path.join(os.path.dirname(__file__), "schema.json")
+    )
+    validator = jsonschema.Draft202012Validator(metaschema)
+    errs = sorted(validator.iter_errors(schema), key=str)
+    if errs:
+        wandb.termwarn(f"Schema includes unhandled or invalid configurations:\n{errs}")
 
 
 def handle_config_file_input(
@@ -204,16 +212,20 @@ def handle_config_file_input(
         path,
         dest,
     )
-    # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
-    # or the BaseModel class itself (e.g. schema=MySchema)
-    if hasattr(schema, "model_json_schema") and callable(
-        schema.model_json_schema  # type: ignore
-    ):
-        schema = _convert_pydantic_model_to_jsonschema(schema)
-    if schema and not isinstance(schema, dict):
-        raise LaunchError(
-            "schema must be a dict, Pydantic model instance, or Pydantic model class."
-        )
+    if schema:
+        # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+        # or the BaseModel class itself (e.g. schema=MySchema)
+        if hasattr(schema, "model_json_schema") and callable(
+            schema.model_json_schema  # type: ignore
+        ):
+            schema = schema.model_json_schema()
+        if not isinstance(schema, dict):
+            raise LaunchError(
+                "schema must be a dict, Pydantic model instance, or Pydantic model class."
+            )
+        defs = schema.pop("$defs", None)
+        schema = _replace_refs_and_allofs(schema, defs)
+        _validate_schema(schema)
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
@@ -241,16 +253,20 @@ def handle_run_config_input(
     If there is no active run, the include and exclude paths are staged and sent
     when a run is created.
     """
-    # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
-    # or the BaseModel class itself (e.g. schema=MySchema)
-    if hasattr(schema, "model_json_schema") and callable(
-        schema.model_json_schema  # type: ignore
-    ):
-        schema = _convert_pydantic_model_to_jsonschema(schema)
-    if schema and not isinstance(schema, dict):
-        raise LaunchError(
-            "schema must be a dict, Pydantic model instance, or Pydantic model class."
-        )
+    if schema:
+        # This supports both an instance of a pydantic BaseModel class (e.g. schema=MySchema(...))
+        # or the BaseModel class itself (e.g. schema=MySchema)
+        if hasattr(schema, "model_json_schema") and callable(
+            schema.model_json_schema  # type: ignore
+        ):
+            schema = schema.model_json_schema()
+        if not isinstance(schema, dict):
+            raise LaunchError(
+                "schema must be a dict, Pydantic model instance, or Pydantic model class."
+            )
+        defs = schema.pop("$defs", None)
+        schema = _replace_refs_and_allofs(schema, defs)
+        _validate_schema(schema)
     arguments = JobInputArguments(
         include=include,
         exclude=exclude,
