@@ -138,5 +138,7 @@ def _go_env(
             system == "windows" and with_race_detection
         ):
             env["CGO_ENABLED"] = "1"
+        else:
+            env["CGO_ENABLED"] = "0"
 
     return env
