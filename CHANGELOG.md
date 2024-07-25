@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
+
 ## [0.17.5] - 2024-07-19
 
 ### Added
@@ -26,10 +30,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
 - Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
-
-### Fixed
-
-- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
 
 ## [0.17.4] - 2024-07-03
 
