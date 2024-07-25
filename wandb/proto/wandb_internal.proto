@@ -448,7 +448,10 @@ message ArtifactManifest {
   int32 version = 1;
   string storage_policy = 2;
   repeated StoragePolicyConfigItem storage_policy_config = 3;
+  // Only one of {contents, manifest_file_path} should be set.
   repeated ArtifactManifestEntry contents = 4;
+  // `manifest_file_path` is used for manifests that approach the 2GiB message limit.
+  // It should point to a gzipped, line-delimited JSON file containing manifest entries.
   string manifest_file_path = 5;
 }
 

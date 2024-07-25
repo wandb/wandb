@@ -3689,8 +3689,11 @@ type ArtifactManifest struct {
 	Version             int32                      `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`
 	StoragePolicy       string                     `protobuf:"bytes,2,opt,name=storage_policy,json=storagePolicy,proto3" json:"storage_policy,omitempty"`
 	StoragePolicyConfig []*StoragePolicyConfigItem `protobuf:"bytes,3,rep,name=storage_policy_config,json=storagePolicyConfig,proto3" json:"storage_policy_config,omitempty"`
-	Contents            []*ArtifactManifestEntry   `protobuf:"bytes,4,rep,name=contents,proto3" json:"contents,omitempty"`
-	ManifestFilePath    string                     `protobuf:"bytes,5,opt,name=manifest_file_path,json=manifestFilePath,proto3" json:"manifest_file_path,omitempty"`
+	// Only one of {contents, manifest_file_path} should be set.
+	Contents []*ArtifactManifestEntry `protobuf:"bytes,4,rep,name=contents,proto3" json:"contents,omitempty"`
+	// `manifest_file_path` is used for manifests that approach the 2GiB message limit.
+	// It should point to a gzipped, line-delimited JSON file containing manifest entries.
+	ManifestFilePath string `protobuf:"bytes,5,opt,name=manifest_file_path,json=manifestFilePath,proto3" json:"manifest_file_path,omitempty"`
 }
 
 func (x *ArtifactManifest) Reset() {
