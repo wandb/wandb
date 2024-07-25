@@ -55,7 +55,7 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		manifest.Contents = contents
 	}
 	for _, entry := range proto.Contents {
-		extra := map[string]any{}
+		extra := make(map[string]any, len(entry.Extra))
 		for _, item := range entry.Extra {
 			var value any
 			err := json.Unmarshal([]byte(item.ValueJson), &value)
@@ -116,21 +116,29 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 		if !ok {
 			return nil, fmt.Errorf("record missing 'digest' key or not a string")
 		}
-		entry.Size, ok = record["size"].(int64)
+		size, ok := record["size"].(float64)
 		if !ok {
 			entry.Size = 0
+		} else {
+			entry.Size = int64(size)
 		}
-		entry.Ref, ok = record["ref"].(*string)
-		if !ok {
+		ref, ok := record["ref"].(string)
+		if !ok || ref == "" {
 			entry.Ref = nil
+		} else {
+			entry.Ref = &ref
 		}
-		entry.LocalPath, ok = record["local_path"].(*string)
-		if !ok {
+		localPath, ok := record["local_path"].(string)
+		if !ok || localPath == "" {
 			entry.LocalPath = nil
+		} else {
+			entry.LocalPath = &localPath
 		}
-		entry.BirthArtifactID, ok = record["birthArtifactID"].(*string)
-		if !ok {
+		birthArtifactID, ok := record["birthArtifactID"].(string)
+		if !ok || birthArtifactID == "" {
 			entry.BirthArtifactID = nil
+		} else {
+			entry.BirthArtifactID = &birthArtifactID
 		}
 		entry.SkipCache, ok = record["skip_cache"].(bool)
 		if !ok {
@@ -148,6 +156,7 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error scanning file: %w", err)
 	}
+	fmt.Println("contents", contents)
 	return contents, nil
 }
 
