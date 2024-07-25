@@ -13,12 +13,12 @@ import (
 
 // RunSummary tracks summary statistics for all metrics in a run.
 type RunSummary struct {
-	// summaries maps .-separated metric names to their summaries.
-	summaries map[string]*metricSummary
+	// summaries maps metrics to metricSummary objects.
+	summaries *pathtree.PathTree
 }
 
 func New() *RunSummary {
-	return &RunSummary{summaries: make(map[string]*metricSummary)}
+	return &RunSummary{summaries: pathtree.New()}
 }
 
 // SetFromRecord explicitly sets the summary value of a metric.
@@ -30,24 +30,31 @@ func (rs *RunSummary) SetFromRecord(record *service.SummaryItem) error {
 		return fmt.Errorf("runsummary: invalid summary JSON: %v", err)
 	}
 
-	summary, ok := rs.summaries[keyPath(record)]
-	if !ok {
-		summary = &metricSummary{}
-		rs.summaries[keyPath(record)] = summary
-	}
-	summary.SetExplicit(value)
+	rs.getOrMakeSummary(keyPath(record)).SetExplicit(value)
 
 	return nil
 }
 
+func (rs *RunSummary) RemoveFromRecord(record *service.SummaryItem) {
+	if len(record.NestedKey) > 0 {
+		rs.Remove(
+			pathtree.PathOf(
+				record.NestedKey[0],
+				record.NestedKey[1:]...,
+			))
+	} else {
+		rs.Remove(pathtree.PathOf(record.Key))
+	}
+}
+
 // Remove deletes the summary for a metric.
-func (rs *RunSummary) Remove(key string) {
-	summary, ok := rs.summaries[key]
+func (rs *RunSummary) Remove(path pathtree.TreePath) {
+	summary, ok := rs.summaries.GetLeaf(path)
 	if !ok {
 		return
 	}
 
-	summary.Clear()
+	summary.(*metricSummary).Clear()
 }
 
 // UpdateSummaries updates metric summaries based on their new values
@@ -134,8 +141,7 @@ func (rs *RunSummary) updateSummary(
 	path pathtree.TreePath,
 	update func(*metricSummary),
 ) (*service.SummaryItem, error) {
-	key := strings.Join(path.Labels(), ".")
-	summary := rs.getOrMakeSummary(key)
+	summary := rs.getOrMakeSummary(path)
 
 	update(summary)
 	json, err := summary.ToExtendedJSON()
@@ -146,7 +152,7 @@ func (rs *RunSummary) updateSummary(
 
 	case json != "":
 		return &service.SummaryItem{
-			Key:       key,
+			NestedKey: path.Labels(),
 			ValueJson: json,
 		}, nil
 
@@ -157,11 +163,11 @@ func (rs *RunSummary) updateSummary(
 
 // ConfigureMetric sets the values to track for a metric.
 func (rs *RunSummary) ConfigureMetric(
-	key string,
+	path pathtree.TreePath,
 	noSummary bool,
 	track SummaryTypeFlags,
 ) {
-	summary := rs.getOrMakeSummary(key)
+	summary := rs.getOrMakeSummary(path)
 	summary.noSummary = noSummary
 	summary.track = track
 }
@@ -174,23 +180,27 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 	var records []*service.SummaryItem
 	var errs []error
 
-	for key, summary := range rs.summaries {
-		encoded, err := summary.ToExtendedJSON()
+	rs.summaries.ForEachLeaf(
+		func(path pathtree.TreePath, value any) bool {
+			summary := value.(*metricSummary)
+			encoded, err := summary.ToExtendedJSON()
 
-		if err != nil {
-			errs = append(errs, err)
-			continue
-		}
-		if len(encoded) == 0 {
-			continue
-		}
+			if err != nil {
+				errs = append(errs, err)
+				return true
+			}
+			if len(encoded) == 0 {
+				return true
+			}
 
-		records = append(records,
-			&service.SummaryItem{
-				Key:       key,
-				ValueJson: encoded,
-			})
-	}
+			records = append(records,
+				&service.SummaryItem{
+					NestedKey: path.Labels(),
+					ValueJson: encoded,
+				})
+
+			return true
+		})
 
 	return records, errors.Join(errs...)
 }
@@ -201,13 +211,17 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 func (rs *RunSummary) ToMap() map[string]any {
 	m := make(map[string]any)
 
-	for key, summary := range rs.summaries {
-		value := summary.ToMarshallableValue()
+	rs.summaries.ForEachLeaf(
+		func(path pathtree.TreePath, value any) bool {
+			summary := value.(*metricSummary)
+			x := summary.ToMarshallableValue()
 
-		if value != nil {
-			m[key] = value
-		}
-	}
+			if x != nil {
+				m[strings.Join(path.Labels(), ".")] = x
+			}
+
+			return true
+		})
 
 	return m
 }
@@ -216,30 +230,25 @@ func (rs *RunSummary) ToMap() map[string]any {
 func (rs *RunSummary) Serialize() ([]byte, error) {
 	jsonTree := pathtree.New()
 
-	for key, summary := range rs.summaries {
-		if len(key) == 0 {
-			continue
-		}
+	rs.summaries.ForEachLeaf(
+		func(path pathtree.TreePath, value any) bool {
+			summary := value.(*metricSummary)
 
-		labels := strings.Split(key, ".")
-		path := pathtree.PathOf(labels[0], labels[1:]...)
+			if jsonSummary := summary.ToMarshallableValue(); jsonSummary != nil {
+				jsonTree.Set(path, jsonSummary)
+			}
 
-		if jsonSummary := summary.ToMarshallableValue(); jsonSummary != nil {
-			jsonTree.Set(path, jsonSummary)
-		}
-	}
+			return true
+		})
 
 	return jsonTree.ToExtendedJSON()
 }
 
-func (rs *RunSummary) getOrMakeSummary(key string) *metricSummary {
-	summary, ok := rs.summaries[key]
-	if !ok {
-		summary = &metricSummary{}
-		rs.summaries[key] = summary
-	}
-
-	return summary
+func (rs *RunSummary) getOrMakeSummary(path pathtree.TreePath) *metricSummary {
+	return rs.summaries.GetOrMakeLeaf(
+		path,
+		func() any { return &metricSummary{} },
+	).(*metricSummary)
 }
 
 type summaryOrHistoryItem interface {
@@ -248,9 +257,12 @@ type summaryOrHistoryItem interface {
 }
 
 // keyPath returns the key on the summary or history proto as a path.
-func keyPath[T summaryOrHistoryItem](item T) string {
+func keyPath[T summaryOrHistoryItem](item T) pathtree.TreePath {
 	if len(item.GetNestedKey()) > 0 {
-		return strings.Join(item.GetNestedKey(), ".")
+		return pathtree.PathOf(
+			item.GetNestedKey()[0],
+			item.GetNestedKey()[1:]...,
+		)
 	}
-	return item.GetKey()
+	return pathtree.PathOf(item.GetKey())
 }

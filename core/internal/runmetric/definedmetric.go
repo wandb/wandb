@@ -58,6 +58,7 @@ func (m definedMetric) With(
 
 		m.SummaryTypes = 0
 
+		// TODO: handle "best" and "copy" summary settings
 		if record.Summary.Min {
 			m.SummaryTypes |= runsummary.Min
 		}
@@ -67,14 +68,8 @@ func (m definedMetric) With(
 		if record.Summary.Mean {
 			m.SummaryTypes |= runsummary.Mean
 		}
-		if record.Summary.Best {
-			// TODO: "best" summary type?
-		}
 		if record.Summary.Last {
 			m.SummaryTypes |= runsummary.Latest
-		}
-		if record.Summary.Copy {
-			// TODO: "copy" summary type?
 		}
 	}
 

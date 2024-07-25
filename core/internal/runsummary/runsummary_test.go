@@ -1,6 +1,7 @@
 package runsummary_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -46,7 +47,7 @@ func TestSummaryTypes(t *testing.T) {
 	rh3.SetFloat(pathtree.PathOf("x"), 2.3)
 
 	rs.ConfigureMetric(
-		"x", false,
+		pathtree.PathOf("x"), false,
 		runsummary.Min|runsummary.Max|runsummary.Mean|runsummary.Latest,
 	)
 	_, _ = rs.UpdateSummaries(rh1)
@@ -100,7 +101,7 @@ func TestRemove(t *testing.T) {
 		NestedKey: []string{"z", "w"},
 		ValueJson: "2",
 	})
-	rs.Remove("x.y")
+	rs.Remove(pathtree.PathOf("x", "y"))
 
 	assert.Equal(t,
 		map[string]any{"z.w": int64(2)},
@@ -110,7 +111,7 @@ func TestRemove(t *testing.T) {
 func TestNoSummary(t *testing.T) {
 	rs := runsummary.New()
 
-	rs.ConfigureMetric("x", true /*noSummary*/, 0)
+	rs.ConfigureMetric(pathtree.PathOf("x"), true /*noSummary*/, 0)
 	rs.SetFromRecord(&service.SummaryItem{Key: "x", ValueJson: "1"})
 
 	assert.Empty(t, rs.ToMap())
@@ -130,7 +131,7 @@ func TestToRecords(t *testing.T) {
 		NestedKey: []string{"y", "z"},
 		ValueJson: "NaN",
 	})
-	rs.ConfigureMetric("none", true, 0)
+	rs.ConfigureMetric(pathtree.PathOf("none"), true, 0)
 	_ = rs.SetFromRecord(&service.SummaryItem{
 		Key:       "none",
 		ValueJson: "123",
@@ -140,8 +141,8 @@ func TestToRecords(t *testing.T) {
 	assert.NoError(t, err)
 	require.Len(t, records, 2)
 	keyValue := make(map[string]string)
-	keyValue[records[0].Key] = records[0].ValueJson
-	keyValue[records[1].Key] = records[1].ValueJson
+	keyValue[strings.Join(records[0].NestedKey, ".")] = records[0].ValueJson
+	keyValue[strings.Join(records[1].NestedKey, ".")] = records[1].ValueJson
 	assert.Equal(t,
 		map[string]string{
 			"x":   "Infinity",
@@ -162,10 +163,10 @@ func TestSerialize(t *testing.T) {
 		ValueJson: "-5",
 	})
 	_ = rs.SetFromRecord(&service.SummaryItem{
-		Key:       "a.b.c",
+		NestedKey: []string{"a", "b", "c"},
 		ValueJson: `"abc"`,
 	})
-	rs.ConfigureMetric("none", true, 0)
+	rs.ConfigureMetric(pathtree.PathOf("none"), true, 0)
 	_ = rs.SetFromRecord(&service.SummaryItem{
 		Key:       "none",
 		ValueJson: `"none"`,

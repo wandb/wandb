@@ -957,7 +957,7 @@ func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) 
 	}
 
 	for _, remove := range summary.Remove {
-		s.runSummary.Remove(remove.Key)
+		s.runSummary.RemoveFromRecord(remove)
 	}
 
 	s.summaryDebouncer.SetNeedsDebounce()

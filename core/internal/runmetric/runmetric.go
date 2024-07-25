@@ -80,7 +80,13 @@ func (mh *MetricHandler) UpdateSummary(
 		return
 	}
 
-	summary.ConfigureMetric(name, metric.NoSummary, metric.SummaryTypes)
+	if len(name) == 0 {
+		return
+	}
+	parts := strings.Split(name, ".")
+	path := pathtree.PathOf(parts[0], parts[1:]...)
+
+	summary.ConfigureMetric(path, metric.NoSummary, metric.SummaryTypes)
 }
 
 // UpdateMetrics creates new metric definitions from globs that

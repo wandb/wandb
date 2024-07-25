@@ -984,8 +984,8 @@ func (h *Handler) handleSummary(
 		}
 	}
 
-	for _, removal := range summary.Remove {
-		h.runSummary.Remove(removal.Key)
+	for _, remove := range summary.Remove {
+		h.runSummary.RemoveFromRecord(remove)
 	}
 
 	h.fwdRecord(record)

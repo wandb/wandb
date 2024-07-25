@@ -27,7 +27,7 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 	}
 
 	for _, remove := range u.Record.Remove {
-		rs.Remove(remove.Key)
+		rs.RemoveFromRecord(remove)
 	}
 
 	line, err := rs.Serialize()
