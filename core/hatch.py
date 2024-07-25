@@ -125,7 +125,7 @@ def _go_env(
         env["GORACE"] = "halt_on_error=1"
 
     env["CGO_ENABLED"] = "0"
-    if maybe_with_cgo:
+    if with_race_detection or maybe_with_cgo:
         system = platform.system().lower()
         arch = platform.machine().lower()
         if (system, arch) in [
