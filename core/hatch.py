@@ -31,7 +31,14 @@ def build_wandb_core(
     coverage_flags = ["-cover"] if with_code_coverage else []
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
-    ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
+    linker_flags = [
+        "-s",  # Omit the symbol table and debug info.
+        "-w",  # Omit the DWARF symbol table.
+        # Set the Git commit variable in the main package.
+        "-X",
+        f"main.commit={wandb_commit_sha or ''}",
+    ]
+    ld_flags = [f"-ldflags={' '.join(linker_flags)}"]
     vendor_flags = ["-mod=vendor"]
 
     # We have to invoke Go from the directory with go.mod, hence the
@@ -77,16 +84,12 @@ def build_nvidia_gpu_stats(
     )
 
 
-def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
+def _go_linker_flags() -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
         "-s",  # Omit the symbol table and debug info.
         "-w",  # Omit the DWARF symbol table.
-        # Set the Git commit variable in the main package.
-        "-X",
-        f"main.commit={wandb_commit_sha or ''}",
     ]
-    print(flags)
 
     if platform.system().lower() == "linux" and platform.machine().lower() in (
         "x86_64",
