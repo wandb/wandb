@@ -437,7 +437,6 @@ func (s *Sender) sendRequestRunStart(_ *service.RunStartRequest) {
 			s.startState.Project,
 			s.startState.RunID,
 			s.startState.FileStreamOffset,
-			s.startState.StartTime,
 		)
 	}
 }
@@ -1088,7 +1087,22 @@ func (s *Sender) sendSystemMetrics(record *service.StatsRecord) {
 		return
 	}
 
-	s.fileStream.StreamUpdate(&fs.StatsUpdate{Record: record})
+	// This is a sanity check to ensure that the start time is set
+	// before sending system metrics, it should always be set
+	// when the run is initialized
+	// If it's not set, we log an error and return
+	if s.startState.StartTime.IsZero() {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: sendSystemMetrics: start time not set"),
+			"startState",
+			s.startState,
+		)
+		return
+	}
+
+	s.fileStream.StreamUpdate(&fs.StatsUpdate{
+		StartTime: s.startState.StartTime,
+		Record:    record})
 }
 
 func (s *Sender) sendOutput(_ *service.Record, _ *service.OutputRecord) {
