@@ -38,7 +38,7 @@ def build_wandb_core(
         "-X",
         f"main.commit={wandb_commit_sha or ''}",
     ]
-    ld_flags = [f"-ldflags=\"{' '.join(linker_flags)}\""]
+    ld_flags = [f"-ldflags={' '.join(linker_flags)}"]
     vendor_flags = ["-mod=vendor"]
 
     # We have to invoke Go from the directory with go.mod, hence the
@@ -53,9 +53,6 @@ def build_wandb_core(
         *vendor_flags,
         str(pathlib.Path("cmd", "wandb-core", "main.go")),
     ]
-    print()
-    print(cmd)
-    print()
     subprocess.check_call(
         cmd,
         cwd="./core",
@@ -69,7 +66,7 @@ def build_nvidia_gpu_stats(
 ) -> None:
     """Builds the nvidia_gpu_stats Go program."""
     output_flags = ["-o", str(".." / output_path)]
-    ld_flags = [f"-ldflags={_go_linker_flags()!r}"]
+    ld_flags = [f"-ldflags={_go_linker_flags()}"]
     vendor_flags = ["-mod=vendor"]
 
     cmd = [
@@ -80,10 +77,6 @@ def build_nvidia_gpu_stats(
         *vendor_flags,
         str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
     ]
-    print()
-    print(cmd)
-    print()
-
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
     subprocess.check_call(

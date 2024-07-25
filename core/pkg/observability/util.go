@@ -9,7 +9,9 @@ import (
 )
 
 // Commit is a type for storing the commit hash
-type Commit string
+type commitType string
+
+const Commit = commitType("commit")
 
 // FileSystem interface to abstract file system operations
 type FileSystem interface {
