@@ -69,20 +69,25 @@ def build_nvidia_gpu_stats(
 ) -> None:
     """Builds the nvidia_gpu_stats Go program."""
     output_flags = ["-o", str(".." / output_path)]
-    ld_flags = [f"-ldflags={_go_linker_flags()}"]
+    ld_flags = [f"-ldflags={_go_linker_flags()!r}"]
     vendor_flags = ["-mod=vendor"]
+
+    cmd = [
+        str(go_binary),
+        "build",
+        *output_flags,
+        *ld_flags,
+        *vendor_flags,
+        str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
+    ]
+    print()
+    print(cmd)
+    print()
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
     subprocess.check_call(
-        [
-            str(go_binary),
-            "build",
-            *output_flags,
-            *ld_flags,
-            *vendor_flags,
-            str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
-        ],
+        cmd,
         cwd="./core",
         env=_go_env(with_race_detection=False, maybe_with_cgo=True),
     )
