@@ -1647,7 +1647,7 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
-            ValueError: If the artifact is attempted to be downloaded in offline mode.
+            RuntimeError: If the artifact is attempted to be downloaded in offline mode.
         """
         self._ensure_logged("download")
 
@@ -1655,7 +1655,7 @@ class Artifact:
         self._add_download_root(root)
 
         if env.is_offline():
-            raise ValueError("Cannot download artifacts in offline mode.")
+            raise RuntimeError("Cannot download artifacts in offline mode.")
 
         if is_require_core():
             return self._download_using_core(
