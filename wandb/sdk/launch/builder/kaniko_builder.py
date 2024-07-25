@@ -319,7 +319,12 @@ class KanikoBuilder(AbstractBuilder):
                 await self._create_docker_ecr_config_map(
                     build_job_name, core_v1, repo_uri
                 )
-            await batch_v1.create_namespaced_job(NAMESPACE, build_job)
+            k8s_job = await batch_v1.create_namespaced_job(NAMESPACE, build_job)
+            pod_name = None
+            try:
+                pod_name = k8s_job.spec.template.metadata.name
+            except AttributeError:
+                pass
 
             # wait for double the job deadline since it might take time to schedule
             if not await _wait_for_completion(
@@ -327,9 +332,10 @@ class KanikoBuilder(AbstractBuilder):
             ):
                 if job_tracker:
                     job_tracker.set_err_stage("build")
-                raise Exception(
-                    f"Failed to build image in kaniko for job {run_id}. View logs with `kubectl logs -n {NAMESPACE} {build_job_name}`."
-                )
+                msg = f"Failed to build image in kaniko for job {run_id}."
+                if pod_name:
+                    msg += f" View logs with `kubectl logs -n {NAMESPACE} {pod_name}`."
+                raise Exception(msg)
             try:
                 pods_from_job = await core_v1.list_namespaced_pod(
                     namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
