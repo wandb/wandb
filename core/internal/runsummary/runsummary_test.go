@@ -112,7 +112,7 @@ func TestNoSummary(t *testing.T) {
 	rs := runsummary.New()
 
 	rs.ConfigureMetric(pathtree.PathOf("x"), true /*noSummary*/, 0)
-	rs.SetFromRecord(&service.SummaryItem{Key: "x", ValueJson: "1"})
+	_ = rs.SetFromRecord(&service.SummaryItem{Key: "x", ValueJson: "1"})
 
 	assert.Empty(t, rs.ToMap())
 	encoded, err := rs.Serialize()

@@ -1167,7 +1167,12 @@ func (s *Sender) sendExit(record *service.Record) {
 // sendMetric sends a metrics record to the file stream,
 // which will then send it to the server
 func (s *Sender) sendMetric(metric *service.MetricRecord) {
-	s.runConfigMetrics.ProcessRecord(metric)
+	err := s.runConfigMetrics.ProcessRecord(metric)
+
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
+		return
+	}
 
 	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
