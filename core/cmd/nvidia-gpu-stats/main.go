@@ -210,7 +210,7 @@ func (g *GPUNvidia) Close() {
 }
 
 func main() {
-	samplingInterval := flag.Duration("sampling", 1*time.Second, "sampling interval")
+	samplingInterval := flag.Duration("s", 1*time.Second, "sampling interval")
 	pid := flag.Int("pid", 0, "pid of the process to communicate with")
 
 	flag.Parse()

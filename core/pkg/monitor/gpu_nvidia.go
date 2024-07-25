@@ -44,52 +44,6 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
-	pid := int32(g.settings.XStatsPid.GetValue())
-
-	proc, err := process.NewProcess(pid)
-	if err != nil {
-		// user process does not exist
-		return false
-	}
-
-	ourPids := make(map[int32]struct{})
-	// add user process pid
-	ourPids[pid] = struct{}{}
-
-	// find user process's children
-	childProcs, err := proc.Children()
-	if err == nil {
-		for _, childProc := range childProcs {
-			ourPids[childProc.Pid] = struct{}{}
-		}
-	}
-
-	computeProcesses, ret := device.GetComputeRunningProcesses()
-	if ret != nvml.SUCCESS {
-		return false
-	}
-	graphicsProcesses, ret := device.GetGraphicsRunningProcesses()
-	if ret != nvml.SUCCESS {
-		return false
-	}
-	pidsUsingDevice := make(map[int32]struct{})
-	for _, p := range computeProcesses {
-		pidsUsingDevice[int32(p.Pid)] = struct{}{}
-	}
-	for _, p := range graphicsProcesses {
-		pidsUsingDevice[int32(p.Pid)] = struct{}{}
-	}
-
-	intersectionCount := 0
-	for pid := range pidsUsingDevice {
-		if _, exists := ourPids[pid]; exists {
-			intersectionCount++
-		}
-	}
-
-	return intersectionCount > 0
-}
 
 func (g *GPUNvidia) SampleMetrics() {
 	g.mutex.Lock()
