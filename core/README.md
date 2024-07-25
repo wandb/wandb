@@ -12,9 +12,7 @@
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
-
 # Documentation
-
 <p align='center'>
 <a target="_blank" href="https://docs.wandb.ai/guides/track?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme">
 <picture>
