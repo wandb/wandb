@@ -1,7 +1,6 @@
 package runsummary_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -140,15 +139,15 @@ func TestToRecords(t *testing.T) {
 
 	assert.NoError(t, err)
 	require.Len(t, records, 2)
-	keyValue := make(map[string]string)
-	keyValue[strings.Join(records[0].NestedKey, ".")] = records[0].ValueJson
-	keyValue[strings.Join(records[1].NestedKey, ".")] = records[1].ValueJson
-	assert.Equal(t,
-		map[string]string{
-			"x":   "Infinity",
-			"y.z": "NaN",
-		},
-		keyValue)
+	rec0 := records[0]
+	rec1 := records[1]
+	if len(rec0.NestedKey) > 0 {
+		rec0, rec1 = rec1, rec0
+	}
+	assert.Equal(t, "x", rec0.Key)
+	assert.Equal(t, "Infinity", rec0.ValueJson)
+	assert.Equal(t, []string{"y", "z"}, rec1.NestedKey)
+	assert.Equal(t, "NaN", rec1.ValueJson)
 }
 
 func TestSerialize(t *testing.T) {

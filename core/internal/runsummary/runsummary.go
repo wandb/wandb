@@ -193,11 +193,13 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 				return true
 			}
 
-			records = append(records,
-				&service.SummaryItem{
-					NestedKey: path.Labels(),
-					ValueJson: encoded,
-				})
+			item := &service.SummaryItem{ValueJson: encoded}
+			if path.Len() == 1 {
+				item.Key = path.End()
+			} else {
+				item.NestedKey = path.Labels()
+			}
+			records = append(records, item)
 
 			return true
 		})
