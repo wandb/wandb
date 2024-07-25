@@ -44,7 +44,6 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-
 func (g *GPUNvidia) SampleMetrics() {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
