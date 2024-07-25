@@ -104,6 +104,9 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
+	// metadata stores the run metadata including system stats
+	metadata *service.MetadataRequest
+
 	// tbHandler is the tensorboard handler
 	tbHandler *tensorboard.TBHandler
 
@@ -267,7 +270,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_RunStatus:
 		h.handleRequestRunStatus(record)
 	case *service.Request_Metadata:
-		// not implemented in the old handler
+		h.handleMetadata(x.Metadata)
 	case *service.Request_SummaryRecord:
 		// TODO: handles sending summary file
 	case *service.Request_TelemetryRecord:
@@ -619,13 +622,6 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		StartedAt:     run.GetStartTime(),
 		Git:           git,
 	}
-
-	if !h.settings.GetXDisableStats().GetValue() {
-		systemInfo := h.systemMonitor.Probe()
-		if systemInfo != nil {
-			proto.Merge(metadata, systemInfo)
-		}
-	}
 	h.handleMetadata(metadata)
 
 	h.respond(record, &service.Response{})
@@ -760,6 +756,12 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	//  a record and stored in the transaction log
 	if h.settings.GetXDisableMeta().GetValue() {
 		return
+	}
+
+	if h.metadata == nil {
+		h.metadata = request
+	} else {
+		proto.Merge(h.metadata, request)
 	}
 
 	mo := protojson.MarshalOptions{

@@ -47,8 +47,8 @@ func isRunning(cmd *exec.Cmd) bool {
 
 type GPUNvidia struct {
 	name     string
-	sample   map[string]any
-	metrics  map[string][]any
+	sample   map[string]any   // latest reading from nvidia_gpu_stats command
+	metrics  map[string][]any // all readings
 	settings *service.Settings
 	mutex    sync.RWMutex
 	cmd      *exec.Cmd
