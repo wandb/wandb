@@ -681,6 +681,7 @@ def mypy_report(session: nox.Session) -> None:
         "lxml",
         "pandas-stubs",
         "types-click",
+        "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
         "types-PyYAML",

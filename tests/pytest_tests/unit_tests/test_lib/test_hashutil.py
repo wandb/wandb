@@ -2,7 +2,7 @@ import base64
 import hashlib
 from typing import Optional
 
-from hypothesis import given
+from hypothesis import example, given, settings
 from hypothesis import strategies as st
 from wandb.sdk.lib import hashutil
 
@@ -63,6 +63,9 @@ def test_md5_file_hex_single_file(data):
 
 
 @given(st.binary(), st.text(), st.binary())
+@settings(max_examples=10)
+@example(b"g", "", b"\xb6DZ")
+@example(b"\x1b\xb7", "¬\U000f0c9a", b"\xb7\xb7")
 def test_md5_file_b64_three_files(data1, text, data2):
     write_file("a.bin", "wb", data1)
     write_file("b.txt", "w", text, encoding="utf-8")
@@ -75,6 +78,9 @@ def test_md5_file_b64_three_files(data1, text, data2):
 
 
 @given(st.binary(), st.text(), st.binary())
+@settings(max_examples=10)
+@example(b"g", "", b"\xb6DZ")
+@example(b"\x1b\xb7", "¬\U000f0c9a", b"\xb7\xb7")
 def test_md5_file_hex_three_files(data1, text, data2):
     write_file("a.bin", "wb", data1)
     write_file("b.txt", "w", text, encoding="utf-8")

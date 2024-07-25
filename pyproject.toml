@@ -89,6 +89,7 @@ launch = [
     "google-cloud-compute",
     "google-cloud-storage",
     "iso8601",
+    "jsonschema",
     "kubernetes",
     "kubernetes_asyncio",
     "optuna",

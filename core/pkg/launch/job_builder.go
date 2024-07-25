@@ -745,7 +745,7 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 		metadata["output_types"] = data_types.ResolveTypes(*output)
 	}
 	if len(input_schemas) > 0 {
-		metadata["input_schema"] = input_schemas
+		metadata["input_schemas"] = input_schemas
 	}
 
 	metadataBytes, err := json.Marshal(metadata)
