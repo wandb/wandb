@@ -233,7 +233,7 @@ func main() {
 			return
 		}
 		// add timestamp
-		metrics["_timestamp"] = timeStamp.Unix() + int64(timeStamp.Nanosecond())/1e9
+		metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
 		// print as JSON
 		output, err := json.Marshal(metrics)
 		if err != nil {
