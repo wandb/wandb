@@ -579,20 +579,9 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
-
-	// start the system monitor
-	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
-	}
-
-	// save code and patch
-	if h.settings.GetSaveCode().GetValue() {
-		h.handleCodeSave()
-		h.handlePatchSave()
-	}
-
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
+
 	// initialize the run metadata from settings
 	var git *service.GitRepoRecord
 	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
@@ -601,7 +590,6 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 			Commit:    run.GetGit().GetCommit(),
 		}
 	}
-
 	metadata := &service.MetadataRequest{
 		Os:            h.settings.GetXOs().GetValue(),
 		Python:        h.settings.GetXPython().GetValue(),
@@ -621,6 +609,17 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		Git:           git,
 	}
 	h.handleMetadata(metadata)
+
+	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor.Do()
+	}
+
+	// save code and patch
+	if h.settings.GetSaveCode().GetValue() {
+		h.handleCodeSave()
+		h.handlePatchSave()
+	}
 
 	h.respond(record, &service.Response{})
 }
