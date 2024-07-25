@@ -17,6 +17,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+// getCmdPath returns the path to the nvidia_gpu_stats program
 func getCmdPath() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
@@ -31,6 +32,7 @@ func getCmdPath() (string, error) {
 	return exPath, nil
 }
 
+// isRunning checks if the command is running by sending a signal to the process
 func isRunning(cmd *exec.Cmd) bool {
 	if cmd.Process == nil {
 		return false
@@ -67,12 +69,12 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		return gpu
 	}
 
-	// Define the command and its arguments
 	samplingInterval := defaultSamplingInterval.Seconds()
 	if settings.XStatsSampleRateSeconds.GetValue() > 0 {
 		samplingInterval = settings.XStatsSampleRateSeconds.GetValue()
 	}
 
+	// we will use nvidia_gpu_stats to get GPU stats
 	cmd := exec.Command(
 		exPath,
 		fmt.Sprintf("-s=%fs", samplingInterval),
@@ -80,18 +82,18 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	)
 	gpu.cmd = cmd
 
-	// Get a pipe to read from the command's stdout
+	// get a pipe to read from the command's stdout
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		return gpu
 	}
 
-	// Start the command
 	if err := cmd.Start(); err != nil {
 		return gpu
 	}
 
-	// Start goroutine to read and process output
+	// read and process nvidia_gpu_stats output in a separate goroutine.
+	// nvidia_gpu_stats outputs JSON data for each GPU every sampling interval.
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
