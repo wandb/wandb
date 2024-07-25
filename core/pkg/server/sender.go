@@ -1178,8 +1178,7 @@ func (s *Sender) sendExit(record *service.Record) {
 	)
 }
 
-// sendMetric sends a metrics record to the file stream,
-// which will then send it to the server
+// sendMetric updates the metrics in the run config.
 func (s *Sender) sendMetric(metric *service.MetricRecord) {
 	err := s.runConfigMetrics.ProcessRecord(metric)
 

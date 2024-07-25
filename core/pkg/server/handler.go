@@ -1018,16 +1018,7 @@ func (h *Handler) handleTBrecord(record *service.TBRecord) {
 	}
 }
 
-// The main entry point for history records.
-//
-// This processes a history record and forwards it to the writer.
-//
-// This function flushes the history record to the writer and updates the
-// summary. It is responsible for adding internal history items to the history
-// record, matching current history items with defined metrics, and creating
-// new metrics if needed. It also handles step metric in case it needs to be
-// synced, but not part of the history record. This function is also responsible
-// for sampling history items.
+// handleHistoryDirectly forwards history records without modification.
 func (h *Handler) handleHistoryDirectly(history *service.HistoryRecord) {
 	if len(history.GetItem()) == 0 {
 		return
@@ -1045,14 +1036,12 @@ func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-// The main entry point for partial history records.
-//
-// This collects partial history records until a full history record is
-// received. A full history record is received when the condition for flushing
-// the history record is met. The condition for flushing the history record is
-// determined by the action in the partial history request and the step number.
-// Once a full history record is received, it is forwarded to the writer.
-func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *service.PartialHistoryRequest) {
+// handleRequestPartialHistory updates the run history, flushing data for
+// completed steps.
+func (h *Handler) handleRequestPartialHistory(
+	_ *service.Record,
+	request *service.PartialHistoryRequest,
+) {
 	if h.settings.GetXShared().GetValue() {
 		h.handlePartialHistoryAsync(request)
 	} else {
@@ -1060,11 +1049,10 @@ func (h *Handler) handleRequestPartialHistory(_ *service.Record, request *servic
 	}
 }
 
-// The main entry point for partial history records in the shared mode.
+// handlePartialHistoryAsync updates the run history in shared mode.
 //
-// This collects partial history records until a full history record is
-// received. This is the asynchronous version of handlePartialHistory.
-// In this mode, the server will assign a step number to the history record.
+// In "shared" mode, multiple processes (possibly running on different
+// machines) write to the same run and the backend infers step numbers.
 func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		// NOTE: We ignore the step in shared mode.
@@ -1090,13 +1078,11 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 	}
 }
 
-// The main entry point for partial history records in the non-shared mode.
+// handlePartialHistorySync updates the run history in non-shared mode.
 //
-// This collects partial history records until a full history record is
-// received. This is the synchronous version of handlePartialHistory.
-// In this mode, the client will assign a step number to the history record.
-// The client is responsible for ensuring that the step number is monotonically
-// increasing.
+// In this mode, we are the only process writing to this run.
+// The main difference from shared mode is that we're responsible
+// for setting step numbers.
 func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		h.partialHistory = runhistory.New()
