@@ -39,6 +39,9 @@ class CustomBuildHook(BuildHookInterface):
         if self._include_wandb_core():
             artifacts.extend(self._build_wandb_core())
 
+        if self._include_nvidia_gpu_stats():
+            artifacts.extend(self._build_nvidia_gpu_stats())
+
         if self._include_apple_stats():
             artifacts.extend(self._build_apple_stats())
 
@@ -89,6 +92,15 @@ class CustomBuildHook(BuildHookInterface):
             and platform.system().lower() == "darwin"
         )
 
+    def _include_nvidia_gpu_stats(self) -> bool:
+        """Returns whether we should produce a wheel with nvidia_gpu_stats."""
+        return platform.system().lower() == "linux" and platform.machine().lower() in (
+            "x86_64",
+            "amd64",
+            "aarch64",
+            "arm64",
+        )
+
     def _is_platform_wheel(self) -> bool:
         """Returns whether we're producing a platform-specific wheel."""
         return self._include_wandb_core() or self._include_apple_stats()
@@ -132,6 +144,17 @@ class CustomBuildHook(BuildHookInterface):
 
         # NOTE: as_posix() is used intentionally. Hatch expects forward slashes
         # even on Windows.
+        return [output.as_posix()]
+
+    def _build_nvidia_gpu_stats(self) -> List[str]:
+        output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
+
+        self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
+        hatch_core.build_nvidia_gpu_stats(
+            go_binary=self._get_and_require_go_binary(),
+            output_path=output,
+        )
+
         return [output.as_posix()]
 
     def _get_and_require_go_binary(self) -> pathlib.Path:

@@ -208,7 +208,6 @@ func (g *GPUNvidia) IsAvailable() bool {
 
 func (g *GPUNvidia) Close() {
 	err := nvml.Shutdown()
-	fmt.Printf("nvml.Shutdown() returned %v\n", err)
 	if err != nvml.SUCCESS {
 		return
 	}
@@ -233,7 +232,6 @@ func main() {
 
 	// Create a ticker that fires every `samplingInterval` seconds
 	ticker := time.NewTicker(*samplingInterval)
-	defer ticker.Stop()
 
 	// Create a channel to signal the goroutine to stop
 	done := make(chan struct{})
@@ -245,7 +243,6 @@ func main() {
 		for {
 			select {
 			case <-done:
-				fmt.Println("Exiting goroutine")
 				return
 			case <-ticker.C:
 				timeStamp := time.Now()
@@ -255,10 +252,9 @@ func main() {
 				}
 				// add timestamp
 				metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
-				// print as JSON
+				// print as JSON to stdout
 				output, err := json.Marshal(metrics)
 				if err != nil {
-					fmt.Printf("Error marshaling JSON: %v\n", err)
 					continue
 				}
 				fmt.Println(string(output))
@@ -268,16 +264,9 @@ func main() {
 
 	// Wait for a signal
 	<-sigChan
-	fmt.Println("\nReceived interrupt, shutting down...")
 
-	// Signal the goroutine to stop
+	// Cleanup
 	close(done)
-
-	// Stop the ticker
 	ticker.Stop()
-
-	// Wait for the goroutine to finish
 	wg.Wait()
-
-	fmt.Println("Shutdown complete")
 }

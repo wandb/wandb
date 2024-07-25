@@ -52,6 +52,31 @@ def build_wandb_core(
     )
 
 
+def build_nvidia_gpu_stats(
+    go_binary: pathlib.Path,
+    output_path: pathlib.PurePath,
+) -> None:
+    """Builds the nvidia_gpu_stats Go program."""
+    output_flags = ["-o", str(".." / output_path)]
+    ld_flags = [f"-ldflags={_go_linker_flags()}"]
+    vendor_flags = ["-mod=vendor"]
+
+    # We have to invoke Go from the directory with go.mod, hence the
+    # paths relative to ./core
+    subprocess.check_call(
+        [
+            str(go_binary),
+            "build",
+            *output_flags,
+            *ld_flags,
+            *vendor_flags,
+            str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
+        ],
+        cwd="./core",
+        env=_go_env,
+    )
+
+
 def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
@@ -61,6 +86,7 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
         "-X",
         f"main.commit={wandb_commit_sha or ''}",
     ]
+    print(flags)
 
     if platform.system().lower() == "linux" and platform.machine().lower() in (
         "x86_64",
