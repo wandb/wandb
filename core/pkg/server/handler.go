@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
@@ -617,6 +618,7 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		Args:          h.settings.GetXArgs().GetValue(),
 		Colab:         h.settings.GetColabUrl().GetValue(),
 		StartedAt:     run.GetStartTime(),
+		HeartbeatAt:   timestamppb.New(run.GetStartTime().AsTime().Add(30 * time.Second)),
 		Git:           git,
 	}
 

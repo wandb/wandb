@@ -7,12 +7,22 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/shirou/gopsutil/v4/process"
-
-	"github.com/NVIDIA/go-nvml/pkg/nvml"
-
 	"github.com/wandb/wandb/core/pkg/service"
 )
+
+func getExecPath() (string, error) {
+	ex, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	exDirPath := filepath.Dir(ex)
+	exPath := filepath.Join(exDirPath, "nvidia_gpu_stats")
+
+	if _, err := os.Stat(exPath); os.IsNotExist(err) {
+		return "", err
+	}
+	return exPath, nil
+}
 
 type GPUNvidia struct {
 	name     string
