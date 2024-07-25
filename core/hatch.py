@@ -38,7 +38,7 @@ def build_wandb_core(
         "-X",
         f"main.commit={wandb_commit_sha or ''}",
     ]
-    ld_flags = [f"-ldflags={' '.join(linker_flags)}"]
+    ld_flags = [f"-ldflags=\"{' '.join(linker_flags)}\""]
     vendor_flags = ["-mod=vendor"]
 
     # We have to invoke Go from the directory with go.mod, hence the
