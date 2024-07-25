@@ -234,32 +234,49 @@ func main() {
 	ticker := time.NewTicker(*samplingInterval)
 	defer ticker.Stop()
 
+	// Create a channel to signal the goroutine to stop
+	done := make(chan struct{})
+
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	go func() {
-		for range ticker.C {
-			timeStamp := time.Now()
-			metrics := gpu.SampleMetrics()
-			if metrics == nil {
+		defer wg.Done()
+		for {
+			select {
+			case <-done:
+				fmt.Println("Exiting goroutine")
 				return
+			case <-ticker.C:
+				timeStamp := time.Now()
+				metrics := gpu.SampleMetrics()
+				if metrics == nil {
+					continue
+				}
+				// add timestamp
+				metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
+				// print as JSON
+				output, err := json.Marshal(metrics)
+				if err != nil {
+					fmt.Printf("Error marshaling JSON: %v\n", err)
+					continue
+				}
+				fmt.Println(string(output))
 			}
-			// add timestamp
-			metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
-			// print as JSON
-			output, err := json.Marshal(metrics)
-			if err != nil {
-				return
-			}
-			fmt.Println(string(output))
 		}
-		fmt.Println("Exiting")
-		wg.Done()
 	}()
 
 	// Wait for a signal
 	<-sigChan
+	fmt.Println("\nReceived interrupt, shutting down...")
 
-	// Cleanup
+	// Signal the goroutine to stop
+	close(done)
+
+	// Stop the ticker
 	ticker.Stop()
+
+	// Wait for the goroutine to finish
 	wg.Wait()
+
+	fmt.Println("Shutdown complete")
 }
