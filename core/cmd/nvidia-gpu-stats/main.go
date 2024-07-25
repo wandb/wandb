@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -222,23 +225,35 @@ func main() {
 		return
 	}
 
+	// Create a channel to receive OS signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
 	// Create a ticker that fires every `samplingInterval` seconds
 	ticker := time.NewTicker(*samplingInterval)
 	defer ticker.Stop()
 
-	for range ticker.C {
-		timeStamp := time.Now()
-		metrics := gpu.SampleMetrics()
-		if metrics == nil {
-			return
+	go func() {
+		for range ticker.C {
+			timeStamp := time.Now()
+			metrics := gpu.SampleMetrics()
+			if metrics == nil {
+				return
+			}
+			// add timestamp
+			metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
+			// print as JSON
+			output, err := json.Marshal(metrics)
+			if err != nil {
+				return
+			}
+			fmt.Println(string(output))
 		}
-		// add timestamp
-		metrics["_timestamp"] = float64(timeStamp.Unix()) + float64(timeStamp.Nanosecond())/1e9
-		// print as JSON
-		output, err := json.Marshal(metrics)
-		if err != nil {
-			return
-		}
-		fmt.Println(string(output))
-	}
+	}()
+
+	// Wait for a signal
+	<-sigChan
+
+	// Cleanup
+	ticker.Stop()
 }
