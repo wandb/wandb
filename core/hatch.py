@@ -55,7 +55,7 @@ def build_wandb_core(
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
         cwd="./core",
-        env=_go_env(with_race_detection=with_race_detection),
+        env=_go_env(with_race_detection=with_race_detection, maybe_with_cgo=False),
     )
 
 
@@ -80,7 +80,7 @@ def build_nvidia_gpu_stats(
             str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
         ],
         cwd="./core",
-        env=_go_env(with_race_detection=False),
+        env=_go_env(with_race_detection=False, maybe_with_cgo=True),
     )
 
 
@@ -111,7 +111,10 @@ def _go_linker_flags() -> str:
     return " ".join(flags)
 
 
-def _go_env(with_race_detection: bool) -> Mapping[str, str]:
+def _go_env(
+    with_race_detection: bool,
+    maybe_with_cgo: bool = False,
+) -> Mapping[str, str]:
     env = os.environ.copy()
 
     if with_race_detection:
@@ -119,20 +122,21 @@ def _go_env(with_race_detection: bool) -> Mapping[str, str]:
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
 
-    system = platform.system().lower()
-    arch = platform.machine().lower()
-    if (system, arch) in [
-        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        ("linux", "amd64"),
-        ("linux", "x86_64"),
-        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
-        # system metrics are unavailable.
-        ("darwin", "arm64"),
-        ("darwin", "aarch64"),
-    ] or (
-        # On Windows, -race requires cgo.
-        system == "windows" and with_race_detection
-    ):
-        env["CGO_ENABLED"] = "1"
+    if maybe_with_cgo:
+        system = platform.system().lower()
+        arch = platform.machine().lower()
+        if (system, arch) in [
+            # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
+            ("linux", "amd64"),
+            ("linux", "x86_64"),
+            # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
+            # system metrics are unavailable.
+            ("darwin", "arm64"),
+            ("darwin", "aarch64"),
+        ] or (
+            # On Windows, -race requires cgo.
+            system == "windows" and with_race_detection
+        ):
+            env["CGO_ENABLED"] = "1"
 
     return env
