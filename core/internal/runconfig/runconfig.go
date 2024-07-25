@@ -125,13 +125,6 @@ func (rc *RunConfig) AddTelemetryAndMetrics(
 	)
 }
 
-func (rc *RunConfig) AddStartTime(startTime int) {
-	rc.pathTree.Set(
-		pathtree.PathOf("_wandb", "start_time"),
-		startTime,
-	)
-}
-
 // Incorporates the config from a run that's being resumed.
 func (rc *RunConfig) MergeResumedConfig(oldConfig map[string]any) {
 	// Add any top-level keys that aren't already set.

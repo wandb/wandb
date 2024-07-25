@@ -650,8 +650,6 @@ func (s *Sender) updateConfigPrivate() {
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
-
-	s.runConfig.AddStartTime(int(s.startState.StartTime.Unix()))
 }
 
 // Serializes the run configuration to send to the backend.
