@@ -470,7 +470,7 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	output := s.runSummary.ToMap()
+	output := s.runSummary.ToNestedMaps()
 
 	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
