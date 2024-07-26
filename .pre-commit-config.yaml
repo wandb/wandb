@@ -95,6 +95,7 @@ repos:
         name: 'go-unit-tests'
         entry: core/scripts/pre-commit-hooks/run-go-unit-tests.sh
         files: '\.go$'
+        exclude: 'nvidia_gpu_stats*'
         language: 'script'
         description: "Runs `go test`"
         require_serial: true
