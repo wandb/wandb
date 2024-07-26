@@ -3,7 +3,7 @@
 # Exclude:
 #   * vendored code
 #   * generated protobuf files
-exclude: '^(wandb/vendor|core/vendor/)|\.pb\.go$|_pb2\.pyi?$'
+exclude: '^(wandb/vendor|core/vendor/|nvidia_gpu_stats/vendor/)|\.pb\.go$|_pb2\.pyi?$'
 
 default_stages:
   - pre-push

@@ -75,13 +75,13 @@ def build_nvidia_gpu_stats(
         *output_flags,
         *ld_flags,
         *vendor_flags,
-        str(pathlib.Path("cmd", "nvidia-gpu-stats", "main.go")),
+        str(pathlib.Path("cmd", "nvidia_gpu_stats", "main.go")),
     ]
     # We have to invoke Go from the directory with go.mod, hence the
-    # paths relative to ./core
+    # paths relative to ./nvidia_gpu_stats
     subprocess.check_call(
         cmd,
-        cwd="./core",
+        cwd="./nvidia_gpu_stats",
         env=_go_env(with_race_detection=False, maybe_with_cgo=True),
     )
 
