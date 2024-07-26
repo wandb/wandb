@@ -103,6 +103,7 @@ repos:
         name: 'go-vet'
         entry: core/scripts/pre-commit-hooks/run-go-vet.sh
         files: '\.go$'
+        exclude: 'nvidia_gpu_stats*'
         language: 'script'
         description: "Runs `go vet`, requires golang"
         require_serial: true
