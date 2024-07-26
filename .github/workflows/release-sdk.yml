@@ -13,7 +13,7 @@ on:
         default: true
       update-changelog:
         type: boolean
-        description: "update the changelog and release notes"
+        description: "Update the changelog and release notes."
         required: false
         default: false
 
