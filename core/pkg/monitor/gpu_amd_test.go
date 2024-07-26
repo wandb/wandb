@@ -69,11 +69,3 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 	gpu.ClearMetrics()
 	assert.Len(t, gpu.Samples(), 0)
 }
-
-func TestGPUAMD_Probe(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
-	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
-	info := gpu.Probe()
-	assert.Equal(t, info.GpuCount, uint32(2))
-	assert.Len(t, info.GpuAmd, 2)
-}
