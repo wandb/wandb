@@ -42,11 +42,15 @@ func withRetryLogging(
 		if willRetry {
 			switch {
 			case resp == nil && err == nil:
-				logger.Debug("Retrying HTTP request, no error or response")
+				logger.Debug("api: retrying HTTP request, no error or response")
 			case err != nil:
-				logger.Debug("Retrying error", "error", err)
+				logger.Debug("api: retrying error", "error", err)
 			case resp.StatusCode >= 400:
-				logger.Debug("Retrying HTTP error", "status", resp.StatusCode)
+				logger.Debug(
+					"api: retrying HTTP error",
+					"status", resp.StatusCode,
+					"request_uri", resp.Request.RequestURI,
+				)
 			}
 		}
 
