@@ -1,12 +1,15 @@
 package artifacts
 
 import (
+	"bufio"
+	"compress/gzip"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -28,9 +31,9 @@ type ManifestEntry struct {
 	Digest          string                 `json:"digest"`
 	Ref             *string                `json:"ref,omitempty"`
 	Size            int64                  `json:"size"`
-	LocalPath       *string                `json:"-"`
-	BirthArtifactID *string                `json:"birthArtifactID"`
-	SkipCache       bool                   `json:"-"`
+	LocalPath       *string                `json:"local_path,omitempty"`
+	BirthArtifactID *string                `json:"birthArtifactID,omitempty"`
+	SkipCache       bool                   `json:"skip_cache"`
 	Extra           map[string]interface{} `json:"extra,omitempty"`
 	// Added and used during download.
 	DownloadURL *string `json:"-"`
@@ -42,6 +45,14 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		StoragePolicy:       proto.StoragePolicy,
 		StoragePolicyConfig: StoragePolicyConfig{StorageLayout: "V2"},
 		Contents:            make(map[string]ManifestEntry),
+	}
+
+	if proto.ManifestFilePath != "" {
+		contents, err := ManifestContentsFromFile(proto.ManifestFilePath)
+		if err != nil {
+			return Manifest{}, err
+		}
+		manifest.Contents = contents
 	}
 	for _, entry := range proto.Contents {
 		extra := map[string]interface{}{}
@@ -66,6 +77,78 @@ func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
 		}
 	}
 	return manifest, nil
+}
+
+func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
+	manifestFile, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("error opening manifest file: %w", err)
+	}
+	defer manifestFile.Close()
+
+	// Whether or not we successfully decode the manifest, we should clean up the file.
+	defer os.Remove(path)
+
+	// The file is gzipped and needs to be decompressed.
+	gzReader, err := gzip.NewReader(manifestFile)
+	if err != nil {
+		return nil, fmt.Errorf("error opening manifest file: %w", err)
+	}
+	defer gzReader.Close()
+
+	// Read the individual lines (each line is a json object).
+	scanner := bufio.NewScanner(gzReader)
+	contents := make(map[string]ManifestEntry)
+
+	for scanner.Scan() {
+		var entry ManifestEntry
+		var record map[string]interface{}
+		line := scanner.Bytes()
+		if err := json.Unmarshal(line, &record); err != nil {
+			return nil, fmt.Errorf("could not unmarshal json: %w", err)
+		}
+
+		path, ok := record["path"].(string)
+		if !ok {
+			return nil, fmt.Errorf("record missing 'path' key or not a string")
+		}
+		entry.Digest, ok = record["digest"].(string)
+		if !ok {
+			return nil, fmt.Errorf("record missing 'digest' key or not a string")
+		}
+		entry.Size, ok = record["size"].(int64)
+		if !ok {
+			entry.Size = 0
+		}
+		entry.Ref, ok = record["ref"].(*string)
+		if !ok {
+			entry.Ref = nil
+		}
+		entry.LocalPath, ok = record["local_path"].(*string)
+		if !ok {
+			entry.LocalPath = nil
+		}
+		entry.BirthArtifactID, ok = record["birthArtifactID"].(*string)
+		if !ok {
+			entry.BirthArtifactID = nil
+		}
+		entry.SkipCache, ok = record["skip_cache"].(bool)
+		if !ok {
+			entry.SkipCache = false
+		}
+
+		// "extra" is itself a JSON object.
+		entry.Extra, ok = record["extra"].(map[string]interface{})
+		if !ok {
+			entry.Extra = make(map[string]interface{})
+		}
+		contents[path] = entry
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error scanning file: %w", err)
+	}
+	return contents, nil
 }
 
 func (m *Manifest) WriteToFile() (filename string, digest string, size int64, rerr error) {

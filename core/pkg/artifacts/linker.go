@@ -14,7 +14,7 @@ import (
 type ArtifactLinker struct {
 	Ctx           context.Context
 	Logger        *observability.CoreLogger
-	LinkArtifact  *service.LinkArtifactRecord
+	LinkArtifact  *service.LinkArtifactRequest
 	GraphqlClient graphql.Client
 }
 
@@ -35,10 +35,9 @@ func (al *ArtifactLinker) Link() error {
 		)
 	}
 	var err error
-	var response *gql.LinkArtifactResponse
 	switch {
 	case serverId != "":
-		response, err = gql.LinkArtifact(
+		_, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -49,7 +48,7 @@ func (al *ArtifactLinker) Link() error {
 			&serverId,
 		)
 	case clientId != "":
-		response, err = gql.LinkArtifact(
+		_, err = gql.LinkArtifact(
 			al.Ctx,
 			al.GraphqlClient,
 			portfolioName,
@@ -60,21 +59,16 @@ func (al *ArtifactLinker) Link() error {
 			nil,
 		)
 	default:
-		return fmt.Errorf(
-			"LinkArtifact: %s,"+
-				" error: artifact must have either server id or client id",
-			portfolioName,
-		)
+		err = fmt.Errorf("artifact must have either server id or client id")
 	}
 
 	if err != nil {
-		return fmt.Errorf(
-			"LinkArtifact: %s, error: %v, response: %v",
+		err = fmt.Errorf(
+			"LinkArtifact: %s, error: %w",
 			portfolioName,
 			err,
-			response,
 		)
 	}
 
-	return nil
+	return err
 }

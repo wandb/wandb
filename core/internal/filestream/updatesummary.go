@@ -14,17 +14,21 @@ type SummaryUpdate struct {
 }
 
 func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
-	rs := runsummary.New(runsummary.Params{})
-	rs.ApplyChangeRecord(
-		u.Record,
-		func(err error) {
+	rs := runsummary.New()
+
+	for _, update := range u.Record.Update {
+		if err := rs.SetFromRecord(update); err != nil {
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
 					"filestream: failed to apply summary record: %v",
 					err,
 				))
-		},
-	)
+		}
+	}
+
+	for _, remove := range u.Record.Remove {
+		rs.RemoveFromRecord(remove)
+	}
 
 	line, err := rs.Serialize()
 	if err != nil {

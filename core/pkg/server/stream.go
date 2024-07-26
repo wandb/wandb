@@ -17,7 +17,6 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -130,6 +129,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 		observability.WithTags(observability.Tags{}),
 		observability.WithCaptureMessage(sentryClient.CaptureMessage),
 		observability.WithCaptureException(sentryClient.CaptureException),
+		observability.WithReraise(sentryClient.Reraise),
 	)
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
@@ -218,7 +218,6 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 	}
 
 	mailbox := mailbox.NewMailbox()
-	metricHandler := runmetric.NewMetricHandler()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -230,8 +229,6 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(runsummary.Params{MetricHandler: metricHandler}),
-			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
@@ -272,7 +269,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
-			RunSummary:          runsummary.New(runsummary.Params{}),
+			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

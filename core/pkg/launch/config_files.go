@@ -18,6 +18,7 @@ type configFileParameter struct {
 	relpath      string
 	includePaths []ConfigPath
 	excludePaths []ConfigPath
+	inputSchema  *string
 }
 
 // Converts proto messages representing a file input to a configFileParameter.
@@ -25,6 +26,7 @@ func newFileInputFromProto(
 	file *service.JobInputSource_File,
 	includePathMsgs []*service.JobInputPath,
 	excludePathMsgs []*service.JobInputPath,
+	inputSchema *string,
 ) (*configFileParameter, error) {
 
 	includePaths := make([]ConfigPath, 0, len(includePathMsgs))
@@ -41,6 +43,7 @@ func newFileInputFromProto(
 		relpath:      file.File.GetPath(),
 		includePaths: includePaths,
 		excludePaths: excludePaths,
+		inputSchema:  inputSchema,
 	}, nil
 }
 
