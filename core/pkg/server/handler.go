@@ -508,7 +508,7 @@ func (h *Handler) handleRequestPollExit(record *service.Record) {
 
 func (h *Handler) handleHeader(record *service.Record) {
 	// populate with version info
-	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit("commit")))
+	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit))
 	record.GetHeader().VersionInfo = &service.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
