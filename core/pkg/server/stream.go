@@ -150,6 +150,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
+	settings = settings.Clone()
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Stream{
 		ctx:          ctx,
@@ -225,7 +226,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
 			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.loopBackChan),
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,

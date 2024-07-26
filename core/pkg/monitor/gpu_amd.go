@@ -35,17 +35,15 @@ type InfoDict map[string]interface{}
 
 type GPUAMD struct {
 	name                string
-	settings            *service.Settings
 	metrics             map[string][]float64
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	mutex               sync.RWMutex
 }
 
-func NewGPUAMD(settings *service.Settings) *GPUAMD {
+func NewGPUAMD() *GPUAMD {
 	g := &GPUAMD{
-		name:     "gpu",
-		settings: settings,
-		metrics:  make(map[string][]float64),
+		name:    "gpu",
+		metrics: make(map[string][]float64),
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
 	}

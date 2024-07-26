@@ -3,6 +3,7 @@ package monitor
 import (
 	"sync"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/service"
 
 	"github.com/shirou/gopsutil/v4/mem"
@@ -12,11 +13,11 @@ import (
 type Memory struct {
 	name     string
 	metrics  map[string][]float64
-	settings *service.Settings
+	settings *settings.Settings
 	mutex    sync.RWMutex
 }
 
-func NewMemory(settings *service.Settings) *Memory {
+func NewMemory(settings *settings.Settings) *Memory {
 	return &Memory{
 		name:     "memory",
 		metrics:  map[string][]float64{},
@@ -46,7 +47,7 @@ func (m *Memory) SampleMetrics() {
 	}
 
 	// process-related metrics
-	proc := process.Process{Pid: m.settings.XStatsPid.GetValue()}
+	proc := process.Process{Pid: m.settings.GetXStatsPid()}
 	procMem, err := proc.MemoryInfo()
 	if err == nil {
 		// process memory usage in MB

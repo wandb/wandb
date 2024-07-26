@@ -8,6 +8,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/auth"
 	"github.com/wandb/wandb/core/pkg/service"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -23,8 +24,13 @@ type Settings struct {
 }
 
 // Parses the Settings proto into a Settings object.
-func From(proto *service.Settings) *Settings {
-	return &Settings{Proto: proto}
+func From(pb *service.Settings) *Settings {
+	return &Settings{Proto: proto.Clone(pb).(*service.Settings)}
+}
+
+// Clones the Settings object.
+func (s *Settings) Clone() *Settings {
+	return &Settings{Proto: proto.Clone(s.Proto).(*service.Settings)}
 }
 
 // Ensures the APIKey is set if it needs to be.
@@ -161,4 +167,32 @@ func (s *Settings) GetResumeFrom() *service.RunMoment {
 // Fork information for the run.
 func (s *Settings) GetForkFrom() *service.RunMoment {
 	return s.Proto.ForkFrom
+}
+
+func (s *Settings) GetXSync() bool {
+	return s.Proto.XSync.GetValue()
+}
+
+func (s *Settings) GetXStatsBufferSize() int32 {
+	return s.Proto.XStatsBufferSize.GetValue()
+}
+
+func (s *Settings) GetXStatsSampleRateSeconds() float64 {
+	return s.Proto.XStatsSampleRateSeconds.GetValue()
+}
+
+func (s *Settings) GetXStatsSamplesToAverage() int32 {
+	return s.Proto.XStatsSamplesToAverage.GetValue()
+}
+
+func (s *Settings) GetXDisableStats() bool {
+	return s.Proto.XDisableStats.GetValue()
+}
+
+func (s *Settings) GetXStatsPid() int32 {
+	return s.Proto.XStatsPid.GetValue()
+}
+
+func (s *Settings) GetXStatsDiskPaths() []string {
+	return s.Proto.XStatsDiskPaths.GetValue()
 }

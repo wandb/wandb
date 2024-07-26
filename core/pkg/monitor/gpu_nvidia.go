@@ -11,18 +11,19 @@ import (
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type GPUNvidia struct {
 	name     string
 	metrics  map[string][]float64
-	settings *service.Settings
+	settings *settings.Settings
 	mutex    sync.RWMutex
 	nvmlInit nvml.Return
 }
 
-func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
+func NewGPUNvidia(settings *settings.Settings) *GPUNvidia {
 	gpu := &GPUNvidia{
 		name:     "gpu",
 		metrics:  map[string][]float64{},
@@ -35,7 +36,7 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 func (g *GPUNvidia) Name() string { return g.name }
 
 func (g *GPUNvidia) gpuInUseByProcess(device nvml.Device) bool {
-	pid := int32(g.settings.XStatsPid.GetValue())
+	pid := int32(g.settings.GetXStatsPid())
 
 	proc, err := process.NewProcess(pid)
 	if err != nil {

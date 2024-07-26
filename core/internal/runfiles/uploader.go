@@ -81,7 +81,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	defer u.stateMu.Unlock()
 
 	// Ignore file records in sync mode---we just upload everything at the end.
-	if u.settings.Proto.GetXSync().GetValue() {
+	if u.settings.GetXSync() {
 		return
 	}
 
