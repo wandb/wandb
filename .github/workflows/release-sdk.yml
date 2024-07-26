@@ -5,8 +5,12 @@ on:
     inputs:
       version:
         type: string
-        description: "version to assign to the release"
+        description: "Version to assign to the release."
         required: true
+      dry-run:
+        type: boolean
+        description: "Check this to avoid uploading to PyPI."
+        default: true
       update-changelog:
         type: boolean
         description: "update the changelog and release notes"
@@ -181,6 +185,7 @@ jobs:
           path: ./dist
 
   test-pypi-publish:
+    if: ${{ !inputs.dry-run }}
     name: Publish to TestPyPI
     needs: [build-platform-wheels, build-universal-wheel]
     continue-on-error: true
@@ -204,6 +209,7 @@ jobs:
           repository-url: https://test.pypi.org/legacy/
 
   verify-test-pypi:
+    if: ${{ !inputs.dry-run }}
     needs: test-pypi-publish
     name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
 
@@ -233,6 +239,7 @@ jobs:
         shell: bash
 
   pypi-publish:
+    if: ${{ !inputs.dry-run }}
     name: Publish to PyPI
     needs: test-pypi-publish
     runs-on: ubuntu-latest
@@ -256,7 +263,7 @@ jobs:
     name: Publish Release Notes
     needs: pypi-publish
     runs-on: ubuntu-latest
-    if: ${{ inputs.update-changelog }}
+    if: ${{ inputs.update-changelog && !inputs.dry-run }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -284,6 +291,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
+    if: ${{ !inputs.dry-run }}
     name: Post to Slack
     needs: publish-release-notes
     runs-on: ubuntu-latest
