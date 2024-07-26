@@ -235,10 +235,10 @@ class RunStatusChecker:
 
             with lock:
                 if self._join_event.is_set():
-                    return
+                    break
                 set_handle(local_handle)
             try:
-                result = local_handle.wait(timeout=timeout)
+                result = local_handle.wait(timeout=timeout, release=False)
             except MailboxError:
                 # background threads are oportunistically getting results
                 # from the internal process but the internal process could
@@ -253,6 +253,7 @@ class RunStatusChecker:
             if result:
                 process(result)
                 # if request finished, clear the handle to send on the next interval
+                local_handle.abandon()
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
