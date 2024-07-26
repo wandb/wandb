@@ -1001,7 +1001,7 @@ func (h *Handler) updateRunTiming() {
 		RecordType: &service.Record_Summary{
 			Summary: &service.SummaryRecord{
 				Update: []*service.SummaryItem{{
-					Key:       "_wandb.runtime",
+					NestedKey: []string{"_wandb", "runtime"},
 					ValueJson: strconv.Itoa(runtime),
 				}},
 			},
