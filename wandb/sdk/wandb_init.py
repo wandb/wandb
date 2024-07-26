@@ -537,7 +537,7 @@ class _WandbInit:
             run=drun,
             config=drun.config,
             log=drun.log,
-            # summary=drun.summary,
+            summary=drun.summary,
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
