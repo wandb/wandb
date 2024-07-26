@@ -25,6 +25,7 @@ DEPRECATED_FEATURES = Literal[
     "artifactmanifestentry__name",
     "api__artifact_versions",
     "artifact_collection__change_type",
+    "run__define_metric_copy",
 ]
 
 
@@ -43,3 +44,4 @@ class Deprecated:
     artifactmanifestentry__name: DEPRECATED_FEATURES = "artifactmanifestentry__name"
     api__artifact_versions: DEPRECATED_FEATURES = "api__artifact_versions"
     artifact_collection__change_type: DEPRECATED_FEATURES = "artifact_collection__change_type"
+    run__define_metric_copy: DEPRECATED_FEATURES = "run__define_metric_copy"

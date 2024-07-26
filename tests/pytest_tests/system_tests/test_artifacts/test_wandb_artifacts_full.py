@@ -302,6 +302,37 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
     assert dir_size() == 0
 
 
+def test_large_manifests_passed_by_file(wandb_init, monkeypatch, mocker):
+    writer_spy = mocker.spy(
+        wandb.sdk.interface.interface.InterfaceBase,
+        "_write_artifact_manifest_file",
+    )
+    monkeypatch.setattr(
+        wandb.sdk.interface.interface,
+        "MANIFEST_FILE_SIZE_THRESHOLD",
+        0,
+    )
+
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="large-manifest", type="dataset")
+        with artifact.new_file("test_file.txt") as f:
+            f.write("test content")
+        artifact.manifest.entries["test_file.txt"].extra["test_key"] = {"x": 1}
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    assert writer_spy.call_count == 1
+    file_written = writer_spy.spy_return
+    assert file_written is not None
+    # The file should have been cleaned up and deleted by the receiving process.
+    assert not os.path.exists(file_written)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("large-manifest:latest")
+        assert len(artifact.manifest) == 1
+        assert artifact.manifest.entries["test_file.txt"].extra["test_key"] == {"x": 1}
+
+
 def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
     # Use a separate staging directory for the duration of this test.
     monkeypatch.setenv("WANDB_DATA_DIR", str(tmp_path / "staging"))
