@@ -154,10 +154,17 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						continue
 					}
 					task := &filetransfer.Task{
-						FileKind: filetransfer.RunFileKindArtifact,
-						Type:     filetransfer.DownloadTask,
-						Path:     downloadLocalPath,
-						Url:      *entry.DownloadURL,
+						FileKind:  filetransfer.RunFileKindArtifact,
+						Type:      filetransfer.DownloadTask,
+						Path:      downloadLocalPath,
+						Url:       *entry.DownloadURL,
+						Reference: entry.Ref,
+						Digest:    entry.Digest,
+						Size:      entry.Size,
+					}
+					versionId, ok := entry.Extra["versionID"]
+					if ok {
+						task.VersionId = versionId
 					}
 					task.SetCompletionCallback(
 						func(t *filetransfer.Task) {
