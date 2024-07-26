@@ -156,7 +156,6 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 	if err := scanner.Err(); err != nil {
 		return nil, fmt.Errorf("error scanning file: %w", err)
 	}
-	fmt.Println("contents", contents)
 	return contents, nil
 }
 
