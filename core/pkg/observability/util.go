@@ -8,8 +8,10 @@ import (
 	"time"
 )
 
-// Commit is a type for storing the commit hash
-type Commit string
+// this is for storing the commit hash in context.Context
+type commitType string
+
+const Commit = commitType("commit")
 
 // FileSystem interface to abstract file system operations
 type FileSystem interface {

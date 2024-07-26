@@ -56,7 +56,7 @@ func main() {
 
 	// store commit hash in context
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, observability.Commit("commit"), commit)
+	ctx = context.WithValue(ctx, observability.Commit, commit)
 
 	var loggerPath string
 	if file, _ := observability.GetLoggerPath(); file != nil {
