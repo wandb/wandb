@@ -30,15 +30,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import (
-    RunDisabled,
-    SummaryDisabled,
-    filesystem,
-    ipython,
-    module,
-    reporting,
-    telemetry,
-)
+from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.printer import Printer, get_printer
@@ -529,25 +521,23 @@ class _WandbInit:
         logger.info(f"Logging user logs to {settings.log_user}")
         logger.info(f"Logging internal logs to {settings.log_internal}")
 
-    def _make_run_disabled(self) -> RunDisabled:
-        drun = RunDisabled()
-        drun.config = wandb.wandb_sdk.wandb_config.Config()
-        drun.config.update(self.sweep_config)
-        drun.config.update(self.config)
+    def _make_run_disabled(self) -> Run:
+        drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        drun._config = wandb.wandb_sdk.wandb_config.Config()
+        drun._config.update(self.sweep_config)
+        drun._config.update(self.config)
         drun.summary = SummaryDisabled()
         drun.log = lambda data, *_, **__: drun.summary.update(data)
         drun.finish = lambda *_, **__: module.unset_globals()
-        drun.step = 0
-        drun.resumed = False
-        drun.disabled = True
-        drun.id = runid.generate_id()
-        drun.name = "dummy-" + drun.id
-        drun.dir = tempfile.gettempdir()
+        drun._step = 0
+        drun._run_obj = None
+        drun._run_id = runid.generate_id()
+        drun._name = "dummy-" + drun.id
         module.set_global(
             run=drun,
             config=drun.config,
             log=drun.log,
-            summary=drun.summary,
+            # summary=drun.summary,
             save=drun.save,
             use_artifact=drun.use_artifact,
             log_artifact=drun.log_artifact,
@@ -563,7 +553,7 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self) -> Union[Run, RunDisabled]:  # noqa: C901
+    def init(self) -> Run:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
@@ -853,7 +843,7 @@ def _attach(
     run_id: Optional[str] = None,
     *,
     run: Optional["Run"] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Union[Run, None]:
     """Attach to a run currently executing in another process/thread.
 
     Arguments:
@@ -957,7 +947,7 @@ def init(
     fork_from: Optional[str] = None,
     resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, RunDisabled]:
+) -> Run:
     r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
