@@ -702,9 +702,8 @@ class _WandbInit:
                 tel.feature.core = True
             if self.settings._shared:
                 wandb.termwarn(
-                    "The `_shared` feature is experimental and subject to changes. "
-                    "If you use it, please contact our support team at support@wandb.com "
-                    "for guidance and to report any issues."
+                    "The `_shared` feature is experimental and may change. "
+                    "Please contact support@wandb.com for guidance and to report any issues."
                 )
                 tel.feature.shared_mode = True
 
