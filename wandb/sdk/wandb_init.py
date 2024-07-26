@@ -700,6 +700,8 @@ class _WandbInit:
                 tel.feature.flow_control_custom = True
             if self.settings._require_core:
                 tel.feature.core = True
+            if self.settings._shared:
+                tel.feature.shared_mode = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
