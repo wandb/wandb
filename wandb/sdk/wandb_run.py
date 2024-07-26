@@ -2705,27 +2705,48 @@ class Run:
         overwrite: Optional[bool] = None,
         **kwargs: Any,
     ) -> wandb_metric.Metric:
-        """Define metric properties which will later be logged with `wandb.log()`.
+        """Customize metrics logged with `wandb.log()`.
 
         Arguments:
-            name: Name of the metric.
-            step_metric: Independent variable associated with the metric.
-            step_sync: Automatically add `step_metric` to history if needed.
-                Defaults to True if step_metric is specified.
+            name: The name of the metric to customize.
+            step_metric: The name of another metric to serve as the X-axis
+                for this metric in automatically generated charts.
+            step_sync: Automatically insert the last value of step_metric into
+                `run.log()` if it is not provided explicitly. Defaults to True
+                 if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best,last,none"
-                Default aggregation is `copy`
-                Aggregation `best` defaults to `goal`==`minimize`
-            goal: Specify direction for optimizing the metric.
-                Supported directions: "minimize,maximize"
+                Supported aggregations include "min", "max", "mean", "last",
+                "best", "copy" and "none". "best" is used together with the
+                goal parameter. "none" prevents a summary from being generated.
+                "copy" is deprecated and should not be used.
+            goal: Specify how to interpret the "best" summary type.
+                Supported options are "minimize" and "maximize".
+            overwrite: If false, then this call is merged with previous
+                `define_metric` calls for the same metric by using their
+                values for any unspecified parameters. If true, then
+                unspecified parameters overwrite values specified by
+                previous calls.
 
         Returns:
-            A metric object is returned that can be further specified.
-
+            An object that represents this call but can otherwise be discarded.
         """
+        if summary and "copy" in summary:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_copy,
+                "define_metric(summary='copy') is deprecated and will be removed.",
+                self,
+            )
+
         return self._define_metric(
-            name, step_metric, step_sync, hidden, summary, goal, overwrite, **kwargs
+            name,
+            step_metric,
+            step_sync,
+            hidden,
+            summary,
+            goal,
+            overwrite,
+            **kwargs,
         )
 
     def _define_metric(
