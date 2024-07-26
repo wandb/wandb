@@ -844,9 +844,9 @@ func TestHandleHistory(t *testing.T) {
 }
 
 func TestHandleHeader(t *testing.T) {
-	inChan := make(chan *service.Record, server.BufferSize)
-	fwdChan := make(chan *service.Record, server.BufferSize)
-	outChan := make(chan *service.Result, server.BufferSize)
+	inChan := make(chan *service.Record, 1)
+	fwdChan := make(chan *service.Record, 1)
+	outChan := make(chan *service.Result, 1)
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
