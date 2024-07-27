@@ -2,19 +2,7 @@ import inspect
 import pathlib
 import re
 import subprocess
-from typing import (
-    Any,
-    Callable,
-    Dict,
-    ForwardRef,
-    List,
-    Literal,
-    Optional,
-    Union,
-    get_args,
-    get_origin,
-    get_type_hints,
-)
+from typing import Any, Callable, Literal, Union, get_args, get_origin, get_type_hints
 
 from wandb.sdk.wandb_init import init
 from wandb.sdk.wandb_login import login
