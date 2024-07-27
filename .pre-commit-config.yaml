@@ -18,7 +18,7 @@ repos:
     rev: "v0.4.4"
     hooks:
       - id: ruff
-        args: [ --fix, --ignore "UP006,UP007"]
+        args: [ --fix, --ignore, "UP006,UP007"]
       - id: ruff-format
   - repo: https://github.com/asottile/blacken-docs
     rev: 1.16.0
