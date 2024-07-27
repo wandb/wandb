@@ -36,6 +36,10 @@ func (rcm *RunConfigMetrics) ToRunConfigData() ([]map[string]any, error) {
 	indexByName := make(map[string]int)
 
 	for name, metric := range rcm.handler.definedMetrics {
+		if !metric.HasUIHints() {
+			continue
+		}
+
 		var err error
 		encodedMetrics, err = rcm.encodeToRunConfigData(
 			name,
