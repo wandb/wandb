@@ -15,6 +15,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Specify job input schemas when calling manage_config_file or manage_wandb_config to create a nicer UI when launching the job, by @TimH98 in https://github.com/wandb/wandb/pull/7907, https://github.com/wandb/wandb/pull/7924, https://github.com/wandb/wandb/pull/7971
 
+### Changed
+
+- `run.define_metric()` raises an error when given extraneous arguments
+
 ## [0.17.5] - 2024-07-19
 
 ### Added
