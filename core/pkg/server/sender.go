@@ -470,7 +470,7 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	output := s.runSummary.ToMap()
+	output := s.runSummary.ToNestedMaps()
 
 	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
@@ -971,6 +971,7 @@ func (s *Sender) upsertConfig() {
 		return
 	}
 
+	s.updateConfigPrivate()
 	config, err := s.serializeConfig(runconfig.FormatJson)
 	if err != nil {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
@@ -1187,7 +1188,6 @@ func (s *Sender) sendMetric(metric *service.MetricRecord) {
 		return
 	}
 
-	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
 }
 

@@ -3,7 +3,6 @@ package runsummary
 import (
 	"errors"
 	"fmt"
-	"strings"
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -186,29 +185,7 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 	return records, errors.Join(errs...)
 }
 
-// ToMap returns the summary as a map from .-separated keys to values.
-//
-// Values are JSON-marshallable types.
-func (rs *RunSummary) ToMap() map[string]any {
-	m := make(map[string]any)
-
-	rs.summaries.ForEachLeaf(
-		func(path pathtree.TreePath, value any) bool {
-			summary := value.(*metricSummary)
-			x := summary.ToMarshallableValue()
-
-			if x != nil {
-				m[strings.Join(path.Labels(), ".")] = x
-			}
-
-			return true
-		})
-
-	return m
-}
-
-// Serializes the object to send to the backend.
-func (rs *RunSummary) Serialize() ([]byte, error) {
+func (rs *RunSummary) toSummaryTree() *pathtree.PathTree {
 	jsonTree := pathtree.New()
 
 	rs.summaries.ForEachLeaf(
@@ -222,7 +199,19 @@ func (rs *RunSummary) Serialize() ([]byte, error) {
 			return true
 		})
 
-	return jsonTree.ToExtendedJSON()
+	return jsonTree
+}
+
+// ToNestedMaps returns a nested-map representation of the summary.
+//
+// All values are JSON-marshallable types.
+func (rs *RunSummary) ToNestedMaps() map[string]any {
+	return rs.toSummaryTree().CloneTree()
+}
+
+// Serializes the object to send to the backend.
+func (rs *RunSummary) Serialize() ([]byte, error) {
+	return rs.toSummaryTree().ToExtendedJSON()
 }
 
 func (rs *RunSummary) getOrMakeSummary(path pathtree.TreePath) *metricSummary {

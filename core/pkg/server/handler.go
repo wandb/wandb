@@ -505,7 +505,7 @@ func (h *Handler) handleRequestPollExit(record *service.Record) {
 
 func (h *Handler) handleHeader(record *service.Record) {
 	// populate with version info
-	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit("commit")))
+	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit))
 	record.GetHeader().VersionInfo = &service.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
@@ -1001,7 +1001,7 @@ func (h *Handler) updateRunTiming() {
 		RecordType: &service.Record_Summary{
 			Summary: &service.SummaryRecord{
 				Update: []*service.SummaryItem{{
-					Key:       "_wandb.runtime",
+					NestedKey: []string{"_wandb", "runtime"},
 					ValueJson: strconv.Itoa(runtime),
 				}},
 			},
