@@ -224,10 +224,10 @@ class _WandbInit:
         # todo: remove this once officially deprecated
         deprecated_kwargs = {
             "config_include_keys": (
-                "Use `config=wandb.helper.parse_config(config_object, include=('key',))` instead."
+                "Use `config=wandb.sdk.helper.parse_config(config_object, include=('key',))` instead."
             ),
             "config_exclude_keys": (
-                "Use `config=wandb.helper.parse_config(config_object, exclude=('key',))` instead."
+                "Use `config=wandb.sdk.helper.parse_config(config_object, exclude=('key',))` instead."
             ),
         }
         for deprecated_kwarg, msg in deprecated_kwargs.items():
