@@ -757,7 +757,7 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 
 	if h.metadata == nil {
-		h.metadata = request
+		h.metadata = proto.Clone(request).(*service.MetadataRequest)
 	} else {
 		proto.Merge(h.metadata, request)
 	}
