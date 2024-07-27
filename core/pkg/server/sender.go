@@ -668,12 +668,28 @@ func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	return string(serializedConfig), nil
 }
 
-func (s *Sender) sendForkRun(_ *service.Record, _ *service.RunRecord) {
-	// TODO: implement fork
+func (s *Sender) sendForkRun(record *service.Record, _ *service.RunRecord) {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Code:    service.ErrorInfo_UNSUPPORTED,
+				Message: "`fork_from` is not yet supported",
+			},
+		}
+		s.respond(record, result)
+	}
 }
 
-func (s *Sender) sendRewindRun(_ *service.Record, _ *service.RunRecord) {
-	// TODO: implement rewind
+func (s *Sender) sendRewindRun(record *service.Record, _ *service.RunRecord) {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Code:    service.ErrorInfo_UNSUPPORTED,
+				Message: "`resume_from` is not yet supported",
+			},
+		}
+		s.respond(record, result)
+	}
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
@@ -788,13 +804,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 				result := &service.RunUpdateResult{
 					Error: &service.ErrorInfo{
-						Code:    service.ErrorInfo_USAGE,
-						Message: "provide only one of resume, rewind or fork",
+						Code: service.ErrorInfo_USAGE,
+						Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
+							"Please specify only one of them.",
 					},
 				}
 				s.respond(record, result)
 			}
-			s.logger.Error("sender: sendRun: provide only one of resume, rewind or fork")
+			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 			return
 		case isResume != "":
 			s.sendResumeRun(record, runClone)
@@ -971,6 +988,7 @@ func (s *Sender) upsertConfig() {
 		return
 	}
 
+	s.updateConfigPrivate()
 	config, err := s.serializeConfig(runconfig.FormatJson)
 	if err != nil {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
@@ -1187,7 +1205,6 @@ func (s *Sender) sendMetric(metric *service.MetricRecord) {
 		return
 	}
 
-	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
 }
 
