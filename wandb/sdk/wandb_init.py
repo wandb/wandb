@@ -843,7 +843,7 @@ def _attach(
     run_id: Optional[str] = None,
     *,
     run: Optional["Run"] = None,
-) -> Union[Run, None]:
+) -> Optional[Run]:
     """Attach to a run currently executing in another process/thread.
 
     Arguments:
