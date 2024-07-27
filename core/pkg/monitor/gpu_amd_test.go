@@ -72,6 +72,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 
 func TestGPUAMD_Probe(t *testing.T) {
 	gpu := monitor.NewGPUAMD(nil)
+	gpu.IsAvailableFunc = func() bool { return true }
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	info := gpu.Probe()
 	assert.Equal(t, info.GpuCount, uint32(2))
