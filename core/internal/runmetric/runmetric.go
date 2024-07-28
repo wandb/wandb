@@ -129,8 +129,7 @@ func (mh *MetricHandler) InsertStepMetrics(
 			return true
 		}
 
-		// Skip metrics that dont have a step defined or are not
-		// meant to be step synced.
+		// Skip any metrics that do not need to be synced.
 		if metricDef.Step == "" || !metricDef.SyncStep {
 			return true
 		}
