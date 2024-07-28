@@ -587,6 +587,94 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
+// RewindRunResponse is returned by RewindRun on success.
+type RewindRunResponse struct {
+	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
+}
+
+// GetRewindRun returns RewindRunResponse.RewindRun, and is useful for accessing the field via an interface.
+func (v *RewindRunResponse) GetRewindRun() *RewindRunRewindRunRewindRunPayload { return v.RewindRun }
+
+// RewindRunRewindRunRewindRunPayload includes the requested fields of the GraphQL type RewindRunPayload.
+type RewindRunRewindRunRewindRunPayload struct {
+	RewoundRun *RewindRunRewindRunRewindRunPayloadRewoundRun `json:"rewoundRun"`
+}
+
+// GetRewoundRun returns RewindRunRewindRunRewindRunPayload.RewoundRun, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayload) GetRewoundRun() *RewindRunRewindRunRewindRunPayloadRewoundRun {
+	return v.RewoundRun
+}
+
+// RewindRunRewindRunRewindRunPayloadRewoundRun includes the requested fields of the GraphQL type Run.
+type RewindRunRewindRunRewindRunPayloadRewoundRun struct {
+	Id               string                                               `json:"id"`
+	Name             string                                               `json:"name"`
+	DisplayName      *string                                              `json:"displayName"`
+	Description      *string                                              `json:"description"`
+	Config           *string                                              `json:"config"`
+	SweepName        *string                                              `json:"sweepName"`
+	Project          *RewindRunRewindRunRewindRunPayloadRewoundRunProject `json:"project"`
+	HistoryLineCount *int                                                 `json:"historyLineCount"`
+}
+
+// GetId returns RewindRunRewindRunRewindRunPayloadRewoundRun.Id, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetId() string { return v.Id }
+
+// GetName returns RewindRunRewindRunRewindRunPayloadRewoundRun.Name, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetName() string { return v.Name }
+
+// GetDisplayName returns RewindRunRewindRunRewindRunPayloadRewoundRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetDisplayName() *string { return v.DisplayName }
+
+// GetDescription returns RewindRunRewindRunRewindRunPayloadRewoundRun.Description, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetDescription() *string { return v.Description }
+
+// GetConfig returns RewindRunRewindRunRewindRunPayloadRewoundRun.Config, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetConfig() *string { return v.Config }
+
+// GetSweepName returns RewindRunRewindRunRewindRunPayloadRewoundRun.SweepName, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetSweepName() *string { return v.SweepName }
+
+// GetProject returns RewindRunRewindRunRewindRunPayloadRewoundRun.Project, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetProject() *RewindRunRewindRunRewindRunPayloadRewoundRunProject {
+	return v.Project
+}
+
+// GetHistoryLineCount returns RewindRunRewindRunRewindRunPayloadRewoundRun.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetHistoryLineCount() *int {
+	return v.HistoryLineCount
+}
+
+// RewindRunRewindRunRewindRunPayloadRewoundRunProject includes the requested fields of the GraphQL type Project.
+type RewindRunRewindRunRewindRunPayloadRewoundRunProject struct {
+	Id     string                                                    `json:"id"`
+	Name   string                                                    `json:"name"`
+	Entity RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity `json:"entity"`
+}
+
+// GetId returns RewindRunRewindRunRewindRunPayloadRewoundRunProject.Id, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProject) GetId() string { return v.Id }
+
+// GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProject.Name, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProject) GetName() string { return v.Name }
+
+// GetEntity returns RewindRunRewindRunRewindRunPayloadRewoundRunProject.Entity, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProject) GetEntity() RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity {
+	return v.Entity
+}
+
+// RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity includes the requested fields of the GraphQL type Entity.
+type RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// GetId returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Id, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() string { return v.Id }
+
+// GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
+
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
 	Id     string                                `json:"id"`
@@ -1290,6 +1378,30 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __RewindRunInput is used internally by genqlient
+type __RewindRunInput struct {
+	RunName     string  `json:"runName"`
+	Entity      *string `json:"entity"`
+	Project     *string `json:"project"`
+	MetricName  string  `json:"metricName"`
+	MetricValue float64 `json:"metricValue"`
+}
+
+// GetRunName returns __RewindRunInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetRunName() string { return v.RunName }
+
+// GetEntity returns __RewindRunInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetEntity() *string { return v.Entity }
+
+// GetProject returns __RewindRunInput.Project, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetProject() *string { return v.Project }
+
+// GetMetricName returns __RewindRunInput.MetricName, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetMetricName() string { return v.MetricName }
+
+// GetMetricValue returns __RewindRunInput.MetricValue, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetMetricValue() float64 { return v.MetricValue }
+
 // __RunResumeStatusInput is used internally by genqlient
 type __RunResumeStatusInput struct {
 	Project *string `json:"project"`
@@ -1968,6 +2080,65 @@ func NotifyScriptableRunAlert(
 	var err_ error
 
 	var data_ NotifyScriptableRunAlertResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by RewindRun.
+const RewindRun_Operation = `
+mutation RewindRun ($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
+	rewindRun(input: {runName:$runName,entityName:$entity,projectName:$project,metricName:$metricName,metricValue:$metricValue}) {
+		rewoundRun {
+			id
+			name
+			displayName
+			description
+			config
+			sweepName
+			project {
+				id
+				name
+				entity {
+					id
+					name
+				}
+			}
+			historyLineCount
+		}
+	}
+}
+`
+
+func RewindRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	runName string,
+	entity *string,
+	project *string,
+	metricName string,
+	metricValue float64,
+) (*RewindRunResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "RewindRun",
+		Query:  RewindRun_Operation,
+		Variables: &__RewindRunInput{
+			RunName:     runName,
+			Entity:      entity,
+			Project:     project,
+			MetricName:  metricName,
+			MetricValue: metricValue,
+		},
+	}
+	var err_ error
+
+	var data_ RewindRunResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(
