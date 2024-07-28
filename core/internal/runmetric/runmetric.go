@@ -115,21 +115,24 @@ func (mh *MetricHandler) UpdateMetrics(
 	return mh.createGlobMetrics(history)
 }
 
-// InsertStepMetrics inserts an automatic step metric for every defined
-// metric with step_sync set to true.
+// InsertStepMetrics inserts an automatic step metric for every metric
+// that has a step metric defined and is not already present in the
+// history.
 func (mh *MetricHandler) InsertStepMetrics(
 	history *runhistory.RunHistory,
 ) {
-	for key, metricDef := range mh.definedMetrics {
-		if len(key) == 0 {
-			continue
+	history.ForEachKey(func(path pathtree.TreePath) bool {
+		key := strings.Join(path.Labels(), ".")
+		metricDef, ok := mh.definedMetrics[key]
+		// This should never happen, but we'll skip the metric if it does.
+		if !ok {
+			return true
 		}
-		keyLabels := strings.Split(key, ".")
-		keyPath := pathtree.PathOf(keyLabels[0], keyLabels[1:]...)
 
-		// Skip any metrics that do not need to be synced.
+		// Skip metrics that dont have a step defined or are not
+		// meant to be step synced.
 		if metricDef.Step == "" || !metricDef.SyncStep {
-			continue
+			return true
 		}
 
 		stepMetricLabels := strings.Split(metricDef.Step, ".")
@@ -140,21 +143,17 @@ func (mh *MetricHandler) InsertStepMetrics(
 
 		// Skip if the step is already set.
 		if history.Contains(stepMetricPath) {
-			continue
+			return true
 		}
-
-		// Skip if the metric doesn't show up in history.
-		if !history.Contains(keyPath) {
-			continue
-		}
-
 		latest, ok := mh.latestStep[metricDef.Step]
+		// This should never happen, but we'll skip the metric if it does.
 		if !ok {
-			continue
+			return true
 		}
-
+		// Set the latest value as the step value.
 		history.SetFloat(stepMetricPath, latest)
-	}
+		return true
+	})
 }
 
 // createGlobMetrics returns new metric definitions created by matching
