@@ -29,8 +29,8 @@ func TestNewManifestFromProto(t *testing.T) {
 
 	manifest, err := NewManifestFromProto(proto)
 	assert.NoError(t, err)
-	assert.Equal(t, int32(1), manifest.Version)
-	assert.Equal(t, "policy", manifest.StoragePolicy)
+	assert.Equal(t, proto.Version, manifest.Version)
+	assert.Equal(t, proto.StoragePolicy, manifest.StoragePolicy)
 	assert.Equal(t, "value1", manifest.Contents["path1"].Extra["key1"])
 }
 
