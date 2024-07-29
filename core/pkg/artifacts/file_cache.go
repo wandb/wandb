@@ -3,6 +3,7 @@ package artifacts
 import (
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -96,18 +97,28 @@ func addFileAndCheckDigest(c Cache, path string, digest string) error {
 
 // RestoreTo tries to restore the file referenced in a manifest entry to the given destination.
 //
+// The return value is true if the dst path contains the correct file, whether it was
+// already there or was restored from the cache; it returns false if the file is not
+// present and wasn't able to be restored from the cache.
+//
 // If the file exists, it will be hashed and overwritten if the hash is different; if
-// the hash is correct, RestoreTo leaves it alone and returns true.
+// the hash is correct, RestoreTo leaves it alone and returns true. For reference
+// entries we don't know the expected hash and will always overwrite the file.
 func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
-	b64md5, err := utils.ComputeFileB64MD5(dst)
-	if err == nil && b64md5 == entry.Digest {
-		return true
+	var cachePath string
+	if entry.Ref != nil {
+		cachePath = c.etagPath(*entry.Ref, entry.Digest)
+	} else {
+		// If the digest is an MD5 hash, check to see if we already have the file.
+		b64md5, err := utils.ComputeFileB64MD5(dst)
+		if err == nil && b64md5 == entry.Digest {
+			return true
+		}
+		cachePath, err = c.md5Path(entry.Digest)
+		if err != nil {
+			return false
+		}
 	}
-	cachePath, err := c.md5Path(entry.Digest)
-	if err != nil {
-		return false
-	}
-	// TODO (hugh): should we set the LocalPath in the entry to the dst?
 	return utils.CopyFile(cachePath, dst) == nil
 }
 
@@ -124,6 +135,14 @@ func (c *FileCache) md5Path(b64md5 string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(c.root, "obj", "md5", hexHash[:2], hexHash[2:]), nil
+}
+
+func (c *FileCache) etagPath(ref, etag string) string {
+	refHash := utils.ComputeSHA256([]byte(ref))
+	etagHash := utils.ComputeSHA256([]byte(etag))
+	concat := append(refHash, etagHash...)
+	hexhash := hex.EncodeToString(utils.ComputeSHA256(concat))
+	return filepath.Join(c.root, "obj", "etag", hexhash[:2], hexhash[2:])
 }
 
 // Write copies the contents of the reader to the cache and returns the B64MD5 cache key.
