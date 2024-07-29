@@ -122,9 +122,17 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	return utils.CopyFile(cachePath, dst) == nil
 }
 
-// RestoreTo is the same as the FileCache version, but it doesn't copy the file, so it
-// always returns false if the file is missing.
+// RestoreTo returns true if the file exists at the destination and its hash matches the digest.
+//
+// This is the same behavior as FileCache.RestoreTo if the cache is empty, since the
+// HashOnlyCache ignores the cache entirely.
+//
+// We can't check the validity of files based on ETags alone so calling RestoreTo with a
+// reference entry always returns false.
 func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
+	if entry.Ref != nil {
+		return false
+	}
 	b64md5, err := utils.ComputeFileB64MD5(dst)
 	return err == nil && b64md5 == entry.Digest
 }
@@ -138,10 +146,10 @@ func (c *FileCache) md5Path(b64md5 string) (string, error) {
 }
 
 func (c *FileCache) etagPath(ref, etag string) string {
-	refHash := utils.ComputeSHA256([]byte(ref))
+	byteHash := utils.ComputeSHA256([]byte(ref))
 	etagHash := utils.ComputeSHA256([]byte(etag))
-	concat := append(refHash, etagHash...)
-	hexhash := hex.EncodeToString(utils.ComputeSHA256(concat))
+	byteHash = append(byteHash, etagHash...)
+	hexhash := hex.EncodeToString(utils.ComputeSHA256(byteHash))
 	return filepath.Join(c.root, "obj", "etag", hexhash[:2], hexhash[2:])
 }
 
