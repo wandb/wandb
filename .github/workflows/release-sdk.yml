@@ -239,7 +239,7 @@ jobs:
         run: |
           count=0
           until \
-            pip install \
+            pip install --dry-run \
               --index-url https://test.pypi.org/simple/ \
               wandb==${{ github.event.inputs.version }}
           do
