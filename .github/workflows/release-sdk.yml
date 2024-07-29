@@ -184,10 +184,35 @@ jobs:
           name: wandb-sdk-distributions
           path: ./dist
 
+  build-sdist:
+    name: Create source distribution
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Hatch
+        run: pip install hatch==1.12
+
+      - name: Create sdist
+        run: hatch build -t sdist
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: ./dist
+
   test-pypi-publish:
     if: ${{ !inputs.dry-run }}
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-universal-wheel]
+    needs: [build-platform-wheels, build-universal-wheel, build-sdist]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
