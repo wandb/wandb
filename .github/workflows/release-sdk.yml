@@ -245,7 +245,7 @@ jobs:
           count=0
           until \
             pip install --dry-run \
-              --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://test.pypi.org/simple/ \
               wandb==${{ github.event.inputs.version }}
           do
             ((count++)) && ((count>=10)) && break
@@ -277,7 +277,7 @@ jobs:
       - name: Install wandb from TestPyPI
         run: >
           python -m pip install
-            --index-url https://test.pypi.org/simple/
+            --extra-index-url https://test.pypi.org/simple/
             wandb==${{ github.event.inputs.version }}
 
       - name: Smoke-test wandb
@@ -306,7 +306,7 @@ jobs:
         run: >
           python -m pip install
             --no-binary :all:
-            --index-url https://test.pypi.org/simple/
+            --extra-index-url https://test.pypi.org/simple/
             wandb==${{ github.event.inputs.version }}
 
       - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
