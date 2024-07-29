@@ -2704,7 +2704,6 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Customize metrics logged with `wandb.log()`.
 
@@ -2747,7 +2746,6 @@ class Run:
             summary,
             goal,
             overwrite,
-            **kwargs,
         )
 
     def _define_metric(
@@ -2759,12 +2757,9 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
-        for k in kwargs:
-            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (

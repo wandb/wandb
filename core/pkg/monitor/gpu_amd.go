@@ -38,6 +38,7 @@ type GPUAMD struct {
 	settings            *service.Settings
 	metrics             map[string][]float64
 	GetROCMSMIStatsFunc func() (InfoDict, error)
+	IsAvailableFunc     func() bool
 	mutex               sync.RWMutex
 }
 
@@ -66,6 +67,10 @@ func GetRocmSMICmd() (string, error) {
 }
 
 func (g *GPUAMD) IsAvailable() bool {
+	if g.IsAvailableFunc != nil {
+		return g.IsAvailableFunc()
+	}
+
 	_, err := GetRocmSMICmd()
 	if err != nil {
 		return false
@@ -120,6 +125,9 @@ func (g *GPUAMD) getCards() map[int]Stats {
 
 //gocyclo:ignore
 func (g *GPUAMD) Probe() *service.MetadataRequest {
+	if !g.IsAvailable() {
+		return nil
+	}
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
