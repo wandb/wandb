@@ -275,16 +275,16 @@ jobs:
           python-version: "3.10"
 
       - name: Install wandb from TestPyPI
-        run: >
-          python -m pip install
-            --extra-index-url https://test.pypi.org/simple/
+        run: |
+          python -m pip install \
+            --extra-index-url https://test.pypi.org/simple/ \
             wandb==${{ github.event.inputs.version }}
 
       - name: Smoke-test wandb
         shell: bash
-        run: >
-          WANDB__REQUIRE_CORE=${{ matrix.use_core }}
-          WANDB_MODE=offline
+        run: |
+          WANDB__REQUIRE_CORE=${{ matrix.use_core }} \
+          WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
   verify-test-pypi-sdist:
@@ -303,24 +303,24 @@ jobs:
         uses: actions/setup-go@v5
 
       - name: Install wandb from TestPyPI with --no-binary
-        run: >
-          python -m pip install
-            --no-binary :all:
-            --extra-index-url https://test.pypi.org/simple/
+        run: |
+          python -m pip install \
+            --no-binary :all: \
+            --extra-index-url https://test.pypi.org/simple/ \
             wandb==${{ github.event.inputs.version }}
 
       - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
         shell: bash
-        run: >
-          WANDB__REQUIRE_CORE=false
-          WANDB_MODE=offline
+        run: |
+          WANDB__REQUIRE_CORE=false \
+          WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
       - name: Smoke-test wandb (WANDB__REQUIRE_CORE=true)
         shell: bash
-        run: >
-          WANDB__REQUIRE_CORE=true
-          WANDB_MODE=offline
+        run: |
+          WANDB__REQUIRE_CORE=true \
+          WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
 
