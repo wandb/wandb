@@ -664,21 +664,46 @@ func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	return string(serializedConfig), nil
 }
 
-func (s *Sender) sendForkRun(record *service.Record, _ *service.RunRecord) {
-	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		result := &service.RunUpdateResult{
-			Error: &service.ErrorInfo{
-				Code:    service.ErrorInfo_UNSUPPORTED,
-				Message: "`fork_from` is not yet supported",
-			},
+func (s *Sender) sendForkRun(record *service.Record, run *service.RunRecord) {
+
+	fork := s.settings.GetForkFrom()
+	update, err := runbranch.NewForkBranch(
+		s.ctx,
+		s.graphqlClient,
+		fork.GetRun(),
+		fork.GetMetric(),
+		fork.GetValue(),
+	).GetUpdates(s.startState, runbranch.RunPath{
+		Entity:  s.startState.Entity,
+		Project: s.startState.Project,
+		RunID:   s.startState.RunID,
+	})
+
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
+		)
+		// provide more info about the error to the user
+		if errType, ok := err.(*runbranch.BranchError); ok {
+			if errType.Response != nil {
+				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+					result := &service.RunUpdateResult{
+						Error: errType.Response,
+					}
+					s.respond(record, result)
+				}
+			}
+			return
 		}
-		s.respond(record, result)
 	}
+
+	s.startState.Merge(update)
+
+	s.upsertRun(record, run)
 }
 
 func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 	rewind := s.settings.GetResumeFrom()
-	fmt.Println("rewind", rewind)
 	update, err := runbranch.NewRewindBranch(
 		s.ctx,
 		s.graphqlClient,
@@ -710,7 +735,6 @@ func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 	}
 
 	s.startState.Merge(update)
-	fmt.Printf("startState %+v\n", s.startState)
 	// Merge the resumed config into the run config
 	s.runConfig.MergeResumedConfig(s.startState.Config)
 
@@ -855,7 +879,7 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			s.sendForkRun(record, runClone)
 			return
 		default:
-			// no resume, rewind, or fork provided
+			// no branching, just send the run
 		}
 	}
 

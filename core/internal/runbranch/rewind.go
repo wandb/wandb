@@ -15,7 +15,7 @@ import (
 type RewindBranch struct {
 	ctx         context.Context
 	client      graphql.Client
-	runid       string
+	metricRunID string
 	metricName  string
 	metricValue float64
 }
@@ -30,7 +30,7 @@ func NewRewindBranch(
 	return &RewindBranch{
 		ctx:         ctx,
 		client:      client,
-		runid:       runid,
+		metricRunID: runid,
 		metricName:  metricName,
 		metricValue: metricValue,
 	}
@@ -41,7 +41,14 @@ func (rb RewindBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
-	// TODO: check that runid matches runpath.RunID
+	if rb.metricRunID != runpath.RunID {
+		err := fmt.Errorf("rewind run id %s does not match run id %s", rb.metricRunID, runpath.RunID)
+		info := &service.ErrorInfo{
+			Code:    service.ErrorInfo_USAGE,
+			Message: err.Error(),
+		}
+		return nil, &BranchError{Err: err, Response: info}
+	}
 
 	if rb.metricName != "_step" {
 		err := fmt.Errorf("rewind only supports `_step` metric name currently")
