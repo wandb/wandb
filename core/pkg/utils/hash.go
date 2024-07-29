@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"io"
@@ -71,4 +72,11 @@ func HexToB64(data string) (string, error) {
 	}
 	b64Str := base64.StdEncoding.EncodeToString(buf)
 	return b64Str, nil
+}
+
+// ComputeSHA256 computes the SHA256 hash of the given data.
+func ComputeSHA256(data []byte) []byte {
+	hasher := sha256.New()
+	hasher.Write(data)
+	return hasher.Sum(nil)
 }
