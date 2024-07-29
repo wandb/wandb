@@ -668,12 +668,28 @@ func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	return string(serializedConfig), nil
 }
 
-func (s *Sender) sendForkRun(_ *service.Record, _ *service.RunRecord) {
-	// TODO: implement fork
+func (s *Sender) sendForkRun(record *service.Record, _ *service.RunRecord) {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Code:    service.ErrorInfo_UNSUPPORTED,
+				Message: "`fork_from` is not yet supported",
+			},
+		}
+		s.respond(record, result)
+	}
 }
 
-func (s *Sender) sendRewindRun(_ *service.Record, _ *service.RunRecord) {
-	// TODO: implement rewind
+func (s *Sender) sendRewindRun(record *service.Record, _ *service.RunRecord) {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Code:    service.ErrorInfo_UNSUPPORTED,
+				Message: "`resume_from` is not yet supported",
+			},
+		}
+		s.respond(record, result)
+	}
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
@@ -788,13 +804,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 				result := &service.RunUpdateResult{
 					Error: &service.ErrorInfo{
-						Code:    service.ErrorInfo_USAGE,
-						Message: "provide only one of resume, rewind or fork",
+						Code: service.ErrorInfo_USAGE,
+						Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
+							"Please specify only one of them.",
 					},
 				}
 				s.respond(record, result)
 			}
-			s.logger.Error("sender: sendRun: provide only one of resume, rewind or fork")
+			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 			return
 		case isResume != "":
 			s.sendResumeRun(record, runClone)
@@ -1414,52 +1431,70 @@ func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadR
 	}
 }
 
-func (s *Sender) getServerInfo() {
-	if s.graphqlClient == nil {
-		return
-	}
-
-	data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf(
-				"sender: getServerInfo: failed to get server info: %v",
-				err,
-			))
-		return
-	}
-	s.serverInfo = data.GetServerInfo()
-
-	s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
-}
-
-// TODO: this function is for deciding which GraphQL query/mutation versions to use
-// func (s *Sender) getServerVersion() string {
-// 	if s.serverInfo == nil {
-// 		return ""
-// 	}
-// 	return s.serverInfo.GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
-// }
-
+// sendRequestServerInfo sends a server info request to the server to probe the server for
+// version compatibility and other server information
 func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
-	if !s.settings.GetXOffline().GetValue() && s.serverInfo == nil {
-		s.getServerInfo()
+
+	// if there is no graphql client, we don't need to do anything
+	// just respond with an empty server info response
+	if s.graphqlClient == nil {
+		s.respond(record,
+			&service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{
+					ServerInfoResponse: &service.ServerInfoResponse{},
+				},
+			},
+		)
+		return
 	}
 
-	localInfo := &service.LocalInfo{}
-	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
-		localInfo = &service.LocalInfo{
-			Version:   s.serverInfo.GetLatestLocalVersionInfo().GetLatestVersionString(),
-			OutOfDate: s.serverInfo.GetLatestLocalVersionInfo().GetOutOfDate(),
+	// if we don't have server info, get it from the server
+	if s.serverInfo == nil {
+		data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
+		// if there is an error, we don't know the server info
+		// respond with an empty server info response
+		// this is a best effort to get the server info
+		if err != nil {
+			s.logger.Error(
+				"sender: getServerInfo: failed to get server info", "error", err,
+			)
+			s.respond(record,
+				&service.Response{
+					ResponseType: &service.Response_ServerInfoResponse{
+						ServerInfoResponse: &service.ServerInfoResponse{},
+					},
+				},
+			)
+			return
 		}
+		s.serverInfo = data.GetServerInfo()
+		s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
 	}
 
+	// if we have server info, respond with the server info
+	// this is a best effort to get the server info
+	latestVersion := s.serverInfo.GetLatestLocalVersionInfo()
+	if latestVersion != nil {
+		s.respond(record,
+			&service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{
+					ServerInfoResponse: &service.ServerInfoResponse{
+						LocalInfo: &service.LocalInfo{
+							Version:   latestVersion.GetLatestVersionString(),
+							OutOfDate: latestVersion.GetOutOfDate(),
+						},
+					},
+				},
+			},
+		)
+		return
+	}
+
+	// default response if we don't have server info
 	s.respond(record,
 		&service.Response{
 			ResponseType: &service.Response_ServerInfoResponse{
-				ServerInfoResponse: &service.ServerInfoResponse{
-					LocalInfo: localInfo,
-				},
+				ServerInfoResponse: &service.ServerInfoResponse{},
 			},
 		},
 	)
