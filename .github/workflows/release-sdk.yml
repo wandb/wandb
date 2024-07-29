@@ -220,6 +220,11 @@ jobs:
     permissions:
       id-token: write  # trusted publishing
     steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
       - name: Download distribution
         uses: actions/download-artifact@v3
         with:
@@ -265,7 +270,7 @@ jobs:
 
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
@@ -290,7 +295,7 @@ jobs:
 
     steps:
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
 
