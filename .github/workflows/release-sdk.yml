@@ -5,15 +5,15 @@ on:
     inputs:
       version:
         type: string
-        description: "Version to assign to the release."
+        description: "Version to assign to the release"
         required: true
       dry-run:
         type: boolean
-        description: "Check this to avoid uploading to PyPI."
+        description: "Dry run (avoid uploading to PyPI)"
         default: true
       update-changelog:
         type: boolean
-        description: "Update the changelog and release notes."
+        description: "Update changelog and release notes"
         required: false
         default: false
 
