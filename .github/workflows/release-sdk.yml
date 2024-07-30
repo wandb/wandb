@@ -1,5 +1,5 @@
 name: Build and Release W&B SDK
-run-name: SDK (${{ inputs.version }}) release${{ inputs.dry-run && ' (dry-run)' || '' }}
+run-name: SDK ${{ inputs.version }} release${{ inputs.dry-run && ' (dry-run)' || '' }}
 
 on:
   workflow_dispatch:
