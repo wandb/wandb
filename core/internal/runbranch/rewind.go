@@ -13,11 +13,9 @@ import (
 )
 
 type RewindBranch struct {
-	ctx         context.Context
-	client      graphql.Client
-	metricRunID string
-	metricName  string
-	metricValue float64
+	ctx    context.Context
+	client graphql.Client
+	branch BranchPoint
 }
 
 func NewRewindBranch(
@@ -28,11 +26,13 @@ func NewRewindBranch(
 	metricValue float64,
 ) *RewindBranch {
 	return &RewindBranch{
-		ctx:         ctx,
-		client:      client,
-		metricRunID: runid,
-		metricName:  metricName,
-		metricValue: metricValue,
+		ctx:    ctx,
+		client: client,
+		branch: BranchPoint{
+			RunID:       runid,
+			MetricName:  metricName,
+			MetricValue: metricValue,
+		},
 	}
 }
 
@@ -41,8 +41,8 @@ func (rb RewindBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
-	if rb.metricRunID != runpath.RunID {
-		err := fmt.Errorf("rewind run id %s does not match run id %s", rb.metricRunID, runpath.RunID)
+	if rb.branch.RunID != runpath.RunID {
+		err := fmt.Errorf("rewind run id %s does not match run id %s", rb.branch.RunID, runpath.RunID)
 		info := &service.ErrorInfo{
 			Code:    service.ErrorInfo_USAGE,
 			Message: err.Error(),
@@ -50,7 +50,7 @@ func (rb RewindBranch) GetUpdates(
 		return nil, &BranchError{Err: err, Response: info}
 	}
 
-	if rb.metricName != "_step" {
+	if rb.branch.MetricName != "_step" {
 		err := fmt.Errorf("rewind only supports `_step` metric name currently")
 		info := &service.ErrorInfo{
 			Code:    service.ErrorInfo_UNSUPPORTED,
@@ -65,8 +65,8 @@ func (rb RewindBranch) GetUpdates(
 		runpath.RunID,
 		utils.NilIfZero(runpath.Entity),
 		utils.NilIfZero(runpath.Project),
-		rb.metricName,
-		rb.metricValue,
+		rb.branch.MetricName,
+		rb.branch.MetricValue,
 	)
 	if err != nil {
 		info := &service.ErrorInfo{
@@ -157,7 +157,7 @@ func (rb RewindBranch) GetUpdates(
 		}
 	}
 
-	r.StartingStep = int64(rb.metricValue) + 1
+	r.StartingStep = int64(rb.branch.MetricValue) + 1
 	r.Forked = true
 
 	return r, nil

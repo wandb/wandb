@@ -14,6 +14,12 @@ type RunPath struct {
 	RunID   string
 }
 
+type BranchPoint struct {
+	RunID       string
+	MetricName  string
+	MetricValue float64
+}
+
 type BranchError struct {
 	Err      error
 	Response *service.ErrorInfo
