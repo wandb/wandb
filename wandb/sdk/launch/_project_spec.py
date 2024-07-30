@@ -112,6 +112,9 @@ class LaunchProject:
         self.sweep_id = sweep_id
         self.author = launch_spec.get("author")
         self.python_version: Optional[str] = launch_spec.get("python_version")
+        self._job_dockerfile: Optional[str] = None
+        self._job_build_context: Optional[str] = None
+        self._job_base_image: Optional[str] = None
         self.accelerator_base_image: Optional[str] = resource_args_build.get(
             "accelerator", {}
         ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
@@ -131,8 +134,6 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
-        self._job_dockerfile: Optional[str] = None
-        self._job_build_context: Optional[str] = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -212,14 +213,23 @@ class LaunchProject:
     def job_build_context(self) -> Optional[str]:
         return self._job_build_context
 
+    @property
+    def job_base_image(self) -> Optional[str]:
+        return self._job_base_image
+
     def set_job_dockerfile(self, dockerfile: str) -> None:
         self._job_dockerfile = dockerfile
 
     def set_job_build_context(self, build_context: str) -> None:
         self._job_build_context = build_context
 
+    def set_job_base_image(self, base_image: str) -> None:
+        self._job_base_image = base_image
+
     @property
     def image_name(self) -> str:
+        if self.job_base_image is not None:
+            return self.job_base_image
         if self.docker_image is not None:
             return self.docker_image
         elif self.uri is not None:
@@ -299,10 +309,8 @@ class LaunchProject:
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
-        # since the image tag for images built from jobs
-        # is based on the job version index, which is immutable
-        # we don't need to build the image for a job if that tag
-        # already exists
+        if self.job_base_image is not None:
+            return False
         if self.source != LaunchSource.JOB:
             return True
         return False
@@ -316,7 +324,9 @@ class LaunchProject:
         Returns:
             Optional[str]: The Docker image or None if not specified.
         """
-        return self._docker_image
+        if self._docker_image:
+            return self._docker_image
+        return None
 
     @docker_image.setter
     def docker_image(self, value: str) -> None:
