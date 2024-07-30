@@ -717,8 +717,9 @@ func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 	})
 
 	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf("send: sendRun: failed to update run state: %s", err),
+		s.logger.Error(
+			"send: sendRun: failed to update run state",
+			"error", err,
 		)
 		// provide more info about the error to the user
 		if errType, ok := err.(*runbranch.BranchError); ok {

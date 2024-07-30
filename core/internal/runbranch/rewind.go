@@ -122,8 +122,17 @@ func (rb RewindBranch) GetUpdates(
 		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	}
 
+	r.StartingStep = int64(rb.branch.MetricValue) + 1
+	r.Forked = true
+
+	r.Config, err = parseConfig(data.GetConfig())
+
+	return r, err
+}
+
+func parseConfig(config *string) (map[string]any, error) {
 	// Get Config information
-	config := data.GetConfig()
+
 	if config != nil {
 		// If we are unable to parse the config, we should fail if resume is set to
 		// must for any other case of resume status, it is fine to ignore it
@@ -144,21 +153,16 @@ func (rb RewindBranch) GetUpdates(
 			)
 		}
 
-		if r.Config == nil {
-			r.Config = make(map[string]any)
-		}
+		result := make(map[string]any)
 		for key, value := range cfg {
 			valueDict, ok := value.(map[string]any)
 			if !ok {
 				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
 			} else if val, ok := valueDict["value"]; ok {
-				r.Config[key] = val
+				result[key] = val
 			}
 		}
+		return result, nil
 	}
-
-	r.StartingStep = int64(rb.branch.MetricValue) + 1
-	r.Forked = true
-
-	return r, nil
+	return nil, nil
 }
