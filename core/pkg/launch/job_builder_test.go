@@ -853,10 +853,10 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, nil)
 	assert.Nil(t, err)
-	var artifactMetadata map[string]interface{}
+	var artifactMetadata map[string]any
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	schema := artifactMetadata["input_schema"].(map[string]interface{})
+	schema := artifactMetadata["input_schemas"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
 		WandbConfigKey: map[string]interface{}{
 			"type": "object",
@@ -1024,7 +1024,7 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	assert.Nil(t, err)
-	metadataInputSchema := artifactMetadata["input_schema"].(map[string]interface{})
+	metadataInputSchema := artifactMetadata["input_schemas"].(map[string]interface{})
 	files := metadataInputSchema["files"].(map[string]interface{})
 	assert.Equal(t, map[string]interface{}{
 		"config.yaml": map[string]interface{}{
