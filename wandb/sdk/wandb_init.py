@@ -526,9 +526,9 @@ class _WandbInit:
         drun._config = wandb.wandb_sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
         drun._config.update(self.config)
-        drun.summary = SummaryDisabled()
-        drun.log = lambda data, *_, **__: drun.summary.update(data)
-        drun.finish = lambda *_, **__: module.unset_globals()
+        drun.summary = SummaryDisabled()  # type: ignore
+        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
+        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
         drun._step = 0
         drun._run_obj = None
         drun._run_id = runid.generate_id()
@@ -903,7 +903,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init(settings=settings)
+        run._init()
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
