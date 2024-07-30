@@ -3,6 +3,7 @@ package filestream
 import (
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -18,11 +19,19 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 
 	for _, update := range u.Record.Update {
 		if err := rs.SetFromRecord(update); err != nil {
+			// TODO(corruption): Remove after data corruption is resolved.
+			valueJSONLen := min(50, len(update.ValueJson))
+			valueJSON := update.ValueJson[:valueJSONLen]
+
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
 					"filestream: failed to apply summary record: %v",
 					err,
-				))
+				),
+				"key", update.Key,
+				"nested_key", update.NestedKey,
+				"value_json[:50]", valueJSON,
+				"&value_json", unsafe.StringData(update.ValueJson))
 		}
 	}
 

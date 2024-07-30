@@ -3,6 +3,7 @@ package filestream
 import (
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -27,12 +28,15 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	for _, item := range u.Record.Item {
 		val, err := simplejsonext.UnmarshalString(item.ValueJson)
 		if err != nil {
+			// TODO(corruption): Remove after data corruption is resolved.
+			valueJSONLen := min(50, len(item.ValueJson))
+			valueJSON := item.ValueJson[:valueJSONLen]
+
 			ctx.Logger.CaptureError(
-				fmt.Errorf(
-					"filestream: failed to marshal StatsItem for key %s: %v",
-					item.Key,
-					err,
-				))
+				fmt.Errorf("filestream: failed to marshal StatsItem: %v", err),
+				"key", item.Key,
+				"value_json[:50]", valueJSON,
+				"&value_json", unsafe.StringData(item.ValueJson))
 			continue
 		}
 
