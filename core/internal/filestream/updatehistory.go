@@ -30,6 +30,7 @@ func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
 					err,
 				),
 				"key", item.Key,
+				"&key", unsafe.StringData(item.Key),
 				"nested_key", item.NestedKey,
 				"value_json[:50]", valueJSON,
 				"&value_json", unsafe.StringData(item.ValueJson))

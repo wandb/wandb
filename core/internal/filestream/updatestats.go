@@ -35,6 +35,7 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 			ctx.Logger.CaptureError(
 				fmt.Errorf("filestream: failed to marshal StatsItem: %v", err),
 				"key", item.Key,
+				"&key", unsafe.StringData(item.Key),
 				"value_json[:50]", valueJSON,
 				"&value_json", unsafe.StringData(item.ValueJson))
 			continue

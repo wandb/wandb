@@ -29,6 +29,7 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 					err,
 				),
 				"key", update.Key,
+				"&key", unsafe.StringData(update.Key),
 				"nested_key", update.NestedKey,
 				"value_json[:50]", valueJSON,
 				"&value_json", unsafe.StringData(update.ValueJson))
