@@ -21,3 +21,4 @@ include = [
     "wandb/**/*.py",
     "wandb/**/*.sh",
 ]
+exclude = ["tests/"]
