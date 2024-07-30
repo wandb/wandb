@@ -27,7 +27,7 @@ type RewoundRun struct {
 	Config           *string `json:"config"`
 }
 
-func TestDifferentRunIDs(t *testing.T) {
+func TestRewindDifferentRunIDs(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 	rb := runbranch.NewRewindBranch(ctx, mockGQL, "rewind", "_step", 0)
@@ -40,7 +40,7 @@ func TestDifferentRunIDs(t *testing.T) {
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
-func TestUnsupportedMetricName(t *testing.T) {
+func TestRewindUnsupportedMetricName(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 	rb := runbranch.NewRewindBranch(ctx, mockGQL, "runid", "other", 0)
@@ -71,7 +71,7 @@ func TestGetUpdatesNoResponse(t *testing.T) {
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
-func TestGetUpdatesWithResponse(t *testing.T) {
+func TestRewindGetUpdatesWithResponse(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 	response, err := json.Marshal(
@@ -111,7 +111,7 @@ func TestGetUpdatesWithResponse(t *testing.T) {
 	assert.JSONEq(t, `{"lr" :0.001}`, string(paramsConfig), "Config should be set")
 }
 
-func TestGetUpdatesConfigNil(t *testing.T) {
+func TestRewindGetUpdatesConfigNil(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 
@@ -141,7 +141,7 @@ func TestGetUpdatesConfigNil(t *testing.T) {
 	assert.Nil(t, params.Config, "Config should be nil")
 }
 
-func TestGetUpdatesInvalidConfig(t *testing.T) {
+func TestRewindGetUpdatesInvalidConfig(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 
@@ -172,7 +172,7 @@ func TestGetUpdatesInvalidConfig(t *testing.T) {
 	assert.Nil(t, params.Config, "Config should be nil")
 }
 
-func TestGetUpdatesInvalidTypeConfig(t *testing.T) {
+func TestRewindGetUpdatesInvalidTypeConfig(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 
@@ -205,7 +205,7 @@ func TestGetUpdatesInvalidTypeConfig(t *testing.T) {
 	assert.Nil(t, params.Config, "Config should be nil")
 }
 
-func TestGetUpdatesConfigNoValue(t *testing.T) {
+func TestRewindGetUpdatesConfigNoValue(t *testing.T) {
 	ctx := context.TODO()
 	mockGQL := gqlmock.NewMockClient()
 
