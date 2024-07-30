@@ -17,7 +17,6 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -150,8 +149,16 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
+func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
+	// we only need the passed context for the commit value
+	commit, ok := ctx.Value(observability.Commit).(string)
+	if !ok {
+		commit = ""
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, observability.Commit, commit)
+
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -219,7 +226,6 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 	}
 
 	mailbox := mailbox.NewMailbox()
-	metricHandler := runmetric.NewMetricHandler()
 
 	s.handler = NewHandler(s.ctx,
 		HandlerParams{
@@ -231,8 +237,6 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
-			RunSummary:        runsummary.New(runsummary.Params{MetricHandler: metricHandler}),
-			MetricHandler:     metricHandler,
 			Mailbox:           mailbox,
 			TerminalPrinter:   terminalPrinter,
 		},
@@ -273,7 +277,7 @@ func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.C
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
 			Peeker:              peeker,
-			RunSummary:          runsummary.New(runsummary.Params{}),
+			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
 			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),

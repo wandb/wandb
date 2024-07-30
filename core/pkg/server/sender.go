@@ -15,7 +15,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/debounce"
 	fs "github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -110,8 +109,8 @@ type Sender struct {
 	// telemetry record internal implementation of telemetry
 	telemetry *service.TelemetryRecord
 
-	// metricSender is a service for managing metrics
-	metricSender *runmetric.MetricSender
+	// runConfigMetrics tracks explicitly defined run metrics.
+	runConfigMetrics *runmetric.RunConfigMetrics
 
 	// configDebouncer is the debouncer for config updates
 	configDebouncer *debounce.Debouncer
@@ -172,6 +171,7 @@ func NewSender(
 		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
+		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
 		logger:              params.Logger,
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
@@ -326,7 +326,7 @@ func (s *Sender) sendRecord(record *service.Record) {
 	case *service.Record_Alert:
 		s.sendAlert(record, x.Alert)
 	case *service.Record_Metric:
-		s.sendMetric(record, x.Metric)
+		s.sendMetric(x.Metric)
 	case *service.Record_Files:
 		s.sendFiles(record, x.Files)
 	case *service.Record_History:
@@ -470,7 +470,7 @@ func (s *Sender) sendJobFlush() {
 	}
 	s.jobBuilder.SetRunConfig(*s.runConfig)
 
-	output := s.runSummary.CloneTree()
+	output := s.runSummary.ToNestedMaps()
 
 	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
@@ -641,12 +641,15 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 }
 
 // Inserts W&B-internal information into the run configuration.
-//
-// Uses the given telemetry
 func (s *Sender) updateConfigPrivate() {
-	metrics := []map[string]interface{}(nil)
-	if s.metricSender != nil {
-		metrics = s.metricSender.ConfigMetrics
+	metrics, err := s.runConfigMetrics.ToRunConfigData()
+
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf(
+				"sender: failed to encode some metrics in the run config: %v",
+				err,
+			))
 	}
 
 	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
@@ -665,12 +668,28 @@ func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
 	return string(serializedConfig), nil
 }
 
-func (s *Sender) sendForkRun(_ *service.Record, _ *service.RunRecord) {
-	// TODO: implement fork
+func (s *Sender) sendForkRun(record *service.Record, _ *service.RunRecord) {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Code:    service.ErrorInfo_UNSUPPORTED,
+				Message: "`fork_from` is not yet supported",
+			},
+		}
+		s.respond(record, result)
+	}
 }
 
-func (s *Sender) sendRewindRun(_ *service.Record, _ *service.RunRecord) {
-	// TODO: implement rewind
+func (s *Sender) sendRewindRun(record *service.Record, _ *service.RunRecord) {
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		result := &service.RunUpdateResult{
+			Error: &service.ErrorInfo{
+				Code:    service.ErrorInfo_UNSUPPORTED,
+				Message: "`resume_from` is not yet supported",
+			},
+		}
+		s.respond(record, result)
+	}
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
@@ -785,13 +804,14 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 				result := &service.RunUpdateResult{
 					Error: &service.ErrorInfo{
-						Code:    service.ErrorInfo_USAGE,
-						Message: "provide only one of resume, rewind or fork",
+						Code: service.ErrorInfo_USAGE,
+						Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
+							"Please specify only one of them.",
 					},
 				}
 				s.respond(record, result)
 			}
-			s.logger.Error("sender: sendRun: provide only one of resume, rewind or fork")
+			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 			return
 		case isResume != "":
 			s.sendResumeRun(record, runClone)
@@ -931,11 +951,12 @@ func (s *Sender) streamSummary() {
 		return
 	}
 
-	update, err := s.runSummary.Flatten()
+	update, err := s.runSummary.ToRecords()
+
+	// `update` may be non-empty even on error.
 	if err != nil {
 		s.logger.CaptureError(
-			fmt.Errorf("error flattening run summary: %v", err))
-		return
+			fmt.Errorf("sender: error flattening summary: %v", err))
 	}
 
 	s.fileStream.StreamUpdate(&fs.SummaryUpdate{
@@ -944,15 +965,16 @@ func (s *Sender) streamSummary() {
 }
 
 func (s *Sender) sendSummary(_ *service.Record, summary *service.SummaryRecord) {
-
-	// TODO(network): buffer summary sending for network efficiency until we can send only updates
-	s.runSummary.ApplyChangeRecord(
-		summary,
-		func(err error) {
+	for _, update := range summary.Update {
+		if err := s.runSummary.SetFromRecord(update); err != nil {
 			s.logger.CaptureError(
-				fmt.Errorf("error updating run summary: %v", err))
-		},
-	)
+				fmt.Errorf("sender: error updating summary: %v", err))
+		}
+	}
+
+	for _, remove := range summary.Remove {
+		s.runSummary.RemoveFromRecord(remove)
+	}
 
 	s.summaryDebouncer.SetNeedsDebounce()
 }
@@ -966,6 +988,7 @@ func (s *Sender) upsertConfig() {
 		return
 	}
 
+	s.updateConfigPrivate()
 	config, err := s.serializeConfig(runconfig.FormatJson)
 	if err != nil {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
@@ -1173,20 +1196,15 @@ func (s *Sender) sendExit(record *service.Record) {
 	)
 }
 
-// sendMetric sends a metrics record to the file stream,
-// which will then send it to the server
-func (s *Sender) sendMetric(record *service.Record, metric *service.MetricRecord) {
-	if s.metricSender == nil {
-		s.metricSender = runmetric.NewMetricSender()
-	}
+// sendMetric updates the metrics in the run config.
+func (s *Sender) sendMetric(metric *service.MetricRecord) {
+	err := s.runConfigMetrics.ProcessRecord(metric)
 
-	if metric.GetGlobName() != "" {
-		s.logger.Warn("sender: sendMetric: glob name is not supported in the backend", "globName", metric.GetGlobName())
+	if err != nil {
+		s.logger.CaptureError(fmt.Errorf("sender: sendMetric: %v", err))
 		return
 	}
 
-	s.encodeMetricHints(record, metric)
-	s.updateConfigPrivate()
 	s.configDebouncer.SetNeedsDebounce()
 }
 
@@ -1413,52 +1431,70 @@ func (s *Sender) sendRequestSenderRead(_ *service.Record, _ *service.SenderReadR
 	}
 }
 
-func (s *Sender) getServerInfo() {
-	if s.graphqlClient == nil {
-		return
-	}
-
-	data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf(
-				"sender: getServerInfo: failed to get server info: %v",
-				err,
-			))
-		return
-	}
-	s.serverInfo = data.GetServerInfo()
-
-	s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
-}
-
-// TODO: this function is for deciding which GraphQL query/mutation versions to use
-// func (s *Sender) getServerVersion() string {
-// 	if s.serverInfo == nil {
-// 		return ""
-// 	}
-// 	return s.serverInfo.GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
-// }
-
+// sendRequestServerInfo sends a server info request to the server to probe the server for
+// version compatibility and other server information
 func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.ServerInfoRequest) {
-	if !s.settings.GetXOffline().GetValue() && s.serverInfo == nil {
-		s.getServerInfo()
+
+	// if there is no graphql client, we don't need to do anything
+	// just respond with an empty server info response
+	if s.graphqlClient == nil {
+		s.respond(record,
+			&service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{
+					ServerInfoResponse: &service.ServerInfoResponse{},
+				},
+			},
+		)
+		return
 	}
 
-	localInfo := &service.LocalInfo{}
-	if s.serverInfo != nil && s.serverInfo.GetLatestLocalVersionInfo() != nil {
-		localInfo = &service.LocalInfo{
-			Version:   s.serverInfo.GetLatestLocalVersionInfo().GetLatestVersionString(),
-			OutOfDate: s.serverInfo.GetLatestLocalVersionInfo().GetOutOfDate(),
+	// if we don't have server info, get it from the server
+	if s.serverInfo == nil {
+		data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
+		// if there is an error, we don't know the server info
+		// respond with an empty server info response
+		// this is a best effort to get the server info
+		if err != nil {
+			s.logger.Error(
+				"sender: getServerInfo: failed to get server info", "error", err,
+			)
+			s.respond(record,
+				&service.Response{
+					ResponseType: &service.Response_ServerInfoResponse{
+						ServerInfoResponse: &service.ServerInfoResponse{},
+					},
+				},
+			)
+			return
 		}
+		s.serverInfo = data.GetServerInfo()
+		s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
 	}
 
+	// if we have server info, respond with the server info
+	// this is a best effort to get the server info
+	latestVersion := s.serverInfo.GetLatestLocalVersionInfo()
+	if latestVersion != nil {
+		s.respond(record,
+			&service.Response{
+				ResponseType: &service.Response_ServerInfoResponse{
+					ServerInfoResponse: &service.ServerInfoResponse{
+						LocalInfo: &service.LocalInfo{
+							Version:   latestVersion.GetLatestVersionString(),
+							OutOfDate: latestVersion.GetOutOfDate(),
+						},
+					},
+				},
+			},
+		)
+		return
+	}
+
+	// default response if we don't have server info
 	s.respond(record,
 		&service.Response{
 			ResponseType: &service.Response_ServerInfoResponse{
-				ServerInfoResponse: &service.ServerInfoResponse{
-					LocalInfo: localInfo,
-				},
+				ServerInfoResponse: &service.ServerInfoResponse{},
 			},
 		},
 	)
@@ -1470,31 +1506,4 @@ func (s *Sender) sendRequestJobInput(request *service.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
-}
-
-// encodeMetricHints encodes the metric hints for the given metric record. The metric hints
-// are used to configure the plots in the UI.
-func (s *Sender) encodeMetricHints(_ *service.Record, metric *service.MetricRecord) {
-	err := s.metricSender.AddNonGlobMetric(metric)
-	if err != nil {
-		return
-	}
-
-	if metric.GetStepMetric() != "" {
-		index, ok := s.metricSender.MetricIndex[metric.GetStepMetric()]
-		if ok {
-			metric = proto.Clone(metric).(*service.MetricRecord)
-			metric.StepMetric = ""
-			metric.StepMetricIndex = index + 1
-		}
-	}
-
-	encodeMetric := corelib.ProtoEncodeToDict(metric)
-	if index, ok := s.metricSender.MetricIndex[metric.GetName()]; ok {
-		s.metricSender.ConfigMetrics[index] = encodeMetric
-	} else {
-		nextIndex := len(s.metricSender.ConfigMetrics)
-		s.metricSender.ConfigMetrics = append(s.metricSender.ConfigMetrics, encodeMetric)
-		s.metricSender.MetricIndex[metric.GetName()] = int32(nextIndex)
-	}
 }

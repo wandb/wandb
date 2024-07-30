@@ -11,6 +11,15 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- Specify job input schemas when calling manage_config_file or manage_wandb_config to create a nicer UI when launching the job, by @TimH98 in https://github.com/wandb/wandb/pull/7907, https://github.com/wandb/wandb/pull/7924, https://github.com/wandb/wandb/pull/7971
+- Use the filesystem rather than protobuf messages to transport manifests with more than 100k entries to the core process @moredatarequired https://github.com/wandb/wandb/pull/7992
+
+### Changed
+
+- `run.define_metric()` raises an error when given extraneous arguments (@timoffex in https://github.com/wandb/wandb/pull/8040)
+
 ## [0.17.5] - 2024-07-19
 
 ### Added
