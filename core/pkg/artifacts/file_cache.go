@@ -74,6 +74,22 @@ func addFile(c Cache, path string) (string, error) {
 	return c.Write(f)
 }
 
+// Link creates a symlink that points a reference with an etag to a file in the cache.
+func (c *FileCache) Link(b64md5, ref, etag string) error {
+	md5Path, err := c.md5Path(b64md5)
+	if err != nil {
+		return err
+	}
+	if exists, _ := utils.FileExists(md5Path); !exists {
+		return fmt.Errorf("no cache file with digest %s", b64md5)
+	}
+	etagPath := c.etagPath(ref, etag)
+	if err := os.MkdirAll(filepath.Dir(etagPath), defaultDirPermissions); err != nil {
+		return err
+	}
+	return os.Symlink(md5Path, etagPath)
+}
+
 // AddFileAndCheckDigest copies a file into the cache. If a digest is provided, it also
 // verifies that the file's MD5 hash matches the digest.
 func (c *FileCache) AddFileAndCheckDigest(path string, digest string) error {

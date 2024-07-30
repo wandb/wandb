@@ -130,6 +130,25 @@ func TestHashOnlyCache_AddFileAndCheckDigest(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFileCache_Link(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	cacheKey := "test"
+	ref := "gs://example-bucket/some/object/path"
+	etag := "some-etag"
+	err := cache.Link(cacheKey, ref, etag)
+	require.ErrorContains(t, err, "no cache file with digest test")
+
+	err = cache.Link("not a valid base-64 MD5 hash", ref, etag)
+	require.ErrorContains(t, err, "illegal base64 data")
+
+	cacheKey, err = cache.Write(bytes.NewReader([]byte("test")))
+	require.NoError(t, err)
+	err = cache.Link(cacheKey, ref, etag)
+	require.NoError(t, err)
+}
+
 func TestFileCache_RestoreTo(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
@@ -183,7 +202,7 @@ func TestFileCache_RestoreToReference(t *testing.T) {
 
 	// Write some data to the cache
 	data := []byte("reference data")
-	_, err := cache.Write(bytes.NewReader(data))
+	cacheKey, err := cache.Write(bytes.NewReader(data))
 	require.NoError(t, err)
 
 	rootDir := filepath.Join(os.TempDir(), "restore_root")
@@ -195,9 +214,7 @@ func TestFileCache_RestoreToReference(t *testing.T) {
 		Ref:    &refPath,
 		Size:   14,
 	}
-	etagPath := cache.etagPath(refPath, manifestEntry.Digest)
-	require.NoError(t, os.MkdirAll(filepath.Dir(etagPath), defaultDirPermissions))
-	require.NoError(t, os.WriteFile(etagPath, data, 0644))
+	require.NoError(t, cache.Link(cacheKey, refPath, manifestEntry.Digest))
 
 	// Restore the cache file to the target path
 	assert.True(t, cache.RestoreTo(manifestEntry, localPath))
