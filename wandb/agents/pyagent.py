@@ -220,8 +220,11 @@ class Agent:
                     if job.run_queue_item_id is not None:
                         try:
                             self._api.ack_run_queue_item(job.run_queue_item_id, run_id)
+                        except wandb.CommError as e:
+                            logger.error(f"Error acknowledging run queue item: {e}")
                         except Exception as e:
                             logger.error(f"Error acknowledging run queue item: {e}")
+                            raise e
 
                     self._run_status[run_id] = RunStatus.RUNNING
                     thread.join()
