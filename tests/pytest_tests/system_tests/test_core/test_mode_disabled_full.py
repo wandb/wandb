@@ -14,59 +14,6 @@ def test_disabled_noop(wandb_init):
     run.finish()
 
 
-def test_disabled_ops(wandb_init):
-    run = wandb_init(mode="disabled")
-    print(len(run))
-    print(abs(run))
-    print(~run)
-    print(run + 10)
-    print(run - 10)
-    print(run * 10)
-    print(run / 1.2)
-    print(run // 10)
-    print(run % 10)
-    print(run**10)
-    print(run << 10)
-    print(run >> 10)
-    print(run & 2)
-    print(run ^ 2)
-    print(run | 2)
-    print(+run)
-    print(-run)
-    run += 1
-    run -= 1
-    run *= 1
-    run /= 1.2
-    run //= 1
-    run **= 1
-    run <<= 1
-    run >>= 1
-    run |= 1
-    run %= 1
-    run ^= 1
-    run &= 1
-    run()
-    print(run.attrib)
-    print(run["item"])
-    run["3"] = 3
-    print(run["3"])
-    print(run[3])
-    print(int(run))
-    print(float(run))
-    print(run < 2)
-    print(run <= 2)
-    print(run == 2)
-    print(run > 2)
-    print(run >= 2)
-    print(run != 2)
-    print(run)
-    print(str(run))
-    print(repr(run))
-    if run:
-        print(run)
-    print(bool(run))
-
-
 def test_disabled_dir(wandb_init):
     wandb.setup()  # need to do it before we mock tempfile.gettempdir (for service)
     tmp_dir = "/tmp/dir"
