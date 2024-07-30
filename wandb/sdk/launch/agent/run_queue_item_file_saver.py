@@ -17,9 +17,7 @@ FileSubtypes = Literal["warning", "error"]
 class RunQueueItemFileSaver:
     def __init__(
         self,
-        agent_run: Optional[
-            Union["wandb.sdk.wandb_run.Run", "wandb.sdk.lib.RunDisabled"]
-        ],
+        agent_run: Optional["wandb.sdk.wandb_run.Run"],
         run_queue_item_id: str,
     ):
         self.run_queue_item_id = run_queue_item_id
