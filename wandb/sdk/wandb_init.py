@@ -690,6 +690,12 @@ class _WandbInit:
                 tel.feature.flow_control_custom = True
             if self.settings._require_core:
                 tel.feature.core = True
+            if self.settings._shared:
+                wandb.termwarn(
+                    "The `_shared` feature is experimental and may change. "
+                    "Please contact support@wandb.com for guidance and to report any issues."
+                )
+                tel.feature.shared_mode = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 

@@ -79,7 +79,7 @@ def _go_linker_flags(
         "-w",  # Omit the DWARF symbol table.
         # Set the Git commit variable in the main package.
         "-X",
-        f"main.commit={wandb_commit_sha or ''}",
+        f"main.commit={wandb_commit_sha or 'unknown'}",
     ]
 
     if target_system == "linux" and target_arch == "amd64":

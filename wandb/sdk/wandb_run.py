@@ -235,10 +235,10 @@ class RunStatusChecker:
 
             with lock:
                 if self._join_event.is_set():
-                    return
+                    break
                 set_handle(local_handle)
             try:
-                result = local_handle.wait(timeout=timeout)
+                result = local_handle.wait(timeout=timeout, release=False)
             except MailboxError:
                 # background threads are oportunistically getting results
                 # from the internal process but the internal process could
@@ -253,6 +253,7 @@ class RunStatusChecker:
             if result:
                 process(result)
                 # if request finished, clear the handle to send on the next interval
+                local_handle.abandon()
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
@@ -2705,7 +2706,6 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
         """Customize metrics logged with `wandb.log()`.
 
@@ -2748,7 +2748,6 @@ class Run:
             summary,
             goal,
             overwrite,
-            **kwargs,
         )
 
     def _define_metric(
@@ -2760,12 +2759,9 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
-        for k in kwargs:
-            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
