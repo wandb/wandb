@@ -1,4 +1,5 @@
 name: Build and Release W&B SDK
+run-name: SDK (${{ inputs.version }}) release${{ inputs.dry-run && ' (dry-run)' || '' }}
 
 on:
   workflow_dispatch:
@@ -19,7 +20,7 @@ on:
 
 jobs:
   prepare-release:
-    name: Prepare Release
+    name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
@@ -239,23 +240,18 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
 
+      # Unfortunately, there's no reliable way to do this.
+      #
+      # Looping until a `pip install --dry-run` succeeds isn't sufficient
+      # because you can still see failures after a success; TestPyPI doesn't
+      # seem to guarantee consistency.
       - name: Wait for package to appear in TestPyPI
         shell: bash
-        run: |
-          count=0
-          until \
-            pip install --dry-run \
-              --extra-index-url https://test.pypi.org/simple/ \
-              wandb==${{ github.event.inputs.version }}
-          do
-            ((count++)) && ((count>=10)) && break
-            echo "Trying again after 30 seconds... ($count/10)"
-            sleep 30
-          done
+        run: sleep 60
 
   verify-test-pypi:
     needs: test-pypi-publish
-    name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
@@ -290,7 +286,7 @@ jobs:
 
   verify-test-pypi-sdist:
     needs: test-pypi-publish
-    name: Verify TestPyPI sdist upload
+    name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
