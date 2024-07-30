@@ -1,25 +1,26 @@
 name: Build and Release W&B SDK
+run-name: SDK ${{ inputs.version }} release${{ inputs.dry-run && ' (dry-run)' || '' }}
 
 on:
   workflow_dispatch:
     inputs:
       version:
         type: string
-        description: "Version to assign to the release."
+        description: "Version to assign to the release"
         required: true
       dry-run:
         type: boolean
-        description: "Check this to avoid uploading to PyPI."
+        description: "Dry run (avoid uploading to PyPI)"
         default: true
       update-changelog:
         type: boolean
-        description: "Update the changelog and release notes."
+        description: "Update changelog and release notes"
         required: false
         default: false
 
 jobs:
   prepare-release:
-    name: Prepare Release
+    name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v4
@@ -184,10 +185,34 @@ jobs:
           name: wandb-sdk-distributions
           path: ./dist
 
+  build-sdist:
+    name: Create source distribution
+    needs: prepare-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install Hatch
+        run: pip install hatch==1.12
+
+      - name: Create sdist
+        run: hatch build -t sdist
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: ./dist
+
   test-pypi-publish:
-    if: ${{ !inputs.dry-run }}
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-universal-wheel]
+    needs: [build-platform-wheels, build-universal-wheel, build-sdist]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
@@ -196,22 +221,37 @@ jobs:
     permissions:
       id-token: write  # trusted publishing
     steps:
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
       - name: Download distribution
         uses: actions/download-artifact@v3
         with:
           name: wandb-sdk-distributions
           path: dist/
+
       - name: List distribution
         run: ls dist/
+
       - name: Publish distribution to TestPyPI
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
 
+      # Unfortunately, there's no reliable way to do this.
+      #
+      # Looping until a `pip install --dry-run` succeeds isn't sufficient
+      # because you can still see failures after a success; TestPyPI doesn't
+      # seem to guarantee consistency.
+      - name: Wait for package to appear in TestPyPI
+        shell: bash
+        run: sleep 60
+
   verify-test-pypi:
-    if: ${{ !inputs.dry-run }}
     needs: test-pypi-publish
-    name: Verify TestPyPI upload on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
@@ -223,25 +263,68 @@ jobs:
           - windows-2019
           - macos-14
         use_core: [false, true]
+
     steps:
       - name: Setup Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.10"
+
       - name: Install wandb from TestPyPI
-        run: |
-          sleep 60
-          python -m pip install --upgrade pip
-          python -m pip install --extra-index-url https://test.pypi.org/simple/ wandb==${{ github.event.inputs.version }}
-      - name: Smoke-test wandb TestPyPI install
-        run: |
-          WANDB__REQUIRE_CORE=${{ matrix.use_core }} python -c "import wandb; run = wandb.init(settings={'mode': 'offline'}); run.finish()"
         shell: bash
+        run: |
+          python -m pip install \
+            --extra-index-url https://test.pypi.org/simple/ \
+            wandb==${{ github.event.inputs.version }}
+
+      - name: Smoke-test wandb
+        shell: bash
+        run: |
+          WANDB__REQUIRE_CORE=${{ matrix.use_core }} \
+          WANDB_MODE=offline \
+          python -c "import wandb; run = wandb.init(); run.finish()"
+
+  verify-test-pypi-sdist:
+    needs: test-pypi-publish
+    name: Smoke-test sdist
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Set up latest Go
+        uses: actions/setup-go@v5
+
+      - name: Install wandb from TestPyPI with --no-binary
+        run: |
+          python -m pip install \
+            --no-binary wandb \
+            --extra-index-url https://test.pypi.org/simple/ \
+            wandb==${{ github.event.inputs.version }}
+
+      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
+        shell: bash
+        run: |
+          WANDB__REQUIRE_CORE=false \
+          WANDB_MODE=offline \
+          python -c "import wandb; run = wandb.init(); run.finish()"
+
+      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=true)
+        shell: bash
+        run: |
+          WANDB__REQUIRE_CORE=true \
+          WANDB_MODE=offline \
+          python -c "import wandb; run = wandb.init(); run.finish()"
+
 
   pypi-publish:
     if: ${{ !inputs.dry-run }}
     name: Publish to PyPI
-    needs: test-pypi-publish
+    needs: [verify-test-pypi, verify-test-pypi-sdist]
     runs-on: ubuntu-latest
     environment:
       name: release
