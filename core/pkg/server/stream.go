@@ -134,6 +134,14 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 	logger.Info("using version", "core version", version.Version)
 	logger.Info("created symlink", "path", targetPath)
 
+	// Log some environment variables so we know they were enabled
+	envVars := []string{"GOTRACEBACK", "_WANDB_DEBUG_PANIC_MALFORMED"}
+	for _, envVar := range envVars {
+		if value, exists := os.LookupEnv(envVar); exists {
+			logger.Info("Using environment variable", envVar, value)
+		}
+	}
+
 	tags := observability.Tags{
 		"run_id":   settings.GetRunID(),
 		"run_url":  settings.GetRunURL(),

@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
@@ -43,6 +44,10 @@ const (
 	configDebouncerBurstSize  = 1        // todo: audit burst size
 	summaryDebouncerRateLimit = 1 / 30.0 // todo: audit rate limit
 	summaryDebouncerBurstSize = 1        // todo: audit burst size
+)
+
+var (
+	debugPanicMalformedHeaderRe = regexp.MustCompile(`invalid header field name "\\x00\\x00\\x00\\x00`)
 )
 
 type SenderParams struct {
@@ -148,6 +153,9 @@ type Sender struct {
 
 	// consoleLogsSender uploads captured console output.
 	consoleLogsSender *runconsolelogs.Sender
+
+	// debug panic on malformed data
+	debugPanicMalformed bool
 }
 
 // NewSender creates a new Sender with the given settings
@@ -166,6 +174,7 @@ func NewSender(
 		outputFileName = *path
 	}
 
+	_, debugPanicMalformed := os.LookupEnv("_WANDB_DEBUG_PANIC_MALFORMED")
 	s := &Sender{
 		ctx:                 ctx,
 		cancel:              cancel,
@@ -205,6 +214,7 @@ func NewSender(
 			LoopbackChan:      params.FwdChan,
 			FileStreamOrNil:   params.FileStream,
 		}),
+		debugPanicMalformed: debugPanicMalformed,
 	}
 
 	backendOrNil := params.Backend
@@ -1357,11 +1367,12 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 		switch {
 		case err != nil:
 			// if there is an error, we don't know if the run should stop
-			s.logger.CaptureError(
-				fmt.Errorf(
-					"sender: sendStopStatus: failed to get run stopped status: %v",
-					err,
-				))
+			stopErr := fmt.Errorf("sender: sendStopStatus: failed to get run stopped status: %v", err)
+			if s.debugPanicMalformed && debugPanicMalformedHeaderRe.MatchString(err.Error()) {
+				s.logger.CaptureFatalAndPanic(stopErr)
+			} else {
+				s.logger.CaptureError(stopErr)
+			}
 			stopResponse = &service.StopStatusResponse{
 				RunShouldStop: false,
 			}
