@@ -149,9 +149,17 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
-	settings = settings.Clone()
+func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
+  settings = settings.Clone()
+	// we only need the passed context for the commit value
+	commit, ok := ctx.Value(observability.Commit).(string)
+	if !ok {
+		commit = ""
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
+	ctx = context.WithValue(ctx, observability.Commit, commit)
+
 	s := &Stream{
 		ctx:          ctx,
 		cancel:       cancel,

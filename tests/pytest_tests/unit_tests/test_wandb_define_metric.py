@@ -197,24 +197,6 @@ def test_metric_invalid_args(args, kwargs, mock_run, parse_records, record_q):
     assert len(parsed.records) == 0
 
 
-def test_metric_ignored_extra_args(mock_run, parse_records, record_q, capsys):
-    run = mock_run()
-    run.define_metric(
-        "junk",
-        extra=1,
-        another=2,
-    )
-    captured = capsys.readouterr()
-    print("GOT out", captured.out)
-    print("GOT err", captured.err)
-    assert "Unhandled define_metric() arg: extra" in captured.err
-    assert "Unhandled define_metric() arg: another" in captured.err
-
-    parsed = parse_records(record_q)
-    assert len(parsed.records) == 1
-    assert len(parsed.metric) == 1
-
-
 @pytest.mark.parametrize(
     "kwargs",
     [

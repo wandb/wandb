@@ -242,6 +242,9 @@ func (g *GPUNvidia) ClearMetrics() {
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
 	defer func() {
 		if r := recover(); r != nil {
 			g.nvmlInit = nvml.ERROR_UNINITIALIZED
@@ -252,6 +255,13 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
+	if g.nvmlInit != nvml.SUCCESS {
+		return
+	}
+
 	err := nvml.Shutdown()
 	if err != nvml.SUCCESS {
 		return
@@ -259,6 +269,9 @@ func (g *GPUNvidia) Close() {
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
+	g.mutex.Lock()
+	defer g.mutex.Unlock()
+
 	if g.nvmlInit != nvml.SUCCESS {
 		return nil
 	}
