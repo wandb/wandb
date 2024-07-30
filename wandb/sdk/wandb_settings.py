@@ -1882,9 +1882,10 @@ class Settings(SettingsData):
         if self.resume_from is None:
             return
 
-        if self.run_id is not None:
+        if self.run_id is not None and (self.resume_from.run != self.run_id):
             wandb.termwarn(
-                "You cannot specify both run_id and resume_from. " "Ignoring run_id."
+                "Both `run_id` and `resume_from` have been specified with different ids. "
+                "`run_id` will be ignored."
             )
         self.update({"run_id": self.resume_from.run}, source=Source.INIT)
 

@@ -168,6 +168,7 @@ class Settings(google.protobuf.message.Message):
 
     API_KEY_FIELD_NUMBER: builtins.int
     _OFFLINE_FIELD_NUMBER: builtins.int
+    _SHARED_FIELD_NUMBER: builtins.int
     RUN_ID_FIELD_NUMBER: builtins.int
     RUN_URL_FIELD_NUMBER: builtins.int
     PROJECT_FIELD_NUMBER: builtins.int
@@ -182,6 +183,19 @@ class Settings(google.protobuf.message.Message):
     IDENTITY_TOKEN_FILE_FIELD_NUMBER: builtins.int
     CREDENTIALS_FILE_FIELD_NUMBER: builtins.int
     _FILE_STREAM_MAX_BYTES_FIELD_NUMBER: builtins.int
+    _EXTRA_HTTP_HEADERS_FIELD_NUMBER: builtins.int
+    _FILE_STREAM_RETRY_MAX_FIELD_NUMBER: builtins.int
+    _FILE_STREAM_RETRY_WAIT_MIN_SECONDS_FIELD_NUMBER: builtins.int
+    _FILE_STREAM_RETRY_WAIT_MAX_SECONDS_FIELD_NUMBER: builtins.int
+    _FILE_STREAM_TIMEOUT_SECONDS_FIELD_NUMBER: builtins.int
+    _FILE_TRANSFER_RETRY_MAX_FIELD_NUMBER: builtins.int
+    _FILE_TRANSFER_RETRY_WAIT_MIN_SECONDS_FIELD_NUMBER: builtins.int
+    _FILE_TRANSFER_RETRY_WAIT_MAX_SECONDS_FIELD_NUMBER: builtins.int
+    _FILE_TRANSFER_TIMEOUT_SECONDS_FIELD_NUMBER: builtins.int
+    _GRAPHQL_RETRY_MAX_FIELD_NUMBER: builtins.int
+    _GRAPHQL_RETRY_WAIT_MIN_SECONDS_FIELD_NUMBER: builtins.int
+    _GRAPHQL_RETRY_WAIT_MAX_SECONDS_FIELD_NUMBER: builtins.int
+    _GRAPHQL_TIMEOUT_SECONDS_FIELD_NUMBER: builtins.int
     _ARGS_FIELD_NUMBER: builtins.int
     _AWS_LAMBDA_FIELD_NUMBER: builtins.int
     _CLI_ONLY_MODE_FIELD_NUMBER: builtins.int
@@ -193,8 +207,6 @@ class Settings(google.protobuf.message.Message):
     _DISABLE_STATS_FIELD_NUMBER: builtins.int
     _DISABLE_VIEWER_FIELD_NUMBER: builtins.int
     _EXECUTABLE_FIELD_NUMBER: builtins.int
-    _EXTRA_HTTP_HEADERS_FIELD_NUMBER: builtins.int
-    _FILE_STREAM_TIMEOUT_SECONDS_FIELD_NUMBER: builtins.int
     _FLOW_CONTROL_CUSTOM_FIELD_NUMBER: builtins.int
     _FLOW_CONTROL_DISABLED_FIELD_NUMBER: builtins.int
     _INTERNAL_CHECK_PROCESS_FIELD_NUMBER: builtins.int
@@ -314,22 +326,10 @@ class Settings(google.protobuf.message.Message):
     _JUPYTER_PATH_FIELD_NUMBER: builtins.int
     JOB_NAME_FIELD_NUMBER: builtins.int
     _STATS_DISK_PATHS_FIELD_NUMBER: builtins.int
-    _FILE_STREAM_RETRY_MAX_FIELD_NUMBER: builtins.int
-    _FILE_STREAM_RETRY_WAIT_MIN_SECONDS_FIELD_NUMBER: builtins.int
-    _FILE_STREAM_RETRY_WAIT_MAX_SECONDS_FIELD_NUMBER: builtins.int
-    _FILE_TRANSFER_RETRY_MAX_FIELD_NUMBER: builtins.int
-    _FILE_TRANSFER_RETRY_WAIT_MIN_SECONDS_FIELD_NUMBER: builtins.int
-    _FILE_TRANSFER_RETRY_WAIT_MAX_SECONDS_FIELD_NUMBER: builtins.int
-    _FILE_TRANSFER_TIMEOUT_SECONDS_FIELD_NUMBER: builtins.int
-    _GRAPHQL_RETRY_MAX_FIELD_NUMBER: builtins.int
-    _GRAPHQL_RETRY_WAIT_MIN_SECONDS_FIELD_NUMBER: builtins.int
-    _GRAPHQL_RETRY_WAIT_MAX_SECONDS_FIELD_NUMBER: builtins.int
-    _GRAPHQL_TIMEOUT_SECONDS_FIELD_NUMBER: builtins.int
     _DISABLE_MACHINE_INFO_FIELD_NUMBER: builtins.int
     PROGRAM_ABSPATH_FIELD_NUMBER: builtins.int
     COLAB_URL_FIELD_NUMBER: builtins.int
     _STATS_BUFFER_SIZE_FIELD_NUMBER: builtins.int
-    _SHARED_FIELD_NUMBER: builtins.int
     _CODE_PATH_LOCAL_FIELD_NUMBER: builtins.int
     CONSOLE_MULTIPART_FIELD_NUMBER: builtins.int
     HTTP_PROXY_FIELD_NUMBER: builtins.int
@@ -344,6 +344,13 @@ class Settings(google.protobuf.message.Message):
     @property
     def _offline(self) -> google.protobuf.wrappers_pb2.BoolValue:
         """Whether we are in offline mode."""
+    @property
+    def _shared(self) -> google.protobuf.wrappers_pb2.BoolValue:
+        """Whether we are in shared mode.
+
+        In "shared" mode, multiple processes can write to the same run,
+        for example from different machines.
+        """
     @property
     def run_id(self) -> google.protobuf.wrappers_pb2.StringValue:
         """The ID of the run."""
@@ -393,6 +400,45 @@ class Settings(google.protobuf.message.Message):
         This number is approximate: requests will be slightly larger.
         """
     @property
+    def _extra_http_headers(self) -> global___MapStringKeyStringValue:
+        """Additional headers to add to all outgoing HTTP requests."""
+    @property
+    def _file_stream_retry_max(self) -> google.protobuf.wrappers_pb2.Int32Value:
+        """Maximum number of retries for filestream operations."""
+    @property
+    def _file_stream_retry_wait_min_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Initial wait in-between filestream retries."""
+    @property
+    def _file_stream_retry_wait_max_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Final wait in-between filestream retries."""
+    @property
+    def _file_stream_timeout_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Per-retry timeout for filestream operations."""
+    @property
+    def _file_transfer_retry_max(self) -> google.protobuf.wrappers_pb2.Int32Value:
+        """Maximum number of retries for file upload/download operations."""
+    @property
+    def _file_transfer_retry_wait_min_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Initial wait in-between file upload/download retries."""
+    @property
+    def _file_transfer_retry_wait_max_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Final wait in-between file upload/download retries."""
+    @property
+    def _file_transfer_timeout_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Per-retry timeout for file upload/download operations."""
+    @property
+    def _graphql_retry_max(self) -> google.protobuf.wrappers_pb2.Int32Value:
+        """Maximum number of retries for GraphQL operations."""
+    @property
+    def _graphql_retry_wait_min_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Initial wait in-between GraphQL retries."""
+    @property
+    def _graphql_retry_wait_max_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Final wait in-between GraphQL retries."""
+    @property
+    def _graphql_timeout_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue:
+        """Per-retry timeout for GraphQL operations."""
+    @property
     def _args(self) -> global___ListStringValue: ...
     @property
     def _aws_lambda(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
@@ -414,10 +460,6 @@ class Settings(google.protobuf.message.Message):
     def _disable_viewer(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def _executable(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
-    def _extra_http_headers(self) -> global___MapStringKeyStringValue: ...
-    @property
-    def _file_stream_timeout_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
     @property
     def _flow_control_custom(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
@@ -657,28 +699,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def _stats_disk_paths(self) -> global___ListStringValue: ...
     @property
-    def _file_stream_retry_max(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
-    @property
-    def _file_stream_retry_wait_min_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _file_stream_retry_wait_max_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _file_transfer_retry_max(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
-    @property
-    def _file_transfer_retry_wait_min_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _file_transfer_retry_wait_max_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _file_transfer_timeout_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _graphql_retry_max(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
-    @property
-    def _graphql_retry_wait_min_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _graphql_retry_wait_max_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
-    def _graphql_timeout_seconds(self) -> google.protobuf.wrappers_pb2.DoubleValue: ...
-    @property
     def _disable_machine_info(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def program_abspath(self) -> google.protobuf.wrappers_pb2.StringValue: ...
@@ -686,8 +706,6 @@ class Settings(google.protobuf.message.Message):
     def colab_url(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def _stats_buffer_size(self) -> google.protobuf.wrappers_pb2.Int32Value: ...
-    @property
-    def _shared(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
     @property
     def _code_path_local(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
@@ -711,6 +729,7 @@ class Settings(google.protobuf.message.Message):
         *,
         api_key: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _offline: google.protobuf.wrappers_pb2.BoolValue | None = ...,
+        _shared: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         run_id: google.protobuf.wrappers_pb2.StringValue | None = ...,
         run_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         project: google.protobuf.wrappers_pb2.StringValue | None = ...,
@@ -725,6 +744,19 @@ class Settings(google.protobuf.message.Message):
         identity_token_file: google.protobuf.wrappers_pb2.StringValue | None = ...,
         credentials_file: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _file_stream_max_bytes: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _extra_http_headers: global___MapStringKeyStringValue | None = ...,
+        _file_stream_retry_max: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _file_stream_retry_wait_min_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _file_stream_retry_wait_max_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _file_stream_timeout_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _file_transfer_retry_max: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _file_transfer_retry_wait_min_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _file_transfer_retry_wait_max_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _file_transfer_timeout_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _graphql_retry_max: google.protobuf.wrappers_pb2.Int32Value | None = ...,
+        _graphql_retry_wait_min_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _graphql_retry_wait_max_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
+        _graphql_timeout_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _args: global___ListStringValue | None = ...,
         _aws_lambda: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _cli_only_mode: google.protobuf.wrappers_pb2.BoolValue | None = ...,
@@ -736,8 +768,6 @@ class Settings(google.protobuf.message.Message):
         _disable_stats: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _disable_viewer: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _executable: google.protobuf.wrappers_pb2.StringValue | None = ...,
-        _extra_http_headers: global___MapStringKeyStringValue | None = ...,
-        _file_stream_timeout_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _flow_control_custom: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _flow_control_disabled: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _internal_check_process: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
@@ -857,22 +887,10 @@ class Settings(google.protobuf.message.Message):
         _jupyter_path: google.protobuf.wrappers_pb2.StringValue | None = ...,
         job_name: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _stats_disk_paths: global___ListStringValue | None = ...,
-        _file_stream_retry_max: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        _file_stream_retry_wait_min_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _file_stream_retry_wait_max_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _file_transfer_retry_max: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        _file_transfer_retry_wait_min_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _file_transfer_retry_wait_max_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _file_transfer_timeout_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _graphql_retry_max: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        _graphql_retry_wait_min_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _graphql_retry_wait_max_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
-        _graphql_timeout_seconds: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         _disable_machine_info: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         program_abspath: google.protobuf.wrappers_pb2.StringValue | None = ...,
         colab_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         _stats_buffer_size: google.protobuf.wrappers_pb2.Int32Value | None = ...,
-        _shared: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         _code_path_local: google.protobuf.wrappers_pb2.StringValue | None = ...,
         console_multipart: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         http_proxy: google.protobuf.wrappers_pb2.StringValue | None = ...,

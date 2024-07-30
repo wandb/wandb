@@ -176,3 +176,39 @@ func TestFileCache_RestoreTo(t *testing.T) {
 	// And if we give it an invalid manifest entry, it should fail.
 	assert.False(t, cache.RestoreTo(ManifestEntry{Digest: "invalid"}, localPath))
 }
+
+func TestFileCache_RestoreToReference(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// Write some data to the cache
+	data := []byte("reference data")
+	_, err := cache.Write(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	rootDir := filepath.Join(os.TempDir(), "restore_root")
+	defer os.Remove(rootDir)
+	localPath := filepath.Join(rootDir, "test", "dir", "restore_target.test")
+	refPath := "gs://example-bucket/some/object/path"
+	manifestEntry := ManifestEntry{
+		Digest: "some-etag",
+		Ref:    &refPath,
+		Size:   14,
+	}
+	etagPath := cache.etagPath(refPath, manifestEntry.Digest)
+	require.NoError(t, os.MkdirAll(filepath.Dir(etagPath), defaultDirPermissions))
+	require.NoError(t, os.WriteFile(etagPath, data, 0644))
+
+	// Restore the cache file to the target path
+	assert.True(t, cache.RestoreTo(manifestEntry, localPath))
+
+	// Verify the file exists at the target path and content matches
+	restoredData, err := os.ReadFile(localPath)
+	require.NoError(t, err)
+	assert.Equal(t, data, restoredData)
+
+	// The HashOnlyCache can't restore reference entries and should fail, even when
+	// the file exists in the cache.
+	noOpCache := NewHashOnlyCache()
+	assert.False(t, noOpCache.RestoreTo(manifestEntry, localPath))
+}

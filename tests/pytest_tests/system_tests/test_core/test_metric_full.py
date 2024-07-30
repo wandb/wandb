@@ -282,7 +282,7 @@ def test_metric_mult(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
         run_id = run.id
-        run.define_metric("mystep", hide=True)
+        run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep")
         _gen_metric_sync_step(run)
         run.finish()
@@ -295,7 +295,7 @@ def test_metric_goal(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
         run_id = run.id
-        run.define_metric("mystep", hide=True)
+        run.define_metric("mystep", hidden=True)
         run.define_metric("*", step_metric="mystep", goal="maximize")
         _gen_metric_sync_step(run)
         run.finish()

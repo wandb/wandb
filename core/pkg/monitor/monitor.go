@@ -59,6 +59,18 @@ func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp)
 	}
 }
 
+func makeMetadataRecord(metadata *service.MetadataRequest) *service.Record {
+	return &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Metadata{
+					Metadata: metadata,
+				},
+			},
+		},
+	}
+}
+
 type Asset interface {
 	Name() string
 	SampleMetrics()
@@ -144,7 +156,7 @@ func NewSystemMonitor(
 		return systemMonitor
 	}
 
-	assets := []Asset{
+	systemMonitor.assets = []Asset{
 		NewMemory(settings),
 		NewCPU(settings),
 		NewDisk(settings),
@@ -152,13 +164,6 @@ func NewSystemMonitor(
 		NewGPUNvidia(settings),
 		NewGPUAMD(settings),
 		NewGPUApple(settings),
-	}
-
-	// if asset is available, add it to the list of assets to monitor
-	for _, asset := range assets {
-		if asset.IsAvailable() {
-			systemMonitor.assets = append(systemMonitor.assets, asset)
-		}
 	}
 
 	return systemMonitor
@@ -177,6 +182,18 @@ func (sm *SystemMonitor) Do() {
 		sm.wg.Add(1)
 		go sm.Monitor(asset)
 	}
+
+	// probe the asset information
+	go func() {
+		systemInfo := sm.Probe()
+		if systemInfo != nil {
+			select {
+			case <-sm.ctx.Done():
+				return
+			case sm.outChan <- makeMetadataRecord(systemInfo):
+			}
+		}
+	}()
 }
 
 func getSlurmEnvVars() map[string]string {
@@ -195,9 +212,6 @@ func getSlurmEnvVars() map[string]string {
 }
 
 func (sm *SystemMonitor) Probe() *service.MetadataRequest {
-	if sm == nil {
-		return nil
-	}
 	systemInfo := service.MetadataRequest{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
@@ -217,6 +231,11 @@ func (sm *SystemMonitor) Probe() *service.MetadataRequest {
 }
 
 func (sm *SystemMonitor) Monitor(asset Asset) {
+	if !asset.IsAvailable() {
+		sm.wg.Done()
+		return
+	}
+
 	// recover from panic and log the error
 	defer func() {
 		sm.wg.Done()
