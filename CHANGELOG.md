@@ -19,6 +19,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - `run.define_metric()` raises an error when given extraneous arguments (@timoffex in https://github.com/wandb/wandb/pull/8040)
+- In disabled mode, use the `wandb.sdk.wandb_run.Run` class instead of `wandb.sdk.wandb_run.RunDisabled`, which has been removed (@dmitryduev in https://github.com/wandb/wandb/pull/8037)
 
 ## [0.17.5] - 2024-07-19
 
