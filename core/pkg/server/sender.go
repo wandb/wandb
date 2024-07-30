@@ -851,7 +851,7 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
 		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: sendRun: mailbox slot not set"),
+			errors.New("sender: upsertRun: mailbox slot not set"),
 		)
 	}
 
@@ -892,7 +892,7 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 
 	if err != nil {
 		err = fmt.Errorf("failed to upsert bucket: %s", err)
-		s.logger.Error("sender: sendRun:", "error", err)
+		s.logger.Error("sender: upsertRun:", "error", err)
 		// TODO(sync): make this more robust in case of a failed UpsertBucket request.
 		//  Need to inform the sync service that this ops failed.
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
@@ -908,22 +908,30 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 		return
 	}
 
-	// if the response is empty, return an error
-	bucket := data.GetUpsertBucket().GetBucket()
+	// manage the state of the run
+	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
+		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
+	} else {
+		bucket := data.GetUpsertBucket().GetBucket()
 
-	// if the response project is empty, return an error
-	project := bucket.GetProject()
-
-	entity := project.GetEntity()
-
-	s.startState.Merge(&runbranch.RunParams{
-		RunID:       bucket.GetName(),
-		Project:     project.GetName(),
-		Entity:      entity.GetName(),
-		DisplayName: utils.ZeroIfNil(bucket.GetDisplayName()),
-		StorageID:   bucket.GetId(),
-		SweepID:     utils.ZeroIfNil(bucket.GetSweepName()),
-	})
+		project := bucket.GetProject()
+		var projectName, entityName string
+		if project == nil {
+			s.logger.Error("sender: upsertRun: project is nil")
+		} else {
+			entity := project.GetEntity()
+			entityName = entity.GetName()
+			projectName = project.GetName()
+		}
+		s.startState.Merge(&runbranch.RunParams{
+			StorageID:   bucket.GetId(),
+			Entity:      utils.ZeroIfNil(&entityName),
+			Project:     utils.ZeroIfNil(&projectName),
+			RunID:       bucket.GetName(),
+			DisplayName: utils.ZeroIfNil(bucket.GetDisplayName()),
+			SweepID:     utils.ZeroIfNil(bucket.GetSweepName()),
+		})
+	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 		// This will be done only for the initial run upsert record
@@ -932,7 +940,8 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 		s.respond(record,
 			&service.RunUpdateResult{
 				Run: run,
-			})
+			},
+		)
 	}
 }
 
