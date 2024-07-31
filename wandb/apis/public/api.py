@@ -821,7 +821,7 @@ class Api:
             order: (str) Order can be `created_at`, `heartbeat_at`, `config.*.value`, or `summary_metrics.*`.
                 If you prepend order with a + order is ascending.
                 If you prepend order with a - order is descending (default).
-                The default order is run.created_at from newest to oldest.
+                The default order is run.created_at from oldest to newest.
             per_page: (int) Sets the page size for query pagination.
             include_sweeps: (bool) Whether to include the sweep runs in the results.
 
