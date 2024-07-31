@@ -12,7 +12,7 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/googleapis/gax-go/v2"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"golang.org/x/sync/semaphore"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/api/iterator"
 )
 
@@ -114,48 +114,52 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			objectNames = append(objectNames, objAttrs.Name)
 		}
 
-		sem := semaphore.NewWeighted(int64(maxWorkers))
+		g := new(errgroup.Group)
+		g.SetLimit(maxWorkers)
 		for _, name := range objectNames {
-			if err := sem.Acquire(ft.ctx, 1); err != nil {
-				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: failed to acquire semaphore while downloading reference %s: %v", reference, err))
-				return err
-			}
-
-			go func(name string) {
-				defer sem.Release(1)
-				object := bucket.Object(name)
-				localPath := GetDownloadFilePath(name, objectName, task.Path)
+			objName := name // for closure in the goroutine
+			g.Go(func() error {
+				object := bucket.Object(objName)
+				localPath := getDownloadFilePath(objName, objectName, task.Path)
 				err := ft.DownloadFile(object, localPath)
 				if err != nil {
+					// this file is probably a folder, skip to avoid an unnecessary error
+					if isDir(reference, task.Size) {
+						ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
+						return nil
+					}
 					ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error when downloading file for reference %s: %v", reference, err))
+					return err
 				}
-			}(name)
+				return nil
+			})
 		}
 
-		// Wait for all of the go routines to complete
-		if err := sem.Acquire(ft.ctx, int64(maxWorkers)); err != nil {
-			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: failed to acquire semaphore while downloading reference %s: %v", reference, err))
+		// Wait for all of the go routines to complete and return an error if any errored out
+		if err := g.Wait(); err != nil {
 			return err
 		}
 	case task.VersionId != nil:
-		// If the size is 0, skip to avoid an error when reading file contents
-		if task.Size == 0 {
-			return nil
-		}
 		object := bucket.Object(objectName).Generation(int64(task.VersionId.(float64)))
 		err := ft.DownloadFile(object, task.Path)
 		if err != nil {
+			// this file is probably a folder, skip to avoid an unnecessary error
+			if isDir(reference, task.Size) {
+				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
+				return nil
+			}
 			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error while downloading file for reference %s: %v", reference, err))
 			return err
 		}
 	default:
-		// If the size is 0, skip to avoid an error when reading file contents
-		if task.Size == 0 {
-			return nil
-		}
 		object := bucket.Object(objectName)
 		objAttrs, err := object.Attrs(ft.ctx)
 		if err != nil {
+			// this file is probably a folder, skip to avoid an unnecessary error
+			if isDir(reference, task.Size) {
+				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
+				return nil
+			}
 			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: unable to fetch object attributes for %s for reference %s: %v", objectName, reference, err))
 			return err
 		}
@@ -212,9 +216,14 @@ func (ft *GCSFileTransfer) DownloadFile(object *storage.ObjectHandle, localPath 
 	return nil
 }
 
-// GetDownloadFilePath returns the file path to download the file to, removing duplicate info from the extension
-func GetDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
+// getDownloadFilePath returns the file path to download the file to, removing duplicate info from the extension
+func getDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
 	ext, _ := strings.CutPrefix(objectName, prefix)
 	localPath := baseFilePath + ext
 	return localPath
+}
+
+// isDir returns true if the reference path and its size indicate that it might be a directory
+func isDir(reference string, size int64) bool {
+	return path.Ext(reference) == "" && size == 0
 }
