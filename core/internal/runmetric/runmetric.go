@@ -9,107 +9,173 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
-	"google.golang.org/protobuf/proto"
 )
 
 type MetricHandler struct {
-	metricDefs     map[string]*service.MetricRecord
-	globMetricDefs map[string]*service.MetricRecord
+	definedMetrics map[string]definedMetric
+	globMetrics    map[string]definedMetric
+
+	// latestStep tracks the latest value of every step metric.
+	latestStep map[string]float64
 }
 
-func NewMetricHandler() *MetricHandler {
+func New() *MetricHandler {
 	return &MetricHandler{
-		metricDefs:     make(map[string]*service.MetricRecord),
-		globMetricDefs: make(map[string]*service.MetricRecord),
+		definedMetrics: make(map[string]definedMetric),
+		globMetrics:    make(map[string]definedMetric),
+		latestStep:     make(map[string]float64),
 	}
 }
 
 // Exists reports whether a non-glob metric is defined.
 func (mh *MetricHandler) Exists(key string) bool {
-	_, exists := mh.metricDefs[key]
+	_, exists := mh.definedMetrics[key]
 	return exists
+}
+
+// ProcessRecord updates metric definitions.
+func (mh *MetricHandler) ProcessRecord(record *service.MetricRecord) error {
+	if len(record.StepMetric) > 0 {
+		if _, ok := mh.latestStep[record.StepMetric]; !ok {
+			mh.latestStep[record.StepMetric] = 0
+		}
+	}
+
+	var metricByKey map[string]definedMetric
+	var key string
+	switch {
+	case len(record.Name) > 0:
+		metricByKey = mh.definedMetrics
+		key = record.Name
+	case len(record.GlobName) > 0:
+		metricByKey = mh.globMetrics
+		key = record.GlobName
+	case len(record.StepMetric) > 0:
+		// This is an explicit X axis; nothing to do.
+		return nil
+	default:
+		return errors.New("runmetric: name, glob_name or step_metric must be set")
+	}
+
+	var prev definedMetric
+	if !record.GetXControl().GetOverwrite() {
+		prev = metricByKey[key]
+	}
+
+	updated := prev.With(record)
+	metricByKey[key] = updated
+
+	return nil
+}
+
+// UpdateSummary updates the statistics tracked in the run summary
+// for the given metric.
+func (mh *MetricHandler) UpdateSummary(
+	name string,
+	summary *runsummary.RunSummary,
+) {
+	metric, ok := mh.definedMetrics[name]
+
+	if !ok {
+		return
+	}
+
+	if len(name) == 0 {
+		return
+	}
+	parts := strings.Split(name, ".")
+	path := pathtree.PathOf(parts[0], parts[1:]...)
+
+	summary.ConfigureMetric(path, metric.NoSummary, metric.SummaryTypes)
+}
+
+// UpdateMetrics creates new metric definitions from globs that
+// match the new history value and updates the latest value tracked
+// for every metric used as a custom step.
+//
+// Returns any new metrics that were created.
+func (mh *MetricHandler) UpdateMetrics(
+	history *runhistory.RunHistory,
+) []*service.MetricRecord {
+	for key := range mh.latestStep {
+		if len(key) == 0 {
+			continue
+		}
+		keyLabels := strings.Split(key, ".")
+		keyPath := pathtree.PathOf(keyLabels[0], keyLabels[1:]...)
+
+		latest, ok := history.GetNumber(keyPath)
+		if !ok {
+			continue
+		}
+
+		mh.latestStep[key] = latest
+	}
+
+	return mh.createGlobMetrics(history)
 }
 
 // InsertStepMetrics inserts an automatic step metric for every defined
 // metric with step_sync set to true.
-//
-// TODO: Remove the 'summary' parameter from 'InsertStepMetrics'.
-// The 'summary' parameter is used by the old implementation, which is
-// to be refactored.
 func (mh *MetricHandler) InsertStepMetrics(
 	history *runhistory.RunHistory,
-	summary *runsummary.RunSummary,
 ) {
-	for _, metricDef := range mh.metricDefs {
-		// Skip any metrics that do not need to be synced.
-		if metricDef.StepMetric == "" || !metricDef.Options.GetStepSync() {
-			continue
+	history.ForEachKey(func(path pathtree.TreePath) bool {
+		key := strings.Join(path.Labels(), ".")
+		metricDef, ok := mh.definedMetrics[key]
+		if !ok {
+			return true
 		}
+
+		// Skip any metrics that do not need to be synced.
+		if metricDef.Step == "" || !metricDef.SyncStep {
+			return true
+		}
+
+		stepMetricLabels := strings.Split(metricDef.Step, ".")
+		stepMetricPath := pathtree.PathOf(
+			stepMetricLabels[0],
+			stepMetricLabels[1:]...,
+		)
 
 		// Skip if the step is already set.
-		if history.Contains(pathtree.PathOf(metricDef.StepMetric)) {
-			continue
+		if history.Contains(stepMetricPath) {
+			return true
 		}
-
-		// Skip if the metric doesn't show up in history.
-		if !history.Contains(pathtree.PathOf(metricDef.Name)) {
-			continue
+		latest, ok := mh.latestStep[metricDef.Step]
+		// This should never happen, but we'll skip the metric if it does.
+		if !ok {
+			return true
 		}
-
-		// TODO: Insert the latest value.
-		mh.hackInsertLatestValue(metricDef.StepMetric, history, summary)
-	}
+		history.SetFloat(stepMetricPath, latest)
+		return true
+	})
 }
 
-func (mh *MetricHandler) hackInsertLatestValue(
-	stepMetricKey string,
-	history *runhistory.RunHistory,
-	summary *runsummary.RunSummary,
-) {
-	value, exists := summary.Get(stepMetricKey)
-	if !exists {
-		return
-	}
-
-	// NOTE: This assumes that the source value is always a float64 or int64
-	// if it is a number. This is true because all JSON libraries we use decode
-	// numbers into float64 or int64, but this is a brittle assumption.
-	switch x := value.(type) {
-	case float64:
-		history.SetFloat(pathtree.PathOf(stepMetricKey), x)
-	case int64:
-		history.SetInt(pathtree.PathOf(stepMetricKey), x)
-	}
-}
-
-// CreateGlobMetrics returns new metric definitions created by matching
+// createGlobMetrics returns new metric definitions created by matching
 // glob metrics to the history.
-func (mh *MetricHandler) CreateGlobMetrics(
+func (mh *MetricHandler) createGlobMetrics(
 	history *runhistory.RunHistory,
 ) []*service.MetricRecord {
 	var newMetrics []*service.MetricRecord
 
 	history.ForEachKey(func(path pathtree.TreePath) bool {
-		// TODO: Support nested keys.
-		if path.Len() != 1 {
-			return true
-		}
-		key := path.Labels()[0]
+		key := strings.Join(path.Labels(), ".")
 
 		// Skip metrics prefixed by an underscore, which are internal to W&B.
 		if strings.HasPrefix(key, "_") {
 			return true
 		}
 
-		_, isKnown := mh.metricDefs[key]
+		_, isKnown := mh.definedMetrics[key]
 		if isKnown {
 			return true
 		}
 
-		metric := mh.matchGlobMetric(key)
-		if metric != nil {
-			mh.metricDefs[key] = metric
-			newMetrics = append(newMetrics, metric)
+		metric, ok := mh.matchGlobMetric(key)
+		if ok {
+			mh.definedMetrics[key] = metric
+			newMetrics = append(newMetrics, metric.ToRecord(key))
 		}
 
 		return true
@@ -120,123 +186,16 @@ func (mh *MetricHandler) CreateGlobMetrics(
 
 // matchGlobMetric returns a new metric definition if the key matches
 // a glob metric, and otherwise returns nil.
-func (mh *MetricHandler) matchGlobMetric(key string) *service.MetricRecord {
-	for glob, metric := range mh.globMetricDefs {
+func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
+	for glob, metric := range mh.globMetrics {
 		match, err := filepath.Match(glob, key)
 
 		if err != nil || !match {
 			continue
 		}
 
-		return &service.MetricRecord{
-			Name: key,
-
-			StepMetric:      metric.StepMetric,
-			StepMetricIndex: metric.StepMetricIndex,
-
-			Options: &service.MetricOptions{
-				StepSync: metric.Options.StepSync,
-				Hidden:   metric.Options.Hidden,
-				Defined:  false,
-			},
-
-			Summary:  metric.Summary,
-			Goal:     metric.Goal,
-			XControl: metric.XControl,
-			XInfo:    metric.XInfo,
-		}
-	}
-	return nil
-}
-
-// AddMetric registers a new defined metric.
-func (mh *MetricHandler) AddMetric(metric *service.MetricRecord) error {
-	switch {
-	case metric.GlobName != "":
-		prev, exists := mh.globMetricDefs[metric.GlobName]
-
-		if metric.GetXControl().GetOverwrite() || !exists {
-			mh.globMetricDefs[metric.GlobName] = metric
-		} else {
-			mh.metricDefs[metric.Name] = mergeMetric(prev, metric)
-		}
-
-		return nil
-
-	case metric.Name != "":
-		prev, exists := mh.metricDefs[metric.Name]
-
-		if metric.GetXControl().GetOverwrite() || !exists {
-			mh.metricDefs[metric.Name] = metric
-		} else {
-			mh.metricDefs[metric.Name] = mergeMetric(prev, metric)
-		}
-
-		return nil
-
-	case metric.StepMetric != "":
-		// This is an explicit X-axis, so it's a valid case, but it's a no-op.
-		return nil
-
-	default:
-		return errors.New("invalid metric")
-	}
-}
-
-// mergeMetric return a new record combining `old` and `new`.
-//
-// All scalars come from `new`. Submessages come from `new` if they're
-// set, or `old` otherwise. Repeated fields are the concatentation of
-// their values in `old` and `new`.
-func mergeMetric(
-	old *service.MetricRecord,
-	new *service.MetricRecord,
-) *service.MetricRecord {
-	oldCloned := proto.Clone(old)
-
-	switch x := oldCloned.(type) {
-	case *service.MetricRecord:
-		proto.Merge(x, new)
-		return x
-	default:
-		return new
-	}
-}
-
-func (mh *MetricHandler) HackGetDefinedMetrics() map[string]*service.MetricRecord {
-	return mh.metricDefs
-}
-
-func (mh *MetricHandler) HackGetGlobMetrics() map[string]*service.MetricRecord {
-	return mh.globMetricDefs
-}
-
-type MetricSender struct {
-	DefinedMetrics map[string]*service.MetricRecord
-	MetricIndex    map[string]int32
-	ConfigMetrics  []map[string]interface{}
-}
-
-func NewMetricSender() *MetricSender {
-	return &MetricSender{
-		DefinedMetrics: make(map[string]*service.MetricRecord),
-		MetricIndex:    make(map[string]int32),
-		ConfigMetrics:  make([]map[string]interface{}, 0),
-	}
-}
-
-func (ms *MetricSender) AddNonGlobMetric(metric *service.MetricRecord) error {
-	if metric.Name == "" {
-		return errors.New("runmetric: expected non-empty name")
+		return metric, true
 	}
 
-	prev, exists := ms.DefinedMetrics[metric.Name]
-
-	if metric.GetXControl().GetOverwrite() || !exists {
-		ms.DefinedMetrics[metric.Name] = metric
-	} else {
-		ms.DefinedMetrics[metric.Name] = mergeMetric(prev, metric)
-	}
-
-	return nil
+	return definedMetric{}, false
 }

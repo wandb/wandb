@@ -18,7 +18,19 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
+    from typing_extensions import TypedDict
+
     from wandb.sdk.artifacts.artifact import Artifact
+
+    class ArtifactManifestEntryDict(TypedDict, total=False):
+        path: str
+        digest: str
+        skip_cache: bool
+        ref: str
+        birthArtifactID: str
+        size: int
+        extra: Dict
+        local_path: str
 
 
 class ArtifactManifestEntry:
@@ -198,6 +210,25 @@ class ArtifactManifestEntry:
             + "/"
             + self.path
         )
+
+    def to_json(self) -> "ArtifactManifestEntryDict":
+        contents: ArtifactManifestEntryDict = {
+            "path": self.path,
+            "digest": self.digest,
+        }
+        if self.size is not None:
+            contents["size"] = self.size
+        if self.ref:
+            contents["ref"] = self.ref
+        if self.birth_artifact_id:
+            contents["birthArtifactID"] = self.birth_artifact_id
+        if self.local_path:
+            contents["local_path"] = self.local_path
+        if self.skip_cache:
+            contents["skip_cache"] = self.skip_cache
+        if self.extra:
+            contents["extra"] = self.extra
+        return contents
 
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"

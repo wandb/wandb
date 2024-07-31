@@ -188,6 +188,22 @@ func (pt *PathTree) GetLeaf(path TreePath) (any, bool) {
 	}
 }
 
+// GetOrMakeLeaf returns the leaf value at path, creating one if necessary.
+func (pt *PathTree) GetOrMakeLeaf(
+	path TreePath,
+	makeDefault func() any,
+) any {
+	subtree := pt.getOrMakeSubtree(path.Prefix())
+
+	value, exists := subtree[path.End()]
+	if !exists {
+		value = makeDefault()
+		subtree[path.End()] = value
+	}
+
+	return value
+}
+
 // HasNode returns whether a node exists at the path.
 func (pt *PathTree) HasNode(path TreePath) bool {
 	subtree := pt.getSubtree(path.Prefix())

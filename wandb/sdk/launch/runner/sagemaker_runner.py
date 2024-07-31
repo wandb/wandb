@@ -221,7 +221,6 @@ class SageMakerRunner(AbstractRunner):
                 await run.wait()
             return run
 
-        launch_project.fill_macros(image_uri)
         _logger.info("Connecting to sagemaker client")
         entry_point = (
             launch_project.override_entrypoint or launch_project.get_job_entry_point()
@@ -296,13 +295,12 @@ def build_sagemaker_args(
     entry_point: Optional[EntryPoint],
     args: Optional[List[str]],
     max_env_length: int,
-    image_uri: Optional[str] = None,
+    image_uri: str,
     default_output_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     sagemaker_args: Dict[str, Any] = {}
-    given_sagemaker_args: Optional[Dict[str, Any]] = launch_project.resource_args.get(
-        "sagemaker"
-    )
+    resource_args = launch_project.fill_macros(image_uri)
+    given_sagemaker_args: Optional[Dict[str, Any]] = resource_args.get("sagemaker")
 
     if given_sagemaker_args is None:
         raise LaunchError(

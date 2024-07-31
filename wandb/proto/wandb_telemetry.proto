@@ -202,6 +202,7 @@ message Feature {
   bool metric_goal = 64;                 // goal arg passed to define_metric
   bool metric_hidden = 65;               // hidden arg passed to define_metric
   bool metric_step_sync = 66;            // step_sync arg passed to define_metric
+  bool shared_mode = 67;                 // shared mode was added in wandb.Settings
 }
 
 message Env {
@@ -243,8 +244,12 @@ message Deprecated {
   bool artifactmanifestentry__name =
       12;                            // wandb.sdk.artifacts.artifact_manifest_entry.ArtifactManifestEntry.name() called
   bool api__artifact_versions = 13;  // wandb.Api().artifact_versions(...) called
-  bool artifact_collection__change_type =
-      14;  // wandb.sdk.artifact_collection.ArtifactCollection.change_type(...) called
+
+  // wandb.sdk.artifact_collection.ArtifactCollection.change_type(...) called
+  bool artifact_collection__change_type = 14;
+
+  // wandb.run.define_metric() called with summary="copy"
+  bool run__define_metric_copy = 15;
 }
 
 message Issues {
