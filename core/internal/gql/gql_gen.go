@@ -958,13 +958,14 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetInserted() *bool { retu
 
 // UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun includes the requested fields of the GraphQL type Run.
 type UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun struct {
-	Id          string                                                       `json:"id"`
-	Name        string                                                       `json:"name"`
-	DisplayName *string                                                      `json:"displayName"`
-	Description *string                                                      `json:"description"`
-	Config      *string                                                      `json:"config"`
-	SweepName   *string                                                      `json:"sweepName"`
-	Project     *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
+	Id               string                                                       `json:"id"`
+	Name             string                                                       `json:"name"`
+	DisplayName      *string                                                      `json:"displayName"`
+	Description      *string                                                      `json:"description"`
+	Config           *string                                                      `json:"config"`
+	SweepName        *string                                                      `json:"sweepName"`
+	Project          *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
+	HistoryLineCount *int                                                         `json:"historyLineCount"`
 }
 
 // GetId returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Id, and is useful for accessing the field via an interface.
@@ -994,6 +995,11 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetSweepName() *s
 // GetProject returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Project, and is useful for accessing the field via an interface.
 func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetProject() *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject {
 	return v.Project
+}
+
+// GetHistoryLineCount returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetHistoryLineCount() *int {
+	return v.HistoryLineCount
 }
 
 // UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject includes the requested fields of the GraphQL type Project.
@@ -2391,6 +2397,7 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 					name
 				}
 			}
+			historyLineCount
 		}
 		inserted
 	}

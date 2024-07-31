@@ -980,14 +980,18 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 			entityName = entity.GetName()
 			projectName = project.GetName()
 		}
-		s.startState.Merge(&runbranch.RunParams{
+		params := &runbranch.RunParams{
 			StorageID:   bucket.GetId(),
 			Entity:      utils.ZeroIfNil(&entityName),
 			Project:     utils.ZeroIfNil(&projectName),
 			RunID:       bucket.GetName(),
 			DisplayName: utils.ZeroIfNil(bucket.GetDisplayName()),
 			SweepID:     utils.ZeroIfNil(bucket.GetSweepName()),
-		})
+		}
+		if s.settings.ForkFrom != nil {
+			params.FileStreamOffset[fs.HistoryChunk] = *bucket.GetHistoryLineCount()
+		}
+		s.startState.Merge(params)
 	}
 
 	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
