@@ -1654,6 +1654,7 @@ class Artifact:
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
+        # TODO: we need a better way to check for offline mode across the app, as this is an anti-pattern
         if env.is_offline() or util._is_offline():
             raise RuntimeError("Cannot download artifacts in offline mode.")
 
