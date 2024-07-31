@@ -242,7 +242,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 		},
 	)
 
-	s.writer = NewWriter(s.ctx,
+	s.writer = NewWriter(
 		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,

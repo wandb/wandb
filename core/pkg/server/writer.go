@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -35,9 +34,6 @@ type WriterParams struct {
 // if the message is to be persisted it writes them to the log.
 // It also sends the messages to the sender.
 type Writer struct {
-	// ctx is the context for the writer
-	ctx context.Context
-
 	// settings is the settings for the writer
 	settings *service.Settings
 
@@ -61,9 +57,8 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, params WriterParams) *Writer {
+func NewWriter(params WriterParams) *Writer {
 	w := &Writer{
-		ctx:      ctx,
 		wg:       sync.WaitGroup{},
 		logger:   params.Logger,
 		settings: params.Settings,
@@ -81,7 +76,7 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
+	w.store = NewStore(w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic(
