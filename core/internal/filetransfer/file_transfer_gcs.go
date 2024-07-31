@@ -64,6 +64,20 @@ func NewGCSFileTransfer(
 	return fileTransfer
 }
 
+// CanHandle returns true if GCSFileTransfer can upload/download the task
+func (ft *GCSFileTransfer) CanHandle(task *Task) bool {
+	if task.Reference != nil {
+		reference := *task.Reference
+		uriParts, err := url.Parse(reference)
+		if err != nil {
+			return false
+		} else if uriParts.Scheme == "gs" {
+			return true
+		}
+	}
+	return false
+}
+
 // Upload uploads a file to the server
 func (ft *GCSFileTransfer) Upload(task *Task) error {
 	ft.logger.Debug("gcs file transfer: uploading file", "path", task.Path, "url", task.Url)

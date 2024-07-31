@@ -39,6 +39,11 @@ func NewDefaultFileTransfer(
 	return fileTransfer
 }
 
+// CanHandle returns true if DefaultFileTransfer can upload/download the task
+func (ft *DefaultFileTransfer) CanHandle(task *Task) bool {
+	return true
+}
+
 // Upload uploads a file to the server
 func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)

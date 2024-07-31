@@ -1,13 +1,12 @@
 package filetransfer
 
 import (
-	"net/url"
-
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 type FileTransfer interface {
+	CanHandle(task *Task) bool
 	Upload(task *Task) error
 	Download(task *Task) error
 }
@@ -35,15 +34,10 @@ func NewFileTransfers(
 
 // Returns the appropriate fileTransfer depending on task
 func (ft *FileTransfers) GetFileTransferForTask(task *Task) FileTransfer {
-	if task.Reference != nil {
-		reference := *task.Reference
-
-		uriParts, err := url.Parse(reference)
-		if err != nil {
-			return ft.Default
-		} else if uriParts.Scheme == "gs" {
-			return ft.GCSReference
-		}
+	switch {
+	case ft.GCSReference.CanHandle(task):
+		return ft.GCSReference
+	default:
+		return ft.Default
 	}
-	return ft.Default
 }
