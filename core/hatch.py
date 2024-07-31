@@ -157,7 +157,6 @@ def _go_env(
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
 
-    # Disable cgo for by default.
     env["CGO_ENABLED"] = "1" if with_cgo else "0"
 
     return env
