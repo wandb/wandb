@@ -756,7 +756,7 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 
 	if h.metadata == nil {
-		h.metadata = request
+		h.metadata = proto.Clone(request).(*service.MetadataRequest)
 	} else {
 		proto.Merge(h.metadata, request)
 	}
@@ -1002,7 +1002,7 @@ func (h *Handler) updateRunTiming() {
 		RecordType: &service.Record_Summary{
 			Summary: &service.SummaryRecord{
 				Update: []*service.SummaryItem{{
-					Key:       "_wandb.runtime",
+					NestedKey: []string{"_wandb", "runtime"},
 					ValueJson: strconv.Itoa(runtime),
 				}},
 			},

@@ -175,20 +175,24 @@ func (g *GPUNvidia) ClearMetrics() {
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
-	return isRunning(g.cmd)
+	defer func() {
+		if r := recover(); r != nil {
+			g.nvmlInit = nvml.ERROR_UNINITIALIZED
+		}
+	}()
+	g.nvmlInit = nvml.Init()
+	return g.nvmlInit == nvml.SUCCESS
 }
 
 func (g *GPUNvidia) Close() {
-	// semd signal to close
-	if isRunning(g.cmd) {
-		if err := g.cmd.Process.Signal(os.Kill); err != nil {
-			return
-		}
+	err := nvml.Shutdown()
+	if err != nvml.SUCCESS {
+		return
 	}
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
-	if !g.IsAvailable() {
+	if g.nvmlInit != nvml.SUCCESS {
 		return nil
 	}
 

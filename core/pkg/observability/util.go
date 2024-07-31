@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-// Commit is a type for storing the commit hash
+// this is for storing the commit hash in context.Context
 type commitType string
 
 const Commit = commitType("commit")

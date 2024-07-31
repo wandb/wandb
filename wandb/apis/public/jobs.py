@@ -65,6 +65,7 @@ class Job:
         self._entrypoint = source_info.get("entrypoint")
         self._dockerfile = source_info.get("dockerfile")
         self._build_context = source_info.get("build_context")
+        self._base_image = source_info.get("base_image")
         self._args = source_info.get("args")
         self._partial = self._job_info.get("_partial", False)
         self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
@@ -131,6 +132,8 @@ class Job:
             launch_project.set_job_dockerfile(self._dockerfile)
         if self._build_context:
             launch_project.set_job_build_context(self._build_context)
+        if self._base_image:
+            launch_project.set_job_base_image(self._base_image)
 
     def _configure_launch_project_artifact(self, launch_project):
         artifact_string = self._job_info.get("source", {}).get("artifact")
@@ -152,6 +155,8 @@ class Job:
             launch_project.set_job_dockerfile(self._dockerfile)
         if self._build_context:
             launch_project.set_job_build_context(self._build_context)
+        if self._base_image:
+            launch_project.set_job_base_image(self._base_image)
 
     def _configure_launch_project_container(self, launch_project):
         launch_project.docker_image = self._job_info.get("source", {}).get("image")

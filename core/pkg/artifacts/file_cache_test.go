@@ -130,6 +130,25 @@ func TestHashOnlyCache_AddFileAndCheckDigest(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestFileCache_Link(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	cacheKey := "test"
+	ref := "gs://example-bucket/some/object/path"
+	etag := "some-etag"
+	err := cache.Link(cacheKey, ref, etag)
+	require.ErrorContains(t, err, "no cache file with digest test")
+
+	err = cache.Link("not a valid base-64 MD5 hash", ref, etag)
+	require.ErrorContains(t, err, "illegal base64 data")
+
+	cacheKey, err = cache.Write(bytes.NewReader([]byte("test")))
+	require.NoError(t, err)
+	err = cache.Link(cacheKey, ref, etag)
+	require.NoError(t, err)
+}
+
 func TestFileCache_RestoreTo(t *testing.T) {
 	cache, cleanup := setupTestEnvironment(t)
 	defer cleanup()
@@ -175,4 +194,38 @@ func TestFileCache_RestoreTo(t *testing.T) {
 
 	// And if we give it an invalid manifest entry, it should fail.
 	assert.False(t, cache.RestoreTo(ManifestEntry{Digest: "invalid"}, localPath))
+}
+
+func TestFileCache_RestoreToReference(t *testing.T) {
+	cache, cleanup := setupTestEnvironment(t)
+	defer cleanup()
+
+	// Write some data to the cache
+	data := []byte("reference data")
+	cacheKey, err := cache.Write(bytes.NewReader(data))
+	require.NoError(t, err)
+
+	rootDir := filepath.Join(os.TempDir(), "restore_root")
+	defer os.Remove(rootDir)
+	localPath := filepath.Join(rootDir, "test", "dir", "restore_target.test")
+	refPath := "gs://example-bucket/some/object/path"
+	manifestEntry := ManifestEntry{
+		Digest: "some-etag",
+		Ref:    &refPath,
+		Size:   14,
+	}
+	require.NoError(t, cache.Link(cacheKey, refPath, manifestEntry.Digest))
+
+	// Restore the cache file to the target path
+	assert.True(t, cache.RestoreTo(manifestEntry, localPath))
+
+	// Verify the file exists at the target path and content matches
+	restoredData, err := os.ReadFile(localPath)
+	require.NoError(t, err)
+	assert.Equal(t, data, restoredData)
+
+	// The HashOnlyCache can't restore reference entries and should fail, even when
+	// the file exists in the cache.
+	noOpCache := NewHashOnlyCache()
+	assert.False(t, noOpCache.RestoreTo(manifestEntry, localPath))
 }
