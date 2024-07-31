@@ -571,7 +571,8 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 			// since exit is already stored in the transaction log
 			s.respond(s.exitRecord, &service.RunExitResult{})
 		}
-		// cancel tells the stream to close the loopback and input channels
+
+		// Cancel any remaining asynchronous work.
 		s.cancel()
 	default:
 		s.logger.CaptureFatalAndPanic(
