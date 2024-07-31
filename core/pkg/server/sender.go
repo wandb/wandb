@@ -1265,29 +1265,27 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
 
-	// Perform the nil check on the GraphQL client if in offline mode.
-	if s.graphqlClient == nil {
-		// Offline mode handling:
-		s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
-		response.ErrorMessage = "Artifact downloads are not supported in offline mode. " +
-			"Run 'wandb sync' after the run completes to sync the request."
-	} else {
-		// Online mode handling:
-		if err := artifacts.NewArtifactDownloader(
-			s.ctx,
-			s.graphqlClient,
-			s.fileTransferManager,
-			msg.ArtifactId,
-			msg.DownloadRoot,
-			msg.AllowMissingReferences,
-			msg.SkipCache,
-			msg.PathPrefix,
-		).Download(); err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: failed to download artifact: %v", err))
-			response.ErrorMessage = err.Error()
-		}
-	}
+	// Perform the nil check on the GraphQL client.
+    if s.graphqlClient == nil {
+        // Offline mode handling:
+        s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
+        response.ErrorMessage = "Artifact downloads are not supported in offline mode. " +
+                               "Run 'wandb sync' after the run completes to sync the request."
+    } else if err := artifacts.NewArtifactDownloader(
+        s.ctx,
+        s.graphqlClient,
+        s.fileTransferManager,
+        msg.ArtifactId,
+        msg.DownloadRoot,
+        msg.AllowMissingReferences,
+        msg.SkipCache,
+        msg.PathPrefix,
+    ).Download(); err != nil {
+        // Online mode handling: error during download
+        s.logger.CaptureError(
+            fmt.Errorf("sender: failed to download artifact: %v", err))
+        response.ErrorMessage = err.Error()
+    }
 
 	// Send the response using s.respond().
 	s.respond(record,
