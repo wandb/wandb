@@ -7,6 +7,7 @@ import enum
 import json
 import logging
 import os
+import shutil
 import tempfile
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
@@ -146,6 +147,21 @@ class LaunchProject:
             self.source = LaunchSource.SCHEDULER
             self.project_dir = os.getcwd()
             self._entry_point = self.override_entrypoint
+
+    def change_project_dir(self, new_dir: str) -> None:
+        """Change the project directory to a new directory."""
+        # Copy the contents of the old project dir to the new project dir.
+        old_dir = self.project_dir
+        if old_dir is not None:
+            shutil.copytree(
+                old_dir,
+                new_dir,
+                symlinks=True,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc", ".git"),
+            )
+            shutil.rmtree(old_dir)
+        self.project_dir = new_dir
 
     def init_git(self, git_info: Dict[str, str]) -> None:
         self.git_version = git_info.get("version")
@@ -346,7 +362,7 @@ class LaunchProject:
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we want to support multiple entry points or not
         if not self._entry_point:
-            if not self.docker_image:
+            if not self.docker_image and not self.job_base_image:
                 raise LaunchError(
                     "Project must have at least one entry point unless docker image is specified."
                 )
