@@ -11,3 +11,9 @@ class SummaryDisabled(dict):
             val = SummaryDisabled(val)
             self[key] = val
         return val
+
+
+class RunDisabled:
+    """Compatibility class for integrations that explicitly check for wandb.RunDisabled."""
+
+    pass
