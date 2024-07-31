@@ -132,17 +132,16 @@ func (g *GPUNvidia) SampleMetrics() {
 	}
 
 	// do not sample if the last timestamp is the same
-	if len(g.sample) > 0 &&
-		len(g.metrics) > 0 &&
-		g.sample["_timestamp"] == g.metrics["_timestamp"][len(g.metrics["_timestamp"])-1] {
+	currentTimestamp, ok := g.sample["_timestamp"]
+	if !ok {
+		return
+	}
+	lastTimestamps, ok := g.metrics["_timestamp"]
+	if ok && len(lastTimestamps) > 0 && lastTimestamps[len(lastTimestamps)-1] == currentTimestamp {
 		return
 	}
 
 	for key, value := range g.sample {
-		// skip _timestamp, gpu.count, and gpu.%d.memoryTotal
-		if key == "_timestamp" || key == "gpu.count" || strings.HasSuffix(key, ".memoryTotal") {
-			continue
-		}
 		g.metrics[key] = append(g.metrics[key], value)
 	}
 }
@@ -153,6 +152,10 @@ func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {
+		// skip _timestamp, gpu.count, and gpu.%d.memoryTotal
+		if metric == "_timestamp" || metric == "gpu.count" || strings.HasSuffix(metric, ".memoryTotal") {
+			continue
+		}
 		if len(samples) > 0 {
 			// can cast to float64? then calculate average and store
 			if _, ok := samples[0].(float64); ok {
@@ -175,24 +178,20 @@ func (g *GPUNvidia) ClearMetrics() {
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
-	defer func() {
-		if r := recover(); r != nil {
-			g.nvmlInit = nvml.ERROR_UNINITIALIZED
-		}
-	}()
-	g.nvmlInit = nvml.Init()
-	return g.nvmlInit == nvml.SUCCESS
+	return isRunning(g.cmd)
 }
 
 func (g *GPUNvidia) Close() {
-	err := nvml.Shutdown()
-	if err != nvml.SUCCESS {
-		return
+	// semd signal to close
+	if isRunning(g.cmd) {
+		if err := g.cmd.Process.Signal(os.Kill); err != nil {
+			return
+		}
 	}
 }
 
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
-	if g.nvmlInit != nvml.SUCCESS {
+	if !g.IsAvailable() {
 		return nil
 	}
 
