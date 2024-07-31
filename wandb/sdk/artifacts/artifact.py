@@ -75,7 +75,6 @@ from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.sdk.wandb_settings import Settings
 from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
@@ -192,7 +191,6 @@ class Artifact:
         self._created_at: Optional[str] = None
         self._updated_at: Optional[str] = None
         self._final: bool = False
-        self._settings: Settings
 
         # Cache.
         artifact_instance_cache[self._client_id] = self
@@ -1656,7 +1654,7 @@ class Artifact:
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
-        if env.is_offline() or self._settings._offline():
+        if env.is_offline() or util._is_offline():
             raise RuntimeError("Cannot download artifacts in offline mode.")
 
         if is_require_core():
