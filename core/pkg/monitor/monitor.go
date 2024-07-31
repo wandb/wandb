@@ -13,6 +13,7 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -98,7 +99,7 @@ type SystemMonitor struct {
 	buffer *Buffer
 
 	// settings is the settings for the system monitor
-	settings *service.Settings
+	settings *settings.Settings
 
 	// samplingInterval is the interval at which metrics are sampled
 	samplingInterval time.Duration
@@ -113,10 +114,10 @@ type SystemMonitor struct {
 // NewSystemMonitor creates a new SystemMonitor with the given settings
 func NewSystemMonitor(
 	logger *observability.CoreLogger,
-	settings *service.Settings,
+	settings *settings.Settings,
 	outChan chan *service.Record,
 ) *SystemMonitor {
-	sbs := settings.XStatsBufferSize.GetValue()
+	sbs := settings.GetXStatsBufferSize()
 	var buffer *Buffer
 	// if buffer size is 0, don't create a buffer
 	// a positive buffer size restricts the number of metrics that are kept in memory
@@ -136,11 +137,11 @@ func NewSystemMonitor(
 	}
 
 	// TODO: rename the setting...should be SamplingIntervalSeconds
-	if si := settings.XStatsSampleRateSeconds; si != nil {
-		systemMonitor.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
+	if si := settings.GetXStatsSampleRateSeconds(); si != 0 {
+		systemMonitor.samplingInterval = time.Duration(si * float64(time.Second))
 	}
-	if sta := settings.XStatsSamplesToAverage; sta != nil {
-		systemMonitor.samplesToAverage = int(sta.GetValue())
+	if sta := settings.GetXStatsSamplesToAverage(); sta != 0 {
+		systemMonitor.samplesToAverage = int(sta)
 	}
 
 	systemMonitor.logger.Debug(
@@ -152,7 +153,7 @@ func NewSystemMonitor(
 	)
 
 	// if stats are disabled, return early
-	if settings.XDisableStats.GetValue() {
+	if settings.GetXDisableStats() {
 		return systemMonitor
 	}
 
@@ -160,10 +161,10 @@ func NewSystemMonitor(
 		NewMemory(settings),
 		NewCPU(settings),
 		NewDisk(settings),
-		NewNetwork(settings),
+		NewNetwork(),
 		NewGPUNvidia(settings),
-		NewGPUAMD(settings),
-		NewGPUApple(settings),
+		NewGPUAMD(),
+		NewGPUApple(),
 	}
 
 	return systemMonitor

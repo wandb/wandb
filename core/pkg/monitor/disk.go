@@ -6,19 +6,20 @@ import (
 
 	"github.com/shirou/gopsutil/v4/disk"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type Disk struct {
 	name      string
 	metrics   map[string][]float64
-	settings  *service.Settings
+	settings  *settings.Settings
 	mutex     sync.RWMutex
 	readInit  int
 	writeInit int
 }
 
-func NewDisk(settings *service.Settings) *Disk {
+func NewDisk(settings *settings.Settings) *Disk {
 	d := &Disk{
 		name:     "disk",
 		metrics:  map[string][]float64{},
@@ -41,7 +42,7 @@ func (d *Disk) SampleMetrics() {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+	for _, diskPath := range d.settings.GetXStatsDiskPaths() {
 		usage, err := disk.Usage(diskPath)
 		if err == nil {
 			// used disk space as a percentage
@@ -100,7 +101,7 @@ func (d *Disk) Probe() *service.MetadataRequest {
 	info := &service.MetadataRequest{
 		Disk: make(map[string]*service.DiskInfo),
 	}
-	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+	for _, diskPath := range d.settings.GetXStatsDiskPaths() {
 		usage, err := disk.Usage(diskPath)
 		if err != nil {
 			continue

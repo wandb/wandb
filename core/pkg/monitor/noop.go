@@ -3,15 +3,16 @@
 package monitor
 
 import (
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type GPUNvidia struct {
 	name     string
-	settings *service.Settings
+	settings *settings.Settings
 }
 
-func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
+func NewGPUNvidia(settings *settings.Settings) *GPUNvidia {
 	gpu := &GPUNvidia{
 		name:     "gpu",
 		settings: settings,
@@ -37,14 +38,12 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 }
 
 type GPUAMD struct {
-	name     string
-	settings *service.Settings
+	name string
 }
 
-func NewGPUAMD(settings *service.Settings) *GPUAMD {
+func NewGPUAMD() *GPUAMD {
 	gpu := &GPUAMD{
-		name:     "gpu",
-		settings: settings,
+		name: "gpu",
 	}
 
 	return gpu

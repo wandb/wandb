@@ -195,7 +195,6 @@ func (nc *Connection) handleServerResponse() {
 func (nc *Connection) handleServerRequest() {
 	slog.Debug("starting handleServerRequest", "id", nc.id)
 	for msg := range nc.inChan {
-		slog.Debug("handling server request", "msg", msg, "id", nc.id)
 		switch x := msg.ServerRequestType.(type) {
 		case *service.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
@@ -227,7 +226,10 @@ func (nc *Connection) handleServerRequest() {
 
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
-func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
+func (nc *Connection) handleInformInit(request *service.ServerInformInitRequest) {
+	msg := proto.Clone(request).(*service.ServerInformInitRequest)
+	slog.Debug("handling ServerInformInitRequest", "msg", msg, "id", nc.id)
+
 	settings := settings.From(msg.GetSettings())
 
 	err := settings.EnsureAPIKey()
@@ -258,8 +260,11 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 // handleInformStart is called when the client sends an InformStart message
 // TODO: probably can remove this, we should be able to update the settings
 // using the regular InformRecord messages
-func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
-	// todo: if we keep this and end up updating the settings here
+func (nc *Connection) handleInformStart(request *service.ServerInformStartRequest) {
+	msg := proto.Clone(request).(*service.ServerInformStartRequest)
+	slog.Debug("handling ServerInformStartRequest", "msg", msg, "id", nc.id)
+
+	// TODO: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
 	nc.stream.settings = settings.From(msg.GetSettings())
 
@@ -276,7 +281,10 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 // to the server, to attach to an existing stream.
 // this is used for attaching to a stream that was previously started
 // hence multiple clients can attach to the same stream
-func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest) {
+func (nc *Connection) handleInformAttach(request *service.ServerInformAttachRequest) {
+	msg := proto.Clone(request).(*service.ServerInformAttachRequest)
+	slog.Debug("handling ServerInformAttachRequest", "msg", msg, "id", nc.id)
+
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	var err error
@@ -303,7 +311,10 @@ func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest)
 // this is the regular communication between the client and the server
 // for a specific stream, the messages are part of the regular execution
 // and are not control messages like the other Inform* messages
-func (nc *Connection) handleInformRecord(msg *service.Record) {
+func (nc *Connection) handleInformRecord(request *service.Record) {
+	msg := proto.Clone(request).(*service.Record)
+	slog.Debug("handling server request", "msg", msg, "id", nc.id)
+
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	if nc.stream == nil {
@@ -323,7 +334,10 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 
 // handleInformFinish is called when the client sends a finish message
 // this should happen when the client want to close a specific stream
-func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest) {
+func (nc *Connection) handleInformFinish(request *service.ServerInformFinishRequest) {
+	msg := proto.Clone(request).(*service.ServerInformFinishRequest)
+	slog.Debug("handling ServerInformFinishRequest", "msg", msg, "id", nc.id)
+
 	streamId := msg.XInfo.StreamId
 	slog.Info("handle finish received", "streamId", streamId, "id", nc.id)
 	if stream, err := streamMux.RemoveStream(streamId); err != nil {
@@ -336,10 +350,13 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 // handleInformTeardown is called when the client sends a teardown message
 // this should happen when the client is shutting down and wants to close
 // all streams
-func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
+func (nc *Connection) handleInformTeardown(request *service.ServerInformTeardownRequest) {
+	msg := proto.Clone(request).(*service.ServerInformTeardownRequest)
+	slog.Debug("handling server request", "msg", msg, "id", nc.id)
+
 	slog.Debug("handle teardown received", "id", nc.id)
 	// cancel the context to signal the server to shutdown
 	// this will trigger all the connections to close
 	nc.cancel()
-	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
+	streamMux.FinishAndCloseAllStreams(msg.ExitCode)
 }

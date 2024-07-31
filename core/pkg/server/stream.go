@@ -150,6 +150,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
+  settings = settings.Clone()
 	// we only need the passed context for the commit value
 	commit, ok := ctx.Value(observability.Commit).(string)
 	if !ok {
@@ -233,7 +234,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
 			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings, s.loopBackChan),
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,

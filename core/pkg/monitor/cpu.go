@@ -6,6 +6,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/service"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -14,11 +15,11 @@ import (
 type CPU struct {
 	name     string
 	metrics  map[string][]float64
-	settings *service.Settings
+	settings *settings.Settings
 	mutex    sync.RWMutex
 }
 
-func NewCPU(settings *service.Settings) *CPU {
+func NewCPU(settings *settings.Settings) *CPU {
 	return &CPU{
 		name:     "cpu",
 		metrics:  map[string][]float64{},
@@ -33,7 +34,7 @@ func (c *CPU) SampleMetrics() {
 	defer c.mutex.Unlock()
 
 	// process-related metrics
-	proc := process.Process{Pid: c.settings.XStatsPid.GetValue()}
+	proc := process.Process{Pid: c.settings.GetXStatsPid()}
 	// process CPU usage in percent
 	procCPU, err := proc.CPUPercent()
 	if err == nil {
