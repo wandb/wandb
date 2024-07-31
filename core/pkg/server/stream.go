@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -70,7 +69,7 @@ type Stream struct {
 	// It is buffered and never closed.
 	loopBackChan chan *service.Record
 
-	// done is closed once the stream should process no more inputs.
+	// done is closed when the stream should stop processing new records.
 	done chan struct{}
 
 	// dispatcher is the dispatcher for the stream
@@ -241,7 +240,7 @@ func NewStream(
 		},
 	)
 
-	s.writer = NewWriter(s.ctx,
+	s.writer = NewWriter(
 		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
@@ -331,20 +330,16 @@ func (s *Stream) Start() {
 	}()
 
 	// handle dispatching between components
-	s.wg.Add(1)
+	s.wg.Add(2)
 	go func() {
-		wg := sync.WaitGroup{}
 		for _, ch := range []chan *service.Result{s.handler.outChan, s.sender.outChan} {
-			wg.Add(1)
 			go func(ch chan *service.Result) {
 				for result := range ch {
 					s.dispatcher.handleRespond(result)
 				}
-				wg.Done()
+				s.wg.Done()
 			}(ch)
 		}
-		wg.Wait()
-		s.wg.Done()
 	}()
 	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
 }
@@ -354,7 +349,7 @@ func (s *Stream) Start() {
 func (s *Stream) loopSendInputsToHandler(handlerChan chan<- *service.Record) {
 	for {
 		select {
-		// Select from inChan or loopBackChan if there's buffered data.
+		// Select from inChan or loopBackChan while there's buffered data.
 		case x := <-s.inChan:
 			handlerChan <- x
 		case x := <-s.loopBackChan:
@@ -380,28 +375,32 @@ func (s *Stream) HandleRecord(rec *service.Record) {
 
 	select {
 	case <-s.done:
-		s.logger.Error("context done, not handling record", "record", rec)
+		s.logger.Error("stream: closed, ignoring record", "record", rec)
 	case s.inChan <- rec:
 	}
 }
 
-// Close waits for all asynchronous work to finish.
-//
-// This must happen after all HandleRecord operations have completed.
+// Close waits for all run messages to be fully processed.
 func (s *Stream) Close() {
+	// Wait for the Sender to indicate that it's done processing data.
+	<-s.ctx.Done()
+
+	// Stop forwarding records to the Handler.
 	select {
 	case <-s.done:
 		s.logger.CaptureError(
-			errors.New("stream: called Close() more than once"))
+			fmt.Errorf("stream: called Close() more than once"))
 	default:
 		close(s.done)
 	}
 
+	// Wait for all work to complete.
 	s.wg.Wait()
+	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }
 
-// FinishAndClose emits an exit record, waits for all work to complete,
-// and prints the run footer to the terminal.
+// FinishAndClose emits an exit record, waits for all run messages
+// to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
 	if !s.settings.IsSync() {
 		s.HandleRecord(&service.Record{
@@ -421,6 +420,4 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		run := s.handler.GetRun()
 		utils.PrintFooterOnline(run, s.settings.Proto)
 	}
-
-	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }

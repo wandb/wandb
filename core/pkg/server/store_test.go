@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"io"
 	"os"
 	"testing"
@@ -56,7 +55,7 @@ func TestOpenCreateStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
@@ -70,14 +69,14 @@ func TestOpenReadStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name())
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 
@@ -91,7 +90,7 @@ func TestReadWriteRecord(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
@@ -105,7 +104,7 @@ func TestReadWriteRecord(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name())
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
@@ -126,7 +125,7 @@ func TestCorruptFile(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
@@ -142,7 +141,7 @@ func TestCorruptFile(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name())
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
@@ -161,7 +160,7 @@ func TestStoreInvalidHeader(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 
 	// Intentionally writing bad header data
 	err = os.WriteFile(tmpFile.Name(), []byte("Invalid"), 0644)
@@ -173,7 +172,7 @@ func TestStoreInvalidHeader(t *testing.T) {
 
 // TestStoreHeader_Write_Error is intended to test the error scenario when writing the header
 func TestStoreHeader_Write_Error(t *testing.T) {
-	store := server.NewStore(context.Background(), "non_existent_dir/file")
+	store := server.NewStore("non_existent_dir/file")
 	err := store.Open(os.O_WRONLY)
 	assert.Error(t, err)
 }
@@ -185,7 +184,7 @@ func TestInvalidFlag(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(9999) // 9999 is an invalid flag
 	assert.Errorf(t, err, "invalid flag %d", 9999)
 }
@@ -197,7 +196,7 @@ func TestWriteToClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
@@ -216,7 +215,7 @@ func TestReadFromClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 

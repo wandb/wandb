@@ -194,7 +194,9 @@ func (as *ArtifactSaver) upsertManifest(
 }
 
 func (as *ArtifactSaver) uploadFiles(
-	artifactID string, manifest *Manifest, manifestID string, _ chan<- *service.Record,
+	artifactID string,
+	manifest *Manifest,
+	manifestID string,
 ) error {
 	// Prepare GQL input for files that (might) need to be uploaded.
 	namedFileSpecs := map[string]gql.CreateArtifactFileSpecInput{}
@@ -585,7 +587,11 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, _ chan<- *service.Record) error {
+func (as *ArtifactSaver) uploadManifest(
+	manifestFile string,
+	uploadUrl *string,
+	uploadHeaders []string,
+) error {
 	resultChan := make(chan *filetransfer.Task)
 	task := &filetransfer.Task{
 		FileKind: filetransfer.RunFileKindArtifact,
@@ -624,7 +630,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rerr error) {
+func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
 		return "", err
@@ -671,7 +677,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
 
-	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id, ch)
+	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadFiles: %w", err)
 	}
@@ -692,7 +698,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.upsertManifest: %w", err)
 	}
 
-	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders, ch)
+	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}
