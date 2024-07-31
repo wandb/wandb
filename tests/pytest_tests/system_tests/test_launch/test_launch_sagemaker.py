@@ -4,7 +4,7 @@ import pytest
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch._project_spec import EntryPoint
+from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 
 
@@ -72,6 +72,7 @@ async def test_sagemaker_resolved_submitted_job(
 
         # test with user provided image
         project = MagicMock()
+        project.fill_macros = LaunchProject.fill_macros.__get__(project, MagicMock)
         entrypoint = EntryPoint("blah", entry_command)
         project.resource_args = {
             "sagemaker": {
@@ -79,6 +80,7 @@ async def test_sagemaker_resolved_submitted_job(
                 "OutputDataConfig": {"S3OutputPath": "s3://blah/blah"},
                 "ResourceConfig": {"blah": 2},
                 "StoppingCondition": {"test": 1},
+                "TrainingJobName": "${project_name}-${run_id}",
             }
         }
         project.target_entity = entity_name
@@ -135,7 +137,7 @@ async def test_sagemaker_resolved_submitted_job(
         }
         assert req["ResourceConfig"] == {"blah": 2}
         assert req["StoppingCondition"] == {"test": 1}
-        assert req["TrainingJobName"] == project.run_id
+        assert req["TrainingJobName"] == f"{project_name}-{project.run_id}"
         env = req["Environment"]
         env.pop("WANDB_BASE_URL")
         assert env == {
