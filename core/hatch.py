@@ -12,8 +12,8 @@ def build_wandb_core(
     with_code_coverage: bool,
     with_race_detection: bool,
     wandb_commit_sha: Optional[str],
-    target_system,
-    target_arch,
+    target_system: str,
+    target_arch: str,
 ) -> None:
     """Builds the wandb-core Go module.
 
@@ -37,14 +37,21 @@ def build_wandb_core(
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
 
-    ld_flags = _go_linker_flags(
-        wandb_commit_sha=wandb_commit_sha,
-        target_system=target_system,
-        target_arch=target_arch,
-    )
+    ld_flags = _go_linker_flags(wandb_commit_sha=wandb_commit_sha)
     ld_flags = [f"-ldflags={ld_flags}"]
 
     vendor_flags = ["-mod=vendor"]
+
+    with_cgo = False
+    if (target_system, target_arch) in [
+        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
+        # system metrics are unavailable.
+        ("darwin", "arm64"),
+    ] or (
+        # On Windows, -race requires cgo.
+        target_system == "windows" and with_race_detection
+    ):
+        with_cgo = True
 
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
@@ -62,17 +69,66 @@ def build_wandb_core(
         cwd="./core",
         env=_go_env(
             with_race_detection=with_race_detection,
+            with_cgo=with_cgo,
             target_system=target_system,
             target_arch=target_arch,
         ),
     )
 
 
-def _go_linker_flags(
-    wandb_commit_sha: Optional[str],
+def build_nvidia_gpu_stats(
+    go_binary: pathlib.Path,
+    output_path: pathlib.PurePath,
     target_system: str,
     target_arch: str,
-) -> str:
+) -> None:
+    """Builds the nvidia_gpu_stats Go program."""
+    output_flags = ["-o", str(".." / output_path)]
+    flags = [
+        "-s",  # Omit the symbol table and debug info.
+        "-w",  # Omit the DWARF symbol table.
+    ]
+
+    ext_ld_flags = " ".join(
+        [
+            # Use https://en.wikipedia.org/wiki/Gold_(linker)
+            "-fuse-ld=gold",
+            # Set the --weak-unresolved-symbols option in gold, converting
+            # unresolved symbols to weak references. This is necessary to
+            # build a Go binary with cgo on Linux, where the NVML libraries
+            # needed for Nvidia GPU monitoring may not be available at build time.
+            "-Wl,--weak-unresolved-symbols",
+        ]
+    )
+    flags += ["-extldflags", f'"{ext_ld_flags}"']
+
+    ld_flags = [f"-ldflags={' '.join(flags)}"]
+    vendor_flags = ["-mod=vendor"]
+
+    cmd = [
+        str(go_binary),
+        "build",
+        *output_flags,
+        *ld_flags,
+        *vendor_flags,
+        str(pathlib.Path("cmd", "nvidia_gpu_stats", "main.go")),
+    ]
+    # We have to invoke Go from the directory with go.mod, hence the
+    # paths relative to ./nvidia_gpu_stats
+    subprocess.check_call(
+        cmd,
+        cwd="./nvidia_gpu_stats",
+        env=_go_env(
+            with_race_detection=False,
+            # Must use cgo on Linux to build dependencies needed for GPU metrics:
+            with_cgo=True,
+            target_system=target_system,
+            target_arch=target_arch,
+        ),
+    )
+
+
+def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
         "-s",  # Omit the symbol table and debug info.
@@ -82,25 +138,12 @@ def _go_linker_flags(
         f"main.commit={wandb_commit_sha or 'unknown'}",
     ]
 
-    if target_system == "linux" and target_arch == "amd64":
-        ext_ld_flags = " ".join(
-            [
-                # Use https://en.wikipedia.org/wiki/Gold_(linker)
-                "-fuse-ld=gold",
-                # Set the --weak-unresolved-symbols option in gold, converting
-                # unresolved symbols to weak references. This is necessary to
-                # build a Go binary with cgo on Linux, where the NVML libraries
-                # needed for Nvidia GPU monitoring may not be available at build time.
-                "-Wl,--weak-unresolved-symbols",
-            ]
-        )
-        flags += ["-extldflags", f'"{ext_ld_flags}"']
-
     return " ".join(flags)
 
 
 def _go_env(
     with_race_detection: bool,
+    with_cgo: bool,
     target_system: str,
     target_arch: str,
 ) -> Mapping[str, str]:
@@ -114,16 +157,7 @@ def _go_env(
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
 
-    if (target_system, target_arch) in [
-        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        ("linux", "amd64"),
-        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
-        # system metrics are unavailable.
-        ("darwin", "arm64"),
-    ] or (
-        # On Windows, -race requires cgo.
-        target_system == "windows" and with_race_detection
-    ):
-        env["CGO_ENABLED"] = "1"
+    # Disable cgo for by default.
+    env["CGO_ENABLED"] = "1" if with_cgo else "0"
 
     return env

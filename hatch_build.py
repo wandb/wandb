@@ -95,11 +95,9 @@ class CustomBuildHook(BuildHookInterface):
 
     def _include_nvidia_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with nvidia_gpu_stats."""
-        return platform.system().lower() == "linux" and platform.machine().lower() in (
-            "x86_64",
-            "amd64",
-            "aarch64",
-            "arm64",
+        return (
+            self._target_platform().goos == "linux"
+            and self._target_platform().goarch in ("amd64", "arm64")
         )
 
     def _is_platform_wheel(self) -> bool:
@@ -154,10 +152,14 @@ class CustomBuildHook(BuildHookInterface):
     def _build_nvidia_gpu_stats(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
 
+        plat = self._target_platform()
+
         self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
         hatch_core.build_nvidia_gpu_stats(
             go_binary=self._get_and_require_go_binary(),
             output_path=output,
+            target_system=plat.goos,
+            target_arch=plat.goarch,
         )
 
         return [output.as_posix()]
