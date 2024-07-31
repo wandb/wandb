@@ -215,7 +215,7 @@ func NewSender(
 	return s
 }
 
-// do sending of messages to the server
+// Do processes all records on the input channel.
 func (s *Sender) Do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)

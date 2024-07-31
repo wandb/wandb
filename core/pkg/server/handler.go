@@ -164,7 +164,7 @@ func NewHandler(
 	}
 }
 
-// Do starts the handler
+// Do processes all records on the input channel.
 func (h *Handler) Do(inChan <-chan *service.Record) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
