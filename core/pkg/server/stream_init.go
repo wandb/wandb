@@ -227,7 +227,6 @@ func NewFileTransferManager(
 
 	return filetransfer.NewFileTransferManager(
 		filetransfer.WithLogger(logger),
-		filetransfer.WithSettings(settings.Proto),
 		filetransfer.WithFileTransfers(fileTransfers),
 		filetransfer.WithFileTransferStats(fileTransferStats),
 	)
