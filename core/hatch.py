@@ -48,8 +48,8 @@ def build_wandb_core(
         # system metrics are unavailable.
         ("darwin", "arm64"),
     ] or (
-        # On Windows, -race requires cgo.
-        target_system == "windows" and with_race_detection
+        # -race requires cgo.
+        with_race_detection
     ):
         with_cgo = True
 
