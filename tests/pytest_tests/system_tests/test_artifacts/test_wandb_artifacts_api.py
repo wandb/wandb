@@ -1,11 +1,10 @@
 import os
+import tempfile
+from unittest.mock import patch
 
 import pytest
 import wandb
 from wandb import Api
-import tempfile
-
-from unittest.mock import patch
 
 
 def test_fetching_artifact_files(user, wandb_init):
@@ -48,10 +47,10 @@ def test_artifact_download_offline_mode(user, wandb_init, monkeypatch):
         with open(filename, "w") as f:
             f.write("testing")
 
-        # Use monkeypatch to set WANDB_MODE 
+        # Use monkeypatch to set WANDB_MODE
         monkeypatch.setenv("WANDB_MODE", "offline")
 
-        # Mock the wandb.Api().artifact call to prevent actual network requests 
+        # Mock the wandb.Api().artifact call to prevent actual network requests
         with patch("wandb.Api.artifact") as mock_artifact:
             mock_artifact.return_value = wandb.Artifact("test-artifact", "test-type")
 
