@@ -215,7 +215,7 @@ func NewSender(
 	return s
 }
 
-// do sending of messages to the server
+// Do processes all records on the input channel.
 func (s *Sender) Do(inChan <-chan *service.Record) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
@@ -571,7 +571,8 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 			// since exit is already stored in the transaction log
 			s.respond(s.exitRecord, &service.RunExitResult{})
 		}
-		// cancel tells the stream to close the loopback and input channels
+
+		// Mark the run as complete.
 		s.cancel()
 	default:
 		s.logger.CaptureFatalAndPanic(

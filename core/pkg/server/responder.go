@@ -71,7 +71,7 @@ func (d *Dispatcher) handleRespond(result *service.Result) {
 			},
 		})
 	} else {
-		d.logger.CaptureFatalAndPanic(
+		d.logger.CaptureError(
 			fmt.Errorf("dispatch: no responder found: %s", responderID))
 	}
 }
