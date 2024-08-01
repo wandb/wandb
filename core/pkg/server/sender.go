@@ -857,14 +857,15 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		switch {
 		case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
 			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				result := &service.RunUpdateResult{
-					Error: &service.ErrorInfo{
-						Code: service.ErrorInfo_USAGE,
-						Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
-							"Please specify only one of them.",
+				s.respond(record,
+					&service.RunUpdateResult{
+						Error: &service.ErrorInfo{
+							Code: service.ErrorInfo_USAGE,
+							Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
+								"Please specify only one of them.",
+						},
 					},
-				}
-				s.respond(record, result)
+				)
 			}
 			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 			return
@@ -978,17 +979,20 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 			entityName = entity.GetName()
 			projectName = project.GetName()
 		}
+
+		fileStreamOffset := make(fs.FileStreamOffsetMap)
+		fileStreamOffset[fs.HistoryChunk] = utils.ZeroIfNil(bucket.GetHistoryLineCount())
+
 		params := &runbranch.RunParams{
-			StorageID:   bucket.GetId(),
-			Entity:      utils.ZeroIfNil(&entityName),
-			Project:     utils.ZeroIfNil(&projectName),
-			RunID:       bucket.GetName(),
-			DisplayName: utils.ZeroIfNil(bucket.GetDisplayName()),
-			SweepID:     utils.ZeroIfNil(bucket.GetSweepName()),
+			StorageID:        bucket.GetId(),
+			Entity:           utils.ZeroIfNil(&entityName),
+			Project:          utils.ZeroIfNil(&projectName),
+			RunID:            bucket.GetName(),
+			DisplayName:      utils.ZeroIfNil(bucket.GetDisplayName()),
+			SweepID:          utils.ZeroIfNil(bucket.GetSweepName()),
+			FileStreamOffset: fileStreamOffset,
 		}
-		if s.settings.ForkFrom != nil {
-			params.FileStreamOffset[fs.HistoryChunk] = *bucket.GetHistoryLineCount()
-		}
+
 		s.startState.Merge(params)
 	}
 

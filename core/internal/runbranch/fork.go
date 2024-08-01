@@ -32,6 +32,8 @@ func NewForkBranch(
 	}
 }
 
+// ApplyChanges applies the changes to the run params based on the fork
+// information
 func (fb *ForkBranch) ApplyChanges(
 	params *RunParams,
 	runpath RunPath,

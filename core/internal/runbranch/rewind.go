@@ -47,6 +47,8 @@ func NewRewindBranch(
 	}
 }
 
+// ApplyChanges applies the changes to the run params based on the rewind
+// information returned from the server.
 func (rb RewindBranch) ApplyChanges(
 	params *RunParams,
 	runpath RunPath,
