@@ -15,7 +15,7 @@ type FileTransfer interface {
 type FileTransfers struct {
 	// Default makes an HTTP request to the destination URL with the file contents.
 	Default      FileTransfer
-	GCSReference FileTransfer
+	GCS FileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -25,18 +25,18 @@ func NewFileTransfers(
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
-	gcReferenceFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
+	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	return &FileTransfers{
 		Default:      defaultFileTransfer,
-		GCSReference: gcReferenceFileTransfer,
+		GCS: gcsFileTransfer,
 	}
 }
 
 // Returns the appropriate fileTransfer depending on task
 func (ft *FileTransfers) GetFileTransferForTask(task *Task) FileTransfer {
 	switch {
-	case ft.GCSReference.CanHandle(task):
-		return ft.GCSReference
+	case ft.GCS.CanHandle(task):
+		return ft.GCS
 	default:
 		return ft.Default
 	}
