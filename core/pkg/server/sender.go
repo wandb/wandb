@@ -1266,12 +1266,10 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
 
-	// Perform the nil check on the GraphQL client.
 	if s.graphqlClient == nil {
 		// Offline mode handling:
 		s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
-		response.ErrorMessage = "Artifact downloads are not supported in offline mode. " +
-			"Run 'wandb sync' after the run completes to sync the request."
+		response.ErrorMessage = "Artifact downloads are not supported in offline mode."
 	} else if err := artifacts.NewArtifactDownloader(
 		s.ctx,
 		s.graphqlClient,
@@ -1288,7 +1286,6 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 		response.ErrorMessage = err.Error()
 	}
 
-	// Send the response using s.respond().
 	s.respond(record,
 		&service.Response{
 			ResponseType: &service.Response_DownloadArtifactResponse{
