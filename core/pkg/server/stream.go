@@ -330,17 +330,15 @@ func (s *Stream) Start() {
 	}()
 
 	// handle dispatching between components
-	s.wg.Add(2)
-	go func() {
-		for _, ch := range []chan *service.Result{s.handler.outChan, s.sender.outChan} {
-			go func(ch chan *service.Result) {
-				for result := range ch {
-					s.dispatcher.handleRespond(result)
-				}
-				s.wg.Done()
-			}(ch)
-		}
-	}()
+	for _, ch := range []chan *service.Result{s.handler.outChan, s.sender.outChan} {
+		s.wg.Add(1)
+		go func(ch chan *service.Result) {
+			for result := range ch {
+				s.dispatcher.handleRespond(result)
+			}
+			s.wg.Done()
+		}(ch)
+	}
 	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
 }
 
