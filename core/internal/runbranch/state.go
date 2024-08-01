@@ -237,6 +237,12 @@ func (r *RunParams) Merge(other *RunParams) {
 
 }
 
+func (r *RunParams) Clone() *RunParams {
+	clone := &RunParams{}
+	clone.Merge(r)
+	return clone
+}
+
 func NewRunParams() *RunParams {
 	return &RunParams{
 		FileStreamOffset: make(filestream.FileStreamOffsetMap),

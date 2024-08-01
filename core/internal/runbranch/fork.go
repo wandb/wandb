@@ -1,40 +1,42 @@
 package runbranch
 
 import (
-	"context"
-
-	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+// ForkBranch is a used to manage the state of the changes that need to be
+// applied to a run when a fork from a previous run is requested.
 type ForkBranch struct {
-	ctx         context.Context
-	client      graphql.Client
+
+	// metricRunID is the id of the run to fork from
 	metricRunID string
-	metricName  string
+
+	// metricName is the name of the metric used as the fork point
+	// Currently only `_step` is supported
+	metricName string
+
+	// metricValue is the value of the metric used as the fork point
 	metricValue float64
 }
 
 func NewForkBranch(
-	ctx context.Context,
-	client graphql.Client,
 	runid string,
 	metricName string,
 	metricValue float64,
 ) *ForkBranch {
+
 	return &ForkBranch{
-		ctx:         ctx,
-		client:      client,
 		metricRunID: runid,
 		metricName:  metricName,
 		metricValue: metricValue,
 	}
 }
 
-func (fb *ForkBranch) GetUpdates(
+func (fb *ForkBranch) ApplyChanges(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
+
 	if fb.metricName != "_step" {
 		return nil, &BranchError{
 			Err: nil,
@@ -55,9 +57,12 @@ func (fb *ForkBranch) GetUpdates(
 		}
 	}
 
-	r := &RunParams{}
-	r.Merge(params)
-	r.Forked = true
-	r.StartingStep = int64(fb.metricValue) + 1
+	r := params.Clone()
+	r.Merge(
+		&RunParams{
+			Forked:       true,
+			StartingStep: int64(fb.metricValue) + 1,
+		},
+	)
 	return r, nil
 }

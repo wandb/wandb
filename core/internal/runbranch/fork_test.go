@@ -1,45 +1,57 @@
 package runbranch_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runbranch"
 )
 
+// Test that forked run id must be different from the current run id
 func TestForkSameRunIDs(t *testing.T) {
-	ctx := context.TODO()
-	mockGQL := gqlmock.NewMockClient()
-	fb := runbranch.NewForkBranch(ctx, mockGQL, "runid", "_step", 0)
-	params, err := fb.GetUpdates(
+
+	params, err := runbranch.NewForkBranch(
+		"runid",
+		"_step",
+		0,
+	).ApplyChanges(
 		&runbranch.RunParams{},
-		runbranch.RunPath{RunID: "runid"})
+		runbranch.RunPath{RunID: "runid"},
+	)
+
 	assert.Nil(t, params, "GetUpdates should return nil params")
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
+// Test that forked metric name must be "_step", which is the only supported
+// metric name currently
 func TestForkUnsupportedMetricName(t *testing.T) {
-	ctx := context.TODO()
-	mockGQL := gqlmock.NewMockClient()
-	fb := runbranch.NewForkBranch(ctx, mockGQL, "runid", "other", 0)
-	params, err := fb.GetUpdates(
+
+	params, err := runbranch.NewForkBranch(
+		"runid",
+		"other",
+		0,
+	).ApplyChanges(
 		&runbranch.RunParams{},
-		runbranch.RunPath{RunID: "other"})
+		runbranch.RunPath{RunID: "other"},
+	)
+
 	assert.Nil(t, params, "GetUpdates should return nil params")
 	assert.NotNil(t, err, "GetUpdates should return an error")
 	assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
 	assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
 }
 
+// Test that GetUpdates correctly applies the changes to the run params
 func TestForkGetUpdatesValid(t *testing.T) {
-	ctx := context.TODO()
-	mockGQL := gqlmock.NewMockClient()
-	fb := runbranch.NewForkBranch(ctx, mockGQL, "runid", "_step", 10)
-	params, err := fb.GetUpdates(
+
+	params, err := runbranch.NewForkBranch(
+		"runid",
+		"_step",
+		10,
+	).ApplyChanges(
 		&runbranch.RunParams{},
 		runbranch.RunPath{RunID: "other"},
 	)

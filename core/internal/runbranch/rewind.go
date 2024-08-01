@@ -12,6 +12,8 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
+// RewindBranch is a used to manage the state of the changes that need to be
+// applied to a run when a rewind from a previous run is requested.s
 type RewindBranch struct {
 	ctx    context.Context
 	client graphql.Client
@@ -19,12 +21,21 @@ type RewindBranch struct {
 }
 
 func NewRewindBranch(
+
 	ctx context.Context,
 	client graphql.Client,
+
+	// runid is the id of the run to rewind
 	runid string,
+
+	// metricName is the name of the metric used as the rewind point
 	metricName string,
+
+	// metricValue is the value of the metric used as the rewind point
 	metricValue float64,
+
 ) *RewindBranch {
+
 	return &RewindBranch{
 		ctx:    ctx,
 		client: client,
@@ -36,13 +47,16 @@ func NewRewindBranch(
 	}
 }
 
-//gocyclo:ignore
-func (rb RewindBranch) GetUpdates(
+func (rb RewindBranch) ApplyChanges(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {
+
 	if rb.branch.RunID != runpath.RunID {
-		err := fmt.Errorf("rewind run id %s does not match run id %s", rb.branch.RunID, runpath.RunID)
+		err := fmt.Errorf(
+			"rewind run id %s does not match run id %s",
+			rb.branch.RunID,
+			runpath.RunID)
 		info := &service.ErrorInfo{
 			Code:    service.ErrorInfo_USAGE,
 			Message: err.Error(),
@@ -68,64 +82,59 @@ func (rb RewindBranch) GetUpdates(
 		rb.branch.MetricName,
 		rb.branch.MetricValue,
 	)
+
 	if err != nil {
-		info := &service.ErrorInfo{
-			Code:    service.ErrorInfo_COMMUNICATION,
-			Message: fmt.Sprintf("failed to rewind run: %s", err),
+		return nil, &BranchError{
+			Err: err,
+			Response: &service.ErrorInfo{
+				Code:    service.ErrorInfo_COMMUNICATION,
+				Message: fmt.Sprintf("failed to rewind run: %s", err),
+			},
 		}
-		return nil, &BranchError{Err: err, Response: info}
 	}
 
 	if response.GetRewindRun() == nil || response.GetRewindRun().GetRewoundRun() == nil {
-		info := &service.ErrorInfo{
-			Code:    service.ErrorInfo_COMMUNICATION,
-			Message: "failed to rewind run: run not found",
+		return nil, &BranchError{
+			Err: fmt.Errorf("run not found"),
+			Response: &service.ErrorInfo{
+				Code:    service.ErrorInfo_COMMUNICATION,
+				Message: "failed to rewind run: run not found",
+			},
 		}
-		return nil, &BranchError{Err: fmt.Errorf("run not found"), Response: info}
 	}
-
-	r := &RunParams{}
-	r.Merge(params)
 
 	data := response.GetRewindRun().GetRewoundRun()
 
-	if data.GetId() != "" {
-		r.StorageID = data.GetId()
-	}
+	r := params.Clone()
 
-	if data.GetName() != "" {
-		r.RunID = data.GetName()
-	}
-
-	if data.GetDisplayName() != nil {
-		r.DisplayName = *data.GetDisplayName()
-	}
-
-	if data.GetSweepName() != nil {
-		r.SweepID = *data.GetSweepName()
-	}
-
-	if data.GetProject() != nil {
-		if data.GetProject().GetName() != "" {
-			r.Project = data.GetProject().GetName()
-		}
-		entity := data.GetProject().GetEntity()
-		if entity.GetName() != "" {
-			r.Entity = entity.GetName()
-		}
-	}
-
+	filestreamOffset := make(filestream.FileStreamOffsetMap)
 	if data.GetHistoryLineCount() != nil {
-		if r.FileStreamOffset == nil {
-			r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
-		}
-		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
+		filestreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
 	}
 
-	r.StartingStep = int64(rb.branch.MetricValue) + 1
-	r.Forked = true
+	var projectName, entityName string
+	if data.GetProject() != nil {
+		projectName = data.GetProject().GetName()
+		entity := data.GetProject().GetEntity()
+		entityName = entity.GetName()
+	}
 
-	r.Config, err = parseConfig(data.GetConfig())
+	config, err := parseConfig(data.GetConfig())
+
+	r.Merge(
+		&RunParams{
+			StorageID:        data.GetId(),
+			RunID:            data.GetName(),
+			DisplayName:      utils.ZeroIfNil(data.GetDisplayName()),
+			SweepID:          utils.ZeroIfNil(data.GetSweepName()),
+			StartingStep:     int64(rb.branch.MetricValue) + 1,
+			Forked:           true,
+			FileStreamOffset: filestreamOffset,
+			Project:          projectName,
+			Entity:           entityName,
+			Config:           config,
+		},
+	)
 
 	return r, err
 }
