@@ -3,9 +3,7 @@
 import re
 from dataclasses import dataclass
 from enum import IntEnum
-from typing import Optional, Tuple, Union
-
-from wandb.sdk.launch.errors import LaunchError
+from typing import Optional, Tuple
 
 PREFIX_HTTPS = "https://"
 PREFIX_SSH = "git@"
@@ -59,51 +57,11 @@ class GitReference:
         # executable is available on the PATH, so we only want to fail if we actually need it.
         import git  # type: ignore
 
-        repo = git.Repo.init(dst_dir)
+        repo = git.Repo.clone_from(self.uri, dst_dir, depth=1)
         self.path = repo.working_dir
-        origin = repo.create_remote("origin", self.uri or "")
-
-        try:
-            # We fetch the origin so that we have branch and tag references
-            origin.fetch()
-        except git.exc.GitCommandError as e:
-            raise LaunchError(
-                f"Unable to fetch from git remote repository {self.url}:\n{e}"
-            )
-
-        ref: Union[git.RemoteReference, str]
+        refspec = f"{self.ref}:{self.ref}" if self.ref else None
+        repo.git.fetch(self.uri, refspec)
         if self.ref:
-            if self.ref in origin.refs:
-                ref = origin.refs[self.ref]
-            else:
-                ref = self.ref
-            head = repo.create_head(self.ref, ref)
-            head.checkout()
-            self.commit_hash = head.commit.hexsha
-
-        else:
-            # TODO: Is there a better way to do this?
-            default_branch = None
-            for ref in repo.references:
-                if hasattr(ref, "tag"):  # Skip tag references
-                    continue
-                refname = ref.name
-                if refname.startswith("origin/"):  # Trim off "origin/"
-                    refname = refname[7:]
-                if refname == "main":
-                    default_branch = "main"
-                    break
-                if refname == "master":
-                    default_branch = "master"
-                    # Keep looking in case we also have a main, which we let take precedence
-                    # (While the references appear to be sorted, not clear if that's guaranteed.)
-            if not default_branch:
-                raise LaunchError(
-                    f"Unable to determine branch or commit to checkout from {self.url}"
-                )
-            self.default_branch = default_branch
-            self.ref = default_branch
-            head = repo.create_head(default_branch, origin.refs[default_branch])
-            head.checkout()
-            self.commit_hash = head.commit.hexsha
+            repo.git.checkout(self.ref)
         repo.submodule_update(init=True, recursive=True)
+        self.commit_hash = repo.head.commit.hexsha
