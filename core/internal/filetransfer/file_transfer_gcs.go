@@ -2,6 +2,7 @@ package filetransfer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -137,8 +138,12 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 				localPath := getDownloadFilePath(objName, objectName, task.Path)
 				err := ft.DownloadFile(object, localPath)
 				if err != nil {
-					// this file is probably a folder, skip to avoid an unnecessary error
-					if isDir(reference, task.Size) {
+					isDir, err := ft.IsDir(object, task.Size)
+					if err != nil {
+						ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
+						return err
+					} else if isDir {
+						println("directory", object.ObjectName())
 						ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 						return nil
 					}
@@ -157,8 +162,12 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 		object := bucket.Object(objectName).Generation(int64(task.VersionId.(float64)))
 		err := ft.DownloadFile(object, task.Path)
 		if err != nil {
-			// this file is probably a folder, skip to avoid an unnecessary error
-			if isDir(reference, task.Size) {
+			isDir, err := ft.IsDir(object, task.Size)
+			if err != nil {
+				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
+				return err
+			} else if isDir {
+				println("directory", object.ObjectName())
 				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 				return nil
 			}
@@ -169,8 +178,12 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 		object := bucket.Object(objectName)
 		objAttrs, err := object.Attrs(ft.ctx)
 		if err != nil {
-			// this file is probably a folder, skip to avoid an unnecessary error
-			if isDir(reference, task.Size) {
+			isDir, err := ft.IsDir(object, task.Size)
+			if err != nil {
+				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
+				return err
+			} else if isDir {
+				println("directory", object.ObjectName())
 				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 				return nil
 			}
@@ -238,6 +251,17 @@ func getDownloadFilePath(objectName string, prefix string, baseFilePath string) 
 }
 
 // isDir returns true if the reference path and its size indicate that it might be a directory
-func isDir(reference string, size int64) bool {
-	return path.Ext(reference) == "" && size == 0
+func (ft *GCSFileTransfer) IsDir(object *storage.ObjectHandle, size int64) (bool, error) {
+	if (strings.HasSuffix(object.ObjectName(), "/") && size == 0) {
+		return true, nil
+	} else if (path.Ext(object.ObjectName()) == "" && size == 0) {
+		_, err := object.Attrs(ft.ctx)
+		// this should only return this error in the case that its a folder. Otherwise, we wouldn't even be able to get the object
+		if err != nil && errors.Is(err, storage.ErrObjectNotExist) {
+			return true, nil
+		} else if (err != nil) {
+			return false, err
+		}
+	}
+	return false, nil
 }
