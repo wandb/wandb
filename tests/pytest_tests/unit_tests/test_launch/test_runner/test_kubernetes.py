@@ -739,7 +739,10 @@ async def test_launch_kube_base_image_works(
         name="test_run",
         docker_config={},
     )
-    project._job_artifact = MagicMock()
+    mock_artifact = MagicMock()
+    mock_artifact.name = "test_job_artifact"
+    mock_artifact.version = "0"
+    project._job_artifact = mock_artifact
     project.set_job_base_image("test_base_image")
     runner = KubernetesRunner(
         test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
