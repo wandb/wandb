@@ -38,31 +38,29 @@ def test_fetching_artifact_files(user, wandb_init):
     assert open(file_path).read() == "testing"
 
 
-def test_artifact_download_offline_mode(user, wandb_init, monkeypatch):
+def test_artifact_download_offline_mode(user, wandb_init, monkeypatch, tmp_path, mocker):
     project = "test"
 
-    with tempfile.TemporaryDirectory() as tempdir:
-        # Create the test file in the temporary directory
-        filename = os.path.join(tempdir, "boom.txt")
-        with open(filename, "w") as f:
-            f.write("testing")
+    # Create the test file in the temporary directory
+    file_path = tmp_path / "boom.txt"
+    file_path.write_text("testing")
 
-        # Use monkeypatch to set WANDB_MODE
-        monkeypatch.setenv("WANDB_MODE", "offline")
+    # Use monkeypatch to set WANDB_MODE
+    monkeypatch.setenv("WANDB_MODE", "offline")
 
-        # Mock the wandb.Api().artifact call to prevent actual network requests
-        with patch("wandb.Api.artifact") as mock_artifact:
-            mock_artifact.return_value = wandb.Artifact("test-artifact", "test-type")
+    # Mock the wandb.Api().artifact call to prevent actual network requests
+    mock_api_artifact = mocker.patch("wandb.Api.artifact")
+    mock_api_artifact.return_value = wandb.Artifact("test-artifact", "test-type")
 
-            with wandb_init(entity=user, project=project) as run:
-                artifact = wandb.Artifact("test-artifact", "test-type")
-                artifact.add_file(filename, "test-name")
-                run.log_artifact(artifact, aliases=["sequence"])
+    with wandb_init(entity=user, project=project) as run:
+        artifact = wandb.Artifact("test-artifact", "test-type")
+        artifact.add_file(filename, "test-name")
+        run.log_artifact(artifact, aliases=["sequence"])
 
-            with pytest.raises(
-                RuntimeError, match="Cannot download artifacts in offline mode."
-            ):
-                artifact.download()
+    with pytest.raises(
+        RuntimeError, match="Cannot download artifacts in offline mode."
+    ):
+        artifact.download()
 
 
 def test_save_aliases_after_logging_artifact(user, wandb_init):
