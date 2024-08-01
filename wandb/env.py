@@ -161,6 +161,12 @@ def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
+def is_offline(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    return env.get(MODE) == "offline"
+
+
 def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
 

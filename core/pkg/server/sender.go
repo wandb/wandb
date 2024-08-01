@@ -1266,7 +1266,11 @@ func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.Log
 func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *service.DownloadArtifactRequest) {
 	var response service.DownloadArtifactResponse
 
-	if err := artifacts.NewArtifactDownloader(
+	if s.graphqlClient == nil {
+		// Offline mode handling:
+		s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
+		response.ErrorMessage = "Artifact downloads are not supported in offline mode."
+	} else if err := artifacts.NewArtifactDownloader(
 		s.ctx,
 		s.graphqlClient,
 		s.fileTransferManager,
@@ -1276,6 +1280,7 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 		msg.SkipCache,
 		msg.PathPrefix,
 	).Download(); err != nil {
+		// Online mode handling: error during download
 		s.logger.CaptureError(
 			fmt.Errorf("sender: failed to download artifact: %v", err))
 		response.ErrorMessage = err.Error()
