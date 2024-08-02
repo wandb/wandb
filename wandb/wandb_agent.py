@@ -428,9 +428,16 @@ class Agent:
 
         if run_queue_item_id is not None:
             try:
-                self._api.ack_run_queue_item(run_queue_item_id, run_id)
+                self._api.ack_run_queue_item(run_queue_item_id, run_id, False)
             except wandb.CommError as e:
                 logger.error("Failed to ack run queue item: %s", e)
+                _already_acked_msg = (
+                    "item already claimed or not eligible to be claimed"
+                )
+                if _already_acked_msg in e.message:
+                    logger.info("Run queue item already acked, moving on.")
+                else:
+                    raise e
             except Exception as e:
                 logger.error("Failed to ack run queue item: %s", e)
                 raise e

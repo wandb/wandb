@@ -1856,7 +1856,9 @@ class Api:
         return result
 
     @normalize_exceptions
-    def ack_run_queue_item(self, item_id: str, run_id: Optional[str] = None) -> bool:
+    def ack_run_queue_item(
+        self, item_id: str, run_id: Optional[str] = None, raise_error: bool = True
+    ) -> bool:
         mutation = gql(
             """
         mutation ackRunQueueItem($itemId: ID!, $runId: String!)  {
@@ -1870,9 +1872,13 @@ class Api:
             mutation, variable_values={"itemId": item_id, "runId": str(run_id)}
         )
         if not response["ackRunQueueItem"]["success"]:
-            raise CommError(
-                "Error acking run queue item. Item may have already been acknowledged by another process"
-            )
+            # sweeps with run queues can have a race condition between the agent acking
+            # the run queue item, and the implicit ack performed by the server when the run
+            # is started. In this case, we can safely ignore the error
+            if raise_error:
+                raise CommError(
+                    "Error acking run queue item. Item may have already been acknowledged by another process"
+                )
         result: bool = response["ackRunQueueItem"]["success"]
         return result
 
