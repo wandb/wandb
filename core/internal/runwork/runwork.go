@@ -1,4 +1,4 @@
-// Package runwork manages additional "work" generated during a run.
+// Package runwork manages all work that's part of a run.
 //
 // This defines a channel-like object for Record protos that can be
 // safely closed.
