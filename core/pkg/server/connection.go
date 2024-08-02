@@ -38,6 +38,9 @@ type Connection struct {
 	// conn is the underlying connection
 	conn net.Conn
 
+	// commit is the W&B Git commit hash
+	commit string
+
 	// id is the unique id for the connection
 	id string
 
@@ -64,12 +67,14 @@ func NewConnection(
 	cancel context.CancelFunc,
 	conn net.Conn,
 	sentryClient *sentry_ext.Client,
+	commit string,
 ) *Connection {
 
 	nc := &Connection{
 		ctx:          ctx,
 		cancel:       cancel,
 		conn:         conn,
+		commit:       commit,
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
@@ -146,17 +151,37 @@ func (nc *Connection) readConnection() {
 		msg := &service.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
 			slog.Error(
-				"unmarshalling error",
-				"err", err,
-				"conn", nc.conn.RemoteAddr())
+				"connection: unmarshalling error",
+				"error", err,
+				"id", nc.id)
 		} else {
 			nc.inChan <- msg
 		}
 	}
-	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
-		panic(scanner.Err())
-	}
+
 	close(nc.inChan)
+
+	if scanner.Err() != nil {
+		switch {
+		case errors.Is(scanner.Err(), net.ErrClosed):
+			// All good! The connection closed normally.
+
+		default:
+			// This can happen if the client process dies or if the input
+			// is corrupted.
+			//
+			// In this case, there's no guarantee of an explicit shutdown
+			// message from the client, so we shut down the server.
+
+			slog.Error(
+				"connection: fatal error reading connection",
+				"error", scanner.Err(),
+				"id", nc.id,
+			)
+
+			nc.teardownServer(1)
+		}
+	}
 }
 
 // handleServerRequest handles outgoing messages from the server
@@ -243,7 +268,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(nc.ctx, settings, nc.sentryClient)
+	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
@@ -333,13 +358,18 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 	}
 }
 
-// handleInformTeardown is called when the client sends a teardown message
-// this should happen when the client is shutting down and wants to close
-// all streams
+// handleInformTeardown is used by the client to shut down the entire server.
 func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
-	slog.Debug("handle teardown received", "id", nc.id)
-	// cancel the context to signal the server to shutdown
-	// this will trigger all the connections to close
+	nc.teardownServer(teardown.ExitCode)
+}
+
+// teardownServer initiates server shutdown.
+func (nc *Connection) teardownServer(exitCode int32) {
+	slog.Info("connection: teardown", "id", nc.id)
+
+	// Cancelling the context allows the server and all connections to stop.
 	nc.cancel()
-	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
+
+	// Wait for all streams to complete.
+	streamMux.FinishAndCloseAllStreams(exitCode)
 }
