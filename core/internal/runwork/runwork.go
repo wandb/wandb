@@ -17,7 +17,7 @@ var errRecordAfterClose = errors.New("runwork: ignoring record after close")
 
 // ExtraWork allows injecting records into the Handler->Sender pipeline.
 type ExtraWork interface {
-	// AddRecord emits an internally-generated record.
+	// AddRecord emits a record to process for the run.
 	//
 	// This may only be called before the end of the run---see the comment
 	// on BeforeEndCtx. If called after the end of the run, the record is
