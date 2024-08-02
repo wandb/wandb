@@ -109,7 +109,7 @@ def test_agent_ignore_project_entity_run_id(wandb_init, user):
     assert sweep_run_ids[0] != "also_ignored"
 
 
-def test_pyagent_ack_rqi(wandb_init, monkeypatch):
+def test_pyagent_ack_rqi(wandb_init, monkeypatch, user):
     sweep_ids = []
     sweep_configs = []
     sweep_resumed = []
@@ -140,7 +140,7 @@ def test_pyagent_ack_rqi(wandb_init, monkeypatch):
     assert ack_rqi.call_count == 1
 
 
-def test_wandb_agent_ack_rqi(monkeypatch, mocker):
+def test_wandb_agent_ack_rqi(monkeypatch, user):
     sweep_ids = []
     sweep_configs = []
     sweep_resumed = []
