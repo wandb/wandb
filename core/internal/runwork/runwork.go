@@ -78,14 +78,14 @@ type runWork struct {
 	logger *observability.CoreLogger
 }
 
-func New(logger *observability.CoreLogger) RunWork {
+func New(bufferSize int, logger *observability.CoreLogger) RunWork {
 	endCtx, endCtxCancel := context.WithCancel(context.Background())
 
 	return &runWork{
 		addRecordCV:     sync.NewCond(&sync.Mutex{}),
 		closed:          make(chan struct{}),
 		done:            make(chan struct{}),
-		internalRecords: make(chan *service.Record),
+		internalRecords: make(chan *service.Record, bufferSize),
 		endCtx:          endCtx,
 		endCtxCancel:    endCtxCancel,
 		logger:          logger,

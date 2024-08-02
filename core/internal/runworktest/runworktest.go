@@ -21,7 +21,7 @@ type FakeRunWork struct {
 var _ runwork.RunWork = &FakeRunWork{}
 
 func New() *FakeRunWork {
-	fake := &FakeRunWork{rw: runwork.New(observability.NewNoOpLogger())}
+	fake := &FakeRunWork{rw: runwork.New(0, observability.NewNoOpLogger())}
 
 	go func() {
 		for x := range fake.rw.Chan() {

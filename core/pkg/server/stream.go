@@ -135,7 +135,7 @@ func NewStream(
 	sentryClient *sentry_ext.Client,
 ) *Stream {
 	logger := streamLogger(settings, sentryClient)
-	runWork := runwork.New(logger)
+	runWork := runwork.New(BufferSize, logger)
 
 	s := &Stream{
 		runWork:      runWork,

@@ -15,7 +15,7 @@ import (
 
 func TestAddRecordConcurrent(t *testing.T) {
 	count := 0
-	rw := runwork.New(observability.NewNoOpLogger())
+	rw := runwork.New(0, observability.NewNoOpLogger())
 	wgConsumer := &sync.WaitGroup{}
 	wgConsumer.Add(1)
 	go func() {
@@ -46,7 +46,7 @@ func TestAddRecordConcurrent(t *testing.T) {
 func TestAddRecordAfterClose(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
-	rw := runwork.New(observability.NewCoreLogger(logger))
+	rw := runwork.New(0, observability.NewCoreLogger(logger))
 
 	rw.SetDone()
 	rw.Close()
@@ -58,7 +58,7 @@ func TestAddRecordAfterClose(t *testing.T) {
 func TestCloseDuringAddRecord(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
-	rw := runwork.New(observability.NewCoreLogger(logger))
+	rw := runwork.New(0, observability.NewCoreLogger(logger))
 
 	go func() {
 		// Increase odds that Close() happens while AddRecord() is
@@ -74,7 +74,7 @@ func TestCloseDuringAddRecord(t *testing.T) {
 }
 
 func TestCloseAfterClose(t *testing.T) {
-	rw := runwork.New(observability.NewNoOpLogger())
+	rw := runwork.New(0, observability.NewNoOpLogger())
 
 	rw.SetDone()
 	rw.SetDone()
@@ -86,7 +86,7 @@ func TestCloseAfterClose(t *testing.T) {
 
 func TestRaceAddRecordClose(t *testing.T) {
 	for range 50 {
-		rw := runwork.New(observability.NewNoOpLogger())
+		rw := runwork.New(0, observability.NewNoOpLogger())
 
 		go func() {
 			rw.SetDone()
@@ -98,7 +98,7 @@ func TestRaceAddRecordClose(t *testing.T) {
 }
 
 func TestCloseCancelsContext(t *testing.T) {
-	rw := runwork.New(observability.NewNoOpLogger())
+	rw := runwork.New(0, observability.NewNoOpLogger())
 
 	go func() {
 		rw.SetDone()
@@ -110,7 +110,7 @@ func TestCloseCancelsContext(t *testing.T) {
 }
 
 func TestCloseBlocksUntilDone(t *testing.T) {
-	rw := runwork.New(observability.NewNoOpLogger())
+	rw := runwork.New(0, observability.NewNoOpLogger())
 	wg := &sync.WaitGroup{}
 	count := 0
 
