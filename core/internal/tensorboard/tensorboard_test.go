@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waitingtest"
@@ -37,7 +38,7 @@ type testContext struct {
 func setupTest(t *testing.T, opts testOptions) testContext {
 	t.Helper()
 
-	outChan := make(chan *service.Record, 100)
+	runWork := runworktest.New()
 	fileReadDleay := waitingtest.NewFakeDelay()
 
 	tmpdir := t.TempDir()
@@ -52,7 +53,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 	settings := settings.From(settingsProto)
 
 	handler := tensorboard.NewTBHandler(tensorboard.Params{
-		OutputRecords: outChan,
+		ExtraWork:     runWork,
 		Logger:        observability.NewNoOpLogger(),
 		Settings:      settings,
 		FileReadDelay: fileReadDleay,
