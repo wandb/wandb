@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
@@ -17,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -35,11 +35,8 @@ import (
 // processes send "records" to the service process that log to and modify
 // the run, which the service process consumes asynchronously.
 type Stream struct {
-	// ctx is the context for the stream
-	ctx context.Context
-
-	// cancel is the cancel function for the stream
-	cancel context.CancelFunc
+	// runWork is a channel of records to process.
+	runWork runwork.RunWork
 
 	// logger is the logger for the stream
 	logger *observability.CoreLogger
@@ -58,19 +55,6 @@ type Stream struct {
 
 	// sender is the sender for the stream
 	sender *Sender
-
-	// inChan is a channel of incoming messages for the run.
-	//
-	// It is buffered and never closed.
-	inChan chan *service.Record
-
-	// loopBackChan is a channel for internally-generated messages for the run.
-	//
-	// It is buffered and never closed.
-	loopBackChan chan *service.Record
-
-	// done is closed when the stream should stop processing new records.
-	done chan struct{}
 
 	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
@@ -146,27 +130,17 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 
 // NewStream creates a new stream with the given settings and responders.
 func NewStream(
-	ctx context.Context,
+	commit string,
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
 ) *Stream {
-	// we only need the passed context for the commit value
-	commit, ok := ctx.Value(observability.Commit).(string)
-	if !ok {
-		commit = ""
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, observability.Commit, commit)
+	logger := streamLogger(settings, sentryClient)
+	runWork := runwork.New(logger)
 
 	s := &Stream{
-		ctx:          ctx,
-		cancel:       cancel,
+		runWork:      runWork,
 		logger:       streamLogger(settings, sentryClient),
 		settings:     settings,
-		inChan:       make(chan *service.Record, BufferSize),
-		loopBackChan: make(chan *service.Record, BufferSize),
-		done:         make(chan struct{}),
 		sentryClient: sentryClient,
 	}
 
@@ -189,10 +163,10 @@ func NewStream(
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
-		OutputRecords: s.loopBackChan,
-		Logger:        s.logger,
-		Settings:      s.settings,
-		Hostname:      hostname,
+		ExtraWork: s.runWork,
+		Logger:    s.logger,
+		Settings:  s.settings,
+		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
@@ -213,7 +187,7 @@ func NewStream(
 			settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
-			s.ctx,
+			s.runWork,
 			s.logger,
 			settings,
 			fileStreamOrNil,
@@ -225,13 +199,13 @@ func NewStream(
 
 	mailbox := mailbox.NewMailbox()
 
-	s.handler = NewHandler(s.ctx,
+	s.handler = NewHandler(commit,
 		HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
 			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
@@ -263,8 +237,7 @@ func NewStream(
 	}
 
 	s.sender = NewSender(
-		s.ctx,
-		s.cancel,
+		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
 			Settings:            s.settings,
@@ -277,7 +250,6 @@ func NewStream(
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
-			FwdChan:             s.loopBackChan,
 			OutChan:             make(chan *service.Result, BufferSize),
 			Mailbox:             mailbox,
 			OutputFileName:      outputFile,
@@ -299,19 +271,10 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	// forward records from the inChan and loopBackChan to the handler
-	handlerChan := make(chan *service.Record, BufferSize)
-	s.wg.Add(1)
-	go func() {
-		s.loopSendInputsToHandler(handlerChan)
-		close(handlerChan)
-		s.wg.Done()
-	}()
-
 	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
-		s.handler.Do(handlerChan)
+		s.handler.Do(s.runWork.Chan())
 		s.wg.Done()
 	}()
 
@@ -339,62 +302,22 @@ func (s *Stream) Start() {
 			s.wg.Done()
 		}(ch)
 	}
-	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
-}
 
-// loopSendInputsToHandler forwards records from inChan and loopbackChan
-// to the handler channel until done.
-func (s *Stream) loopSendInputsToHandler(handlerChan chan<- *service.Record) {
-	for {
-		select {
-		// Select from inChan or loopBackChan while there's buffered data.
-		case x := <-s.inChan:
-			handlerChan <- x
-		case x := <-s.loopBackChan:
-			handlerChan <- x
-
-		// Otherwise, race between inChan / loopBackChan / done.
-		default:
-			select {
-			case x := <-s.inChan:
-				handlerChan <- x
-			case x := <-s.loopBackChan:
-				handlerChan <- x
-			case <-s.done:
-				return
-			}
-		}
-	}
+	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
 	s.logger.Debug("handling record", "record", rec)
-
-	select {
-	case <-s.done:
-		s.logger.Error("stream: closed, ignoring record", "record", rec)
-	case s.inChan <- rec:
-	}
+	s.runWork.AddRecord(rec)
 }
 
 // Close waits for all run messages to be fully processed.
 func (s *Stream) Close() {
-	// Wait for the Sender to indicate that it's done processing data.
-	<-s.ctx.Done()
-
-	// Stop forwarding records to the Handler.
-	select {
-	case <-s.done:
-		s.logger.CaptureError(
-			fmt.Errorf("stream: called Close() more than once"))
-	default:
-		close(s.done)
-	}
-
-	// Wait for all work to complete.
+	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
+	s.runWork.Close()
 	s.wg.Wait()
-	s.logger.Info("closed stream", "id", s.settings.GetRunID())
+	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 
 // FinishAndClose emits an exit record, waits for all run messages
