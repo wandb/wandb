@@ -143,7 +143,6 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 						ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
 						return err
 					} else if isDir {
-						println("directory", object.ObjectName())
 						ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 						return nil
 					}
@@ -159,15 +158,18 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			return err
 		}
 	case task.VersionId != nil:
-		object := bucket.Object(objectName).Generation(int64(task.VersionId.(float64)))
-		err := ft.DownloadFile(object, task.Path)
+		versionId, err := safeConvertToInt64(task.VersionId)
+		if err != nil {
+			ft.logger.CaptureError(fmt.Errorf("failed to convert VersionId: %v", err))
+		}
+		object := bucket.Object(objectName).Generation(versionId)
+		err = ft.DownloadFile(object, task.Path)
 		if err != nil {
 			isDir, err := ft.IsDir(object, task.Size)
 			if err != nil {
 				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
 				return err
 			} else if isDir {
-				println("directory", object.ObjectName())
 				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 				return nil
 			}
@@ -183,7 +185,6 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
 				return err
 			} else if isDir {
-				println("directory", object.ObjectName())
 				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 				return nil
 			}
@@ -243,14 +244,7 @@ func (ft *GCSFileTransfer) DownloadFile(object *storage.ObjectHandle, localPath 
 	return nil
 }
 
-// getDownloadFilePath returns the file path to download the file to, removing duplicate info from the extension
-func getDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
-	ext, _ := strings.CutPrefix(objectName, prefix)
-	localPath := baseFilePath + ext
-	return localPath
-}
-
-// isDir returns true if the reference path and its size indicate that it might be a directory
+// isDir returns true if the object key and its size indicate that it might be a directory
 func (ft *GCSFileTransfer) IsDir(object *storage.ObjectHandle, size int64) (bool, error) {
 	if (strings.HasSuffix(object.ObjectName(), "/") && size == 0) {
 		return true, nil
@@ -264,4 +258,20 @@ func (ft *GCSFileTransfer) IsDir(object *storage.ObjectHandle, size int64) (bool
 		}
 	}
 	return false, nil
+}
+
+// getDownloadFilePath returns the file path to download the file to, removing duplicate info from the extension
+func getDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
+	ext, _ := strings.CutPrefix(objectName, prefix)
+	localPath := baseFilePath + ext
+	return localPath
+}
+
+// safeConvertToInt64 attempts to convert an interface{} to an int64 value
+func safeConvertToInt64(value interface{}) (int64, error) {
+	floatVal, ok := value.(float64)
+	if !ok {
+		return 0, fmt.Errorf("value is not a float64: %v", value)
+	}
+	return int64(floatVal), nil
 }
