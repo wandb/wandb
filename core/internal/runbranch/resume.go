@@ -140,66 +140,42 @@ func runExists(response *gql.RunResumeStatusResponse) bool {
 }
 
 // processResponse extracts the run state from the data we get from the server
+//
+//gocyclo:ignore
 func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
 	r := params.Clone()
 
 	// Get Config information
-	cfg := data.GetConfig()
-	if cfg == nil {
-		return nil, fmt.Errorf("no config found")
-	}
-	config, err := processConfig(cfg)
-	if err != nil {
+	if config, err := processConfigResume(data.GetConfig()); err != nil {
 		return nil, err
-	}
-	r.Config = config
-
-	// Get Tags information
-	r.Tags = data.GetTags()
-
-	r.Resumed = true
-
-	if r.FileStreamOffset == nil {
-		r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+	} else if config != nil {
+		r.Config = config
 	}
 
-	// update the file stream offsets with the data from the server
-	if data.GetHistoryLineCount() != nil {
-		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
-	} else {
-		return nil, errors.New("no history line count found in resume response")
-	}
-
-	if data.GetEventsLineCount() != nil {
-		r.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
-	} else {
-		return nil, errors.New("no events line count found in resume response")
-	}
-
-	if data.GetLogLineCount() != nil {
-		r.FileStreamOffset[filestream.OutputChunk] = *data.GetLogLineCount()
-	} else {
-		return nil, errors.New("no log line count found in resume response")
+	if filestreamOffset, err := processAllOffsets(
+		data.GetHistoryLineCount(),
+		data.GetEventsLineCount(),
+		data.GetLogLineCount(),
+	); err != nil {
+		return nil, err
+	} else if filestreamOffset != nil {
+		r.Merge(&RunParams{FileStreamOffset: filestreamOffset})
 	}
 
 	// extract runtime from the events tail if it exists we will use the maximal
 	// value of runtime that we find
-	events, err := processEventsTail(data.GetEventsTail())
-	if err != nil {
+	if events, err := processEventsTail(data.GetEventsTail()); err != nil {
 		return nil, err
-	}
-	if events != nil {
+	} else if events != nil {
 		if runtime, ok := events["_runtime"]; ok {
 			r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
 		}
 	}
 
 	// Get Summary information
-	summary, err := processSummary(data.GetSummaryMetrics())
-	if err != nil {
+	if summary, err := processSummary(data.GetSummaryMetrics()); err != nil {
 		return nil, err
-	}
-	if summary != nil {
+	} else if summary != nil {
 		r.Summary = summary
 
 		if step, ok := summary["_step"]; ok {
@@ -224,14 +200,39 @@ func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBuc
 		}
 	}
 
+	// TODO: do we need both history and summary? is it a legacy from old
+	// versions of the backend?
+	if history, err := processHistory(data.GetHistoryTail()); err != nil {
+		return nil, err
+	} else if history != nil {
+		if step, ok := history["_step"]; ok {
+			// if we are resuming, we need to update the starting step
+			// to be the next step after the last step we ran
+			if x, ok := step.(int64); ok {
+				r.StartingStep = x
+			}
+		}
+
+		if runtime, ok := history["_runtime"]; ok {
+			r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
+		}
+	}
+
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
 		r.StartingStep += 1
 	}
 
+	// if we are resuming, we need to update the start time to be the start time
+	// of the last run minus the runtime for the duration computation
 	if !r.StartTime.IsZero() {
 		r.StartTime = r.StartTime.Add(time.Duration(-r.Runtime) * time.Second)
 	}
+
+	// Get Tags information
+	r.Tags = data.GetTags()
+
+	r.Resumed = true
 
 	return r, nil
 }

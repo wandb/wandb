@@ -1,6 +1,4 @@
-# This file contains the GraphQL mutation for rewinding a run.
-# This mutation is used to rewind a run to a previous state, specified by the
-# metric value. The response is used to configuret the rewound run's state.
+# Description: Mutation to rewind a run to a previous state, specified by the metric value.
 
  mutation RewindRun($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
             rewindRun(
