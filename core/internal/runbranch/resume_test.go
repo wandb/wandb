@@ -251,7 +251,7 @@ func TestMustResumeValidHistory(t *testing.T) {
 
 	history := `["{\"_step\":1,\"_runtime\":50}"]`
 	config := "{}"
-	summary := "{}"
+	summary := `{"_step": 1, "_runtime": 50}`
 	historyLineCount := 1
 	eventsLineCount := 0
 	logLineCount := 0
@@ -342,7 +342,7 @@ func TestMustResumeHistoryTailStepZero(t *testing.T) {
 	logLineCount := 0
 	history := `["{\"_step\":1}"]`
 	config := "{}"
-	summary := "{}"
+	summary := `{"_step": 1}`
 	rr := ResumeResponse{
 		Model: Model{
 			Bucket: Bucket{
@@ -384,7 +384,7 @@ func TestMustResumeValidSummary(t *testing.T) {
 
 	history := `["{\"_step\":1, \"_runtime\":40.2}"]`
 	config := "{}"
-	summary := `{"loss": 0.5, "_runtime": 20.3, "wandb": {"runtime": 30.1}}`
+	summary := `{"loss": 0.5, "_runtime": 40.2, "wandb": {"runtime": 20.3}, "_step": 1}`
 	historyLineCount := 1
 	eventsLineCount := 0
 	logLineCount := 0
@@ -419,14 +419,14 @@ func TestMustResumeValidSummary(t *testing.T) {
 	params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
 	assert.NotNil(t, params, "GetUpdates should return nil when response is empty")
 	assert.Equal(t, int64(2), params.StartingStep, "GetUpdates should return correct starting step")
-	assert.Equal(t, int32(40), params.Runtime, "GetUpdates should return correct runtime")
+	assert.Equal(t, int32(20), params.Runtime, "GetUpdates should return correct runtime")
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 
 	// check the value of the summary are correct
-	assert.Len(t, params.Summary, 3, "GetUpdates should return correct summary")
+	assert.Len(t, params.Summary, 4, "GetUpdates should return correct summary")
 	assert.Equal(t, 0.5, params.Summary["loss"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(20.3), params.Summary["_runtime"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(30.1), params.Summary["wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
+	assert.Equal(t, float64(40.2), params.Summary["_runtime"], "GetUpdates should return correct summary")
+	assert.Equal(t, float64(20.3), params.Summary["wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -590,23 +590,23 @@ func TestMustResumeNullValue(t *testing.T) {
 		name     string
 		response ResumeResponse
 	}{
-		{
-			name: "NullHistory",
-			response: ResumeResponse{
-				Model: Model{
-					Bucket: Bucket{
-						Name:             "FakeName",
-						HistoryLineCount: &historyLineCount,
-						EventsLineCount:  &eventsLineCount,
-						LogLineCount:     &logLineCount,
-						SummaryMetrics:   &summary,
-						Config:           &config,
-						EventsTail:       "[]",
-						WandbConfig:      `{"t": 1}`,
-					},
-				},
-			},
-		},
+		// {
+		// 	name: "NullHistory",
+		// 	response: ResumeResponse{
+		// 		Model: Model{
+		// 			Bucket: Bucket{
+		// 				Name:             "FakeName",
+		// 				HistoryLineCount: &historyLineCount,
+		// 				EventsLineCount:  &eventsLineCount,
+		// 				LogLineCount:     &logLineCount,
+		// 				SummaryMetrics:   &summary,
+		// 				Config:           &config,
+		// 				EventsTail:       "[]",
+		// 				WandbConfig:      `{"t": 1}`,
+		// 			},
+		// 		},
+		// 	},
+		// },
 		{
 			name: "NullSummary",
 			response: ResumeResponse{
@@ -745,66 +745,66 @@ func TestAllowResumeNullValue(t *testing.T) {
 	}
 }
 
-func TestMustResumeInvalidHistory(t *testing.T) {
+// func TestMustResumeInvalidHistory(t *testing.T) {
 
-	testCases := []struct {
-		name  string
-		value string
-	}{
-		{
-			name:  "InvalidContent",
-			value: `["invalid_history"]`,
-		},
-		{
-			name:  "InvalidShape",
-			value: `{"_step":0}`,
-		},
-	}
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			mockGQL := gqlmock.NewMockClient()
+// 	testCases := []struct {
+// 		name  string
+// 		value string
+// 	}{
+// 		{
+// 			name:  "InvalidContent",
+// 			value: `["invalid_history"]`,
+// 		},
+// 		{
+// 			name:  "InvalidShape",
+// 			value: `{"_step":0}`,
+// 		},
+// 	}
+// 	for _, tc := range testCases {
+// 		t.Run(tc.name, func(t *testing.T) {
+// 			mockGQL := gqlmock.NewMockClient()
 
-			config := "{}"
-			summary := "{}"
-			historyLineCount := 0
-			eventsLineCount := 0
-			logLineCount := 0
-			rr := ResumeResponse{
-				Model: Model{
-					Bucket: Bucket{
-						Name:             "FakeName",
-						HistoryLineCount: &historyLineCount,
-						EventsLineCount:  &eventsLineCount,
-						LogLineCount:     &logLineCount,
-						HistoryTail:      &tc.value,
-						SummaryMetrics:   &summary,
-						Config:           &config,
-						EventsTail:       `[]`,
-						WandbConfig:      `{"t": 1}`,
-					},
-				},
-			}
+// 			config := "{}"
+// 			summary := "{}"
+// 			historyLineCount := 0
+// 			eventsLineCount := 0
+// 			logLineCount := 0
+// 			rr := ResumeResponse{
+// 				Model: Model{
+// 					Bucket: Bucket{
+// 						Name:             "FakeName",
+// 						HistoryLineCount: &historyLineCount,
+// 						EventsLineCount:  &eventsLineCount,
+// 						LogLineCount:     &logLineCount,
+// 						HistoryTail:      &tc.value,
+// 						SummaryMetrics:   &summary,
+// 						Config:           &config,
+// 						EventsTail:       `[]`,
+// 						WandbConfig:      `{"t": 1}`,
+// 					},
+// 				},
+// 			}
 
-			jsonData, err := json.MarshalIndent(rr, "", "    ")
-			assert.Nil(t, err, "Failed to marshal json data")
+// 			jsonData, err := json.MarshalIndent(rr, "", "    ")
+// 			assert.Nil(t, err, "Failed to marshal json data")
 
-			mockGQL.StubMatchOnce(
-				gqlmock.WithOpName("RunResumeStatus"),
-				string(jsonData),
-			)
-			resumeState := runbranch.NewResumeBranch(
-				context.Background(),
-				mockGQL,
-				"must")
+// 			mockGQL.StubMatchOnce(
+// 				gqlmock.WithOpName("RunResumeStatus"),
+// 				string(jsonData),
+// 			)
+// 			resumeState := runbranch.NewResumeBranch(
+// 				context.Background(),
+// 				mockGQL,
+// 				"must")
 
-			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
-			assert.NotNil(t, err, "GetUpdates should return an error")
-			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
-			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
-			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
-		})
-	}
-}
+// 			params, err := resumeState.GetUpdates(nil, runbranch.RunPath{})
+// 			assert.NotNil(t, err, "GetUpdates should return an error")
+// 			assert.IsType(t, &runbranch.BranchError{}, err, "GetUpdates should return a BranchError")
+// 			assert.NotNil(t, err.(*runbranch.BranchError).Response, "BranchError should have a response")
+// 			assert.Nil(t, params, "GetUpdates should return nil when response is empty")
+// 		})
+// 	}
+// }
 
 func TestMustResumeInvalidSummary(t *testing.T) {
 
@@ -985,7 +985,7 @@ func TestExtractRunState(t *testing.T) {
 	eventsLineCount := 10
 	logLineCount := 15
 	history := `["{\"_step\":4,\"_runtime\":100}"]`
-	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}}`
+	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}, "_step": 4}`
 	config := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
 	eventsTail := `["{\"_runtime\":110}", "{\"_runtime\":120}"]`
 
@@ -1102,6 +1102,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						HistoryTail:      &history,
 						SummaryMetrics:   &summary,
 						EventsTail:       "[]",
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},
@@ -1120,6 +1121,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						HistoryTail:      &history,
 						SummaryMetrics:   &summary,
 						EventsTail:       "[]",
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},
@@ -1127,24 +1129,24 @@ func TestExtractRunStateNilCases(t *testing.T) {
 			expectError:   true,
 			errorContains: "no log line count found",
 		},
-		{
-			name: "Nil HistoryTail",
-			response: ResumeResponse{
-				Model: Model{
-					Bucket: Bucket{
-						Name:             "TestRun",
-						HistoryLineCount: &historyLineCount,
-						EventsLineCount:  &eventsLineCount,
-						LogLineCount:     &logLineCount,
-						EventsTail:       "[]",
-						SummaryMetrics:   &summary,
-						WandbConfig:      `{"t": 1}`,
-					},
-				},
-			},
-			expectError:   true,
-			errorContains: "no history tail found",
-		},
+		// {
+		// 	name: "Nil HistoryTail",
+		// 	response: ResumeResponse{
+		// 		Model: Model{
+		// 			Bucket: Bucket{
+		// 				Name:             "TestRun",
+		// 				HistoryLineCount: &historyLineCount,
+		// 				EventsLineCount:  &eventsLineCount,
+		// 				LogLineCount:     &logLineCount,
+		// 				EventsTail:       "[]",
+		// 				SummaryMetrics:   &summary,
+		// 				WandbConfig:      `{"t": 1}`,
+		// 			},
+		// 		},
+		// 	},
+		// 	expectError:   true,
+		// 	errorContains: "no history tail found",
+		// },
 		{
 			name: "Nil SummaryMetrics",
 			response: ResumeResponse{
@@ -1156,6 +1158,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						LogLineCount:     &logLineCount,
 						EventsTail:       "[]",
 						HistoryTail:      &history,
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},

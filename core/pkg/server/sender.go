@@ -961,13 +961,13 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 				},
 			)
 		}
-		return
 	}
 
 	// manage the state of the run
 	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
 		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
 	} else {
+
 		bucket := data.GetUpsertBucket().GetBucket()
 
 		project := bucket.GetProject()

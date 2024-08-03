@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -121,7 +120,10 @@ func (rb RewindBranch) ApplyChanges(
 		entityName = entity.GetName()
 	}
 
-	config, err := parseConfig(data.GetConfig())
+	var config map[string]any
+	if data.GetConfig() != nil {
+		config, err = processConfig(data.GetConfig())
+	}
 
 	r.Merge(
 		&RunParams{
@@ -139,41 +141,4 @@ func (rb RewindBranch) ApplyChanges(
 	)
 
 	return r, err
-}
-
-func parseConfig(config *string) (map[string]any, error) {
-	// Get Config information
-
-	if config != nil {
-		// If we are unable to parse the config, we should fail if resume is set to
-		// must for any other case of resume status, it is fine to ignore it
-		cfgVal, err := simplejsonext.UnmarshalString(*config)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal config: %s", err)
-		}
-
-		var cfg map[string]any
-		switch x := cfgVal.(type) {
-		case nil: // OK, cfg is nil
-		case map[string]any:
-			cfg = x
-		default:
-			return nil, fmt.Errorf(
-				"got type %T for %s",
-				x, *config,
-			)
-		}
-
-		result := make(map[string]any)
-		for key, value := range cfg {
-			valueDict, ok := value.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
-			} else if val, ok := valueDict["value"]; ok {
-				result[key] = val
-			}
-		}
-		return result, nil
-	}
-	return nil, nil
 }
