@@ -1,0 +1,68 @@
+name: Build and Push Docker Image
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "wandb/sdk/launch/**"
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: 3.x
+
+      - name: Determine Release Version
+        id: versioning
+        run: |
+          MAJOR=0
+          MINOR=1
+          PATCH=0
+
+          # Read current version from file
+          CURRENT_VERSION=$(cat wandb/sdk/launch/launch_version.txt)
+
+          # Split current version into major, minor, and patch
+          IFS='.' read -ra VERSION_PARTS <<< "$CURRENT_VERSION"
+          MAJOR=${VERSION_PARTS[0]}
+          MINOR=${VERSION_PARTS[1]}
+          PATCH=${VERSION_PARTS[2]}
+
+          # Increment version based on the type of changes
+          COMMIT_RANGE=$(git rev-parse origin/main)...$(git rev-parse HEAD)
+          COMMIT_MESSAGES=$(git log --pretty=format:"%s" "$COMMIT_RANGE")
+          if echo "$COMMIT_MESSAGES" | grep -E -q "^(fix|perf|chore|docs|style|refactor|test)(\([a-z]+\))?: .+"; then
+            PATCH=$((PATCH + 1))
+          elif echo "$COMMIT_MESSAGES" | grep -E -q "^(feat)"; then
+            MINOR=$((MINOR + 1))
+            PATCH=0
+          else
+            MAJOR=$((MAJOR + 1))
+            MINOR=0
+            PATCH=0
+          fi
+
+          # Update the version file
+          echo "$MAJOR.$MINOR.$PATCH" > wandb/sdk/launch/launch_version.txt
+
+          # Output the new version
+          echo "::set-output name=version::$MAJOR.$MINOR.$PATCH"
+
+      - name: Generate Changelog
+        run: |
+          npm install -g conventional-changelog-cli
+          conventional-changelog -p angular -i wandb/sdk/launch/CHANGELOG.md -s
+
+      - name: Build and Push Docker Image
+        run: |
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          python tools/build_launch_agent.py --push --tag my_image_tag:${{ steps.versioning.outputs.version }} --platform linux/amd64
+          python tools/build_launch_agent.py --push --tag my_image_tag:${{ steps.versioning.outputs.version }} --platform linux/arm64
+          python tools/build_launch_agent.py --push --tag my_image_tag:${{ steps.versioning.outputs.version }} --platform darwin/amd64
