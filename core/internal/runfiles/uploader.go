@@ -1,6 +1,7 @@
 package runfiles
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -12,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -21,7 +21,7 @@ import (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	extraWork     runwork.ExtraWork
+	ctx           context.Context
 	logger        *observability.CoreLogger
 	fs            filestream.FileStream
 	ftm           filetransfer.FileTransferManager
@@ -50,12 +50,12 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	uploader := &uploader{
-		extraWork: params.ExtraWork,
-		logger:    params.Logger,
-		fs:        params.FileStream,
-		ftm:       params.FileTransfer,
-		settings:  params.Settings,
-		graphQL:   params.GraphQL,
+		ctx:      params.Ctx,
+		logger:   params.Logger,
+		fs:       params.FileStream,
+		ftm:      params.FileTransfer,
+		settings: params.Settings,
+		graphQL:  params.GraphQL,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -258,7 +258,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 	go func() {
 		createRunFilesResponse, err := gql.CreateRunFiles(
-			u.extraWork.BeforeEndCtx(),
+			u.ctx,
 			u.graphQL,
 			u.settings.GetEntity(),
 			u.settings.GetProject(),

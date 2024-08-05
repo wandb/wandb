@@ -38,9 +38,6 @@ type Connection struct {
 	// conn is the underlying connection
 	conn net.Conn
 
-	// commit is the W&B Git commit hash
-	commit string
-
 	// id is the unique id for the connection
 	id string
 
@@ -67,14 +64,12 @@ func NewConnection(
 	cancel context.CancelFunc,
 	conn net.Conn,
 	sentryClient *sentry_ext.Client,
-	commit string,
 ) *Connection {
 
 	nc := &Connection{
 		ctx:          ctx,
 		cancel:       cancel,
 		conn:         conn,
-		commit:       commit,
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
@@ -248,7 +243,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
+	nc.stream = NewStream(nc.ctx, settings, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)

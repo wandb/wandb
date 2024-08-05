@@ -3,6 +3,7 @@ package server
 // This file contains functions to construct the objects used by a Stream.
 
 import (
+	"context"
 	"fmt"
 	"maps"
 	"net/http"
@@ -17,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -233,7 +233,7 @@ func NewFileTransferManager(
 }
 
 func NewRunfilesUploader(
-	extraWork runwork.ExtraWork,
+	ctx context.Context,
 	logger *observability.CoreLogger,
 	settings *settings.Settings,
 	fileStream filestream.FileStream,
@@ -242,7 +242,7 @@ func NewRunfilesUploader(
 	graphQL graphql.Client,
 ) runfiles.Uploader {
 	return runfiles.NewUploader(runfiles.UploaderParams{
-		ExtraWork:    extraWork,
+		Ctx:          ctx,
 		Logger:       logger,
 		Settings:     settings,
 		FileStream:   fileStream,
