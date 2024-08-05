@@ -1,3 +1,4 @@
+import platform
 from unittest.mock import MagicMock
 
 import pytest
@@ -76,5 +77,7 @@ async def test_local_container_base_image_job(
         "world'",
     ]
     mount_string = f"{mock_launch_project.project_dir}:/mnt/wandb"
+    if platform.system() == "Windows":
+        mount_string = f"'{mount_string}'"
     assert docker_command[7:9] == ["--volume", mount_string]
     assert docker_command[9:11] == ["--workdir", "/mnt/wandb"]
