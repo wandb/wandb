@@ -38,9 +38,6 @@ type Connection struct {
 	// conn is the underlying connection
 	conn net.Conn
 
-	// commit is the W&B Git commit hash
-	commit string
-
 	// id is the unique id for the connection
 	id string
 
@@ -67,14 +64,12 @@ func NewConnection(
 	cancel context.CancelFunc,
 	conn net.Conn,
 	sentryClient *sentry_ext.Client,
-	commit string,
 ) *Connection {
 
 	nc := &Connection{
 		ctx:          ctx,
 		cancel:       cancel,
 		conn:         conn,
-		commit:       commit,
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
@@ -167,19 +162,27 @@ func (nc *Connection) readConnection() {
 			// All good! The connection closed normally.
 
 		default:
-			// This can happen if the client process dies or if the input
-			// is corrupted.
+			// This can happen if:
 			//
-			// In this case, there's no guarantee of an explicit shutdown
-			// message from the client, so we shut down the server.
+			// A) The client process dies
+			// B) The input is corrupted
+			// C) The client process exits before finishing socket operations
+			//
+			// Case (A) is an expected failure mode. Case (B) should be
+			// extremely rare or the result of a bug.
+			//
+			// Case (C) is subtle and is unavoidable by design. Unfortunately,
+			// data may be lost. This happens when a child process started
+			// using Python's multiprocessing exits without any completion
+			// signal (e.g. run.finish()). `atexit` hooks do not run in
+			// multiprocessing, so there's no way to wait for sockets to
+			// flush.
 
 			slog.Error(
 				"connection: fatal error reading connection",
 				"error", scanner.Err(),
 				"id", nc.id,
 			)
-
-			nc.teardownServer(1)
 		}
 	}
 }
@@ -268,7 +271,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
+	nc.stream = NewStream(nc.ctx, settings, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)

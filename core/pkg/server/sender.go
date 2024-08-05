@@ -27,7 +27,6 @@ import (
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
@@ -60,20 +59,27 @@ type SenderParams struct {
 	RunSummary          *runsummary.RunSummary
 	Mailbox             *mailbox.Mailbox
 	OutChan             chan *service.Result
+	FwdChan             chan *service.Record
 	OutputFileName      *paths.RelativePath
 }
 
 // Sender is the sender for a stream it handles the incoming messages and sends to the server
 // or/and to the dispatcher/handler
 type Sender struct {
-	// runWork is the run's channel of records
-	runWork runwork.RunWork
+	// ctx is the context for the handler
+	ctx context.Context
+
+	// cancel is the cancel function for the handler
+	cancel context.CancelFunc
 
 	// logger is the logger for the sender
 	logger *observability.CoreLogger
 
 	// settings is the settings for the sender
 	settings *service.Settings
+
+	// fwdChan is the channel for loopback messages (messages from the sender to the handler)
+	fwdChan chan *service.Record
 
 	// outChan is the channel for dispatcher messages
 	outChan chan *service.Result
@@ -146,7 +152,8 @@ type Sender struct {
 
 // NewSender creates a new Sender with the given settings
 func NewSender(
-	runWork runwork.RunWork,
+	ctx context.Context,
+	cancel context.CancelFunc,
 	params SenderParams,
 ) *Sender {
 
@@ -160,7 +167,8 @@ func NewSender(
 	}
 
 	s := &Sender{
-		runWork:             runWork,
+		ctx:                 ctx,
+		cancel:              cancel,
 		runConfig:           runconfig.New(),
 		telemetry:           &service.TelemetryRecord{CoreVersion: version.Version},
 		runConfigMetrics:    runmetric.NewRunConfigMetrics(),
@@ -176,6 +184,7 @@ func NewSender(
 		mailbox:             params.Mailbox,
 		runSummary:          params.RunSummary,
 		outChan:             params.OutChan,
+		fwdChan:             params.FwdChan,
 		startState:          runbranch.NewRunParams(),
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
@@ -192,7 +201,8 @@ func NewSender(
 			ConsoleOutputFile: outputFileName,
 			Settings:          params.Settings,
 			Logger:            params.Logger,
-			ExtraWork:         runWork,
+			Ctx:               ctx,
+			LoopbackChan:      params.FwdChan,
 			FileStreamOrNil:   params.FileStream,
 		}),
 	}
@@ -290,8 +300,7 @@ func (s *Sender) fwdRecord(record *service.Record) {
 	if record == nil {
 		return
 	}
-
-	s.runWork.AddRecord(record)
+	s.fwdChan <- record
 }
 
 func (s *Sender) SendRecord(record *service.Record) {
@@ -463,11 +472,7 @@ func (s *Sender) sendJobFlush() {
 
 	output := s.runSummary.ToNestedMaps()
 
-	artifact, err := s.jobBuilder.Build(
-		s.runWork.BeforeEndCtx(),
-		s.graphqlClient,
-		output,
-	)
+	artifact, err := s.jobBuilder.Build(s.ctx, s.graphqlClient, output)
 	if err != nil {
 		s.logger.Error(
 			"sender: sendDefer: failed to build job artifact", "error", err,
@@ -479,13 +484,7 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 	saver := artifacts.NewArtifactSaver(
-		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
-		artifact,
-		0,
-		"",
+		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, artifact, 0, "",
 	)
 	if _, err = saver.Save(); err != nil {
 		s.logger.Error(
@@ -573,7 +572,8 @@ func (s *Sender) sendRequestDefer(request *service.DeferRequest) {
 			s.respond(s.exitRecord, &service.RunExitResult{})
 		}
 
-		s.runWork.SetDone()
+		// Mark the run as complete.
+		s.cancel()
 	default:
 		s.logger.CaptureFatalAndPanic(
 			fmt.Errorf("sender: sendDefer: unexpected state %v", request.State))
@@ -608,7 +608,7 @@ func (s *Sender) sendPreempting(record *service.RunPreemptingRecord) {
 func (s *Sender) sendLinkArtifact(record *service.Record, msg *service.LinkArtifactRequest) {
 	var response service.LinkArtifactResponse
 	linker := artifacts.ArtifactLinker{
-		Ctx:           s.runWork.BeforeEndCtx(),
+		Ctx:           s.ctx,
 		Logger:        s.logger,
 		LinkArtifact:  msg,
 		GraphqlClient: s.graphqlClient,
@@ -696,7 +696,7 @@ func (s *Sender) sendRewindRun(record *service.Record, _ *service.RunRecord) {
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
 
 	update, err := runbranch.NewResumeBranch(
-		s.runWork.BeforeEndCtx(),
+		s.ctx,
 		s.graphqlClient,
 		s.settings.GetResume().GetValue(),
 	).GetUpdates(s.startState, runbranch.RunPath{
@@ -835,7 +835,7 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 	// start a new context with an additional argument from the parent context
 	// this is used to pass the retry function to the graphql client
 	ctx := context.WithValue(
-		s.runWork.BeforeEndCtx(),
+		s.ctx,
 		clients.CtxRetryPolicyKey,
 		clients.UpsertBucketRetryPolicy,
 	)
@@ -845,9 +845,9 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 	// the context can be canceled if requested by the client
 	mailboxSlot := record.GetControl().GetMailboxSlot()
 	if mailboxSlot != "" {
-		// if this times out, we mark the run as done as there is
-		// no need to proceed with it
-		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
+		// if this times out, we cancel the global context
+		// as there is no need to proceed with the run
+		ctx = s.mailbox.Add(ctx, s.cancel, mailboxSlot)
 	} else if !s.startState.Intialized {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
@@ -1008,11 +1008,7 @@ func (s *Sender) upsertConfig() {
 		return
 	}
 
-	ctx := context.WithValue(
-		s.runWork.BeforeEndCtx(),
-		clients.CtxRetryPolicyKey,
-		clients.UpsertBucketRetryPolicy,
-	)
+	ctx := context.WithValue(s.ctx, clients.CtxRetryPolicyKey, clients.UpsertBucketRetryPolicy)
 	_, err = gql.UpsertBucket(
 		ctx,                                   // ctx
 		s.graphqlClient,                       // client
@@ -1163,7 +1159,7 @@ func (s *Sender) sendAlert(_ *service.Record, alert *service.AlertRecord) {
 	severity := gql.AlertSeverity(alert.Level)
 
 	data, err := gql.NotifyScriptableRunAlert(
-		s.runWork.BeforeEndCtx(),
+		s.ctx,
 		s.graphqlClient,
 		s.startState.Entity,
 		s.startState.Project,
@@ -1236,13 +1232,7 @@ func (s *Sender) sendFiles(_ *service.Record, filesRecord *service.FilesRecord) 
 
 func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 	saver := artifacts.NewArtifactSaver(
-		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
-		msg,
-		0,
-		"",
+		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, msg, 0, "",
 	)
 	artifactID, err := saver.Save()
 	if err != nil {
@@ -1255,13 +1245,7 @@ func (s *Sender) sendArtifact(_ *service.Record, msg *service.ArtifactRecord) {
 func (s *Sender) sendRequestLogArtifact(record *service.Record, msg *service.LogArtifactRequest) {
 	var response service.LogArtifactResponse
 	saver := artifacts.NewArtifactSaver(
-		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
-		msg.Artifact,
-		msg.HistoryStep,
-		msg.StagingDir,
+		s.ctx, s.logger, s.graphqlClient, s.fileTransferManager, msg.Artifact, msg.HistoryStep, msg.StagingDir,
 	)
 	artifactID, err := saver.Save()
 	if err != nil {
@@ -1287,7 +1271,7 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 		s.logger.Error("sender: sendRequestDownloadArtifact: cannot download artifact in offline mode")
 		response.ErrorMessage = "Artifact downloads are not supported in offline mode."
 	} else if err := artifacts.NewArtifactDownloader(
-		s.runWork.BeforeEndCtx(),
+		s.ctx,
 		s.graphqlClient,
 		s.fileTransferManager,
 		msg.ArtifactId,
@@ -1312,10 +1296,9 @@ func (s *Sender) sendRequestDownloadArtifact(record *service.Record, msg *servic
 
 func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRequest) {
 
-	s.syncService = NewSyncService(
-		s.runWork.BeforeEndCtx(),
+	s.syncService = NewSyncService(s.ctx,
 		WithSyncServiceLogger(s.logger),
-		WithSyncServiceSenderFunc(s.sendRecord), // TODO: pass runWork here (as ExtraWork)
+		WithSyncServiceSenderFunc(s.sendRecord),
 		WithSyncServiceOverwrite(request.GetOverwrite()),
 		WithSyncServiceSkip(request.GetSkip()),
 		WithSyncServiceFlushCallback(func(err error) {
@@ -1385,13 +1368,7 @@ func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopSt
 			RunShouldStop: false,
 		}
 	} else {
-		response, err := gql.RunStoppedStatus(
-			s.runWork.BeforeEndCtx(),
-			s.graphqlClient,
-			&entity,
-			&project,
-			runId,
-		)
+		response, err := gql.RunStoppedStatus(s.ctx, s.graphqlClient, &entity, &project, runId)
 		switch {
 		case err != nil:
 			// if there is an error, we don't know if the run should stop
@@ -1488,7 +1465,7 @@ func (s *Sender) sendRequestServerInfo(record *service.Record, _ *service.Server
 
 	// if we don't have server info, get it from the server
 	if s.serverInfo == nil {
-		data, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
+		data, err := gql.ServerInfo(s.ctx, s.graphqlClient)
 		// if there is an error, we don't know the server info
 		// respond with an empty server info response
 		// this is a best effort to get the server info
