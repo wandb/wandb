@@ -22,6 +22,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - In disabled mode, use the `wandb.sdk.wandb_run.Run` class instead of `wandb.sdk.wandb_run.RunDisabled`, which has been removed (@dmitryduev in https://github.com/wandb/wandb/pull/8037)
 - When `WANDB_MODE = offline` calling `artifact.download()` now throws an error instead of stalling (@trane293 in https://github.com/wandb/wandb/pull/8009)
 
+### Fixed
+
+- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
+
 ## [0.17.5] - 2024-07-19
 
 ### Added
