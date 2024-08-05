@@ -363,16 +363,11 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 
 // handleInformTeardown is used by the client to shut down the entire server.
 func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
-	nc.teardownServer(teardown.ExitCode)
-}
-
-// teardownServer initiates server shutdown.
-func (nc *Connection) teardownServer(exitCode int32) {
 	slog.Info("connection: teardown", "id", nc.id)
 
 	// Cancelling the context allows the server and all connections to stop.
 	nc.cancel()
 
 	// Wait for all streams to complete.
-	streamMux.FinishAndCloseAllStreams(exitCode)
+	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 }
