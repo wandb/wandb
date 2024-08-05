@@ -117,6 +117,9 @@ type Handler struct {
 	// systemMonitor is the system monitor for the stream
 	systemMonitor *monitor.SystemMonitor
 
+	// metadata stores the run metadata including system stats
+	metadata *service.MetadataRequest
+
 	// tbHandler is the tensorboard handler
 	tbHandler *tensorboard.TBHandler
 
@@ -161,7 +164,7 @@ func NewHandler(
 	}
 }
 
-// Do starts the handler
+// Do processes all records on the input channel.
 func (h *Handler) Do(inChan <-chan *service.Record) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
@@ -175,7 +178,7 @@ func (h *Handler) Do(inChan <-chan *service.Record) {
 func (h *Handler) Close() {
 	close(h.outChan)
 	close(h.fwdChan)
-	h.logger.Debug("handler: Close: closed", "stream_id", h.settings.RunId)
+	h.logger.Info("handler: closed", "stream_id", h.settings.RunId)
 }
 
 // respond sends a response to the client
@@ -277,7 +280,7 @@ func (h *Handler) handleRequest(record *service.Record) {
 	case *service.Request_RunStatus:
 		h.handleRequestRunStatus(record)
 	case *service.Request_Metadata:
-		// not implemented in the old handler
+		h.handleMetadata(x.Metadata)
 	case *service.Request_SummaryRecord:
 		// TODO: handles sending summary file
 	case *service.Request_TelemetryRecord:
@@ -505,7 +508,7 @@ func (h *Handler) handleRequestPollExit(record *service.Record) {
 
 func (h *Handler) handleHeader(record *service.Record) {
 	// populate with version info
-	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit("commit")))
+	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit))
 	record.GetHeader().VersionInfo = &service.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
@@ -576,20 +579,9 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 			errors.New("handleRunStart: failed to clone run"))
 	}
 	h.fwdRecord(record)
-
-	// start the system monitor
-	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
-	}
-
-	// save code and patch
-	if h.settings.GetSaveCode().GetValue() {
-		h.handleCodeSave()
-		h.handlePatchSave()
-	}
-
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
+
 	// initialize the run metadata from settings
 	var git *service.GitRepoRecord
 	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
@@ -617,14 +609,18 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		StartedAt:     run.GetStartTime(),
 		Git:           git,
 	}
-
-	if !h.settings.GetXDisableStats().GetValue() {
-		systemInfo := h.systemMonitor.Probe()
-		if systemInfo != nil {
-			proto.Merge(metadata, systemInfo)
-		}
-	}
 	h.handleMetadata(metadata)
+
+	// start the system monitor
+	if !h.settings.GetXDisableStats().GetValue() {
+		h.systemMonitor.Do()
+	}
+
+	// save code and patch
+	if h.settings.GetSaveCode().GetValue() {
+		h.handleCodeSave()
+		h.handlePatchSave()
+	}
 
 	h.respond(record, &service.Response{})
 }
@@ -760,11 +756,17 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 		return
 	}
 
+	if h.metadata == nil {
+		h.metadata = proto.Clone(request).(*service.MetadataRequest)
+	} else {
+		proto.Merge(h.metadata, request)
+	}
+
 	mo := protojson.MarshalOptions{
 		Indent: "  ",
 		// EmitUnpopulated: true,
 	}
-	jsonBytes, err := mo.Marshal(request)
+	jsonBytes, err := mo.Marshal(h.metadata)
 	if err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("error marshalling metadata: %v", err))
@@ -1001,7 +1003,7 @@ func (h *Handler) updateRunTiming() {
 		RecordType: &service.Record_Summary{
 			Summary: &service.SummaryRecord{
 				Update: []*service.SummaryItem{{
-					Key:       "_wandb.runtime",
+					NestedKey: []string{"_wandb", "runtime"},
 					ValueJson: strconv.Itoa(runtime),
 				}},
 			},

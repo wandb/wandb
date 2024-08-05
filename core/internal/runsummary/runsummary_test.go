@@ -27,13 +27,15 @@ func TestExplicitSummary(t *testing.T) {
 		ValueJson: `"abc"`,
 	})
 
-	assert.Equal(t,
-		map[string]any{
-			"x": int64(123),
-			"y": float64(10.5),
-			"z": "abc",
-		},
-		rs.ToMap())
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": 123,
+			"y": 10.5,
+			"z": "abc"
+		}`,
+		string(encoded))
 }
 
 func TestSummaryTypes(t *testing.T) {
@@ -53,16 +55,18 @@ func TestSummaryTypes(t *testing.T) {
 	_, _ = rs.UpdateSummaries(rh2)
 	_, _ = rs.UpdateSummaries(rh3)
 
-	assert.Equal(t,
-		map[string]any{
-			"x": map[string]any{
-				"min":  float64(1),
-				"max":  float64(3.0),
-				"mean": float64(2.1),
-				"last": float64(2.3),
-			},
-		},
-		rs.ToMap())
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": {
+				"min": 1,
+				"max": 3.0,
+				"mean": 2.1,
+				"last": 2.3
+			}
+		}`,
+		string(encoded))
 }
 
 func TestNestedKey(t *testing.T) {
@@ -79,14 +83,14 @@ func TestNestedKey(t *testing.T) {
 		ValueJson: `{"value": 1}`,
 	})
 
-	assert.Equal(t,
-		map[string]any{
-			"x.y.z": float64(1.4),
-			"a.b.c": map[string]any{
-				"value": int64(1),
-			},
-		},
-		rs.ToMap())
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": {"y": {"z": 1.4}},
+			"a": {"b": {"c": {"value": 1}}}
+		}`,
+		string(encoded))
 }
 
 func TestRemove(t *testing.T) {
@@ -102,9 +106,11 @@ func TestRemove(t *testing.T) {
 	})
 	rs.Remove(pathtree.PathOf("x", "y"))
 
-	assert.Equal(t,
-		map[string]any{"z.w": int64(2)},
-		rs.ToMap())
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"z": {"w": 2}}`,
+		string(encoded))
 }
 
 func TestNoSummary(t *testing.T) {
@@ -113,7 +119,7 @@ func TestNoSummary(t *testing.T) {
 	rs.ConfigureMetric(pathtree.PathOf("x"), true /*noSummary*/, 0)
 	_ = rs.SetFromRecord(&service.SummaryItem{Key: "x", ValueJson: "1"})
 
-	assert.Empty(t, rs.ToMap())
+	assert.Empty(t, rs.ToNestedMaps())
 	encoded, err := rs.Serialize()
 	assert.NoError(t, err)
 	assert.Equal(t, "{}", string(encoded))

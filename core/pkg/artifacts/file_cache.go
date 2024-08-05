@@ -3,6 +3,7 @@ package artifacts
 import (
 	"crypto/md5"
 	"encoding/base64"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"log/slog"
@@ -73,6 +74,22 @@ func addFile(c Cache, path string) (string, error) {
 	return c.Write(f)
 }
 
+// Link creates a symlink that points a reference with an etag to a file in the cache.
+func (c *FileCache) Link(b64md5, ref, etag string) error {
+	md5Path, err := c.md5Path(b64md5)
+	if err != nil {
+		return err
+	}
+	if exists, _ := utils.FileExists(md5Path); !exists {
+		return fmt.Errorf("no cache file with digest %s", b64md5)
+	}
+	etagPath := c.etagPath(ref, etag)
+	if err := os.MkdirAll(filepath.Dir(etagPath), defaultDirPermissions); err != nil {
+		return err
+	}
+	return os.Symlink(md5Path, etagPath)
+}
+
 // AddFileAndCheckDigest copies a file into the cache. If a digest is provided, it also
 // verifies that the file's MD5 hash matches the digest.
 func (c *FileCache) AddFileAndCheckDigest(path string, digest string) error {
@@ -96,24 +113,42 @@ func addFileAndCheckDigest(c Cache, path string, digest string) error {
 
 // RestoreTo tries to restore the file referenced in a manifest entry to the given destination.
 //
+// The return value is true if the dst path contains the correct file, whether it was
+// already there or was restored from the cache; it returns false if the file is not
+// present and wasn't able to be restored from the cache.
+//
 // If the file exists, it will be hashed and overwritten if the hash is different; if
-// the hash is correct, RestoreTo leaves it alone and returns true.
+// the hash is correct, RestoreTo leaves it alone and returns true. For reference
+// entries we don't know the expected hash and will always overwrite the file.
 func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
-	b64md5, err := utils.ComputeFileB64MD5(dst)
-	if err == nil && b64md5 == entry.Digest {
-		return true
+	var cachePath string
+	if entry.Ref != nil {
+		cachePath = c.etagPath(*entry.Ref, entry.Digest)
+	} else {
+		// If the digest is an MD5 hash, check to see if we already have the file.
+		b64md5, err := utils.ComputeFileB64MD5(dst)
+		if err == nil && b64md5 == entry.Digest {
+			return true
+		}
+		cachePath, err = c.md5Path(entry.Digest)
+		if err != nil {
+			return false
+		}
 	}
-	cachePath, err := c.md5Path(entry.Digest)
-	if err != nil {
-		return false
-	}
-	// TODO (hugh): should we set the LocalPath in the entry to the dst?
 	return utils.CopyFile(cachePath, dst) == nil
 }
 
-// RestoreTo is the same as the FileCache version, but it doesn't copy the file, so it
-// always returns false if the file is missing.
+// RestoreTo returns true if the file exists at the destination and its hash matches the digest.
+//
+// This is the same behavior as FileCache.RestoreTo if the cache is empty, since the
+// HashOnlyCache ignores the cache entirely.
+//
+// We can't check the validity of files based on ETags alone so calling RestoreTo with a
+// reference entry always returns false.
 func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
+	if entry.Ref != nil {
+		return false
+	}
 	b64md5, err := utils.ComputeFileB64MD5(dst)
 	return err == nil && b64md5 == entry.Digest
 }
@@ -124,6 +159,14 @@ func (c *FileCache) md5Path(b64md5 string) (string, error) {
 		return "", err
 	}
 	return filepath.Join(c.root, "obj", "md5", hexHash[:2], hexHash[2:]), nil
+}
+
+func (c *FileCache) etagPath(ref, etag string) string {
+	byteHash := utils.ComputeSHA256([]byte(ref))
+	etagHash := utils.ComputeSHA256([]byte(etag))
+	byteHash = append(byteHash, etagHash...)
+	hexhash := hex.EncodeToString(utils.ComputeSHA256(byteHash))
+	return filepath.Join(c.root, "obj", "etag", hexhash[:2], hexhash[2:])
 }
 
 // Write copies the contents of the reader to the cache and returns the B64MD5 cache key.
