@@ -14,8 +14,8 @@ type FileTransfer interface {
 // FileTransfers is a collection of file transfers by upload destination type.
 type FileTransfers struct {
 	// Default makes an HTTP request to the destination URL with the file contents.
-	Default      FileTransfer
-	GCS FileTransfer
+	Default FileTransfer
+	GCS     FileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -27,8 +27,8 @@ func NewFileTransfers(
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	return &FileTransfers{
-		Default:      defaultFileTransfer,
-		GCS: gcsFileTransfer,
+		Default: defaultFileTransfer,
+		GCS:     gcsFileTransfer,
 	}
 }
 

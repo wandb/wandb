@@ -39,6 +39,8 @@ type GCSFileTransfer struct {
 
 const maxWorkers int = 1000
 
+var ErrObjectIsDirectory = errors.New("object is a directory and cannot be downloaded")
+
 // NewGCSFileTransfer creates a new fileTransfer
 func NewGCSFileTransfer(
 	client GCSClient,
@@ -97,19 +99,12 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 	reference := *task.Reference
 
 	// Parse the reference path to get the scheme, bucket, and object
-	uriParts, err := url.Parse(reference)
+	bucketName, objectName, err := parseReference(reference)
 	if err != nil {
 		ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error parsing reference %s: %v", reference, err))
 		return err
 	}
-	if uriParts.Scheme != "gs" {
-		err := fmt.Errorf("gcs file transfer: download: invalid gsutil URI %s", reference)
-		ft.logger.CaptureError(err)
-		return err
-	}
-	bucketName := uriParts.Host
 	bucket := ft.client.Bucket(bucketName)
-	objectName := strings.TrimPrefix(uriParts.Path, "/")
 
 	switch {
 	case task.Digest == reference:
@@ -129,27 +124,23 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			objectNames = append(objectNames, objAttrs.Name)
 		}
 
+		// Try to download all objects under the reference
 		g := new(errgroup.Group)
 		g.SetLimit(maxWorkers)
 		for _, name := range objectNames {
 			objName := name // for closure in the goroutine
 			g.Go(func() error {
-				object := bucket.Object(objName)
-				localPath := getDownloadFilePath(objName, objectName, task.Path)
-				err := ft.DownloadFile(object, localPath)
+				object, _, err := ft.GetObjectAndAttrs(bucket, task, objName)
 				if err != nil {
-					isDir, err := ft.IsDir(object, task.Size)
-					if err != nil {
-						ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
-						return err
-					} else if isDir {
-						ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
+					if errors.Is(err, ErrObjectIsDirectory) {
+						ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference, "object", objName)
 						return nil
 					}
-					ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error when downloading file for reference %s: %v", reference, err))
+					ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error when retrieving object for reference %s, key %s: %v", reference, objName, err))
 					return err
 				}
-				return nil
+				localPath := getDownloadFilePath(objName, objectName, task.Path)
+				return ft.DownloadFile(object, localPath)
 			})
 		}
 
@@ -158,37 +149,24 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			return err
 		}
 	case task.VersionId != nil:
-		versionId, err := safeConvertToInt64(task.VersionId)
+		object, _, err := ft.GetObjectAndAttrs(bucket, task, objectName)
 		if err != nil {
-			ft.logger.CaptureError(fmt.Errorf("failed to convert VersionId: %v", err))
-		}
-		object := bucket.Object(objectName).Generation(versionId)
-		err = ft.DownloadFile(object, task.Path)
-		if err != nil {
-			isDir, err := ft.IsDir(object, task.Size)
-			if err != nil {
-				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
-				return err
-			} else if isDir {
+			if errors.Is(err, ErrObjectIsDirectory) {
 				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 				return nil
 			}
-			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error while downloading file for reference %s: %v", reference, err))
+			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error when retrieving object for reference %s: %v", reference, err))
 			return err
 		}
+		return ft.DownloadFile(object, task.Path)
 	default:
-		object := bucket.Object(objectName)
-		objAttrs, err := object.Attrs(ft.ctx)
+		object, objAttrs, err := ft.GetObjectAndAttrs(bucket, task, objectName)
 		if err != nil {
-			isDir, err := ft.IsDir(object, task.Size)
-			if err != nil {
-				ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error checking if reference is a directory %s: %v", reference, err))
-				return err
-			} else if isDir {
+			if errors.Is(err, ErrObjectIsDirectory) {
 				ft.logger.Debug("gcs file transfer: download: skipping reference because it seems to be a folder", "reference", reference)
 				return nil
 			}
-			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: unable to fetch object attributes for %s for reference %s: %v", objectName, reference, err))
+			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error when retrieving object/attributes for reference %s: %v", reference, err))
 			return err
 		}
 		if objAttrs.Etag != task.Digest {
@@ -196,11 +174,7 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 			ft.logger.CaptureError(err)
 			return err
 		}
-		err = ft.DownloadFile(object, task.Path)
-		if err != nil {
-			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error while downloading file for reference %s: %v", reference, err))
-			return err
-		}
+		return ft.DownloadFile(object, task.Path)
 	}
 	return nil
 }
@@ -209,7 +183,7 @@ func (ft *GCSFileTransfer) Download(task *Task) error {
 func (ft *GCSFileTransfer) DownloadFile(object *storage.ObjectHandle, localPath string) error {
 	r, err := object.NewReader(ft.ctx)
 	if err != nil {
-		ft.logger.CaptureError(fmt.Errorf("unable to create reader for object %s, received error: %v", object.ObjectName(), err))
+		ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: unable to create reader for object %s, received error: %v", object.ObjectName(), err))
 		return err
 	}
 	defer r.Close()
@@ -218,15 +192,18 @@ func (ft *GCSFileTransfer) DownloadFile(object *storage.ObjectHandle, localPath 
 	dir := path.Dir(localPath)
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+			ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error creating directory to download into for object %s, error: %v", object.ObjectName(), err))
 			return err
 		}
 	} else if err != nil {
+		ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error finding directory to download into for object %s, error: %v", object.ObjectName(), err))
 		return err
 	}
 
 	// open the file for writing and defer closing it
 	file, err := os.Create(localPath)
 	if err != nil {
+		ft.logger.CaptureError(fmt.Errorf("gcs file transfer: download: error creating file to download into for object %s, error: %v", object.ObjectName(), err))
 		return err
 	}
 	defer func(file *os.File) {
@@ -244,20 +221,68 @@ func (ft *GCSFileTransfer) DownloadFile(object *storage.ObjectHandle, localPath 
 	return nil
 }
 
-// isDir returns true if the object key and its size indicate that it might be a directory
-func (ft *GCSFileTransfer) IsDir(object *storage.ObjectHandle, size int64) (bool, error) {
-	if (strings.HasSuffix(object.ObjectName(), "/") && size == 0) {
-		return true, nil
-	} else if (path.Ext(object.ObjectName()) == "" && size == 0) {
-		_, err := object.Attrs(ft.ctx)
-		// this should only return this error in the case that its a folder. Otherwise, we wouldn't even be able to get the object
-		if err != nil && errors.Is(err, storage.ErrObjectNotExist) {
-			return true, nil
-		} else if (err != nil) {
-			return false, err
-		}
+/*
+ * GetObjectAndAttrs returns the object handle and attributes if the object exists and corresponds with a file.
+ * If the object corresponds to a directory, we return the ErrObjectIsDirectory error to skip downloading without failing.
+ */
+func (ft *GCSFileTransfer) GetObjectAndAttrs(bucket *storage.BucketHandle, task *Task, key string) (*storage.ObjectHandle, *storage.ObjectAttrs, error) {
+	object, err := ft.GetObject(bucket, task, key)
+	if err != nil {
+		return nil, nil, err
 	}
-	return false, nil
+	if strings.HasSuffix(object.ObjectName(), "/") {
+		return nil, nil, ErrObjectIsDirectory
+	}
+
+	attrs, err := object.Attrs(ft.ctx)
+	// if object doesn't have an extension and has size 0, it might be a directory as we cut off the ending "/" in the manifest entry
+	if err != nil && (path.Ext(object.ObjectName()) == "" && task.Size == 0) {
+		key := key + "/"
+		object, err := ft.GetObject(bucket, task, key)
+		if err != nil {
+			return nil, nil, err
+		}
+
+		// if the new key corresponds with an existing directory, it should return the attrs without an error
+		_, err = object.Attrs(ft.ctx)
+		if err != nil {
+			return nil, nil, err
+		}
+		return nil, nil, ErrObjectIsDirectory
+	} else if err != nil {
+		return nil, nil, err
+	}
+	return object, attrs, nil
+}
+
+// GetObject returns the object handle given a bucket, key, and possible versionId
+func (ft *GCSFileTransfer) GetObject(bucket *storage.BucketHandle, task *Task, key string) (*storage.ObjectHandle, error) {
+	object := bucket.Object(key)
+	if task.VersionId != nil {
+		versionId, err := safeConvertToInt64(task.VersionId)
+		if err != nil {
+			err := fmt.Errorf("failed to convert VersionId: %v", err)
+			ft.logger.CaptureError(err)
+			return nil, err
+		}
+		object = object.Generation(versionId)
+	}
+	return object, nil
+}
+
+// parseReference parses the reference path and returns the bucket name and object name
+func parseReference(reference string) (string, string, error) {
+	uriParts, err := url.Parse(reference)
+	if err != nil {
+		return "", "", err
+	}
+	if uriParts.Scheme != "gs" {
+		err := fmt.Errorf("invalid gsutil URI %s", reference)
+		return "", "", err
+	}
+	bucketName := uriParts.Host
+	objectName := strings.TrimPrefix(uriParts.Path, "/")
+	return bucketName, objectName, nil
 }
 
 // getDownloadFilePath returns the file path to download the file to, removing duplicate info from the extension
