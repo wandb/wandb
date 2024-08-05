@@ -21,7 +21,7 @@ class SummaryDisabled(dict):
 class RunDisabled:
     """Compatibility class for integrations that explicitly check for wandb.RunDisabled."""
 
-    def __getattribute__(self, name: str) -> Any:  # type: ignore
+    def __getattr__(self, name: str) -> Any:
         deprecate.deprecate(
             field_name=deprecate.Deprecated.run_disabled,
             warning_message="RunDisabled is deprecated and is a no-op. "
