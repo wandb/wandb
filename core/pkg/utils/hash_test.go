@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"encoding/hex"
 	"os"
 	"testing"
 
@@ -45,4 +46,12 @@ func TestComputeHexMD5(t *testing.T) {
 
 	hexMD5 := ComputeHexMD5(data)
 	assert.Equal(t, expectedHexMD5, hexMD5)
+}
+
+func TestComputeSHA256(t *testing.T) {
+	data := []byte(`example data`)
+	expectedSHA256 := "44752f37272e944fd2c913a35342eaccdd1aaf189bae50676b301ab213fc5061"
+
+	hexSHA256 := hex.EncodeToString(ComputeSHA256(data))
+	assert.Equal(t, expectedSHA256, hexSHA256)
 }

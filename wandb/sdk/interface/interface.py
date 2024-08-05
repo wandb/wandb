@@ -8,11 +8,14 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
+import gzip
 import logging
 import os
 import sys
 import time
 from abc import abstractmethod
+from pathlib import Path
+from secrets import token_hex
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -46,6 +49,8 @@ from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
 from .message_future import MessageFuture
+
+MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 
@@ -334,6 +339,12 @@ class InterfaceBase:
         proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
+        # Very large manifests need to be written to file to avoid protobuf size limits.
+        if len(artifact_manifest) > MANIFEST_FILE_SIZE_THRESHOLD:
+            path = self._write_artifact_manifest_file(artifact_manifest)
+            proto_manifest.manifest_file_path = path
+            return proto_manifest
+
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
@@ -357,6 +368,18 @@ class InterfaceBase:
                 proto_extra.key = k
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
+
+    def _write_artifact_manifest_file(self, manifest: ArtifactManifest) -> str:
+        manifest_dir = Path(get_staging_dir()) / "artifact_manifests"
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        # It would be simpler to use `manifest.to_json()`, but that gets very slow for
+        # large manifests since it encodes the whole thing as a single JSON object.
+        filename = f"{time.time()}_{token_hex(8)}.manifest_contents.jl.gz"
+        manifest_file_path = manifest_dir / filename
+        with gzip.open(manifest_file_path, mode="wt", compresslevel=1) as f:
+            for entry in manifest.entries.values():
+                f.write(f"{json.dumps(entry.to_json())}\n")
+        return str(manifest_file_path)
 
     def deliver_link_artifact(
         self,

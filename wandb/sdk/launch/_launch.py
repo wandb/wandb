@@ -211,7 +211,9 @@ async def _launch(
     launch_project = LaunchProject.from_spec(launch_spec, api)
     launch_project.fetch_and_validate_project()
     entrypoint = launch_project.get_job_entry_point()
-    image_uri = launch_project.docker_image  # Either set by user or None.
+    image_uri = (
+        launch_project.docker_image or launch_project.job_base_image
+    )  # Either set by user or None.
 
     # construct runner config.
     runner_config: Dict[str, Any] = {}
@@ -224,7 +226,7 @@ async def _launch(
         await environment.verify()
     registry = loader.registry_from_config(registry_config, environment)
     builder = loader.builder_from_config(build_config, environment, registry)
-    if not launch_project.docker_image:
+    if not (launch_project.docker_image or launch_project.job_base_image):
         assert entrypoint
         image_uri = await builder.build_image(launch_project, entrypoint, None)
     backend = loader.runner_from_config(

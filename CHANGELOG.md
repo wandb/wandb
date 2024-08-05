@@ -11,6 +11,17 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- Specify job input schemas when calling manage_config_file or manage_wandb_config to create a nicer UI when launching the job, by @TimH98 in https://github.com/wandb/wandb/pull/7907, https://github.com/wandb/wandb/pull/7924, https://github.com/wandb/wandb/pull/7971
+- Use the filesystem rather than protobuf messages to transport manifests with more than 100k entries to the core process @moredatarequired https://github.com/wandb/wandb/pull/7992
+
+### Changed
+
+- `run.define_metric()` raises an error when given extraneous arguments (@timoffex in https://github.com/wandb/wandb/pull/8040)
+- In disabled mode, use the `wandb.sdk.wandb_run.Run` class instead of `wandb.sdk.wandb_run.RunDisabled`, which has been removed (@dmitryduev in https://github.com/wandb/wandb/pull/8037)
+- When `WANDB_MODE = offline` calling `artifact.download()` now throws an error instead of stalling (@trane293 in https://github.com/wandb/wandb/pull/8009)
+
 ## [0.17.5] - 2024-07-19
 
 ### Added
@@ -26,6 +37,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
 - Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
+- Use filled resource_arg macros when submitting W&B Launch jobs to AmazonSageMaker by @KyleGoyette https://github.com/wandb/wandb/pull/7993
 
 ## [0.17.4] - 2024-07-03
 

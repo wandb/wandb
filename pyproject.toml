@@ -89,6 +89,7 @@ launch = [
     "google-cloud-compute",
     "google-cloud-storage",
     "iso8601",
+    "jsonschema",
     "kubernetes",
     "kubernetes_asyncio",
     "optuna",
@@ -101,7 +102,7 @@ launch = [
 ]
 models = ["cloudpickle"]
 perf = ["orjson"]
-importers = ["polars", "rich", "filelock", "mlflow", "tenacity"]
+importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 
 [tool.pytest.ini_options]

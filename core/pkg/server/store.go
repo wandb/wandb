@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -64,9 +63,6 @@ func (o *HeaderOptions) Valid() bool {
 
 // Store is the persistent store for a stream
 type Store struct {
-	// ctx is the context for the store
-	ctx context.Context
-
 	// name is the name of the underlying file
 	name string
 
@@ -81,8 +77,8 @@ type Store struct {
 }
 
 // NewStore creates a new store
-func NewStore(ctx context.Context, fileName string) *Store {
-	return &Store{ctx: ctx, name: fileName}
+func NewStore(fileName string) *Store {
+	return &Store{name: fileName}
 }
 
 // Open opens the store
