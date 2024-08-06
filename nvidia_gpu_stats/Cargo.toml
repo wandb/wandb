@@ -1,5 +1,5 @@
 [package]
-name = "symon"
+name = "nvidia_gpu_stats"
 version = "0.1.0"
 edition = "2021"
 
