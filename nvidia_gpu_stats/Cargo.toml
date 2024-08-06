@@ -1,0 +1,12 @@
+[package]
+name = "symon"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+nvml-wrapper = "0.10.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+signal-hook = "0.3"
+nix = { version = "0.29", features = ["process"] }
+clap = { version = "4.5", features = ["derive"] }
