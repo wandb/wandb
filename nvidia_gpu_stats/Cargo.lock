@@ -215,6 +215,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nvidia_gpu_stats"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "nix",
+ "nvml-wrapper",
+ "serde",
+ "serde_json",
+ "signal-hook",
+]
+
+[[package]]
 name = "nvml-wrapper"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -323,18 +335,6 @@ name = "strsim"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7da8b5736845d9f2fcb837ea5d9e2628564b3b043a70948a3f0b778838c5fb4f"
-
-[[package]]
-name = "symon"
-version = "0.1.0"
-dependencies = [
- "clap",
- "nix",
- "nvml-wrapper",
- "serde",
- "serde_json",
- "signal-hook",
-]
 
 [[package]]
 name = "syn"
