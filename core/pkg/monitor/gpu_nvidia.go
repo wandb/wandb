@@ -90,6 +90,7 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	}
 
 	if err := cmd.Start(); err != nil {
+		fmt.Println("error starting nvidia_gpu_stats", err)
 		return gpu
 	}
 
