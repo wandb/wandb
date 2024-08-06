@@ -368,7 +368,7 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer.
-func NewWriterExt(w io.Writer, algo CRCAlgo) *Writer {
+func NewWriterExt(w io.Writer, algo CRCAlgo, initialData []byte) *Writer {
 	f, _ := w.(flusher)
 
 	var o int64
@@ -383,17 +383,29 @@ func NewWriterExt(w io.Writer, algo CRCAlgo) *Writer {
 		crc = CRCStandard
 	}
 
-	return &Writer{
+	writer := &Writer{
 		w:                w,
 		f:                f,
 		baseOffset:       o,
 		lastRecordOffset: -1,
 		crc:              crc,
 	}
+	// prepend data into the block buffer if the file has no initial offset
+	// NOTE: prepended data will be part of the block which will influence the
+	// chunk handling at block boundaries.
+	if initialData != nil && o == 0 {
+		// Copy bytes into the block buffer.
+		n := copy(writer.buf[writer.j:], initialData)
+		writer.j += n
+	}
+	return writer
 }
 
 func NewWriter(w io.Writer) *Writer {
-	return NewWriterExt(w, CRCAlgoCustom)
+	return NewWriterExt(w, CRCAlgoCustom, nil)
+}
+
+func (w *Writer) Insert(buf []byte) {
 }
 
 // fillHeader fills in the header for the pending chunk.

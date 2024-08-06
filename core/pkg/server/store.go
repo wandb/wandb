@@ -1,6 +1,7 @@
 package server
 
 import (
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -105,11 +106,12 @@ func (sr *Store) Open(flag int) error {
 			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
-		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
+		var headerBuffer bytes.Buffer
 		header := NewHeader()
-		if err := header.MarshalBinary(sr.db); err != nil {
+		if err := header.MarshalBinary(&headerBuffer); err != nil {
 			return fmt.Errorf("store: failed to write header: %v", err)
 		}
+		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, headerBuffer.Bytes())
 		return nil
 	default:
 		// TODO: generalize this?
