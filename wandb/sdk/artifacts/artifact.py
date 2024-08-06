@@ -610,8 +610,7 @@ class Artifact:
 
     @property
     def tags(self) -> List[str]:
-        """List of one or more tags assigned to this artifact version.
-        """
+        """List of one or more tags assigned to this artifact version."""
         self._ensure_logged("tags")
         return self._tags
 
