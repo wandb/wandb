@@ -32,6 +32,8 @@ from typing import (
     cast,
 )
 
+from wandb.sdk.artifacts._utils import validate_aliases
+
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
 else:
@@ -601,12 +603,7 @@ class Artifact:
     def aliases(self, aliases: List[str]) -> None:
         """Set the aliases associated with this artifact."""
         self._ensure_logged("aliases")
-
-        if any(char in alias for alias in aliases for char in ["/", ":"]):
-            raise ValueError(
-                "Aliases must not contain any of the following characters: /, :"
-            )
-        self._aliases = aliases
+        self._aliases = validate_aliases(aliases)
 
     @property
     def tags(self) -> List[str]:
