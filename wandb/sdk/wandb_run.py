@@ -3200,7 +3200,9 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-        tags: Optional[List[str]] = None,  # TODO: Finish supporting logging artifacts with tags
+        tags: Optional[
+            List[str]
+        ] = None,  # TODO: Finish supporting logging artifacts with tags
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         is_user_created: bool = False,
