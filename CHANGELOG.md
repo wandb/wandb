@@ -25,6 +25,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
+- Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ## [0.17.5] - 2024-07-19
 
