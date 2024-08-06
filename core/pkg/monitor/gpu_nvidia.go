@@ -86,6 +86,7 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	// get a pipe to read from the command's stdout
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		fmt.Println("error getting stdout pipe from nvidia_gpu_stats", err)
 		return gpu
 	}
 
@@ -97,9 +98,12 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	// read and process nvidia_gpu_stats output in a separate goroutine.
 	// nvidia_gpu_stats outputs JSON data for each GPU every sampling interval.
 	go func() {
+		fmt.Println("reading from nvidia_gpu_stats")
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
+
+			fmt.Println("line", line)
 
 			// Try to parse the line as JSON
 			var data map[string]any
