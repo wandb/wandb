@@ -106,6 +106,7 @@ fn sample_metrics_fallback() -> GpuMetrics {
     metrics.insert("gpu.count".to_string(), json!(0));
     GpuMetrics { metrics }
 }
+
 /// Samples GPU metrics using NVML.
 ///
 /// This function collects various metrics from all available GPUs, including

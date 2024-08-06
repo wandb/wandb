@@ -77,8 +77,8 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	// we will use nvidia_gpu_stats to get GPU stats
 	cmd := exec.Command(
 		exPath,
-		fmt.Sprintf("-s=%fs", samplingInterval),
-		fmt.Sprintf("-pid=%d", settings.XStatsPid.GetValue()),
+		fmt.Sprintf("--pid %d", settings.XStatsPid.GetValue()),
+		fmt.Sprintf("--interval %f", samplingInterval),
 	)
 	gpu.cmd = cmd
 
@@ -153,7 +153,7 @@ func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 	aggregates := make(map[string]float64)
 	for metric, samples := range g.metrics {
 		// skip metrics that start with "_", some of which are internal metrics
-		// TODO: other metrics lack aggregation on the frontend could be added in the future.
+		// TODO: other metrics lack aggregation on the frontend; could be added in the future.
 		if strings.HasPrefix(metric, "_") {
 			continue
 		}
