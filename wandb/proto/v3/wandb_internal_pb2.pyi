@@ -3566,15 +3566,18 @@ class GpuNvidiaInfo(google.protobuf.message.Message):
 
     NAME_FIELD_NUMBER: builtins.int
     MEMORY_TOTAL_FIELD_NUMBER: builtins.int
+    CUDA_VERSION_FIELD_NUMBER: builtins.int
     name: builtins.str
     memory_total: builtins.int
+    cuda_version: builtins.str
     def __init__(
         self,
         *,
         name: builtins.str = ...,
         memory_total: builtins.int = ...,
+        cuda_version: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["memory_total", b"memory_total", "name", b"name"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["cuda_version", b"cuda_version", "memory_total", b"memory_total", "name", b"name"]) -> None: ...
 
 global___GpuNvidiaInfo = GpuNvidiaInfo
 

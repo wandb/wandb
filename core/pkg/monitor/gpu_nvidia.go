@@ -183,7 +183,7 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
-	// semd signal to close
+	// send signal to close
 	if isRunning(g.cmd) {
 		if err := g.cmd.Process.Signal(os.Kill); err != nil {
 			return
@@ -199,7 +199,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	// wait for the first sample
 	for {
 		g.mutex.RLock()
-		_, ok := g.sample["_gpu.count"]
+		_, ok := g.sample["gpu.count"]
 		g.mutex.RUnlock()
 		if ok {
 			break
@@ -212,7 +212,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		GpuNvidia: []*service.GpuNvidiaInfo{},
 	}
 
-	if count, ok := g.sample["_gpu.count"].(float64); ok {
+	if count, ok := g.sample["gpu.count"].(float64); ok {
 		info.GpuCount = uint32(count)
 	} else {
 		return nil
@@ -227,15 +227,20 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	for di := 0; di < int(info.GpuCount); di++ {
 
 		gpuInfo := &service.GpuNvidiaInfo{}
-		name := fmt.Sprintf("_gpu.%d.name", di)
+		name := fmt.Sprintf("gpu.%d.name", di)
 		if v, ok := g.sample[name]; ok {
 			gpuInfo.Name = v.(string)
 			names[di] = gpuInfo.Name
 		}
 
-		memTotal := fmt.Sprintf("_gpu.%d.memoryTotal", di)
+		memTotal := fmt.Sprintf("gpu.%d.memoryTotal", di)
 		if v, ok := g.sample[memTotal]; ok {
 			gpuInfo.MemoryTotal = uint64(v.(float64))
+		}
+
+		cudaVersion := "cudaVersion"
+		if v, ok := g.sample[cudaVersion]; ok {
+			gpuInfo.CudaVersion = v.(string)
 		}
 
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
