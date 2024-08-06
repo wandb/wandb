@@ -338,8 +338,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Sleep to maintain requested sampling interval
         let loop_duration = sampling_start.elapsed();
-        if loop_duration < Duration::from_secs(args.interval) {
-            thread::sleep(Duration::from_secs(args.interval) - loop_duration);
+        let sleep_duration = Duration::from_secs_f64(args.interval);
+        if loop_duration < sleep_duration {
+            thread::sleep(sleep_duration - loop_duration);
         }
     }
 
