@@ -1,5 +1,7 @@
 import codecs
+import itertools
 import json
+import math
 import os
 import sys
 from typing import (
@@ -52,6 +54,8 @@ if TYPE_CHECKING:  # pragma: no cover
     PointCloudType = Literal["lidar/beta"]
     RGBColor = Tuple[int, int, int]
 
+    Quaternion = Tuple[numeric, numeric, numeric, numeric]
+
     class Box3D(TypedDict):
         corners: Tuple[
             Point3D,
@@ -74,6 +78,77 @@ if TYPE_CHECKING:  # pragma: no cover
     class Camera(TypedDict):
         viewpoint: Sequence[Point3D]
         target: Sequence[Point3D]
+
+
+def box3d(
+    *,
+    center: "Point3D",
+    size: "Tuple[numeric, numeric, numeric]",
+    orientation: "Quaternion",
+    color: "RGBColor",
+    label: "Optional[str]" = None,
+    score: "Optional[numeric]" = None,
+) -> "Box3D":
+    """Returns a Box3D.
+
+    Args:
+        center: The center point of the box.
+        size: The box's X, Y and Z dimensions.
+        orientation: The rotation transforming global XYZ coordinates
+            into the box's local XYZ coordinates, represented as the
+            four coordinates (r, x, y, z) of a non-zero quaternion
+            r + xi + yj + zk. The quaternion is normalized.
+        color: The box's color.
+        label: An optional label for the box.
+        score: An optional score for the box.
+    """
+    # Precompute the rotation matrix.
+
+    # First, normalize the quaternion.
+    s = math.sqrt(sum(coord**2 for coord in orientation))
+    qr, qi, qj, qk = (
+        orientation[0] / s,
+        orientation[1] / s,
+        orientation[2] / s,
+        orientation[3] / s,
+    )
+
+    # Precompute a few products to simplify the expression below.
+    qii, qjj, qkk = qi**2, qj**2, qk**2
+    qij, qik, qjk = qi * qj, qi * qk, qj * qk
+    qir, qjr, qkr = qi * qr, qj * qr, qk * qr
+
+    # Define the rotation matrix.
+    rot = (
+        (1 - 2 * (qjj + qkk), 2 * (qij - qkr), 2 * (qik + qjr)),
+        (2 * (qij + qkr), 1 - 2 * (qii + qkk), 2 * (qjk - qir)),
+        (2 * (qik - qjr), 2 * (qjk + qir), 1 - 2 * (qii + qjj)),
+    )
+
+    # Scale, rotate and translate each corner of the unit box.
+    corners = []
+    for x, y, z in itertools.product((-1, 1), (-1, 1), (-1, 1)):
+        # Scale first:
+        corner = (
+            x * size[0] / 2,
+            y * size[1] / 2,
+            z * size[2] / 2,
+        )
+
+        # Rotate and translate:
+        corners.append(
+            tuple(
+                center[i] + sum(rot[i][j] * corner[j] for j in range(3))
+                for i in range(3)
+            )
+        )
+
+    return {
+        "corners": corners,
+        "color": color,
+        "label": label,
+        "score": score,
+    }
 
 
 class Object3D(BatchableMedia):
