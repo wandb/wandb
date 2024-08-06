@@ -1,13 +1,10 @@
 import itertools
-import math
-import hypothesis
 from typing import Tuple
 
-from hypothesis.strategies import floats, tuples
+import hypothesis
 import pytest
-
+from hypothesis.strategies import floats, tuples
 from wandb import data_types
-
 
 small_floats = floats(min_value=-1e10, max_value=1e10)
 quaternions = tuples(

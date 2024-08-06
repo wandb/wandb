@@ -144,7 +144,9 @@ def box3d(
         )
 
     return {
-        "corners": corners,
+        # Ignore the type because mypy can't infer that the list has length 8:
+        # https://github.com/python/mypy/issues/7509
+        "corners": tuple(corners),  # type: ignore
         "color": color,
         "label": label,
         "score": score,
