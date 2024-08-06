@@ -28,8 +28,8 @@ struct Args {
     pid: i32,
 
     /// Sampling interval in seconds
-    #[arg(short, long, default_value_t = 1)]
-    interval: u64,
+    #[arg(short, long, default_value_t = 1.0)]
+    interval: f64,
 }
 
 /// Struct to hold GPU metrics. Metrics are stored in a BTreeMap to ensure
