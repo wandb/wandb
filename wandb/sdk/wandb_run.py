@@ -68,6 +68,7 @@ from wandb.util import (
 from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
+from .artifacts._utils import validate_aliases
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import GlobStr, InterfaceBase
 from .interface.summary_record import SummaryRecord
@@ -3216,10 +3217,7 @@ class Run:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:
-            if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
-                raise ValueError(
-                    "Aliases must not contain any of the following characters: /, :"
-                )
+            aliases = validate_aliases(aliases)
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
