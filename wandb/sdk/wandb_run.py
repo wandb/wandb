@@ -3435,7 +3435,10 @@ class Run:
         name: Optional[str] = None,
         aliases: Optional[List[str]] = None,
     ) -> None:
-        """Log a model artifact version and link it to a registered model in the model registry.
+        """This API is under active development. W&B does not currently support using the
+        `link_model` method to link model artifacts to W&B Registry.
+        
+        Log a model artifact version and link it to a registered model in the model registry.
 
         The linked model version will be visible in the UI for the specified registered model.
 
