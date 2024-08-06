@@ -80,6 +80,7 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		fmt.Sprintf("--pid %d", settings.XStatsPid.GetValue()),
 		fmt.Sprintf("--interval %f", samplingInterval),
 	)
+	fmt.Println("cmd", cmd)
 	gpu.cmd = cmd
 
 	// get a pipe to read from the command's stdout
