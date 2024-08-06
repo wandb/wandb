@@ -104,8 +104,11 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 			// Try to parse the line as JSON
 			var data map[string]any
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
+				fmt.Println("error parsing JSON data from nvidia_gpu_stats:", err)
 				continue
 			}
+
+			fmt.Println("data", data)
 
 			// Process the JSON data
 			gpu.mutex.Lock()
@@ -130,11 +133,13 @@ func (g *GPUNvidia) SampleMetrics() {
 	defer g.mutex.Unlock()
 
 	if !isRunning(g.cmd) {
+		fmt.Println("nvidia_gpu_stats is not running")
 		return
 	}
 
 	// do not sample if the last timestamp is the same
 	currentTimestamp, ok := g.sample["_timestamp"]
+	fmt.Println("currentTimestamp", currentTimestamp)
 	if !ok {
 		return
 	}
@@ -146,6 +151,7 @@ func (g *GPUNvidia) SampleMetrics() {
 	for key, value := range g.sample {
 		g.metrics[key] = append(g.metrics[key], value)
 	}
+	fmt.Println("g.metrics", g.metrics)
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
