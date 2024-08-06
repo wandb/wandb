@@ -20,6 +20,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - `run.define_metric()` raises an error when given extraneous arguments (@timoffex in https://github.com/wandb/wandb/pull/8040)
 - In disabled mode, use the `wandb.sdk.wandb_run.Run` class instead of `wandb.sdk.wandb_run.RunDisabled`, which has been removed (@dmitryduev in https://github.com/wandb/wandb/pull/8037)
+- When `WANDB_MODE = offline` calling `artifact.download()` now throws an error instead of stalling (@trane293 in https://github.com/wandb/wandb/pull/8009)
+
+### Fixed
+
+- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
 
 ### Fixed
 
