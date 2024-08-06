@@ -37,7 +37,7 @@ func isRunning(cmd *exec.Cmd) bool {
 		return false
 	}
 
-	process, err := os.FindProcess(cmd.Process.Pid)
+	_, err := os.FindProcess(cmd.Process.Pid)
 	if err != nil {
 		return false
 	}
