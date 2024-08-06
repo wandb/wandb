@@ -178,6 +178,7 @@ class Artifact:
         self._ttl_is_inherited: bool = True
         self._ttl_changed: bool = False
         self._aliases: List[str] = []
+        self._tags: List[str] = []
         self._saved_aliases: List[str] = []
         self._distributed_id: Optional[str] = None
         self._incremental: bool = incremental
@@ -606,6 +607,25 @@ class Artifact:
                 "Aliases must not contain any of the following characters: /, :"
             )
         self._aliases = aliases
+
+    @property
+    def tags(self) -> List[str]:
+        """List of one or more tags assigned to this artifact version.
+        """
+        self._ensure_logged("tags")
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags: List[str]) -> None:
+        """Set the tags associated with this artifact."""
+        self._ensure_logged("tags")
+
+        if any(not re.match(r"^[-\w]+( +[-\w]+)*$", tag) for tag in tags):
+            raise ValueError(
+                "Invalid tag(s).  "
+                "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
+            )
+        self._tags = tags
 
     @property
     def distributed_id(self) -> Optional[str]:
