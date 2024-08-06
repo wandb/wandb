@@ -3056,6 +3056,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
     ) -> Artifact:
         """Declare an artifact as an output of a run.
 
@@ -3076,12 +3077,13 @@ class Run:
             type: (str) The type of artifact to log, examples include `dataset`, `model`
             aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
+            tags: (list, optional) Tags to apply to this artifact, if any.
 
         Returns:
             An `Artifact` object.
         """
         return self._log_artifact(
-            artifact_or_path, name=name, type=type, aliases=aliases
+            artifact_or_path, name=name, type=type, aliases=aliases, tags=tags
         )
 
     @_run_decorator._noop_on_finish()
@@ -3198,6 +3200,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,  # TODO: Finish supporting logging artifacts with tags
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         is_user_created: bool = False,
