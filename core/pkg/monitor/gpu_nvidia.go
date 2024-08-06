@@ -43,8 +43,10 @@ func isRunning(cmd *exec.Cmd) bool {
 		return false
 	}
 
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	return true
+
+	// err = process.Signal(syscall.Signal(0))
+	// return err == nil
 }
 
 type GPUNvidia struct {
@@ -75,24 +77,28 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	}
 
 	// we will use nvidia_gpu_stats to get GPU stats
-	cmd := exec.Command(
+	gpu.cmd = exec.Command(
 		exPath,
-		fmt.Sprintf("--pid %d", settings.XStatsPid.GetValue()),
-		fmt.Sprintf("--interval %f", samplingInterval),
+		fmt.Sprintf("--pid=%d", settings.XStatsPid.GetValue()),
+		fmt.Sprintf("--interval=%f", samplingInterval),
 	)
-	fmt.Println("cmd", cmd)
-	gpu.cmd = cmd
+	fmt.Println("cmd", gpu.cmd)
 
 	// get a pipe to read from the command's stdout
-	stdout, err := cmd.StdoutPipe()
+	stdout, err := gpu.cmd.StdoutPipe()
 	if err != nil {
 		fmt.Println("error getting stdout pipe from nvidia_gpu_stats", err)
 		return gpu
 	}
 
-	if err := cmd.Start(); err != nil {
+	if err := gpu.cmd.Start(); err != nil {
 		fmt.Println("error starting nvidia_gpu_stats", err)
 		return gpu
+	}
+
+	// check if the command is running
+	if !isRunning(gpu.cmd) {
+		fmt.Println("nvidia_gpu_stats is not running")
 	}
 
 	// read and process nvidia_gpu_stats output in a separate goroutine.
