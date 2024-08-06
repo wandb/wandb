@@ -109,21 +109,12 @@ def _go_env(
     env["GOOS"] = target_system
     env["GOARCH"] = target_arch
 
+    env["CGO_ENABLED"] = "0"
     if with_race_detection:
         # Crash if a race is detected. The default behavior is to print
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
-
-    if (target_system, target_arch) in [
-        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        ("linux", "amd64"),
-        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
-        # system metrics are unavailable.
-        ("darwin", "arm64"),
-    ] or (
-        # On Windows, -race requires cgo.
-        target_system == "windows" and with_race_detection
-    ):
+        # -race requires cgo.
         env["CGO_ENABLED"] = "1"
 
     return env
