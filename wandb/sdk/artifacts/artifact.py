@@ -103,8 +103,8 @@ class Artifact:
         type: The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
-            Include `model` within your type string if you want to link the artifact
-            to the W&B Model Registry.
+            The type assigned to an artifact will determine which registry it can be linked to. 
+            You can configure which artifact types can be linked to a given registry in the Registry UI. 
         description: A description of the artifact. For Model or Dataset Artifacts,
             add documentation for your standardized team model or dataset card. View
             an artifact's description programmatically with the `Artifact.description`
