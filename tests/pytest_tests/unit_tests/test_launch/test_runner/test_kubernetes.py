@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import platform
 from typing import Any
 from unittest.mock import MagicMock
 
@@ -696,6 +697,10 @@ async def test_launch_crd_pod_schedule_warning(
     assert status.messages == ["Test message"]
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Launch does not support Windows and this test is failing on Windows.",
+)
 @pytest.mark.asyncio
 async def test_launch_kube_base_image_works(
     monkeypatch,
@@ -765,6 +770,10 @@ async def test_launch_kube_base_image_works(
     ]
 
 
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Launch does not support Windows and this test is failing on Windows.",
+)
 @pytest.mark.asyncio
 async def test_launch_crd_base_image_works(
     monkeypatch,
