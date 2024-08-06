@@ -43,8 +43,6 @@ func isRunning(cmd *exec.Cmd) bool {
 		return false
 	}
 
-	return true
-
 	err = process.Signal(syscall.Signal(0))
 	fmt.Println("err", err)
 	return err == nil
