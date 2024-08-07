@@ -101,6 +101,11 @@ fn gpu_in_use_by_process(device: &Device, pid: i32) -> bool {
         .collect();
 
     println!("Our PIDs: {:?}", our_pids);
+    println!("Device PIDs: {:?}", device_pids);
+    println!(
+        "Intersection: {:?}",
+        our_pids.iter().any(|&p| device_pids.contains(&p))
+    );
 
     our_pids.iter().any(|&p| device_pids.contains(&p))
 }
