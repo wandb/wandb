@@ -23,7 +23,7 @@ quaternions = tuples(
     size=tuples(small_floats, small_floats, small_floats),
     orientation=quaternions,
 )
-def test_box3d_at_least_48_triangles(
+def test_box3d_always_box(
     center: "Tuple[float, float, float]",
     size: "Tuple[float, float, float]",
     orientation: "Tuple[float, float, float, float]",
@@ -37,35 +37,12 @@ def test_box3d_at_least_48_triangles(
         orientation=orientation,
         color=(0, 0, 0),
     )
+    corners = np.array(box["corners"])
+    center = corners.mean(axis=0)
+    dists = np.linalg.norm(corners - center, axis=1)
 
-    # Test all 56 combinations of 3 corners.
-    total_right_triangles = 0
-    for i1, i2, i3 in itertools.combinations(range(8), 3):
-        p1, p2, p3 = box["corners"][i1], box["corners"][i2], box["corners"][i3]
-
-        v1 = tuple(p1[i] - p2[i] for i in range(3))
-        v2 = tuple(p1[i] - p3[i] for i in range(3))
-        v3 = tuple(p2[i] - p3[i] for i in range(3))
-
-        dot1 = sum(v1[i] * v2[i] for i in range(3))
-        dot2 = sum(v1[i] * v3[i] for i in range(3))
-        dot3 = sum(v2[i] * v3[i] for i in range(3))
-
-        # If any pair of edges is orthogonal, then it's a right triangle.
-        if pytest.approx(0, abs=1e-6) in (dot1, dot2, dot3):
-            total_right_triangles += 1
-
-    # If it's a box, then the triangle formed by any edge and corner is
-    # a right triangle. There are at least 48 such triangles: starting
-    # with any of the 12 edges, we get 24 unique triangles by pairing
-    # them with one of the 2 corners on the opposite edge. The triangles
-    # formed with the remaining 4 corners include 2 edges, so they
-    # are double-counted, meaning there are (12 * 4) / 2 = 24 of them.
-    #
-    # The converse is true when all dimensions are non-zero: if 8 points
-    # form at least 48 right triangles, then they form a box. Proof
-    # left to the reader :)
-    assert total_right_triangles >= 48
+    # We have a box if and only if all points are equidistant from the center.
+    assert np.std(dists) == pytest.approx(0, abs=1e-6)
 
 
 def test_box3d_unrotated():
