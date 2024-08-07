@@ -76,9 +76,6 @@ class ServiceConnection:
     """A connection to the W&B internal service process."""
 
     def __init__(self, client: "SockClient", proc: "Optional[service._Service]"):
-        self._lock = threading.Lock()
-        self._torn_down = False
-
         self._client = client
         self._proc = proc
 
@@ -135,7 +132,7 @@ class ServiceConnection:
     def teardown(self, exit_code: int) -> int:
         """Shut downs down the service process and returns its exit code.
 
-        Calls after the initial one are no-ops.
+        This may only be called once.
 
         Returns:
             The exit code of the service process.
@@ -148,11 +145,6 @@ class ServiceConnection:
             raise WandbServiceNotOwnedError(
                 "Cannot tear down service started by different process",
             )
-
-        with self._lock:
-            if self._torn_down:
-                return
-            self._torn_down = True
 
         # Clear the service token to prevent new connections from being made.
         service_token.clear_service_token()
