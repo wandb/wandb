@@ -44,7 +44,7 @@ from .sdk.data_types.histogram import Histogram
 from .sdk.data_types.html import Html
 from .sdk.data_types.image import Image
 from .sdk.data_types.molecule import Molecule
-from .sdk.data_types.object_3d import Object3D, box3d, quaternion_to_rotation
+from .sdk.data_types.object_3d import Object3D, box3d, _quaternion_to_rotation
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.trace_tree import WBTraceTree
@@ -65,7 +65,7 @@ __all__ = [
     "Html",
     "Image",
     "Molecule",
-    "quaternion_to_rotation",
+    "_quaternion_to_rotation",
     "box3d",
     "Object3D",
     "Plotly",

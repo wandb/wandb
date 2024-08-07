@@ -85,7 +85,24 @@ def _install_numpy_error() -> "wandb.Error":
     )
 
 
-def quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
+def _normalize_quat(q: "np.ndarray") -> "np.ndarray":
+    """Normalizes a non-zero length-4 vector."""
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
+    q = abs(q)
+    largest_component_idx = q.argmax()
+
+    if q[largest_component_idx] == 0:
+        raise ValueError("Unexpected zero quaternion.")
+
+    q = q / q[largest_component_idx]
+    return q / np.linalg.norm(q)
+
+
+def _quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
     """Returns the rotation matrix corresponding to a non-zero quaternion.
 
     The corresponding rotation matrix transforms column vectors by
@@ -97,12 +114,8 @@ def quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
     except ImportError as e:
         raise _install_numpy_error() from e
 
-    # First, normalize the quaternion.
-    quaternion = np.array(quaternion)
-    s = np.linalg.norm(quaternion)
-    qr, qi, qj, qk = quaternion / s
-
     # Precompute a few products to simplify the expression below.
+    qr, qi, qj, qk = _normalize_quat(np.asarray(quaternion))
     qii, qjj, qkk = qi**2, qj**2, qk**2
     qij, qik, qjk = qi * qj, qi * qk, qj * qk
     qir, qjr, qkr = qi * qr, qj * qr, qk * qr
@@ -143,11 +156,11 @@ def box3d(
     except ImportError as e:
         raise _install_numpy_error() from e
 
-    center = np.array(center)
-    size = np.array(size)
+    center = np.asarray(center)
+    size = np.asarray(size)
 
     # Precompute the rotation matrix.
-    rot = quaternion_to_rotation(orientation)
+    rot = _quaternion_to_rotation(orientation)
 
     # Scale, rotate and translate each corner of the unit box.
     unit_corners = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))))

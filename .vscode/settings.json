@@ -33,6 +33,7 @@
     "editor.formatOnSave": true
   },
   "rust-analyzer.linkedProjects": [
+    "./nvidia_gpu_stats/Cargo.toml",
     "./experimental/client-rust/Cargo.toml"
   ],
   "python.analysis.autoImportCompletions": true,

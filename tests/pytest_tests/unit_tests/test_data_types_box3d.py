@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from hypothesis.strategies import floats, tuples
 from wandb import data_types
-from wandb.sdk.data_types.object_3d import quaternion_to_rotation
+from wandb.sdk.data_types.object_3d import _quaternion_to_rotation
 
 small_floats = floats(min_value=-1e5, max_value=1e5)
 quaternions = tuples(
