@@ -240,7 +240,6 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		gpuInfo := &service.GpuNvidiaInfo{}
 		name := fmt.Sprintf("_gpu.%d.name", di)
 		if v, ok := g.sample[name]; ok {
-			// gpuInfo.Name = v.(string)
 			if v, ok := v.(string); ok {
 				gpuInfo.Name = v
 				names[di] = gpuInfo.Name
