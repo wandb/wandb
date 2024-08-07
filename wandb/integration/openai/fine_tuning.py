@@ -18,7 +18,7 @@ from wandb.util import parse_version
 openai = util.get_module(
     name="openai",
     required="This integration requires `openai`. To install, please run `pip install openai`",
-    lazy="False",
+    lazy=False,
 )
 
 if parse_version(openai.__version__) < parse_version("1.12.0"):
