@@ -88,39 +88,3 @@ def test_box3d_permute_axes():
 
     assert min_pt == pytest.approx([0, 0, 0])
     assert max_pt == pytest.approx([10, 6, 8])
-
-
-@hypothesis.given(xrad=small_floats, yrad=small_floats, zrad=small_floats)
-def test_euler_angles(xrad: float, yrad: float, zrad: float):
-    # Rotation matrices that act by pre-multiplication.
-    #
-    # zrot rotates the X axis toward the Y axis,
-    # xrot rotates the Y axis toward the Z axis,
-    # yrot rotates the Z axis toward the X axis,
-    #
-    # so we have a right-handed system.
-    xrot = np.array(
-        (
-            (1, 0, 0),
-            (0, math.cos(xrad), -math.sin(xrad)),
-            (0, math.sin(xrad), math.cos(xrad)),
-        )
-    )
-    yrot = np.array(
-        (
-            (math.cos(yrad), 0, math.sin(yrad)),
-            (0, 1, 0),
-            (-math.sin(yrad), 0, math.cos(yrad)),
-        )
-    )
-    zrot = np.array(
-        (
-            (math.cos(zrad), -math.sin(zrad), 0),
-            (math.sin(zrad), math.cos(zrad), 0),
-            (0, 0, 1),
-        )
-    )
-
-    quat = data_types.euler_angles_xyz(xrad, yrad, zrad)
-
-    assert quaternion_to_rotation(quat).T == pytest.approx(zrot @ yrot @ xrot)

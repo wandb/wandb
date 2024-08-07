@@ -85,41 +85,6 @@ def _install_numpy_error() -> "wandb.Error":
     )
 
 
-def euler_angles_xyz(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
-    """Constructs a quaternion from Euler angles.
-
-    All angles are given in radians, "counter-clockwise" in a right-handed
-    coordinate system: if you hold your right hand out with the index
-    finger curling from the X axis to the Y axis, then your thumb points
-    in the Z axis.
-
-    Returns:
-        A 1-dimensional NumPy array with 4 elements containing a quaternion
-        that represents a rotation about the Z axis (yaw), followed by
-        a rotation about the intrinsic Y axis (pitch), followed by
-        a rotation about the intrinsic X axis (roll).
-
-        This is also equivalent to first rotating about the X axis,
-        then rotating about the extrinsic Y axis, then rotating about the
-        extrinsic Z axis by the same angles.
-    """
-    try:
-        import numpy as np
-    except ImportError as e:
-        raise _install_numpy_error() from e
-
-    c = np.cos((xrad / 2, yrad / 2, zrad / 2))
-    s = np.sin((xrad / 2, yrad / 2, zrad / 2))
-    return np.array(
-        (
-            c[0] * c[1] * c[2] + s[0] * s[1] * s[2],
-            s[0] * c[1] * c[2] - c[0] * s[1] * s[2],
-            c[0] * s[1] * c[2] + s[0] * c[1] * s[2],
-            c[0] * c[1] * s[2] - s[0] * s[1] * c[2],
-        )
-    )
-
-
 def quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
     """Returns the rotation matrix corresponding to a non-zero quaternion.
 
