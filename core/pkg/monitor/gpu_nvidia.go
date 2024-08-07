@@ -221,8 +221,6 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 			if err != nil {
 				fmt.Println("Error parsing JSON:", err)
 			}
-			fmt.Println("\nParsed JSON:")
-			fmt.Println(data)
 
 			// Process the JSON data
 			gpu.mutex.Lock()
