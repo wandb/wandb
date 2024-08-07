@@ -240,13 +240,18 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		gpuInfo := &service.GpuNvidiaInfo{}
 		name := fmt.Sprintf("_gpu.%d.name", di)
 		if v, ok := g.sample[name]; ok {
-			gpuInfo.Name = v.(string)
-			names[di] = gpuInfo.Name
+			// gpuInfo.Name = v.(string)
+			if v, ok := v.(string); ok {
+				gpuInfo.Name = v
+				names[di] = gpuInfo.Name
+			}
 		}
 
 		memTotal := fmt.Sprintf("_gpu.%d.memoryTotal", di)
 		if v, ok := g.sample[memTotal]; ok {
-			gpuInfo.MemoryTotal = uint64(v.(float64))
+			if v, ok := v.(float64); ok {
+				gpuInfo.MemoryTotal = uint64(v)
+			}
 		}
 
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
