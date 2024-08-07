@@ -184,7 +184,7 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
         }
 
         let memory_info = device.memory_info()?;
-        metrics.insert(format!("gpu.{}.memoryTotal", di), json!(memory_info.total));
+        metrics.insert(format!("_gpu.{}.memoryTotal", di), json!(memory_info.total));
         let memory_allocated = (memory_info.used as f64 / memory_info.total as f64) * 100.0;
         metrics.insert(
             format!("gpu.{}.memoryAllocated", di),
