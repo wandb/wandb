@@ -143,6 +143,6 @@ def test_euler_angles(xrad: float, yrad: float, zrad: float):
         )
     )
 
-    quat = data_types.euler_angles(xrad, yrad, zrad)
+    quat = data_types.euler_angles_xyz(xrad, yrad, zrad)
 
     assert quaternion_to_rotation(quat).T == pytest.approx(zrot @ yrot @ xrot)

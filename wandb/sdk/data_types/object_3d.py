@@ -85,7 +85,7 @@ def _install_numpy_error() -> "wandb.Error":
     )
 
 
-def euler_angles(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
+def euler_angles_xyz(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
     """Constructs a quaternion from Euler angles.
 
     All angles are given in radians, "counter-clockwise" in a right-handed
@@ -96,12 +96,12 @@ def euler_angles(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
     Returns:
         A 1-dimensional NumPy array with 4 elements containing a quaternion
         that represents a rotation about the Z axis (yaw), followed by
-        a rotation about the local Y axis (pitch), followed by
-        a rotation about the local X axis (roll).
+        a rotation about the intrinsic Y axis (pitch), followed by
+        a rotation about the intrinsic X axis (roll).
 
         This is also equivalent to first rotating about the X axis,
-        then rotating about the global Y axis, then rotating about the
-        global Z axis by the same angles.
+        then rotating about the extrinsic Y axis, then rotating about the
+        extrinsic Z axis by the same angles.
     """
     try:
         import numpy as np

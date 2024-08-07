@@ -47,7 +47,7 @@ from .sdk.data_types.molecule import Molecule
 from .sdk.data_types.object_3d import (
     Object3D,
     box3d,
-    euler_angles,
+    euler_angles_xyz,
     quaternion_to_rotation,
 )
 from .sdk.data_types.plotly import Plotly
@@ -70,7 +70,7 @@ __all__ = [
     "Html",
     "Image",
     "Molecule",
-    "euler_angles",
+    "euler_angles_xyz",
     "quaternion_to_rotation",
     "box3d",
     "Object3D",
