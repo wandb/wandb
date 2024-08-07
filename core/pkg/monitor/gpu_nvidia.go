@@ -165,7 +165,9 @@ func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 			if _, ok := samples[0].(float64); ok {
 				floatSamples := make([]float64, len(samples))
 				for i, v := range samples {
-					floatSamples[i] = v.(float64)
+					if f, ok := v.(float64); ok {
+						floatSamples[i] = f
+					}
 				}
 				aggregates[metric] = Average(floatSamples)
 			}
