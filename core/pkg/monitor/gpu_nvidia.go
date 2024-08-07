@@ -202,7 +202,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	// wait for the first sample
 	for {
 		g.mutex.RLock()
-		_, ok := g.sample["gpu.count"]
+		_, ok := g.sample["_gpu.count"]
 		g.mutex.RUnlock()
 		if ok {
 			break
@@ -215,7 +215,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		GpuNvidia: []*service.GpuNvidiaInfo{},
 	}
 
-	if count, ok := g.sample["gpu.count"].(float64); ok {
+	if count, ok := g.sample["_gpu.count"].(float64); ok {
 		info.GpuCount = uint32(count)
 	} else {
 		return nil
