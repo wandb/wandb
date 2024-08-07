@@ -87,6 +87,8 @@ fn get_child_pids(pid: i32) -> Vec<i32> {
 
 /// Function to check if a GPU is being used by a specific process or its children
 fn gpu_in_use_by_process(device: &Device, pid: i32) -> bool {
+    println!("Checking if GPU is in use by PID: {}", pid);
+    println!("{:?}", get_child_pids(pid));
     let our_pids: Vec<i32> = std::iter::once(pid).chain(get_child_pids(pid)).collect();
 
     let compute_processes = device.running_compute_processes().unwrap_or_default();
@@ -97,6 +99,8 @@ fn gpu_in_use_by_process(device: &Device, pid: i32) -> bool {
         .chain(graphics_processes.iter())
         .map(|p| p.pid as i32)
         .collect();
+
+    println!("Our PIDs: {:?}", our_pids);
 
     our_pids.iter().any(|&p| device_pids.contains(&p))
 }
