@@ -8,6 +8,8 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
+from sympy import E
+
 import wandb
 from wandb import util
 from wandb.data_types import Table
@@ -17,13 +19,13 @@ from wandb.util import parse_version
 
 openai = util.get_module(
     name="openai",
-    required="`openai` not installed. This integration requires `openai`. To fix, please `pip install openai`",
+    required="This integration requires `openai`. To install, please run `pip install openai`",
     lazy="False",
 )
 
-if parse_version(openai.__version__) < parse_version("1.0.1"):
+if parse_version(openai.__version__) < parse_version("1.12.0"):
     raise wandb.Error(
-        f"This integration requires openai version 1.0.1 and above. Your current version is {openai.__version__} "
+        f"This integration requires openai version 1.12.0 and above. Your current version is {openai.__version__} "
         "To fix, please `pip install -U openai`"
     )
 
@@ -229,8 +231,14 @@ class WandbLogger:
         # check results are present
         try:
             results_id = fine_tune.result_files[0]
-            encoded_results = cls.openai_client.files.content(file_id=results_id).read()
-            decoded_results = base64.b64decode(encoded_results).decode("utf-8")
+            try:
+                encoded_results = cls.openai_client.files.content(
+                    file_id=results_id
+                ).read()
+                results = base64.b64decode(encoded_results).decode("utf-8")
+            except Exception:
+                # attempt to read as text, works for older jobs
+                results = cls.openai_client.files.content(file_id=results_id).text
         except openai.NotFoundError:
             if show_individual_warnings:
                 wandb.termwarn(
@@ -242,7 +250,7 @@ class WandbLogger:
         cls._run.config.update(cls._get_config(fine_tune))
 
         # log results
-        df_results = pd.read_csv(io.StringIO(decoded_results))
+        df_results = pd.read_csv(io.StringIO(results))
         for _, row in df_results.iterrows():
             metrics = {k: v for k, v in row.items() if not np.isnan(v)}
             step = metrics.pop("step")
