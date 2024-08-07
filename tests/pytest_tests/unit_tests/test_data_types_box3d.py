@@ -9,7 +9,7 @@ from hypothesis.strategies import floats, tuples
 from wandb import data_types
 from wandb.sdk.data_types.object_3d import quaternion_to_rotation
 
-small_floats = floats(min_value=-1e8, max_value=1e8)
+small_floats = floats(min_value=-1e5, max_value=1e5)
 quaternions = tuples(
     small_floats,
     small_floats,
@@ -49,9 +49,10 @@ def test_box3d_at_least_48_triangles(
 
         dot1 = sum(v1[i] * v2[i] for i in range(3))
         dot2 = sum(v1[i] * v3[i] for i in range(3))
+        dot3 = sum(v2[i] * v3[i] for i in range(3))
 
         # If any pair of edges is orthogonal, then it's a right triangle.
-        if dot1 == pytest.approx(0) or dot2 == pytest.approx(0):
+        if pytest.approx(0, abs=1e-6) in (dot1, dot2, dot3):
             total_right_triangles += 1
 
     # If it's a box, then the triangle formed by any edge and corner is

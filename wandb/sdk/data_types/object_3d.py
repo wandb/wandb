@@ -186,7 +186,7 @@ def box3d(
 
     # Scale, rotate and translate each corner of the unit box.
     unit_corners = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))))
-    corners = center + (size * unit_corners / 2) @ rot
+    corners = center + (0.5 * size * unit_corners) @ rot
 
     return {
         # Ignore the type because mypy can't infer that the list has length 8:
