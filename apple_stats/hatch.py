@@ -1,4 +1,4 @@
-"""Builds the AppleStats Swift binary for monitoring system metrics."""
+"""Builds the AppleStats Swift binary for monitoring system metrics on macOS."""
 
 import pathlib
 import subprocess
