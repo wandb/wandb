@@ -51,7 +51,7 @@ if TYPE_CHECKING:  # pragma: no cover
     Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
     Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
     PointCloudType = Literal["lidar/beta"]
-    RGBColor = Tuple[int, int, int]
+    RGBColor = Tuple[numeric, numeric, numeric]
 
     Quaternion = Tuple[numeric, numeric, numeric, numeric]
 
@@ -134,7 +134,7 @@ def box3d(
             into the box's local XYZ coordinates, given as a length-4
             ndarray [r, x, y, z] corresponding to the non-zero quaternion
             r + xi + yj + zk.
-        color: The box's color.
+        color: The box's color as an (r, g, b) tuple with 0 <= r,g,b <= 1.
         label: An optional label for the box.
         score: An optional score for the box.
     """
