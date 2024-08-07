@@ -26,7 +26,7 @@ struct Args {
     pid: i32,
 
     /// Parent process ID. The program will exit if the parent process is no longer alive.
-    #[arg(short, long, default_value_t = 1)]
+    #[arg(short, long, default_value_t = 0)]
     ppid: i32,
 
     /// Sampling interval in seconds
