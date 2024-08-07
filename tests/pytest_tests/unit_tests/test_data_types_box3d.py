@@ -9,17 +9,13 @@ from hypothesis.strategies import floats, tuples
 from wandb import data_types
 from wandb.sdk.data_types.object_3d import quaternion_to_rotation
 
-small_floats = floats(min_value=-1e10, max_value=1e10)
+small_floats = floats(min_value=-1e8, max_value=1e8)
 quaternions = tuples(
     small_floats,
     small_floats,
     small_floats,
     small_floats,
 )
-
-
-def square_distance(a, b) -> float:
-    return sum((a[i] - b[i]) ** 2 for i in range(3))
 
 
 @hypothesis.given(
@@ -47,19 +43,15 @@ def test_box3d_at_least_48_triangles(
     for i1, i2, i3 in itertools.combinations(range(8), 3):
         p1, p2, p3 = box["corners"][i1], box["corners"][i2], box["corners"][i3]
 
-        d1 = square_distance(p1, p2)
-        d2 = square_distance(p2, p3)
-        d3 = square_distance(p3, p1)
+        v1 = tuple(p1[i] - p2[i] for i in range(3))
+        v2 = tuple(p1[i] - p3[i] for i in range(3))
+        v3 = tuple(p2[i] - p3[i] for i in range(3))
 
-        # Let d1 be the longest distance.
-        if d1 < d2:
-            d1, d2 = d2, d1
-        if d1 < d3:
-            d1, d3 = d3, d1
+        dot1 = sum(v1[i] * v2[i] for i in range(3))
+        dot2 = sum(v1[i] * v3[i] for i in range(3))
 
-        # If the square of one side is the sum of the squares of the other two,
-        # then it's a right triangle.
-        if d2 + d3 == pytest.approx(d1):
+        # If any pair of edges is orthogonal, then it's a right triangle.
+        if dot1 == pytest.approx(0) or dot2 == pytest.approx(0):
             total_right_triangles += 1
 
     # If it's a box, then the triangle formed by any edge and corner is

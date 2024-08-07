@@ -133,6 +133,7 @@ def quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
         raise _install_numpy_error() from e
 
     # First, normalize the quaternion.
+    quaternion = np.array(quaternion)
     s = np.linalg.norm(quaternion)
     qr, qi, qj, qk = quaternion / s
 
