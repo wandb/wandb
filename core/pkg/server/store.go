@@ -24,6 +24,8 @@ const (
 	headerMagic = 0xBEE1
 	// headerVersion is the version of the header.
 	headerVersion = 0
+	// headerLength is fixed to IDENT(4) + Magic(2) + Version(1) = 7
+	headerLength = 7
 )
 
 // headerIdent returns the header identifier.
@@ -91,9 +93,12 @@ func (sr *Store) Open(flag int) error {
 			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
+		headerBuffer := make([]byte, headerLength)
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
+		err = sr.reader.ReadHeader(headerBuffer)
+		headerReader := bytes.NewReader(headerBuffer)
 		header := NewHeader()
-		if err := header.UnmarshalBinary(sr.db); err != nil {
+		if err = header.UnmarshalBinary(headerReader); err != nil {
 			return fmt.Errorf("store: failed to read header: %v", err)
 		}
 		if !header.Valid() {
@@ -155,11 +160,6 @@ func (sr *Store) Write(msg *service.Record) error {
 		return fmt.Errorf("store: can't write proto: %v", err)
 	}
 	return nil
-}
-
-func (sr *Store) WriteDirectlyToDB(data []byte) (int, error) {
-	// this is for testing purposes only
-	return sr.db.Write(data)
 }
 
 // Reads the next record from the database.

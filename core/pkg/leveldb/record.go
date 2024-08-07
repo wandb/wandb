@@ -222,6 +222,18 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 	}
 }
 
+// ReadHeader reads the first block and copies the header into a buffer
+func (r *Reader) ReadHeader(headerBuffer []byte) error {
+	l := len(headerBuffer)
+	n, err := io.ReadFull(r.r, r.buf[:])
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return err
+	}
+	copy(headerBuffer, r.buf[0:l])
+	r.i, r.j, r.n = l, l, n
+	return nil
+}
+
 // Next returns a reader for the next record. It returns io.EOF if there are no
 // more records. The reader returned becomes stale after the next Next call,
 // and should no longer be used.

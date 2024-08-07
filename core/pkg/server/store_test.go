@@ -1,6 +1,7 @@
 package server_test
 
 import (
+	"fmt"
 	"io"
 	"os"
 	"testing"
@@ -119,6 +120,25 @@ func TestReadWriteRecord(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+
+// AppendToFile appends the given data to the file specified by filename.
+func AppendToFile(filename string, data []byte) error {
+	// Open the file in append mode, create it if it doesn't exist
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Write the data to the file
+	_, err = file.Write(data)
+	if err != nil {
+		return fmt.Errorf("failed to write data to file: %w", err)
+	}
+
+	return nil
+}
+
 func TestCorruptFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
@@ -134,11 +154,10 @@ func TestCorruptFile(t *testing.T) {
 	record := &service.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
-
-	_, err = store.WriteDirectlyToDB([]byte("bad record"))
+	err = store.Close()
 	assert.NoError(t, err)
 
-	err = store.Close()
+	err = AppendToFile(tmpFile.Name(),[]byte("bad record"))
 	assert.NoError(t, err)
 
 	store2 := server.NewStore(tmpFile.Name())
@@ -146,6 +165,11 @@ func TestCorruptFile(t *testing.T) {
 	assert.NoError(t, err)
 	defer store2.Close()
 
+	// this record was fine (record num:1)
+	_, err = store2.Read()
+	assert.NoError(t, err)
+
+	// this record is bad.. we appended a string to the file "bad record"
 	_, err = store2.Read()
 	assert.Error(t, err)
 
