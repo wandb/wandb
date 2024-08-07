@@ -96,10 +96,13 @@ func (sr *Store) Open(flag int) error {
 		headerBuffer := make([]byte, headerLength)
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
 		err = sr.reader.ReadHeader(headerBuffer)
+		if err != nil {
+			return fmt.Errorf("store: failed to read header: %v", err)
+		}
 		headerReader := bytes.NewReader(headerBuffer)
 		header := NewHeader()
 		if err = header.UnmarshalBinary(headerReader); err != nil {
-			return fmt.Errorf("store: failed to read header: %v", err)
+			return fmt.Errorf("store: failed to unmarshal header: %v", err)
 		}
 		if !header.Valid() {
 			return errors.New("store: invalid header")

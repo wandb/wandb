@@ -120,7 +120,6 @@ func TestReadWriteRecord(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-
 // AppendToFile appends the given data to the file specified by filename.
 func AppendToFile(filename string, data []byte) error {
 	// Open the file in append mode, create it if it doesn't exist
@@ -157,7 +156,7 @@ func TestCorruptFile(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	err = AppendToFile(tmpFile.Name(),[]byte("bad record"))
+	err = AppendToFile(tmpFile.Name(), []byte("bad record"))
 	assert.NoError(t, err)
 
 	store2 := server.NewStore(tmpFile.Name())
