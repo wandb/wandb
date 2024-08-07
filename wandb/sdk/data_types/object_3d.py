@@ -1,7 +1,6 @@
 import codecs
 import itertools
 import json
-import math
 import os
 import sys
 from typing import (
@@ -21,7 +20,7 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
-
+import numpy as np
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
@@ -31,8 +30,9 @@ from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
+
 if TYPE_CHECKING:  # pragma: no cover
-    import numpy as np
+    import numpy.typing as npt
 
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -80,11 +80,66 @@ if TYPE_CHECKING:  # pragma: no cover
         target: Sequence[Point3D]
 
 
+def euler_angles(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
+    """Constructs a quaternion from Euler angles.
+
+    All angles are given in radians, "counter-clockwise" in a right-handed
+    coordinate system: if you hold your right hand out with the index
+    finger curling from the X axis to the Y axis, then your thumb points
+    in the Z axis.
+
+    Returns:
+        A 1-dimensional NumPy array with 4 elements containing a quaternion
+        that represents a rotation about the Z axis (yaw), followed by
+        a rotation about the local Y axis (pitch), followed by
+        a rotation about the local X axis (roll).
+
+        This is also equivalent to first rotating about the X axis,
+        then rotating about the global Y axis, then rotating about the
+        global Z axis by the same angles.
+    """
+    c = np.cos((xrad / 2, yrad / 2, zrad / 2))
+    s = np.sin((xrad / 2, yrad / 2, zrad / 2))
+    return np.array(
+        (
+            c[0] * c[1] * c[2] + s[0] * s[1] * s[2],
+            s[0] * c[1] * c[2] - c[0] * s[1] * s[2],
+            c[0] * s[1] * c[2] + s[0] * c[1] * s[2],
+            c[0] * c[1] * s[2] - s[0] * s[1] * c[2],
+        )
+    )
+
+
+def quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
+    """Returns the rotation matrix corresponding to a non-zero quaternion.
+
+    The corresponding rotation matrix transforms column vectors by
+    post-multiplication: `x @ R`. This way, it can be used to
+    transform an Nx3 NumPy array of points as `points @ R`.
+    """
+    # First, normalize the quaternion.
+    s = np.linalg.norm(quaternion)
+    qr, qi, qj, qk = quaternion / s
+
+    # Precompute a few products to simplify the expression below.
+    qii, qjj, qkk = qi**2, qj**2, qk**2
+    qij, qik, qjk = qi * qj, qi * qk, qj * qk
+    qir, qjr, qkr = qi * qr, qj * qr, qk * qr
+
+    return np.array(
+        (
+            (1 - 2 * (qjj + qkk), 2 * (qij + qkr), 2 * (qik - qjr)),
+            (2 * (qij - qkr), 1 - 2 * (qii + qkk), 2 * (qjk + qir)),
+            (2 * (qik + qjr), 2 * (qjk - qir), 1 - 2 * (qii + qjj)),
+        )
+    )
+
+
 def box3d(
     *,
-    center: "Point3D",
-    size: "Tuple[numeric, numeric, numeric]",
-    orientation: "Quaternion",
+    center: "npt.ArrayLike",
+    size: "npt.ArrayLike",
+    orientation: "npt.ArrayLike",
     color: "RGBColor",
     label: "Optional[str]" = None,
     score: "Optional[numeric]" = None,
@@ -92,56 +147,25 @@ def box3d(
     """Returns a Box3D.
 
     Args:
-        center: The center point of the box.
-        size: The box's X, Y and Z dimensions.
+        center: The center point of the box as a length-3 ndarray.
+        size: The box's X, Y and Z dimensions as a length-3 ndarray.
         orientation: The rotation transforming global XYZ coordinates
-            into the box's local XYZ coordinates, represented as the
-            four coordinates (r, x, y, z) of a non-zero quaternion
-            r + xi + yj + zk. The quaternion is normalized.
+            into the box's local XYZ coordinates, given as a length-4
+            ndarray [r, x, y, z] corresponding to the non-zero quaternion
+            r + xi + yj + zk.
         color: The box's color.
         label: An optional label for the box.
         score: An optional score for the box.
     """
+    center = np.array(center)
+    size = np.array(size)
+
     # Precompute the rotation matrix.
-
-    # First, normalize the quaternion.
-    s = math.sqrt(sum(coord**2 for coord in orientation))
-    qr, qi, qj, qk = (
-        orientation[0] / s,
-        orientation[1] / s,
-        orientation[2] / s,
-        orientation[3] / s,
-    )
-
-    # Precompute a few products to simplify the expression below.
-    qii, qjj, qkk = qi**2, qj**2, qk**2
-    qij, qik, qjk = qi * qj, qi * qk, qj * qk
-    qir, qjr, qkr = qi * qr, qj * qr, qk * qr
-
-    # Define the rotation matrix.
-    rot = (
-        (1 - 2 * (qjj + qkk), 2 * (qij - qkr), 2 * (qik + qjr)),
-        (2 * (qij + qkr), 1 - 2 * (qii + qkk), 2 * (qjk - qir)),
-        (2 * (qik - qjr), 2 * (qjk + qir), 1 - 2 * (qii + qjj)),
-    )
+    rot = quaternion_to_rotation(orientation)
 
     # Scale, rotate and translate each corner of the unit box.
-    corners = []
-    for x, y, z in itertools.product((-1, 1), (-1, 1), (-1, 1)):
-        # Scale first:
-        corner = (
-            x * size[0] / 2,
-            y * size[1] / 2,
-            z * size[2] / 2,
-        )
-
-        # Rotate and translate:
-        corners.append(
-            tuple(
-                center[i] + sum(rot[i][j] * corner[j] for j in range(3))
-                for i in range(3)
-            )
-        )
+    unit_corners = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))))
+    corners = center + (size * unit_corners / 2) @ rot
 
     return {
         # Ignore the type because mypy can't infer that the list has length 8:
