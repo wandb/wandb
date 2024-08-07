@@ -881,6 +881,7 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
+      - install_rust
       - run:
           name: Install python 3.9
           command: |
