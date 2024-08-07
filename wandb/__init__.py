@@ -1,9 +1,6 @@
-"""Use wandb to track machine learning work.
+"""W&B Models: use wandb to train and productionize models.
 
-The most commonly used functions/objects are:
-  - wandb.init — initialize a new run at the top of your training script
-  - wandb.config — track hyperparameters and metadata
-  - wandb.log — log metrics and media over time within your training loop
+Train and fine-tune models, manage models from experimentation to production.
 
 For guides and examples, see https://docs.wandb.ai.
 

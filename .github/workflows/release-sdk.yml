@@ -154,7 +154,7 @@ jobs:
             rustc --version &&
             cargo --version
           CIBW_ENVIRONMENT_LINUX:
-            PATH=$PATH:/usr/local/go/bin
+            PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
       - uses: actions/upload-artifact@v3
         with:

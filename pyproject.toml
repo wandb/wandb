@@ -215,6 +215,7 @@ ignore-decorators = [
 
 "**/__init__.py" = ["E402", "F401"]
 "wandb/__init__.py" = ["I001"]
+"wandb/__init__.pyi" = ["UP006", "UP007"]
 "wandb/cli/cli.py" = ["C901"]
 "wandb/wandb_controller.py" = ["N806"]
 "wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
