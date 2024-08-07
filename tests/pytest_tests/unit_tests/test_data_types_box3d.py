@@ -38,7 +38,9 @@ def test_box3d_always_box(
     center = corners.mean(axis=0)
     dists = np.linalg.norm(corners - center, axis=1)
 
-    # We have a box if and only if all points are equidistant from the center.
+    # Since the implementation only uses linear transformations,
+    # the box must be a parallelopiped. If a parallelopiped has
+    # all points equidistant from its center, then it's a box.
     assert np.std(dists) == pytest.approx(0, abs=1e-6)
 
 
