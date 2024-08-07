@@ -21,11 +21,13 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Parent process ID. Used to:
-    /// - Monitor GPU metrics such as utilization and memory usage by the process and its children.
-    /// - Gracefully exit when the parent process is no longer running.
+    /// Monitor this process ID and its children for GPU usage
     #[arg(short, long, default_value_t = 0)]
     pid: i32,
+
+    /// Parent process ID. The program will exit if the parent process is no longer alive.
+    #[arg(short, long, default_value_t = 1)]
+    ppid: i32,
 
     /// Sampling interval in seconds
     #[arg(short, long, default_value_t = 1.0)]
@@ -297,11 +299,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
-        // Check if parent process is still alive
-        if getppid() == nix::unistd::Pid::from_raw(args.pid) {
-            break;
-        }
-
         let sampling_start = Instant::now();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -335,6 +332,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Convert metrics to JSON and print to stdout for collection
         let json_output = serde_json::to_string(&gpu_metrics.metrics).unwrap();
         println!("{}", json_output);
+
+        // Check if parent process is still alive and break loop if not
+        if getppid() != nix::unistd::Pid::from_raw(args.ppid) {
+            break;
+        }
 
         // Sleep to maintain requested sampling interval
         let loop_duration = sampling_start.elapsed();

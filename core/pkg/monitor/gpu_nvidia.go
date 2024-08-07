@@ -77,7 +77,11 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	// we will use nvidia_gpu_stats to get GPU stats
 	gpu.cmd = exec.Command(
 		exPath,
+		// monitor for GPU usage for this pid and its children
 		fmt.Sprintf("--pid=%d", settings.XStatsPid.GetValue()),
+		// pid of the current process. nvidia_gpu_stats will exit when this process exits
+		fmt.Sprintf("--ppid=%d", os.Getpid()),
+		// sampling interval in seconds
 		fmt.Sprintf("--interval=%f", samplingInterval),
 	)
 
