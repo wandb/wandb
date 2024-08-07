@@ -136,7 +136,8 @@ jobs:
               -v {wheel}
 
           # Linux is special because it's built in a container using qemu,
-          # so we must download Go manually rather than using actions/setup-go.
+          # so we must download Go and Rust manually rather than using GH actions
+          # such as actions/setup-go and actions-rust-lang/setup-rust-toolchain.
           #
           # It may be possible to use the GitHub action if we are smart
           # about it.
@@ -147,7 +148,11 @@ jobs:
             esac &&
             export DOWNLOAD_GOVERSION=$( grep '^go' core/go.mod | cut -d' ' -f2 ) &&
             curl -L https://golang.org/dl/go$DOWNLOAD_GOVERSION.linux-$DOWNLOAD_GOARCH.tar.gz > go.tar.gz &&
-            tar -C /usr/local/ -xzf go.tar.gz
+            tar -C /usr/local/ -xzf go.tar.gz &&
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y &&
+            source $HOME/.cargo/env &&
+            rustc --version &&
+            cargo --version
           CIBW_ENVIRONMENT_LINUX:
             PATH=$PATH:/usr/local/go/bin
 

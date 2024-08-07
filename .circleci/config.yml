@@ -255,6 +255,23 @@ commands:
             $HOME/go/bin/go env -w GOCACHE=$HOME/.cache/go-build
           no_output_timeout: 1m
 
+  install_rust:
+    description: "Install Rust with the specified version"
+    parameters:
+      version:
+        description: "Rust version"
+        type: string
+        default: "stable"
+    steps:
+      - run:
+          name: Install Rust
+          command: |
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain <<parameters.version>>
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            $HOME/.cargo/bin/rustup --version
+            $HOME/.cargo/bin/cargo --version
+          no_output_timeout: 1m
+
   setup_docker_buildx:
     description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
     parameters:
@@ -489,6 +506,7 @@ jobs:
           name: Install system deps
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg
       - install_go
+      - install_rust
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
@@ -570,6 +588,7 @@ jobs:
     steps:
       - checkout
       - install_go
+      - install_rust
       - run:
           name: Install Python dependencies
           command: python -m pip install -U tox nox pip uv
@@ -637,6 +656,7 @@ jobs:
                 command: |
                   apt-get update && apt-get install -y libsndfile1 ffmpeg
             - install_go
+            - install_rust
             - run:
                 name: Install Python dependencies
                 command: python -m pip install -U tox nox pip uv
@@ -695,6 +715,7 @@ jobs:
             apt-get update
             apt-get install -y libsndfile1 ffmpeg
       - install_go
+      - install_rust
       - run:
           name: Install Python dependencies
           command: python -m pip install -U tox nox pip uv
@@ -860,6 +881,7 @@ jobs:
       - attach_workspace:
           at: .
       - checkout
+      - install_rust
       - run:
           name: Install python 3.9
           command: |
