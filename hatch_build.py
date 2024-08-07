@@ -1,3 +1,4 @@
+import dataclasses
 import os
 import pathlib
 import platform
@@ -86,7 +87,7 @@ class CustomBuildHook(BuildHookInterface):
         return (
             not self._must_build_universal()
             and not _get_env_bool(_WANDB_BUILD_SKIP_APPLE, default=False)
-            and platform.system().lower() == "darwin"
+            and self._target_platform().goos == "darwin"
         )
 
     def _is_platform_wheel(self) -> bool:
@@ -121,6 +122,8 @@ class CustomBuildHook(BuildHookInterface):
         with_coverage = _get_env_bool(_WANDB_BUILD_COVERAGE, default=False)
         with_race_detection = _get_env_bool(_WANDB_BUILD_GORACEDETECT, default=False)
 
+        plat = self._target_platform()
+
         self.app.display_waiting("Building wandb-core Go binary...")
         hatch_core.build_wandb_core(
             go_binary=self._get_and_require_go_binary(),
@@ -128,6 +131,8 @@ class CustomBuildHook(BuildHookInterface):
             with_code_coverage=with_coverage,
             with_race_detection=with_race_detection,
             wandb_commit_sha=os.getenv(_WANDB_RELEASE_COMMIT) or self._git_commit_sha(),
+            target_system=plat.goos,
+            target_arch=plat.goarch,
         )
 
         # NOTE: as_posix() is used intentionally. Hatch expects forward slashes
@@ -145,6 +150,51 @@ class CustomBuildHook(BuildHookInterface):
 
         return pathlib.Path(go)
 
+    def _target_platform(self) -> "TargetPlatform":
+        """Returns the platform we're building for (for cross-compilation)."""
+        # Checking sysconfig.get_platform() is the "standard" way of getting the
+        # target platform in Python cross-compilation. Build tools like
+        # cibuildwheel control its output by setting the undocumented
+        # _PYTHON_HOST_PLATFORM environment variable which is also a good way
+        # of manually testing this function.
+        plat = sysconfig.get_platform()
+        match = re.match(
+            r"(win|linux|macosx-.+)-(aarch64|arm64|x86_64|amd64)",
+            plat,
+        )
+        if match:
+            if match.group(1).startswith("macosx"):
+                goos = "darwin"
+            elif match.group(1) == "win":
+                goos = "windows"
+            else:
+                goos = match.group(1)
+
+            goarch = _to_goarch(match.group(2))
+
+            return TargetPlatform(
+                goos=goos,
+                goarch=goarch,
+            )
+
+        self.app.display_warning(
+            f"Failed to parse sysconfig.get_platform() ({plat}); disabling"
+            " cross-compilation.",
+        )
+
+        os = platform.system().lower()
+        if os in ("windows", "darwin", "linux"):
+            goos = os
+        else:
+            goos = ""
+
+        goarch = _to_goarch(platform.machine().lower())
+
+        return TargetPlatform(
+            goos=goos,
+            goarch=goarch,
+        )
+
 
 def _get_env_bool(name: str, default: bool) -> bool:
     """Returns the value of a boolean environment variable."""
@@ -161,3 +211,21 @@ def _get_env_bool(name: str, default: bool) -> bool:
             f"Environment variable '{name}' has invalid value '{value}'"
             " expected one of {1,true,0,false}."
         )
+
+
+@dataclasses.dataclass(frozen=True)
+class TargetPlatform:
+    goos: str
+    goarch: str
+
+
+def _to_goarch(arch: str) -> str:
+    """Returns a valid GOARCH value or the empty string."""
+    return {
+        # amd64 synonyms
+        "amd64": "amd64",
+        "x86_64": "amd64",
+        # arm64 synonyms
+        "arm64": "arm64",
+        "aarch64": "arm64",
+    }.get(arch, "")

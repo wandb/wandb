@@ -50,7 +50,6 @@ type FileStream interface {
 		project string,
 		runID string,
 		offsetMap FileStreamOffsetMap,
-		startTime time.Time,
 	)
 
 	// FinishWithExit marks the run as complete and blocks until all
@@ -144,7 +143,6 @@ func (fs *fileStream) Start(
 	project string,
 	runID string,
 	offsetMap FileStreamOffsetMap,
-	startTime time.Time,
 ) {
 	fs.logger.Debug("filestream: start", "path", fs.path)
 
@@ -154,9 +152,6 @@ func (fs *fileStream) Start(
 		project,
 		runID,
 	)
-
-	// when we resume a run, we need to adjust the start time
-	fs.settings.SetStartTime(startTime)
 
 	transmitChan := fs.startProcessingUpdates(fs.processChan)
 	feedbackChan := fs.startTransmitting(transmitChan, offsetMap)

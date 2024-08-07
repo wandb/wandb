@@ -14,6 +14,7 @@ from wandb.sdk.launch.registry.abstract import AbstractRegistry
 from .._project_spec import LaunchProject
 from ..errors import LaunchError
 from ..utils import (
+    CODE_MOUNT_DIR,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
@@ -121,7 +122,15 @@ class LocalContainerRunner(AbstractRunner):
                 docker_args["network"] = "host"
             if sys.platform == "linux" or sys.platform == "linux2":
                 docker_args["add-host"] = "host.docker.internal:host-gateway"
-
+        base_image = launch_project.job_base_image
+        if base_image is not None:
+            # Mount code into the container and set the working directory.
+            if "volume" not in docker_args:
+                docker_args["volume"] = []
+            docker_args["volume"].append(
+                f"{launch_project.project_dir}:{CODE_MOUNT_DIR}"
+            )
+            docker_args["workdir"] = CODE_MOUNT_DIR
         return docker_args
 
     async def run(
@@ -146,7 +155,7 @@ class LocalContainerRunner(AbstractRunner):
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
-        if launch_project.docker_image:
+        if launch_project.docker_image or launch_project.job_base_image:
             try:
                 pull_docker_image(image_uri)
             except Exception as e:
@@ -156,14 +165,8 @@ class LocalContainerRunner(AbstractRunner):
                         f"Failed to pull docker image {image_uri} with error: {e}"
                     )
 
-            assert launch_project.docker_image == image_uri
-
-        entry_cmd = (
-            launch_project.override_entrypoint.command
-            if launch_project.override_entrypoint is not None
-            else None
-        )
-
+        entrypoint = launch_project.get_job_entry_point()
+        entry_cmd = None if entrypoint is None else entrypoint.command
         command_str = " ".join(
             get_docker_command(
                 image_uri,
