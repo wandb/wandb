@@ -1,6 +1,5 @@
 import atexit
 import os
-import socket
 import threading
 from typing import Optional
 
@@ -86,11 +85,6 @@ class ServiceConnection:
     def make_interface(self, mailbox: "Mailbox") -> "InterfaceBase":
         """Returns an interface for communicating with the service."""
         return InterfaceSock(self._client, mailbox)
-
-    def close(self) -> None:
-        """Ends the connection."""
-        self._client.shutdown(socket.SHUT_RDWR)
-        self._client.close()
 
     def send_record(self, record: "pb.Record") -> None:
         """Sends data to the service."""
