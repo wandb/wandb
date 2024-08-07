@@ -105,7 +105,7 @@ fn gpu_in_use_by_process(device: &Device, pid: i32) -> bool {
 /// Fallback function to return minimal metrics when NVML fails/is not available
 fn sample_metrics_fallback() -> GpuMetrics {
     let mut metrics = BTreeMap::new();
-    metrics.insert("gpu.count".to_string(), json!(0));
+    metrics.insert("_gpu.count".to_string(), json!(0));
     GpuMetrics { metrics }
 }
 
@@ -148,14 +148,14 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
     metrics.insert("cuda_version".to_string(), json!(cuda_version));
 
     let device_count = nvml.device_count()?;
-    metrics.insert("gpu.count".to_string(), json!(device_count));
+    metrics.insert("_gpu.count".to_string(), json!(device_count));
 
     for di in 0..device_count {
         let device = nvml.device_by_index(di)?;
         let gpu_in_use = gpu_in_use_by_process(&device, pid);
 
         let name = device.name()?;
-        metrics.insert(format!("gpu.{}.name", di), json!(name));
+        metrics.insert(format!("_gpu.{}.name", di), json!(name));
 
         let brand = device.brand()?;
         metrics.insert(format!("gpu.{}.brand", di), json!(format!("{:?}", brand)));
@@ -166,7 +166,7 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
 
         if let Ok(encoder_util) = device.encoder_utilization() {
             metrics.insert(
-                format!("gpu.{}.encoderUtilization", di),
+                format!("_gpu.{}.encoderUtilization", di),
                 json!(encoder_util.utilization),
             );
         }

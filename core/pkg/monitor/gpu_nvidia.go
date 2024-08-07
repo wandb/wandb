@@ -221,7 +221,9 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		return nil
 	}
 
+	// no GPU found, so close the GPU monitor
 	if info.GpuCount == 0 {
+		g.Close()
 		return nil
 	}
 
@@ -234,13 +236,13 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	for di := 0; di < int(info.GpuCount); di++ {
 
 		gpuInfo := &service.GpuNvidiaInfo{}
-		name := fmt.Sprintf("gpu.%d.name", di)
+		name := fmt.Sprintf("_gpu.%d.name", di)
 		if v, ok := g.sample[name]; ok {
 			gpuInfo.Name = v.(string)
 			names[di] = gpuInfo.Name
 		}
 
-		memTotal := fmt.Sprintf("gpu.%d.memoryTotal", di)
+		memTotal := fmt.Sprintf("_gpu.%d.memoryTotal", di)
 		if v, ok := g.sample[memTotal]; ok {
 			gpuInfo.MemoryTotal = uint64(v.(float64))
 		}
