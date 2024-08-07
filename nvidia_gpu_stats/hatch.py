@@ -12,8 +12,17 @@ def build_nvidia_gpu_stats(
     cargo_binary: pathlib.Path,
     output_path: pathlib.PurePath,
 ) -> None:
-    pass
+    """Builds the `nvidia_gpu_stats` Rust binary for monitoring NVIDIA GPUs.
 
+    NOTE: Cargo creates a cache under `./target/release` which speeds up subsequent builds,
+    but may grow large over time and/or cause issues when changing the commands here.
+    If you're running into problems, try deleting `./target`.
+
+    Args:
+        cargo_binary: Path to the Cargo binary, which must exist.
+        output_path: The path where to output the binary, relative to the
+            workspace root.
+    """
     source_path = pathlib.Path("./nvidia_gpu_stats")
 
     cmd = (

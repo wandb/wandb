@@ -11,11 +11,11 @@ use serde::Serialize;
 use serde_json::json;
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 use std::collections::BTreeMap;
-use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use sysinfo::{Pid, System};
 
 // Define command-line arguments
 #[derive(Parser, Debug)]
@@ -75,14 +75,13 @@ struct GpuMetrics {
 
 /// Function to get child process IDs for a given parent PID
 fn get_child_pids(pid: i32) -> Vec<i32> {
-    let output = Command::new("pgrep")
-        .args(&["-P", &pid.to_string()])
-        .output()
-        .expect("Failed to execute pgrep");
+    let mut sys = System::new_all();
+    sys.refresh_all();
 
-    String::from_utf8_lossy(&output.stdout)
-        .split_whitespace()
-        .filter_map(|s| s.parse().ok())
+    sys.processes()
+        .values()
+        .filter(|process| process.parent() == Some(Pid::from(pid as usize)))
+        .map(|process| process.pid().as_u32() as i32)
         .collect()
 }
 
