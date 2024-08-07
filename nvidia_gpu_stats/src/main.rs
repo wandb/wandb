@@ -1,6 +1,6 @@
 //! NVIDIA GPU Metrics Monitor
 //!
-//! This program continuosly collects and prints to stdout GPU metrics using NVML.
+//! This program continuously collects and prints to stdout GPU metrics using NVML.
 
 use clap::Parser;
 use nix::unistd::getppid;
