@@ -239,6 +239,10 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		return nil
 	}
 
+	if v, ok := g.sample["cuda_version"]; ok {
+		info.CudaVersion = v.(string)
+	}
+
 	names := make([]string, info.GpuCount)
 
 	for di := 0; di < int(info.GpuCount); di++ {
@@ -253,11 +257,6 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		memTotal := fmt.Sprintf("gpu.%d.memoryTotal", di)
 		if v, ok := g.sample[memTotal]; ok {
 			gpuInfo.MemoryTotal = uint64(v.(float64))
-		}
-
-		cudaVersion := "cudaVersion"
-		if v, ok := g.sample[cudaVersion]; ok {
-			gpuInfo.CudaVersion = v.(string)
 		}
 
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
