@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"sync"
 	"syscall"
@@ -45,6 +46,112 @@ func isRunning(cmd *exec.Cmd) bool {
 
 	err = process.Signal(syscall.Signal(0))
 	return err == nil
+}
+
+type GPUInfo struct {
+	Architecture            string  `json:"architecture"`
+	Brand                   string  `json:"brand"`
+	CudaCores               int     `json:"cudaCores"`
+	EncoderUtilization      int     `json:"encoderUtilization"`
+	EnforcedPowerLimitWatts float64 `json:"enforcedPowerLimitWatts"`
+	GPU                     int     `json:"gpu"`
+	GraphicsClock           int     `json:"graphicsClock"`
+	MaxPcieLinkGen          int     `json:"maxPcieLinkGen"`
+	MaxPcieLinkWidth        int     `json:"maxPcieLinkWidth"`
+	Memory                  int     `json:"memory"`
+	MemoryAllocated         float64 `json:"memoryAllocated"`
+	MemoryAllocatedBytes    int     `json:"memoryAllocatedBytes"`
+	MemoryClock             int     `json:"memoryClock"`
+	MemoryTotal             int     `json:"memoryTotal"`
+	Name                    string  `json:"name"`
+	PcieLinkGen             int     `json:"pcieLinkGen"`
+	PcieLinkSpeed           int     `json:"pcieLinkSpeed"`
+	PcieLinkWidth           int     `json:"pcieLinkWidth"`
+	PowerPercent            float64 `json:"powerPercent"`
+	PowerWatts              float64 `json:"powerWatts"`
+	Temp                    int     `json:"temp"`
+}
+
+type GPUData struct {
+	Timestamp   float64            `json:"_timestamp"`
+	CudaVersion string             `json:"cuda_version"`
+	GPUs        map[string]GPUInfo `json:"-"`
+	GPUCount    int                `json:"gpu.count"`
+}
+
+func (d *GPUData) UnmarshalJSON(data []byte) error {
+	var rawMap map[string]interface{}
+	if err := json.Unmarshal(data, &rawMap); err != nil {
+		return err
+	}
+
+	d.GPUs = make(map[string]GPUInfo)
+
+	for key, value := range rawMap {
+		switch key {
+		case "_timestamp":
+			d.Timestamp = value.(float64)
+		case "cuda_version":
+			d.CudaVersion = value.(string)
+		case "gpu.count":
+			d.GPUCount = int(value.(float64))
+		default:
+			if strings.HasPrefix(key, "gpu.") && strings.Count(key, ".") == 2 {
+				parts := strings.Split(key, ".")
+				gpuIndex := parts[1]
+				field := parts[2]
+
+				if _, exists := d.GPUs[gpuIndex]; !exists {
+					d.GPUs[gpuIndex] = GPUInfo{}
+				}
+
+				gpuInfo := d.GPUs[gpuIndex]
+				setValue(&gpuInfo, field, value)
+				d.GPUs[gpuIndex] = gpuInfo
+			}
+		}
+	}
+
+	return nil
+}
+
+func (d GPUData) MarshalJSON() ([]byte, error) {
+	rawMap := make(map[string]interface{})
+
+	rawMap["_timestamp"] = d.Timestamp
+	rawMap["cuda_version"] = d.CudaVersion
+	rawMap["gpu.count"] = d.GPUCount
+
+	for gpuIndex, gpuInfo := range d.GPUs {
+		v := reflect.ValueOf(gpuInfo)
+		t := v.Type()
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			value := v.Field(i).Interface()
+			key := fmt.Sprintf("gpu.%s.%s", gpuIndex, field.Tag.Get("json"))
+			rawMap[key] = value
+		}
+	}
+
+	return json.Marshal(rawMap)
+}
+
+func setValue(gpuInfo *GPUInfo, field string, value interface{}) {
+	v := reflect.ValueOf(gpuInfo).Elem()
+	f := v.FieldByNameFunc(func(s string) bool {
+		return strings.EqualFold(s, field)
+	})
+
+	if f.IsValid() {
+		switch f.Kind() {
+		case reflect.String:
+			f.SetString(value.(string))
+		case reflect.Int:
+			f.SetInt(int64(value.(float64)))
+		case reflect.Float64:
+			f.SetFloat(value.(float64))
+		}
+	}
 }
 
 type GPUNvidia struct {
@@ -114,6 +221,25 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 				gpu.sample[key] = value
 			}
 			gpu.mutex.Unlock()
+
+			// TODO: try our new struct
+			var d GPUData
+			err := json.Unmarshal([]byte(line), &d)
+			if err != nil {
+				fmt.Println("Error parsing JSON:", err)
+			}
+			fmt.Println("\nParsed JSON:")
+			fmt.Println(d)
+
+			// Marshal back to JSON
+			newJSON, err := json.Marshal(d)
+			if err != nil {
+				fmt.Println("Error marshaling to JSON:", err)
+				return
+			}
+
+			fmt.Println("\nRe-encoded JSON:")
+			fmt.Println(string(newJSON))
 		}
 
 		if err := scanner.Err(); err != nil {
