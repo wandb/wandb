@@ -267,9 +267,9 @@ commands:
           name: Install Rust
           command: |
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain <<parameters.version>>
-            source $HOME/.cargo/env
-            rustup --version
-            cargo --version
+            echo 'export PATH="$HOME/.cargo/bin:$PATH"' >> "$BASH_ENV"
+            $HOME/.cargo/bin/rustup --version
+            $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m
 
   setup_docker_buildx:
