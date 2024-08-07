@@ -64,7 +64,7 @@ struct Args {
 /// gpu.process.{i}.*: Various metrics specific to the monitored process
 ///    (if the GPU is in use by the process). These include GPU utilization, memory utilization,
 ///     temperature, and power consumption.
-/// _timestamp: The Unix timestamp when the metrics were collected.
+/// timestamp: The Unix timestamp when the metrics were collected.
 ///
 /// Note that {i} represents the index of each GPU in the system, starting from 0.
 #[derive(Serialize)]
@@ -104,7 +104,7 @@ fn gpu_in_use_by_process(device: &Device, pid: i32) -> bool {
 /// Fallback function to return minimal metrics when NVML fails/is not available
 fn sample_metrics_fallback() -> GpuMetrics {
     let mut metrics = BTreeMap::new();
-    metrics.insert("_gpu.count".to_string(), json!(0));
+    metrics.insert("gpu.count".to_string(), json!(0));
     GpuMetrics { metrics }
 }
 
@@ -147,14 +147,14 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
     metrics.insert("cuda_version".to_string(), json!(cuda_version));
 
     let device_count = nvml.device_count()?;
-    metrics.insert("_gpu.count".to_string(), json!(device_count));
+    metrics.insert("gpu.count".to_string(), json!(device_count));
 
     for di in 0..device_count {
         let device = nvml.device_by_index(di)?;
         let gpu_in_use = gpu_in_use_by_process(&device, pid);
 
         let name = device.name()?;
-        metrics.insert(format!("_gpu.{}.name", di), json!(name));
+        metrics.insert(format!("gpu.{}.name", di), json!(name));
 
         let brand = device.brand()?;
         metrics.insert(format!("gpu.{}.brand", di), json!(format!("{:?}", brand)));
@@ -165,7 +165,7 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
 
         if let Ok(encoder_util) = device.encoder_utilization() {
             metrics.insert(
-                format!("_gpu.{}.encoderUtilization", di),
+                format!("gpu.{}.encoderUtilization", di),
                 json!(encoder_util.utilization),
             );
         }
@@ -183,7 +183,7 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
         }
 
         let memory_info = device.memory_info()?;
-        metrics.insert(format!("_gpu.{}.memoryTotal", di), json!(memory_info.total));
+        metrics.insert(format!("gpu.{}.memoryTotal", di), json!(memory_info.total));
         let memory_allocated = (memory_info.used as f64 / memory_info.total as f64) * 100.0;
         metrics.insert(
             format!("gpu.{}.memoryAllocated", di),
@@ -242,36 +242,36 @@ fn sample_metrics(nvml: &Nvml, pid: i32, cuda_version: String) -> Result<GpuMetr
         // Not reported to the backend, but could be useful for debugging
         // and may be added in the future.
         let graphics_clock = device.clock_info(Clock::Graphics)?;
-        metrics.insert(format!("_gpu.{}.graphicsClock", di), json!(graphics_clock));
+        metrics.insert(format!("gpu.{}.graphicsClock", di), json!(graphics_clock));
 
         let mem_clock = device.clock_info(Clock::Memory)?;
-        metrics.insert(format!("_gpu.{}.memoryClock", di), json!(mem_clock));
+        metrics.insert(format!("gpu.{}.memoryClock", di), json!(mem_clock));
 
         let link_gen = device.current_pcie_link_gen()?;
-        metrics.insert(format!("_gpu.{}.pcieLinkGen", di), json!(link_gen));
+        metrics.insert(format!("gpu.{}.pcieLinkGen", di), json!(link_gen));
 
         if let Ok(link_speed) = device.pcie_link_speed().map(u64::from).map(|x| x * 1000000) {
-            metrics.insert(format!("_gpu.{}.pcieLinkSpeed", di), json!(link_speed));
+            metrics.insert(format!("gpu.{}.pcieLinkSpeed", di), json!(link_speed));
         }
 
         let link_width = device.current_pcie_link_width()?;
-        metrics.insert(format!("_gpu.{}.pcieLinkWidth", di), json!(link_width));
+        metrics.insert(format!("gpu.{}.pcieLinkWidth", di), json!(link_width));
 
         let max_link_gen = device.max_pcie_link_gen()?;
-        metrics.insert(format!("_gpu.{}.maxPcieLinkGen", di), json!(max_link_gen));
+        metrics.insert(format!("gpu.{}.maxPcieLinkGen", di), json!(max_link_gen));
 
         let max_link_width = device.max_pcie_link_width()?;
         metrics.insert(
-            format!("_gpu.{}.maxPcieLinkWidth", di),
+            format!("gpu.{}.maxPcieLinkWidth", di),
             json!(max_link_width),
         );
 
         let cuda_cores = device.num_cores()?;
-        metrics.insert(format!("_gpu.{}.cudaCores", di), json!(cuda_cores));
+        metrics.insert(format!("gpu.{}.cudaCores", di), json!(cuda_cores));
 
         let architecture = device.architecture()?;
         metrics.insert(
-            format!("_gpu.{}.architecture", di),
+            format!("gpu.{}.architecture", di),
             json!(format!("{:?}", architecture)),
         );
     }
@@ -329,7 +329,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Add timestamp to metrics
         gpu_metrics
             .metrics
-            .insert("_timestamp".to_string(), json!(timestamp));
+            .insert("timestamp".to_string(), json!(timestamp));
 
         // Convert metrics to JSON and print to stdout for collection
         // TODO: Add error handling for JSON serialization

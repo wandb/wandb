@@ -5,11 +5,13 @@ package monitor
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -49,31 +51,31 @@ func isRunning(cmd *exec.Cmd) bool {
 }
 
 type GPUInfo struct {
-	Architecture            string  `json:"architecture"`
-	Brand                   string  `json:"brand"`
-	CudaCores               int     `json:"cudaCores"`
-	EncoderUtilization      int     `json:"encoderUtilization"`
+	Architecture            string  `json:"architecture,omitempty" marshal:"-"`
+	Brand                   string  `json:"brand,omitempty" marshal:"-"`
+	CudaCores               int     `json:"cudaCores,omitempty" marshal:"-"`
+	EncoderUtilization      int     `json:"encoderUtilization,omitempty" marshal:"-"`
 	EnforcedPowerLimitWatts float64 `json:"enforcedPowerLimitWatts"`
 	GPU                     int     `json:"gpu"`
-	GraphicsClock           int     `json:"graphicsClock"`
-	MaxPcieLinkGen          int     `json:"maxPcieLinkGen"`
-	MaxPcieLinkWidth        int     `json:"maxPcieLinkWidth"`
+	GraphicsClock           int     `json:"graphicsClock,omitempty" marshal:"-"`
+	MaxPcieLinkGen          int     `json:"maxPcieLinkGen,omitempty" marshal:"-"`
+	MaxPcieLinkWidth        int     `json:"maxPcieLinkWidth,omitempty" marshal:"-"`
 	Memory                  int     `json:"memory"`
 	MemoryAllocated         float64 `json:"memoryAllocated"`
 	MemoryAllocatedBytes    int     `json:"memoryAllocatedBytes"`
-	MemoryClock             int     `json:"memoryClock"`
-	MemoryTotal             int     `json:"memoryTotal"`
-	Name                    string  `json:"name"`
-	PcieLinkGen             int     `json:"pcieLinkGen"`
-	PcieLinkSpeed           int     `json:"pcieLinkSpeed"`
-	PcieLinkWidth           int     `json:"pcieLinkWidth"`
+	MemoryClock             int     `json:"memoryClock,omitempty" marshal:"-"`
+	MemoryTotal             int     `json:"memoryTotal,omitempty" marshal:"-"`
+	Name                    string  `json:"name,omitempty" marshal:"-"`
+	PcieLinkGen             int     `json:"pcieLinkGen,omitempty" marshal:"-"`
+	PcieLinkSpeed           int     `json:"pcieLinkSpeed,omitempty" marshal:"-"`
+	PcieLinkWidth           int     `json:"pcieLinkWidth,omitempty" marshal:"-"`
 	PowerPercent            float64 `json:"powerPercent"`
 	PowerWatts              float64 `json:"powerWatts"`
 	Temp                    int     `json:"temp"`
 }
 
 type GPUData struct {
-	Timestamp   float64            `json:"_timestamp"`
+	Timestamp   float64            `json:"timestamp"`
 	CudaVersion string             `json:"cuda_version"`
 	GPUs        map[string]GPUInfo `json:"-"`
 	GPUCount    int                `json:"gpu.count"`
@@ -89,12 +91,18 @@ func (d *GPUData) UnmarshalJSON(data []byte) error {
 
 	for key, value := range rawMap {
 		switch key {
-		case "_timestamp":
-			d.Timestamp = value.(float64)
+		case "timestamp":
+			if f, ok := value.(float64); ok {
+				d.Timestamp = f
+			}
 		case "cuda_version":
-			d.CudaVersion = value.(string)
+			if s, ok := value.(string); ok {
+				d.CudaVersion = s
+			}
 		case "gpu.count":
-			d.GPUCount = int(value.(float64))
+			if f, ok := value.(float64); ok {
+				d.GPUCount = int(f)
+			}
 		default:
 			if strings.HasPrefix(key, "gpu.") && strings.Count(key, ".") == 2 {
 				parts := strings.Split(key, ".")
@@ -118,15 +126,14 @@ func (d *GPUData) UnmarshalJSON(data []byte) error {
 func (d GPUData) MarshalJSON() ([]byte, error) {
 	rawMap := make(map[string]interface{})
 
-	rawMap["_timestamp"] = d.Timestamp
-	rawMap["cuda_version"] = d.CudaVersion
-	rawMap["gpu.count"] = d.GPUCount
-
 	for gpuIndex, gpuInfo := range d.GPUs {
 		v := reflect.ValueOf(gpuInfo)
 		t := v.Type()
 		for i := 0; i < v.NumField(); i++ {
 			field := t.Field(i)
+			if field.Tag.Get("marshal") == "-" {
+				continue // Skip this field
+			}
 			value := v.Field(i).Interface()
 			key := fmt.Sprintf("gpu.%s.%s", gpuIndex, field.Tag.Get("json"))
 			rawMap[key] = value
@@ -156,7 +163,7 @@ func setValue(gpuInfo *GPUInfo, field string, value interface{}) {
 
 type GPUNvidia struct {
 	name     string
-	sample   map[string]any   // latest reading from nvidia_gpu_stats command
+	sample   *GPUData         // latest reading from nvidia_gpu_stats command
 	metrics  map[string][]any // all readings
 	settings *service.Settings
 	mutex    sync.RWMutex
@@ -166,7 +173,6 @@ type GPUNvidia struct {
 func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	gpu := &GPUNvidia{
 		name:     "gpu",
-		sample:   map[string]any{},
 		metrics:  map[string][]any{},
 		settings: settings,
 	}
@@ -210,36 +216,18 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 			line := scanner.Text()
 
 			// Try to parse the line as JSON
-			var data map[string]any
-			if err := json.Unmarshal([]byte(line), &data); err != nil {
-				continue
-			}
-
-			// Process the JSON data
-			gpu.mutex.Lock()
-			for key, value := range data {
-				gpu.sample[key] = value
-			}
-			gpu.mutex.Unlock()
-
-			// TODO: try our new struct
-			var d GPUData
-			err := json.Unmarshal([]byte(line), &d)
+			var data GPUData
+			err := json.Unmarshal([]byte(line), &data)
 			if err != nil {
 				fmt.Println("Error parsing JSON:", err)
 			}
 			fmt.Println("\nParsed JSON:")
-			fmt.Println(d)
+			fmt.Println(data)
 
-			// Marshal back to JSON
-			newJSON, err := json.Marshal(d)
-			if err != nil {
-				fmt.Println("Error marshaling to JSON:", err)
-				return
-			}
-
-			fmt.Println("\nRe-encoded JSON:")
-			fmt.Println(string(newJSON))
+			// Process the JSON data
+			gpu.mutex.Lock()
+			gpu.sample = &data
+			gpu.mutex.Unlock()
 		}
 
 		if err := scanner.Err(); err != nil {
@@ -260,18 +248,44 @@ func (g *GPUNvidia) SampleMetrics() {
 		return
 	}
 
-	// do not sample if the last timestamp is the same
-	currentTimestamp, ok := g.sample["_timestamp"]
-	if !ok {
-		return
-	}
+	// Check if the last timestamp is the same
+	currentTimestamp := g.sample.Timestamp
 	lastTimestamps, ok := g.metrics["_timestamp"]
 	if ok && len(lastTimestamps) > 0 && lastTimestamps[len(lastTimestamps)-1] == currentTimestamp {
 		return
 	}
 
-	for key, value := range g.sample {
-		g.metrics[key] = append(g.metrics[key], value)
+	// Add timestamp
+	g.metrics["_timestamp"] = append(g.metrics["_timestamp"], currentTimestamp)
+
+	// Add GPU specific metrics
+	for gpuIndex, gpuInfo := range g.sample.GPUs {
+		v := reflect.ValueOf(gpuInfo)
+		t := v.Type()
+		for i := 0; i < v.NumField(); i++ {
+			field := t.Field(i)
+			value := v.Field(i).Interface()
+			if field.Tag.Get("marshal") == "-" {
+				continue // Skip this field
+			}
+			key := fmt.Sprintf("gpu.%s.%s", gpuIndex, field.Tag.Get("json"))
+
+			// Convert value to float64
+			var floatValue float64
+			switch v := value.(type) {
+			case int:
+				floatValue = float64(v)
+			case float64:
+				floatValue = v
+			case string:
+				floatValue, _ = strconv.ParseFloat(v, 64)
+			default:
+				// Skip fields that can't be converted to float64
+				continue
+			}
+
+			g.metrics[key] = append(g.metrics[key], floatValue)
+		}
 	}
 }
 
@@ -322,32 +336,41 @@ func (g *GPUNvidia) Close() {
 	}
 }
 
+func (g *GPUNvidia) waitForFirstSample() error {
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		g.mutex.RLock()
+		sampleExists := g.sample != nil
+		g.mutex.RUnlock()
+
+		if sampleExists {
+			return nil
+		}
+
+		if !isRunning(g.cmd) {
+			return errors.New("command stopped running before first sample")
+		}
+
+		time.Sleep(100 * time.Millisecond)
+	}
+	return errors.New("timeout waiting for first sample")
+}
+
 func (g *GPUNvidia) Probe() *service.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
 
 	// wait for the first sample
-	for {
-		g.mutex.RLock()
-		_, ok := g.sample["_gpu.count"]
-		g.mutex.RUnlock()
-		if ok {
-			break
-		}
-		// sleep for a while
-		time.Sleep(100 * time.Millisecond)
+	if err := g.waitForFirstSample(); err != nil {
+		return nil
 	}
 
 	info := service.MetadataRequest{
 		GpuNvidia: []*service.GpuNvidiaInfo{},
 	}
 
-	if count, ok := g.sample["_gpu.count"].(float64); ok {
-		info.GpuCount = uint32(count)
-	} else {
-		return nil
-	}
+	info.GpuCount = uint32(g.sample.GPUCount)
 
 	// no GPU found, so close the GPU monitor
 	if info.GpuCount == 0 {
@@ -355,28 +378,17 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		return nil
 	}
 
-	if v, ok := g.sample["cuda_version"]; ok {
-		info.CudaVersion = v.(string)
-	}
+	info.CudaVersion = g.sample.CudaVersion
 
 	names := make([]string, info.GpuCount)
 
 	for di := 0; di < int(info.GpuCount); di++ {
-
 		gpuInfo := &service.GpuNvidiaInfo{}
-		name := fmt.Sprintf("_gpu.%d.name", di)
-		if v, ok := g.sample[name]; ok {
-			gpuInfo.Name = v.(string)
-			names[di] = gpuInfo.Name
-		}
-
-		memTotal := fmt.Sprintf("_gpu.%d.memoryTotal", di)
-		if v, ok := g.sample[memTotal]; ok {
-			gpuInfo.MemoryTotal = uint64(v.(float64))
-		}
+		gpuInfo.Name = g.sample.GPUs[strconv.Itoa(di)].Name
+		names[di] = gpuInfo.Name
+		gpuInfo.MemoryTotal = uint64(g.sample.GPUs[strconv.Itoa(di)].MemoryTotal)
 
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
-
 	}
 
 	info.GpuType = "[" + strings.Join(names, ", ") + "]"
