@@ -304,7 +304,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sampling_start = Instant::now();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_secs_f64();
 
         // Sample GPU metrics
@@ -332,6 +332,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             .insert("_timestamp".to_string(), json!(timestamp));
 
         // Convert metrics to JSON and print to stdout for collection
+        // TODO: Add error handling for JSON serialization
         let json_output = serde_json::to_string(&gpu_metrics.metrics).unwrap();
         println!("{}", json_output);
 
