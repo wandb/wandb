@@ -21,6 +21,7 @@ else:
     from typing_extensions import Literal, TypedDict
 
 import numpy as np
+
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
@@ -29,7 +30,6 @@ from wandb.sdk.lib.paths import LogicalPath
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
-
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy.typing as npt
