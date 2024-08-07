@@ -8,8 +8,6 @@ import tempfile
 import time
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from sympy import E
-
 import wandb
 from wandb import util
 from wandb.data_types import Table
