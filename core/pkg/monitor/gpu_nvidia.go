@@ -17,7 +17,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// getCmdPath returns the path to the nvidia_gpu_stats program
+// getCmdPath returns the path to the nvidia_gpu_stats program.
 func getCmdPath() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
