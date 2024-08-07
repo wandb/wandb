@@ -21,8 +21,6 @@ from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
-from .service_base import ServiceInterface
-from .service_sock import ServiceSockInterface
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -31,25 +29,18 @@ if TYPE_CHECKING:
 class ServiceStartProcessError(Error):
     """Raised when a known error occurs when launching wandb service."""
 
-    pass
-
 
 class ServiceStartTimeoutError(Error):
     """Raised when service start times out."""
-
-    pass
 
 
 class ServiceStartPortError(Error):
     """Raised when service start fails to find a port."""
 
-    pass
-
 
 class _Service:
     _settings: "Settings"
     _sock_port: Optional[int]
-    _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
     _startup_debug_enabled: bool
 
@@ -64,10 +55,6 @@ class _Service:
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
         _sentry.configure_scope(tags=dict(settings), process_context="service")
-
-        # current code only supports socket server implementation, in the
-        # future we might be able to support both
-        self._service_interface = ServiceSockInterface()
 
     def _startup_debug_print(self, message: str) -> None:
         if not self._startup_debug_enabled:
@@ -255,10 +242,6 @@ class _Service:
     @property
     def sock_port(self) -> Optional[int]:
         return self._sock_port
-
-    @property
-    def service_interface(self) -> ServiceInterface:
-        return self._service_interface
 
     def join(self) -> int:
         ret = 0

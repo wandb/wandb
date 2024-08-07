@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
 
-from . import wandb_manager, wandb_settings
+from . import wandb_settings
 from .lib import config_util, server, tracelog
 
 Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
@@ -27,6 +27,8 @@ Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
 Logger = Union[logging.Logger, "_EarlyLogger"]
 
 if TYPE_CHECKING:
+    from wandb.sdk.lib import service_connection
+
     from . import wandb_run
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -81,7 +83,7 @@ class _EarlyLogger:
 class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
-    _manager: Optional[wandb_manager._Manager]
+    _connection: "Optional[service_connection.ServiceConnection]"
     _pid: int
 
     def __init__(
@@ -94,7 +96,6 @@ class _WandbSetup__WandbSetup:  # noqa: N801
         self._sweep_config: Optional[Dict[str, Any]] = None
         self._config: Optional[Dict[str, Any]] = None
         self._server: Optional[server.Server] = None
-        self._manager: Optional[wandb_manager._Manager] = None
         self._pid = pid
 
         # keep track of multiple runs, so we can unwind with join()s
@@ -247,7 +248,10 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             print("frozen, could be trouble")
 
     def _setup(self) -> None:
-        self._setup_manager()
+        if not self._settings._disable_service:
+            from wandb.sdk.lib import service_connection
+
+            self._connection = service_connection.connect_to_service(self._settings)
 
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
@@ -268,22 +272,21 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                     self._config = config_dict
 
     def _teardown(self, exit_code: Optional[int] = None) -> None:
-        if not self._manager:
+        if not self._connection:
             return
 
-        internal_exit_code = self._manager._teardown(exit_code or 0)
-        self._manager = None
+        internal_exit_code = self._connection.teardown(exit_code or 0)
+
+        # Reset to None so that setup() creates a new connection.
+        self._connection = None
 
         if internal_exit_code != 0:
             sys.exit(internal_exit_code)
 
-    def _setup_manager(self) -> None:
-        if self._settings._disable_service:
-            return
-        self._manager = wandb_manager._Manager(settings=self._settings)
-
-    def _get_manager(self) -> Optional[wandb_manager._Manager]:
-        return self._manager
+    @property
+    def service(self) -> "Optional[service_connection.ServiceConnection]":
+        """Returns a connection to the service process, if it exists."""
+        return self._connection
 
 
 class _WandbSetup:
@@ -301,6 +304,13 @@ class _WandbSetup:
             _WandbSetup._instance._update(settings=settings)
             return
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
+
+    @property
+    def service(self) -> "Optional[service_connection.ServiceConnection]":
+        """Returns a connection to the service process, if it exists."""
+        if not self._instance:
+            return None
+        return self._instance.service
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._instance, name)
