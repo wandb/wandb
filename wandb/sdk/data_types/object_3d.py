@@ -115,7 +115,7 @@ def _quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
         raise _install_numpy_error() from e
 
     # Precompute a few products to simplify the expression below.
-    qr, qi, qj, qk = _normalize_quat(np.asarray(quaternion))
+    qr, qi, qj, qk = _normalize_quat(np.asarray(quaternion, dtype=np.float64))
     qii, qjj, qkk = qi**2, qj**2, qk**2
     qij, qik, qjk = qi * qj, qi * qk, qj * qk
     qir, qjr, qkr = qi * qr, qj * qr, qk * qr
@@ -125,7 +125,8 @@ def _quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
             (1 - 2 * (qjj + qkk), 2 * (qij + qkr), 2 * (qik - qjr)),
             (2 * (qij - qkr), 1 - 2 * (qii + qkk), 2 * (qjk + qir)),
             (2 * (qik + qjr), 2 * (qjk - qir), 1 - 2 * (qii + qjj)),
-        )
+        ),
+        dtype=np.float64,
     )
 
 
@@ -156,14 +157,17 @@ def box3d(
     except ImportError as e:
         raise _install_numpy_error() from e
 
-    center = np.asarray(center)
-    size = np.asarray(size)
+    center = np.asarray(center, dtype=np.float64)
+    size = np.asarray(size, dtype=np.float64)
 
     # Precompute the rotation matrix.
     rot = _quaternion_to_rotation(orientation)
 
     # Scale, rotate and translate each corner of the unit box.
-    unit_corners = np.array(list(itertools.product((-1, 1), (-1, 1), (-1, 1))))
+    unit_corners = np.array(
+        list(itertools.product((-1, 1), (-1, 1), (-1, 1))),
+        dtype=np.float64,
+    )
     corners = center + (0.5 * size * unit_corners) @ rot
 
     return {
