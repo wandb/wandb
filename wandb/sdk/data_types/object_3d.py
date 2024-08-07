@@ -20,8 +20,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
-import numpy as np
-
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
@@ -32,6 +30,7 @@ from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
+    import numpy as np
     import numpy.typing as npt
 
     from wandb.sdk.artifacts.artifact import Artifact
@@ -80,6 +79,12 @@ if TYPE_CHECKING:  # pragma: no cover
         target: Sequence[Point3D]
 
 
+def _install_numpy_error() -> "wandb.Error":
+    return wandb.Error(
+        "wandb.Object3D requires NumPy. To get it, run 'pip install numpy'."
+    )
+
+
 def euler_angles(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
     """Constructs a quaternion from Euler angles.
 
@@ -98,6 +103,11 @@ def euler_angles(xrad: float, yrad: float, zrad: float) -> "np.ndarray":
         then rotating about the global Y axis, then rotating about the
         global Z axis by the same angles.
     """
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
     c = np.cos((xrad / 2, yrad / 2, zrad / 2))
     s = np.sin((xrad / 2, yrad / 2, zrad / 2))
     return np.array(
@@ -117,6 +127,11 @@ def quaternion_to_rotation(quaternion: "npt.ArrayLike") -> "np.ndarray":
     post-multiplication: `x @ R`. This way, it can be used to
     transform an Nx3 NumPy array of points as `points @ R`.
     """
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
     # First, normalize the quaternion.
     s = np.linalg.norm(quaternion)
     qr, qi, qj, qk = quaternion / s
@@ -157,6 +172,11 @@ def box3d(
         label: An optional label for the box.
         score: An optional score for the box.
     """
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
     center = np.array(center)
     size = np.array(size)
 
@@ -170,7 +190,7 @@ def box3d(
     return {
         # Ignore the type because mypy can't infer that the list has length 8:
         # https://github.com/python/mypy/issues/7509
-        "corners": tuple(corners),  # type: ignore
+        "corners": tuple(tuple(pt) for pt in corners),  # type: ignore
         "color": color,
         "label": label,
         "score": score,

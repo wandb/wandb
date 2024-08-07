@@ -74,6 +74,8 @@ from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
+from wandb.data_types import box3d
+from wandb.data_types import euler_angles
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
@@ -245,6 +247,8 @@ __all__ = (
     "Audio",
     "Table",
     "Html",
+    "box3d",
+    "euler_angles",
     "Object3D",
     "Molecule",
     "Histogram",
