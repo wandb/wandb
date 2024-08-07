@@ -44,7 +44,6 @@ func isRunning(cmd *exec.Cmd) bool {
 	}
 
 	err = process.Signal(syscall.Signal(0))
-	fmt.Println("err", err)
 	return err == nil
 }
 
@@ -81,43 +80,29 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		fmt.Sprintf("--pid=%d", settings.XStatsPid.GetValue()),
 		fmt.Sprintf("--interval=%f", samplingInterval),
 	)
-	fmt.Println("cmd", gpu.cmd)
 
 	// get a pipe to read from the command's stdout
 	stdout, err := gpu.cmd.StdoutPipe()
 	if err != nil {
-		fmt.Println("error getting stdout pipe from nvidia_gpu_stats", err)
 		return gpu
 	}
 
 	if err := gpu.cmd.Start(); err != nil {
-		fmt.Println("error starting nvidia_gpu_stats", err)
 		return gpu
-	}
-
-	// check if the command is running
-	if !isRunning(gpu.cmd) {
-		fmt.Println("nvidia_gpu_stats is not running")
 	}
 
 	// read and process nvidia_gpu_stats output in a separate goroutine.
 	// nvidia_gpu_stats outputs JSON data for each GPU every sampling interval.
 	go func() {
-		fmt.Println("reading from nvidia_gpu_stats")
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
 
-			fmt.Println("line", line)
-
 			// Try to parse the line as JSON
 			var data map[string]any
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
-				fmt.Println("error parsing JSON data from nvidia_gpu_stats:", err)
 				continue
 			}
-
-			fmt.Println("data", data)
 
 			// Process the JSON data
 			gpu.mutex.Lock()
@@ -142,13 +127,11 @@ func (g *GPUNvidia) SampleMetrics() {
 	defer g.mutex.Unlock()
 
 	if !isRunning(g.cmd) {
-		fmt.Println("nvidia_gpu_stats is not running")
 		return
 	}
 
 	// do not sample if the last timestamp is the same
 	currentTimestamp, ok := g.sample["_timestamp"]
-	fmt.Println("currentTimestamp", currentTimestamp)
 	if !ok {
 		return
 	}
@@ -160,7 +143,6 @@ func (g *GPUNvidia) SampleMetrics() {
 	for key, value := range g.sample {
 		g.metrics[key] = append(g.metrics[key], value)
 	}
-	fmt.Println("g.metrics", g.metrics)
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
