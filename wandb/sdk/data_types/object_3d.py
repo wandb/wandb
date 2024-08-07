@@ -98,6 +98,8 @@ def _normalize_vec(x: "np.ndarray") -> "np.ndarray":
     if x[argmax] == 0:
         raise ValueError("Unexpected zero quaternion.")
 
+    # Rescale by the largest component first to be more numerically
+    # stable than dividing by the norm directly.
     x = x / x[argmax]
     return x / np.linalg.norm(x)
 
