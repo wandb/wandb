@@ -1,6 +1,7 @@
 package runconsolelogs_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
-	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -26,7 +26,8 @@ func TestFileStreamUpdates(t *testing.T) {
 		ConsoleOutputFile: *outputFile,
 		Settings:          settings,
 		Logger:            observability.NewNoOpLogger(),
-		ExtraWork:         runworktest.New(),
+		Ctx:               context.Background(),
+		LoopbackChan:      make(chan<- *service.Record, 10),
 		FileStreamOrNil:   fileStream,
 		GetNow: func() time.Time {
 			return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)

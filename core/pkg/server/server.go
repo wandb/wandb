@@ -26,7 +26,6 @@ type ServerParams struct {
 	PortFilename    string
 	ParentPid       int
 	SentryClient    *sentry_ext.Client
-	Commit          string
 }
 
 // Server is the core server
@@ -50,9 +49,6 @@ type Server struct {
 
 	// parentPid is the parent pid to watch and exit if it goes away
 	parentPid int
-
-	// commit is the W&B Git commit hash
-	commit string
 }
 
 // NewServer creates a new server
@@ -78,7 +74,6 @@ func NewServer(
 		wg:           sync.WaitGroup{},
 		parentPid:    params.ParentPid,
 		sentryClient: params.SentryClient,
-		commit:       params.Commit,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -153,14 +148,8 @@ func (s *Server) serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				NewConnection(
-					s.ctx,
-					s.cancel,
-					conn,
-					s.sentryClient,
-					s.commit,
-				).HandleConnection()
-
+				nc := NewConnection(s.ctx, s.cancel, conn, s.sentryClient)
+				nc.HandleConnection()
 				s.wg.Done()
 			}()
 		}

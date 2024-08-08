@@ -13,7 +13,6 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -92,8 +91,8 @@ type SystemMonitor struct {
 	// assets is the list of assets to monitor
 	assets []Asset
 
-	// extraWork accepts outgoing messages for the run
-	extraWork runwork.ExtraWork
+	//	outChan is the channel for outgoing messages
+	outChan chan *service.Record
 
 	// Buffer is the metrics buffer for the system monitor
 	buffer *Buffer
@@ -115,7 +114,7 @@ type SystemMonitor struct {
 func NewSystemMonitor(
 	logger *observability.CoreLogger,
 	settings *service.Settings,
-	extraWork runwork.ExtraWork,
+	outChan chan *service.Record,
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()
 	var buffer *Buffer
@@ -130,7 +129,7 @@ func NewSystemMonitor(
 		wg:               sync.WaitGroup{},
 		settings:         settings,
 		logger:           logger,
-		extraWork:        extraWork,
+		outChan:          outChan,
 		buffer:           buffer,
 		samplingInterval: defaultSamplingInterval,
 		samplesToAverage: defaultSamplesToAverage,
@@ -188,10 +187,11 @@ func (sm *SystemMonitor) Do() {
 	go func() {
 		systemInfo := sm.Probe()
 		if systemInfo != nil {
-			sm.extraWork.AddRecordOrCancel(
-				sm.ctx.Done(),
-				makeMetadataRecord(systemInfo),
-			)
+			select {
+			case <-sm.ctx.Done():
+				return
+			case sm.outChan <- makeMetadataRecord(systemInfo):
+			}
 		}
 	}()
 }
@@ -273,10 +273,11 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 				}
 
 				// publish metrics
-				sm.extraWork.AddRecordOrCancel(
-					sm.ctx.Done(),
-					makeStatsRecord(aggregatedMetrics, ts),
-				)
+				select {
+				case <-sm.ctx.Done():
+					return
+				case sm.outChan <- makeStatsRecord(aggregatedMetrics, ts):
+				}
 			})
 		}
 	}

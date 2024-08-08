@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -43,7 +42,7 @@ type TBHandler struct {
 	// wg is done after all work is done.
 	wg sync.WaitGroup
 
-	extraWork     runwork.ExtraWork
+	outChan       chan<- *service.Record
 	logger        *observability.CoreLogger
 	settings      *settings.Settings
 	hostname      string
@@ -70,7 +69,7 @@ type TBHandler struct {
 }
 
 type Params struct {
-	runwork.ExtraWork
+	OutputRecords chan<- *service.Record
 
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
@@ -85,7 +84,7 @@ func NewTBHandler(params Params) *TBHandler {
 	}
 
 	tb := &TBHandler{
-		extraWork:     params.ExtraWork,
+		outChan:       params.OutputRecords,
 		logger:        params.Logger,
 		settings:      params.Settings,
 		hostname:      params.Hostname,
@@ -321,20 +320,19 @@ func (tb *TBHandler) convertToRunHistory(
 }
 
 func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) {
-	tb.extraWork.AddRecord(
-		&service.Record{
-			RecordType: &service.Record_Request{
-				Request: &service.Request{
-					RequestType: &service.Request_PartialHistory{
-						PartialHistory: request,
-					},
+	tb.outChan <- &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_PartialHistory{
+					PartialHistory: request,
 				},
 			},
+		},
 
-			// Don't persist the record to the transaction log---
-			// the data already exists in tfevents files.
-			Control: &service.Control{Local: true},
-		})
+		// Don't persist the record to the transaction log---
+		// the data already exists in tfevents files.
+		Control: &service.Control{Local: true},
+	}
 }
 
 func (tb *TBHandler) saveFiles(
@@ -400,16 +398,15 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	}
 
 	// Write a record indicating that the file should be uploaded.
-	tb.extraWork.AddRecord(
-		&service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{
-						{Policy: service.FilesItem_END, Path: string(relPath)},
-					},
+	tb.outChan <- &service.Record{
+		RecordType: &service.Record_Files{
+			Files: &service.FilesRecord{
+				Files: []*service.FilesItem{
+					{Policy: service.FilesItem_END, Path: string(relPath)},
 				},
 			},
-		})
+		},
+	}
 }
 
 // getNamespace computes the namespace corresponding to a log directory.
