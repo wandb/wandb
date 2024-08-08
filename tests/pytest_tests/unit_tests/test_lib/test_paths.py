@@ -4,7 +4,7 @@ import re
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 
 import pytest
-from wandb.sdk.lib.paths import LogicalPath
+from wandb.sdk.lib.paths import LocalPath, LogicalPath
 from wandb.util import to_forward_slash_path
 
 
@@ -140,6 +140,15 @@ def test_logical_path_is_idempotent():
             assert logical_path == to_forward_slash_path(logical_path)
 
 
+def test_local_path_is_idempotent():
+    for path in pathological_paths():
+        local_path = LocalPath(path)
+        assert local_path == LocalPath(local_path)
+        if not isinstance(path, bytes):
+            assert local_path == str(local_path)
+            assert local_path == Path(local_path)
+
+
 def test_logical_path_round_trip():
     for path in pathological_paths():
         logical_path = LogicalPath(path)
@@ -170,9 +179,47 @@ def test_logical_path_acts_like_posix_path():
         assert PurePosixPath(itself) == ppp
 
 
+def test_local_path_acts_like_path():
+    for path in pathological_path_strings():
+        local_path = LocalPath(path)
+        pathlib_path = Path(path)
+        assert local_path.is_absolute() == pathlib_path.is_absolute()
+        assert local_path.parts == pathlib_path.parts
+        assert not local_path.is_reserved()
+        if local_path.is_absolute():
+            assert local_path.root == "/" or local_path.root == "//"
+            assert local_path.as_uri() == pathlib_path.as_uri()
+            assert not local_path.relative_to(local_path.root).is_absolute()
+        else:
+            assert local_path.anchor == ""
+        assert local_path / Path("/foo") == LocalPath("/foo")
+
+        itself = local_path.joinpath("bar").parent
+        assert isinstance(itself, LocalPath)
+        assert Path(itself) == pathlib_path
+
+
 def test_logical_path_joins_like_pathlib():
     base_path_set = pathological_path_strings(max_length=3)
     for path1, path2 in itertools.product(base_path_set, repeat=2):
         lp1 = LogicalPath(path1)
         lp2 = LogicalPath(path2)
+        ppp1 = PurePosixPath(path1)
+        ppp2 = PurePosixPath(path2)
         assert lp1.joinpath(lp2) == lp1 / path2
+
+        assert (lp1 == ppp2) == (ppp1 == ppp2)
+        assert (lp1 != ppp2) == (ppp1 != ppp2)
+
+
+def test_local_path_joins_like_posix_path():
+    base_path_set = pathological_path_strings(max_length=3)
+    for path1, path2 in itertools.product(base_path_set, repeat=2):
+        lp1 = LocalPath(path1)
+        lp2 = LocalPath(path2)
+        p1 = Path(path1)
+        p2 = Path(path2)
+        assert lp1.joinpath(lp2) == lp1 / path2
+
+        assert (lp1 == p2) == (p1 == p2)
+        assert (lp1 != p2) == (p1 != p2)
