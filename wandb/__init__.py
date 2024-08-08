@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.6.dev1"
+__version__ = "0.17.7.dev1"
 
 
 # Used with pypi checks and other messages related to pip
@@ -71,6 +71,7 @@ from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
+from wandb.data_types import box3d
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
@@ -242,6 +243,7 @@ __all__ = (
     "Audio",
     "Table",
     "Html",
+    "box3d",
     "Object3D",
     "Molecule",
     "Histogram",
