@@ -250,6 +250,8 @@ message Deprecated {
 
   // wandb.run.define_metric() called with summary="copy"
   bool run__define_metric_copy = 15;
+
+  bool run_disabled = 16;  // wandb.sdk.lib.disabled.RunDisabled used
 }
 
 message Issues {
