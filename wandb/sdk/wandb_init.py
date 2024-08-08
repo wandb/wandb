@@ -533,9 +533,6 @@ class _WandbInit:
 
         The returned Run object has all expected attributes and methods, but they are
         no-op versions that don't perform any actual logging or communication.
-
-        Returns:
-            Run: A disabled Run object with no-op methods and attributes.
         """
         drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
         # config and summary objects
