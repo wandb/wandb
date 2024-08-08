@@ -1089,13 +1089,14 @@ class Run:
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__mode,
+                warning_message=(
+                    "The mode property of wandb.run is deprecated "
+                    "and will be removed in a future release."
+                ),
+            )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -2158,12 +2159,13 @@ class Run:
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__join,
-            warning_message=(
-                "wandb.run.join() is deprecated, please use wandb.run.finish()."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__join,
+                warning_message=(
+                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
+                ),
+            )
         self._finish(exit_code=exit_code)
 
     @_run_decorator._noop_on_finish()
@@ -2368,11 +2370,7 @@ class Run:
             return
         self._atexit_cleanup_called = True
 
-        exit_code = (
-            exit_code  #
-            or (self._hooks and self._hooks.exit_code)
-            or 0
-        )
+        exit_code = exit_code or (self._hooks and self._hooks.exit_code) or 0
         self._exit_code = exit_code
         logger.info(f"got exitcode: {exit_code}")
 
