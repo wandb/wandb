@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -112,6 +113,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 	if err != nil {
 		return err
 	}
+	req.Header.Set("Content-Length", strconv.Itoa(int(task.Size)))
 	for _, header := range task.Headers {
 		parts := strings.SplitN(header, ":", 2)
 		if len(parts) != 2 {
