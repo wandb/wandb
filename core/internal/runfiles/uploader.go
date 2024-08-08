@@ -2,6 +2,7 @@ package runfiles
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -80,7 +81,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 	defer u.stateMu.Unlock()
 
 	// Ignore file records in sync mode---we just upload everything at the end.
-	if u.settings.Proto.GetXSync().GetValue() {
+	if u.settings.IsSync() {
 		return
 	}
 
@@ -115,10 +116,10 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			}); err != nil {
 				u.logger.CaptureError(
 					fmt.Errorf(
-						"runfiles: error watching file %s: %v",
-						file.GetPath(),
+						"runfiles: error watching file: %v",
 						err,
-					))
+					),
+					"path", file.GetPath())
 			}
 
 		case service.FilesItem_END:
@@ -273,11 +274,12 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 		if len(createRunFilesResponse.CreateRunFiles.Files) != len(runPaths) {
 			u.logger.CaptureError(
-				fmt.Errorf(
-					"runfiles: CreateRunFiles returned %d files but expected %d",
-					len(createRunFilesResponse.CreateRunFiles.Files),
-					len(runPaths),
-				))
+				errors.New(
+					"runfiles: CreateRunFiles returned"+
+						" unexpected number of files"),
+				"actual", len(createRunFilesResponse.CreateRunFiles.Files),
+				"expected", len(runPaths),
+			)
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}

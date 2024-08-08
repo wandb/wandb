@@ -130,7 +130,7 @@ def test_get_requirements_section_user_provided_requirements(
     ) == PIP_TEMPLATE.format(
         buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/requirements.txt",
-        pip_install="pip install -r requirements.txt",
+        pip_install="pip install uv && uv pip install -r requirements.txt",
     )
     warn_msgs = mocker.termwarn.call_args.args
     assert any(
@@ -198,7 +198,7 @@ def test_get_requirements_section_pyproject(
     ) == PIP_TEMPLATE.format(
         buildx_optional_prefix="RUN WANDB_DISABLE_CACHE=true",
         requirements_files="src/requirements.txt",  # We convert into this format.
-        pip_install="pip install -r requirements.txt",
+        pip_install="pip install uv && uv pip install -r requirements.txt",
     )
     warn_msgs = mocker.termwarn.call_args.args
     assert any(

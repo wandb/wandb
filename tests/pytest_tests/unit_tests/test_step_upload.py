@@ -95,6 +95,7 @@ def make_api(**kwargs: Any) -> Mock:
         **{
             "upload_urls": Mock(wraps=mock_upload_urls),
             "upload_file_retry": Mock(wraps=mock_upload_file_retry),
+            "_extra_http_headers": {},
             **kwargs,
         },
     )

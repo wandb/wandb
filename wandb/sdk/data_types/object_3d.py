@@ -1,4 +1,5 @@
 import codecs
+import itertools
 import json
 import os
 import sys
@@ -19,7 +20,6 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal, TypedDict
 
-
 import wandb
 from wandb import util
 from wandb.sdk.lib import runid
@@ -31,6 +31,7 @@ from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np
+    import numpy.typing as npt
 
     from wandb.sdk.artifacts.artifact import Artifact
 
@@ -50,7 +51,9 @@ if TYPE_CHECKING:  # pragma: no cover
     Point3DWithColors = Tuple[numeric, numeric, numeric, numeric, numeric, numeric]
     Point = Union[Point3D, Point3DWithCategory, Point3DWithColors]
     PointCloudType = Literal["lidar/beta"]
-    RGBColor = Tuple[int, int, int]
+    RGBColor = Tuple[numeric, numeric, numeric]
+
+    Quaternion = Tuple[numeric, numeric, numeric, numeric]
 
     class Box3D(TypedDict):
         corners: Tuple[
@@ -74,6 +77,114 @@ if TYPE_CHECKING:  # pragma: no cover
     class Camera(TypedDict):
         viewpoint: Sequence[Point3D]
         target: Sequence[Point3D]
+
+
+def _install_numpy_error() -> "wandb.Error":
+    return wandb.Error(
+        "wandb.Object3D requires NumPy. To get it, run 'pip install numpy'."
+    )
+
+
+def _normalize_vec(x: "np.ndarray") -> "np.ndarray":
+    """Normalizes a non-zero 1-dimensional array."""
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
+    x = abs(x)
+    argmax = x.argmax()
+
+    if x[argmax] == 0:
+        raise ValueError("Unexpected zero quaternion.")
+
+    # Rescale by the largest component first to be more numerically
+    # stable than dividing by the norm directly.
+    x = x / x[argmax]
+    return x / np.linalg.norm(x)
+
+
+def _quaternion_to_rotation(quaternion: "np.ndarray") -> "np.ndarray":
+    """Returns the rotation matrix corresponding to a non-zero quaternion.
+
+    The corresponding rotation matrix transforms column vectors by
+    post-multiplication: `x @ R`. This way, it can be used to
+    transform an Nx3 NumPy array of points as `points @ R`.
+    """
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
+    # Precompute a few products to simplify the expression below.
+    qr, qi, qj, qk = _normalize_vec(quaternion)
+    qii, qjj, qkk = qi**2, qj**2, qk**2
+    qij, qik, qjk = qi * qj, qi * qk, qj * qk
+    qir, qjr, qkr = qi * qr, qj * qr, qk * qr
+
+    return np.array(
+        (
+            (1 - 2 * (qjj + qkk), 2 * (qij + qkr), 2 * (qik - qjr)),
+            (2 * (qij - qkr), 1 - 2 * (qii + qkk), 2 * (qjk + qir)),
+            (2 * (qik + qjr), 2 * (qjk - qir), 1 - 2 * (qii + qjj)),
+        ),
+        dtype=np.float64,
+    )
+
+
+def box3d(
+    *,
+    center: "npt.ArrayLike",
+    size: "npt.ArrayLike",
+    orientation: "npt.ArrayLike",
+    color: "RGBColor",
+    label: "Optional[str]" = None,
+    score: "Optional[numeric]" = None,
+) -> "Box3D":
+    """Returns a Box3D.
+
+    Args:
+        center: The center point of the box as a length-3 ndarray.
+        size: The box's X, Y and Z dimensions as a length-3 ndarray.
+        orientation: The rotation transforming global XYZ coordinates
+            into the box's local XYZ coordinates, given as a length-4
+            ndarray [r, x, y, z] corresponding to the non-zero quaternion
+            r + xi + yj + zk.
+        color: The box's color as an (r, g, b) tuple with 0 <= r,g,b <= 1.
+        label: An optional label for the box.
+        score: An optional score for the box.
+    """
+    try:
+        import numpy as np
+    except ImportError as e:
+        raise _install_numpy_error() from e
+
+    center = np.asarray(center, dtype=np.float64)
+    size = np.asarray(size, dtype=np.float64)
+    orientation = np.asarray(orientation, dtype=np.float64)
+
+    assert center.shape == (3,)
+    assert size.shape == (3,)
+    assert orientation.shape == (4,)
+
+    # Precompute the rotation matrix.
+    rot = _quaternion_to_rotation(orientation)
+
+    # Scale, rotate and translate each corner of the unit box.
+    unit_corners = np.array(
+        list(itertools.product((-1, 1), (-1, 1), (-1, 1))),
+        dtype=np.float64,
+    )
+    corners = center + (0.5 * size * unit_corners) @ rot
+
+    return {
+        # Ignore the type because mypy can't infer that the list has length 8:
+        # https://github.com/python/mypy/issues/7509
+        "corners": tuple(tuple(pt) for pt in corners),  # type: ignore
+        "color": color,
+        "label": label,
+        "score": score,
+    }
 
 
 class Object3D(BatchableMedia):

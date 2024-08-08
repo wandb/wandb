@@ -30,15 +30,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import (
-    RunDisabled,
-    SummaryDisabled,
-    filesystem,
-    ipython,
-    module,
-    reporting,
-    telemetry,
-)
+from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.printer import Printer, get_printer
@@ -323,6 +315,15 @@ class _WandbInit:
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
 
+        # TODO: remove this once we refactor the client. This is a temporary
+        # fix to make sure that we use the same project name for wandb-core.
+        # The reason this is not going throught the settings object is to
+        # avoid failure cases in other parts of the code that will be
+        # removed with the switch to wandb-core.
+        if settings.project is None:
+            project = wandb.util.auto_project_name(settings.program)
+            settings.update({"project": project}, source=Source.INIT)
+
         # TODO(jhr): should this be moved? probably.
         settings._set_run_start_time(source=Source.INIT)
 
@@ -520,20 +521,18 @@ class _WandbInit:
         logger.info(f"Logging user logs to {settings.log_user}")
         logger.info(f"Logging internal logs to {settings.log_internal}")
 
-    def _make_run_disabled(self) -> RunDisabled:
-        drun = RunDisabled()
-        drun.config = wandb.wandb_sdk.wandb_config.Config()
-        drun.config.update(self.sweep_config)
-        drun.config.update(self.config)
-        drun.summary = SummaryDisabled()
-        drun.log = lambda data, *_, **__: drun.summary.update(data)
-        drun.finish = lambda *_, **__: module.unset_globals()
-        drun.step = 0
-        drun.resumed = False
-        drun.disabled = True
-        drun.id = runid.generate_id()
-        drun.name = "dummy-" + drun.id
-        drun.dir = tempfile.gettempdir()
+    def _make_run_disabled(self) -> Run:
+        drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        drun._config = wandb.wandb_sdk.wandb_config.Config()
+        drun._config.update(self.sweep_config)
+        drun._config.update(self.config)
+        drun.summary = SummaryDisabled()  # type: ignore
+        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
+        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
+        drun._step = 0
+        drun._run_obj = None
+        drun._run_id = runid.generate_id()
+        drun._name = "dummy-" + drun.id
         module.set_global(
             run=drun,
             config=drun.config,
@@ -554,7 +553,7 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self) -> Union[Run, RunDisabled]:  # noqa: C901
+    def init(self) -> Run:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
@@ -691,6 +690,12 @@ class _WandbInit:
                 tel.feature.flow_control_custom = True
             if self.settings._require_core:
                 tel.feature.core = True
+            if self.settings._shared:
+                wandb.termwarn(
+                    "The `_shared` feature is experimental and may change. "
+                    "Please contact support@wandb.com for guidance and to report any issues."
+                )
+                tel.feature.shared_mode = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
@@ -844,7 +849,7 @@ def _attach(
     run_id: Optional[str] = None,
     *,
     run: Optional["Run"] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Optional[Run]:
     """Attach to a run currently executing in another process/thread.
 
     Arguments:
@@ -898,7 +903,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init(settings=settings)
+        run._init()
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
@@ -948,7 +953,7 @@ def init(
     fork_from: Optional[str] = None,
     resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, RunDisabled]:
+) -> Run:
     r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
@@ -989,8 +994,9 @@ def init(
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
-            the new run. If the project is not specified, the run is put in an
-            "Uncategorized" project.
+            the new run. If the project is not specified, we will try to infer
+            the project name from git root or the current program file. If we
+            can't infer the project name, we will default to `"uncategorized"`.
         entity: (str, optional) An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before

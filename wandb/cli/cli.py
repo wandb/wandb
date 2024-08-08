@@ -678,7 +678,7 @@ def sync(
     skip_console=None,
 ):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync offline runs")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -916,7 +916,7 @@ def sweep(
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
         api = _get_cling_api()
-        if api.api_key is None:
+        if not api.is_authenticated:
             wandb.termlog("Login to W&B to use the sweep feature")
             ctx.invoke(login, no_offline=True)
             api = _get_cling_api(reset=True)
@@ -959,7 +959,7 @@ def sweep(
         return ret
 
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1136,7 +1136,7 @@ def launch_sweep(
 ):
     api = _get_cling_api()
     env = os.environ
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1318,6 +1318,7 @@ def launch_sweep(
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
         prior_runs=prior_runs,
+        template_variable_values=scheduler_args.get("template_variables", None),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
@@ -1817,7 +1818,7 @@ def launch_agent(
 @display_error
 def agent(ctx, project, entity, count, sweep_id):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1841,7 +1842,7 @@ def scheduler(
     sweep_id,
 ):
     api = InternalApi()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)

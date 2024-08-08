@@ -8,11 +8,14 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
+import gzip
 import logging
 import os
 import sys
 import time
 from abc import abstractmethod
+from pathlib import Path
+from secrets import token_hex
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -46,6 +49,8 @@ from ..data_types.utils import history_dict_to_json, val_to_json
 from ..lib.mailbox import MailboxHandle
 from . import summary_record as sr
 from .message_future import MessageFuture
+
+MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 
@@ -334,6 +339,12 @@ class InterfaceBase:
         proto_manifest.version = artifact_manifest.version()
         proto_manifest.storage_policy = artifact_manifest.storage_policy.name()
 
+        # Very large manifests need to be written to file to avoid protobuf size limits.
+        if len(artifact_manifest) > MANIFEST_FILE_SIZE_THRESHOLD:
+            path = self._write_artifact_manifest_file(artifact_manifest)
+            proto_manifest.manifest_file_path = path
+            return proto_manifest
+
         for k, v in artifact_manifest.storage_policy.config().items() or {}.items():
             cfg = proto_manifest.storage_policy_config.add()
             cfg.key = k
@@ -358,7 +369,19 @@ class InterfaceBase:
                 proto_extra.value_json = json.dumps(v)
         return proto_manifest
 
-    def publish_link_artifact(
+    def _write_artifact_manifest_file(self, manifest: ArtifactManifest) -> str:
+        manifest_dir = Path(get_staging_dir()) / "artifact_manifests"
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        # It would be simpler to use `manifest.to_json()`, but that gets very slow for
+        # large manifests since it encodes the whole thing as a single JSON object.
+        filename = f"{time.time()}_{token_hex(8)}.manifest_contents.jl.gz"
+        manifest_file_path = manifest_dir / filename
+        with gzip.open(manifest_file_path, mode="wt", compresslevel=1) as f:
+            for entry in manifest.entries.values():
+                f.write(f"{json.dumps(entry.to_json())}\n")
+        return str(manifest_file_path)
+
+    def deliver_link_artifact(
         self,
         run: "Run",
         artifact: "Artifact",
@@ -366,8 +389,8 @@ class InterfaceBase:
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
-    ) -> None:
-        link_artifact = pb.LinkArtifactRecord()
+    ) -> MailboxHandle:
+        link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
             link_artifact.client_id = artifact._client_id
         else:
@@ -377,10 +400,12 @@ class InterfaceBase:
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
 
-        self._publish_link_artifact(link_artifact)
+        return self._deliver_link_artifact(link_artifact)
 
     @abstractmethod
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
+    def _deliver_link_artifact(
+        self, link_artifact: pb.LinkArtifactRequest
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     @staticmethod
@@ -749,6 +774,7 @@ class InterfaceBase:
         self,
         include_paths: List[List[str]],
         exclude_paths: List[List[str]],
+        input_schema: Optional[dict],
         run_config: bool = False,
         file_path: str = "",
     ):
@@ -766,6 +792,8 @@ class InterfaceBase:
         Args:
             include_paths: paths within config to include as job inputs.
             exclude_paths: paths within config to exclude as job inputs.
+            input_schema: A JSON Schema describing which attributes will be
+                editable from the Launch drawer.
             run_config: bool indicating whether wandb.config is the input source.
             file_path: path to file to include as a job input.
         """
@@ -788,6 +816,8 @@ class InterfaceBase:
                 pb.JobInputSource.ConfigFileSource(path=file_path),
             )
         request.input_source.CopyFrom(source)
+        if input_schema:
+            request.input_schema = json_dumps_safer(input_schema)
 
         return self._publish_job_input(request)
 

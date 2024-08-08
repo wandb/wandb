@@ -2,6 +2,7 @@ package utils
 
 import (
 	"crypto/md5"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"io"
@@ -15,6 +16,13 @@ func ComputeB64MD5(data []byte) string {
 	// hasher.Write can't fail; the returned values are just to implement io.Writer
 	_, _ = hasher.Write(data)
 	return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
+}
+
+// ComputeHexMD5 returns the MD5 hash of data as a hexadecimal string.
+func ComputeHexMD5(data []byte) string {
+	hasher := md5.New()
+	_, _ = hasher.Write(data)
+	return hex.EncodeToString(hasher.Sum(nil))
 }
 
 // ComputeFileB64MD5 computes the MD5 hash of the file at the given path and returns the
@@ -64,4 +72,11 @@ func HexToB64(data string) (string, error) {
 	}
 	b64Str := base64.StdEncoding.EncodeToString(buf)
 	return b64Str, nil
+}
+
+// ComputeSHA256 computes the SHA256 hash of the given data.
+func ComputeSHA256(data []byte) []byte {
+	hasher := sha256.New()
+	hasher.Write(data)
+	return hasher.Sum(nil)
 }

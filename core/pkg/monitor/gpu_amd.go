@@ -3,14 +3,13 @@
 package monitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
-
-	"github.com/segmentio/encoding/json"
 
 	"github.com/wandb/wandb/core/pkg/service"
 )
@@ -39,6 +38,7 @@ type GPUAMD struct {
 	settings            *service.Settings
 	metrics             map[string][]float64
 	GetROCMSMIStatsFunc func() (InfoDict, error)
+	IsAvailableFunc     func() bool
 	mutex               sync.RWMutex
 }
 
@@ -67,6 +67,10 @@ func GetRocmSMICmd() (string, error) {
 }
 
 func (g *GPUAMD) IsAvailable() bool {
+	if g.IsAvailableFunc != nil {
+		return g.IsAvailableFunc()
+	}
+
 	_, err := GetRocmSMICmd()
 	if err != nil {
 		return false
@@ -121,6 +125,9 @@ func (g *GPUAMD) getCards() map[int]Stats {
 
 //gocyclo:ignore
 func (g *GPUAMD) Probe() *service.MetadataRequest {
+	if !g.IsAvailable() {
+		return nil
+	}
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
@@ -172,7 +179,7 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 	for _, stats := range cards {
 		gpuInfo := service.GpuAmdInfo{}
 		for key, statKey := range keyMapping {
-			if value, ok := stats[statKey].(string); ok {
+			if value, ok := queryMapString(stats, statKey); ok {
 				switch key {
 				case "Id":
 					gpuInfo.Id = value
@@ -228,10 +235,10 @@ func getROCMSMIStats() (InfoDict, error) {
 	}
 
 	var stats InfoDict
-	err = json.Unmarshal(output, &stats)
-	if err != nil {
+	if err := json.Unmarshal(output, &stats); err != nil {
 		return nil, err
 	}
+
 	return stats, nil
 }
 
@@ -258,7 +265,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 			return nil
 		},
 		"Average Graphics Package Power (W)": func(s string) *Stats {
-			maxPowerWatts, ok := stats["Max Graphics Package Power (W)"].(string)
+			maxPowerWatts, ok := queryMapString(stats, "Max Graphics Package Power (W)")
 			if !ok {
 				return nil
 			}
@@ -272,7 +279,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 			return nil
 		},
 	} {
-		strVal, ok := stats[key].(string)
+		strVal, ok := queryMapString(stats, key)
 		if ok {
 			partialStats := statFunc(strVal)
 			if partialStats != nil {

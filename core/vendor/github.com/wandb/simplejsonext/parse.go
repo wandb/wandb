@@ -53,7 +53,7 @@ type Parser interface {
 	// returned.
 	Parse() (any, error)
 	// ParseObject parses JSON from the front of the contained data as a
-	// simply-typed JSON object and return it. If the JSON is a value of a type
+	// simply-typed JSON object and returns it. If the JSON is a value of a type
 	// other than object, an error will be returned. If the data is empty, the
 	// exact error io.EOF will be returned.
 	ParseObject() (map[string]any, error)
@@ -921,7 +921,7 @@ func stringNoCopy(b []byte) (view string) {
 	if len(b) == 0 {
 		return ""
 	}
-	return unsafe.String(&b[0], len(b))
+	return unsafe.String(unsafe.SliceData(b), len(b))
 }
 
 // []byte("9223372036854775807"), int64_max as text

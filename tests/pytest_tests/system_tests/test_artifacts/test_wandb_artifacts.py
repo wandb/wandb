@@ -138,7 +138,7 @@ def mock_gcs(artifact, path=False, hash=True):
 
 
 @pytest.fixture
-def mock_azure_handler():
+def mock_azure_handler():  # noqa: C901
     class BlobServiceClient:
         def __init__(self, account_url, credential):
             pass
@@ -180,22 +180,47 @@ def mock_azure_handler():
             raise Exception("Blob does not exist")
 
     class BlobProperties:
-        def __init__(self, name, version_id, etag, size):
+        def __init__(self, name, version_id, etag, size, metadata):
             self.name = name
             self.version_id = version_id
             self.etag = etag
             self.size = size
+            self.metadata = metadata
+
+        def has_key(self, k):
+            return k in self.__dict__
 
     blobs = [
         BlobProperties(
-            "my-blob", version_id=None, etag="my-blob version None", size=42
+            "my-blob",
+            version_id=None,
+            etag="my-blob version None",
+            size=42,
+            metadata={},
         ),
-        BlobProperties("my-blob", version_id="v2", etag="my-blob version v2", size=42),
         BlobProperties(
-            "my-dir/a", version_id=None, etag="my-dir/a version None", size=42
+            "my-blob", version_id="v2", etag="my-blob version v2", size=42, metadata={}
         ),
         BlobProperties(
-            "my-dir/b", version_id=None, etag="my-dir/b version None", size=42
+            "my-dir/a",
+            version_id=None,
+            etag="my-dir/a version None",
+            size=42,
+            metadata={},
+        ),
+        BlobProperties(
+            "my-dir/b",
+            version_id=None,
+            etag="my-dir/b version None",
+            size=42,
+            metadata={},
+        ),
+        BlobProperties(
+            "my-dir",
+            version_id=None,
+            etag="my-dir version None",
+            size=0,
+            metadata={"hdi_isfolder": "true"},
         ),
     ]
 

@@ -1,5 +1,7 @@
 """sender."""
 
+import contextlib
+import gzip
 import json
 import logging
 import os
@@ -66,6 +68,7 @@ else:
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
+        ArtifactManifestEntry,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -105,22 +108,18 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
 
 def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     if manifest.version == 1:
-        contents = {
-            content.path: {
-                "digest": content.digest,
-                "birthArtifactID": content.birth_artifact_id
-                if content.birth_artifact_id
-                else None,
-                "ref": content.ref if content.ref else None,
-                "size": content.size if content.size is not None else None,
-                "local_path": content.local_path if content.local_path else None,
-                "skip_cache": content.skip_cache,
-                "extra": {
-                    extra.key: json.loads(extra.value_json) for extra in content.extra
-                },
+        if manifest.manifest_file_path:
+            contents = {}
+            with gzip.open(manifest.manifest_file_path, "rt") as f:
+                for line in f:
+                    entry_json = json.loads(line)
+                    path = entry_json.pop("path")
+                    contents[path] = entry_json
+        else:
+            contents = {
+                content.path: _manifest_entry_from_proto(content)
+                for content in manifest.contents
             }
-            for content in manifest.contents
-        }
     else:
         raise ValueError(f"unknown artifact manifest version: {manifest.version}")
 
@@ -132,6 +131,19 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
             for config in manifest.storage_policy_config
         },
         "contents": contents,
+    }
+
+
+def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
+    birth_artifact_id = entry.birth_artifact_id if entry.birth_artifact_id else None
+    return {
+        "digest": entry.digest,
+        "birthArtifactID": birth_artifact_id,
+        "ref": entry.ref if entry.ref else None,
+        "size": entry.size if entry.size is not None else None,
+        "local_path": entry.local_path if entry.local_path else None,
+        "skip_cache": entry.skip_cache,
+        "extra": {extra.key: json.loads(extra.value_json) for extra in entry.extra},
     }
 
 
@@ -1473,8 +1485,13 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def send_link_artifact(self, record: "Record") -> None:
-        link = record.link_artifact
+    def send_request_link_artifact(self, record: "Record") -> None:
+        if not (record.control.req_resp or record.control.mailbox_slot):
+            raise ValueError(
+                f"Expected either `req_resp` or `mailbox_slot`, got: {record.control!r}"
+            )
+        result = proto_util._result_from_record(record)
+        link = record.request.link_artifact
         client_id = link.client_id
         server_id = link.server_id
         portfolio_name = link.portfolio_name
@@ -1490,7 +1507,9 @@ class SendManager:
                     client_id, server_id, portfolio_name, entity, project, aliases
                 )
             except Exception as e:
+                result.response.log_artifact_response.error_message = f'error linking artifact to "{entity}/{project}/{portfolio_name}"; error: {e}'
                 logger.warning("Failed to link artifact to portfolio: %s", e)
+        self._respond_result(result)
 
     def send_use_artifact(self, record: "Record") -> None:
         """Pretend to send a used artifact.
@@ -1579,6 +1598,10 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
+
+        if artifact.manifest.manifest_file_path:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(artifact.manifest.manifest_file_path)
         return res
 
     def send_alert(self, record: "Record") -> None:

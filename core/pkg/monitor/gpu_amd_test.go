@@ -3,9 +3,8 @@
 package monitor_test
 
 import (
+	"encoding/json"
 	"testing"
-
-	"github.com/segmentio/encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/monitor"
@@ -73,6 +72,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 
 func TestGPUAMD_Probe(t *testing.T) {
 	gpu := monitor.NewGPUAMD(nil)
+	gpu.IsAvailableFunc = func() bool { return true }
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	info := gpu.Probe()
 	assert.Equal(t, info.GpuCount, uint32(2))

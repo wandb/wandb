@@ -230,7 +230,7 @@ class HandleManager:
     def handle_files(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def handle_link_artifact(self, record: Record) -> None:
+    def handle_request_link_artifact(self, record: Record) -> None:
         self._dispatch_record(record)
 
     def handle_use_artifact(self, record: Record) -> None:

@@ -2,14 +2,17 @@ package filestream
 
 import (
 	"fmt"
+	"time"
+	"unsafe"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 // StatsUpdate contains system metrics during the run, e.g. memory usage.
 type StatsUpdate struct {
-	Record *service.StatsRecord
+	StartTime time.Time
+	Record    *service.StatsRecord
 }
 
 func (u *StatsUpdate) Apply(ctx UpdateContext) error {
@@ -20,25 +23,28 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 	row["_wandb"] = true
 	timestamp := float64(u.Record.GetTimestamp().Seconds) + float64(u.Record.GetTimestamp().Nanos)/1e9
 	row["_timestamp"] = timestamp
-	row["_runtime"] = timestamp - ctx.Settings.XStartTime.GetValue()
+	row["_runtime"] = u.Record.Timestamp.AsTime().Sub(u.StartTime).Seconds()
 
 	for _, item := range u.Record.Item {
-		var val interface{}
-		if err := json.Unmarshal([]byte(item.ValueJson), &val); err != nil {
+		val, err := simplejsonext.UnmarshalString(item.ValueJson)
+		if err != nil {
+			// TODO(corruption): Remove after data corruption is resolved.
+			valueJSONLen := min(50, len(item.ValueJson))
+			valueJSON := item.ValueJson[:valueJSONLen]
+
 			ctx.Logger.CaptureError(
-				fmt.Errorf(
-					"filestream: failed to marshal StatsItem for key %s: %v",
-					item.Key,
-					err,
-				))
+				fmt.Errorf("filestream: failed to marshal StatsItem: %v", err),
+				"key", item.Key,
+				"&key", unsafe.StringData(item.Key),
+				"value_json[:50]", valueJSON,
+				"&value_json", unsafe.StringData(item.ValueJson))
 			continue
 		}
 
 		row["system."+item.Key] = val
 	}
 
-	// marshal the row
-	line, err := json.Marshal(row)
+	line, err := simplejsonext.Marshal(row)
 	switch {
 	case err != nil:
 		// This is a non-blocking failure, so we don't return an error.
@@ -55,18 +61,10 @@ func (u *StatsUpdate) Apply(ctx UpdateContext) error {
 			"max", maxFileLineBytes,
 		)
 	default:
-		ctx.ModifyRequest(&collectorStatsUpdate{
-			lines: []string{string(line)},
+		ctx.MakeRequest(&FileStreamRequest{
+			EventsLines: []string{string(line)},
 		})
 	}
 
 	return nil
-}
-
-type collectorStatsUpdate struct {
-	lines []string
-}
-
-func (u *collectorStatsUpdate) Apply(state *CollectorState) {
-	state.EventsLines = append(state.EventsLines, u.lines...)
 }

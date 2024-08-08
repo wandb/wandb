@@ -308,7 +308,9 @@ class LaunchAgent:
         self._wandb_run = None
 
         if self.gorilla_supports_agents:
-            settings = wandb.Settings(silent=True, disable_git=True)
+            settings = wandb.Settings(
+                silent=True, disable_git=True, disable_job_creation=True
+            )
             self._wandb_run = wandb.init(
                 project=self._project,
                 entity=self._entity,
@@ -715,7 +717,7 @@ class LaunchAgent:
         _, build_config, registry_config = construct_agent_configs(
             default_config, override_build_config
         )
-        image_uri = project.docker_image
+        image_uri = project.docker_image or project.job_base_image
         entrypoint = project.get_job_entry_point()
         environment = loader.environment_from_config(
             default_config.get("environment", {})
@@ -725,7 +727,11 @@ class LaunchAgent:
         backend = loader.runner_from_config(
             resource, api, backend_config, environment, registry
         )
-        if not (project.docker_image or isinstance(backend, LocalProcessRunner)):
+        if not (
+            project.docker_image
+            or project.job_base_image
+            or isinstance(backend, LocalProcessRunner)
+        ):
             assert entrypoint is not None
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
 

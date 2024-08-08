@@ -1,158 +1,189 @@
 package runsummary_test
 
 import (
-	"reflect"
-	"sort"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-func TestApplyUpdate(t *testing.T) {
+func TestExplicitSummary(t *testing.T) {
+	rs := runsummary.New()
 
-	rh := runsummary.New(runsummary.Params{})
-	summary := &service.SummaryRecord{
-		Update: []*service.SummaryItem{
-			{
-				Key:       "setting1",
-				ValueJson: "69",
-			},
-			{
-				NestedKey: []string{"config", "setting2"},
-				ValueJson: `{"value": 42}`,
-			},
-		},
-	}
-
-	rh.ApplyChangeRecord(summary,
-		func(err error) {
-			t.Error("onError should not be called", err)
-		})
-
-	expectedTree := pathtree.TreeData{
-		"setting1": int64(69),
-		"config": pathtree.TreeData{
-			"setting2": pathtree.TreeData{
-				"value": int64(42),
-			},
-		},
-	}
-
-	if !reflect.DeepEqual(rh.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rh.Tree())
-	}
-}
-
-func TestApplyRemove(t *testing.T) {
-
-	rs := runsummary.NewFrom(pathtree.TreeData{
-		"setting0": float32(69),
-		"config": pathtree.TreeData{
-			"setting1": int64(42),
-			"setting2": "goodbye",
-		},
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "x",
+		ValueJson: "123",
 	})
-	summary := &service.SummaryRecord{
-		Remove: []*service.SummaryItem{
-			{
-				NestedKey: []string{"config", "setting2"},
-			},
-		},
-	}
-
-	rs.ApplyChangeRecord(summary,
-		func(err error) {
-			t.Error("onError should not be called", err)
-		})
-
-	expectedTree := pathtree.TreeData{
-		"setting0": float32(69),
-		"config": pathtree.TreeData{
-			"setting1": int64(42),
-		},
-	}
-
-	if !reflect.DeepEqual(rs.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, rs.Tree())
-	}
-}
-
-func key(item *service.SummaryItem) []string {
-	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
-	}
-	return []string{item.GetKey()}
-}
-
-// TestApplyUpdateSpecialValues checks behavior with NaN and Inf values.
-// These values are supported by our special json package and should not return an error.
-func TestApplyUpdateSpecialValues(t *testing.T) {
-
-	rs := runsummary.New(runsummary.Params{})
-	summary := &service.SummaryRecord{
-		Update: []*service.SummaryItem{
-			{
-				Key:       "nan",
-				ValueJson: `NaN`,
-			},
-			{
-				Key:       "inf",
-				ValueJson: `Infinity`,
-			},
-			{
-				NestedKey: []string{"special", "ninf"},
-				ValueJson: `-Infinity`,
-			},
-		},
-	}
-	rs.ApplyChangeRecord(summary,
-		func(err error) {
-			t.Error("onError should not be called", err)
-		})
-
-	actualItems, err := rs.Flatten()
-	if err != nil {
-		t.Fatal("Flatten failed:", err)
-	}
-
-	expectedItems := summary.Update
-
-	// Sort slices by joining keys into a single string for comparison
-	// (since order is not guaranteed)
-	sort.Slice(actualItems, func(i, j int) bool {
-		return strings.Join(key(actualItems[i]), ".") <
-			strings.Join(key(actualItems[j]), ".")
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "y",
+		ValueJson: "10.5",
+	})
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "z",
+		ValueJson: `"abc"`,
 	})
 
-	sort.Slice(expectedItems, func(i, j int) bool {
-		return strings.Join(key(expectedItems[i]), ".") <
-			strings.Join(key(expectedItems[j]), ".")
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": 123,
+			"y": 10.5,
+			"z": "abc"
+		}`,
+		string(encoded))
+}
+
+func TestSummaryTypes(t *testing.T) {
+	rs := runsummary.New()
+	rh1 := runhistory.New()
+	rh2 := runhistory.New()
+	rh3 := runhistory.New()
+	rh1.SetInt(pathtree.PathOf("x"), 1)
+	rh2.SetFloat(pathtree.PathOf("x"), 3.0)
+	rh3.SetFloat(pathtree.PathOf("x"), 2.3)
+
+	rs.ConfigureMetric(
+		pathtree.PathOf("x"), false,
+		runsummary.Min|runsummary.Max|runsummary.Mean|runsummary.Latest,
+	)
+	_, _ = rs.UpdateSummaries(rh1)
+	_, _ = rs.UpdateSummaries(rh2)
+	_, _ = rs.UpdateSummaries(rh3)
+
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": {
+				"min": 1,
+				"max": 3.0,
+				"mean": 2.1,
+				"last": 2.3
+			}
+		}`,
+		string(encoded))
+}
+
+func TestNestedKey(t *testing.T) {
+	rs := runsummary.New()
+	rh := runhistory.New()
+	rh.SetFloat(
+		pathtree.PathOf("x", "y", "z"),
+		1.4,
+	)
+
+	_, _ = rs.UpdateSummaries(rh)
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		NestedKey: []string{"a", "b", "c"},
+		ValueJson: `{"value": 1}`,
 	})
 
-	if !reflect.DeepEqual(actualItems, expectedItems) {
-		t.Errorf("Expected %v, got %v", expectedItems, actualItems)
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": {"y": {"z": 1.4}},
+			"a": {"b": {"c": {"value": 1}}}
+		}`,
+		string(encoded))
+}
+
+func TestRemove(t *testing.T) {
+	rs := runsummary.New()
+
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		NestedKey: []string{"x", "y"},
+		ValueJson: "1",
+	})
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		NestedKey: []string{"z", "w"},
+		ValueJson: "2",
+	})
+	rs.Remove(pathtree.PathOf("x", "y"))
+
+	encoded, err := rs.Serialize()
+	require.NoError(t, err)
+	assert.JSONEq(t,
+		`{"z": {"w": 2}}`,
+		string(encoded))
+}
+
+func TestNoSummary(t *testing.T) {
+	rs := runsummary.New()
+
+	rs.ConfigureMetric(pathtree.PathOf("x"), true /*noSummary*/, 0)
+	_ = rs.SetFromRecord(&service.SummaryItem{Key: "x", ValueJson: "1"})
+
+	assert.Empty(t, rs.ToNestedMaps())
+	encoded, err := rs.Serialize()
+	assert.NoError(t, err)
+	assert.Equal(t, "{}", string(encoded))
+}
+
+func TestToRecords(t *testing.T) {
+	rs := runsummary.New()
+
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "x",
+		ValueJson: "Infinity",
+	})
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		NestedKey: []string{"y", "z"},
+		ValueJson: "NaN",
+	})
+	rs.ConfigureMetric(pathtree.PathOf("none"), true, 0)
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "none",
+		ValueJson: "123",
+	})
+	records, err := rs.ToRecords()
+
+	assert.NoError(t, err)
+	require.Len(t, records, 2)
+	rec0 := records[0]
+	rec1 := records[1]
+	if len(rec0.NestedKey) > 0 {
+		rec0, rec1 = rec1, rec0
 	}
+	assert.Equal(t, "x", rec0.Key)
+	assert.Equal(t, "Infinity", rec0.ValueJson)
+	assert.Equal(t, []string{"y", "z"}, rec1.NestedKey)
+	assert.Equal(t, "NaN", rec1.ValueJson)
 }
 
 func TestSerialize(t *testing.T) {
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
-		},
-	}
-	rs := runsummary.NewFrom(treeData)
-	actualJson, err := rs.Serialize()
-	if err != nil {
-		t.Fatal("Serialize failed:", err)
-	}
+	rs := runsummary.New()
 
-	expectedJson := "{\"config\":{\"setting1\":\"value1\"}}"
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "x",
+		ValueJson: "1.5",
+	})
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		NestedKey: []string{"y", "z"},
+		ValueJson: "-5",
+	})
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		NestedKey: []string{"a", "b", "c"},
+		ValueJson: `"abc"`,
+	})
+	rs.ConfigureMetric(pathtree.PathOf("none"), true, 0)
+	_ = rs.SetFromRecord(&service.SummaryItem{
+		Key:       "none",
+		ValueJson: `"none"`,
+	})
+	encoded, err := rs.Serialize()
 
-	if string(actualJson) != expectedJson {
-		t.Errorf("Expected %v, got %v", expectedJson, string(actualJson))
-	}
-
+	assert.NoError(t, err)
+	assert.JSONEq(t,
+		`{
+			"x": 1.5,
+			"y": {"z": -5},
+			"a": {"b": {"c": "abc"}}
+		}`,
+		string(encoded))
 }
