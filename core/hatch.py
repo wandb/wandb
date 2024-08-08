@@ -41,12 +41,15 @@ def build_wandb_core(
 
     vendor_flags = ["-mod=vendor"]
 
+    debug_flags = ["-gcflags=all=-N -l"]
+
     # We have to invoke Go from the directory with go.mod, hence the
     # paths relative to ./core
     subprocess.check_call(
         [
             str(go_binary),
             "build",
+            *debug_flags,
             *coverage_flags,
             *race_detect_flags,
             *ld_flags,
@@ -66,8 +69,8 @@ def build_wandb_core(
 def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
-        "-s",  # Omit the symbol table and debug info.
-        "-w",  # Omit the DWARF symbol table.
+        # "-s",  # Omit the symbol table and debug info.
+        # "-w",  # Omit the DWARF symbol table.
         # Set the Git commit variable in the main package.
         "-X",
         f"main.commit={wandb_commit_sha or 'unknown'}",
