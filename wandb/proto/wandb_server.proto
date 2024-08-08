@@ -10,38 +10,33 @@ message ServerShutdownRequest {
   _RecordInfo _info = 200;
 }
 
-message ServerShutdownResponse {
-}
+message ServerShutdownResponse {}
 
 message ServerStatusRequest {
   _RecordInfo _info = 200;
 }
 
-message ServerStatusResponse {
-}
+message ServerStatusResponse {}
 
 message ServerInformInitRequest {
   Settings settings = 1;
   _RecordInfo _info = 200;
 }
 
-message ServerInformInitResponse {
-}
+message ServerInformInitResponse {}
 
 message ServerInformStartRequest {
   Settings settings = 1;
   _RecordInfo _info = 200;
 }
 
-message ServerInformStartResponse {
-}
+message ServerInformStartResponse {}
 
 message ServerInformFinishRequest {
   _RecordInfo _info = 200;
 }
 
-message ServerInformFinishResponse {
-}
+message ServerInformFinishResponse {}
 
 message ServerInformAttachRequest {
   _RecordInfo _info = 200;
@@ -56,16 +51,14 @@ message ServerInformDetachRequest {
   _RecordInfo _info = 200;
 }
 
-message ServerInformDetachResponse {
-}
+message ServerInformDetachResponse {}
 
 message ServerInformTeardownRequest {
   int32 exit_code = 1;
   _RecordInfo _info = 200;
 }
 
-message ServerInformTeardownResponse {
-}
+message ServerInformTeardownResponse {}
 
 /*
  * ServerRequest, ServerResponse: used in sock server
@@ -81,7 +74,6 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
-
   }
 }
 
@@ -94,6 +86,5 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
-
   }
 }

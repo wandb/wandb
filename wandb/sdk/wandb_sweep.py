@@ -1,5 +1,5 @@
 import urllib.parse
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, List, Optional, Union
 
 import wandb
 from wandb import env
@@ -32,63 +32,36 @@ def sweep(
     sweep: Union[dict, Callable],
     entity: Optional[str] = None,
     project: Optional[str] = None,
+    prior_runs: Optional[List[str]] = None,
 ) -> str:
     """Initialize a hyperparameter sweep.
 
-    To generate hyperparameter suggestions from the sweep and use them
-    to train a model, call `wandb.agent` with the sweep_id returned by
-    this command. For command line functionality, see the command line
-    tool `wandb sweep` (https://docs.wandb.ai/ref/cli/wandb-sweep).
+    Search for hyperparameters that optimizes a cost function
+    of a machine learning model by testing various combinations.
+
+    Make note the unique identifier, `sweep_id`, that is returned.
+    At a later step provide the `sweep_id` to a sweep agent.
 
     Args:
-      sweep: dict, SweepConfig, or callable. The sweep configuration
-        (or configuration generator). If a dict or SweepConfig,
-        should conform to the W&B sweep config specification
-        (https://docs.wandb.ai/guides/sweeps/define-sweep-configuration). If a
-        callable, should take no arguments and return a dict that
+      sweep: The configuration of a hyperparameter search.
+        (or configuration generator). See
+        [Sweep configuration structure](https://docs.wandb.ai/guides/sweeps/define-sweep-configuration)
+        for information on how to define your sweep.
+        If you provide a callable, ensure that the callable does
+        not take arguments and that it returns a dictionary that
         conforms to the W&B sweep config spec.
-      entity: str (optional). An entity is a username or team name
-        where you're sending runs. This entity must exist before you
-        can send runs there, so make sure to create your account or
-        team in the UI before starting to log runs.  If you don't
-        specify an entity, the run will be sent to your default
-        entity, which is usually your username. Change your default
-        entity in [Settings](https://wandb.ai/settings) under "default
-        location to create new projects".
-      project: str (optional). The name of the project where you're
-        sending the new run. If the project is not specified, the
-        run is put in an "Uncategorized" project.
+      entity: The username or team name where you want to send W&B
+        runs created by the sweep to. Ensure that the entity you
+        specify already exists. If you don't specify an entity,
+        the run will be sent to your default entity,
+        which is usually your username.
+      project: The name of the project where W&B runs created from
+        the sweep are sent to. If the project is not specified, the
+        run is sent to a project labeled 'Uncategorized'.
+      prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
       sweep_id: str. A unique identifier for the sweep.
-
-    Examples:
-        Basic usage
-        <!--yeadoc-test:one-parameter-sweep-->
-        ```python
-        import wandb
-
-        sweep_configuration = {
-            "name": "my-awesome-sweep",
-            "metric": {"name": "accuracy", "goal": "maximize"},
-            "method": "grid",
-            "parameters": {"a": {"values": [1, 2, 3, 4]}},
-        }
-
-
-        def my_train_func():
-            # read the current value of parameter "a" from wandb.config
-            wandb.init()
-            a = wandb.config.a
-
-            wandb.log({"a": a, "accuracy": a + 1})
-
-
-        sweep_id = wandb.sweep(sweep_configuration)
-
-        # run the sweep
-        wandb.agent(sweep_id, function=my_train_func)
-        ```
     """
     if callable(sweep):
         sweep = sweep()
@@ -107,7 +80,7 @@ def sweep(
     if wandb.run is None:
         wandb_login._login(_silent=True)
     api = InternalApi()
-    sweep_id, warnings = api.upsert_sweep(sweep)
+    sweep_id, warnings = api.upsert_sweep(sweep, prior_runs=prior_runs)
     handle_sweep_config_violations(warnings)
     print("Create sweep with ID:", sweep_id)
     sweep_url = _get_sweep_url(api, sweep_id)

@@ -13,6 +13,7 @@ import os
 from typing import Optional, Sequence, Union
 
 import wandb
+from wandb.env import _REQUIRE_CORE
 from wandb.errors import UnsupportedError
 from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
@@ -39,11 +40,8 @@ class _Requires:
     def require_service(self) -> None:
         self._require_service()
 
-    def _require_nexus(self) -> None:
-        os.environ["WANDB_REQUIRE_NEXUS"] = "True"
-
-    def require_nexus(self) -> None:
-        self._require_nexus()
+    def require_core(self) -> None:
+        os.environ[_REQUIRE_CORE] = "true"
 
     def apply(self) -> None:
         """Call require_* method for supported features."""

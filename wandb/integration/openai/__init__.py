@@ -1,3 +1,3 @@
-__all__ = ("autolog",)
+__all__ = ("autolog", "WandbLogger")
 
 from .openai import autolog

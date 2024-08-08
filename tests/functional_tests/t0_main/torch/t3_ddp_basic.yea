@@ -1,11 +1,12 @@
 id: 0.torch.03-ddp-basic
+
 tag:
-  shard: service
+  shard: torch
 plugin:
   - wandb
 depend:
   requirements:
-    - torch
+    - --timeout 600 --extra-index-url https://download.pytorch.org/whl/cpu torch
 
 assert:
   - :wandb:runs_len: 2

@@ -171,8 +171,9 @@ class PrinterTerm(_Printer):
     def progress_update(self, text: str, percent_done: Optional[float] = None) -> None:
         wandb.termlog(f"{next(self._progress)} {text}", newline=False)
 
-    def progress_close(self) -> None:
-        wandb.termlog(" " * 79)
+    def progress_close(self, text: Optional[str] = None) -> None:
+        text = text or " " * 79
+        wandb.termlog(text)
 
     def code(self, text: str) -> str:
         ret: str = click.style(text, bold=True)
@@ -286,7 +287,7 @@ class PrinterJupyter(_Printer):
         if self._progress:
             self._progress.update(percent_done, text)
 
-    def progress_close(self) -> None:
+    def progress_close(self, _: Optional[str] = None) -> None:
         if self._progress:
             self._progress.close()
 

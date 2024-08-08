@@ -2,7 +2,9 @@ id: 0.mp.06-3-share-child-lt-step
 plugin:
   - wandb
 tag:
-  shard: service
+  skips:
+    - platform: win
+
 parametrize:
   permute:
     - :yea:start_method:

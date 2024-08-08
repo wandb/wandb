@@ -1,8 +1,6 @@
 id: 0.mp.02-sequential
 plugin:
   - wandb
-tag:
-  shard: service
 assert:
   - :wandb:runs_len: 2
   - :wandb:runs[0][config]: {}

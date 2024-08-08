@@ -156,6 +156,7 @@ def conv3x3(in_channels, out_channels, **kwargs):
 # TODO(jhr): does not work with --flake-finder
 @pytest.mark.xfail(reason="TODO: fix this test")
 def test_all_logging(relay_server, wandb_init):
+    pytest.importorskip("torch")
     n = 3
     with relay_server() as relay:
         run = wandb_init()
@@ -185,6 +186,7 @@ def test_all_logging(relay_server, wandb_init):
 
 
 def test_embedding_dict_watch(relay_server, wandb_init):
+    pytest.importorskip("torch")
     with relay_server() as relay:
         run = wandb_init()
         model = EmbModelWrapper()
@@ -206,6 +208,7 @@ def test_embedding_dict_watch(relay_server, wandb_init):
 
 @pytest.mark.timeout(120)
 def test_sequence_net(wandb_init):
+    pytest.importorskip("torch")
     run = wandb_init()
     net = Sequence()
     graph = wandb.watch(net, log_graph=True)[0]
@@ -222,6 +225,7 @@ def test_sequence_net(wandb_init):
 
 
 def test_multi_net(wandb_init):
+    pytest.importorskip("torch")
     run = wandb_init()
     net1 = ConvNet()
     net2 = ConvNet()

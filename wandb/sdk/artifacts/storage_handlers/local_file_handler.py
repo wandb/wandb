@@ -1,4 +1,5 @@
 """Local file storage handler."""
+
 import os
 import shutil
 import time
@@ -7,8 +8,8 @@ from urllib.parse import ParseResult
 
 from wandb import util
 from wandb.errors.term import termlog
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64, md5_string
@@ -27,7 +28,7 @@ class LocalFileHandler(StorageHandler):
         Expand directories to create an entry for each file contained.
         """
         self._scheme = scheme or "file"
-        self._cache = get_artifacts_cache()
+        self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
         return parsed_url.scheme == self._scheme
@@ -42,7 +43,9 @@ class LocalFileHandler(StorageHandler):
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
         if not os.path.exists(local_path):
             raise ValueError(
-                "Local file reference: Failed to find file at path %s" % local_path
+                "Local file reference: Failed to find file at path {}".format(
+                    local_path
+                )
             )
 
         path, hit, cache_open = self._cache.check_md5_obj_path(
@@ -130,5 +133,7 @@ class LocalFileHandler(StorageHandler):
             entries.append(entry)
         else:
             # TODO: update error message if we don't allow directories.
-            raise ValueError('Path "%s" must be a valid file or directory path' % path)
+            raise ValueError(
+                'Path "{}" must be a valid file or directory path'.format(path)
+            )
         return entries

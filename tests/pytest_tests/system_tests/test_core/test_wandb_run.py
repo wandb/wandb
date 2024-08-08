@@ -1,3 +1,5 @@
+import json
+import math
 import os
 import pickle
 import sys
@@ -5,8 +7,29 @@ import sys
 import numpy as np
 import pytest
 import wandb
+import wandb.env
 from wandb import wandb_sdk
 from wandb.errors import UsageError
+
+
+def test_log_nan_inf(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log(
+            {
+                "nan": float("nan"),
+                "inf": float("inf"),
+                "nested": {"neg_inf": float("-inf")},
+            }
+        )
+        run.finish()
+
+    history = relay.context.get_run_history(run.id).to_dict(orient="records")[0]
+
+    assert sorted(history.keys()) == sorted({"nan", "inf", "nested"})
+    assert math.isnan(history["nan"])
+    assert math.isinf(history["inf"])
+    assert math.isinf(history["nested"]["neg_inf"]) and history["nested"]["neg_inf"] < 0
 
 
 def test_log_code(wandb_init):
@@ -184,3 +207,135 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
     captured = capsys.readouterr()
     assert assertion(run.id, found, captured.err)
     run.finish()
+
+
+@pytest.mark.parametrize(
+    "local_info, warn",
+    [
+        (
+            {
+                "outOfDate": True,
+                "latestVersionString": "12.0.0",
+            },
+            True,
+        ),
+        (
+            {
+                "outOfDate": False,
+                "latestVersionString": "12.0.0",
+            },
+            False,
+        ),
+        (None, False),
+        ({}, True),
+    ],
+)
+@pytest.mark.wandb_core_failure(
+    feature="version_check",
+    reason="need to implement versioning in wandb core",
+)
+def test_local_warning(
+    relay_server,
+    inject_graphql_response,
+    wandb_init,
+    capsys,
+    local_info,
+    warn,
+):
+    body = {
+        "viewer": {},
+        "serverInfo": {"cliVersionInfo": {}},
+    }
+    if local_info != "":
+        body["serverInfo"]["latestLocalVersionInfo"] = local_info
+
+    inject_response = inject_graphql_response(
+        body=json.dumps({"data": body}),
+        status=200,
+        query_match_fn=lambda query, _: "query Viewer" in query,
+        application_pattern="1",
+    )
+    # we do not retry 409s on queries, so this should fail
+    with relay_server(inject=[inject_response]):
+        run = wandb_init()
+        run.finish()
+    captured = capsys.readouterr().err
+
+    msg = "version of W&B Server to get the latest features"
+    if warn:
+        assert msg in captured
+    else:
+        assert msg not in captured
+
+
+def test_ignore_globs_wandb_files(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
+        run.finish()
+    uploaded_files = relay.context.get_run_uploaded_files(run.id)
+    assert "requirements.txt" not in uploaded_files
+
+
+def test_network_fault_graphql(relay_server, inject_graphql_response, wandb_init):
+    inject_response = inject_graphql_response(
+        body=json.dumps({"errors": ["Server down"]}),
+        status=500,
+        query_match_fn=lambda *_: True,
+        application_pattern="1" * 5 + "2",  # apply once and stop
+    )
+    with relay_server(inject=[inject_response]) as relay:
+        run = wandb_init()
+        run.finish()
+
+        uploaded_files = relay.context.get_run_uploaded_files(run.id)
+
+        assert "wandb-metadata.json" in uploaded_files
+        assert "wandb-summary.json" in uploaded_files
+        assert "requirements.txt" in uploaded_files
+        assert "config.yaml" in uploaded_files
+
+
+def test_summary_update(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.summary.update({"a": 1})
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {"a": 1}
+
+
+def test_summary_from_history(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.summary.update({"a": 1})
+        run.log({"a": 2})
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {"a": 2}
+
+
+@pytest.mark.wandb_core_only
+def test_summary_remove(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init()
+        run.log({"a": 2})
+        del run.summary["a"]
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {}
+
+
+@pytest.mark.wandb_core_only
+def test_summary_remove_nested(relay_server, wandb_init):
+    with relay_server() as relay:
+        run = wandb_init(allow_val_change=True)
+        run.log({"a": {"b": 2}})
+        run.summary["a"]["c"] = 3
+        del run.summary["a"]["b"]
+        run.finish()
+
+    summary = relay.context.get_run_summary(run.id)
+    assert summary == {"a": {"c": 3}}

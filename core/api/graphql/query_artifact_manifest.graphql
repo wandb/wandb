@@ -1,0 +1,9 @@
+query ArtifactManifest($artifact_id: ID!) {
+    artifact(id: $artifact_id) {
+        currentManifest {
+            file {
+                directUrl
+            }
+        }
+    }
+}

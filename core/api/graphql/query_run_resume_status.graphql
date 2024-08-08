@@ -1,0 +1,26 @@
+query RunResumeStatus($project: String, $entity: String, $name: String!) {
+  model(name: $project, entityName: $entity) {
+    id
+    name
+    entity {
+      id
+      name
+    }
+
+    bucket(name: $name, missingOk: true) {
+      id
+      name
+      summaryMetrics
+      displayName
+      logLineCount
+      historyLineCount
+      eventsLineCount
+      historyTail
+      eventsTail
+      config
+      tags
+      # Pulling wandbConfig.start_time is required so that runresume.go can determine if a run has actually started
+      wandbConfig(keys: ["t"])
+    }
+  }
+}

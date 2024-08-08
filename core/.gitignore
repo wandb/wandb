@@ -1,0 +1,2 @@
+# Let's not save the schema in the repo right now
+api/graphql/schema.graphql

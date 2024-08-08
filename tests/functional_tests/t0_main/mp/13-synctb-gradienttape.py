@@ -16,7 +16,6 @@ args = parser.parse_args()
 
 # We're defining some default hyper-parameters here, usually you'll
 # use argparse or another config management tool as well
-wandb.require("service")
 config_defaults = dict(epochs=2, dropout=0.2, learning_rate=0.001)
 wandb.init(config=config_defaults, sync_tensorboard=True)
 
@@ -114,9 +113,9 @@ for epoch in range(EPOCHS):
     )
 
     # Reset metrics every epoch
-    train_loss.reset_states()
-    test_loss.reset_states()
-    train_accuracy.reset_states()
-    test_accuracy.reset_states()
+    train_loss.reset_state()
+    test_loss.reset_state()
+    train_accuracy.reset_state()
+    test_accuracy.reset_state()
 
 wandb.finish()

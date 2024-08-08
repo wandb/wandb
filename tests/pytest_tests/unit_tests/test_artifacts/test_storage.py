@@ -1,15 +1,19 @@
-import asyncio
+import errno
 import logging
 import os
 import random
+import tempfile
 from multiprocessing import Pool
+from pathlib import Path
 from unittest.mock import MagicMock
 from urllib.parse import urlparse
 
 import pytest
 import wandb
+from pyfakefs.fake_filesystem import FakeFilesystem
 from wandb.errors import term
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.artifact_file_cache import ArtifactFileCache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -18,13 +22,13 @@ from wandb.sdk.artifacts.storage_handlers.local_file_handler import LocalFileHan
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.wb_artifact_handler import WBArtifactHandler
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
-from wandb.sdk.lib.hashutil import md5_string
+from wandb.sdk.lib.hashutil import ETag, md5_string
 
 example_digest = md5_string("example")
 
 
-def test_opener_rejects_append_mode(artifacts_cache):
-    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, 7)
+def test_opener_rejects_append_mode(artifact_file_cache):
+    _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, 7)
 
     with pytest.raises(ValueError):
         with opener("a"):
@@ -35,11 +39,71 @@ def test_opener_rejects_append_mode(artifacts_cache):
         f.write("example")
 
 
-def test_check_md5_obj_path(artifacts_cache):
+def test_opener_works_across_filesystem_boundaries(
+    tmp_path, artifact_file_cache, fs: FakeFilesystem
+):
+    # This isn't ideal, we'd rather test e.g. `Artifact.download` directly.
+    #
+    # However, we're using `pyfakefs` to mock mounted/partitioned filesystems,
+    # and it doesn't play well with some of the internals of ArtifactFileCache
+    # without extra, potentially brittle patches (e.g. to `subprocess.call`).
+    # This will have to do for the moment.
+
+    # Some setup we have to do to get this test to play well with `pyfakefs`.
+    # Note: Cast to str looks redundant but is intentional (for python<=3.10).
+    # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests
+    fake_tmp_path = Path(str(tmp_path))
+    fs.create_dir(fake_tmp_path)
+
+    fake_cache_dir = Path(str(artifact_file_cache._cache_dir))
+    fake_cache_obj_dir = Path(str(artifact_file_cache._obj_dir))
+    fake_cache_temp_dir = Path(str(artifact_file_cache._temp_dir))
+    artifact_file_cache._cache_dir = fake_cache_dir
+    artifact_file_cache._obj_dir = fake_cache_obj_dir
+    artifact_file_cache._temp_dir = fake_cache_temp_dir
+    fs.create_dir(fake_cache_dir)
+    fs.create_dir(fake_cache_obj_dir)
+    fs.create_dir(fake_cache_temp_dir)
+
+    cache_path, _, cache_opener = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7
+    )
+    with cache_opener() as f:
+        f.write("test-123")
+
+    # Simulate a destination filepath on the mounted filesystem
+    dest_dir = fake_tmp_path / "mount"
+    dest_path = dest_dir / "dest.txt"
+    fs.create_dir(dest_dir)
+    fs.add_mount_point(str(dest_dir))
+
+    # Sanity check: `os.rename` should fail across the (fake) filesystem boundary
+    # This is extra assurance that we're still testing what we expect to test
+    with pytest.raises(OSError) as excinfo:
+        os.rename(cache_path, dest_path)
+    assert excinfo.value.args[0] == errno.EXDEV
+
+    # Now simulate skipping the cache
+    artifact_file_cache._override_cache_path = dest_path
+    override_path, _, override_opener = artifact_file_cache.check_md5_obj_path(
+        example_digest, 7
+    )
+
+    with override_opener() as f:
+        f.write("test-abc")
+
+    assert dest_path.read_text() == "test-abc"
+
+
+def test_check_md5_obj_path(artifact_file_cache):
     md5 = md5_string("hi")
-    path, exists, opener = artifacts_cache.check_md5_obj_path(md5, 2)
+    path, exists, opener = artifact_file_cache.check_md5_obj_path(md5, 2)
     expected_path = os.path.join(
-        artifacts_cache._cache_dir, "obj", "md5", "49", "f68a5c8493ec2c0bf489821c21fc3b"
+        artifact_file_cache._cache_dir,
+        "obj",
+        "md5",
+        "49",
+        "f68a5c8493ec2c0bf489821c21fc3b",
     )
     assert path == expected_path
 
@@ -52,8 +116,19 @@ def test_check_md5_obj_path(artifacts_cache):
     assert contents == "hi"
 
 
-def test_check_etag_obj_path_points_to_opener_dst(artifacts_cache):
-    path, _, opener = artifacts_cache.check_etag_obj_path("http://my/url", "abc", 10)
+def test_check_md5_obj_path_override(artifact_file_cache):
+    md5 = md5_string("hi")
+    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
+    artifact_file_cache._override_cache_path = override_path
+    path, exists, _ = artifact_file_cache.check_md5_obj_path(md5, 2)
+    assert path == override_path
+    assert exists is False
+
+
+def test_check_etag_obj_path_points_to_opener_dst(artifact_file_cache):
+    path, _, opener = artifact_file_cache.check_etag_obj_path(
+        "http://my/url", "abc", 10
+    )
 
     with opener() as f:
         f.write("hi")
@@ -63,9 +138,17 @@ def test_check_etag_obj_path_points_to_opener_dst(artifacts_cache):
     assert contents == "hi"
 
 
-def test_check_etag_obj_path_returns_exists_if_exists(artifacts_cache):
+def test_check_etag_obj_path_override(artifact_file_cache):
+    override_path = os.path.join(artifact_file_cache._cache_dir, "override.cache")
+    artifact_file_cache._override_cache_path = override_path
+    path, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", 2)
+    assert path == override_path
+    assert exists is False
+
+
+def test_check_etag_obj_path_returns_exists_if_exists(artifact_file_cache):
     size = 123
-    _, exists, opener = artifacts_cache.check_etag_obj_path(
+    _, exists, opener = artifact_file_cache.check_etag_obj_path(
         "http://my/url", "abc", size
     )
     assert not exists
@@ -73,13 +156,13 @@ def test_check_etag_obj_path_returns_exists_if_exists(artifacts_cache):
     with opener() as f:
         f.write(size * "a")
 
-    _, exists, _ = artifacts_cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists
 
 
-def test_check_etag_obj_path_returns_not_exists_if_incomplete(artifacts_cache):
+def test_check_etag_obj_path_returns_not_exists_if_incomplete(artifact_file_cache):
     size = 123
-    _, exists, opener = artifacts_cache.check_etag_obj_path(
+    _, exists, opener = artifact_file_cache.check_etag_obj_path(
         "http://my/url", "abc", size
     )
     assert not exists
@@ -87,18 +170,18 @@ def test_check_etag_obj_path_returns_not_exists_if_incomplete(artifacts_cache):
     with opener() as f:
         f.write((size - 1) * "a")
 
-    _, exists, _ = artifacts_cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert not exists
 
     with opener() as f:
         f.write(size * "a")
 
-    _, exists, _ = artifacts_cache.check_etag_obj_path("http://my/url", "abc", size)
+    _, exists, _ = artifact_file_cache.check_etag_obj_path("http://my/url", "abc", size)
     assert exists
 
 
-def test_check_etag_obj_path_does_not_include_etag(artifacts_cache):
-    path, _, _ = artifacts_cache.check_etag_obj_path("http://url/1", "abcdef", 10)
+def test_check_etag_obj_path_does_not_include_etag(artifact_file_cache):
+    path, _, _ = artifact_file_cache.check_etag_obj_path("http://url/1", "abcdef", 10)
     assert "abcdef" not in path
 
 
@@ -111,10 +194,10 @@ def test_check_etag_obj_path_does_not_include_etag(artifacts_cache):
     ],
 )
 def test_check_etag_obj_path_hashes_url_and_etag(
-    url1, url2, etag1, etag2, path_equal, artifacts_cache
+    url1, url2, etag1, etag2, path_equal, artifact_file_cache
 ):
-    path_1, _, _ = artifacts_cache.check_etag_obj_path(url1, etag1, 10)
-    path_2, _, _ = artifacts_cache.check_etag_obj_path(url2, etag2, 10)
+    path_1, _, _ = artifact_file_cache.check_etag_obj_path(url1, etag1, 10)
+    path_2, _, _ = artifact_file_cache.check_etag_obj_path(url2, etag2, 10)
 
     if path_equal:
         assert path_1 == path_2
@@ -124,40 +207,52 @@ def test_check_etag_obj_path_hashes_url_and_etag(
 
 # This function should only be used in `test_check_write_parallel`,
 # but it needs to be a global function for multiprocessing.
-def _cache_writer(artifacts_cache):
+def _cache_writer(artifact_file_cache):
     etag = "abcdef"
-    _, _, opener = artifacts_cache.check_etag_obj_path("http://wandb.ex/foo", etag, 10)
+    _, _, opener = artifact_file_cache.check_etag_obj_path(
+        "http://wandb.ex/foo", etag, 10
+    )
     with opener() as f:
         f.write("".join(random.choice("0123456") for _ in range(10)))
 
 
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
-def test_check_write_parallel(artifacts_cache):
+def test_check_write_parallel(artifact_file_cache):
     num_parallel = 5
 
     p = Pool(num_parallel)
-    p.map(_cache_writer, [artifacts_cache for _ in range(num_parallel)])
-    _cache_writer(artifacts_cache)  # run in this process too for code coverage
+    p.map(_cache_writer, [artifact_file_cache for _ in range(num_parallel)])
+    _cache_writer(artifact_file_cache)  # run in this process too for code coverage
     p.close()
     p.join()
 
     # Regardless of the ordering, we should be left with one file at the end.
     files = [
         f
-        for f in (artifacts_cache._cache_dir / "obj" / "etag").rglob("*")
+        for f in (artifact_file_cache._cache_dir / "obj" / "etag").rglob("*")
         if f.is_file()
     ]
     assert len(files) == 1
 
 
-def test_artifacts_cache_cleanup_empty(artifacts_cache):
-    reclaimed_bytes = artifacts_cache.cleanup(100000)
+def test_artifact_file_cache_is_writeable(tmp_path, monkeypatch):
+    # Patch NamedTemporaryFile to raise a PermissionError
+    def not_allowed(*args, **kwargs):
+        raise PermissionError
+
+    monkeypatch.setattr(tempfile, "_mkstemp_inner", not_allowed)
+    with pytest.raises(PermissionError, match="Unable to write to"):
+        _ = ArtifactFileCache(tmp_path)
+
+
+def test_artifact_file_cache_cleanup_empty(artifact_file_cache):
+    reclaimed_bytes = artifact_file_cache.cleanup(100000)
     assert reclaimed_bytes == 0
 
 
-def test_artifacts_cache_cleanup(artifacts_cache):
-    cache_root = os.path.join(artifacts_cache._cache_dir, "obj", "md5")
+def test_artifact_file_cache_cleanup(artifact_file_cache):
+    cache_root = os.path.join(artifact_file_cache._cache_dir, "obj", "md5")
 
     path_1 = os.path.join(cache_root, "aa")
     os.makedirs(path_1)
@@ -180,29 +275,31 @@ def test_artifacts_cache_cleanup(artifacts_cache):
         f.flush()
         os.fsync(f)
 
-    reclaimed_bytes = artifacts_cache.cleanup(5000)
+    reclaimed_bytes = artifact_file_cache.cleanup(5000)
 
     # We should get rid of "aardvark" in this case
     assert reclaimed_bytes == 5000
 
 
-def test_artifacts_cache_cleanup_tmp_files_when_asked(artifacts_cache):
-    with open(artifacts_cache._temp_dir / "foo", "w") as f:
+def test_artifact_file_cache_cleanup_tmp_files_when_asked(artifact_file_cache):
+    with open(artifact_file_cache._temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # Even if we are above our target size, the cleanup
     # should reclaim tmp files.
-    reclaimed_bytes = artifacts_cache.cleanup(10000, remove_temp=True)
+    reclaimed_bytes = artifact_file_cache.cleanup(10000, remove_temp=True)
 
     assert reclaimed_bytes == 1000
 
 
-def test_artifacts_cache_cleanup_leaves_tmp_files_by_default(artifacts_cache, capsys):
-    with open(artifacts_cache._temp_dir / "foo", "w") as f:
+def test_artifact_file_cache_cleanup_leaves_tmp_files_by_default(
+    artifact_file_cache, capsys
+):
+    with open(artifact_file_cache._temp_dir / "foo", "w") as f:
         f.truncate(1000)
 
     # The cleanup should leave temp files alone, even if we haven't reached our target.
-    reclaimed_bytes = artifacts_cache.cleanup(0)
+    reclaimed_bytes = artifact_file_cache.cleanup(0)
     assert reclaimed_bytes == 0
 
     # However, it should issue a warning.
@@ -210,18 +307,18 @@ def test_artifacts_cache_cleanup_leaves_tmp_files_by_default(artifacts_cache, ca
     assert "Cache contains 1000.0B of temporary files" in stderr
 
 
-def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
+def test_local_file_handler_load_path_uses_cache(artifact_file_cache, tmp_path):
     file = tmp_path / "file.txt"
     file.write_text("hello")
     uri = file.as_uri()
     digest = "XUFAKrxLKna5cZ2REBfFkg=="
 
-    path, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=digest, size=5)
+    path, _, opener = artifact_file_cache.check_md5_obj_path(b64_md5=digest, size=5)
     with opener() as f:
         f.write("hello")
 
     handler = LocalFileHandler()
-    handler._cache = artifacts_cache
+    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -235,16 +332,16 @@ def test_local_file_handler_load_path_uses_cache(artifacts_cache, tmp_path):
     assert local_path == path
 
 
-def test_s3_storage_handler_load_path_uses_cache(artifacts_cache):
+def test_s3_storage_handler_load_path_uses_cache(artifact_file_cache):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    path, _, opener = artifacts_cache.check_etag_obj_path(uri, etag, 123)
+    path, _, opener = artifact_file_cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
 
     handler = S3Handler()
-    handler._cache = artifacts_cache
+    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -275,16 +372,16 @@ def test_gcs_storage_handler_load_path_nonlocal():
     assert local_path == uri
 
 
-def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
+def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
     uri = "gs://some-bucket/path/to/file.json"
-    digest = md5_string("a" * 123)
+    digest = ETag(md5_string("a" * 123))
 
-    path, _, opener = artifacts_cache.check_md5_obj_path(digest, 123)
+    path, _, opener = artifact_file_cache.check_etag_obj_path(uri, digest, 123)
     with opener() as f:
         f.write(123 * "a")
 
     handler = GCSHandler()
-    handler._cache = artifacts_cache
+    handler._cache = artifact_file_cache
 
     local_path = handler.load_path(
         ArtifactManifestEntry(
@@ -298,12 +395,14 @@ def test_gcs_storage_handler_load_path_uses_cache(artifacts_cache):
     assert local_path == path
 
 
-def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeypatch):
+def test_cache_add_gives_useful_error_when_out_of_space(
+    artifact_file_cache, monkeypatch
+):
     term_log = MagicMock()
     monkeypatch.setattr(term, "_log", term_log)
 
     # Ask to create a 1 quettabyte file to ensure the cache won't find room.
-    _, _, opener = artifacts_cache.check_md5_obj_path(example_digest, size=10**30)
+    _, _, opener = artifact_file_cache.check_md5_obj_path(example_digest, size=10**30)
 
     with pytest.raises(OSError, match="Insufficient free space"):
         with opener():
@@ -320,7 +419,7 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
 
 
 # todo: fix this test
-# def test_cache_drops_lru_when_adding_not_enough_space(fs, artifacts_cache):
+# def test_cache_drops_lru_when_adding_not_enough_space(fs, artifact_file_cache):
 #     # Simulate a 1KB drive.
 #     fs.set_disk_usage(1000)
 #
@@ -328,13 +427,13 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
 #     cache_paths = []
 #     for i in range(10):
 #         content = f"{i}" * 100
-#         path, _, opener = artifacts_cache.check_md5_obj_path(md5_string(content), 100)
+#         path, _, opener = artifact_file_cache.check_md5_obj_path(md5_string(content), 100)
 #         with opener() as f:
 #             f.write(content)
 #         cache_paths.append(path)
 #
 #     # This next file won't fit; we should drop 1/2 the files in LRU order.
-#     _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("x"), 1)
+#     _, _, opener = artifact_file_cache.check_md5_obj_path(md5_string("x"), 1)
 #     with opener() as f:
 #         f.write("x")
 #
@@ -346,7 +445,7 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
 #     assert fs.get_disk_usage()[1] == 501
 #
 #     # Add something big enough that removing half the items isn't enough.
-#     _, _, opener = artifacts_cache.check_md5_obj_path(md5_string("y" * 800), 800)
+#     _, _, opener = artifact_file_cache.check_md5_obj_path(md5_string("y" * 800), 800)
 #     with opener() as f:
 #         f.write("y" * 800)
 #
@@ -356,11 +455,13 @@ def test_cache_add_gives_useful_error_when_out_of_space(artifacts_cache, monkeyp
 #     assert fs.get_disk_usage()[1] == 800
 
 
-def test_cache_add_cleans_up_tmp_when_write_fails(artifacts_cache, monkeypatch):
+def test_cache_add_cleans_up_tmp_when_write_fails(artifact_file_cache, monkeypatch):
     def fail(*args, **kwargs):
         raise OSError
 
-    _, _, opener = artifacts_cache.check_md5_obj_path(b64_md5=example_digest, size=7)
+    _, _, opener = artifact_file_cache.check_md5_obj_path(
+        b64_md5=example_digest, size=7
+    )
 
     with pytest.raises(OSError):
         with opener() as f:
@@ -396,7 +497,7 @@ def test_wbartifact_handler_load_path_nonlocal(monkeypatch):
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
     monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_path = lambda _: artifact
+    artifact.get_entry = lambda _: artifact
     artifact.ref_target = lambda: uri
 
     local_path = handler.load_path(manifest_entry)
@@ -417,49 +518,20 @@ def test_wbartifact_handler_load_path_local(monkeypatch):
     handler = WBArtifactHandler()
     handler._client = FakePublicApi()
     monkeypatch.setattr(Artifact, "_from_id", lambda _1, _2: artifact)
-    artifact.get_path = lambda _: artifact
+    artifact.get_entry = lambda _: artifact
     artifact.download = lambda: path
 
     local_path = handler.load_path(manifest_entry, local=True)
     assert local_path == path
 
 
+class UnfinishedStoragePolicy(StoragePolicy):
+    @classmethod
+    def name(cls) -> str:
+        return "UnfinishedStoragePolicy"
+
+
 def test_storage_policy_incomplete():
-    class UnfinishedStoragePolicy(StoragePolicy):
-        pass
-
-    # Invalid argument values since we're only testing abstract code coverage.
-    abstract_method_args = {
-        "name": {},
-        "from_config": dict(config={}),
-        "config": {},
-        "load_file": dict(artifact=None, manifest_entry=None),
-        "store_file_sync": dict(
-            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
-        ),
-        "store_reference": dict(artifact=None, path=""),
-        "load_reference": dict(manifest_entry=None),
-    }
-    usp = UnfinishedStoragePolicy()
-    for method, kwargs in abstract_method_args.items():
-        with pytest.raises(NotImplementedError):
-            getattr(usp, method)(**kwargs)
-
-    async_method_args = {
-        "store_file_async": dict(
-            artifact_id="", artifact_manifest_id="", entry=None, preparer=None
-        )
-    }
-    for method, kwargs in async_method_args.items():
-        with pytest.raises(NotImplementedError):
-            loop = asyncio.new_event_loop()
-            try:
-                loop.run_until_complete(getattr(usp, method)(**kwargs))
-            finally:
-                loop.close()
-
-    UnfinishedStoragePolicy.name = lambda: "UnfinishedStoragePolicy"
-
     policy = StoragePolicy.lookup_by_name("UnfinishedStoragePolicy")
     assert policy is UnfinishedStoragePolicy
 
@@ -491,3 +563,12 @@ def test_unwritable_staging_dir(monkeypatch):
 
     with pytest.raises(PermissionError, match="WANDB_DATA_DIR"):
         _ = get_staging_dir()
+
+
+def test_invalid_upload_policy():
+    path = "foo/bar"
+    artifact = wandb.Artifact("test", type="dataset")
+    with pytest.raises(ValueError):
+        artifact.add_file(local_path=path, name="file.json", policy="tmp")
+    with pytest.raises(ValueError):
+        artifact.add_dir(local_path=path, policy="tmp")

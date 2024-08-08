@@ -290,7 +290,7 @@ def test_image_type(assets_path):
                         "class_id": 1,
                         "box_caption": "minMax(pixel)",
                         "scores": {"acc": 0.1, "loss": 1.2},
-                    },
+                    }
                 ],
                 "class_labels": class_labels,
             },
@@ -306,7 +306,7 @@ def test_image_type(assets_path):
                         "class_id": 1,
                         "box_caption": "minMax(pixel)",
                         "scores": {"acc": 0.1, "loss": 1.2},
-                    },
+                    }
                 ],
                 "class_labels": class_labels,
             },
@@ -320,7 +320,6 @@ def test_image_type(assets_path):
         },
     )
     wb_type_annotated = data_types._ImageFileType.from_obj(image_annotated)
-
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -336,7 +335,7 @@ def test_image_type(assets_path):
                         "class_id": 1,
                         "box_caption": "minMax(pixel)",
                         "scores": {"acc": 0.1, "loss": 1.2},
-                    },
+                    }
                 ],
                 "class_labels": class_labels,
             },
@@ -349,7 +348,6 @@ def test_image_type(assets_path):
             "mask_ground_truth_2": {"path": im_path, "class_labels": class_labels},
         },
     )
-
     assert wb_type.assign(image_simple) == wb_type_simple
     assert wb_type.assign(image_annotated) == wb_type_annotated
     # OK to assign Images with disjoint class set
@@ -367,6 +365,70 @@ def test_image_type(assets_path):
         },
         class_map={"1": "tree", "2": "car", "3": "road"},
     )
+
+
+def test_image_file_type(assets_path):
+    # to make sure that meta data is preserved when we assign to a new image
+    im_path = assets_path("test.png")
+    formats = ["png", "jpg", "jpeg", "bmp"]
+    jpg_img = wandb.Image(np.random.rand(10, 10), file_type=formats[0])
+    png_img = wandb.Image(np.random.rand(10, 10), file_type=formats[1])
+    gif_img = wandb.Image(np.random.rand(10, 10), file_type=formats[2])
+    bmp_img = wandb.Image(np.random.rand(10, 10), file_type=formats[3])
+    images = [jpg_img, png_img, gif_img, bmp_img]
+    images_back_types = [im.format for im in images]
+    assert images_back_types == formats
+    class_labels = {1: "tree", 2: "car", 3: "road"}
+    box_annotation = {
+        "box_predictions": {
+            "box_data": [
+                {
+                    "position": {
+                        "minX": 0.1,
+                        "maxX": 0.2,
+                        "minY": 0.3,
+                        "maxY": 0.4,
+                    },
+                    "class_id": 1,
+                    "box_caption": "minMax(pixel)",
+                    "scores": {"acc": 0.1, "loss": 1.2},
+                },
+            ],
+            "class_labels": class_labels,
+        },
+        "box_ground_truth": {
+            "box_data": [
+                {
+                    "position": {
+                        "minX": 0.1,
+                        "maxX": 0.2,
+                        "minY": 0.3,
+                        "maxY": 0.4,
+                    },
+                    "class_id": 1,
+                    "box_caption": "minMax(pixel)",
+                    "scores": {"acc": 0.1, "loss": 1.2},
+                },
+            ],
+            "class_labels": class_labels,
+        },
+    }
+    mask_annotation = {
+        "mask_predictions": {
+            "mask_data": np.random.randint(0, 4, size=(30, 30)),
+            "class_labels": class_labels,
+        },
+        "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
+    }
+    for filetype in formats:
+        img = wandb.Image(
+            np.random.rand(10, 10),
+            boxes=box_annotation,
+            masks=mask_annotation,
+            file_type=filetype,
+        )
+        assert img.format == filetype
+        # check that the meta data is preserved when we assign to a new image
 
 
 def test_classes_type():
@@ -696,10 +758,8 @@ def test_table_typing_numpy():
     table.add_data(np.uintp(42))
     table.add_data(np.float32(42))
     table.add_data(np.float64(42))
-    table.add_data(np.float_(42))
     table.add_data(np.complex64(42))
     table.add_data(np.complex128(42))
-    table.add_data(np.complex_(42))
 
     # Booleans
     table = wandb.Table(columns=["A"], dtype=[BooleanType])
@@ -741,10 +801,8 @@ def test_table_typing_numpy():
     table.add_data(np.array([42, 42], dtype=np.uintp))
     table.add_data(np.array([42, 42], dtype=np.float32))
     table.add_data(np.array([42, 42], dtype=np.float64))
-    table.add_data(np.array([42, 42], dtype=np.float_))
     table.add_data(np.array([42, 42], dtype=np.complex64))
     table.add_data(np.array([42, 42], dtype=np.complex128))
-    table.add_data(np.array([42, 42], dtype=np.complex_))
 
     # Array of Booleans
     table = wandb.Table(columns=["A"], dtype=[[BooleanType]])
@@ -822,13 +880,9 @@ def test_table_typing_pandas():
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float64))
     table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.float_))
-    table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex64))
     table.add_data(42)
     table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex128))
-    table.add_data(42)
-    table = wandb.Table(dataframe=pd.DataFrame([[42], [42]]).astype(np.complex_))
     table.add_data(42)
 
     # Boolean

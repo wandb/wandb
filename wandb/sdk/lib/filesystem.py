@@ -6,7 +6,6 @@ import os
 import platform
 import re
 import shutil
-import stat
 import tempfile
 import threading
 from pathlib import Path
@@ -15,9 +14,6 @@ from typing import IO, Any, BinaryIO, Generator, Optional
 from wandb.sdk.lib.paths import StrPath
 
 logger = logging.getLogger(__name__)
-
-WRITE_PERMISSIONS = stat.S_IWUSR | stat.S_IWGRP | stat.S_IWOTH | stat.S_IWRITE
-
 
 # https://en.wikipedia.org/wiki/Filename#Comparison_of_filename_limitations
 PROBLEMATIC_PATH_CHARS = "".join(chr(i) for i in range(0, 32)) + ':"*<>?|'
@@ -159,7 +155,7 @@ def copy_or_overwrite_changed(source_path: StrPath, target_path: StrPath) -> Str
         or os.stat(source_path).st_mtime != os.stat(target_path).st_mtime
     )
 
-    permissions_plus_write = os.stat(source_path).st_mode | WRITE_PERMISSIONS
+    permissions_plus_write = os.stat(source_path).st_mode
     if need_copy:
         dir_name, file_name = os.path.split(target_path)
         target_path = os.path.join(mkdir_allow_fallback(dir_name), file_name)
@@ -231,7 +227,17 @@ def safe_open(
 
 
 def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
-    """Copy a file, ensuring any changes only apply atomically once finished."""
+    """Copy a file atomically.
+
+    Copying is not usually atomic, and on operating systems that allow multiple
+    writers to the same file, the result can get corrupted. If two writers copy
+    to the same file, the contents can become interleaved.
+
+    We mitigate the issue somewhat by copying to a temporary file first and
+    then renaming. Renaming is atomic: if process 1 renames file A to X and
+    process 2 renames file B to X, then X will either contain the contents
+    of A or the contents of B, not some mixture of both.
+    """
     # TODO (hugh): check that there is enough free space.
     output_path = Path(target_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)

@@ -38,7 +38,7 @@ def main():
 
     best_model = log_model(my_model, "my-model", aliases=["boom"], scope_project=True)
 
-    link_model(best_model, "entity/project/test_portfolio")
+    link_model(best_model, "project/test_portfolio")
 
     wandb.finish()
 

@@ -1,12 +1,14 @@
 id: 0.mp.19-1-log-image-sequence
 plugin:
     - wandb
+tag:
+  skips:
+    - platform: win
 depend:
     requirements:
         - numpy
         - pillow
-tag:
-    shard: service
+    
 parametrize:
     permute:
         - :yea:start_method:

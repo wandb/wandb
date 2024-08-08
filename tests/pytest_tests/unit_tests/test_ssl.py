@@ -45,12 +45,11 @@ def ssl_server(ssl_creds: SSLCredPaths) -> Iterator[http.server.HTTPServer]:
             self.wfile.write(b"Hello, world!")
 
     httpd = http.server.HTTPServer(("localhost", 0), MyServer)
-    httpd.socket = ssl.wrap_socket(
-        httpd.socket,
-        keyfile=ssl_creds.key,
-        certfile=ssl_creds.cert,
-        server_side=True,
-    )
+
+    context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    context.load_cert_chain(certfile=ssl_creds.cert, keyfile=ssl_creds.key)
+
+    httpd.socket = context.wrap_socket(httpd.socket, server_side=True)
 
     threading.Thread(target=httpd.serve_forever, daemon=True).start()
 

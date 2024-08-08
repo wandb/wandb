@@ -214,8 +214,8 @@ class Backend:
 
         self.interface = InterfaceQueue(
             process=self.wandb_process,
-            record_q=self.record_q,
-            result_q=self.result_q,
+            record_q=self.record_q,  # type: ignore
+            result_q=self.result_q,  # type: ignore
             mailbox=self._mailbox,
         )
 

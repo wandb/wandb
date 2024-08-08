@@ -101,7 +101,9 @@ def is_docker_installed() -> bool:
 def build(
     tags: List[str], file: str, context_path: str, platform: Optional[str] = None
 ) -> str:
-    command = ["buildx", "build"] if is_buildx_installed() else ["build"]
+    use_buildx = is_buildx_installed()
+    command = ["buildx", "build"] if use_buildx else ["build"]
+    command += ["--load"] if should_add_load_argument(platform) and use_buildx else []
     if platform:
         command += ["--platform", platform]
     build_tags = []
@@ -112,6 +114,14 @@ def build(
         args,
     )
     return stdout
+
+
+def should_add_load_argument(platform: Optional[str]) -> bool:
+    # the load option does not work when multiple platforms are specified:
+    # https://github.com/docker/buildx/issues/59
+    if platform is None or (platform and "," not in platform):
+        return True
+    return False
 
 
 def run_command_live_output(args: List[Any]) -> str:
@@ -192,7 +202,7 @@ def default_image(gpu: bool = False) -> str:
     tag = "all"
     if not gpu:
         tag += "-cpu"
-    return "wandb/deepo:%s" % tag
+    return "wandb/deepo:{}".format(tag)
 
 
 def parse_repository_tag(repo_name: str) -> Tuple[str, Optional[str]]:
@@ -279,7 +289,7 @@ def image_id_from_registry(image_name: str) -> Optional[str]:
 
 
 def image_id(image_name: str) -> Optional[str]:
-    """Retreve the image id from the local docker daemon or remote registry."""
+    """Retrieve the image id from the local docker daemon or remote registry."""
     if "@sha256:" in image_name:
         return image_name
     else:

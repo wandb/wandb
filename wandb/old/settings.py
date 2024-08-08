@@ -7,6 +7,7 @@ from typing import Any, Optional
 from wandb import env
 from wandb.old import core
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.runid import generate_id
 
 
 class Settings:
@@ -24,7 +25,9 @@ class Settings:
         self.root_dir = root_dir
 
         if load_settings:
-            self._global_settings.read([Settings._global_path()])
+            global_path = Settings._global_path()
+            if global_path is not None:
+                self._global_settings.read([global_path])
             # Only attempt to read if there is a directory existing
             if os.path.isdir(core.wandb_dir(self.root_dir)):
                 self._local_settings.read([Settings._local_path(self.root_dir)])
@@ -70,7 +73,9 @@ class Settings:
                 self._persist_settings(settings, settings_path)
 
         if globally:
-            write_setting(self._global_settings, Settings._global_path(), persist)
+            global_path = Settings._global_path()
+            if global_path is not None:
+                write_setting(self._global_settings, global_path, persist)
         else:
             write_setting(
                 self._local_settings, Settings._local_path(self.root_dir), persist
@@ -83,7 +88,9 @@ class Settings:
                 self._persist_settings(settings, settings_path)
 
         if globally:
-            clear_setting(self._global_settings, Settings._global_path(), persist)
+            global_path = Settings._global_path()
+            if global_path is not None:
+                clear_setting(self._global_settings, global_path, persist)
         else:
             clear_setting(
                 self._local_settings, Settings._local_path(self.root_dir), persist
@@ -120,21 +127,45 @@ class Settings:
         return settings
 
     @staticmethod
-    def _global_path():
-        default_config_dir = os.path.join(os.path.expanduser("~"), ".config", "wandb")
-        # if not writable, fall back to a temp directory
-        if not os.access(default_config_dir, os.W_OK):
-            default_config_dir = os.path.join(tempfile.gettempdir(), ".config", "wandb")
-        # if not writable (if tempdir is shared, for example), try creating a subdir
-        if not os.access(default_config_dir, os.W_OK):
-            username = getpass.getuser()
-            default_config_dir = os.path.join(
-                tempfile.gettempdir(), username, ".config", "wandb"
-            )
+    def _global_path() -> Optional[str]:
+        def try_create_dir(path) -> bool:
+            try:
+                os.makedirs(path, exist_ok=True)
+                if os.access(path, os.W_OK):
+                    return True
+            except OSError:
+                pass
+            return False
 
-        config_dir = os.environ.get(env.CONFIG_DIR, default_config_dir)
-        os.makedirs(config_dir, exist_ok=True)
-        return os.path.join(config_dir, "settings")
+        def get_username() -> str:
+            try:
+                return getpass.getuser()
+            except (ImportError, KeyError):
+                return generate_id()
+
+        try:
+            home_config_dir = os.path.join(os.path.expanduser("~"), ".config", "wandb")
+
+            if not try_create_dir(home_config_dir):
+                temp_config_dir = os.path.join(
+                    tempfile.gettempdir(), ".config", "wandb"
+                )
+
+                if not try_create_dir(temp_config_dir):
+                    username = get_username()
+                    config_dir = os.path.join(
+                        tempfile.gettempdir(), username, ".config", "wandb"
+                    )
+                    try_create_dir(config_dir)
+                else:
+                    config_dir = temp_config_dir
+            else:
+                config_dir = home_config_dir
+
+            config_dir = os.environ.get(env.CONFIG_DIR, config_dir)
+            return os.path.join(config_dir, "settings")
+        except Exception:
+            return None
 
     @staticmethod
     def _local_path(root_dir=None):

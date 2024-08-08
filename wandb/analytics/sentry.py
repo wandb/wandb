@@ -136,8 +136,9 @@ class Sentry:
         status = status or ("crashed" if not handled else "errored")  # type: ignore
         self.mark_session(status=status)
 
-        client, _ = self.hub._stack[-1]
-        client.flush()
+        client, _ = self.hub._stack[-1]  # type: ignore
+        if client is not None:
+            client.flush()
 
         return None
 
@@ -210,7 +211,7 @@ class Sentry:
             "sweep_id",
             "deployment",
             "_disable_service",
-            "_require_nexus",
+            "_require_core",
             "launch",
         )
 

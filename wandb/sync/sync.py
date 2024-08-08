@@ -1,5 +1,6 @@
 """sync."""
 
+import atexit
 import datetime
 import fnmatch
 import os
@@ -8,6 +9,7 @@ import sys
 import tempfile
 import threading
 import time
+from typing import List, Optional
 from urllib.parse import quote as url_quote
 
 import wandb
@@ -21,7 +23,6 @@ from wandb.util import check_and_warn_old
 WANDB_SUFFIX = ".wandb"
 SYNCED_SUFFIX = ".synced"
 TFEVENT_SUBSTRING = ".tfevents."
-TMPDIR = tempfile.TemporaryDirectory()
 
 
 class _LocalRun:
@@ -44,6 +45,7 @@ class SyncThread(threading.Thread):
         project=None,
         entity=None,
         run_id=None,
+        job_type=None,
         view=None,
         verbose=None,
         mark_synced=None,
@@ -51,6 +53,7 @@ class SyncThread(threading.Thread):
         sync_tensorboard=None,
         log_path=None,
         append=None,
+        skip_console=None,
     ):
         threading.Thread.__init__(self)
         # mark this process as internal
@@ -59,6 +62,7 @@ class SyncThread(threading.Thread):
         self._project = project
         self._entity = entity
         self._run_id = run_id
+        self._job_type = job_type
         self._view = view
         self._verbose = verbose
         self._mark_synced = mark_synced
@@ -66,6 +70,10 @@ class SyncThread(threading.Thread):
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
         self._append = append
+        self._skip_console = skip_console
+
+        self._tmp_dir = tempfile.TemporaryDirectory()
+        atexit.register(self._tmp_dir.cleanup)
 
     def _parse_pb(self, data, exit_pb=None):
         pb = wandb_internal_pb2.Record()
@@ -84,7 +92,11 @@ class SyncThread(threading.Thread):
                 pb.run.project = self._project
             if self._entity:
                 pb.run.entity = self._entity
+            if self._job_type:
+                pb.run.job_type = self._job_type
             pb.control.req_resp = True
+        elif record_type in ("output", "output_raw") and self._skip_console:
+            return pb, exit_pb, True
         elif record_type == "exit":
             exit_pb = pb
             return pb, exit_pb, True
@@ -151,7 +163,7 @@ class SyncThread(threading.Thread):
             url_quote(proto_run.project),
             url_quote(proto_run.run_id),
         )
-        print("Syncing: %s ..." % url)
+        print("Syncing: {} ...".format(url))
         sys.stdout.flush()
         # using a handler here automatically handles the step
         # logic, adds summaries to the run, and handles different
@@ -169,7 +181,7 @@ class SyncThread(threading.Thread):
         )
         record = send_manager._interface._make_record(run=proto_run)
         settings = wandb.Settings(
-            root_dir=TMPDIR.name,
+            root_dir=self._tmp_dir.name,
             run_id=proto_run.run_id,
             _start_datetime=datetime.datetime.now(),
             _start_time=time.time(),
@@ -251,7 +263,7 @@ class SyncThread(threading.Thread):
                 tb_root, tb_logdirs, tb_event_files, sync_item
             )
             # If we're syncing tensorboard, let's use a tmp dir for images etc.
-            root_dir = TMPDIR.name if sync_tb else os.path.dirname(sync_item)
+            root_dir = self._tmp_dir.name if sync_tb else os.path.dirname(sync_item)
 
             # When appending we are allowing a possible resume, ie the run
             # doesnt have to exist already
@@ -300,7 +312,7 @@ class SyncThread(threading.Thread):
                             url_quote(r.project),
                             url_quote(r.run_id),
                         )
-                        print("Syncing: %s ... " % url, end="")
+                        print("Syncing: {} ... ".format(url), end="")
                         sys.stdout.flush()
                         shown = True
             sm.finish()
@@ -318,6 +330,7 @@ class SyncManager:
         project=None,
         entity=None,
         run_id=None,
+        job_type=None,
         mark_synced=None,
         app_url=None,
         view=None,
@@ -325,12 +338,14 @@ class SyncManager:
         sync_tensorboard=None,
         log_path=None,
         append=None,
+        skip_console=None,
     ):
         self._sync_list = []
         self._thread = None
         self._project = project
         self._entity = entity
         self._run_id = run_id
+        self._job_type = job_type
         self._mark_synced = mark_synced
         self._app_url = app_url
         self._view = view
@@ -338,6 +353,7 @@ class SyncManager:
         self._sync_tensorboard = sync_tensorboard
         self._log_path = log_path
         self._append = append
+        self._skip_console = skip_console
 
     def status(self):
         pass
@@ -352,6 +368,7 @@ class SyncManager:
             project=self._project,
             entity=self._entity,
             run_id=self._run_id,
+            job_type=self._job_type,
             view=self._view,
             verbose=self._verbose,
             mark_synced=self._mark_synced,
@@ -359,6 +376,7 @@ class SyncManager:
             sync_tensorboard=self._sync_tensorboard,
             log_path=self._log_path,
             append=self._append,
+            skip_console=self._skip_console,
         )
         self._thread.start()
 
@@ -371,17 +389,15 @@ class SyncManager:
 
 
 def get_runs(
-    include_offline=None,
-    include_online=None,
-    include_synced=None,
-    include_unsynced=None,
-    exclude_globs=None,
-    include_globs=None,
+    include_offline: bool = True,
+    include_online: bool = True,
+    include_synced: bool = False,
+    include_unsynced: bool = True,
+    exclude_globs: Optional[List[str]] = None,
+    include_globs: Optional[List[str]] = None,
 ):
     # TODO(jhr): grab dir info from settings
-    base = "wandb"
-    if os.path.exists(".wandb"):
-        base = ".wandb"
+    base = ".wandb" if os.path.exists(".wandb") else "wandb"
     if not os.path.exists(base):
         return ()
     all_dirs = os.listdir(base)

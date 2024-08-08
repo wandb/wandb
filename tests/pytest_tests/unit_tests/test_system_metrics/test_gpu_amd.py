@@ -115,6 +115,7 @@ def test_gpu_amd(test_settings):
             settings=settings,
             shutdown_event=shutdown_event,
         )
+        gpu.is_available = lambda: True
         assert gpu.is_available()
         gpu.start()
         probe = gpu.probe()
@@ -164,6 +165,7 @@ def test_gpu_amd_missing_keys(test_settings):
             settings=settings,
             shutdown_event=shutdown_event,
         )
+        gpu.is_available = lambda: True
         gpu.start()
         time.sleep(1)
         shutdown_event.set()

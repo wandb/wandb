@@ -1,138 +1,130 @@
 """Implementation of Elastic Container Registry class for wandb launch."""
+
 import base64
 import logging
-import re
-from typing import Dict, Tuple
+from typing import Dict, Optional, Tuple
 
-import yaml
-
-from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.errors import LaunchError
-from wandb.util import get_module
-
-from .abstract import AbstractRegistry
-
-botocore = get_module(
-    "botocore",
-    required="AWS environment requires botocore to be installed. Please install "
-    "it with `pip install wandb[launch]`.",
+from wandb.sdk.launch.registry.abstract import AbstractRegistry
+from wandb.sdk.launch.utils import (
+    ELASTIC_CONTAINER_REGISTRY_URI_REGEX,
+    event_loop_thread_exec,
 )
+from wandb.util import get_module
 
 _logger = logging.getLogger(__name__)
 
+botocore = get_module(  # noqa: F811
+    "botocore",
+    required="The boto3 package is required to use launch with AWS. Please install it with `pip install wandb[launch]`.",
+)
+boto3 = get_module(  # noqa: F811
+    "boto3",
+    required="The boto3 package is required to use launch with AWS. Please install it with `pip install wandb[launch]`.",
+)
+
 
 class ElasticContainerRegistry(AbstractRegistry):
-    """Elastic Container Registry class.
+    """Elastic Container Registry class."""
 
-    Attributes:
-        repo_name (str): The name of the repository.
-        environment (AwsEnvironment): The AWS environment.
-        uri (str): The uri of the repository.
-    """
-
-    repo_name: str
-    environment: AwsEnvironment
-    uri: str
-
-    def __init__(self, repo_name: str, environment: AwsEnvironment) -> None:
+    def __init__(
+        self,
+        uri: Optional[str] = None,
+        account_id: Optional[str] = None,
+        region: Optional[str] = None,
+        repo_name: Optional[str] = None,
+    ) -> None:
         """Initialize the Elastic Container Registry.
 
         Arguments:
-            repo_name (str): The name of the repository.
-            environment (AwsEnvironment): The AWS environment.
+            uri: The uri of the repository.
+            account_id: The AWS account id.
+            region: The AWS region of the container registry.
+            repository: The name of the repository.
 
         Raises:
-            LaunchError: If there is an error verifying the registry.
+            LaunchError: If there is an error initializing the Elastic Container Registry helper.
         """
-        super().__init__()
-        _logger.info(
-            f"Initializing Elastic Container Registry with repotisory {repo_name}."
-        )
-        self.repo_name = repo_name
-        self.environment = environment
-        self.verify()
+        if uri:
+            self.uri = uri
+            if any([account_id, region, repo_name]):
+                raise LaunchError(
+                    "Could not create ElasticContainerRegistry from config. Either 'uri' or "
+                    "'account_id', 'region', and 'repo_name' are required."
+                )
+            match = ELASTIC_CONTAINER_REGISTRY_URI_REGEX.match(
+                self.uri,
+            )
+            if not match:
+                raise LaunchError(
+                    f"Could not create ElasticContainerRegistry from config. The uri "
+                    f"{self.uri} is invalid."
+                )
+            self.account_id = match.group("account")
+            self.region = match.group("region")
+            self.repo_name = match.group("repository")
+        else:
+            if not all([account_id, region, repo_name]):
+                raise LaunchError(
+                    "Could not create ElasticContainerRegistry from config. Either 'uri' or "
+                    "'account_id', 'region', and 'repo_name' are required."
+                )
+            self.account_id = account_id
+            self.region = region
+            self.repo_name = repo_name
+            self.uri = f"{self.account_id}.dkr.ecr.{self.region}.amazonaws.com/{self.repo_name}"
+        if self.account_id is None:
+            raise LaunchError(
+                "Could not create ElasticContainerRegistry from config. Either 'uri' or "
+                "'account_id' is required."
+            )
+        if self.region is None:
+            raise LaunchError(
+                "Could not create ElasticContainerRegistry from config. Either 'uri' or "
+                "'region' is required."
+            )
+        if self.repo_name is None:
+            raise LaunchError(
+                "Could not create ElasticContainerRegistry from config. Either 'uri' or "
+                "'repository' is required."
+            )
 
     @classmethod
-    def from_config(  # type: ignore[override]
+    def from_config(
         cls,
         config: Dict[str, str],
-        environment: AwsEnvironment,
-        verify: bool = True,
     ) -> "ElasticContainerRegistry":
         """Create an Elastic Container Registry from a config.
 
         Arguments:
             config (dict): The config.
-            environment (AwsEnvironment): The AWS environment.
 
         Returns:
             ElasticContainerRegistry: The Elastic Container Registry.
         """
-        if config.get("type") != "ecr":
+        # TODO: Replace this with pydantic.
+        acceptable_keys = {
+            "uri",
+            "type",
+            "account_id",
+            "region",
+            "repo_name",
+        }
+        unsupported_keys = set(config.keys()) - acceptable_keys
+        if unsupported_keys:
             raise LaunchError(
-                f"Could not create ElasticContainerRegistry from config. Expected type 'ecr' "
-                f"but got '{config.get('type')}'."
+                f"The Elastic Container Registry config contains unsupported keys: "
+                f"{unsupported_keys}. Please remove these keys. The acceptable "
+                f"keys are: {acceptable_keys}."
             )
-        if ("uri" in config) == ("repository" in config):
-            raise LaunchError(
-                "Could not create ElasticContainerRegistry from config. Either 'uri' or "
-                f"'repository' is required. The config received was:\n{yaml.dump(config)}."
-            )
-        if "repository" in config:
-            repository = config.get("repository")
-        else:
-            match = re.match(
-                r"^(?P<account>.*)\.dkr\.ecr\.(?P<region>.*)\.amazonaws\.com/(?P<repository>.*)/?$",
-                config["uri"],
-            )
-            if not match:
-                raise LaunchError(
-                    f"Could not create ElasticContainerRegistry from config. The uri "
-                    f"{config.get('uri')} is invalid."
-                )
-            repository = match.group("repository")
-            if match.group("region") != environment.region:
-                raise LaunchError(
-                    f"Could not create ElasticContainerRegistry from config. The uri "
-                    f"{config.get('uri')} is in region {match.group('region')} but the "
-                    f"environment is in region {environment.region}."
-                )
-            if match.group("account") != environment._account:
-                raise LaunchError(
-                    f"Could not create ElasticContainerRegistry from config. The uri "
-                    f"{config.get('uri')} is in account {match.group('account')} but the "
-                    f"account being used is {environment._account}."
-                )
-        if not isinstance(repository, str):
-            # This is for mypy. We should never get here.
-            raise LaunchError(
-                f"Could not create ElasticContainerRegistry from config. The repository "
-                f"{repository} is invalid: repository should be a string."
-            )
-        return cls(repository, environment)
+        return cls(
+            uri=config.get("uri"),
+            account_id=config.get("account_id"),
+            region=config.get("region"),
+            repo_name=config.get("repository"),
+        )
 
-    def verify(self) -> None:
-        """Verify that the registry is accessible and the configured repo exists.
-
-        Raises:
-            RegistryError: If there is an error verifying the registry.
-        """
-        _logger.debug("Verifying Elastic Container Registry.")
-        try:
-            session = self.environment.get_session()
-            client = session.client("ecr")
-            response = client.describe_repositories(repositoryNames=[self.repo_name])
-            self.uri = response["repositories"][0]["repositoryUri"].split("/")[0]
-
-        except botocore.exceptions.ClientError as e:
-            code = e.response["Error"]["Code"]
-            msg = e.response["Error"]["Message"]
-            # TODO: Log the code and the message here?
-            raise LaunchError(
-                f"Error verifying Elastic Container Registry: {code} {msg}"
-            )
-
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
@@ -143,9 +135,9 @@ class ElasticContainerRegistry(AbstractRegistry):
         """
         _logger.debug("Getting username and password for Elastic Container Registry.")
         try:
-            session = self.environment.get_session()
-            client = session.client("ecr")
-            response = client.get_authorization_token()
+            session = boto3.Session(region_name=self.region)
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.get_authorization_token)()
             username, password = base64.standard_b64decode(
                 response["authorizationData"][0]["authorizationToken"]
             ).split(b":")
@@ -157,15 +149,15 @@ class ElasticContainerRegistry(AbstractRegistry):
             # TODO: Log the code and the message here?
             raise LaunchError(f"Error getting username and password: {code} {msg}")
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the uri of the repository.
 
         Returns:
             str: The uri of the repository.
         """
-        return self.uri + "/" + self.repo_name
+        return f"{self.account_id}.dkr.ecr.{self.region}.amazonaws.com/{self.repo_name}"
 
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if the image tag exists.
 
         Arguments:
@@ -174,17 +166,20 @@ class ElasticContainerRegistry(AbstractRegistry):
         Returns:
             bool: True if the image tag exists.
         """
-        uri, tag = image_uri.split(":")
-        if uri != self.get_repo_uri():
-            raise LaunchError(
-                f"Image uri {image_uri} does not match Elastic Container Registry uri {self.get_repo_uri()}."
-            )
-
-        _logger.debug("Checking if image tag exists.")
+        if ":" not in image_uri:
+            tag = image_uri
+        else:
+            uri, tag = image_uri.split(":")
+            repo_uri = await self.get_repo_uri()
+            if uri != repo_uri:
+                raise LaunchError(
+                    f"Image uri {image_uri} does not match Elastic Container Registry uri {repo_uri}."
+                )
+        _logger.debug(f"Checking if image tag {tag} exists in repository {self.uri}")
         try:
-            session = self.environment.get_session()
-            client = session.client("ecr")
-            response = client.describe_images(
+            session = boto3.Session(region_name=self.region)
+            client = await event_loop_thread_exec(session.client)("ecr")
+            response = await event_loop_thread_exec(client.describe_images)(
                 repositoryName=self.repo_name, imageIds=[{"imageTag": tag}]
             )
             return len(response["imageDetails"]) > 0

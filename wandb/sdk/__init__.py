@@ -1,15 +1,37 @@
 """module sdk."""
 
-from . import wandb_helper as helper  # noqa: F401
-from .artifacts.artifact import Artifact  # noqa: F401
-from .wandb_alerts import AlertLevel  # noqa: F401
-from .wandb_config import Config  # noqa: F401
-from .wandb_init import _attach, init  # noqa: F401
-from .wandb_login import login  # noqa: F401
-from .wandb_require import require  # noqa: F401
-from .wandb_run import finish  # noqa: F401
-from .wandb_settings import Settings  # noqa: F401
-from .wandb_setup import setup, teardown  # noqa: F401
-from .wandb_summary import Summary  # noqa: F401
-from .wandb_sweep import controller, sweep  # noqa: F401
-from .wandb_watch import unwatch, watch  # noqa: F401
+__all__ = (
+    "Config",
+    "Settings",
+    "Summary",
+    "Artifact",
+    "AlertLevel",
+    "init",
+    "setup",
+    "_attach",
+    "_sync",
+    "login",
+    "require",
+    "finish",
+    "teardown",
+    "watch",
+    "unwatch",
+    "sweep",
+    "controller",
+    "helper",
+)
+
+from . import wandb_helper as helper
+from .artifacts.artifact import Artifact
+from .wandb_alerts import AlertLevel
+from .wandb_config import Config
+from .wandb_init import _attach, init
+from .wandb_login import login
+from .wandb_require import require
+from .wandb_run import finish
+from .wandb_settings import Settings
+from .wandb_setup import setup, teardown
+from .wandb_summary import Summary
+from .wandb_sweep import controller, sweep
+from .wandb_sync import _sync
+from .wandb_watch import unwatch, watch

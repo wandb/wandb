@@ -1,4 +1,5 @@
 """Multi storage handler."""
+
 from typing import TYPE_CHECKING, List, Optional, Sequence, Union
 from urllib.parse import urlparse
 
@@ -28,7 +29,7 @@ class MultiHandler(StorageHandler):
                 return handler
         if self._default_handler is not None:
             return self._default_handler
-        raise ValueError('No storage handler registered for url "%s"' % str(url))
+        raise ValueError('No storage handler registered for url "{}"'.format(str(url)))
 
     def load_path(
         self,

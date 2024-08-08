@@ -1,5 +1,8 @@
 """Abstract Scheduler class."""
+
+import asyncio
 import base64
+import copy
 import logging
 import os
 import socket
@@ -22,6 +25,10 @@ from wandb.sdk.launch.sweeps import SchedulerError
 from wandb.sdk.launch.sweeps.utils import (
     create_sweep_command_args,
     make_launch_sweep_entrypoint,
+)
+from wandb.sdk.launch.utils import (
+    event_loop_thread_exec,
+    strip_resource_args_and_template_vars,
 )
 from wandb.sdk.lib.runid import generate_id
 
@@ -151,7 +158,9 @@ class Scheduler(ABC):
         self._runs: Dict[str, SweepRun] = {}
         # Threading lock to ensure thread-safe access to the runs dictionary
         self._threading_lock: threading.Lock = threading.Lock()
-        self._polling_sleep = polling_sleep or DEFAULT_POLLING_SLEEP
+        self._polling_sleep = (
+            polling_sleep if polling_sleep is not None else DEFAULT_POLLING_SLEEP
+        )
         self._project_queue = project_queue
         # Optionally run multiple workers in (pseudo-)parallel. Workers do not
         # actually run training workloads, they simply send heartbeat messages
@@ -250,13 +259,12 @@ class Scheduler(ABC):
 
     def _init_wandb_run(self) -> "SdkRun":
         """Controls resume or init logic for a scheduler wandb run."""
-        _type = self._kwargs.get("sweep_type", "sweep")
-        run: SdkRun = wandb.init(
-            name=f"{_type}-scheduler-{self._sweep_id}",
-            job_type=self.SWEEP_JOB_TYPE,
-            # WANDB_RUN_ID = sweep_id for scheduler
+        settings = wandb.Settings(disable_job_creation=True)
+        run: SdkRun = wandb.init(  # type: ignore
+            name=f"Scheduler.{self._sweep_id}",
             resume="allow",
             config=self._kwargs,  # when run as a job, this sets config
+            settings=settings,
         )
         return run
 
@@ -290,7 +298,7 @@ class Scheduler(ABC):
 
         # For resuming sweeps
         self._load_state()
-        self._register_agents()
+        asyncio.run(self._register_agents())
         self.run()
 
     def run(self) -> None:
@@ -402,7 +410,7 @@ class Scheduler(ABC):
         return count
 
     def _try_load_executable(self) -> bool:
-        """Check existance of valid executable for a run.
+        """Check existence of valid executable for a run.
 
         logs and returns False when job is unreachable
         """
@@ -417,26 +425,31 @@ class Scheduler(ABC):
                 return False
             return True
         elif self._kwargs.get("image_uri"):
-            # TODO(gst): check docker existance? Use registry in launch config?
+            # TODO(gst): check docker existence? Use registry in launch config?
             return True
         else:
             return False
 
-    def _register_agents(self) -> None:
+    async def _register_agents(self) -> None:
+        tasks = []
+        register_agent = event_loop_thread_exec(self._api.register_agent)
         for worker_id in range(self._num_workers):
             _logger.debug(f"{LOG_PREFIX}Starting AgentHeartbeat worker ({worker_id})")
             try:
-                agent_config = self._api.register_agent(
+                worker = register_agent(
                     f"{socket.gethostname()}-{worker_id}",  # host
                     sweep_id=self._sweep_id,
                     project_name=self._project,
                     entity=self._entity,
                 )
+                tasks.append(worker)
             except Exception as e:
                 _logger.debug(f"failed to register agent: {e}")
                 self.fail_sweep(f"failed to register agent: {e}")
 
-            self._workers[worker_id] = _Worker(
+        finished_tasks = await asyncio.gather(*tasks)
+        for idx, agent_config in enumerate(finished_tasks):
+            self._workers[idx] = _Worker(
                 agent_config=agent_config,
                 agent_id=agent_config["id"],
             )
@@ -600,7 +613,7 @@ class Scheduler(ABC):
                     f"Failed to get runstate for run ({run_id}). Error: {traceback.format_exc()}"
                 )
                 run_state = RunState.FAILED
-            else:  # first time we get unknwon state
+            else:  # first time we get unknown state
                 run_state = RunState.UNKNOWN
         except (AttributeError, ValueError):
             wandb.termwarn(
@@ -654,9 +667,11 @@ class Scheduler(ABC):
             pidx = entry_point.index("${program}")
             entry_point[pidx] = self._sweep_config["program"]
 
-        launch_config = self._wandb_run.config.get("launch", {})
+        launch_config = copy.deepcopy(self._wandb_run.config.get("launch", {}))
         if "overrides" not in launch_config:
             launch_config["overrides"] = {"run_config": {}}
+        if "run_config" not in launch_config["overrides"]:
+            launch_config["overrides"]["run_config"] = {}
         launch_config["overrides"]["run_config"].update(args["args_dict"])
 
         if macro_args:  # pipe in hyperparam args as params to launch
@@ -690,7 +705,13 @@ class Scheduler(ABC):
             )
 
         # override resource and args of job
-        _job_launch_config = self._wandb_run.config.get("launch") or {}
+        _job_launch_config = copy.deepcopy(self._wandb_run.config.get("launch")) or {}
+
+        # default priority is "medium"
+        _priority = int(launch_config.get("priority", 2))  # type: ignore
+
+        # strip resource_args and template_variables from launch_config
+        strip_resource_args_and_template_vars(_job_launch_config)
 
         run_id = run.id or generate_id()
         queued_run = launch_add(
@@ -705,8 +726,10 @@ class Scheduler(ABC):
             project_queue=self._project_queue,
             resource=_job_launch_config.get("resource"),
             resource_args=_job_launch_config.get("resource_args"),
+            template_variables=_job_launch_config.get("template_variables"),
             author=self._kwargs.get("author"),
             sweep_id=self._sweep_id,
+            priority=_priority,
         )
         run.queued_run = queued_run
         # TODO(gst): unify run and queued_run state

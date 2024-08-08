@@ -4,7 +4,7 @@ import pytest
 import wandb
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch._project_spec import EntryPoint
+from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 
 
@@ -19,8 +19,12 @@ def mock_sagemaker_environment():
     environment.get_region.return_value = "us-east-1"
 
 
-def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
-    def mock_launch_sagemaker_job(*args, **kwargs):
+@pytest.mark.asyncio
+@pytest.mark.parametrize("override_entrypoint", [None, ["python", "test.py"]])
+async def test_sagemaker_resolved_submitted_job(
+    relay_server, monkeypatch, user, override_entrypoint
+):
+    async def mock_launch_sagemaker_job(*args, **kwargs):
         # return second arg, which is constructed sagemaker create_training_job request
         return args[1]
 
@@ -68,6 +72,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
 
         # test with user provided image
         project = MagicMock()
+        project.fill_macros = LaunchProject.fill_macros.__get__(project, MagicMock)
         entrypoint = EntryPoint("blah", entry_command)
         project.resource_args = {
             "sagemaker": {
@@ -75,6 +80,7 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
                 "OutputDataConfig": {"S3OutputPath": "s3://blah/blah"},
                 "ResourceConfig": {"blah": 2},
                 "StoppingCondition": {"test": 1},
+                "TrainingJobName": "${project_name}-${run_id}",
             }
         }
         project.target_entity = entity_name
@@ -83,9 +89,14 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
         project.run_id = "asdasd"
         project.sweep_id = "sweeeeep"
         project.override_config = {}
-        project.override_entrypoint = entrypoint
-        project.get_single_entry_point.return_value = entrypoint
+        project.get_job_entry_point.return_value = entrypoint
+        if override_entrypoint:
+            project.override_entrypoint = EntryPoint("blah2", override_entrypoint)
+        else:
+            project.override_entrypoint = None
+        project._entrypoint = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
+        project.override_files = {}
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
@@ -93,6 +104,19 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.get_env_vars_dict = lambda *args, **kwargs: {
+            "WANDB_API_KEY": user,
+            "WANDB_PROJECT": project_name,
+            "WANDB_ENTITY": entity_name,
+            "WANDB_LAUNCH": "True",
+            "WANDB_RUN_ID": "asdasd",
+            "WANDB_DOCKER": "testimage",
+            "WANDB_SWEEP_ID": "sweeeeep",
+            "WANDB_CONFIG": "{}",
+            "WANDB_LAUNCH_FILE_OVERRIDES": "{}",
+            "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
+            "WANDB_BASE_URL": "",
+        }
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -102,18 +126,18 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
             environment,
             MagicMock(),
         )
-        req = runner.run(project, project.docker_image)
+        req = await runner.run(project, project.docker_image)
 
         assert "my-fake-RoleArn" in req["RoleArn"]
         assert req["AlgorithmSpecification"] == {
             "TrainingImage": "testimage",
             "TrainingInputMode": "File",
-            "ContainerEntrypoint": ["python", "test.py"],
+            "ContainerEntrypoint": override_entrypoint or entrypoint.command,
             "ContainerArguments": ["--a1", "20", "--a2", "10"],
         }
         assert req["ResourceConfig"] == {"blah": 2}
         assert req["StoppingCondition"] == {"test": 1}
-        assert req["TrainingJobName"] == project.run_id
+        assert req["TrainingJobName"] == f"{project_name}-{project.run_id}"
         env = req["Environment"]
         env.pop("WANDB_BASE_URL")
         assert env == {
@@ -125,5 +149,6 @@ def test_sagemaker_resolved_submitted_job(relay_server, monkeypatch, user):
             "WANDB_DOCKER": "testimage",
             "WANDB_SWEEP_ID": "sweeeeep",
             "WANDB_CONFIG": "{}",
+            "WANDB_LAUNCH_FILE_OVERRIDES": "{}",
             "WANDB_ARTIFACTS": '{"_wandb_job": "testjob"}',
         }

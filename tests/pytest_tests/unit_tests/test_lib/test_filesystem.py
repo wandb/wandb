@@ -4,11 +4,8 @@ import os
 import platform
 import re
 import shutil
-import stat
-import sys
 import tempfile
 import time
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from unittest import mock
 from unittest.mock import Mock, patch
@@ -111,7 +108,7 @@ def test_copy_or_overwrite_changed_no_copy(tmp_path):
         assert not copy2_mock.called
 
 
-def test_copy_or_overwrite_changed_overwite_different_mtime(tmp_path):
+def test_copy_or_overwrite_changed_overwrite_different_mtime(tmp_path):
     source_path = tmp_path / "new_file.txt"
     target1_path = tmp_path / "target1.txt"
     target2_path = tmp_path / "target2.txt"
@@ -139,7 +136,8 @@ def test_copy_or_overwrite_changed_bad_permissions(tmp_path, permissions):
     dest_path = copy_or_overwrite_changed(source_path, target_path)
     assert dest_path == target_path
     assert dest_path.read_text() == "replacement"
-    assert dest_path.stat().st_mode & stat.S_IWOTH == stat.S_IWOTH
+    umask = os.umask(0o022)
+    assert dest_path.stat().st_mode & umask == 0
 
 
 @pytest.mark.xfail(reason="Not possible to chown a file to root under test runner.")
@@ -367,54 +365,6 @@ def test_safe_copy_str_path(tmp_path: Path):
 #         safe_copy(source_path, target_path)
 #
 #         assert target_path.read_text("utf-8") == source_content
-
-
-@pytest.mark.skipif(sys.platform == "win32", reason="Windows locks active files")
-def test_safe_copy_target_file_changes_during_copy(tmp_path: Path, monkeypatch):
-    source_path = tmp_path / "source.txt"
-    target_path = tmp_path / "target.txt"
-    source_content = "Source content 📝" * 1000
-    changed_target_content = "Changed target content 🔀"
-
-    source_path.write_text(source_content, encoding="utf-8")
-
-    def repeatedly_write_content():
-        end_time = time.time() + 1.0
-        while time.time() < end_time:
-            try:
-                target_path.write_text(changed_target_content, encoding="utf-8")
-            except PermissionError:
-                pass
-
-    def delayed_copy_with_pause(src, dst, *args, **kwargs):
-        """Write a 4096 byte block at a time, pausing 0.1 seconds between writes."""
-        # Windows often doesn't allow opening a file for writing while there is an open
-        # file handle to it. To get around the PermissionError, we close the file
-        # between writes, but also retry failed writes.
-        pos = 0
-        with open(src, "rb") as infile:
-            for block in iter(lambda: infile.read(4096), b""):
-                success = False
-                while not success:
-                    time.sleep(0.1)
-                    try:
-                        with open(dst, "wb") as outfile:
-                            outfile.seek(pos)
-                            outfile.write(block)
-                        pos += len(block)
-                        success = True
-                    except PermissionError:
-                        pass
-
-    monkeypatch.setattr(shutil, "copy2", delayed_copy_with_pause)
-
-    with ThreadPoolExecutor(max_workers=2) as executor:
-        future = executor.submit(repeatedly_write_content)
-        safe_copy(source_path, target_path)
-        future.result()
-
-    result_content = target_path.read_text("utf-8")
-    assert result_content == source_content or result_content == changed_target_content
 
 
 @pytest.mark.parametrize("src_link", [None, "symbolic", "hard"])

@@ -31,7 +31,8 @@ class SummarySubDict:
             self._root = root
             json_dict = root._json_dict
             for k in path:
-                json_dict = json_dict[k]
+                json_dict = json_dict.get(k, {})
+
             self._json_dict = json_dict
         self._dict = {}
 
@@ -60,7 +61,7 @@ class SummarySubDict:
         This should only be implemented by the "_root" child class.
 
         We pass the child_dict so the item can be set on it or not as
-        appropriate. Returning None for a nonexistant path wouldn't be
+        appropriate. Returning None for a nonexistent path wouldn't be
         distinguishable from that path being set to the value None.
         """
         raise NotImplementedError
@@ -175,9 +176,7 @@ class SummarySubDict:
     def _update(self, key_vals, overwrite):
         if not key_vals:
             return
-
         key_vals = {k.strip(): v for k, v in key_vals.items()}
-
         if overwrite:
             write_items = list(key_vals.items())
             self._locked_keys.update(key_vals.keys())
@@ -390,6 +389,11 @@ class HTTPSummary(Summary):
         self._run = run
         self._client = client
         self._started = time.time()
+
+    def __delitem__(self, key):
+        if key not in self._json_dict:
+            raise KeyError(key)
+        del self._json_dict[key]
 
     def load(self):
         pass

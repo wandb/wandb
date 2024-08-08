@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 import os
 
-import pytorch_lightning as pl
+import lightning as pl
+from lightning.pytorch.loggers import WandbLogger
 from pl_base import BoringModel, RandomDataset
-from pytorch_lightning.loggers import WandbLogger
 from torch.utils.data import DataLoader
 
 

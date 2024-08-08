@@ -35,6 +35,7 @@ Examples:
         learn.fit(..., callbacks=WandbCallback(learn, ...))
     ```
 """
+
 import random
 import sys
 from pathlib import Path
@@ -45,17 +46,17 @@ if sys.version_info >= (3, 8):
 else:
     from typing_extensions import Literal
 
-import fastai  # type: ignore[import]
-from fastai.callbacks import TrackerCallback  # type: ignore[import]
+import fastai
+from fastai.callbacks import TrackerCallback
 
 import wandb
 
 try:
-    import matplotlib  # type: ignore[import]
+    import matplotlib
 
     if wandb.wandb_lib.ipython._get_python_type() != "jupyter":  # type: ignore[attr-defined]
         matplotlib.use("Agg")  # non-interactive backend (avoid tkinter issues)
-    import matplotlib.pyplot as plt  # type: ignore[import]
+    import matplotlib.pyplot as plt
 except ImportError:
     print("Warning: matplotlib required if logging sample image predictions")
 

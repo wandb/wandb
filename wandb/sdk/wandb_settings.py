@@ -43,8 +43,9 @@ from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import credentials, filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
+from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
 
 from .lib import apikey
@@ -54,18 +55,8 @@ from .lib.runid import generate_id
 
 if sys.version_info >= (3, 8):
     from typing import get_args, get_origin, get_type_hints
-elif sys.version_info >= (3, 7):
-    from typing_extensions import get_args, get_origin, get_type_hints
 else:
-
-    def get_args(obj: Any) -> Optional[Any]:
-        return obj.__args__ if hasattr(obj, "__args__") else None
-
-    def get_origin(obj: Any) -> Optional[Any]:
-        return obj.__origin__ if hasattr(obj, "__origin__") else None
-
-    def get_type_hints(obj: Any) -> Dict[str, Any]:
-        return dict(obj.__annotations__) if hasattr(obj, "__annotations__") else dict()
+    from typing_extensions import get_args, get_origin, get_type_hints
 
 
 class SettingsPreprocessingError(UsageError):
@@ -168,6 +159,14 @@ def _get_program() -> Optional[str]:
         return f"-m {__main__.__spec__.name}"
     except (ImportError, AttributeError):
         return None
+
+
+def _runmoment_preprocessor(val: Any) -> Optional[RunMoment]:
+    if isinstance(val, RunMoment) or val is None:
+        return val
+    elif isinstance(val, str):
+        return RunMoment.from_uri(val)
+    raise UsageError(f"Could not parse value {val} as a RunMoment.")
 
 
 def _get_program_relpath(
@@ -299,37 +298,40 @@ class SettingsData:
 
     _args: Sequence[str]
     _aws_lambda: bool
-    _async_upload_concurrency_limit: int
     _cli_only_mode: bool  # Avoid running any code specific for runs
+    _code_path_local: str
     _colab: bool
     # _config_dict: Config
     _cuda: str
     _disable_meta: bool  # Do not collect system metadata
-    _disable_service: bool  # Disable wandb-service, spin up internal process the old way
+    _disable_service: (
+        bool  # Disable wandb-service, spin up internal process the old way
+    )
     _disable_setproctitle: bool  # Do not use setproctitle on internal process
     _disable_stats: bool  # Do not collect system metrics
+    _disable_update_check: bool  # Disable version check
     _disable_viewer: bool  # Prevent early viewer query
     _disable_machine_info: bool  # Disable automatic machine info collection
-    _except_exit: bool
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_max_bytes: int  # max size for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
-    _file_stream_retry_wait_min_seconds: int  # min wait time between retries
-    _file_stream_retry_wait_max_seconds: int  # max wait time between retries
-    _file_stream_timeout_seconds: int  # timeout for individual HTTP requests
-    # file uploader retry client configuration
-    _file_uploader_retry_max: int
-    _file_uploader_retry_wait_min_seconds: int
-    _file_uploader_retry_wait_max_seconds: int
-    _file_uploader_timeout_seconds: int
+    _file_stream_retry_wait_min_seconds: float  # min wait time between retries
+    _file_stream_retry_wait_max_seconds: float  # max wait time between retries
+    _file_stream_timeout_seconds: float  # timeout for individual HTTP requests
+    # file transfer retry client configuration
+    _file_transfer_retry_max: int
+    _file_transfer_retry_wait_min_seconds: float
+    _file_transfer_retry_wait_max_seconds: float
+    _file_transfer_timeout_seconds: float
     _flow_control_custom: bool
     _flow_control_disabled: bool
     # graphql retry client configuration
     _graphql_retry_max: int
-    _graphql_retry_wait_min_seconds: int
-    _graphql_retry_wait_max_seconds: int
-    _graphql_timeout_seconds: int
+    _graphql_retry_wait_min_seconds: float
+    _graphql_retry_wait_max_seconds: float
+    _graphql_timeout_seconds: float
     _internal_check_process: float
     _internal_queue_timeout: float
     _ipython: bool
@@ -348,20 +350,27 @@ class SettingsData:
     _sync: bool
     _os: str
     _platform: str
-    _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
+    _proxies: Mapping[
+        str, str
+    ]  # custom proxy servers for the requests to W&B [scheme -> url]
     _python: str
     _runqueue_item_id: str
-    _require_nexus: bool
+    _require_core: bool
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
+    _shared: bool
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
     _stats_sample_rate_seconds: float
     _stats_samples_to_average: int
-    _stats_join_assets: bool  # join metrics from different assets before sending to backend
-    _stats_neuron_monitor_config_path: str  # path to place config file for neuron-monitor (AWS Trainium)
+    _stats_join_assets: (
+        bool  # join metrics from different assets before sending to backend
+    )
+    _stats_neuron_monitor_config_path: (
+        str  # path to place config file for neuron-monitor (AWS Trainium)
+    )
     _stats_open_metrics_endpoints: Mapping[str, str]  # open metrics endpoint names/urls
     # open metrics filters in one of the two formats:
     # - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
@@ -382,6 +391,8 @@ class SettingsData:
     colab_url: str
     config_paths: Sequence[str]
     console: str
+    console_multipart: bool  # whether to produce multipart console log files
+    credentials_file: str  # file path to write access tokens
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -393,12 +404,17 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
+    fork_from: Optional[RunMoment]
+    resume_from: Optional[RunMoment]
     git_commit: str
     git_remote: str
     git_remote_url: str
     git_root: str
     heartbeat_seconds: int
     host: str
+    http_proxy: str  # proxy server for the http requests to W&B
+    https_proxy: str  # proxy server for the https requests to W&B
+    identity_token_file: str  # file path to supply a jwt for authentication
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
@@ -416,7 +432,6 @@ class SettingsData:
     # magic: Union[str, bool, dict]  # never used in code, deprecated
     mode: str
     notebook_name: str
-    problem: str
     program: str
     program_abspath: str
     program_relpath: str
@@ -612,12 +627,12 @@ class Settings(SettingsData):
         Note that key names must be the same as the class attribute names.
         """
         props: Dict[str, Dict[str, Any]] = dict(
-            _async_upload_concurrency_limit={
-                "preprocessor": int,
-                "validator": self._validate__async_upload_concurrency_limit,
-            },
             _aws_lambda={
                 "hook": lambda _: is_aws_lambda(),
+                "auto_hook": True,
+            },
+            _code_path_local={
+                "hook": lambda _: _get_program_relpath(self.program),
                 "auto_hook": True,
             },
             _colab={
@@ -644,21 +659,18 @@ class Settings(SettingsData):
                 "preprocessor": _str_as_bool,
                 "hook": lambda x: self._disable_machine_info or x,
             },
+            _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
-            # Retry filestream requests for 2 hours before dropping chunk (how do we recover?)
-            # retry_count = seconds_in_2_hours / max_retry_time + num_retries_until_max_60_sec
-            #             = 7200 / 60 + ceil(log2(60/2))
-            #             = 120 + 5
-            _file_stream_retry_max={"value": 125, "preprocessor": int},
-            _file_stream_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _file_stream_retry_wait_max_seconds={"value": 60, "preprocessor": int},
-            # A 3 minute timeout for all filestream post requests
-            _file_stream_timeout_seconds={"value": 180, "preprocessor": int},
-            _file_uploader_retry_max={"value": 10, "preprocessor": int},
-            _file_uploader_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _file_uploader_retry_wait_max_seconds={"value": 60, "preprocessor": int},
-            _file_uploader_timeout_seconds={"value": 0, "preprocessor": int},
+            _file_stream_max_bytes={"preprocessor": int},
+            _file_stream_retry_max={"preprocessor": int},
+            _file_stream_retry_wait_min_seconds={"preprocessor": float},
+            _file_stream_retry_wait_max_seconds={"preprocessor": float},
+            _file_stream_timeout_seconds={"preprocessor": float},
+            _file_transfer_retry_max={"preprocessor": int},
+            _file_transfer_retry_wait_min_seconds={"preprocessor": float},
+            _file_transfer_retry_wait_max_seconds={"preprocessor": float},
+            _file_transfer_timeout_seconds={"preprocessor": float},
             _flow_control_disabled={
                 "hook": lambda _: self._network_buffer == 0,
                 "auto_hook": True,
@@ -667,10 +679,10 @@ class Settings(SettingsData):
                 "hook": lambda _: bool(self._network_buffer),
                 "auto_hook": True,
             },
-            _graphql_retry_max={"value": 10, "preprocessor": int},
-            _graphql_retry_wait_min_seconds={"value": 2, "preprocessor": int},
-            _graphql_retry_wait_max_seconds={"value": 60, "preprocessor": int},
-            _graphql_timeout_seconds={"value": 30.0, "preprocessor": int},
+            _graphql_retry_max={"preprocessor": int},
+            _graphql_retry_wait_min_seconds={"preprocessor": float},
+            _graphql_retry_wait_max_seconds={"preprocessor": float},
+            _graphql_timeout_seconds={"preprocessor": float},
             _internal_check_process={"value": 8, "preprocessor": float},
             _internal_queue_timeout={"value": 2, "preprocessor": float},
             _ipython={
@@ -702,14 +714,19 @@ class Settings(SettingsData):
             },
             _platform={"value": util.get_platform_name()},
             _proxies={
+                # TODO: deprecate and ask the user to use http_proxy and https_proxy instead
                 "preprocessor": _str_as_json,
             },
-            _require_nexus={"value": False, "preprocessor": _str_as_bool},
+            _require_core={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
                 "preprocessor": float,
                 "validator": self._validate__service_wait,
+            },
+            _shared={
+                "hook": lambda _: self.mode == "shared",
+                "auto_hook": True,
             },
             _start_datetime={"preprocessor": _datetime_as_str},
             _stats_sample_rate_seconds={
@@ -769,6 +786,11 @@ class Settings(SettingsData):
                 "hook": lambda x: self._convert_console(x),
                 "auto_hook": True,
             },
+            console_multipart={"value": False, "preprocessor": _str_as_bool},
+            credentials_file={
+                "value": str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE),
+                "preprocessor": str,
+            },
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -797,8 +819,25 @@ class Settings(SettingsData):
                 ),
             },
             force={"preprocessor": _str_as_bool},
+            fork_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
+            resume_from={
+                "value": None,
+                "preprocessor": _runmoment_preprocessor,
+            },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
+            http_proxy={
+                "hook": lambda x: self._proxies and self._proxies.get("http") or x,
+                "auto_hook": True,
+            },
+            https_proxy={
+                "hook": lambda x: self._proxies and self._proxies.get("https") or x,
+                "auto_hook": True,
+            },
+            identity_token_file={"value": None, "preprocessor": str},
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
@@ -840,11 +879,12 @@ class Settings(SettingsData):
             },
             login_timeout={"preprocessor": lambda x: float(x)},
             mode={"value": "online", "validator": self._validate_mode},
-            problem={"value": "fatal", "validator": self._validate_problem},
             program={
                 "hook": lambda x: self._get_program(x),
             },
-            project={"validator": self._validate_project},
+            project={
+                "validator": self._validate_project,
+            },
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
@@ -961,7 +1001,7 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate_mode(value: str) -> bool:
-        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled"}
+        choices: Set[str] = {"dryrun", "run", "offline", "online", "disabled", "shared"}
         if value not in choices:
             raise UsageError(f"Settings field `mode`: {value!r} not in {choices}")
         return True
@@ -1001,13 +1041,6 @@ class Settings(SettingsData):
             # do not advertise internal console states
             choices -= {"wrap_emu", "wrap_raw"}
             raise UsageError(f"Settings field `console`: {value!r} not in {choices}")
-        return True
-
-    @staticmethod
-    def _validate_problem(value: str) -> bool:
-        choices: Set[str] = {"fatal", "warn", "silent"}
-        if value not in choices:
-            raise UsageError(f"Settings field `problem`: {value!r} not in {choices}")
         return True
 
     @staticmethod
@@ -1155,35 +1188,6 @@ class Settings(SettingsData):
     def _validate__stats_samples_to_average(value: int) -> bool:
         if value < 1 or value > 30:
             raise UsageError("_stats_samples_to_average must be between 1 and 30")
-        return True
-
-    @staticmethod
-    def _validate__async_upload_concurrency_limit(value: int) -> bool:
-        if value <= 0:
-            raise UsageError("_async_upload_concurrency_limit must be positive")
-
-        try:
-            import resource  # not always available on Windows
-
-            file_limit = resource.getrlimit(resource.RLIMIT_NOFILE)[0]
-        except Exception:
-            # Couldn't get the open-file-limit for some reason,
-            # probably very platform-specific. Not a problem,
-            # we just won't use it to cap the concurrency.
-            pass
-        else:
-            if value > file_limit:
-                wandb.termwarn(
-                    (
-                        "_async_upload_concurrency_limit setting of"
-                        f" {value} exceeds this process's limit"
-                        f" on open files ({file_limit}); may cause file-upload failures."
-                        " Try decreasing _async_upload_concurrency_limit,"
-                        " or increasing your file limit with `ulimit -n`."
-                    ),
-                    repeat=False,
-                )
-
         return True
 
     @staticmethod
@@ -1567,6 +1571,14 @@ class Settings(SettingsData):
                 for key, value in v.items():
                     # we only support dicts with string values for now
                     mapping.value[key] = value
+            elif isinstance(v, RunMoment):
+                getattr(settings, k).CopyFrom(
+                    wandb_settings_pb2.RunMoment(
+                        run=v.run,
+                        value=v.value,
+                        metric=v.metric,
+                    )
+                )
             elif v is None:
                 # None is the default value for all settings, so we don't need to set it,
                 # i.e. None means that the value was not set.
@@ -1645,14 +1657,13 @@ class Settings(SettingsData):
             "WANDB_TRACELOG": "_tracelog",
             "WANDB_DISABLE_SERVICE": "_disable_service",
             "WANDB_SERVICE_TRANSPORT": "_service_transport",
-            "WANDB_REQUIRE_NEXUS": "_require_nexus",
             "WANDB_DIR": "root_dir",
             "WANDB_NAME": "run_name",
             "WANDB_NOTES": "run_notes",
             "WANDB_TAGS": "run_tags",
             "WANDB_JOB_TYPE": "run_job_type",
             "WANDB_HTTP_TIMEOUT": "_graphql_timeout_seconds",
-            "WANDB_FILE_PUSHER_TIMEOUT": "_file_uploader_timeout_seconds",
+            "WANDB_FILE_PUSHER_TIMEOUT": "_file_transfer_timeout_seconds",
             "WANDB_USER_EMAIL": "email",
         }
         env = dict()
@@ -1754,9 +1765,6 @@ class Settings(SettingsData):
             settings["_args"] = sys.argv[1:]
         settings["_os"] = platform.platform(aliased=True)
         settings["_python"] = platform.python_version()
-        # hack to make sure we don't hang on windows
-        if self._windows and self._except_exit is None:
-            settings["_except_exit"] = True  # type: ignore
 
         if _logger is not None:
             _logger.info(
@@ -1867,7 +1875,21 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_rewind_logic()
+        self._handle_resume_logic()
 
+    def _handle_rewind_logic(self) -> None:
+        if self.resume_from is None:
+            return
+
+        if self.run_id is not None and (self.resume_from.run != self.run_id):
+            wandb.termwarn(
+                "Both `run_id` and `resume_from` have been specified with different ids. "
+                "`run_id` will be ignored."
+            )
+        self.update({"run_id": self.resume_from.run}, source=Source.INIT)
+
+    def _handle_resume_logic(self) -> None:
         # handle auto resume logic
         if self.resume == "auto":
             if os.path.exists(self.resume_fname):
@@ -1880,6 +1902,7 @@ class Settings(SettingsData):
                         "Tried to auto resume run with "
                         f"id {resume_run_id} but id {self.run_id} is set.",
                     )
+
         self.update({"run_id": self.run_id or generate_id()}, source=Source.INIT)
         # persist our run id in case of failure
         # check None for mypy
@@ -1889,16 +1912,33 @@ class Settings(SettingsData):
                 f.write(json.dumps({"run_id": self.run_id}))
 
     def _apply_login(
-        self, login_settings: Dict[str, Any], _logger: Optional[_EarlyLogger] = None
+        self,
+        login_settings: Dict[str, Any],
+        _logger: Optional[_EarlyLogger] = None,
     ) -> None:
-        param_map = dict(key="api_key", host="base_url", timeout="login_timeout")
-        login_settings = {
-            param_map.get(k, k): v for k, v in login_settings.items() if v is not None
+        key_map = {
+            "key": "api_key",
+            "host": "base_url",
+            "timeout": "login_timeout",
         }
-        if login_settings:
-            if _logger:
-                _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
-            self.update(login_settings, source=Source.LOGIN)
+
+        # Rename keys and keep only the non-None values.
+        #
+        # The input keys are parameters to wandb.login(), but we use different
+        # names for some of them in Settings.
+        login_settings = {
+            key_map.get(key, key): value
+            for key, value in login_settings.items()
+            if value is not None
+        }
+
+        if _logger:
+            _logger.info(f"Applying login settings: {_redact_dict(login_settings)}")
+
+        self.update(
+            login_settings,
+            source=Source.LOGIN,
+        )
 
     def _apply_run_start(self, run_start_settings: Dict[str, Any]) -> None:
         # This dictionary maps from the "run message dict" to relevant fields in settings

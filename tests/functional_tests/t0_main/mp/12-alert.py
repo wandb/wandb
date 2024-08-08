@@ -2,7 +2,6 @@
 
 import wandb
 
-wandb.require("service")
 wandb.setup()
 run = wandb.init()
 run.log(dict(m1=1))

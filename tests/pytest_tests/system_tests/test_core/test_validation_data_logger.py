@@ -8,7 +8,6 @@ from wandb.sdk.integration_utils.data_logging import (
 )
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_data_logger_val_data_lists(wandb_init):
     run = wandb_init()
     print(run.settings)
@@ -38,7 +37,6 @@ def test_data_logger_val_data_lists(wandb_init):
     run.finish()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_data_logger_val_data_dicts(wandb_init):
     run = wandb_init()
     vd = ValidationDataLogger(
@@ -113,7 +111,6 @@ def test_data_logger_val_invalid(wandb_init):
     run.finish()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_data_logger_val_user_proc(wandb_init):
     run = wandb_init()
     vd = ValidationDataLogger(
@@ -316,7 +313,6 @@ def test_data_logger_val_inferred_proc_no_class(wandb_init):
     run.finish()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_data_logger_pred(wandb_init):
     run = wandb_init()
     vd = ValidationDataLogger(
@@ -338,7 +334,6 @@ def test_data_logger_pred(wandb_init):
     run.finish()
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_data_logger_pred_user_proc(wandb_init):
     run = wandb_init()
     vd = ValidationDataLogger(

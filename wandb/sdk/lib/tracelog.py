@@ -6,7 +6,7 @@ Functions:
     log_message_send    - message sent to socket
     log_message_recv    - message received from socket
     log_message_process - message processed by thread
-    log_message_link    - message linked to another mesage
+    log_message_link    - message linked to another message
     log_message_assert  - message encountered problem
 
 """
@@ -45,8 +45,8 @@ logger = logging.getLogger(__name__)
 ANNOTATE_QUEUE_NAME = "_DEBUGLOG_QUEUE_NAME"
 
 # capture stdout and stderr before anyone messes with them
-stdout_write = sys.__stdout__.write
-stderr_write = sys.__stderr__.write
+stdout_write = sys.__stdout__.write  # type: ignore
+stderr_write = sys.__stderr__.write  # type: ignore
 
 
 def _log(

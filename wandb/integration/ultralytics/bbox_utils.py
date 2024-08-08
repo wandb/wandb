@@ -1,9 +1,10 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
+from tqdm.auto import tqdm
 from ultralytics.engine.results import Results
 from ultralytics.models.yolo.detect import DetectionPredictor
-from ultralytics.yolo.utils import ops
+from ultralytics.utils import ops
 
 import wandb
 
@@ -125,10 +126,13 @@ def get_boxes(result: Results) -> Tuple[Dict, Dict]:
     return boxes, mean_confidence_map
 
 
-def plot_predictions(
+def plot_bbox_predictions(
     result: Results, model_name: str, table: Optional[wandb.Table] = None
 ) -> Union[wandb.Table, Tuple[wandb.Image, Dict, Dict]]:
-    """Plot the images with the W&B overlay system. The `wandb.Image` is either added to a `wandb.Table` or returned."""
+    """Plot the images with the W&B overlay system.
+
+    The `wandb.Image` is either added to a `wandb.Table` or returned.
+    """
     result = result.to("cpu")
     boxes, mean_confidence_map = get_boxes(result)
     image = wandb.Image(result.orig_img[:, :, ::-1], boxes=boxes)
@@ -144,7 +148,7 @@ def plot_predictions(
     return image, boxes["predictions"], mean_confidence_map
 
 
-def plot_validation_results(
+def plot_detection_validation_results(
     dataloader: Any,
     class_label_map: Dict,
     model_name: str,
@@ -155,18 +159,26 @@ def plot_validation_results(
 ) -> wandb.Table:
     """Plot validation results in a table."""
     data_idx = 0
+    num_dataloader_batches = len(dataloader.dataset) // dataloader.batch_size
+    max_validation_batches = min(max_validation_batches, num_dataloader_batches)
     for batch_idx, batch in enumerate(dataloader):
-        for img_idx, image_path in enumerate(batch["im_file"]):
-            prediction_result = predictor(image_path)[0]
-            _, prediction_box_data, mean_confidence_map = plot_predictions(
+        prediction_results = predictor(batch["im_file"])
+        progress_bar_result_iterable = tqdm(
+            enumerate(prediction_results),
+            total=len(prediction_results),
+            desc=f"Generating Visualizations for batch-{batch_idx + 1}/{max_validation_batches}",
+        )
+        for img_idx, prediction_result in progress_bar_result_iterable:
+            prediction_result = prediction_result.to("cpu")
+            _, prediction_box_data, mean_confidence_map = plot_bbox_predictions(
                 prediction_result, model_name
             )
             try:
                 ground_truth_data = get_ground_truth_bbox_annotations(
-                    img_idx, image_path, batch, class_label_map
+                    img_idx, batch["im_file"][img_idx], batch, class_label_map
                 )
                 wandb_image = wandb.Image(
-                    image_path,
+                    batch["im_file"][img_idx],
                     boxes={
                         "ground-truth": {
                             "box_data": ground_truth_data,

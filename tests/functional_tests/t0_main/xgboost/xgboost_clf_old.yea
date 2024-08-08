@@ -1,6 +1,6 @@
 id: 0.xgboost.01-old-xgboost
 tag:
-  shard: service
+  shard: xgboost
   skips:
     - platform: win
 plugin:

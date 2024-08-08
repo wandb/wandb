@@ -1,4 +1,5 @@
-"""Build and optinally push the launch agent image."""
+"""Build and optionally push the launch agent image."""
+
 import argparse
 import os
 

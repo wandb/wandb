@@ -1,6 +1,7 @@
 """apikey util."""
 
 import os
+import platform
 import stat
 import sys
 import textwrap
@@ -15,7 +16,7 @@ else:
     from typing_extensions import Literal
 
 import click
-import requests.utils
+from requests.utils import NETRC_FILES, get_netrc_auth
 
 import wandb
 from wandb.apis import InternalApi
@@ -51,6 +52,25 @@ def _fixup_anon_mode(default: Optional[Mode]) -> Optional[Mode]:
     anon_mode = default or "never"
     mapping: Dict[Mode, Mode] = {"true": "allow", "false": "never"}
     return mapping.get(anon_mode, anon_mode)
+
+
+def get_netrc_file_path() -> str:
+    """Return the path to the netrc file."""
+    # if the NETRC environment variable is set, use that
+    netrc_file = os.environ.get("NETRC")
+    if netrc_file:
+        return os.path.expanduser(netrc_file)
+
+    # if either .netrc or _netrc exists in the home directory, use that
+    for netrc_file in NETRC_FILES:
+        home_dir = os.path.expanduser("~")
+        if os.path.exists(os.path.join(home_dir, netrc_file)):
+            return os.path.join(home_dir, netrc_file)
+
+    # otherwise, use .netrc on non-Windows platforms and _netrc on Windows
+    netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
+
+    return os.path.join(os.path.expanduser("~"), netrc_file)
 
 
 def prompt_api_key(  # noqa: C901
@@ -162,7 +182,7 @@ def prompt_api_key(  # noqa: C901
 
 def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
     """Add our host and key to .netrc."""
-    key_prefix, key_suffix = key.split("-", 1) if "-" in key else ("", key)
+    _, key_suffix = key.split("-", 1) if "-" in key else ("", key)
     if len(key_suffix) != 40:
         wandb.termerror(
             "API-key must be exactly 40 characters long: {} ({} chars)".format(
@@ -172,25 +192,18 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
         return None
     try:
         normalized_host = urlparse(host).netloc.split(":")[0]
-        if normalized_host != "localhost" and "." not in normalized_host:
-            wandb.termerror(
-                f"Host must be a url in the form https://some.address.com, received {host}"
-            )
-            return None
+        netrc_path = get_netrc_file_path()
         wandb.termlog(
-            "Appending key for {} to your netrc file: {}".format(
-                normalized_host, os.path.expanduser("~/.netrc")
-            )
+            f"Appending key for {normalized_host} to your netrc file: {netrc_path}"
         )
         machine_line = f"machine {normalized_host}"
-        path = os.path.expanduser("~/.netrc")
         orig_lines = None
         try:
-            with open(path) as f:
+            with open(netrc_path) as f:
                 orig_lines = f.read().strip().split("\n")
         except OSError:
             pass
-        with open(path, "w") as f:
+        with open(netrc_path, "w") as f:
             if orig_lines:
                 # delete this machine from the file if it's already there.
                 skip = 0
@@ -202,7 +215,7 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
                     elif skip:
                         skip -= 1
                     else:
-                        f.write("%s\n" % line)
+                        f.write("{}\n".format(line))
             f.write(
                 textwrap.dedent(
                     """\
@@ -212,10 +225,10 @@ def write_netrc(host: str, entity: str, key: str) -> Optional[bool]:
             """
                 ).format(host=normalized_host, entity=entity, key=key)
             )
-        os.chmod(os.path.expanduser("~/.netrc"), stat.S_IRUSR | stat.S_IWUSR)
+        os.chmod(netrc_path, stat.S_IRUSR | stat.S_IWUSR)
         return True
     except OSError:
-        wandb.termerror("Unable to read ~/.netrc")
+        wandb.termerror(f"Unable to read {netrc_path}")
         return None
 
 
@@ -233,10 +246,12 @@ def write_key(
 
     # Normal API keys are 40-character hex strings. On-prem API keys have a
     # variable-length prefix, a dash, then the 40-char string.
-    prefix, suffix = key.split("-", 1) if "-" in key else ("", key)
+    _, suffix = key.split("-", 1) if "-" in key else ("", key)
 
     if len(suffix) != 40:
-        raise ValueError("API key must be 40 characters long, yours was %s" % len(key))
+        raise ValueError(
+            "API key must be 40 characters long, yours was {}".format(len(key))
+        )
 
     if anonymous:
         api.set_setting("anonymous", "true", globally=True, persist=True)
@@ -248,11 +263,11 @@ def write_key(
 
 def api_key(settings: Optional["Settings"] = None) -> Optional[str]:
     if settings is None:
-        settings = wandb.setup().settings
+        settings = wandb.setup().settings  # type: ignore
         assert settings is not None
     if settings.api_key:
         return settings.api_key
-    auth = requests.utils.get_netrc_auth(settings.base_url)
+    auth = get_netrc_auth(settings.base_url)
     if auth:
         return auth[-1]
     return None

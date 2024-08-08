@@ -1,16 +1,18 @@
+-r requirements_test.txt
+
 pytest
 hypothesis
 hypothesis-fspaths
-coverage
 
 Pillow
 pandas
-moviepy
-imageio
+polars
+moviepy~=1.0.3
+imageio[ffmpeg]
 matplotlib!=3.5.2
 soundfile
-rdkit-pypi; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
-rdkit-pypi; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
+rdkit; (sys_platform != 'darwin') or (sys_platform == 'darwin' and platform.machine != 'arm64')
+rdkit; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
 plotly
 bokeh
 
@@ -22,31 +24,29 @@ ipykernel
 nbclient
 
 scikit-learn
-tensorflow<2.14; sys_platform != 'darwin'
+tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
 tensorflow>=1.15.2; sys_platform == 'darwin' and platform.machine != 'arm64'
 tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
 tensorboard
-torch
-torchvision
-jax[cpu]; sys_platform == 'darwin' or sys_platform == 'linux'
+torch; python_version < '3.12'
+torchvision; python_version < '3.12'
+jax[cpu]; python_version > '3.7' and (sys_platform == 'darwin' or sys_platform == 'linux')
 
 fastcore
-pyarrow
+pyarrow; python_version < '3.12'  # TODO: 3.12 support will be added in 14.0.0
 metaflow>=2.3.5
 xgboost
 lightgbm; sys_platform != 'darwin'
-mlflow
-kfp<2.0.0
+mlflow; python_version < '3.12'  # TODO: requires pyarrow
+# kfp<2.0.0  # TODO: put back when we support kfp>=2.0.0
 urllib3<2
 docker
 
 responses
-respx
 prometheus_client
 google-cloud-aiplatform
 
-.[async]
 .[perf]
 .[launch]
-.[sweeps]; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
+.[sweeps] ; sys_platform != 'darwin' or (sys_platform == 'darwin' and platform.machine != 'arm64')
 .[azure]

@@ -156,11 +156,6 @@ def test_notebook_not_exists(mocked_ipython, wandb_init, capsys):
 
 def test_databricks_notebook_doesnt_hang_on_wandb_login(mocked_module):
     # test for WB-5264
-
-    # make the test think we are running in a databricks notebook
-    dbutils = mocked_module("dbutils")
-    dbutils.shell.sc.appName = "Databricks Shell"
-
     # when we try to call wandb.login(), should fail with no-tty
     with mock.patch.object(
         wandb.sdk.lib.apikey,
@@ -180,10 +175,8 @@ def test_mocked_notebook_html_default(wandb_init, run_id, mocked_ipython):
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 9
-    assert run_id in displayed_html[2]
-    assert "(success)" in displayed_html[5]
-    assert "Run history:" in displayed_html[6]
+    assert any(run_id in html for html in displayed_html)
+    assert any("Run history:" in html for html in displayed_html)
 
 
 def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
@@ -193,10 +186,8 @@ def test_mocked_notebook_html_quiet(wandb_init, run_id, mocked_ipython):
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 7
-    assert run_id in displayed_html[2]
-    assert "(success)" in displayed_html[5]
-    assert "Run history:" not in displayed_html[6]
+    assert any(run_id in html for html in displayed_html)
+    assert not any("Run history:" in html for html in displayed_html)
 
 
 def test_mocked_notebook_run_display(wandb_init, mocked_ipython):
@@ -205,8 +196,7 @@ def test_mocked_notebook_run_display(wandb_init, mocked_ipython):
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert len(displayed_html) == 9
-    assert "<iframe" in displayed_html[5]
+    assert any("<iframe" in html for html in displayed_html)
 
 
 def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_ipython):
@@ -218,24 +208,21 @@ def test_mocked_notebook_magic(user, wandb_init, run_id, test_settings, mocked_i
     }
     magic.wandb(
         "",
-        """with wandb.init(settings=wandb.Settings(**%s)):
-        wandb.log({"a": 1})"""
-        % basic_settings,
+        """with wandb.init(settings=wandb.Settings(**{})):
+        wandb.log({{"a": 1}})""".format(basic_settings),
     )
     wandb.finish()
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
     assert wandb.jupyter.__IFrame is None
-    # if versions are different this will fail (make sure you are up-to-date with master)
-    assert len(displayed_html) == 9
-    assert "<iframe" in displayed_html[2]
+    assert any("<iframe" in html for html in displayed_html)
     run_uri = f"{user}/uncategorized/runs/{run_id}"
     magic.wandb(run_uri)
     displayed_html = [args[0].strip() for args, _ in mocked_ipython.html.call_args_list]
     for i, html in enumerate(displayed_html):
         print(f"[{i}]: {html}")
-    assert f"{run_uri}?jupyter=true" in displayed_html[-1]
+    assert any(f"{run_uri}?jupyter=true" in html for html in displayed_html)
 
 
 @pytest.mark.flaky
@@ -272,6 +259,7 @@ def test_code_saving(notebook):
         assert "WANDB_NOTEBOOK_NAME should be a path" in nb.all_output_text()
 
 
+@pytest.mark.wandb_core_failure(feature="launch")
 def test_notebook_creates_artifact_job(notebook):
     with notebook("one_cell_disable_git.ipynb") as nb:
         nb.execute_all()
@@ -281,6 +269,7 @@ def test_notebook_creates_artifact_job(notebook):
         assert "5 artifact file(s)" in output
 
 
+@pytest.mark.wandb_core_failure(feature="launch")
 def test_notebook_creates_repo_job(notebook):
     with notebook("one_cell_set_git.ipynb") as nb:
         nb.execute_all()

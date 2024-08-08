@@ -1,28 +1,18 @@
 """retry tests."""
 
-import asyncio
 import dataclasses
 import datetime
-import sys
 from typing import Iterator
 from unittest import mock
 
 import pytest
 from wandb.sdk.lib import retry
 
-if sys.version_info >= (3, 10):
-    asyncio_run = asyncio.run
-else:
-
-    def asyncio_run(coro):
-        return asyncio.new_event_loop().run_until_complete(coro)
-
 
 @dataclasses.dataclass
 class MockTime:
     now: datetime.datetime
     sleep: mock.Mock
-    sleep_async: mock.Mock
 
 
 @pytest.fixture(autouse=True)
@@ -32,22 +22,17 @@ def mock_time() -> Iterator[MockTime]:
 
     def _sleep(seconds):
         nonlocal now
-        now += datetime.timedelta(seconds=seconds)
-
-    async def _sleep_async(seconds):
-        nonlocal now
-        now += datetime.timedelta(seconds=seconds)
-        await asyncio.sleep(1e-9)  # let the event loop shuffle stuff around
+        now += datetime.timedelta(
+            seconds=seconds
+        )  # let the event loop shuffle stuff around
 
     with mock.patch(
         "wandb.sdk.lib.retry.NOW_FN",
         wraps=lambda: now,
     ) as mock_now, mock.patch(
         "wandb.sdk.lib.retry.SLEEP_FN", side_effect=_sleep
-    ) as mock_sleep, mock.patch(
-        "wandb.sdk.lib.retry.SLEEP_ASYNC_FN", side_effect=_sleep_async
-    ) as mock_sleep_async:
-        yield MockTime(now=mock_now, sleep=mock_sleep, sleep_async=mock_sleep_async)
+    ) as mock_sleep:
+        yield MockTime(now=mock_now, sleep=mock_sleep)
 
 
 def test_retry_respects_num_retries():
@@ -217,71 +202,3 @@ class TestExponentialBackoff:
             initial_sleep=2 * max_sleep, max_sleep=max_sleep
         )
         assert backoff.next_sleep_or_reraise(MyError()) == max_sleep
-
-
-class TestRetryAsync:
-    def test_follows_backoff_schedule(self, mock_time: MockTime):
-        fn = mock.Mock(side_effect=MyError("oh no"))
-        with pytest.raises(MyError):
-            asyncio_run(
-                retry.retry_async(
-                    mock.Mock(
-                        spec=retry.Backoff,
-                        next_sleep_or_reraise=mock.Mock(
-                            side_effect=[
-                                1 * SECOND,
-                                2 * SECOND,
-                                MyError(),
-                            ]
-                        ),
-                    ),
-                    fn,
-                    "pos1",
-                    "pos2",
-                    kw1="kw1",
-                    kw2="kw2",
-                )
-            )
-
-        mock_time.sleep_async.assert_has_calls(
-            [
-                mock.call(1.0),
-                mock.call(2.0),
-            ]
-        )
-
-        fn.assert_has_calls(
-            [
-                mock.call("pos1", "pos2", kw1="kw1", kw2="kw2"),
-                mock.call("pos1", "pos2", kw1="kw1", kw2="kw2"),
-                mock.call("pos1", "pos2", kw1="kw1", kw2="kw2"),
-            ]
-        )
-
-    def test_calls_on_exc(self, mock_time: MockTime):
-        backoff = mock.Mock(
-            spec=retry.Backoff,
-            next_sleep_or_reraise=mock.Mock(return_value=1 * SECOND),
-        )
-
-        excs = [MyError("one"), MyError("two")]
-
-        fn_sync = mock.Mock(
-            side_effect=[
-                *excs,
-                lambda: None,
-            ],
-        )
-
-        async def fn():
-            return fn_sync()
-
-        on_exc = mock.Mock()
-        asyncio_run(retry.retry_async(backoff, fn, on_exc=on_exc))
-
-        on_exc.assert_has_calls(
-            [
-                mock.call(excs[0]),
-                mock.call(excs[1]),
-            ]
-        )

@@ -1,4 +1,5 @@
 """S3 storage handler."""
+
 import os
 import time
 from pathlib import PurePosixPath
@@ -8,8 +9,8 @@ from urllib.parse import parse_qsl, urlparse
 from wandb import util
 from wandb.errors import CommError
 from wandb.errors.term import termlog
+from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
-from wandb.sdk.artifacts.artifacts_cache import get_artifacts_cache
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -36,7 +37,7 @@ class S3Handler(StorageHandler):
     def __init__(self, scheme: Optional[str] = None) -> None:
         self._scheme = scheme or "s3"
         self._s3 = None
-        self._cache = get_artifacts_cache()
+        self._cache = get_artifact_file_cache()
 
     def can_handle(self, parsed_url: "ParseResult") -> bool:
         return parsed_url.scheme == self._scheme
@@ -93,13 +94,18 @@ class S3Handler(StorageHandler):
 
         extra_args = {}
         if version:
-            obj = self._s3.ObjectVersion(bucket, key, version).Object()
+            obj_version = self._s3.ObjectVersion(bucket, key, version)
             extra_args["VersionId"] = version
+            obj = obj_version.Object()
         else:
             obj = self._s3.Object(bucket, key)
 
         try:
-            etag = self._etag_from_obj(obj)
+            etag = (
+                obj_version.head()["ETag"][1:-1]  # escape leading and trailing
+                if version
+                else self._etag_from_obj(obj)
+            )
         except self._botocore.exceptions.ClientError as e:
             if e.response["Error"]["Code"] == "404":
                 raise FileNotFoundError(
@@ -177,9 +183,10 @@ class S3Handler(StorageHandler):
                     multi = True
                 else:
                     raise CommError(
-                        "Unable to connect to S3 ({}): {}".format(
-                            e.response["Error"]["Code"], e.response["Error"]["Message"]
-                        )
+                        f"Unable to connect to S3 ({e.response['Error']['Code']}): "
+                        f"{e.response['Error']['Message']}. Check that your "
+                        "authentication credentials are valid and that your region is "
+                        "set correctly."
                     )
         else:
             multi = True

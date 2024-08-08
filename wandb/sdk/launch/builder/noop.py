@@ -1,4 +1,5 @@
 """NoOp builder implementation."""
+
 from typing import Any, Dict, Optional
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder
@@ -36,11 +37,11 @@ class NoOpBuilder(AbstractBuilder):
         """Create a noop builder from a config."""
         return cls(config, environment, registry)
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify the builder."""
         raise LaunchError("Attempted to verify noop builder.")
 
-    def build_image(
+    async def build_image(
         self,
         launch_project: LaunchProject,
         entrypoint: EntryPoint,

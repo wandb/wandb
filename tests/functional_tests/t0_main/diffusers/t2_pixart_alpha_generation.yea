@@ -1,0 +1,48 @@
+id: 0.diffusers.pixartalpha
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: t2_pixart_alpha_generation.py
+depend:
+    requirements:
+        - "diffusers>=0.23.1"
+        - "sentencepiece>=0.1.99"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][workflow][0][params][callback_steps]: 1
+    - :wandb:runs[0][config][workflow][0][params][clean_caption]: true
+    - :wandb:runs[0][config][workflow][0][params][eta]: 0
+    - :wandb:runs[0][config][workflow][0][params][guidance_scale]: 5
+    - :wandb:runs[0][config][workflow][0][params][mask_feature]: true
+    - :wandb:runs[0][config][workflow][0][params][num_images_per_prompt]: 1
+    - :wandb:runs[0][config][workflow][0][params][num_inference_steps]: 20
+    - :wandb:runs[0][config][workflow][0][params][output_type]: "pil"
+    - :wandb:runs[0][config][workflow][0][params][prompt]: "A small cactus with a happy face in the Sahara desert."
+    - :wandb:runs[0][config][workflow][0][params][negative_prompt]: ""
+    - :wandb:runs[0][config][workflow][0][params][return_dict]: true
+    - :wandb:runs[0][config][workflow][0][params][generator][seed]: 10
+    - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "PixArt-alpha/PixArt-XL-2-1024-MS"
+    - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "PixArtAlphaPipeline"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][1]: "DPMSolverMultistepScheduler"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][1]: "T5EncoderModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][1]: "T5Tokenizer"
+    - :wandb:runs[0][config][workflow][0][pipeline][transformer][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][transformer][1]: "Transformer2DModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][1]: "AutoencoderKL"
+    - :wandb:runs[0][config][workflow][stage]: "Pipeline-Call-1"
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][_type]: table-file
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][nrows]: 1
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][_type]: image-file
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][caption]: "A small cactus with a happy face in the Sahara desert."
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][format]: "png"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][height]: 1024
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][width]: 1024
+    - :wandb:runs[0][exitcode]: 0

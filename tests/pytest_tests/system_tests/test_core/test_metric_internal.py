@@ -425,3 +425,55 @@ def test_metric_dot_glob(relay_server, user, publish_util, mock_run):
     assert summary["this.has.dots"] == {"min": 2}
     assert summary["nodots"] == {"min": 3}
     assert summary["_step"] == 3
+
+
+def test_metric_best(relay_server, user, publish_util, mock_run):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay:
+        history = _gen_history()
+        m1 = pb.MetricRecord(name="mystep")
+        m2 = pb.MetricRecord(name="v1", step_metric="mystep")
+        m2.summary.best = True
+        m2.goal = m2.GOAL_MAXIMIZE
+        m3 = pb.MetricRecord(name="v2", step_metric="mystep")
+        m3.summary.best = True
+        m3.goal = m3.GOAL_MINIMIZE
+        metrics = _make_metrics([m1, m2, m3])
+        publish_util(run=run, history=history, metrics=metrics)
+
+    summary = relay.context.get_run_summary(run.id)
+    history = relay.context.get_run_history(run.id, include_private=True)
+    assert summary["v1"] == {"best": 3}
+    assert summary["v2"] == {"best": 2}
+    assert history["v1"][2] == 2
+    assert history["v2"][2] == 3
+    assert history["v3"][2] == "pizza"
+    assert history["mystep"][2] == 3
+    assert history["_step"][2] == 2
+
+
+def test_metric_glob_twice_norm(relay_server, user, publish_util, mock_run):
+    run = mock_run(use_magic_mock=True)
+    with relay_server() as relay:
+        _history = [dict(step=0, data=dict(metric=1))]
+
+        m1a = pb.MetricRecord(glob_name="*")
+        m1a.summary.best = True
+        m1a.summary.max = True
+        m1a.step_metric = "thestep"
+        m1b = pb.MetricRecord(glob_name="*")
+        m1b.summary.min = True
+
+        _metrics = _make_metrics([m1a, m1b])
+        publish_util(run=run, history=_history, metrics=_metrics)
+
+    summary = relay.context.get_run_summary(run.id)
+    history = relay.context.get_run_history(run.id, include_private=True)
+    metrics = relay.context.get_run_metrics(run.id)
+
+    assert metrics and len(metrics) == 2
+    assert metrics[0] == {"1": "thestep"}
+    assert metrics[1] == {"1": "metric", "5": 1, "7": [1, 2, 4]}
+    assert summary == {"metric": {"max": 1, "best": 1, "min": 1}}
+    assert history["metric"][0] == 1
+    assert history["_step"][0] == 0

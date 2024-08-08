@@ -8,7 +8,7 @@ import wandb
 def _find_available(
     current_version: str,
 ) -> Optional[Tuple[str, bool, bool, bool, Optional[str]]]:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     pypi_url = f"https://pypi.org/pypi/{wandb._wandb_module}/json"
 
@@ -98,7 +98,7 @@ def check_available(current_version: str) -> Optional[Dict[str, Optional[str]]]:
         )
     yank_message = None
     if yanked:
-        reason_message = "(%s)  " % yanked_reason if yanked_reason else ""
+        reason_message = "({})  ".format(yanked_reason) if yanked_reason else ""
         yank_message = "{} version {} has been recalled!  {}Please upgrade.".format(
             wandb_module_name,
             current_version,

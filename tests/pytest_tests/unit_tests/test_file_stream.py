@@ -39,8 +39,10 @@ def test_split_files():
     num_files = 10
     chunk_size = 0.1  # MB
     files = {
-        "file_%s.txt"
-        % i: {"content": rand_string_list(int(file_size * 1024 * 1024)), "offset": 0}
+        "file_{}.txt".format(i): {
+            "content": rand_string_list(int(file_size * 1024 * 1024)),
+            "offset": 0,
+        }
         for i in range(num_files)
     }
     chunks = list(split_files(files, max_bytes=chunk_size * 1024 * 1024))

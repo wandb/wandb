@@ -1,13 +1,14 @@
 """Implementation of the GCP environment for wandb launch."""
+
 import logging
 import os
-import re
 import subprocess
 from typing import Optional
 
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
+from ..utils import GCS_URI_RE, event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 google = get_module(
@@ -44,7 +45,6 @@ google.cloud.storage = get_module(
 
 _logger = logging.getLogger(__name__)
 
-GCS_URI_RE = re.compile(r"gs://([^/]+)/(.+)")
 GCP_REGION_ENV_VAR = "GOOGLE_CLOUD_REGION"
 
 
@@ -57,7 +57,10 @@ class GcpEnvironment(AbstractEnvironment):
 
     region: str
 
-    def __init__(self, region: str, verify: bool = True) -> None:
+    def __init__(
+        self,
+        region: str,
+    ) -> None:
         """Initialize the GCP environment.
 
         Arguments:
@@ -72,8 +75,6 @@ class GcpEnvironment(AbstractEnvironment):
         _logger.info(f"Initializing GcpEnvironment in region {region}")
         self.region: str = region
         self._project = ""
-        if verify:
-            self.verify()
 
     @classmethod
     def from_config(cls, config: dict) -> "GcpEnvironment":
@@ -99,7 +100,9 @@ class GcpEnvironment(AbstractEnvironment):
         return cls(region=region)
 
     @classmethod
-    def from_default(cls, verify: bool = True) -> "GcpEnvironment":
+    def from_default(
+        cls,
+    ) -> "GcpEnvironment":
         """Create a GcpEnvironment from the default configuration.
 
         Returns:
@@ -115,14 +118,11 @@ class GcpEnvironment(AbstractEnvironment):
                 "wandb launch configuration at `$HOME/.config/wandb/launch-config.yaml`. "
                 "See https://docs.wandb.ai/guides/launch/run-agent#environments for more information."
             )
-        return cls(region=region, verify=verify)
+        return cls(region=region)
 
     @property
     def project(self) -> str:
-        """Get the name of the gcp project.
-
-        The project name is determined by the credentials, so this method
-        verifies the credentials if they have not already been verified.
+        """Get the name of the gcp project associated with the credentials.
 
         Returns:
             str: The name of the gcp project.
@@ -130,14 +130,9 @@ class GcpEnvironment(AbstractEnvironment):
         Raises:
             LaunchError: If the launch environment cannot be verified.
         """
-        if not self._project:
-            raise LaunchError(
-                "This GcpEnvironment has not been verified. Please call verify() "
-                "before accessing the project."
-            )
         return self._project
 
-    def get_credentials(self) -> google.auth.credentials.Credentials:  # type: ignore
+    async def get_credentials(self) -> google.auth.credentials.Credentials:  # type: ignore
         """Get the GCP credentials.
 
         Uses google.auth.default() to get the credentials. If the credentials
@@ -152,15 +147,15 @@ class GcpEnvironment(AbstractEnvironment):
         """
         _logger.debug("Getting GCP credentials")
         # TODO: Figure out a minimal set of scopes.
-        scopes = [
-            "https://www.googleapis.com/auth/cloud-platform",
-        ]
         try:
-            creds, project = google.auth.default(scopes=scopes)
+            google_auth_default = event_loop_thread_exec(google.auth.default)
+            creds, project = await google_auth_default()
             if not self._project:
                 self._project = project
             _logger.debug("Refreshing GCP credentials")
-            creds.refresh(google.auth.transport.requests.Request())
+            await event_loop_thread_exec(creds.refresh)(
+                google.auth.transport.requests.Request()
+            )
         except google.auth.exceptions.DefaultCredentialsError as e:
             raise LaunchError(
                 "No Google Cloud Platform credentials found. Please run "
@@ -184,7 +179,7 @@ class GcpEnvironment(AbstractEnvironment):
             )
         return creds
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify the credentials, region, and project.
 
         Credentials and region are verified by calling get_credentials(). The
@@ -197,9 +192,9 @@ class GcpEnvironment(AbstractEnvironment):
             None
         """
         _logger.debug("Verifying GCP environment")
-        self.get_credentials()
+        await self.get_credentials()
 
-    def verify_storage_uri(self, uri: str) -> None:
+    async def verify_storage_uri(self, uri: str) -> None:
         """Verify that a storage URI is valid.
 
         Arguments:
@@ -212,15 +207,21 @@ class GcpEnvironment(AbstractEnvironment):
         if not match:
             raise LaunchError(f"Invalid GCS URI: {uri}")
         bucket = match.group(1)
+        cloud_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
         try:
-            storage_client = google.cloud.storage.Client(
-                credentials=self.get_credentials()
-            )
-            bucket = storage_client.get_bucket(bucket)
-        except google.api_core.exceptions.NotFound as e:
-            raise LaunchError(f"Bucket {bucket} does not exist.") from e
+            credentials = await self.get_credentials()
+            storage_client = await cloud_storage_client(credentials=credentials)
+            bucket = await event_loop_thread_exec(storage_client.get_bucket)(bucket)
+        except google.api_core.exceptions.GoogleAPICallError as e:
+            raise LaunchError(
+                f"Failed verifying storage uri {uri}: bucket {bucket} does not exist."
+            ) from e
+        except google.api_core.exceptions.Forbidden as e:
+            raise LaunchError(
+                f"Failed verifying storage uri {uri}: bucket {bucket} is not accessible. Please check your permissions and try again."
+            ) from e
 
-    def upload_file(self, source: str, destination: str) -> None:
+    async def upload_file(self, source: str, destination: str) -> None:
         """Upload a file to GCS.
 
         Arguments:
@@ -231,24 +232,31 @@ class GcpEnvironment(AbstractEnvironment):
             LaunchError: If the file cannot be uploaded.
         """
         _logger.debug(f"Uploading file {source} to {destination}")
+        _err_prefix = f"Could not upload file {source} to GCS destination {destination}"
         if not os.path.isfile(source):
-            raise LaunchError(f"File {source} does not exist.")
+            raise LaunchError(f"{_err_prefix}: File {source} does not exist.")
         match = GCS_URI_RE.match(destination)
         if not match:
-            raise LaunchError(f"Invalid GCS URI: {destination}")
+            raise LaunchError(f"{_err_prefix}: Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
+        google_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
+        credentials = await self.get_credentials()
         try:
-            storage_client = google.cloud.storage.Client(
-                credentials=self.get_credentials()
-            )
-            bucket = storage_client.bucket(bucket)
-            blob = bucket.blob(key)
-            blob.upload_from_filename(source)
+            storage_client = await google_storage_client(credentials=credentials)
+            bucket = await event_loop_thread_exec(storage_client.bucket)(bucket)
+            blob = await event_loop_thread_exec(bucket.blob)(key)
+            await event_loop_thread_exec(blob.upload_from_filename)(source)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload file to GCS: {e}") from e
+            resp = e.response
+            assert resp is not None
+            try:
+                message = resp.json()["error"]["message"]
+            except Exception:
+                message = str(resp)
+            raise LaunchError(f"{_err_prefix}: {message}") from e
 
-    def upload_dir(self, source: str, destination: str) -> None:
+    async def upload_dir(self, source: str, destination: str) -> None:
         """Upload a directory to GCS.
 
         Arguments:
@@ -259,28 +267,39 @@ class GcpEnvironment(AbstractEnvironment):
             LaunchError: If the directory cannot be uploaded.
         """
         _logger.debug(f"Uploading directory {source} to {destination}")
+        _err_prefix = (
+            f"Could not upload directory {source} to GCS destination {destination}"
+        )
         if not os.path.isdir(source):
-            raise LaunchError(f"Directory {source} does not exist.")
+            raise LaunchError(f"{_err_prefix}: Directory {source} does not exist.")
         match = GCS_URI_RE.match(destination)
         if not match:
-            raise LaunchError(f"Invalid GCS URI: {destination}")
+            raise LaunchError(f"{_err_prefix}: Invalid GCS URI: {destination}")
         bucket = match.group(1)
         key = match.group(2).lstrip("/")
+        google_storage_client = event_loop_thread_exec(google.cloud.storage.Client)
+        credentials = await self.get_credentials()
         try:
-            storage_client = google.cloud.storage.Client(
-                credentials=self.get_credentials()
-            )
-            bucket = storage_client.bucket(bucket)
+            storage_client = await google_storage_client(credentials=credentials)
+            bucket = await event_loop_thread_exec(storage_client.bucket)(bucket)
             for root, _, files in os.walk(source):
                 for file in files:
                     local_path = os.path.join(root, file)
                     gcs_path = os.path.join(
                         key, os.path.relpath(local_path, source)
                     ).replace("\\", "/")
-                    blob = bucket.blob(gcs_path)
-                    blob.upload_from_filename(local_path)
+                    blob = await event_loop_thread_exec(bucket.blob)(gcs_path)
+                    await event_loop_thread_exec(blob.upload_from_filename)(local_path)
         except google.api_core.exceptions.GoogleAPICallError as e:
-            raise LaunchError(f"Could not upload directory to GCS: {e}") from e
+            resp = e.response
+            assert resp is not None
+            try:
+                message = resp.json()["error"]["message"]
+            except Exception:
+                message = str(resp)
+            raise LaunchError(f"{_err_prefix}: {message}") from e
+        except Exception as e:
+            raise LaunchError(f"{_err_prefix}: GCS upload failed: {e}") from e
 
 
 def get_gcloud_config_value(config_name: str) -> Optional[str]:
@@ -293,13 +312,10 @@ def get_gcloud_config_value(config_name: str) -> Optional[str]:
         str: The config value, or None if the value is not set.
     """
     try:
-        value = (
-            subprocess.check_output(
-                ["gcloud", "config", "get-value", config_name], stderr=subprocess.STDOUT
-            )
-            .decode("utf-8")
-            .strip()
+        output = subprocess.check_output(
+            ["gcloud", "config", "get-value", config_name], stderr=subprocess.STDOUT
         )
+        value = str(output.decode("utf-8").strip())
         if value and "unset" not in value:
             return value
         return None

@@ -1,8 +1,9 @@
+import json
 import os
 import shutil
+import threading
 import time
 import unittest.mock
-from unittest.mock import patch
 
 import pytest
 import wandb
@@ -12,7 +13,7 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.lib import filesystem
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -31,7 +32,7 @@ def test_save_live_existing_file(relay_server, user, mock_run, backend_interface
     assert uploaded_files.count(file_name) == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -48,7 +49,7 @@ def test_save_live_write_after_policy(relay_server, user, mock_run, backend_inte
     assert uploaded_files.count(file_name) == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -60,7 +61,7 @@ def test_preempting_sent_to_server(relay_server, user, mock_run, backend_interfa
     assert relay.context.entries[run.id].get("preempting") is not None
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -85,7 +86,7 @@ def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="TODO: fix this test")
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -128,7 +129,7 @@ def test_save_live_glob_multi_write(
     assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -149,7 +150,7 @@ def test_save_rename_file(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test-copy.txt") == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -164,7 +165,7 @@ def test_save_end_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -179,7 +180,7 @@ def test_save_end_existing_file(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -200,7 +201,7 @@ def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="This test is flakey")
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -216,7 +217,7 @@ def test_save_now_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -232,7 +233,7 @@ def test_save_now_existing_file(relay_server, user, mock_run, backend_interface)
 
 
 @pytest.mark.xfail(reason="This test is flakey")
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -252,7 +253,7 @@ def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -280,7 +281,7 @@ def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="This test is flakey")
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -299,7 +300,7 @@ def test_save_now_relative_path(relay_server, user, mock_run, backend_interface)
 
 
 @pytest.mark.xfail(reason="TODO: This test is flakey")
-@pytest.mark.nexus_failure(
+@pytest.mark.wandb_core_failure(
     feature="file_uploader",
     reason="test relies on internal python implementation",
 )
@@ -322,8 +323,8 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("foo/test.txt") == 2
 
 
-@pytest.mark.nexus_failure(
-    feature="file_uploader",
+@pytest.mark.wandb_core_failure(
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_upgraded(
@@ -360,8 +361,8 @@ def test_upgrade_upgraded(
         assert run_result.HasField("error") is False
 
 
-@pytest.mark.nexus_failure(
-    feature="file_uploader",
+@pytest.mark.wandb_core_failure(
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_yanked(
@@ -401,8 +402,8 @@ def test_upgrade_yanked(
         assert run_result.HasField("error") is False
 
 
-@pytest.mark.nexus_failure(
-    feature="file_uploader",
+@pytest.mark.wandb_core_failure(
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_yanked_message(
@@ -442,8 +443,8 @@ def test_upgrade_yanked_message(
         assert run_result.HasField("error") is False
 
 
-@pytest.mark.nexus_failure(
-    feature="file_uploader",
+@pytest.mark.wandb_core_failure(
+    feature="version_check",
     reason="test relies on internal python implementation",
 )
 def test_upgrade_removed(
@@ -491,11 +492,180 @@ def test_sender_upsert_run(internal_sm, test_settings, mock_run):
 
     send_manager = internal_sm(test_settings())
     results = []
-    with patch.object(send_manager._api, "upsert_run", side_effect=CommError("test")):
-        with patch.object(
+    with unittest.mock.patch.object(
+        send_manager._api, "upsert_run", side_effect=CommError("test")
+    ):
+        with unittest.mock.patch.object(
             send_manager, "_respond_result", wraps=lambda x: results.append(x)
         ):
             send_manager.send_run(record)
 
     assert len(results) == 1
     assert results[0].run_result.error.message == "test"
+
+
+def test_resume_error_must(user, mock_run, backend_interface):
+    run = mock_run(use_magic_mock=True, settings={"resume": "must"})
+    with backend_interface(run, initial_run=False) as interface:
+        handle = interface.deliver_run(run)
+        result = handle.wait(timeout=5)
+        run_result = result.run_result
+        assert run_result.HasField("error")
+        assert run_result.error.code == pb.ErrorInfo.ErrorCode.USAGE
+
+
+def test_output(user, mock_run, relay_server, backend_interface):
+    with relay_server() as relay:
+        run = mock_run(
+            use_magic_mock=True,
+            settings={"console": "auto"},
+        )
+        with backend_interface(run) as interface:
+            for _ in range(10):
+                interface.publish_output("stdout", "\rSome recurring line")
+            interface.publish_output("stdout", "\rFinal line baby\n")
+
+    assert "Final line baby" in relay.context.output[0][0]
+
+
+def test_sync_spell_run(user, mock_run, relay_server, backend_interface):
+    with unittest.mock.patch.dict("os.environ", SPELL_RUN_URL="https://spell.run/foo"):
+        with relay_server() as relay:
+            run = mock_run(use_magic_mock=True)
+            with backend_interface(run):
+                pass
+    assert (
+        relay.context.config[run.id]["_wandb"]["value"]["spell_url"]
+        == "https://spell.run/foo"
+    )
+    # TODO: relay server can't snoop on arbitrary urls
+    # Check that we pinged spells API
+    #     assert mock_server.ctx["spell_data"] == {
+    #         "access_token": None,
+    #         "url": "{}/mock_server_entity/test/runs/{}".format(
+    #             mocked_run._settings.base_url, mocked_run.id
+    #         ),
+    #     }
+
+
+def test_send_status_request_stopped(
+    user,
+    relay_server,
+    inject_graphql_response,
+    mock_run,
+    backend_interface,
+):
+    body = json.dumps(
+        {
+            "data": {
+                "project": {
+                    "run": {
+                        "stopped": True,
+                    }
+                }
+            }
+        }
+    )
+    inject_response = inject_graphql_response(
+        body=body,
+        query_match_fn=lambda query, _: "query RunStoppedStatus" in query,
+        application_pattern="1",  # apply once and stop
+    )
+    run = mock_run(use_magic_mock=True)
+
+    with relay_server(inject=[inject_response]), backend_interface(run) as interface:
+        handle = interface.deliver_stop_status()
+        result = handle.wait(timeout=5)
+        stop_status = result.response.stop_status_response
+        assert result is not None
+        assert stop_status.run_should_stop
+
+
+def test_parallel_requests(
+    user,
+    relay_server,
+    inject_graphql_response,
+    mock_run,
+    backend_interface,
+):
+    body = json.dumps(
+        {
+            "data": {
+                "project": {
+                    "run": {
+                        "stopped": True,
+                    }
+                }
+            }
+        }
+    )
+    inject_response = inject_graphql_response(
+        body=body,
+        query_match_fn=lambda query, _: "query RunStoppedStatus" in query,
+        application_pattern="1",  # apply once and stop
+    )
+    run = mock_run(use_magic_mock=True)
+
+    def send_sync_request(interface, i):
+        if i % 3 == 0:
+            stop_status = (
+                interface.deliver_stop_status()
+                .wait(timeout=5)
+                .response.stop_status_response
+            )
+            assert stop_status is not None and stop_status.run_should_stop
+        elif i % 3 == 2:
+            summary = (
+                interface.deliver_get_summary()
+                .wait(timeout=5)
+                .response.get_summary_response
+            )
+            assert summary is not None and hasattr(summary, "item")
+
+    threads = []
+
+    with relay_server(inject=[inject_response]), backend_interface(run) as interface:
+        for i in range(10):
+            threads.append(
+                threading.Thread(
+                    target=send_sync_request,
+                    args=(
+                        interface,
+                        i,
+                    ),
+                    daemon=True,
+                )
+            )
+        for t in threads:
+            t.start()
+
+        for t in threads:
+            t.join()
+
+
+def test_send_status_request_network(
+    user,
+    relay_server,
+    inject_graphql_response,
+    mock_run,
+    backend_interface,
+):
+    inject_response = inject_graphql_response(
+        body=json.dumps({"error": "rate limit exceeded"}),
+        status=429,
+        query_match_fn=lambda query, _: "mutation UpsertBucket" in query,
+        application_pattern="11112",  # apply 4 times and stop
+    )
+
+    run = mock_run(use_magic_mock=True)
+    with unittest.mock.patch.object(
+        wandb.sdk.lib.retry.Retry, "MAX_SLEEP_SECONDS", 1e-2
+    ):
+        with relay_server(inject=[inject_response]), backend_interface(
+            run
+        ) as interface:
+            result = interface.deliver_network_status().wait(timeout=5)
+            assert result is not None
+            network = result.response.network_status_response
+            assert len(network.network_responses) > 0
+            assert network.network_responses[0].http_status_code == 429

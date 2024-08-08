@@ -2,10 +2,12 @@ id: 0.artifacts.use-model
 plugin:
   - wandb
 tag:
-  shard: artifacts
+  shards:
+    - artifacts
 depend:
   requirements:
     - torch
+    - cloudpickle
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config]: {}

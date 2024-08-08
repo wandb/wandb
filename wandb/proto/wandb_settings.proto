@@ -4,29 +4,140 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
-message ListStringValue{
+message ListStringValue {
   repeated string value = 1;
 }
 
-message MapStringKeyStringValue{
+message MapStringKeyStringValue {
   map<string, string> value = 1;
 }
 
-message MapStringKeyMapStringKeyStringValue{
+message MapStringKeyMapStringKeyStringValue {
   map<string, MapStringKeyStringValue> value = 1;
 }
 
-message OpenMetricsFilters{
+message OpenMetricsFilters {
   oneof value {
     ListStringValue sequence = 1;
     MapStringKeyMapStringKeyStringValue mapping = 2;
   }
 }
 
+// Serialized representation of the RunMoment class in wandb.sdk.lib.run_moment.
+// Used to communicate the moment in a run at which forking or resuming should
+// take place.
+message RunMoment {
+  string run = 1;     // The name of the run to fork from.
+  double value = 2;   // The value of the metric to fork at.
+  string metric = 3;  // The name of the metric to use to find a fork point.
+}
+
+// Settings for the SDK.
+//
+// There is a hierarchy of settings, with at least the following levels:
+//
+// 1. User process settings
+// 2. Run settings
+//
+// Some fields such as `run_id` only make sense at the run level.
+//
+// Next ID: 173
 message Settings {
+  reserved 12, 94;
+
+  // The W&B API key.
+  //
+  // This can be empty if we're in offline mode.
+  google.protobuf.StringValue api_key = 55;
+
+  // Whether we are in offline mode.
+  google.protobuf.BoolValue _offline = 30;
+
+  // Whether we are in shared mode.
+  //
+  // In "shared" mode, multiple processes can write to the same run,
+  // for example from different machines.
+  google.protobuf.BoolValue _shared = 162;
+
+  // The ID of the run.
+  google.protobuf.StringValue run_id = 107;
+
+  // The W&B URL where the run can be viewed.
+  google.protobuf.StringValue run_url = 113;
+
+  // The W&B project ID.
+  google.protobuf.StringValue project = 97;
+
+  // The W&B entity, like a user or a team.
+  google.protobuf.StringValue entity = 69;
+
+  // The start time of the run in seconds since the Unix epoch.
+  google.protobuf.DoubleValue _start_time = 41;
+
+  // The directory for storing log files.
+  google.protobuf.StringValue log_dir = 85;
+
+  // Filename to use for internal logs.
+  google.protobuf.StringValue log_internal = 86;
+
+  // Absolute path to the local directory where this run's files are stored.
+  google.protobuf.StringValue files_dir = 70;
+
+  // Unix glob patterns relative to `files_dir` to not upload.
+  ListStringValue ignore_globs = 78;
+
+  // Disable check for latest version of wandb, from pypi.
+  google.protobuf.BoolValue _disable_update_check = 165;
+
+  // Indicate whether wandb-core is to be used.
+  google.protobuf.BoolValue _require_core = 36;
+
+  // Path to file containing an identity token for authentication.
+  google.protobuf.StringValue identity_token_file = 170;
+
+  // Path to file for writing temporary access tokens.
+  google.protobuf.StringValue credentials_file = 171;
+
+  // An approximate maximum request size for the filestream API.
+  //
+  // This applies when wandb-core is enabled. Its purpose is to prevent
+  // HTTP requests from failing due to containing too much data.
+  //
+  // This number is approximate: requests will be slightly larger.
+  google.protobuf.Int32Value _file_stream_max_bytes = 172;
+
+  // Additional headers to add to all outgoing HTTP requests.
+  MapStringKeyStringValue _extra_http_headers = 14;
+
+  // Maximum number of retries for filestream operations.
+  google.protobuf.Int32Value _file_stream_retry_max = 147;
+  // Initial wait in-between filestream retries.
+  google.protobuf.DoubleValue _file_stream_retry_wait_min_seconds = 148;
+  // Final wait in-between filestream retries.
+  google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
+  // Per-retry timeout for filestream operations.
+  google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;
+
+  // Maximum number of retries for file upload/download operations.
+  google.protobuf.Int32Value _file_transfer_retry_max = 150;
+  // Initial wait in-between file upload/download retries.
+  google.protobuf.DoubleValue _file_transfer_retry_wait_min_seconds = 151;
+  // Final wait in-between file upload/download retries.
+  google.protobuf.DoubleValue _file_transfer_retry_wait_max_seconds = 152;
+  // Per-retry timeout for file upload/download operations.
+  google.protobuf.DoubleValue _file_transfer_timeout_seconds = 153;
+
+  // Maximum number of retries for GraphQL operations.
+  google.protobuf.Int32Value _graphql_retry_max = 154;
+  // Initial wait in-between GraphQL retries.
+  google.protobuf.DoubleValue _graphql_retry_wait_min_seconds = 155;
+  // Final wait in-between GraphQL retries.
+  google.protobuf.DoubleValue _graphql_retry_wait_max_seconds = 156;
+  // Per-retry timeout for GraphQL operations.
+  google.protobuf.DoubleValue _graphql_timeout_seconds = 157;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
-  google.protobuf.Int32Value _async_upload_concurrency_limit = 3;
   google.protobuf.BoolValue _cli_only_mode = 4;
   google.protobuf.BoolValue _colab = 5;
   google.protobuf.StringValue _cuda = 6;
@@ -35,31 +146,13 @@ message Settings {
   google.protobuf.BoolValue _disable_setproctitle = 9;
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
-  google.protobuf.BoolValue _disable_machine_info = 158;
-  google.protobuf.BoolValue _except_exit = 12;
   google.protobuf.StringValue _executable = 13;
-  MapStringKeyStringValue _extra_http_headers = 14;
-  MapStringKeyStringValue _proxies = 200;
-  google.protobuf.Int32Value _file_stream_retry_max = 147;
-  google.protobuf.Int32Value _file_stream_retry_wait_min_seconds = 148;
-  google.protobuf.Int32Value _file_stream_retry_wait_max_seconds = 149;
-  google.protobuf.Int32Value _file_stream_timeout_seconds = 15;
-  google.protobuf.Int32Value _file_uploader_retry_max = 150;
-  google.protobuf.Int32Value _file_uploader_retry_wait_min_seconds = 151;
-  google.protobuf.Int32Value _file_uploader_retry_wait_max_seconds = 152;
-  google.protobuf.Int32Value _file_uploader_timeout_seconds = 153;
   google.protobuf.BoolValue _flow_control_custom = 16;
   google.protobuf.BoolValue _flow_control_disabled = 17;
-  google.protobuf.Int32Value _graphql_retry_max = 154;
-  google.protobuf.Int32Value _graphql_retry_wait_min_seconds = 155;
-  google.protobuf.Int32Value _graphql_retry_wait_max_seconds = 156;
-  google.protobuf.Int32Value _graphql_timeout_seconds = 157;
   google.protobuf.DoubleValue _internal_check_process = 18;
   google.protobuf.DoubleValue _internal_queue_timeout = 19;
   google.protobuf.BoolValue _ipython = 20;
   google.protobuf.BoolValue _jupyter = 21;
-  google.protobuf.StringValue _jupyter_name = 143;
-  google.protobuf.StringValue _jupyter_path = 144;
   google.protobuf.StringValue _jupyter_root = 22;
   google.protobuf.BoolValue _kaggle = 23;
   google.protobuf.Int32Value _live_policy_rate_limit = 24;
@@ -68,18 +161,15 @@ message Settings {
   google.protobuf.Int32Value _network_buffer = 27;
   google.protobuf.BoolValue _noop = 28;
   google.protobuf.BoolValue _notebook = 29;
-  google.protobuf.BoolValue _offline = 30;
   google.protobuf.BoolValue _sync = 31;
   google.protobuf.StringValue _os = 32;
   google.protobuf.StringValue _platform = 33;
   google.protobuf.StringValue _python = 34;
   google.protobuf.StringValue _runqueue_item_id = 35;
-  google.protobuf.BoolValue _require_nexus = 36;
   google.protobuf.BoolValue _save_requirements = 37;
   google.protobuf.StringValue _service_transport = 38;
   google.protobuf.DoubleValue _service_wait = 39;
   google.protobuf.StringValue _start_datetime = 40;
-  google.protobuf.DoubleValue _start_time = 41;
   google.protobuf.Int32Value _stats_pid = 42;
   google.protobuf.DoubleValue _stats_sample_rate_seconds = 43;
   google.protobuf.Int32Value _stats_samples_to_average = 44;
@@ -87,20 +177,16 @@ message Settings {
   google.protobuf.StringValue _stats_neuron_monitor_config_path = 46;
   MapStringKeyStringValue _stats_open_metrics_endpoints = 47;
   OpenMetricsFilters _stats_open_metrics_filters = 48;
-  ListStringValue _stats_disk_paths = 146;
-  google.protobuf.Int32Value _stats_buffer_size = 161;
   google.protobuf.StringValue _tmp_code_dir = 49;
   google.protobuf.StringValue _tracelog = 50;
   ListStringValue _unsaved_keys = 51;
   google.protobuf.BoolValue _windows = 52;
   google.protobuf.BoolValue allow_val_change = 53;
   google.protobuf.StringValue anonymous = 54;
-  google.protobuf.StringValue api_key = 55;
   MapStringKeyStringValue azure_account_url_to_access_key = 56;
   google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
-  google.protobuf.StringValue colab_url = 160;
   google.protobuf.StringValue console = 60;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
@@ -110,8 +196,6 @@ message Settings {
   google.protobuf.BoolValue disabled = 66;
   google.protobuf.StringValue docker = 67;
   google.protobuf.StringValue email = 68;
-  google.protobuf.StringValue entity = 69;
-  google.protobuf.StringValue files_dir = 70;
   google.protobuf.BoolValue force = 71;
   google.protobuf.StringValue git_commit = 72;
   google.protobuf.StringValue git_remote = 73;
@@ -119,27 +203,20 @@ message Settings {
   google.protobuf.StringValue git_root = 75;
   google.protobuf.Int32Value heartbeat_seconds = 76;
   google.protobuf.StringValue host = 77;
-  ListStringValue ignore_globs = 78;
   google.protobuf.DoubleValue init_timeout = 79;
   google.protobuf.BoolValue is_local = 80;
-  google.protobuf.StringValue job_name = 145;
   google.protobuf.StringValue job_source = 81;
   google.protobuf.BoolValue label_disable = 82;
   google.protobuf.BoolValue launch = 83;
   google.protobuf.StringValue launch_config_path = 84;
-  google.protobuf.StringValue log_dir = 85;
-  google.protobuf.StringValue log_internal = 86;
   google.protobuf.StringValue log_symlink_internal = 87;
   google.protobuf.StringValue log_symlink_user = 88;
   google.protobuf.StringValue log_user = 89;
   google.protobuf.DoubleValue login_timeout = 90;
   google.protobuf.StringValue mode = 92;
   google.protobuf.StringValue notebook_name = 93;
-  google.protobuf.StringValue problem = 94;
   google.protobuf.StringValue program = 95;
-  google.protobuf.StringValue program_abspath = 159;
   google.protobuf.StringValue program_relpath = 96;
-  google.protobuf.StringValue project = 97;
   google.protobuf.StringValue project_url = 98;
   google.protobuf.BoolValue quiet = 99;
   google.protobuf.BoolValue reinit = 100;
@@ -147,15 +224,15 @@ message Settings {
   google.protobuf.StringValue resume = 102;
   google.protobuf.StringValue resume_fname = 103;
   google.protobuf.BoolValue resumed = 104;
+  RunMoment fork_from = 164;
+  RunMoment resume_from = 167;
   google.protobuf.StringValue root_dir = 105;
   google.protobuf.StringValue run_group = 106;
-  google.protobuf.StringValue run_id = 107;
   google.protobuf.StringValue run_job_type = 108;
   google.protobuf.StringValue run_mode = 109;
   google.protobuf.StringValue run_name = 110;
   google.protobuf.StringValue run_notes = 111;
   ListStringValue run_tags = 112;
-  google.protobuf.StringValue run_url = 113;
   google.protobuf.BoolValue sagemaker_disable = 114;
   google.protobuf.BoolValue save_code = 115;
   google.protobuf.StringValue settings_system = 116;
@@ -185,7 +262,29 @@ message Settings {
   google.protobuf.StringValue tmp_dir = 140;
   google.protobuf.StringValue username = 141;
   google.protobuf.StringValue wandb_dir = 142;
+  google.protobuf.StringValue _jupyter_name = 143;
+  google.protobuf.StringValue _jupyter_path = 144;
+  google.protobuf.StringValue job_name = 145;
+  ListStringValue _stats_disk_paths = 146;
+  google.protobuf.BoolValue _disable_machine_info = 158;
+  google.protobuf.StringValue program_abspath = 159;
+  google.protobuf.StringValue colab_url = 160;
+  google.protobuf.Int32Value _stats_buffer_size = 161;
+  google.protobuf.StringValue _code_path_local = 163;
+  google.protobuf.BoolValue console_multipart = 166;
+  // The custom proxy servers for http requests to W&B.
+  google.protobuf.StringValue http_proxy = 168;
+  // The custom proxy servers for https requests to W&B.
+  google.protobuf.StringValue https_proxy = 169;
+
+  // Custom proxy servers for the requests to W&B.
+  //
+  // The key is the protocol, e.g. "http", "https", "socks5".
+  // The value is the proxy URL.
+  // TODO: deprecated, use http_proxy and https_proxy instead.
+  MapStringKeyStringValue _proxies = 200;
 
   // todo?
-  //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources = 500;
+  //  map<google.protobuf.StringValue, google.protobuf.Int32Value> _sources =
+  //  500;
 }

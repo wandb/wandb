@@ -1,5 +1,7 @@
 """sender."""
 
+import contextlib
+import gzip
 import json
 import logging
 import os
@@ -17,12 +19,10 @@ from typing import (
     Dict,
     Generator,
     List,
-    NewType,
     Optional,
     Tuple,
     Type,
     Union,
-    cast,
 )
 
 import requests
@@ -41,7 +41,7 @@ from wandb.sdk.internal import (
     datastore,
     file_stream,
     internal_api,
-    job_builder,
+    sender_config,
     update,
 )
 from wandb.sdk.internal.file_pusher import FilePusher
@@ -68,6 +68,7 @@ else:
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import (
         ArtifactManifest,
+        ArtifactManifestEntry,
         ArtifactRecord,
         HttpResponse,
         LocalInfo,
@@ -83,9 +84,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-DictWithValues = NewType("DictWithValues", Dict[str, Any])
-DictNoValues = NewType("DictNoValues", Dict[str, Any])
 
 _OUTPUT_MIN_CALLBACK_INTERVAL = 2  # seconds
 
@@ -110,21 +108,18 @@ def _framework_priority() -> Generator[Tuple[str, str], None, None]:
 
 def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     if manifest.version == 1:
-        contents = {
-            content.path: {
-                "digest": content.digest,
-                "birthArtifactID": content.birth_artifact_id
-                if content.birth_artifact_id
-                else None,
-                "ref": content.ref if content.ref else None,
-                "size": content.size if content.size is not None else None,
-                "local_path": content.local_path if content.local_path else None,
-                "extra": {
-                    extra.key: json.loads(extra.value_json) for extra in content.extra
-                },
+        if manifest.manifest_file_path:
+            contents = {}
+            with gzip.open(manifest.manifest_file_path, "rt") as f:
+                for line in f:
+                    entry_json = json.loads(line)
+                    path = entry_json.pop("path")
+                    contents[path] = entry_json
+        else:
+            contents = {
+                content.path: _manifest_entry_from_proto(content)
+                for content in manifest.contents
             }
-            for content in manifest.contents
-        }
     else:
         raise ValueError(f"unknown artifact manifest version: {manifest.version}")
 
@@ -139,6 +134,19 @@ def _manifest_json_from_proto(manifest: "ArtifactManifest") -> Dict:
     }
 
 
+def _manifest_entry_from_proto(entry: "ArtifactManifestEntry") -> Dict:
+    birth_artifact_id = entry.birth_artifact_id if entry.birth_artifact_id else None
+    return {
+        "digest": entry.digest,
+        "birthArtifactID": birth_artifact_id,
+        "ref": entry.ref if entry.ref else None,
+        "size": entry.size if entry.size is not None else None,
+        "local_path": entry.local_path if entry.local_path else None,
+        "skip_cache": entry.skip_cache,
+        "extra": {extra.key: json.loads(extra.value_json) for extra in entry.extra},
+    }
+
+
 class ResumeState:
     resumed: bool
     step: int
@@ -149,6 +157,7 @@ class ResumeState:
     wandb_runtime: Optional[int]
     summary: Optional[Dict[str, Any]]
     config: Optional[Dict[str, Any]]
+    tags: Optional[List[str]]
 
     def __init__(self) -> None:
         self.resumed = False
@@ -161,6 +170,7 @@ class ResumeState:
         self.wandb_runtime = None
         self.summary = None
         self.config = None
+        self.tags = None
 
     def __str__(self) -> str:
         obj = ",".join(map(lambda it: f"{it[0]}={it[1]}", vars(self).items()))
@@ -218,6 +228,7 @@ class SendManager:
     _record_exit: Optional["Record"]
     _exit_result: Optional["RunExitResult"]
     _resume_state: ResumeState
+    _rewind_response: Optional[Dict[str, Any]]
     _cached_server_info: Dict[str, Any]
     _cached_viewer: Dict[str, Any]
     _server_messages: List[Dict[str, Any]]
@@ -260,8 +271,9 @@ class SendManager:
         self._project = None
 
         # keep track of config from key/val updates
-        self._consolidated_config: DictNoValues = cast(DictNoValues, dict())
-        self._start_time: float = 0
+        self._consolidated_config = sender_config.ConfigState()
+
+        self._start_time: int = 0
         self._telemetry_obj = telemetry.TelemetryRecord()
         self._config_metric_pbdict_list: List[Dict[int, Any]] = []
         self._metadata_summary: Dict[str, Any] = defaultdict()
@@ -276,6 +288,7 @@ class SendManager:
 
         # State updated by resuming
         self._resume_state = ResumeState()
+        self._rewind_response = None
 
         # State added when run_exit is initiated and complete
         self._record_exit = None
@@ -327,16 +340,14 @@ class SendManager:
             # ignore_globs=(),
             _sync=True,
             disable_job_creation=False,
-            _async_upload_concurrency_limit=None,
             _file_stream_timeout_seconds=0,
         )
-        settings = SettingsStatic(settings.to_proto())
         record_q: Queue[Record] = queue.Queue()
         result_q: Queue[Result] = queue.Queue()
         publish_interface = InterfaceQueue(record_q=record_q)
         context_keeper = context.ContextKeeper()
         return SendManager(
-            settings=settings,
+            settings=SettingsStatic(settings.to_proto()),
             record_q=record_q,
             result_q=result_q,
             interface=publish_interface,
@@ -538,11 +549,13 @@ class SendManager:
         self._maybe_update_config(always=final)
 
     def _debounce_config(self) -> None:
-        config_value_dict = self._config_format(self._consolidated_config)
+        config_value_dict = self._config_backend_dict()
         # TODO(jhr): check result of upsert_run?
         if self._run:
             self._api.upsert_run(
-                name=self._run.run_id, config=config_value_dict, **self._api_settings  # type: ignore
+                name=self._run.run_id,
+                config=config_value_dict,
+                **self._api_settings,  # type: ignore
             )
         self._config_save(config_value_dict)
         self._config_needs_debounce = False
@@ -733,18 +746,7 @@ class SendManager:
             )
         self._respond_result(result)
 
-    def send_request_job_info(self, record: "Record") -> None:
-        """Respond to a request for a job link."""
-        result = proto_util._result_from_record(record)
-        result.response.job_info_response.sequenceId = (
-            self._job_builder._job_seq_id or ""
-        )
-        result.response.job_info_response.version = (
-            self._job_builder._job_version_alias or ""
-        )
-        self._respond_result(result)
-
-    def _maybe_setup_resume(
+    def _setup_resume(
         self, run: "RunRecord"
     ) -> Optional["wandb_internal_pb2.ErrorInfo"]:
         """Queries the backend for a run; fail if the settings are incompatible."""
@@ -760,16 +762,18 @@ class SendManager:
             "checking resume status for %s/%s/%s", entity, run.project, run.run_id
         )
         resume_status = self._api.run_resume_status(
-            entity=entity, project_name=run.project, name=run.run_id  # type: ignore
+            entity=entity,  # type: ignore
+            project_name=run.project,
+            name=run.run_id,
         )
-
-        if not resume_status:
+        # No resume status = run does not exist; No t key in wandbConfig = run exists but hasn't been inited
+        if not resume_status or '"t":' not in resume_status.get("wandbConfig", ""):
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
                 error.message = (
                     "You provided an invalid value for the `resume` argument."
-                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that does not exist."
+                    f" The value 'must' is not a valid option for resuming a run ({run.run_id}) that has not been initialized."
                     " Please check your inputs and try again with a valid run ID."
                     " If you are trying to start a new run, please omit the `resume` argument or use `resume='allow'`."
                 )
@@ -809,26 +813,32 @@ class SendManager:
             new_runtime = summary.get("_wandb", {}).get("runtime", None)
             if new_runtime is not None:
                 self._resume_state.wandb_runtime = new_runtime
+            tags = resume_status.get("tags") or []
 
         except (IndexError, ValueError) as e:
             logger.error("unable to load resume tails", exc_info=e)
             if self._settings.resume == "must":
                 error = wandb_internal_pb2.ErrorInfo()
                 error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
-                error.message = "resume='must' but could not resume (%s) " % run.run_id
+                error.message = "resume='must' but could not resume ({}) ".format(
+                    run.run_id
+                )
                 return error
 
         # TODO: Do we need to restore config / summary?
         # System metrics runtime is usually greater than history
         self._resume_state.runtime = max(events_rt, history_rt)
-        self._resume_state.step = history.get("_step", -1) + 1 if history else 0
-        self._resume_state.history = resume_status["historyLineCount"]
+        last_step = history.get("_step", 0)
+        history_line_count = resume_status["historyLineCount"]
+        self._resume_state.step = last_step + 1 if history_line_count > 0 else last_step
+        self._resume_state.history = history_line_count
         self._resume_state.events = resume_status["eventsLineCount"]
         self._resume_state.output = resume_status["logLineCount"]
         self._resume_state.config = config
         self._resume_state.summary = summary
+        self._resume_state.tags = tags
         self._resume_state.resumed = True
-        logger.info("configured resuming with: %s" % self._resume_state)
+        logger.info("configured resuming with: {}".format(self._resume_state))
         return None
 
     def _telemetry_get_framework(self) -> str:
@@ -846,51 +856,20 @@ class SendManager:
         )
         return framework
 
-    def _config_telemetry_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add legacy telemetry to config object."""
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        s: str
-        b: bool
-        s = self._telemetry_obj.python_version
-        if s:
-            config_dict[wandb_key]["python_version"] = s
-        s = self._telemetry_obj.cli_version
-        if s:
-            config_dict[wandb_key]["cli_version"] = s
-        s = self._telemetry_get_framework()
-        if s:
-            config_dict[wandb_key]["framework"] = s
-        s = self._telemetry_obj.huggingface_version
-        if s:
-            config_dict[wandb_key]["huggingface_version"] = s
-        b = self._telemetry_obj.env.jupyter
-        config_dict[wandb_key]["is_jupyter_run"] = b
-        b = self._telemetry_obj.env.kaggle
-        config_dict[wandb_key]["is_kaggle_kernel"] = b
+    def _config_backend_dict(self) -> sender_config.BackendConfigDict:
+        config = self._consolidated_config or sender_config.ConfigState()
 
-        config_dict[wandb_key]["start_time"] = self._start_time
+        return config.to_backend_dict(
+            telemetry_record=self._telemetry_obj,
+            framework=self._telemetry_get_framework(),
+            start_time_millis=self._start_time,
+            metric_pbdicts=self._config_metric_pbdict_list,
+        )
 
-        t: Dict[int, Any] = proto_util.proto_encode_to_dict(self._telemetry_obj)
-        config_dict[wandb_key]["t"] = t
-
-    def _config_metric_update(self, config_dict: Dict[str, Any]) -> None:
-        """Add default xaxis to config."""
-        if not self._config_metric_pbdict_list:
-            return
-        wandb_key = "_wandb"
-        config_dict.setdefault(wandb_key, dict())
-        config_dict[wandb_key]["m"] = self._config_metric_pbdict_list
-
-    def _config_format(self, config_data: Optional[DictNoValues]) -> DictWithValues:
-        """Format dict into value dict with telemetry info."""
-        config_dict: Dict[str, Any] = config_data.copy() if config_data else dict()
-        self._config_telemetry_update(config_dict)
-        self._config_metric_update(config_dict)
-        config_value_dict: DictWithValues = config_util.dict_add_value_dict(config_dict)
-        return config_value_dict
-
-    def _config_save(self, config_value_dict: DictWithValues) -> None:
+    def _config_save(
+        self,
+        config_value_dict: sender_config.BackendConfigDict,
+    ) -> None:
         config_path = os.path.join(self._settings.files_dir, "config.yaml")
         config_util.save_config_file_from_dict(config_path, config_value_dict)
 
@@ -915,13 +894,67 @@ class SendManager:
             pass
         # TODO: do something if sync spell is not successful?
 
+    def _setup_fork(self, server_run: dict):
+        assert self._settings.fork_from
+        assert self._settings.fork_from.metric == "_step"
+        assert self._run
+        first_step = int(self._settings.fork_from.value) + 1
+        self._resume_state.step = first_step
+        self._resume_state.history = server_run.get("historyLineCount", 0)
+        self._run.forked = True
+        self._run.starting_step = first_step
+
+    def _load_rewind_state(self, run: "RunRecord"):
+        assert self._settings.resume_from
+        self._rewind_response = self._api.rewind_run(
+            run_name=run.run_id,
+            entity=run.entity or None,
+            project=run.project or None,
+            metric_name=self._settings.resume_from.metric,
+            metric_value=self._settings.resume_from.value,
+            program_path=self._settings.program or None,
+        )
+        self._resume_state.history = self._rewind_response.get("historyLineCount", 0)
+        self._resume_state.config = json.loads(
+            self._rewind_response.get("config", "{}")
+        )
+
+    def _install_rewind_state(self):
+        assert self._settings.resume_from
+        assert self._settings.resume_from.metric == "_step"
+        assert self._run
+        assert self._rewind_response
+
+        first_step = int(self._settings.resume_from.value) + 1
+        self._resume_state.step = first_step
+
+        # We set the fork flag here because rewind uses the forking
+        # infrastructure under the hood. Setting `forked` here
+        # ensures that run._step is properly set in the user process.
+        self._run.forked = True
+        self._run.starting_step = first_step
+
+    def _handle_error(
+        self,
+        record: "Record",
+        error: "wandb_internal_pb2.ErrorInfo",
+        run: "RunRecord",
+    ) -> None:
+        if record.control.req_resp or record.control.mailbox_slot:
+            result = proto_util._result_from_record(record)
+            result.run_result.run.CopyFrom(run)
+            result.run_result.error.CopyFrom(error)
+            self._respond_result(result)
+        else:
+            logger.error("Got error in async mode: %s", error.message)
+
     def send_run(self, record: "Record", file_dir: Optional[str] = None) -> None:
         run = record.run
         error = None
         is_wandb_init = self._run is None
 
         # save start time of a run
-        self._start_time = run.start_time.ToMicroseconds() / 1e6
+        self._start_time = int(run.start_time.ToMicroseconds() // 1e6)
 
         # update telemetry
         if run.telemetry:
@@ -930,60 +963,74 @@ class SendManager:
             self._telemetry_obj.feature.sync = True
 
         # build config dict
-        config_value_dict: Optional[DictWithValues] = None
+        config_value_dict: Optional[sender_config.BackendConfigDict] = None
         if run.config:
-            config_util.update_from_proto(self._consolidated_config, run.config)
-            config_value_dict = self._config_format(self._consolidated_config)
+            self._consolidated_config.update_from_proto(run.config)
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
+
+        do_fork = self._settings.fork_from is not None and is_wandb_init
+        do_rewind = self._settings.resume_from is not None and is_wandb_init
+        do_resume = bool(self._settings.resume)
+
+        num_resume_options_set = sum([do_fork, do_rewind, do_resume])
+        if num_resume_options_set > 1:
+            error = wandb_internal_pb2.ErrorInfo()
+            error.code = wandb_internal_pb2.ErrorInfo.ErrorCode.USAGE
+            error.message = (
+                "Multiple resume options specified. "
+                "Please specify only one of `fork_from`, `resume`, or `resume_from`."
+            )
+            self._handle_error(record, error, run)
 
         if is_wandb_init:
             # Ensure we have a project to query for status
             if run.project == "":
                 run.project = util.auto_project_name(self._settings.program)
             # Only check resume status on `wandb.init`
-            error = self._maybe_setup_resume(run)
+
+            if do_resume:
+                error = self._setup_resume(run)
+
+            elif do_rewind:
+                error = self._load_rewind_state(run)
 
         if error is not None:
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
-            else:
-                logger.error("Got error in async mode: %s", error.message)
+            self._handle_error(record, error, run)
             return
 
         # Save the resumed config
         if self._resume_state.config is not None:
-            # TODO: should we merge this with resumed config?
-            config_override = self._consolidated_config
-            config_dict = self._resume_state.config
-            config_dict = config_util.dict_strip_value_dict(config_dict)
-            config_dict.update(config_override)
-            self._consolidated_config.update(config_dict)
-            config_value_dict = self._config_format(self._consolidated_config)
+            self._consolidated_config.merge_resumed_config(
+                config_util.dict_strip_value_dict(self._resume_state.config)
+            )
+
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         # handle empty config
         # TODO(jhr): consolidate the 4 ways config is built:
         #            (passed config, empty config, resume config, send_config)
         if not config_value_dict:
-            config_value_dict = self._config_format(None)
+            config_value_dict = self._config_backend_dict()
             self._config_save(config_value_dict)
 
         try:
-            self._init_run(run, config_value_dict)
+            server_run = self._init_run(run, config_value_dict)
         except (CommError, UsageError) as e:
             logger.error(e, exc_info=True)
-            if record.control.req_resp or record.control.mailbox_slot:
-                result = proto_util._result_from_record(record)
-                result.run_result.run.CopyFrom(run)
-                error = ProtobufErrorHandler.from_exception(e)
-                result.run_result.error.CopyFrom(error)
-                self._respond_result(result)
+            error = ProtobufErrorHandler.from_exception(e)
+            self._handle_error(record, error, run)
             return
 
         assert self._run  # self._run is configured in _init_run()
+
+        if do_fork:
+            error = self._setup_fork(server_run)
+
+        if error is not None:
+            self._handle_error(record, error, run)
+            return
 
         if record.control.req_resp or record.control.mailbox_slot:
             result = proto_util._result_from_record(record)
@@ -999,44 +1046,16 @@ class SendManager:
         else:
             logger.info("updated run: %s", self._run.run_id)
 
-    def _init_run(
-        self,
-        run: "RunRecord",
-        config_dict: Optional[DictWithValues],
-    ) -> None:
-        # We subtract the previous runs runtime when resuming
-        start_time = (
-            run.start_time.ToMicroseconds() / 1e6
-        ) - self._resume_state.runtime
-        # TODO: we don't check inserted currently, ultimately we should make
-        # the upsert know the resume state and fail transactionally
-        server_run, inserted, server_messages = self._api.upsert_run(
-            name=run.run_id,
-            entity=run.entity or None,
-            project=run.project or None,
-            group=run.run_group or None,
-            job_type=run.job_type or None,
-            display_name=run.display_name or None,
-            notes=run.notes or None,
-            tags=run.tags[:] or None,
-            config=config_dict or None,
-            sweep_name=run.sweep_id or None,
-            host=run.host or None,
-            program_path=self._settings.program or None,
-            repo=run.git.remote_url or None,
-            commit=run.git.commit or None,
-        )
-        # TODO: we don't want to create jobs in sweeps, since the
-        #  executable doesn't appear to be consistent
-        if run.sweep_id:
-            self._job_builder.disable = True
-
-        self._server_messages = server_messages or []
-        self._run = run
+    def _update_resume_state(self, is_rewinding: bool, inserted: bool):
+        assert self._run
         if self._resume_state.resumed:
             self._run.resumed = True
             if self._resume_state.wandb_runtime is not None:
                 self._run.runtime = self._resume_state.wandb_runtime
+        elif is_rewinding:
+            # because is_rewinding is mutually exclusive with self._resume_state.resumed,
+            # this block will always execute if is_rewinding is set
+            self._install_rewind_state()
         else:
             # If the user is not resuming, and we didn't insert on upsert_run then
             # it is likely that we are overwriting the run which we might want to
@@ -1046,6 +1065,64 @@ class SendManager:
             if not inserted:
                 # no need to flush this, it will get updated eventually
                 self._telemetry_obj.feature.maybe_run_overwrite = True
+
+    def _init_run(
+        self,
+        run: "RunRecord",
+        config_dict: Optional[sender_config.BackendConfigDict],
+    ) -> dict:
+        # We subtract the previous runs runtime when resuming
+        start_time = (
+            run.start_time.ToMicroseconds() / 1e6
+        ) - self._resume_state.runtime
+        # TODO: we don't check inserted currently, ultimately we should make
+        # the upsert know the resume state and fail transactionally
+
+        if self._resume_state and self._resume_state.tags and not run.tags:
+            run.tags.extend(self._resume_state.tags)
+
+        is_rewinding = bool(self._settings.resume_from)
+        if is_rewinding:
+            assert self._rewind_response
+            server_run = self._rewind_response
+            server_messages = None
+            inserted = True
+        else:
+            server_run, inserted, server_messages = self._api.upsert_run(
+                name=run.run_id,
+                entity=run.entity or None,
+                project=run.project or None,
+                group=run.run_group or None,
+                job_type=run.job_type or None,
+                display_name=run.display_name or None,
+                notes=run.notes or None,
+                tags=run.tags[:] or None,
+                config=config_dict or None,
+                sweep_name=run.sweep_id or None,
+                host=run.host or None,
+                program_path=self._settings.program or None,
+                repo=run.git.remote_url or None,
+                commit=run.git.commit or None,
+            )
+
+        # TODO: we don't want to create jobs in sweeps, since the
+        #  executable doesn't appear to be consistent
+        if run.sweep_id:
+            self._job_builder.disable = True
+
+        self._server_messages = server_messages or []
+        self._run = run
+
+        if self._resume_state.resumed and is_rewinding:
+            # this should not ever be possible to hit, since we check for
+            # resumption above and raise an error if resumption is specified
+            # twice.
+            raise ValueError(
+                "Cannot attempt to rewind and resume a run - only one of "
+                "`resume` or `resume_from` can be specified."
+            )
+
+        self._update_resume_state(is_rewinding, inserted)
         self._run.starting_step = self._resume_state.step
         self._run.start_time.FromMicroseconds(int(start_time * 1e6))
         self._run.config.CopyFrom(self._interface._make_config(config_dict))
@@ -1084,6 +1161,7 @@ class SendManager:
             self._run.sweep_id = sweep_id
         if os.getenv("SPELL_RUN_URL"):
             self._sync_spell()
+        return server_run
 
     def _start_run_threads(self, file_dir: Optional[str] = None) -> None:
         assert self._run  # self._run is configured by caller
@@ -1243,6 +1321,17 @@ class SendManager:
             if self._output_raw_file:
                 self._output_raw_file.write(data.encode("utf-8"))
 
+    def send_request_python_packages(self, record: "Record") -> None:
+        import os
+
+        from wandb.sdk.lib.filenames import REQUIREMENTS_FNAME
+
+        installed_packages_list = sorted(
+            f"{r.name}=={r.version}" for r in record.request.python_packages.package
+        )
+        with open(os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME), "w") as f:
+            f.write("\n".join(installed_packages_list))
+
     def send_output(self, record: "Record") -> None:
         if not self._fs:
             return
@@ -1319,8 +1408,7 @@ class SendManager:
         self._config_needs_debounce = True
 
     def send_config(self, record: "Record") -> None:
-        cfg = record.config
-        config_util.update_from_proto(self._consolidated_config, cfg)
+        self._consolidated_config.update_from_proto(record.config)
         self._update_config()
 
     def send_metric(self, record: "Record") -> None:
@@ -1397,8 +1485,13 @@ class SendManager:
         # tbrecord watching threads are handled by handler.py
         pass
 
-    def send_link_artifact(self, record: "Record") -> None:
-        link = record.link_artifact
+    def send_request_link_artifact(self, record: "Record") -> None:
+        if not (record.control.req_resp or record.control.mailbox_slot):
+            raise ValueError(
+                f"Expected either `req_resp` or `mailbox_slot`, got: {record.control!r}"
+            )
+        result = proto_util._result_from_record(record)
+        link = record.request.link_artifact
         client_id = link.client_id
         server_id = link.server_id
         portfolio_name = link.portfolio_name
@@ -1414,7 +1507,9 @@ class SendManager:
                     client_id, server_id, portfolio_name, entity, project, aliases
                 )
             except Exception as e:
+                result.response.log_artifact_response.error_message = f'error linking artifact to "{entity}/{project}/{portfolio_name}"; error: {e}'
                 logger.warning("Failed to link artifact to portfolio: %s", e)
+        self._respond_result(result)
 
     def send_use_artifact(self, record: "Record") -> None:
         """Pretend to send a used artifact.
@@ -1427,9 +1522,7 @@ class SendManager:
             self._job_builder.disable = True
         elif use.partial.job_name:
             # job is partial, let job builder rebuild job, set job source dict
-            self._job_builder._partial_source = (
-                job_builder.convert_use_artifact_to_job_source(record.use_artifact)
-            )
+            self._job_builder.set_partial_source_id(use.id)
 
     def send_request_log_artifact(self, record: "Record") -> None:
         assert record.control.req_resp
@@ -1464,7 +1557,7 @@ class SendManager:
     def _send_artifact(
         self, artifact: "ArtifactRecord", history_step: Optional[int] = None
     ) -> Optional[Dict]:
-        from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         assert self._pusher
         saver = ArtifactSaver(
@@ -1505,10 +1598,14 @@ class SendManager:
         )
 
         self._job_builder._handle_server_artifact(res, artifact)
+
+        if artifact.manifest.manifest_file_path:
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(artifact.manifest.manifest_file_path)
         return res
 
     def send_alert(self, record: "Record") -> None:
-        from pkg_resources import parse_version
+        from wandb.util import parse_version
 
         alert = record.alert
         max_cli_version = self._max_cli_version()
@@ -1601,13 +1698,12 @@ class SendManager:
     def _flush_job(self) -> None:
         if self._job_builder.disable or self._settings._offline:
             return
-        self._job_builder.set_config(
-            {k: v for k, v in self._consolidated_config.items() if k != "_wandb"}
-        )
+        self._job_builder.set_config(self._consolidated_config.non_internal_config())
         summary_dict = self._cached_summary.copy()
         summary_dict.pop("_wandb", None)
         self._job_builder.set_summary(summary_dict)
-        artifact = self._job_builder.build()
+
+        artifact = self._job_builder.build(api=self._api)
         if artifact is not None and self._run is not None:
             proto_artifact = self._interface._make_artifact(artifact)
             proto_artifact.run_id = self._run.run_id

@@ -67,7 +67,6 @@ def demo_basic(rank, world_size):
 
 
 if __name__ == "__main__":
-    wandb.require("service")
     world_size = 2
     mp.spawn(
         demo_basic,

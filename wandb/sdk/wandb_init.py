@@ -7,6 +7,7 @@ your evaluation script, and each step would be tracked as a run in W&B.
 For more on using `wandb.init()`, including code snippets, check out our
 [guide and FAQs](https://docs.wandb.ai/guides/track/launch).
 """
+
 import copy
 import json
 import logging
@@ -14,7 +15,6 @@ import os
 import platform
 import sys
 import tempfile
-import traceback
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
@@ -30,15 +30,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import (
-    RunDisabled,
-    SummaryDisabled,
-    filesystem,
-    ipython,
-    module,
-    reporting,
-    telemetry,
-)
+from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.printer import Printer, get_printer
@@ -194,12 +186,6 @@ class _WandbInit:
         # Start with settings from wandb library singleton
         settings: Settings = self._wl.settings.copy()
 
-        # when using launch, we don't want to reuse the same run id from the singleton
-        # since users might launch multiple runs in the same process
-        # TODO(kdg): allow users to control this via launch settings
-        if settings.launch and singleton is not None:
-            settings.update({"run_id": None}, source=Source.INIT)
-
         settings_param = kwargs.pop("settings", None)
         if settings_param is not None and isinstance(settings_param, (Settings, dict)):
             settings.update(settings_param, source=Source.INIT)
@@ -312,7 +298,9 @@ class _WandbInit:
             )
 
         # apply updated global state after login was handled
-        settings._apply_settings(wandb.setup().settings)
+        wl = wandb.setup()
+        assert wl is not None
+        settings._apply_settings(wl.settings)
 
         # get status of code saving before applying user settings
         save_code_pre_user_settings = settings.save_code
@@ -326,6 +314,15 @@ class _WandbInit:
         # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
+
+        # TODO: remove this once we refactor the client. This is a temporary
+        # fix to make sure that we use the same project name for wandb-core.
+        # The reason this is not going throught the settings object is to
+        # avoid failure cases in other parts of the code that will be
+        # removed with the switch to wandb-core.
+        if settings.project is None:
+            project = wandb.util.auto_project_name(settings.program)
+            settings.update({"project": project}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
         settings._set_run_start_time(source=Source.INIT)
@@ -422,7 +419,7 @@ class _WandbInit:
         except OSError:
             pass
 
-    def _pause_backend(self) -> None:
+    def _pause_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
         if self.backend is None:
             return None
 
@@ -435,7 +432,7 @@ class _WandbInit:
             logger.info("pausing backend")  # type: ignore
             self.backend.interface.publish_pause()
 
-    def _resume_backend(self) -> None:
+    def _resume_backend(self, *args: Any, **kwargs: Any) -> None:  #  noqa
         if self.backend is not None and self.backend.interface is not None:
             logger.info("resuming backend")  # type: ignore
             self.backend.interface.publish_resume()
@@ -524,20 +521,18 @@ class _WandbInit:
         logger.info(f"Logging user logs to {settings.log_user}")
         logger.info(f"Logging internal logs to {settings.log_internal}")
 
-    def _make_run_disabled(self) -> RunDisabled:
-        drun = RunDisabled()
-        drun.config = wandb.wandb_sdk.wandb_config.Config()
-        drun.config.update(self.sweep_config)
-        drun.config.update(self.config)
-        drun.summary = SummaryDisabled()
-        drun.log = lambda data, *_, **__: drun.summary.update(data)
-        drun.finish = lambda *_, **__: module.unset_globals()
-        drun.step = 0
-        drun.resumed = False
-        drun.disabled = True
-        drun.id = runid.generate_id()
-        drun.name = "dummy-" + drun.id
-        drun.dir = tempfile.gettempdir()
+    def _make_run_disabled(self) -> Run:
+        drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        drun._config = wandb.wandb_sdk.wandb_config.Config()
+        drun._config.update(self.sweep_config)
+        drun._config.update(self.config)
+        drun.summary = SummaryDisabled()  # type: ignore
+        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
+        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
+        drun._step = 0
+        drun._run_obj = None
+        drun._run_id = runid.generate_id()
+        drun._name = "dummy-" + drun.id
         module.set_global(
             run=drun,
             config=drun.config,
@@ -558,7 +553,7 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self) -> Union[Run, RunDisabled, None]:  # noqa: C901
+    def init(self) -> Run:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
@@ -616,7 +611,9 @@ class _WandbInit:
         manager = self._wl._get_manager()
         if manager:
             logger.info("setting up manager")
-            manager._inform_init(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_init(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         mailbox = Mailbox()
         backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
@@ -655,9 +652,6 @@ class _WandbInit:
             if self.settings.launch:
                 tel.feature.launch = True
 
-            if self.settings._async_upload_concurrency_limit:
-                tel.feature.async_uploads = True
-
             for module_name in telemetry.list_telemetry_imports(only_imported=True):
                 setattr(tel.imports_init, module_name, True)
 
@@ -694,8 +688,14 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if self.settings._require_nexus:
-                tel.feature.nexus = True
+            if self.settings._require_core:
+                tel.feature.core = True
+            if self.settings._shared:
+                wandb.termwarn(
+                    "The `_shared` feature is experimental and may change. "
+                    "Please contact support@wandb.com for guidance and to report any issues."
+                )
+                tel.feature.shared_mode = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
@@ -801,7 +801,9 @@ class _WandbInit:
         # initiate run (stats and metadata probing)
 
         if manager:
-            manager._inform_start(settings=self.settings, run_id=self.settings.run_id)
+            manager._inform_start(
+                settings=self.settings.to_proto(), run_id=self.settings.run_id
+            )
 
         assert backend.interface
         assert run._run_obj
@@ -822,7 +824,7 @@ class _WandbInit:
             and self.settings.launch_config_path
             and os.path.exists(self.settings.launch_config_path)
         ):
-            run._save(self.settings.launch_config_path)
+            run.save(self.settings.launch_config_path)
         # put artifacts in run config here
         # since doing so earlier will cause an error
         # as the run is not upserted
@@ -842,19 +844,12 @@ class _WandbInit:
         return run
 
 
-def getcaller() -> None:
-    if not logger:
-        return None
-    src, line, func, stack = logger.findCaller(stack_info=True)
-    print("Problem at:", src, line, func)
-
-
 def _attach(
     attach_id: Optional[str] = None,
     run_id: Optional[str] = None,
     *,
     run: Optional["Run"] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Optional[Run]:
     """Attach to a run currently executing in another process/thread.
 
     Arguments:
@@ -908,7 +903,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init(settings=settings)
+        run._init()
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
@@ -955,8 +950,10 @@ def init(
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
     id: Optional[str] = None,
+    fork_from: Optional[str] = None,
+    resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Run:
     r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
@@ -997,14 +994,15 @@ def init(
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
-            the new run. If the project is not specified, the run is put in an
-            "Uncategorized" project.
+            the new run. If the project is not specified, we will try to infer
+            the project name from git root or the current program file. If we
+            can't infer the project name, we will default to `"uncategorized"`.
         entity: (str, optional) An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before
             starting to log runs.
             If you don't specify an entity, the run will be sent to your default
-            entity, which is usually your username. Change your default entity
+            entity. Change your default entity
             in [your settings](https://wandb.ai/settings) under "default location
             to create new projects".
         config: (dict, argparse, absl.flags, str, optional)
@@ -1039,6 +1037,10 @@ def init(
             together, or applying temporary labels like "baseline" or
             "production". It's easy to add and remove tags in the UI, or filter
             down to just runs with a specific tag.
+            If you are resuming a run, its tags will be overwritten by the tags
+            you pass to `wandb.init()`. If you want to add tags to a resumed run
+            without overwriting its existing tags, use `run.tags += ["new_tag"]`
+            after `wandb.init()`.
         name: (str, optional) A short display name for this run, which is how
             you'll identify this run in the UI. By default, we generate a random
             two-word name that lets you easily cross-reference runs from the
@@ -1112,6 +1114,10 @@ def init(
             for saving hyperparameters to compare across runs. The ID cannot
             contain the following special characters: `/\#?%:`.
             See [our guide to resuming runs](https://docs.wandb.com/guides/runs/resuming).
+        fork_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to fork a new run from. Creates a new run that picks up
+            logging history from the specified run at the specified moment. The target run must
+            be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
 
     Examples:
     ### Set where the run is logged
@@ -1154,52 +1160,33 @@ def init(
     wandb._assert_is_user_process()
 
     kwargs = dict(locals())
-    error_seen = None
-    except_exit = None
-    run: Optional[Union[Run, RunDisabled]] = None
+
+    num_resume_options_set = (
+        (fork_from is not None)  # wrap
+        + (resume is not None)
+        + (resume_from is not None)
+    )
+    if num_resume_options_set > 1:
+        raise ValueError(
+            "You cannot specify more than one of `fork_from`, `resume`, or `resume_from`"
+        )
+
     try:
         wi = _WandbInit()
         wi.setup(kwargs)
-        assert wi.settings
-        except_exit = wi.settings._except_exit
-        try:
-            run = wi.init()
-            except_exit = wi.settings._except_exit
-        except (KeyboardInterrupt, Exception) as e:
-            if not isinstance(e, KeyboardInterrupt):
-                wandb._sentry.exception(e)
-            if not (
-                wandb.wandb_agent._is_running() and isinstance(e, KeyboardInterrupt)
-            ):
-                getcaller()
-            assert logger
-            if wi.settings.problem == "fatal":
-                raise
-            if wi.settings.problem == "warn":
-                pass
-            # TODO(jhr): figure out how to make this RunDummy
-            run = None
-    except Error as e:
-        if logger is not None:
-            logger.exception(str(e))
-        raise e
+        return wi.init()
+
     except KeyboardInterrupt as e:
-        assert logger
-        logger.warning("interrupted", exc_info=e)
-        raise e
+        if logger is not None:
+            logger.warning("interrupted", exc_info=e)
+
+        raise
+
     except Exception as e:
-        error_seen = e
-        traceback.print_exc()
-        assert logger
-        logger.error("error", exc_info=e)
+        if logger is not None:
+            logger.exception("error in wandb.init()", exc_info=e)
+
         # Need to build delay into this sentry capture because our exit hooks
         # mess with sentry's ability to send out errors before the program ends.
-        wandb._sentry.exception(e)
-        # reraise(*sys.exc_info())
-    finally:
-        if error_seen:
-            if except_exit:
-                wandb.termerror("Abnormal program exit")
-                os._exit(1)
-            raise Error("An unexpected error occurred") from error_seen
-    return run
+        wandb._sentry.reraise(e)
+        raise AssertionError()  # unreachable

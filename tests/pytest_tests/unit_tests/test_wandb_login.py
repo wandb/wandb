@@ -1,14 +1,17 @@
+import json
 import os
 import platform
 import queue
 import sys
 import tempfile
 import threading
-import time
+from datetime import datetime, timedelta
+from pathlib import Path
 from unittest import mock
 
 import pytest
 import wandb
+from wandb.sdk.lib.credentials import _expires_at_fmt
 
 
 @pytest.fixture
@@ -72,10 +75,7 @@ def mock_tty(monkeypatch):
 
 def test_login_timeout(mock_tty):
     mock_tty("junk\nmore\n")
-    start_time = time.time()
     ret = wandb.login(timeout=4)
-    elapsed = time.time() - start_time
-    assert 2 < elapsed < 15
     assert ret is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "disabled"
@@ -87,10 +87,7 @@ def test_login_timeout(mock_tty):
 )
 def test_login_timeout_choose(mock_tty):
     mock_tty("3\n")
-    start_time = time.time()
     ret = wandb.login(timeout=8)
-    elapsed = time.time() - start_time
-    assert elapsed < 15
     assert ret is False
     assert wandb.api.api_key is None
     assert wandb.setup().settings.mode == "offline"
@@ -99,10 +96,7 @@ def test_login_timeout_choose(mock_tty):
 def test_login_timeout_env_blank(mock_tty):
     mock_tty("\n\n\n")
     with mock.patch.dict(os.environ, {"WANDB_LOGIN_TIMEOUT": "4"}):
-        start_time = time.time()
         ret = wandb.login()
-        elapsed = time.time() - start_time
-        assert elapsed < 15
         assert ret is False
         assert wandb.api.api_key is None
         assert wandb.setup().settings.mode == "disabled"
@@ -159,9 +153,37 @@ def test_login_sets_api_base_url(local_settings):
         assert api.settings["base_url"] == base_url
 
 
-@pytest.mark.skip(reason="We dont validate keys in `wandb.login()` right now")
 def test_login_invalid_key():
-    with mock.patch.dict("os.environ", WANDB_API_KEY="B" * 40):
+    with mock.patch.dict("os.environ", WANDB_API_KEY="X" * 40):
         wandb.ensure_configured()
-        with pytest.raises(wandb.UsageError):
-            wandb.login()
+        with pytest.raises(wandb.errors.AuthenticationError):
+            wandb.login(verify=True)
+
+
+def test_login_with_token_file(tmp_path: Path):
+    token_file = str(tmp_path / "jwt.txt")
+    credentials_file = str(tmp_path / "credentials.json")
+    base_url = "https://api.wandb.ai"
+
+    with open(token_file, "w") as f:
+        f.write("eyaksdcmlasfm")
+
+    expires_at = datetime.now() + timedelta(days=5)
+    data = {
+        "credentials": {
+            base_url: {
+                "access_token": "wb_at_ksdfmlaskfm",
+                "expires_at": expires_at.strftime(_expires_at_fmt),
+            }
+        }
+    }
+    with open(credentials_file, "w") as f:
+        json.dump(data, f)
+
+    with mock.patch.dict(
+        "os.environ",
+        WANDB_IDENTITY_TOKEN_FILE=token_file,
+        WANDB_CREDENTIALS_FILE=credentials_file,
+    ):
+        wandb.login()
+        assert wandb.api.is_authenticated

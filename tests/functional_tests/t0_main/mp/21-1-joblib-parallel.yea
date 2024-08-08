@@ -1,6 +1,4 @@
 id: 0.mp.21-1-joblib-parallel
-tag:
-  shard: service
 
 plugin:
   - wandb

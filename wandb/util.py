@@ -1,5 +1,7 @@
 import colorsys
 import contextlib
+import dataclasses
+import enum
 import functools
 import gzip
 import importlib
@@ -10,6 +12,7 @@ import logging
 import math
 import numbers
 import os
+import pathlib
 import platform
 import queue
 import random
@@ -42,7 +45,6 @@ from typing import (
     Mapping,
     Optional,
     Sequence,
-    Set,
     TextIO,
     Tuple,
     TypeVar,
@@ -54,13 +56,21 @@ import yaml
 
 import wandb
 import wandb.env
-from wandb.errors import AuthenticationError, CommError, UsageError, term
+from wandb.errors import (
+    AuthenticationError,
+    CommError,
+    UsageError,
+    WandbCoreNotAvailableError,
+    term,
+)
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib import filesystem, runid
 from wandb.sdk.lib.json_util import dump, dumps
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 
 if TYPE_CHECKING:
+    import packaging.version  # type: ignore[import-not-found]
+
     import wandb.sdk.internal.settings_static
     import wandb.sdk.wandb_settings
     from wandb.sdk.artifacts.artifact import Artifact
@@ -534,50 +544,41 @@ def _numpy_generic_convert(obj: Any) -> Any:
     return obj
 
 
-def _find_all_matching_keys(
+def _sanitize_numpy_keys(
     d: Dict,
-    match_fn: Callable[[Any], bool],
-    visited: Optional[Set[int]] = None,
-    key_path: Tuple[Any, ...] = (),
-) -> Generator[Tuple[Tuple[Any, ...], Any], None, None]:
-    """Recursively find all keys that satisfies a match function.
+    visited: Optional[Dict[int, Dict]] = None,
+) -> Tuple[Dict, bool]:
+    """Returns a dictionary where all NumPy keys are converted.
 
     Args:
-       d: The dict to search.
-       match_fn: The function to determine if the key is a match.
-       visited: Keep track of visited nodes so we dont recurse forever.
-       key_path: Keep track of all the keys to get to the current node.
+        d: The dictionary to sanitize.
 
-    Yields:
-       (key_path, key): The location where the key was found, and the key
+    Returns:
+        A sanitized dictionary, and a boolean indicating whether anything was
+        changed.
     """
+    out: Dict[Any, Any] = dict()
+    converted = False
+
+    # Work with recursive dictionaries: if a dictionary has already been
+    # converted, reuse its converted value to retain the recursive structure
+    # of the input.
     if visited is None:
-        visited = set()
-    me = id(d)
-    if me not in visited:
-        visited.add(me)
-        for key, value in d.items():
-            if match_fn(key):
-                yield key_path, key
-            if isinstance(value, dict):
-                yield from _find_all_matching_keys(
-                    value,
-                    match_fn,
-                    visited=visited,
-                    key_path=tuple(list(key_path) + [key]),
-                )
+        visited = {id(d): out}
+    elif id(d) in visited:
+        return visited[id(d)], False
+    visited[id(d)] = out
 
+    for key, value in d.items():
+        if isinstance(value, dict):
+            value, converted_value = _sanitize_numpy_keys(value, visited)
+            converted |= converted_value
+        if isinstance(key, np.generic):
+            key = _numpy_generic_convert(key)
+            converted = True
+        out[key] = value
 
-def _sanitize_numpy_keys(d: Dict) -> Tuple[Dict, bool]:
-    np_keys = list(_find_all_matching_keys(d, lambda k: isinstance(k, np.generic)))
-    if not np_keys:
-        return d, False
-    for key_path, key in np_keys:
-        ptr = d
-        for k in key_path:
-            ptr = ptr[k]
-        ptr[_numpy_generic_convert(key)] = ptr.pop(key)
-    return d, True
+    return out, converted
 
 
 def json_friendly(  # noqa: C901
@@ -637,6 +638,8 @@ def json_friendly(  # noqa: C901
     elif isinstance(obj, set):
         # set is not json serializable, so we convert it to tuple
         obj = tuple(obj)
+    elif isinstance(obj, enum.Enum):
+        obj = obj.name
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -840,7 +843,7 @@ def json_dumps_safer_history(obj: Any, **kwargs: Any) -> str:
 
 
 def make_json_if_not_number(
-    v: Union[int, float, str, Mapping, Sequence]
+    v: Union[int, float, str, Mapping, Sequence],
 ) -> Union[int, float, str]:
     """If v is not a basic type convert it to json."""
     if isinstance(v, (float, int)):
@@ -1711,7 +1714,7 @@ def _get_max_cli_version() -> Union[str, None]:
 def _is_offline() -> bool:
     return (  # type: ignore[no-any-return]
         wandb.run is not None and wandb.run.settings._offline
-    ) or wandb.setup().settings._offline
+    ) or wandb.setup().settings._offline  # type: ignore
 
 
 def ensure_text(
@@ -1745,21 +1748,39 @@ def make_docker_image_name_safe(name: str) -> str:
     return trimmed if trimmed else "image"
 
 
-def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively merge two dictionaries."""
+def merge_dicts(
+    source: Dict[str, Any],
+    destination: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Recursively merge two dictionaries.
+
+    This mutates the destination and its nested dictionaries and lists.
+
+    Instances of `dict` are recursively merged and instances of `list`
+    are appended to the destination. If the destination type is not
+    `dict` or `list`, respectively, the key is overwritten with the
+    source value.
+
+    For all other types, the source value overwrites the destination value.
+    """
     for key, value in source.items():
         if isinstance(value, dict):
-            # get node or create one
-            node = destination.setdefault(key, {})
-            merge_dicts(value, node)
-        else:
-            if isinstance(value, list):
-                if key in destination:
-                    destination[key].extend(value)
-                else:
-                    destination[key] = value
+            node = destination.get(key)
+            if isinstance(node, dict):
+                merge_dicts(value, node)
             else:
                 destination[key] = value
+
+        elif isinstance(value, list):
+            dest_value = destination.get(key)
+            if isinstance(dest_value, list):
+                dest_value.extend(value)
+            else:
+                destination[key] = value
+
+        else:
+            destination[key] = value
+
     return destination
 
 
@@ -1771,18 +1792,18 @@ def coalesce(*arg: Any) -> Any:
     return next((a for a in arg if a is not None), None)
 
 
-def cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
+def recursive_cast_dictlike_to_dict(d: Dict[str, Any]) -> Dict[str, Any]:
     for k, v in d.items():
         if isinstance(v, dict):
-            cast_dictlike_to_dict(v)
+            recursive_cast_dictlike_to_dict(v)
         elif hasattr(v, "keys"):
             d[k] = dict(v)
-            cast_dictlike_to_dict(d[k])
+            recursive_cast_dictlike_to_dict(d[k])
     return d
 
 
 def remove_keys_with_none_values(
-    d: Union[Dict[str, Any], Any]
+    d: Union[Dict[str, Any], Any],
 ) -> Union[Dict[str, Any], Any]:
     # otherwise iterrows will create a bunch of ugly charts
     if not isinstance(d, dict):
@@ -1837,3 +1858,88 @@ def sample_with_exponential_decay_weights(
     sampled_keys = keys_array[sampled_indices].tolist() if keys else None
 
     return sampled_xs, sampled_ys, sampled_keys
+
+
+@dataclasses.dataclass(frozen=True)
+class InstalledDistribution:
+    """An installed distribution.
+
+    Attributes:
+        key: The distribution name as it would be imported.
+        version: The distribution's version string.
+    """
+
+    key: str
+    version: str
+
+
+def working_set() -> Iterable[InstalledDistribution]:
+    """Return the working set of installed distributions.
+
+    Uses importlib.metadata in Python versions above 3.7, and importlib_metadata otherwise.
+    """
+    try:
+        from importlib.metadata import distributions
+    except ImportError:
+        from importlib_metadata import distributions  # type: ignore
+
+    for d in distributions():
+        yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
+
+
+def parse_version(version: str) -> "packaging.version.Version":
+    """Parse a version string into a version object.
+
+    This function is a wrapper around the `packaging.version.parse` function, which
+    is used to parse version strings into version objects. If the `packaging` library
+    is not installed, it falls back to the `pkg_resources` library.
+    """
+    try:
+        from packaging.version import parse as parse_version  # type: ignore
+    except ImportError:
+        from pkg_resources import parse_version  # type: ignore[assignment]
+
+    return parse_version(version)
+
+
+def get_core_path() -> str:
+    """Returns the path to the wandb-core binary.
+
+    The path can be set explicitly via the _WANDB_CORE_PATH environment
+    variable. Otherwise, the path to the binary in the current package
+    is returned.
+
+    Returns:
+        str: The path to the wandb-core package.
+
+    Raises:
+        WandbCoreNotAvailableError: If wandb-core was not built for the current system.
+    """
+    # NOTE: Environment variable _WANDB_CORE_PATH is a temporary development feature
+    #       to assist in running the core service from a live development directory.
+    path_from_env: str = os.environ.get("_WANDB_CORE_PATH", "")
+    if path_from_env:
+        wandb.termwarn(
+            f"Using wandb-core from path `_WANDB_CORE_PATH={path_from_env}`. "
+            "This is a development feature and may not work as expected."
+        )
+        return path_from_env
+
+    bin_path = pathlib.Path(__file__).parent / "bin" / "wandb-core"
+    if not bin_path.exists():
+        raise WandbCoreNotAvailableError(
+            f"Looks like wandb-core is not compiled for your system ({platform.platform()}):"
+            " Please contact support at support@wandb.com to request `wandb-core`"
+            " support for your system."
+        )
+
+    return str(bin_path)
+
+
+class NonOctalStringDumper(yaml.Dumper):
+    """Prevents strings containing non-octal values like "008" and "009" from being converted to numbers in in the yaml string saved as the sweep config."""
+
+    def represent_scalar(self, tag, value, style=None):
+        if tag == "tag:yaml.org,2002:str" and value.startswith("0") and len(value) > 1:
+            return super().represent_scalar(tag, value, style="'")
+        return super().represent_scalar(tag, value, style)

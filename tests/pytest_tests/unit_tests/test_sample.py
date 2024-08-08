@@ -1,6 +1,5 @@
 """sample tests."""
 
-
 import wandb
 
 sample = wandb.wandb_sdk.internal.sample

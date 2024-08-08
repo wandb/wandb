@@ -12,12 +12,13 @@ from google.protobuf import symbol_database as _symbol_database
 _sym_db = _symbol_database.Default()
 
 
+from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
 from google.protobuf import timestamp_pb2 as google_dot_protobuf_dot_timestamp__pb2
 from wandb.proto import wandb_base_pb2 as wandb_dot_proto_dot_wandb__base__pb2
 from wandb.proto import wandb_telemetry_pb2 as wandb_dot_proto_dot_wandb__telemetry__pb2
 
 
-DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x9c\t\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12\x30\n\x07history\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.HistoryRecordH\x00\x12\x30\n\x07summary\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecordH\x00\x12.\n\x06output\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.OutputRecordH\x00\x12.\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecordH\x00\x12,\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x1b.wandb_internal.FilesRecordH\x00\x12,\n\x05stats\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.StatsRecordH\x00\x12\x32\n\x08\x61rtifact\x18\x08 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecordH\x00\x12,\n\x08tbrecord\x18\t \x01(\x0b\x32\x18.wandb_internal.TBRecordH\x00\x12,\n\x05\x61lert\x18\n \x01(\x0b\x32\x1b.wandb_internal.AlertRecordH\x00\x12\x34\n\ttelemetry\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecordH\x00\x12.\n\x06metric\x18\x0c \x01(\x0b\x32\x1c.wandb_internal.MetricRecordH\x00\x12\x35\n\noutput_raw\x18\r \x01(\x0b\x32\x1f.wandb_internal.OutputRawRecordH\x00\x12(\n\x03run\x18\x11 \x01(\x0b\x32\x19.wandb_internal.RunRecordH\x00\x12-\n\x04\x65xit\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitRecordH\x00\x12,\n\x05\x66inal\x18\x14 \x01(\x0b\x32\x1b.wandb_internal.FinalRecordH\x00\x12.\n\x06header\x18\x15 \x01(\x0b\x32\x1c.wandb_internal.HeaderRecordH\x00\x12.\n\x06\x66ooter\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.FooterRecordH\x00\x12\x39\n\npreempting\x18\x17 \x01(\x0b\x32#.wandb_internal.RunPreemptingRecordH\x00\x12;\n\rlink_artifact\x18\x18 \x01(\x0b\x32\".wandb_internal.LinkArtifactRecordH\x00\x12\x39\n\x0cuse_artifact\x18\x19 \x01(\x0b\x32!.wandb_internal.UseArtifactRecordH\x00\x12*\n\x07request\x18\x64 \x01(\x0b\x32\x17.wandb_internal.RequestH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x13 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfoB\r\n\x0brecord_type\"\xa8\x01\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\x12\r\n\x05local\x18\x02 \x01(\x08\x12\x10\n\x08relay_id\x18\x03 \x01(\t\x12\x14\n\x0cmailbox_slot\x18\x04 \x01(\t\x12\x13\n\x0b\x61lways_send\x18\x05 \x01(\x08\x12\x14\n\x0c\x66low_control\x18\x06 \x01(\x08\x12\x12\n\nend_offset\x18\x07 \x01(\x03\x12\x15\n\rconnection_id\x18\x08 \x01(\t\"\xf3\x03\n\x06Result\x12\x35\n\nrun_result\x18\x11 \x01(\x0b\x32\x1f.wandb_internal.RunUpdateResultH\x00\x12\x34\n\x0b\x65xit_result\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitResultH\x00\x12\x33\n\nlog_result\x18\x14 \x01(\x0b\x32\x1d.wandb_internal.HistoryResultH\x00\x12\x37\n\x0esummary_result\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.SummaryResultH\x00\x12\x35\n\routput_result\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.OutputResultH\x00\x12\x35\n\rconfig_result\x18\x17 \x01(\x0b\x32\x1c.wandb_internal.ConfigResultH\x00\x12,\n\x08response\x18\x64 \x01(\x0b\x32\x18.wandb_internal.ResponseH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x18 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._ResultInfoB\r\n\x0bresult_type\":\n\x0b\x46inalRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\x0cHeaderRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\x0c\x46ooterRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xce\x04\n\tRunRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\x12,\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecord\x12.\n\x07summary\x18\x05 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\x12\x11\n\trun_group\x18\x06 \x01(\t\x12\x10\n\x08job_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x08 \x01(\t\x12\r\n\x05notes\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x30\n\x08settings\x18\x0b \x01(\x0b\x32\x1e.wandb_internal.SettingsRecord\x12\x10\n\x08sweep_id\x18\x0c \x01(\t\x12\x0c\n\x04host\x18\r \x01(\t\x12\x15\n\rstarting_step\x18\x0e \x01(\x03\x12\x12\n\nstorage_id\x18\x10 \x01(\t\x12.\n\nstart_time\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07resumed\x18\x12 \x01(\x08\x12\x32\n\ttelemetry\x18\x13 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\x12\x0f\n\x07runtime\x18\x14 \x01(\x05\x12*\n\x03git\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\rGitRepoRecord\x12\x1a\n\nremote_url\x18\x01 \x01(\tR\x06remote\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t\"c\n\x0fRunUpdateResult\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xac\x01\n\tErrorInfo\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x31\n\x04\x63ode\x18\x02 \x01(\x0e\x32#.wandb_internal.ErrorInfo.ErrorCode\"[\n\tErrorCode\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x11\n\rCOMMUNICATION\x10\x01\x12\x12\n\x0e\x41UTHENTICATION\x10\x02\x12\t\n\x05USAGE\x10\x03\x12\x0f\n\x0bUNSUPPORTED\x10\x04\"`\n\rRunExitRecord\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12\x0f\n\x07runtime\x18\x02 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x0f\n\rRunExitResult\"B\n\x13RunPreemptingRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x15\n\x13RunPreemptingResult\"i\n\x0eSettingsRecord\x12*\n\x04item\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.SettingsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"/\n\x0cSettingsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x1a\n\x0bHistoryStep\x12\x0b\n\x03num\x18\x01 \x01(\x03\"\x92\x01\n\rHistoryRecord\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\x0bHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rHistoryResult\"\xdc\x01\n\x0cOutputRecord\x12<\n\x0boutput_type\x18\x01 \x01(\x0e\x32\'.wandb_internal.OutputRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x0e\n\x0cOutputResult\"\xe2\x01\n\x0fOutputRawRecord\x12?\n\x0boutput_type\x18\x01 \x01(\x0e\x32*.wandb_internal.OutputRawRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x11\n\x0fOutputRawResult\"\x98\x03\n\x0cMetricRecord\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tglob_name\x18\x02 \x01(\t\x12\x13\n\x0bstep_metric\x18\x04 \x01(\t\x12\x19\n\x11step_metric_index\x18\x05 \x01(\x05\x12.\n\x07options\x18\x06 \x01(\x0b\x32\x1d.wandb_internal.MetricOptions\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.MetricSummary\x12\x35\n\x04goal\x18\x08 \x01(\x0e\x32\'.wandb_internal.MetricRecord.MetricGoal\x12/\n\x08_control\x18\t \x01(\x0b\x32\x1d.wandb_internal.MetricControl\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\nMetricGoal\x12\x0e\n\nGOAL_UNSET\x10\x00\x12\x11\n\rGOAL_MINIMIZE\x10\x01\x12\x11\n\rGOAL_MAXIMIZE\x10\x02\"\x0e\n\x0cMetricResult\"C\n\rMetricOptions\x12\x11\n\tstep_sync\x18\x01 \x01(\x08\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x0f\n\x07\x64\x65\x66ined\x18\x03 \x01(\x08\"\"\n\rMetricControl\x12\x11\n\toverwrite\x18\x01 \x01(\x08\"o\n\rMetricSummary\x12\x0b\n\x03min\x18\x01 \x01(\x08\x12\x0b\n\x03max\x18\x02 \x01(\x08\x12\x0c\n\x04mean\x18\x03 \x01(\x08\x12\x0c\n\x04\x62\x65st\x18\x04 \x01(\x08\x12\x0c\n\x04last\x18\x05 \x01(\x08\x12\x0c\n\x04none\x18\x06 \x01(\x08\x12\x0c\n\x04\x63opy\x18\x07 \x01(\x08\"\x93\x01\n\x0c\x43onfigRecord\x12*\n\x06update\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12*\n\x06remove\x18\x02 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"A\n\nConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0e\n\x0c\x43onfigResult\"\x96\x01\n\rSummaryRecord\x12+\n\x06update\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x06remove\x18\x02 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\x0bSummaryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rSummaryResult\"d\n\x0b\x46ilesRecord\x12(\n\x05\x66iles\x18\x01 \x03(\x0b\x32\x19.wandb_internal.FilesItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x90\x01\n\tFilesItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x34\n\x06policy\x18\x02 \x01(\x0e\x32$.wandb_internal.FilesItem.PolicyType\x12\x15\n\rexternal_path\x18\x10 \x01(\t\"(\n\nPolicyType\x12\x07\n\x03NOW\x10\x00\x12\x07\n\x03\x45ND\x10\x01\x12\x08\n\x04LIVE\x10\x02\"\r\n\x0b\x46ilesResult\"\xe6\x01\n\x0bStatsRecord\x12\x39\n\nstats_type\x18\x01 \x01(\x0e\x32%.wandb_internal.StatsRecord.StatsType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\'\n\x04item\x18\x03 \x03(\x0b\x32\x19.wandb_internal.StatsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x17\n\tStatsType\x12\n\n\x06SYSTEM\x10\x00\",\n\tStatsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\xd9\x03\n\x0e\x41rtifactRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04name\x18\x05 \x01(\t\x12\x0e\n\x06\x64igest\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12\x10\n\x08metadata\x18\x08 \x01(\t\x12\x14\n\x0cuser_created\x18\t \x01(\x08\x12\x18\n\x10use_after_commit\x18\n \x01(\x08\x12\x0f\n\x07\x61liases\x18\x0b \x03(\t\x12\x32\n\x08manifest\x18\x0c \x01(\x0b\x32 .wandb_internal.ArtifactManifest\x12\x16\n\x0e\x64istributed_id\x18\r \x01(\t\x12\x10\n\x08\x66inalize\x18\x0e \x01(\x08\x12\x11\n\tclient_id\x18\x0f \x01(\t\x12\x1a\n\x12sequence_client_id\x18\x10 \x01(\t\x12\x0f\n\x07\x62\x61se_id\x18\x11 \x01(\t\x12\x1c\n\x14ttl_duration_seconds\x18\x12 \x01(\x03\x12\x19\n\x11incremental_beta1\x18\x64 \x01(\x08\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xbc\x01\n\x10\x41rtifactManifest\x12\x0f\n\x07version\x18\x01 \x01(\x05\x12\x16\n\x0estorage_policy\x18\x02 \x01(\t\x12\x46\n\x15storage_policy_config\x18\x03 \x03(\x0b\x32\'.wandb_internal.StoragePolicyConfigItem\x12\x37\n\x08\x63ontents\x18\x04 \x03(\x0b\x32%.wandb_internal.ArtifactManifestEntry\"\xbb\x01\n\x15\x41rtifactManifestEntry\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x0b\n\x03ref\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x10\n\x08mimetype\x18\x05 \x01(\t\x12\x12\n\nlocal_path\x18\x06 \x01(\t\x12\x19\n\x11\x62irth_artifact_id\x18\x07 \x01(\t\x12(\n\x05\x65xtra\x18\x10 \x03(\x0b\x32\x19.wandb_internal.ExtraItem\",\n\tExtraItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\":\n\x17StoragePolicyConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\"\x10\n\x0e\x41rtifactResult\"\x14\n\x12LinkArtifactResult\"\xcf\x01\n\x12LinkArtifactRecord\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x11\n\tserver_id\x18\x02 \x01(\t\x12\x16\n\x0eportfolio_name\x18\x03 \x01(\t\x12\x18\n\x10portfolio_entity\x18\x04 \x01(\t\x12\x19\n\x11portfolio_project\x18\x05 \x01(\t\x12\x19\n\x11portfolio_aliases\x18\x06 \x03(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"h\n\x08TBRecord\x12\x0f\n\x07log_dir\x18\x01 \x01(\t\x12\x0c\n\x04save\x18\x02 \x01(\x08\x12\x10\n\x08root_dir\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\n\n\x08TBResult\"}\n\x0b\x41lertRecord\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\t\x12\x15\n\rwait_duration\x18\x04 \x01(\x03\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\r\n\x0b\x41lertResult\"\xcd\r\n\x07Request\x12\x38\n\x0bstop_status\x18\x01 \x01(\x0b\x32!.wandb_internal.StopStatusRequestH\x00\x12>\n\x0enetwork_status\x18\x02 \x01(\x0b\x32$.wandb_internal.NetworkStatusRequestH\x00\x12-\n\x05\x64\x65\x66\x65r\x18\x03 \x01(\x0b\x32\x1c.wandb_internal.DeferRequestH\x00\x12\x38\n\x0bget_summary\x18\x04 \x01(\x0b\x32!.wandb_internal.GetSummaryRequestH\x00\x12-\n\x05login\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.LoginRequestH\x00\x12-\n\x05pause\x18\x06 \x01(\x0b\x32\x1c.wandb_internal.PauseRequestH\x00\x12/\n\x06resume\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.ResumeRequestH\x00\x12\x34\n\tpoll_exit\x18\x08 \x01(\x0b\x32\x1f.wandb_internal.PollExitRequestH\x00\x12@\n\x0fsampled_history\x18\t \x01(\x0b\x32%.wandb_internal.SampledHistoryRequestH\x00\x12@\n\x0fpartial_history\x18\n \x01(\x0b\x32%.wandb_internal.PartialHistoryRequestH\x00\x12\x34\n\trun_start\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.RunStartRequestH\x00\x12<\n\rcheck_version\x18\x0c \x01(\x0b\x32#.wandb_internal.CheckVersionRequestH\x00\x12:\n\x0clog_artifact\x18\r \x01(\x0b\x32\".wandb_internal.LogArtifactRequestH\x00\x12\x35\n\tkeepalive\x18\x11 \x01(\x0b\x32 .wandb_internal.KeepaliveRequestH\x00\x12\x36\n\nrun_status\x18\x14 \x01(\x0b\x32 .wandb_internal.RunStatusRequestH\x00\x12/\n\x06\x63\x61ncel\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.CancelRequestH\x00\x12\x33\n\x08metadata\x18\x16 \x01(\x0b\x32\x1f.wandb_internal.MetadataRequestH\x00\x12\x44\n\x11internal_messages\x18\x17 \x01(\x0b\x32\'.wandb_internal.InternalMessagesRequestH\x00\x12\x33\n\x08shutdown\x18@ \x01(\x0b\x32\x1f.wandb_internal.ShutdownRequestH\x00\x12/\n\x06\x61ttach\x18\x41 \x01(\x0b\x32\x1d.wandb_internal.AttachRequestH\x00\x12/\n\x06status\x18\x42 \x01(\x0b\x32\x1d.wandb_internal.StatusRequestH\x00\x12\x38\n\x0bserver_info\x18\x43 \x01(\x0b\x32!.wandb_internal.ServerInfoRequestH\x00\x12\x38\n\x0bsender_mark\x18\x44 \x01(\x0b\x32!.wandb_internal.SenderMarkRequestH\x00\x12\x38\n\x0bsender_read\x18\x45 \x01(\x0b\x32!.wandb_internal.SenderReadRequestH\x00\x12<\n\rstatus_report\x18\x46 \x01(\x0b\x32#.wandb_internal.StatusReportRequestH\x00\x12>\n\x0esummary_record\x18G \x01(\x0b\x32$.wandb_internal.SummaryRecordRequestH\x00\x12\x42\n\x10telemetry_record\x18H \x01(\x0b\x32&.wandb_internal.TelemetryRecordRequestH\x00\x12\x32\n\x08job_info\x18I \x01(\x0b\x32\x1e.wandb_internal.JobInfoRequestH\x00\x12\x45\n\x12get_system_metrics\x18J \x01(\x0b\x32\'.wandb_internal.GetSystemMetricsRequestH\x00\x12\x39\n\x0btest_inject\x18\xe8\x07 \x01(\x0b\x32!.wandb_internal.TestInjectRequestH\x00\x42\x0e\n\x0crequest_type\"\xdb\n\n\x08Response\x12?\n\x12keepalive_response\x18\x12 \x01(\x0b\x32!.wandb_internal.KeepaliveResponseH\x00\x12\x42\n\x14stop_status_response\x18\x13 \x01(\x0b\x32\".wandb_internal.StopStatusResponseH\x00\x12H\n\x17network_status_response\x18\x14 \x01(\x0b\x32%.wandb_internal.NetworkStatusResponseH\x00\x12\x37\n\x0elogin_response\x18\x18 \x01(\x0b\x32\x1d.wandb_internal.LoginResponseH\x00\x12\x42\n\x14get_summary_response\x18\x19 \x01(\x0b\x32\".wandb_internal.GetSummaryResponseH\x00\x12>\n\x12poll_exit_response\x18\x1a \x01(\x0b\x32 .wandb_internal.PollExitResponseH\x00\x12J\n\x18sampled_history_response\x18\x1b \x01(\x0b\x32&.wandb_internal.SampledHistoryResponseH\x00\x12>\n\x12run_start_response\x18\x1c \x01(\x0b\x32 .wandb_internal.RunStartResponseH\x00\x12\x46\n\x16\x63heck_version_response\x18\x1d \x01(\x0b\x32$.wandb_internal.CheckVersionResponseH\x00\x12\x44\n\x15log_artifact_response\x18\x1e \x01(\x0b\x32#.wandb_internal.LogArtifactResponseH\x00\x12@\n\x13run_status_response\x18# \x01(\x0b\x32!.wandb_internal.RunStatusResponseH\x00\x12\x39\n\x0f\x63\x61ncel_response\x18$ \x01(\x0b\x32\x1e.wandb_internal.CancelResponseH\x00\x12N\n\x1ainternal_messages_response\x18% \x01(\x0b\x32(.wandb_internal.InternalMessagesResponseH\x00\x12=\n\x11shutdown_response\x18@ \x01(\x0b\x32 .wandb_internal.ShutdownResponseH\x00\x12\x39\n\x0f\x61ttach_response\x18\x41 \x01(\x0b\x32\x1e.wandb_internal.AttachResponseH\x00\x12\x39\n\x0fstatus_response\x18\x42 \x01(\x0b\x32\x1e.wandb_internal.StatusResponseH\x00\x12\x42\n\x14server_info_response\x18\x43 \x01(\x0b\x32\".wandb_internal.ServerInfoResponseH\x00\x12<\n\x11job_info_response\x18\x44 \x01(\x0b\x32\x1f.wandb_internal.JobInfoResponseH\x00\x12O\n\x1bget_system_metrics_response\x18\x45 \x01(\x0b\x32(.wandb_internal.GetSystemMetricsResponseH\x00\x12\x43\n\x14test_inject_response\x18\xe8\x07 \x01(\x0b\x32\".wandb_internal.TestInjectResponseH\x00\x42\x0f\n\rresponse_type\"\xc0\x02\n\x0c\x44\x65\x66\x65rRequest\x12\x36\n\x05state\x18\x01 \x01(\x0e\x32\'.wandb_internal.DeferRequest.DeferState\"\xf7\x01\n\nDeferState\x12\t\n\x05\x42\x45GIN\x10\x00\x12\r\n\tFLUSH_RUN\x10\x01\x12\x0f\n\x0b\x46LUSH_STATS\x10\x02\x12\x19\n\x15\x46LUSH_PARTIAL_HISTORY\x10\x03\x12\x0c\n\x08\x46LUSH_TB\x10\x04\x12\r\n\tFLUSH_SUM\x10\x05\x12\x13\n\x0f\x46LUSH_DEBOUNCER\x10\x06\x12\x10\n\x0c\x46LUSH_OUTPUT\x10\x07\x12\r\n\tFLUSH_JOB\x10\x08\x12\r\n\tFLUSH_DIR\x10\t\x12\x0c\n\x08\x46LUSH_FP\x10\n\x12\x0b\n\x07JOIN_FP\x10\x0b\x12\x0c\n\x08\x46LUSH_FS\x10\x0c\x12\x0f\n\x0b\x46LUSH_FINAL\x10\r\x12\x07\n\x03\x45ND\x10\x0e\"<\n\x0cPauseRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x0f\n\rPauseResponse\"=\n\rResumeRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x10\n\x0eResumeResponse\"M\n\x0cLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"&\n\rLoginResponse\x12\x15\n\ractive_entity\x18\x01 \x01(\t\"A\n\x11GetSummaryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"?\n\x12GetSummaryResponse\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"G\n\x17GetSystemMetricsRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"R\n\x12SystemMetricSample\x12-\n\ttimestamp\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\r\n\x05value\x18\x02 \x01(\x02\"I\n\x13SystemMetricsBuffer\x12\x32\n\x06record\x18\x01 \x03(\x0b\x32\".wandb_internal.SystemMetricSample\"\xca\x01\n\x18GetSystemMetricsResponse\x12S\n\x0esystem_metrics\x18\x01 \x03(\x0b\x32;.wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry\x1aY\n\x12SystemMetricsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.wandb_internal.SystemMetricsBuffer:\x02\x38\x01\"=\n\rStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\")\n\x0eStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"A\n\x11StopStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"-\n\x12StopStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"D\n\x14NetworkStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"P\n\x15NetworkStatusResponse\x12\x37\n\x11network_responses\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.HttpResponse\"D\n\x0cHttpResponse\x12\x18\n\x10http_status_code\x18\x01 \x01(\x05\x12\x1a\n\x12http_response_text\x18\x02 \x01(\t\"G\n\x17InternalMessagesRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"N\n\x18InternalMessagesResponse\x12\x32\n\x08messages\x18\x01 \x01(\x0b\x32 .wandb_internal.InternalMessages\"#\n\x10InternalMessages\x12\x0f\n\x07warning\x18\x01 \x03(\t\"?\n\x0fPollExitRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\xbc\x01\n\x10PollExitResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12\x32\n\x0b\x65xit_result\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.RunExitResult\x12\x35\n\x0cpusher_stats\x18\x03 \x01(\x0b\x32\x1f.wandb_internal.FilePusherStats\x12/\n\x0b\x66ile_counts\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.FileCounts\"\x13\n\x11SenderMarkRequest\"?\n\x11SenderReadRequest\x12\x14\n\x0cstart_offset\x18\x01 \x01(\x03\x12\x14\n\x0c\x66inal_offset\x18\x02 \x01(\x03\"m\n\x13StatusReportRequest\x12\x12\n\nrecord_num\x18\x01 \x01(\x03\x12\x13\n\x0bsent_offset\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"F\n\x14SummaryRecordRequest\x12.\n\x07summary\x18\x01 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\"L\n\x16TelemetryRecordRequest\x12\x32\n\ttelemetry\x18\x01 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\"A\n\x11ServerInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"|\n\x12ServerInfoResponse\x12-\n\nlocal_info\x18\x01 \x01(\x0b\x32\x19.wandb_internal.LocalInfo\x12\x37\n\x0fserver_messages\x18\x02 \x01(\x0b\x32\x1e.wandb_internal.ServerMessages\"=\n\x0eServerMessages\x12+\n\x04item\x18\x01 \x03(\x0b\x32\x1d.wandb_internal.ServerMessage\"e\n\rServerMessage\x12\x12\n\nplain_text\x18\x01 \x01(\t\x12\x10\n\x08utf_text\x18\x02 \x01(\t\x12\x11\n\thtml_text\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\r\n\x05level\x18\x05 \x01(\x05\"c\n\nFileCounts\x12\x13\n\x0bwandb_count\x18\x01 \x01(\x05\x12\x13\n\x0bmedia_count\x18\x02 \x01(\x05\x12\x16\n\x0e\x61rtifact_count\x18\x03 \x01(\x05\x12\x13\n\x0bother_count\x18\x04 \x01(\x05\"U\n\x0f\x46ilePusherStats\x12\x16\n\x0euploaded_bytes\x18\x01 \x01(\x03\x12\x13\n\x0btotal_bytes\x18\x02 \x01(\x03\x12\x15\n\rdeduped_bytes\x18\x03 \x01(\x03\"1\n\tLocalInfo\x12\x0f\n\x07version\x18\x01 \x01(\t\x12\x13\n\x0bout_of_date\x18\x02 \x01(\x08\"?\n\x0fShutdownRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x12\n\x10ShutdownResponse\"P\n\rAttachRequest\x12\x11\n\tattach_id\x18\x14 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"b\n\x0e\x41ttachResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xd5\x02\n\x11TestInjectRequest\x12\x13\n\x0bhandler_exc\x18\x01 \x01(\x08\x12\x14\n\x0chandler_exit\x18\x02 \x01(\x08\x12\x15\n\rhandler_abort\x18\x03 \x01(\x08\x12\x12\n\nsender_exc\x18\x04 \x01(\x08\x12\x13\n\x0bsender_exit\x18\x05 \x01(\x08\x12\x14\n\x0csender_abort\x18\x06 \x01(\x08\x12\x0f\n\x07req_exc\x18\x07 \x01(\x08\x12\x10\n\x08req_exit\x18\x08 \x01(\x08\x12\x11\n\treq_abort\x18\t \x01(\x08\x12\x10\n\x08resp_exc\x18\n \x01(\x08\x12\x11\n\tresp_exit\x18\x0b \x01(\x08\x12\x12\n\nresp_abort\x18\x0c \x01(\x08\x12\x10\n\x08msg_drop\x18\r \x01(\x08\x12\x10\n\x08msg_hang\x18\x0e \x01(\x08\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x14\n\x12TestInjectResponse\"\x1e\n\rHistoryAction\x12\r\n\x05\x66lush\x18\x01 \x01(\x08\"\xca\x01\n\x15PartialHistoryRequest\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12-\n\x06\x61\x63tion\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.HistoryAction\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x18\n\x16PartialHistoryResponse\"E\n\x15SampledHistoryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"_\n\x12SampledHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x14\n\x0cvalues_float\x18\x03 \x03(\x02\x12\x12\n\nvalues_int\x18\x04 \x03(\x03\"J\n\x16SampledHistoryResponse\x12\x30\n\x04item\x18\x01 \x03(\x0b\x32\".wandb_internal.SampledHistoryItem\"@\n\x10RunStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"x\n\x11RunStatusResponse\x12\x18\n\x10sync_items_total\x18\x01 \x01(\x03\x12\x1a\n\x12sync_items_pending\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"g\n\x0fRunStartRequest\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x12\n\x10RunStartResponse\"\\\n\x13\x43heckVersionRequest\x12\x17\n\x0f\x63urrent_version\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"]\n\x14\x43heckVersionResponse\x12\x17\n\x0fupgrade_message\x18\x01 \x01(\t\x12\x14\n\x0cyank_message\x18\x02 \x01(\t\x12\x16\n\x0e\x64\x65lete_message\x18\x03 \x01(\t\">\n\x0eJobInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"6\n\x0fJobInfoResponse\x12\x12\n\nsequenceId\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\"\x8a\x01\n\x12LogArtifactRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\x12\x14\n\x0chistory_step\x18\x02 \x01(\x03\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"A\n\x13LogArtifactResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\"@\n\x10KeepaliveRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x13\n\x11KeepaliveResponse\"F\n\x0c\x41rtifactInfo\x12\x10\n\x08\x61rtifact\x18\x01 \x01(\t\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08\")\n\x07GitInfo\x12\x0e\n\x06remote\x18\x01 \x01(\t\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t\"\\\n\tGitSource\x12)\n\x08git_info\x18\x01 \x01(\x0b\x32\x17.wandb_internal.GitInfo\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08\"\x1c\n\x0bImageSource\x12\r\n\x05image\x18\x01 \x01(\t\"\x8c\x01\n\x06Source\x12&\n\x03git\x18\x01 \x01(\x0b\x32\x19.wandb_internal.GitSource\x12.\n\x08\x61rtifact\x18\x02 \x01(\x0b\x32\x1c.wandb_internal.ArtifactInfo\x12*\n\x05image\x18\x03 \x01(\x0b\x32\x1b.wandb_internal.ImageSource\"k\n\tJobSource\x12\x10\n\x08_version\x18\x01 \x01(\t\x12\x13\n\x0bsource_type\x18\x02 \x01(\t\x12&\n\x06source\x18\x03 \x01(\x0b\x32\x16.wandb_internal.Source\x12\x0f\n\x07runtime\x18\x04 \x01(\t\"V\n\x12PartialJobArtifact\x12\x10\n\x08job_name\x18\x01 \x01(\t\x12.\n\x0bsource_info\x18\x02 \x01(\x0b\x32\x19.wandb_internal.JobSource\"\x9d\x01\n\x11UseArtifactRecord\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x33\n\x07partial\x18\x04 \x01(\x0b\x32\".wandb_internal.PartialJobArtifact\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x13\n\x11UseArtifactResult\"R\n\rCancelRequest\x12\x13\n\x0b\x63\x61ncel_slot\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x10\n\x0e\x43\x61ncelResponse\"\'\n\x08\x44iskInfo\x12\r\n\x05total\x18\x01 \x01(\x04\x12\x0c\n\x04used\x18\x02 \x01(\x04\"\x1b\n\nMemoryInfo\x12\r\n\x05total\x18\x01 \x01(\x04\"/\n\x07\x43puInfo\x12\r\n\x05\x63ount\x18\x01 \x01(\r\x12\x15\n\rcount_logical\x18\x02 \x01(\r\"/\n\x0cGpuAppleInfo\x12\x0f\n\x07gpuType\x18\x01 \x01(\t\x12\x0e\n\x06vendor\x18\x02 \x01(\t\"3\n\rGpuNvidiaInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x14\n\x0cmemory_total\x18\x02 \x01(\x04\"\xf7\x06\n\x0fMetadataRequest\x12\n\n\x02os\x18\x01 \x01(\t\x12\x0e\n\x06python\x18\x02 \x01(\t\x12/\n\x0bheartbeatAt\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12-\n\tstartedAt\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x64ocker\x18\x05 \x01(\t\x12\x0c\n\x04\x63uda\x18\x06 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x07 \x03(\t\x12\r\n\x05state\x18\x08 \x01(\t\x12\x0f\n\x07program\x18\t \x01(\t\x12\x1b\n\tcode_path\x18\n \x01(\tR\x08\x63odePath\x12*\n\x03git\x18\x0b \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12\r\n\x05\x65mail\x18\x0c \x01(\t\x12\x0c\n\x04root\x18\r \x01(\t\x12\x0c\n\x04host\x18\x0e \x01(\t\x12\x10\n\x08username\x18\x0f \x01(\t\x12\x12\n\nexecutable\x18\x10 \x01(\t\x12&\n\x0f\x63ode_path_local\x18\x11 \x01(\tR\rcodePathLocal\x12\r\n\x05\x63olab\x18\x12 \x01(\t\x12\x1c\n\tcpu_count\x18\x13 \x01(\rR\tcpu_count\x12,\n\x11\x63pu_count_logical\x18\x14 \x01(\rR\x11\x63pu_count_logical\x12\x15\n\x08gpu_type\x18\x15 \x01(\tR\x03gpu\x12\x1c\n\tgpu_count\x18\x16 \x01(\rR\tgpu_count\x12\x37\n\x04\x64isk\x18\x17 \x03(\x0b\x32).wandb_internal.MetadataRequest.DiskEntry\x12*\n\x06memory\x18\x18 \x01(\x0b\x32\x1a.wandb_internal.MemoryInfo\x12$\n\x03\x63pu\x18\x19 \x01(\x0b\x32\x17.wandb_internal.CpuInfo\x12\x39\n\tgpu_apple\x18\x1a \x01(\x0b\x32\x1c.wandb_internal.GpuAppleInfoR\x08gpuapple\x12=\n\ngpu_nvidia\x18\x1b \x03(\x0b\x32\x1d.wandb_internal.GpuNvidiaInfoR\ngpu_nvidia\x1a\x45\n\tDiskEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.DiskInfo:\x02\x38\x01\x62\x06proto3')
+DESCRIPTOR = _descriptor_pool.Default().AddSerializedFile(b'\n wandb/proto/wandb_internal.proto\x12\x0ewandb_internal\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cwandb/proto/wandb_base.proto\x1a!wandb/proto/wandb_telemetry.proto\"\x95\t\n\x06Record\x12\x0b\n\x03num\x18\x01 \x01(\x03\x12\x30\n\x07history\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.HistoryRecordH\x00\x12\x30\n\x07summary\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecordH\x00\x12.\n\x06output\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.OutputRecordH\x00\x12.\n\x06\x63onfig\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecordH\x00\x12,\n\x05\x66iles\x18\x06 \x01(\x0b\x32\x1b.wandb_internal.FilesRecordH\x00\x12,\n\x05stats\x18\x07 \x01(\x0b\x32\x1b.wandb_internal.StatsRecordH\x00\x12\x32\n\x08\x61rtifact\x18\x08 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecordH\x00\x12,\n\x08tbrecord\x18\t \x01(\x0b\x32\x18.wandb_internal.TBRecordH\x00\x12,\n\x05\x61lert\x18\n \x01(\x0b\x32\x1b.wandb_internal.AlertRecordH\x00\x12\x34\n\ttelemetry\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecordH\x00\x12.\n\x06metric\x18\x0c \x01(\x0b\x32\x1c.wandb_internal.MetricRecordH\x00\x12\x35\n\noutput_raw\x18\r \x01(\x0b\x32\x1f.wandb_internal.OutputRawRecordH\x00\x12(\n\x03run\x18\x11 \x01(\x0b\x32\x19.wandb_internal.RunRecordH\x00\x12-\n\x04\x65xit\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitRecordH\x00\x12,\n\x05\x66inal\x18\x14 \x01(\x0b\x32\x1b.wandb_internal.FinalRecordH\x00\x12.\n\x06header\x18\x15 \x01(\x0b\x32\x1c.wandb_internal.HeaderRecordH\x00\x12.\n\x06\x66ooter\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.FooterRecordH\x00\x12\x39\n\npreempting\x18\x17 \x01(\x0b\x32#.wandb_internal.RunPreemptingRecordH\x00\x12\x34\n\x12noop_link_artifact\x18\x18 \x01(\x0b\x32\x16.google.protobuf.EmptyH\x00\x12\x39\n\x0cuse_artifact\x18\x19 \x01(\x0b\x32!.wandb_internal.UseArtifactRecordH\x00\x12*\n\x07request\x18\x64 \x01(\x0b\x32\x17.wandb_internal.RequestH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x13 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfoB\r\n\x0brecord_type\"\xa8\x01\n\x07\x43ontrol\x12\x10\n\x08req_resp\x18\x01 \x01(\x08\x12\r\n\x05local\x18\x02 \x01(\x08\x12\x10\n\x08relay_id\x18\x03 \x01(\t\x12\x14\n\x0cmailbox_slot\x18\x04 \x01(\t\x12\x13\n\x0b\x61lways_send\x18\x05 \x01(\x08\x12\x14\n\x0c\x66low_control\x18\x06 \x01(\x08\x12\x12\n\nend_offset\x18\x07 \x01(\x03\x12\x15\n\rconnection_id\x18\x08 \x01(\t\"\xf3\x03\n\x06Result\x12\x35\n\nrun_result\x18\x11 \x01(\x0b\x32\x1f.wandb_internal.RunUpdateResultH\x00\x12\x34\n\x0b\x65xit_result\x18\x12 \x01(\x0b\x32\x1d.wandb_internal.RunExitResultH\x00\x12\x33\n\nlog_result\x18\x14 \x01(\x0b\x32\x1d.wandb_internal.HistoryResultH\x00\x12\x37\n\x0esummary_result\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.SummaryResultH\x00\x12\x35\n\routput_result\x18\x16 \x01(\x0b\x32\x1c.wandb_internal.OutputResultH\x00\x12\x35\n\rconfig_result\x18\x17 \x01(\x0b\x32\x1c.wandb_internal.ConfigResultH\x00\x12,\n\x08response\x18\x64 \x01(\x0b\x32\x18.wandb_internal.ResponseH\x00\x12(\n\x07\x63ontrol\x18\x10 \x01(\x0b\x32\x17.wandb_internal.Control\x12\x0c\n\x04uuid\x18\x18 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._ResultInfoB\r\n\x0bresult_type\":\n\x0b\x46inalRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"b\n\x0bVersionInfo\x12\x10\n\x08producer\x18\x01 \x01(\t\x12\x14\n\x0cmin_consumer\x18\x02 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"n\n\x0cHeaderRecord\x12\x31\n\x0cversion_info\x18\x01 \x01(\x0b\x32\x1b.wandb_internal.VersionInfo\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\x0c\x46ooterRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xde\x04\n\tRunRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\x12,\n\x06\x63onfig\x18\x04 \x01(\x0b\x32\x1c.wandb_internal.ConfigRecord\x12.\n\x07summary\x18\x05 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\x12\x11\n\trun_group\x18\x06 \x01(\t\x12\x10\n\x08job_type\x18\x07 \x01(\t\x12\x14\n\x0c\x64isplay_name\x18\x08 \x01(\t\x12\r\n\x05notes\x18\t \x01(\t\x12\x0c\n\x04tags\x18\n \x03(\t\x12\x30\n\x08settings\x18\x0b \x01(\x0b\x32\x1e.wandb_internal.SettingsRecord\x12\x10\n\x08sweep_id\x18\x0c \x01(\t\x12\x0c\n\x04host\x18\r \x01(\t\x12\x15\n\rstarting_step\x18\x0e \x01(\x03\x12\x12\n\nstorage_id\x18\x10 \x01(\t\x12.\n\nstart_time\x18\x11 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0f\n\x07resumed\x18\x12 \x01(\x08\x12\x32\n\ttelemetry\x18\x13 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\x12\x0f\n\x07runtime\x18\x14 \x01(\x05\x12*\n\x03git\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12\x0e\n\x06\x66orked\x18\x16 \x01(\x08\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\";\n\rGitRepoRecord\x12\x1a\n\nremote_url\x18\x01 \x01(\tR\x06remote\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t\"c\n\x0fRunUpdateResult\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xac\x01\n\tErrorInfo\x12\x0f\n\x07message\x18\x01 \x01(\t\x12\x31\n\x04\x63ode\x18\x02 \x01(\x0e\x32#.wandb_internal.ErrorInfo.ErrorCode\"[\n\tErrorCode\x12\x0b\n\x07UNKNOWN\x10\x00\x12\x11\n\rCOMMUNICATION\x10\x01\x12\x12\n\x0e\x41UTHENTICATION\x10\x02\x12\t\n\x05USAGE\x10\x03\x12\x0f\n\x0bUNSUPPORTED\x10\x04\"`\n\rRunExitRecord\x12\x11\n\texit_code\x18\x01 \x01(\x05\x12\x0f\n\x07runtime\x18\x02 \x01(\x05\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x0f\n\rRunExitResult\"B\n\x13RunPreemptingRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x15\n\x13RunPreemptingResult\"i\n\x0eSettingsRecord\x12*\n\x04item\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.SettingsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"/\n\x0cSettingsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x1a\n\x0bHistoryStep\x12\x0b\n\x03num\x18\x01 \x01(\x03\"\x92\x01\n\rHistoryRecord\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\x0bHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rHistoryResult\"\xdc\x01\n\x0cOutputRecord\x12<\n\x0boutput_type\x18\x01 \x01(\x0e\x32\'.wandb_internal.OutputRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x0e\n\x0cOutputResult\"\xe2\x01\n\x0fOutputRawRecord\x12?\n\x0boutput_type\x18\x01 \x01(\x0e\x32*.wandb_internal.OutputRawRecord.OutputType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0c\n\x04line\x18\x03 \x01(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"$\n\nOutputType\x12\n\n\x06STDERR\x10\x00\x12\n\n\x06STDOUT\x10\x01\"\x11\n\x0fOutputRawResult\"\x98\x03\n\x0cMetricRecord\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x11\n\tglob_name\x18\x02 \x01(\t\x12\x13\n\x0bstep_metric\x18\x04 \x01(\t\x12\x19\n\x11step_metric_index\x18\x05 \x01(\x05\x12.\n\x07options\x18\x06 \x01(\x0b\x32\x1d.wandb_internal.MetricOptions\x12.\n\x07summary\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.MetricSummary\x12\x35\n\x04goal\x18\x08 \x01(\x0e\x32\'.wandb_internal.MetricRecord.MetricGoal\x12/\n\x08_control\x18\t \x01(\x0b\x32\x1d.wandb_internal.MetricControl\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\nMetricGoal\x12\x0e\n\nGOAL_UNSET\x10\x00\x12\x11\n\rGOAL_MINIMIZE\x10\x01\x12\x11\n\rGOAL_MAXIMIZE\x10\x02\"\x0e\n\x0cMetricResult\"C\n\rMetricOptions\x12\x11\n\tstep_sync\x18\x01 \x01(\x08\x12\x0e\n\x06hidden\x18\x02 \x01(\x08\x12\x0f\n\x07\x64\x65\x66ined\x18\x03 \x01(\x08\"\"\n\rMetricControl\x12\x11\n\toverwrite\x18\x01 \x01(\x08\"o\n\rMetricSummary\x12\x0b\n\x03min\x18\x01 \x01(\x08\x12\x0b\n\x03max\x18\x02 \x01(\x08\x12\x0c\n\x04mean\x18\x03 \x01(\x08\x12\x0c\n\x04\x62\x65st\x18\x04 \x01(\x08\x12\x0c\n\x04last\x18\x05 \x01(\x08\x12\x0c\n\x04none\x18\x06 \x01(\x08\x12\x0c\n\x04\x63opy\x18\x07 \x01(\x08\"\x93\x01\n\x0c\x43onfigRecord\x12*\n\x06update\x18\x01 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12*\n\x06remove\x18\x02 \x03(\x0b\x32\x1a.wandb_internal.ConfigItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"A\n\nConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0e\n\x0c\x43onfigResult\"\x96\x01\n\rSummaryRecord\x12+\n\x06update\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x06remove\x18\x02 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"B\n\x0bSummaryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\x0f\n\rSummaryResult\"d\n\x0b\x46ilesRecord\x12(\n\x05\x66iles\x18\x01 \x03(\x0b\x32\x19.wandb_internal.FilesItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xec\x01\n\tFilesItem\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x34\n\x06policy\x18\x02 \x01(\x0e\x32$.wandb_internal.FilesItem.PolicyType\x12\x30\n\x04type\x18\x03 \x01(\x0e\x32\".wandb_internal.FilesItem.FileType\"(\n\nPolicyType\x12\x07\n\x03NOW\x10\x00\x12\x07\n\x03\x45ND\x10\x01\x12\x08\n\x04LIVE\x10\x02\"9\n\x08\x46ileType\x12\t\n\x05OTHER\x10\x00\x12\t\n\x05WANDB\x10\x01\x12\t\n\x05MEDIA\x10\x02\x12\x0c\n\x08\x41RTIFACT\x10\x03J\x04\x08\x10\x10\x11\"\r\n\x0b\x46ilesResult\"\xe6\x01\n\x0bStatsRecord\x12\x39\n\nstats_type\x18\x01 \x01(\x0e\x32%.wandb_internal.StatsRecord.StatsType\x12-\n\ttimestamp\x18\x02 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\'\n\x04item\x18\x03 \x03(\x0b\x32\x19.wandb_internal.StatsItem\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x17\n\tStatsType\x12\n\n\x06SYSTEM\x10\x00\",\n\tStatsItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x10 \x01(\t\"\xd9\x03\n\x0e\x41rtifactRecord\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0f\n\x07project\x18\x02 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\x0c\n\x04name\x18\x05 \x01(\t\x12\x0e\n\x06\x64igest\x18\x06 \x01(\t\x12\x13\n\x0b\x64\x65scription\x18\x07 \x01(\t\x12\x10\n\x08metadata\x18\x08 \x01(\t\x12\x14\n\x0cuser_created\x18\t \x01(\x08\x12\x18\n\x10use_after_commit\x18\n \x01(\x08\x12\x0f\n\x07\x61liases\x18\x0b \x03(\t\x12\x32\n\x08manifest\x18\x0c \x01(\x0b\x32 .wandb_internal.ArtifactManifest\x12\x16\n\x0e\x64istributed_id\x18\r \x01(\t\x12\x10\n\x08\x66inalize\x18\x0e \x01(\x08\x12\x11\n\tclient_id\x18\x0f \x01(\t\x12\x1a\n\x12sequence_client_id\x18\x10 \x01(\t\x12\x0f\n\x07\x62\x61se_id\x18\x11 \x01(\t\x12\x1c\n\x14ttl_duration_seconds\x18\x12 \x01(\x03\x12\x19\n\x11incremental_beta1\x18\x64 \x01(\x08\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\xd8\x01\n\x10\x41rtifactManifest\x12\x0f\n\x07version\x18\x01 \x01(\x05\x12\x16\n\x0estorage_policy\x18\x02 \x01(\t\x12\x46\n\x15storage_policy_config\x18\x03 \x03(\x0b\x32\'.wandb_internal.StoragePolicyConfigItem\x12\x37\n\x08\x63ontents\x18\x04 \x03(\x0b\x32%.wandb_internal.ArtifactManifestEntry\x12\x1a\n\x12manifest_file_path\x18\x05 \x01(\t\"\xcf\x01\n\x15\x41rtifactManifestEntry\x12\x0c\n\x04path\x18\x01 \x01(\t\x12\x0e\n\x06\x64igest\x18\x02 \x01(\t\x12\x0b\n\x03ref\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x10\n\x08mimetype\x18\x05 \x01(\t\x12\x12\n\nlocal_path\x18\x06 \x01(\t\x12\x19\n\x11\x62irth_artifact_id\x18\x07 \x01(\t\x12\x12\n\nskip_cache\x18\x08 \x01(\x08\x12(\n\x05\x65xtra\x18\x10 \x03(\x0b\x32\x19.wandb_internal.ExtraItem\",\n\tExtraItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\":\n\x17StoragePolicyConfigItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nvalue_json\x18\x02 \x01(\t\"\x10\n\x0e\x41rtifactResult\"\x14\n\x12LinkArtifactResult\"\xd0\x01\n\x13LinkArtifactRequest\x12\x11\n\tclient_id\x18\x01 \x01(\t\x12\x11\n\tserver_id\x18\x02 \x01(\t\x12\x16\n\x0eportfolio_name\x18\x03 \x01(\t\x12\x18\n\x10portfolio_entity\x18\x04 \x01(\t\x12\x19\n\x11portfolio_project\x18\x05 \x01(\t\x12\x19\n\x11portfolio_aliases\x18\x06 \x03(\t\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"-\n\x14LinkArtifactResponse\x12\x15\n\rerror_message\x18\x01 \x01(\t\"h\n\x08TBRecord\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\x12\x0f\n\x07log_dir\x18\x01 \x01(\t\x12\x10\n\x08root_dir\x18\x03 \x01(\t\x12\x0c\n\x04save\x18\x02 \x01(\x08\"\n\n\x08TBResult\"}\n\x0b\x41lertRecord\x12\r\n\x05title\x18\x01 \x01(\t\x12\x0c\n\x04text\x18\x02 \x01(\t\x12\r\n\x05level\x18\x03 \x01(\t\x12\x15\n\rwait_duration\x18\x04 \x01(\x03\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\r\n\x0b\x41lertResult\"\xfc\x0f\n\x07Request\x12\x38\n\x0bstop_status\x18\x01 \x01(\x0b\x32!.wandb_internal.StopStatusRequestH\x00\x12>\n\x0enetwork_status\x18\x02 \x01(\x0b\x32$.wandb_internal.NetworkStatusRequestH\x00\x12-\n\x05\x64\x65\x66\x65r\x18\x03 \x01(\x0b\x32\x1c.wandb_internal.DeferRequestH\x00\x12\x38\n\x0bget_summary\x18\x04 \x01(\x0b\x32!.wandb_internal.GetSummaryRequestH\x00\x12-\n\x05login\x18\x05 \x01(\x0b\x32\x1c.wandb_internal.LoginRequestH\x00\x12-\n\x05pause\x18\x06 \x01(\x0b\x32\x1c.wandb_internal.PauseRequestH\x00\x12/\n\x06resume\x18\x07 \x01(\x0b\x32\x1d.wandb_internal.ResumeRequestH\x00\x12\x34\n\tpoll_exit\x18\x08 \x01(\x0b\x32\x1f.wandb_internal.PollExitRequestH\x00\x12@\n\x0fsampled_history\x18\t \x01(\x0b\x32%.wandb_internal.SampledHistoryRequestH\x00\x12@\n\x0fpartial_history\x18\n \x01(\x0b\x32%.wandb_internal.PartialHistoryRequestH\x00\x12\x34\n\trun_start\x18\x0b \x01(\x0b\x32\x1f.wandb_internal.RunStartRequestH\x00\x12<\n\rcheck_version\x18\x0c \x01(\x0b\x32#.wandb_internal.CheckVersionRequestH\x00\x12:\n\x0clog_artifact\x18\r \x01(\x0b\x32\".wandb_internal.LogArtifactRequestH\x00\x12\x44\n\x11\x64ownload_artifact\x18\x0e \x01(\x0b\x32\'.wandb_internal.DownloadArtifactRequestH\x00\x12\x35\n\tkeepalive\x18\x11 \x01(\x0b\x32 .wandb_internal.KeepaliveRequestH\x00\x12\x36\n\nrun_status\x18\x14 \x01(\x0b\x32 .wandb_internal.RunStatusRequestH\x00\x12/\n\x06\x63\x61ncel\x18\x15 \x01(\x0b\x32\x1d.wandb_internal.CancelRequestH\x00\x12\x33\n\x08metadata\x18\x16 \x01(\x0b\x32\x1f.wandb_internal.MetadataRequestH\x00\x12\x44\n\x11internal_messages\x18\x17 \x01(\x0b\x32\'.wandb_internal.InternalMessagesRequestH\x00\x12@\n\x0fpython_packages\x18\x18 \x01(\x0b\x32%.wandb_internal.PythonPackagesRequestH\x00\x12\x33\n\x08shutdown\x18@ \x01(\x0b\x32\x1f.wandb_internal.ShutdownRequestH\x00\x12/\n\x06\x61ttach\x18\x41 \x01(\x0b\x32\x1d.wandb_internal.AttachRequestH\x00\x12/\n\x06status\x18\x42 \x01(\x0b\x32\x1d.wandb_internal.StatusRequestH\x00\x12\x38\n\x0bserver_info\x18\x43 \x01(\x0b\x32!.wandb_internal.ServerInfoRequestH\x00\x12\x38\n\x0bsender_mark\x18\x44 \x01(\x0b\x32!.wandb_internal.SenderMarkRequestH\x00\x12\x38\n\x0bsender_read\x18\x45 \x01(\x0b\x32!.wandb_internal.SenderReadRequestH\x00\x12<\n\rstatus_report\x18\x46 \x01(\x0b\x32#.wandb_internal.StatusReportRequestH\x00\x12>\n\x0esummary_record\x18G \x01(\x0b\x32$.wandb_internal.SummaryRecordRequestH\x00\x12\x42\n\x10telemetry_record\x18H \x01(\x0b\x32&.wandb_internal.TelemetryRecordRequestH\x00\x12\x32\n\x08job_info\x18I \x01(\x0b\x32\x1e.wandb_internal.JobInfoRequestH\x00\x12\x45\n\x12get_system_metrics\x18J \x01(\x0b\x32\'.wandb_internal.GetSystemMetricsRequestH\x00\x12+\n\x04sync\x18L \x01(\x0b\x32\x1b.wandb_internal.SyncRequestH\x00\x12\x34\n\tjob_input\x18M \x01(\x0b\x32\x1f.wandb_internal.JobInputRequestH\x00\x12<\n\rlink_artifact\x18N \x01(\x0b\x32#.wandb_internal.LinkArtifactRequestH\x00\x12\x39\n\x0btest_inject\x18\xe8\x07 \x01(\x0b\x32!.wandb_internal.TestInjectRequestH\x00\x42\x0e\n\x0crequest_typeJ\x04\x08K\x10L\"\xaa\x0c\n\x08Response\x12?\n\x12keepalive_response\x18\x12 \x01(\x0b\x32!.wandb_internal.KeepaliveResponseH\x00\x12\x42\n\x14stop_status_response\x18\x13 \x01(\x0b\x32\".wandb_internal.StopStatusResponseH\x00\x12H\n\x17network_status_response\x18\x14 \x01(\x0b\x32%.wandb_internal.NetworkStatusResponseH\x00\x12\x37\n\x0elogin_response\x18\x18 \x01(\x0b\x32\x1d.wandb_internal.LoginResponseH\x00\x12\x42\n\x14get_summary_response\x18\x19 \x01(\x0b\x32\".wandb_internal.GetSummaryResponseH\x00\x12>\n\x12poll_exit_response\x18\x1a \x01(\x0b\x32 .wandb_internal.PollExitResponseH\x00\x12J\n\x18sampled_history_response\x18\x1b \x01(\x0b\x32&.wandb_internal.SampledHistoryResponseH\x00\x12>\n\x12run_start_response\x18\x1c \x01(\x0b\x32 .wandb_internal.RunStartResponseH\x00\x12\x46\n\x16\x63heck_version_response\x18\x1d \x01(\x0b\x32$.wandb_internal.CheckVersionResponseH\x00\x12\x44\n\x15log_artifact_response\x18\x1e \x01(\x0b\x32#.wandb_internal.LogArtifactResponseH\x00\x12N\n\x1a\x64ownload_artifact_response\x18\x1f \x01(\x0b\x32(.wandb_internal.DownloadArtifactResponseH\x00\x12@\n\x13run_status_response\x18# \x01(\x0b\x32!.wandb_internal.RunStatusResponseH\x00\x12\x39\n\x0f\x63\x61ncel_response\x18$ \x01(\x0b\x32\x1e.wandb_internal.CancelResponseH\x00\x12N\n\x1ainternal_messages_response\x18% \x01(\x0b\x32(.wandb_internal.InternalMessagesResponseH\x00\x12=\n\x11shutdown_response\x18@ \x01(\x0b\x32 .wandb_internal.ShutdownResponseH\x00\x12\x39\n\x0f\x61ttach_response\x18\x41 \x01(\x0b\x32\x1e.wandb_internal.AttachResponseH\x00\x12\x39\n\x0fstatus_response\x18\x42 \x01(\x0b\x32\x1e.wandb_internal.StatusResponseH\x00\x12\x42\n\x14server_info_response\x18\x43 \x01(\x0b\x32\".wandb_internal.ServerInfoResponseH\x00\x12<\n\x11job_info_response\x18\x44 \x01(\x0b\x32\x1f.wandb_internal.JobInfoResponseH\x00\x12O\n\x1bget_system_metrics_response\x18\x45 \x01(\x0b\x32(.wandb_internal.GetSystemMetricsResponseH\x00\x12\x35\n\rsync_response\x18\x46 \x01(\x0b\x32\x1c.wandb_internal.SyncResponseH\x00\x12\x46\n\x16link_artifact_response\x18G \x01(\x0b\x32$.wandb_internal.LinkArtifactResponseH\x00\x12\x43\n\x14test_inject_response\x18\xe8\x07 \x01(\x0b\x32\".wandb_internal.TestInjectResponseH\x00\x42\x0f\n\rresponse_type\"\xc0\x02\n\x0c\x44\x65\x66\x65rRequest\x12\x36\n\x05state\x18\x01 \x01(\x0e\x32\'.wandb_internal.DeferRequest.DeferState\"\xf7\x01\n\nDeferState\x12\t\n\x05\x42\x45GIN\x10\x00\x12\r\n\tFLUSH_RUN\x10\x01\x12\x0f\n\x0b\x46LUSH_STATS\x10\x02\x12\x19\n\x15\x46LUSH_PARTIAL_HISTORY\x10\x03\x12\x0c\n\x08\x46LUSH_TB\x10\x04\x12\r\n\tFLUSH_SUM\x10\x05\x12\x13\n\x0f\x46LUSH_DEBOUNCER\x10\x06\x12\x10\n\x0c\x46LUSH_OUTPUT\x10\x07\x12\r\n\tFLUSH_JOB\x10\x08\x12\r\n\tFLUSH_DIR\x10\t\x12\x0c\n\x08\x46LUSH_FP\x10\n\x12\x0b\n\x07JOIN_FP\x10\x0b\x12\x0c\n\x08\x46LUSH_FS\x10\x0c\x12\x0f\n\x0b\x46LUSH_FINAL\x10\r\x12\x07\n\x03\x45ND\x10\x0e\"<\n\x0cPauseRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x0f\n\rPauseResponse\"=\n\rResumeRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x10\n\x0eResumeResponse\"M\n\x0cLoginRequest\x12\x0f\n\x07\x61pi_key\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"&\n\rLoginResponse\x12\x15\n\ractive_entity\x18\x01 \x01(\t\"A\n\x11GetSummaryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"?\n\x12GetSummaryResponse\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.SummaryItem\"G\n\x17GetSystemMetricsRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"R\n\x12SystemMetricSample\x12-\n\ttimestamp\x18\x01 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\r\n\x05value\x18\x02 \x01(\x02\"I\n\x13SystemMetricsBuffer\x12\x32\n\x06record\x18\x01 \x03(\x0b\x32\".wandb_internal.SystemMetricSample\"\xca\x01\n\x18GetSystemMetricsResponse\x12S\n\x0esystem_metrics\x18\x01 \x03(\x0b\x32;.wandb_internal.GetSystemMetricsResponse.SystemMetricsEntry\x1aY\n\x12SystemMetricsEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x32\n\x05value\x18\x02 \x01(\x0b\x32#.wandb_internal.SystemMetricsBuffer:\x02\x38\x01\"=\n\rStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\")\n\x0eStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"A\n\x11StopStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"-\n\x12StopStatusResponse\x12\x17\n\x0frun_should_stop\x18\x01 \x01(\x08\"D\n\x14NetworkStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"P\n\x15NetworkStatusResponse\x12\x37\n\x11network_responses\x18\x01 \x03(\x0b\x32\x1c.wandb_internal.HttpResponse\"D\n\x0cHttpResponse\x12\x18\n\x10http_status_code\x18\x01 \x01(\x05\x12\x1a\n\x12http_response_text\x18\x02 \x01(\t\"G\n\x17InternalMessagesRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"N\n\x18InternalMessagesResponse\x12\x32\n\x08messages\x18\x01 \x01(\x0b\x32 .wandb_internal.InternalMessages\"#\n\x10InternalMessages\x12\x0f\n\x07warning\x18\x01 \x03(\t\"?\n\x0fPollExitRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\xbc\x01\n\x10PollExitResponse\x12\x0c\n\x04\x64one\x18\x01 \x01(\x08\x12\x32\n\x0b\x65xit_result\x18\x02 \x01(\x0b\x32\x1d.wandb_internal.RunExitResult\x12\x35\n\x0cpusher_stats\x18\x03 \x01(\x0b\x32\x1f.wandb_internal.FilePusherStats\x12/\n\x0b\x66ile_counts\x18\x04 \x01(\x0b\x32\x1a.wandb_internal.FileCounts\"@\n\rSyncOverwrite\x12\x0e\n\x06run_id\x18\x01 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x02 \x01(\t\x12\x0f\n\x07project\x18\x03 \x01(\t\"\x1e\n\x08SyncSkip\x12\x12\n\noutput_raw\x18\x01 \x01(\x08\"\x13\n\x11SenderMarkRequest\"\x93\x01\n\x0bSyncRequest\x12\x14\n\x0cstart_offset\x18\x01 \x01(\x03\x12\x14\n\x0c\x66inal_offset\x18\x02 \x01(\x03\x12\x30\n\toverwrite\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.SyncOverwrite\x12&\n\x04skip\x18\x04 \x01(\x0b\x32\x18.wandb_internal.SyncSkip\"E\n\x0cSyncResponse\x12\x0b\n\x03url\x18\x01 \x01(\t\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"?\n\x11SenderReadRequest\x12\x14\n\x0cstart_offset\x18\x01 \x01(\x03\x12\x14\n\x0c\x66inal_offset\x18\x02 \x01(\x03\"m\n\x13StatusReportRequest\x12\x12\n\nrecord_num\x18\x01 \x01(\x03\x12\x13\n\x0bsent_offset\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"F\n\x14SummaryRecordRequest\x12.\n\x07summary\x18\x01 \x01(\x0b\x32\x1d.wandb_internal.SummaryRecord\"L\n\x16TelemetryRecordRequest\x12\x32\n\ttelemetry\x18\x01 \x01(\x0b\x32\x1f.wandb_internal.TelemetryRecord\"A\n\x11ServerInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"|\n\x12ServerInfoResponse\x12-\n\nlocal_info\x18\x01 \x01(\x0b\x32\x19.wandb_internal.LocalInfo\x12\x37\n\x0fserver_messages\x18\x02 \x01(\x0b\x32\x1e.wandb_internal.ServerMessages\"=\n\x0eServerMessages\x12+\n\x04item\x18\x01 \x03(\x0b\x32\x1d.wandb_internal.ServerMessage\"e\n\rServerMessage\x12\x12\n\nplain_text\x18\x01 \x01(\t\x12\x10\n\x08utf_text\x18\x02 \x01(\t\x12\x11\n\thtml_text\x18\x03 \x01(\t\x12\x0c\n\x04type\x18\x04 \x01(\t\x12\r\n\x05level\x18\x05 \x01(\x05\"c\n\nFileCounts\x12\x13\n\x0bwandb_count\x18\x01 \x01(\x05\x12\x13\n\x0bmedia_count\x18\x02 \x01(\x05\x12\x16\n\x0e\x61rtifact_count\x18\x03 \x01(\x05\x12\x13\n\x0bother_count\x18\x04 \x01(\x05\"U\n\x0f\x46ilePusherStats\x12\x16\n\x0euploaded_bytes\x18\x01 \x01(\x03\x12\x13\n\x0btotal_bytes\x18\x02 \x01(\x03\x12\x15\n\rdeduped_bytes\x18\x03 \x01(\x03\"\x1e\n\rFilesUploaded\x12\r\n\x05\x66iles\x18\x01 \x03(\t\"\xf4\x01\n\x17\x46ileTransferInfoRequest\x12\x42\n\x04type\x18\x01 \x01(\x0e\x32\x34.wandb_internal.FileTransferInfoRequest.TransferType\x12\x0c\n\x04path\x18\x02 \x01(\t\x12\x0b\n\x03url\x18\x03 \x01(\t\x12\x0c\n\x04size\x18\x04 \x01(\x03\x12\x11\n\tprocessed\x18\x05 \x01(\x03\x12/\n\x0b\x66ile_counts\x18\x06 \x01(\x0b\x32\x1a.wandb_internal.FileCounts\"(\n\x0cTransferType\x12\n\n\x06Upload\x10\x00\x12\x0c\n\x08\x44ownload\x10\x01\"1\n\tLocalInfo\x12\x0f\n\x07version\x18\x01 \x01(\t\x12\x13\n\x0bout_of_date\x18\x02 \x01(\x08\"?\n\x0fShutdownRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x12\n\x10ShutdownResponse\"P\n\rAttachRequest\x12\x11\n\tattach_id\x18\x14 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"b\n\x0e\x41ttachResponse\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12(\n\x05\x65rror\x18\x02 \x01(\x0b\x32\x19.wandb_internal.ErrorInfo\"\xd5\x02\n\x11TestInjectRequest\x12\x13\n\x0bhandler_exc\x18\x01 \x01(\x08\x12\x14\n\x0chandler_exit\x18\x02 \x01(\x08\x12\x15\n\rhandler_abort\x18\x03 \x01(\x08\x12\x12\n\nsender_exc\x18\x04 \x01(\x08\x12\x13\n\x0bsender_exit\x18\x05 \x01(\x08\x12\x14\n\x0csender_abort\x18\x06 \x01(\x08\x12\x0f\n\x07req_exc\x18\x07 \x01(\x08\x12\x10\n\x08req_exit\x18\x08 \x01(\x08\x12\x11\n\treq_abort\x18\t \x01(\x08\x12\x10\n\x08resp_exc\x18\n \x01(\x08\x12\x11\n\tresp_exit\x18\x0b \x01(\x08\x12\x12\n\nresp_abort\x18\x0c \x01(\x08\x12\x10\n\x08msg_drop\x18\r \x01(\x08\x12\x10\n\x08msg_hang\x18\x0e \x01(\x08\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x14\n\x12TestInjectResponse\"\x1e\n\rHistoryAction\x12\r\n\x05\x66lush\x18\x01 \x01(\x08\"\xca\x01\n\x15PartialHistoryRequest\x12)\n\x04item\x18\x01 \x03(\x0b\x32\x1b.wandb_internal.HistoryItem\x12)\n\x04step\x18\x02 \x01(\x0b\x32\x1b.wandb_internal.HistoryStep\x12-\n\x06\x61\x63tion\x18\x03 \x01(\x0b\x32\x1d.wandb_internal.HistoryAction\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x18\n\x16PartialHistoryResponse\"E\n\x15SampledHistoryRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"_\n\x12SampledHistoryItem\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\x12\n\nnested_key\x18\x02 \x03(\t\x12\x14\n\x0cvalues_float\x18\x03 \x03(\x02\x12\x12\n\nvalues_int\x18\x04 \x03(\x03\"J\n\x16SampledHistoryResponse\x12\x30\n\x04item\x18\x01 \x03(\x0b\x32\".wandb_internal.SampledHistoryItem\"@\n\x10RunStatusRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"x\n\x11RunStatusResponse\x12\x18\n\x10sync_items_total\x18\x01 \x01(\x03\x12\x1a\n\x12sync_items_pending\x18\x02 \x01(\x03\x12-\n\tsync_time\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\"g\n\x0fRunStartRequest\x12&\n\x03run\x18\x01 \x01(\x0b\x32\x19.wandb_internal.RunRecord\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x12\n\x10RunStartResponse\"\\\n\x13\x43heckVersionRequest\x12\x17\n\x0f\x63urrent_version\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"]\n\x14\x43heckVersionResponse\x12\x17\n\x0fupgrade_message\x18\x01 \x01(\t\x12\x14\n\x0cyank_message\x18\x02 \x01(\t\x12\x16\n\x0e\x64\x65lete_message\x18\x03 \x01(\t\">\n\x0eJobInfoRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"6\n\x0fJobInfoResponse\x12\x12\n\nsequenceId\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\"\x9f\x01\n\x12LogArtifactRequest\x12\x30\n\x08\x61rtifact\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.ArtifactRecord\x12\x14\n\x0chistory_step\x18\x02 \x01(\x03\x12\x13\n\x0bstaging_dir\x18\x03 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"A\n\x13LogArtifactResponse\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rerror_message\x18\x02 \x01(\t\"\xbe\x01\n\x17\x44ownloadArtifactRequest\x12\x13\n\x0b\x61rtifact_id\x18\x01 \x01(\t\x12\x15\n\rdownload_root\x18\x02 \x01(\t\x12 \n\x18\x61llow_missing_references\x18\x04 \x01(\x08\x12\x12\n\nskip_cache\x18\x05 \x01(\x08\x12\x13\n\x0bpath_prefix\x18\x06 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"1\n\x18\x44ownloadArtifactResponse\x12\x15\n\rerror_message\x18\x01 \x01(\t\"@\n\x10KeepaliveRequest\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x13\n\x11KeepaliveResponse\"q\n\x0c\x41rtifactInfo\x12\x10\n\x08\x61rtifact\x18\x01 \x01(\t\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08\x12\x15\n\rbuild_context\x18\x04 \x01(\t\x12\x12\n\ndockerfile\x18\x05 \x01(\t\")\n\x07GitInfo\x12\x0e\n\x06remote\x18\x01 \x01(\t\x12\x0e\n\x06\x63ommit\x18\x02 \x01(\t\"\x87\x01\n\tGitSource\x12)\n\x08git_info\x18\x01 \x01(\x0b\x32\x17.wandb_internal.GitInfo\x12\x12\n\nentrypoint\x18\x02 \x03(\t\x12\x10\n\x08notebook\x18\x03 \x01(\x08\x12\x15\n\rbuild_context\x18\x04 \x01(\t\x12\x12\n\ndockerfile\x18\x05 \x01(\t\"\x1c\n\x0bImageSource\x12\r\n\x05image\x18\x01 \x01(\t\"\x8c\x01\n\x06Source\x12&\n\x03git\x18\x01 \x01(\x0b\x32\x19.wandb_internal.GitSource\x12.\n\x08\x61rtifact\x18\x02 \x01(\x0b\x32\x1c.wandb_internal.ArtifactInfo\x12*\n\x05image\x18\x03 \x01(\x0b\x32\x1b.wandb_internal.ImageSource\"k\n\tJobSource\x12\x10\n\x08_version\x18\x01 \x01(\t\x12\x13\n\x0bsource_type\x18\x02 \x01(\t\x12&\n\x06source\x18\x03 \x01(\x0b\x32\x16.wandb_internal.Source\x12\x0f\n\x07runtime\x18\x04 \x01(\t\"V\n\x12PartialJobArtifact\x12\x10\n\x08job_name\x18\x01 \x01(\t\x12.\n\x0bsource_info\x18\x02 \x01(\x0b\x32\x19.wandb_internal.JobSource\"\x9d\x01\n\x11UseArtifactRecord\x12\n\n\x02id\x18\x01 \x01(\t\x12\x0c\n\x04type\x18\x02 \x01(\t\x12\x0c\n\x04name\x18\x03 \x01(\t\x12\x33\n\x07partial\x18\x04 \x01(\x0b\x32\".wandb_internal.PartialJobArtifact\x12+\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1b.wandb_internal._RecordInfo\"\x13\n\x11UseArtifactResult\"R\n\rCancelRequest\x12\x13\n\x0b\x63\x61ncel_slot\x18\x01 \x01(\t\x12,\n\x05_info\x18\xc8\x01 \x01(\x0b\x32\x1c.wandb_internal._RequestInfo\"\x10\n\x0e\x43\x61ncelResponse\"\'\n\x08\x44iskInfo\x12\r\n\x05total\x18\x01 \x01(\x04\x12\x0c\n\x04used\x18\x02 \x01(\x04\"\x1b\n\nMemoryInfo\x12\r\n\x05total\x18\x01 \x01(\x04\"/\n\x07\x43puInfo\x12\r\n\x05\x63ount\x18\x01 \x01(\r\x12\x15\n\rcount_logical\x18\x02 \x01(\r\">\n\x0cGpuAppleInfo\x12\x0f\n\x07gpuType\x18\x01 \x01(\t\x12\x0e\n\x06vendor\x18\x02 \x01(\t\x12\r\n\x05\x63ores\x18\x03 \x01(\r\"3\n\rGpuNvidiaInfo\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x14\n\x0cmemory_total\x18\x02 \x01(\x04\"\x89\x02\n\nGpuAmdInfo\x12\n\n\x02id\x18\x01 \x01(\t\x12\x11\n\tunique_id\x18\x02 \x01(\t\x12\x15\n\rvbios_version\x18\x03 \x01(\t\x12\x19\n\x11performance_level\x18\x04 \x01(\t\x12\x15\n\rgpu_overdrive\x18\x05 \x01(\t\x12\x1c\n\x14gpu_memory_overdrive\x18\x06 \x01(\t\x12\x11\n\tmax_power\x18\x07 \x01(\t\x12\x0e\n\x06series\x18\x08 \x01(\t\x12\r\n\x05model\x18\t \x01(\t\x12\x0e\n\x06vendor\x18\n \x01(\t\x12\x0b\n\x03sku\x18\x0b \x01(\t\x12\x12\n\nsclk_range\x18\x0c \x01(\t\x12\x12\n\nmclk_range\x18\r \x01(\t\"\xac\x08\n\x0fMetadataRequest\x12\n\n\x02os\x18\x01 \x01(\t\x12\x0e\n\x06python\x18\x02 \x01(\t\x12/\n\x0bheartbeatAt\x18\x03 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12-\n\tstartedAt\x18\x04 \x01(\x0b\x32\x1a.google.protobuf.Timestamp\x12\x0e\n\x06\x64ocker\x18\x05 \x01(\t\x12\x0c\n\x04\x63uda\x18\x06 \x01(\t\x12\x0c\n\x04\x61rgs\x18\x07 \x03(\t\x12\r\n\x05state\x18\x08 \x01(\t\x12\x0f\n\x07program\x18\t \x01(\t\x12\x1b\n\tcode_path\x18\n \x01(\tR\x08\x63odePath\x12*\n\x03git\x18\x0b \x01(\x0b\x32\x1d.wandb_internal.GitRepoRecord\x12\r\n\x05\x65mail\x18\x0c \x01(\t\x12\x0c\n\x04root\x18\r \x01(\t\x12\x0c\n\x04host\x18\x0e \x01(\t\x12\x10\n\x08username\x18\x0f \x01(\t\x12\x12\n\nexecutable\x18\x10 \x01(\t\x12&\n\x0f\x63ode_path_local\x18\x11 \x01(\tR\rcodePathLocal\x12\r\n\x05\x63olab\x18\x12 \x01(\t\x12\x1c\n\tcpu_count\x18\x13 \x01(\rR\tcpu_count\x12,\n\x11\x63pu_count_logical\x18\x14 \x01(\rR\x11\x63pu_count_logical\x12\x15\n\x08gpu_type\x18\x15 \x01(\tR\x03gpu\x12\x1c\n\tgpu_count\x18\x16 \x01(\rR\tgpu_count\x12\x37\n\x04\x64isk\x18\x17 \x03(\x0b\x32).wandb_internal.MetadataRequest.DiskEntry\x12*\n\x06memory\x18\x18 \x01(\x0b\x32\x1a.wandb_internal.MemoryInfo\x12$\n\x03\x63pu\x18\x19 \x01(\x0b\x32\x17.wandb_internal.CpuInfo\x12\x39\n\tgpu_apple\x18\x1a \x01(\x0b\x32\x1c.wandb_internal.GpuAppleInfoR\x08gpuapple\x12=\n\ngpu_nvidia\x18\x1b \x03(\x0b\x32\x1d.wandb_internal.GpuNvidiaInfoR\ngpu_nvidia\x12\x34\n\x07gpu_amd\x18\x1c \x03(\x0b\x32\x1a.wandb_internal.GpuAmdInfoR\x07gpu_amd\x12\x39\n\x05slurm\x18\x1d \x03(\x0b\x32*.wandb_internal.MetadataRequest.SlurmEntry\x12\x14\n\x0c\x63uda_version\x18\x1e \x01(\t\x1a\x45\n\tDiskEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\'\n\x05value\x18\x02 \x01(\x0b\x32\x18.wandb_internal.DiskInfo:\x02\x38\x01\x1a,\n\nSlurmEntry\x12\x0b\n\x03key\x18\x01 \x01(\t\x12\r\n\x05value\x18\x02 \x01(\t:\x02\x38\x01\"\x8d\x01\n\x15PythonPackagesRequest\x12\x44\n\x07package\x18\x01 \x03(\x0b\x32\x33.wandb_internal.PythonPackagesRequest.PythonPackage\x1a.\n\rPythonPackage\x12\x0c\n\x04name\x18\x01 \x01(\t\x12\x0f\n\x07version\x18\x02 \x01(\t\"\x1c\n\x0cJobInputPath\x12\x0c\n\x04path\x18\x01 \x03(\t\"\xd6\x01\n\x0eJobInputSource\x12\x44\n\nrun_config\x18\x01 \x01(\x0b\x32..wandb_internal.JobInputSource.RunConfigSourceH\x00\x12?\n\x04\x66ile\x18\x02 \x01(\x0b\x32/.wandb_internal.JobInputSource.ConfigFileSourceH\x00\x1a\x11\n\x0fRunConfigSource\x1a \n\x10\x43onfigFileSource\x12\x0c\n\x04path\x18\x01 \x01(\tB\x08\n\x06source\"\xc7\x01\n\x0fJobInputRequest\x12\x34\n\x0cinput_source\x18\x01 \x01(\x0b\x32\x1e.wandb_internal.JobInputSource\x12\x33\n\rinclude_paths\x18\x02 \x03(\x0b\x32\x1c.wandb_internal.JobInputPath\x12\x33\n\rexclude_paths\x18\x03 \x03(\x0b\x32\x1c.wandb_internal.JobInputPath\x12\x14\n\x0cinput_schema\x18\x04 \x01(\tb\x06proto3')
 
 
 
@@ -25,6 +26,7 @@ _RECORD = DESCRIPTOR.message_types_by_name['Record']
 _CONTROL = DESCRIPTOR.message_types_by_name['Control']
 _RESULT = DESCRIPTOR.message_types_by_name['Result']
 _FINALRECORD = DESCRIPTOR.message_types_by_name['FinalRecord']
+_VERSIONINFO = DESCRIPTOR.message_types_by_name['VersionInfo']
 _HEADERRECORD = DESCRIPTOR.message_types_by_name['HeaderRecord']
 _FOOTERRECORD = DESCRIPTOR.message_types_by_name['FooterRecord']
 _RUNRECORD = DESCRIPTOR.message_types_by_name['RunRecord']
@@ -68,7 +70,8 @@ _EXTRAITEM = DESCRIPTOR.message_types_by_name['ExtraItem']
 _STORAGEPOLICYCONFIGITEM = DESCRIPTOR.message_types_by_name['StoragePolicyConfigItem']
 _ARTIFACTRESULT = DESCRIPTOR.message_types_by_name['ArtifactResult']
 _LINKARTIFACTRESULT = DESCRIPTOR.message_types_by_name['LinkArtifactResult']
-_LINKARTIFACTRECORD = DESCRIPTOR.message_types_by_name['LinkArtifactRecord']
+_LINKARTIFACTREQUEST = DESCRIPTOR.message_types_by_name['LinkArtifactRequest']
+_LINKARTIFACTRESPONSE = DESCRIPTOR.message_types_by_name['LinkArtifactResponse']
 _TBRECORD = DESCRIPTOR.message_types_by_name['TBRecord']
 _TBRESULT = DESCRIPTOR.message_types_by_name['TBResult']
 _ALERTRECORD = DESCRIPTOR.message_types_by_name['AlertRecord']
@@ -101,7 +104,11 @@ _INTERNALMESSAGESRESPONSE = DESCRIPTOR.message_types_by_name['InternalMessagesRe
 _INTERNALMESSAGES = DESCRIPTOR.message_types_by_name['InternalMessages']
 _POLLEXITREQUEST = DESCRIPTOR.message_types_by_name['PollExitRequest']
 _POLLEXITRESPONSE = DESCRIPTOR.message_types_by_name['PollExitResponse']
+_SYNCOVERWRITE = DESCRIPTOR.message_types_by_name['SyncOverwrite']
+_SYNCSKIP = DESCRIPTOR.message_types_by_name['SyncSkip']
 _SENDERMARKREQUEST = DESCRIPTOR.message_types_by_name['SenderMarkRequest']
+_SYNCREQUEST = DESCRIPTOR.message_types_by_name['SyncRequest']
+_SYNCRESPONSE = DESCRIPTOR.message_types_by_name['SyncResponse']
 _SENDERREADREQUEST = DESCRIPTOR.message_types_by_name['SenderReadRequest']
 _STATUSREPORTREQUEST = DESCRIPTOR.message_types_by_name['StatusReportRequest']
 _SUMMARYRECORDREQUEST = DESCRIPTOR.message_types_by_name['SummaryRecordRequest']
@@ -112,6 +119,8 @@ _SERVERMESSAGES = DESCRIPTOR.message_types_by_name['ServerMessages']
 _SERVERMESSAGE = DESCRIPTOR.message_types_by_name['ServerMessage']
 _FILECOUNTS = DESCRIPTOR.message_types_by_name['FileCounts']
 _FILEPUSHERSTATS = DESCRIPTOR.message_types_by_name['FilePusherStats']
+_FILESUPLOADED = DESCRIPTOR.message_types_by_name['FilesUploaded']
+_FILETRANSFERINFOREQUEST = DESCRIPTOR.message_types_by_name['FileTransferInfoRequest']
 _LOCALINFO = DESCRIPTOR.message_types_by_name['LocalInfo']
 _SHUTDOWNREQUEST = DESCRIPTOR.message_types_by_name['ShutdownRequest']
 _SHUTDOWNRESPONSE = DESCRIPTOR.message_types_by_name['ShutdownResponse']
@@ -135,6 +144,8 @@ _JOBINFOREQUEST = DESCRIPTOR.message_types_by_name['JobInfoRequest']
 _JOBINFORESPONSE = DESCRIPTOR.message_types_by_name['JobInfoResponse']
 _LOGARTIFACTREQUEST = DESCRIPTOR.message_types_by_name['LogArtifactRequest']
 _LOGARTIFACTRESPONSE = DESCRIPTOR.message_types_by_name['LogArtifactResponse']
+_DOWNLOADARTIFACTREQUEST = DESCRIPTOR.message_types_by_name['DownloadArtifactRequest']
+_DOWNLOADARTIFACTRESPONSE = DESCRIPTOR.message_types_by_name['DownloadArtifactResponse']
 _KEEPALIVEREQUEST = DESCRIPTOR.message_types_by_name['KeepaliveRequest']
 _KEEPALIVERESPONSE = DESCRIPTOR.message_types_by_name['KeepaliveResponse']
 _ARTIFACTINFO = DESCRIPTOR.message_types_by_name['ArtifactInfo']
@@ -153,15 +164,26 @@ _MEMORYINFO = DESCRIPTOR.message_types_by_name['MemoryInfo']
 _CPUINFO = DESCRIPTOR.message_types_by_name['CpuInfo']
 _GPUAPPLEINFO = DESCRIPTOR.message_types_by_name['GpuAppleInfo']
 _GPUNVIDIAINFO = DESCRIPTOR.message_types_by_name['GpuNvidiaInfo']
+_GPUAMDINFO = DESCRIPTOR.message_types_by_name['GpuAmdInfo']
 _METADATAREQUEST = DESCRIPTOR.message_types_by_name['MetadataRequest']
 _METADATAREQUEST_DISKENTRY = _METADATAREQUEST.nested_types_by_name['DiskEntry']
+_METADATAREQUEST_SLURMENTRY = _METADATAREQUEST.nested_types_by_name['SlurmEntry']
+_PYTHONPACKAGESREQUEST = DESCRIPTOR.message_types_by_name['PythonPackagesRequest']
+_PYTHONPACKAGESREQUEST_PYTHONPACKAGE = _PYTHONPACKAGESREQUEST.nested_types_by_name['PythonPackage']
+_JOBINPUTPATH = DESCRIPTOR.message_types_by_name['JobInputPath']
+_JOBINPUTSOURCE = DESCRIPTOR.message_types_by_name['JobInputSource']
+_JOBINPUTSOURCE_RUNCONFIGSOURCE = _JOBINPUTSOURCE.nested_types_by_name['RunConfigSource']
+_JOBINPUTSOURCE_CONFIGFILESOURCE = _JOBINPUTSOURCE.nested_types_by_name['ConfigFileSource']
+_JOBINPUTREQUEST = DESCRIPTOR.message_types_by_name['JobInputRequest']
 _ERRORINFO_ERRORCODE = _ERRORINFO.enum_types_by_name['ErrorCode']
 _OUTPUTRECORD_OUTPUTTYPE = _OUTPUTRECORD.enum_types_by_name['OutputType']
 _OUTPUTRAWRECORD_OUTPUTTYPE = _OUTPUTRAWRECORD.enum_types_by_name['OutputType']
 _METRICRECORD_METRICGOAL = _METRICRECORD.enum_types_by_name['MetricGoal']
 _FILESITEM_POLICYTYPE = _FILESITEM.enum_types_by_name['PolicyType']
+_FILESITEM_FILETYPE = _FILESITEM.enum_types_by_name['FileType']
 _STATSRECORD_STATSTYPE = _STATSRECORD.enum_types_by_name['StatsType']
 _DEFERREQUEST_DEFERSTATE = _DEFERREQUEST.enum_types_by_name['DeferState']
+_FILETRANSFERINFOREQUEST_TRANSFERTYPE = _FILETRANSFERINFOREQUEST.enum_types_by_name['TransferType']
 Record = _reflection.GeneratedProtocolMessageType('Record', (_message.Message,), {
   'DESCRIPTOR' : _RECORD,
   '__module__' : 'wandb.proto.wandb_internal_pb2'
@@ -189,6 +211,13 @@ FinalRecord = _reflection.GeneratedProtocolMessageType('FinalRecord', (_message.
   # @@protoc_insertion_point(class_scope:wandb_internal.FinalRecord)
   })
 _sym_db.RegisterMessage(FinalRecord)
+
+VersionInfo = _reflection.GeneratedProtocolMessageType('VersionInfo', (_message.Message,), {
+  'DESCRIPTOR' : _VERSIONINFO,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.VersionInfo)
+  })
+_sym_db.RegisterMessage(VersionInfo)
 
 HeaderRecord = _reflection.GeneratedProtocolMessageType('HeaderRecord', (_message.Message,), {
   'DESCRIPTOR' : _HEADERRECORD,
@@ -491,12 +520,19 @@ LinkArtifactResult = _reflection.GeneratedProtocolMessageType('LinkArtifactResul
   })
 _sym_db.RegisterMessage(LinkArtifactResult)
 
-LinkArtifactRecord = _reflection.GeneratedProtocolMessageType('LinkArtifactRecord', (_message.Message,), {
-  'DESCRIPTOR' : _LINKARTIFACTRECORD,
+LinkArtifactRequest = _reflection.GeneratedProtocolMessageType('LinkArtifactRequest', (_message.Message,), {
+  'DESCRIPTOR' : _LINKARTIFACTREQUEST,
   '__module__' : 'wandb.proto.wandb_internal_pb2'
-  # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactRecord)
+  # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactRequest)
   })
-_sym_db.RegisterMessage(LinkArtifactRecord)
+_sym_db.RegisterMessage(LinkArtifactRequest)
+
+LinkArtifactResponse = _reflection.GeneratedProtocolMessageType('LinkArtifactResponse', (_message.Message,), {
+  'DESCRIPTOR' : _LINKARTIFACTRESPONSE,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.LinkArtifactResponse)
+  })
+_sym_db.RegisterMessage(LinkArtifactResponse)
 
 TBRecord = _reflection.GeneratedProtocolMessageType('TBRecord', (_message.Message,), {
   'DESCRIPTOR' : _TBRECORD,
@@ -723,12 +759,40 @@ PollExitResponse = _reflection.GeneratedProtocolMessageType('PollExitResponse', 
   })
 _sym_db.RegisterMessage(PollExitResponse)
 
+SyncOverwrite = _reflection.GeneratedProtocolMessageType('SyncOverwrite', (_message.Message,), {
+  'DESCRIPTOR' : _SYNCOVERWRITE,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.SyncOverwrite)
+  })
+_sym_db.RegisterMessage(SyncOverwrite)
+
+SyncSkip = _reflection.GeneratedProtocolMessageType('SyncSkip', (_message.Message,), {
+  'DESCRIPTOR' : _SYNCSKIP,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.SyncSkip)
+  })
+_sym_db.RegisterMessage(SyncSkip)
+
 SenderMarkRequest = _reflection.GeneratedProtocolMessageType('SenderMarkRequest', (_message.Message,), {
   'DESCRIPTOR' : _SENDERMARKREQUEST,
   '__module__' : 'wandb.proto.wandb_internal_pb2'
   # @@protoc_insertion_point(class_scope:wandb_internal.SenderMarkRequest)
   })
 _sym_db.RegisterMessage(SenderMarkRequest)
+
+SyncRequest = _reflection.GeneratedProtocolMessageType('SyncRequest', (_message.Message,), {
+  'DESCRIPTOR' : _SYNCREQUEST,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.SyncRequest)
+  })
+_sym_db.RegisterMessage(SyncRequest)
+
+SyncResponse = _reflection.GeneratedProtocolMessageType('SyncResponse', (_message.Message,), {
+  'DESCRIPTOR' : _SYNCRESPONSE,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.SyncResponse)
+  })
+_sym_db.RegisterMessage(SyncResponse)
 
 SenderReadRequest = _reflection.GeneratedProtocolMessageType('SenderReadRequest', (_message.Message,), {
   'DESCRIPTOR' : _SENDERREADREQUEST,
@@ -799,6 +863,20 @@ FilePusherStats = _reflection.GeneratedProtocolMessageType('FilePusherStats', (_
   # @@protoc_insertion_point(class_scope:wandb_internal.FilePusherStats)
   })
 _sym_db.RegisterMessage(FilePusherStats)
+
+FilesUploaded = _reflection.GeneratedProtocolMessageType('FilesUploaded', (_message.Message,), {
+  'DESCRIPTOR' : _FILESUPLOADED,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.FilesUploaded)
+  })
+_sym_db.RegisterMessage(FilesUploaded)
+
+FileTransferInfoRequest = _reflection.GeneratedProtocolMessageType('FileTransferInfoRequest', (_message.Message,), {
+  'DESCRIPTOR' : _FILETRANSFERINFOREQUEST,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.FileTransferInfoRequest)
+  })
+_sym_db.RegisterMessage(FileTransferInfoRequest)
 
 LocalInfo = _reflection.GeneratedProtocolMessageType('LocalInfo', (_message.Message,), {
   'DESCRIPTOR' : _LOCALINFO,
@@ -961,6 +1039,20 @@ LogArtifactResponse = _reflection.GeneratedProtocolMessageType('LogArtifactRespo
   })
 _sym_db.RegisterMessage(LogArtifactResponse)
 
+DownloadArtifactRequest = _reflection.GeneratedProtocolMessageType('DownloadArtifactRequest', (_message.Message,), {
+  'DESCRIPTOR' : _DOWNLOADARTIFACTREQUEST,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.DownloadArtifactRequest)
+  })
+_sym_db.RegisterMessage(DownloadArtifactRequest)
+
+DownloadArtifactResponse = _reflection.GeneratedProtocolMessageType('DownloadArtifactResponse', (_message.Message,), {
+  'DESCRIPTOR' : _DOWNLOADARTIFACTRESPONSE,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.DownloadArtifactResponse)
+  })
+_sym_db.RegisterMessage(DownloadArtifactResponse)
+
 KeepaliveRequest = _reflection.GeneratedProtocolMessageType('KeepaliveRequest', (_message.Message,), {
   'DESCRIPTOR' : _KEEPALIVEREQUEST,
   '__module__' : 'wandb.proto.wandb_internal_pb2'
@@ -1087,6 +1179,13 @@ GpuNvidiaInfo = _reflection.GeneratedProtocolMessageType('GpuNvidiaInfo', (_mess
   })
 _sym_db.RegisterMessage(GpuNvidiaInfo)
 
+GpuAmdInfo = _reflection.GeneratedProtocolMessageType('GpuAmdInfo', (_message.Message,), {
+  'DESCRIPTOR' : _GPUAMDINFO,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.GpuAmdInfo)
+  })
+_sym_db.RegisterMessage(GpuAmdInfo)
+
 MetadataRequest = _reflection.GeneratedProtocolMessageType('MetadataRequest', (_message.Message,), {
 
   'DiskEntry' : _reflection.GeneratedProtocolMessageType('DiskEntry', (_message.Message,), {
@@ -1095,12 +1194,72 @@ MetadataRequest = _reflection.GeneratedProtocolMessageType('MetadataRequest', (_
     # @@protoc_insertion_point(class_scope:wandb_internal.MetadataRequest.DiskEntry)
     })
   ,
+
+  'SlurmEntry' : _reflection.GeneratedProtocolMessageType('SlurmEntry', (_message.Message,), {
+    'DESCRIPTOR' : _METADATAREQUEST_SLURMENTRY,
+    '__module__' : 'wandb.proto.wandb_internal_pb2'
+    # @@protoc_insertion_point(class_scope:wandb_internal.MetadataRequest.SlurmEntry)
+    })
+  ,
   'DESCRIPTOR' : _METADATAREQUEST,
   '__module__' : 'wandb.proto.wandb_internal_pb2'
   # @@protoc_insertion_point(class_scope:wandb_internal.MetadataRequest)
   })
 _sym_db.RegisterMessage(MetadataRequest)
 _sym_db.RegisterMessage(MetadataRequest.DiskEntry)
+_sym_db.RegisterMessage(MetadataRequest.SlurmEntry)
+
+PythonPackagesRequest = _reflection.GeneratedProtocolMessageType('PythonPackagesRequest', (_message.Message,), {
+
+  'PythonPackage' : _reflection.GeneratedProtocolMessageType('PythonPackage', (_message.Message,), {
+    'DESCRIPTOR' : _PYTHONPACKAGESREQUEST_PYTHONPACKAGE,
+    '__module__' : 'wandb.proto.wandb_internal_pb2'
+    # @@protoc_insertion_point(class_scope:wandb_internal.PythonPackagesRequest.PythonPackage)
+    })
+  ,
+  'DESCRIPTOR' : _PYTHONPACKAGESREQUEST,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.PythonPackagesRequest)
+  })
+_sym_db.RegisterMessage(PythonPackagesRequest)
+_sym_db.RegisterMessage(PythonPackagesRequest.PythonPackage)
+
+JobInputPath = _reflection.GeneratedProtocolMessageType('JobInputPath', (_message.Message,), {
+  'DESCRIPTOR' : _JOBINPUTPATH,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.JobInputPath)
+  })
+_sym_db.RegisterMessage(JobInputPath)
+
+JobInputSource = _reflection.GeneratedProtocolMessageType('JobInputSource', (_message.Message,), {
+
+  'RunConfigSource' : _reflection.GeneratedProtocolMessageType('RunConfigSource', (_message.Message,), {
+    'DESCRIPTOR' : _JOBINPUTSOURCE_RUNCONFIGSOURCE,
+    '__module__' : 'wandb.proto.wandb_internal_pb2'
+    # @@protoc_insertion_point(class_scope:wandb_internal.JobInputSource.RunConfigSource)
+    })
+  ,
+
+  'ConfigFileSource' : _reflection.GeneratedProtocolMessageType('ConfigFileSource', (_message.Message,), {
+    'DESCRIPTOR' : _JOBINPUTSOURCE_CONFIGFILESOURCE,
+    '__module__' : 'wandb.proto.wandb_internal_pb2'
+    # @@protoc_insertion_point(class_scope:wandb_internal.JobInputSource.ConfigFileSource)
+    })
+  ,
+  'DESCRIPTOR' : _JOBINPUTSOURCE,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.JobInputSource)
+  })
+_sym_db.RegisterMessage(JobInputSource)
+_sym_db.RegisterMessage(JobInputSource.RunConfigSource)
+_sym_db.RegisterMessage(JobInputSource.ConfigFileSource)
+
+JobInputRequest = _reflection.GeneratedProtocolMessageType('JobInputRequest', (_message.Message,), {
+  'DESCRIPTOR' : _JOBINPUTREQUEST,
+  '__module__' : 'wandb.proto.wandb_internal_pb2'
+  # @@protoc_insertion_point(class_scope:wandb_internal.JobInputRequest)
+  })
+_sym_db.RegisterMessage(JobInputRequest)
 
 if _descriptor._USE_C_DESCRIPTORS == False:
 
@@ -1109,286 +1268,330 @@ if _descriptor._USE_C_DESCRIPTORS == False:
   _GETSYSTEMMETRICSRESPONSE_SYSTEMMETRICSENTRY._serialized_options = b'8\001'
   _METADATAREQUEST_DISKENTRY._options = None
   _METADATAREQUEST_DISKENTRY._serialized_options = b'8\001'
-  _RECORD._serialized_start=151
-  _RECORD._serialized_end=1331
-  _CONTROL._serialized_start=1334
-  _CONTROL._serialized_end=1502
-  _RESULT._serialized_start=1505
-  _RESULT._serialized_end=2004
-  _FINALRECORD._serialized_start=2006
-  _FINALRECORD._serialized_end=2064
-  _HEADERRECORD._serialized_start=2066
-  _HEADERRECORD._serialized_end=2125
-  _FOOTERRECORD._serialized_start=2127
-  _FOOTERRECORD._serialized_end=2186
-  _RUNRECORD._serialized_start=2189
-  _RUNRECORD._serialized_end=2779
-  _GITREPORECORD._serialized_start=2781
-  _GITREPORECORD._serialized_end=2840
-  _RUNUPDATERESULT._serialized_start=2842
-  _RUNUPDATERESULT._serialized_end=2941
-  _ERRORINFO._serialized_start=2944
-  _ERRORINFO._serialized_end=3116
-  _ERRORINFO_ERRORCODE._serialized_start=3025
-  _ERRORINFO_ERRORCODE._serialized_end=3116
-  _RUNEXITRECORD._serialized_start=3118
-  _RUNEXITRECORD._serialized_end=3214
-  _RUNEXITRESULT._serialized_start=3216
-  _RUNEXITRESULT._serialized_end=3231
-  _RUNPREEMPTINGRECORD._serialized_start=3233
-  _RUNPREEMPTINGRECORD._serialized_end=3299
-  _RUNPREEMPTINGRESULT._serialized_start=3301
-  _RUNPREEMPTINGRESULT._serialized_end=3322
-  _SETTINGSRECORD._serialized_start=3324
-  _SETTINGSRECORD._serialized_end=3429
-  _SETTINGSITEM._serialized_start=3431
-  _SETTINGSITEM._serialized_end=3478
-  _HISTORYSTEP._serialized_start=3480
-  _HISTORYSTEP._serialized_end=3506
-  _HISTORYRECORD._serialized_start=3509
-  _HISTORYRECORD._serialized_end=3655
-  _HISTORYITEM._serialized_start=3657
-  _HISTORYITEM._serialized_end=3723
-  _HISTORYRESULT._serialized_start=3725
-  _HISTORYRESULT._serialized_end=3740
-  _OUTPUTRECORD._serialized_start=3743
-  _OUTPUTRECORD._serialized_end=3963
-  _OUTPUTRECORD_OUTPUTTYPE._serialized_start=3927
-  _OUTPUTRECORD_OUTPUTTYPE._serialized_end=3963
-  _OUTPUTRESULT._serialized_start=3965
-  _OUTPUTRESULT._serialized_end=3979
-  _OUTPUTRAWRECORD._serialized_start=3982
-  _OUTPUTRAWRECORD._serialized_end=4208
-  _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_start=3927
-  _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_end=3963
-  _OUTPUTRAWRESULT._serialized_start=4210
-  _OUTPUTRAWRESULT._serialized_end=4227
-  _METRICRECORD._serialized_start=4230
-  _METRICRECORD._serialized_end=4638
-  _METRICRECORD_METRICGOAL._serialized_start=4572
-  _METRICRECORD_METRICGOAL._serialized_end=4638
-  _METRICRESULT._serialized_start=4640
-  _METRICRESULT._serialized_end=4654
-  _METRICOPTIONS._serialized_start=4656
-  _METRICOPTIONS._serialized_end=4723
-  _METRICCONTROL._serialized_start=4725
-  _METRICCONTROL._serialized_end=4759
-  _METRICSUMMARY._serialized_start=4761
-  _METRICSUMMARY._serialized_end=4872
-  _CONFIGRECORD._serialized_start=4875
-  _CONFIGRECORD._serialized_end=5022
-  _CONFIGITEM._serialized_start=5024
-  _CONFIGITEM._serialized_end=5089
-  _CONFIGRESULT._serialized_start=5091
-  _CONFIGRESULT._serialized_end=5105
-  _SUMMARYRECORD._serialized_start=5108
-  _SUMMARYRECORD._serialized_end=5258
-  _SUMMARYITEM._serialized_start=5260
-  _SUMMARYITEM._serialized_end=5326
-  _SUMMARYRESULT._serialized_start=5328
-  _SUMMARYRESULT._serialized_end=5343
-  _FILESRECORD._serialized_start=5345
-  _FILESRECORD._serialized_end=5445
-  _FILESITEM._serialized_start=5448
-  _FILESITEM._serialized_end=5592
-  _FILESITEM_POLICYTYPE._serialized_start=5552
-  _FILESITEM_POLICYTYPE._serialized_end=5592
-  _FILESRESULT._serialized_start=5594
-  _FILESRESULT._serialized_end=5607
-  _STATSRECORD._serialized_start=5610
-  _STATSRECORD._serialized_end=5840
-  _STATSRECORD_STATSTYPE._serialized_start=5817
-  _STATSRECORD_STATSTYPE._serialized_end=5840
-  _STATSITEM._serialized_start=5842
-  _STATSITEM._serialized_end=5886
-  _ARTIFACTRECORD._serialized_start=5889
-  _ARTIFACTRECORD._serialized_end=6362
-  _ARTIFACTMANIFEST._serialized_start=6365
-  _ARTIFACTMANIFEST._serialized_end=6553
-  _ARTIFACTMANIFESTENTRY._serialized_start=6556
-  _ARTIFACTMANIFESTENTRY._serialized_end=6743
-  _EXTRAITEM._serialized_start=6745
-  _EXTRAITEM._serialized_end=6789
-  _STORAGEPOLICYCONFIGITEM._serialized_start=6791
-  _STORAGEPOLICYCONFIGITEM._serialized_end=6849
-  _ARTIFACTRESULT._serialized_start=6851
-  _ARTIFACTRESULT._serialized_end=6867
-  _LINKARTIFACTRESULT._serialized_start=6869
-  _LINKARTIFACTRESULT._serialized_end=6889
-  _LINKARTIFACTRECORD._serialized_start=6892
-  _LINKARTIFACTRECORD._serialized_end=7099
-  _TBRECORD._serialized_start=7101
-  _TBRECORD._serialized_end=7205
-  _TBRESULT._serialized_start=7207
-  _TBRESULT._serialized_end=7217
-  _ALERTRECORD._serialized_start=7219
-  _ALERTRECORD._serialized_end=7344
-  _ALERTRESULT._serialized_start=7346
-  _ALERTRESULT._serialized_end=7359
-  _REQUEST._serialized_start=7362
-  _REQUEST._serialized_end=9103
-  _RESPONSE._serialized_start=9106
-  _RESPONSE._serialized_end=10477
-  _DEFERREQUEST._serialized_start=10480
-  _DEFERREQUEST._serialized_end=10800
-  _DEFERREQUEST_DEFERSTATE._serialized_start=10553
-  _DEFERREQUEST_DEFERSTATE._serialized_end=10800
-  _PAUSEREQUEST._serialized_start=10802
-  _PAUSEREQUEST._serialized_end=10862
-  _PAUSERESPONSE._serialized_start=10864
-  _PAUSERESPONSE._serialized_end=10879
-  _RESUMEREQUEST._serialized_start=10881
-  _RESUMEREQUEST._serialized_end=10942
-  _RESUMERESPONSE._serialized_start=10944
-  _RESUMERESPONSE._serialized_end=10960
-  _LOGINREQUEST._serialized_start=10962
-  _LOGINREQUEST._serialized_end=11039
-  _LOGINRESPONSE._serialized_start=11041
-  _LOGINRESPONSE._serialized_end=11079
-  _GETSUMMARYREQUEST._serialized_start=11081
-  _GETSUMMARYREQUEST._serialized_end=11146
-  _GETSUMMARYRESPONSE._serialized_start=11148
-  _GETSUMMARYRESPONSE._serialized_end=11211
-  _GETSYSTEMMETRICSREQUEST._serialized_start=11213
-  _GETSYSTEMMETRICSREQUEST._serialized_end=11284
-  _SYSTEMMETRICSAMPLE._serialized_start=11286
-  _SYSTEMMETRICSAMPLE._serialized_end=11368
-  _SYSTEMMETRICSBUFFER._serialized_start=11370
-  _SYSTEMMETRICSBUFFER._serialized_end=11443
-  _GETSYSTEMMETRICSRESPONSE._serialized_start=11446
-  _GETSYSTEMMETRICSRESPONSE._serialized_end=11648
-  _GETSYSTEMMETRICSRESPONSE_SYSTEMMETRICSENTRY._serialized_start=11559
-  _GETSYSTEMMETRICSRESPONSE_SYSTEMMETRICSENTRY._serialized_end=11648
-  _STATUSREQUEST._serialized_start=11650
-  _STATUSREQUEST._serialized_end=11711
-  _STATUSRESPONSE._serialized_start=11713
-  _STATUSRESPONSE._serialized_end=11754
-  _STOPSTATUSREQUEST._serialized_start=11756
-  _STOPSTATUSREQUEST._serialized_end=11821
-  _STOPSTATUSRESPONSE._serialized_start=11823
-  _STOPSTATUSRESPONSE._serialized_end=11868
-  _NETWORKSTATUSREQUEST._serialized_start=11870
-  _NETWORKSTATUSREQUEST._serialized_end=11938
-  _NETWORKSTATUSRESPONSE._serialized_start=11940
-  _NETWORKSTATUSRESPONSE._serialized_end=12020
-  _HTTPRESPONSE._serialized_start=12022
-  _HTTPRESPONSE._serialized_end=12090
-  _INTERNALMESSAGESREQUEST._serialized_start=12092
-  _INTERNALMESSAGESREQUEST._serialized_end=12163
-  _INTERNALMESSAGESRESPONSE._serialized_start=12165
-  _INTERNALMESSAGESRESPONSE._serialized_end=12243
-  _INTERNALMESSAGES._serialized_start=12245
-  _INTERNALMESSAGES._serialized_end=12280
-  _POLLEXITREQUEST._serialized_start=12282
-  _POLLEXITREQUEST._serialized_end=12345
-  _POLLEXITRESPONSE._serialized_start=12348
-  _POLLEXITRESPONSE._serialized_end=12536
-  _SENDERMARKREQUEST._serialized_start=12538
-  _SENDERMARKREQUEST._serialized_end=12557
-  _SENDERREADREQUEST._serialized_start=12559
-  _SENDERREADREQUEST._serialized_end=12622
-  _STATUSREPORTREQUEST._serialized_start=12624
-  _STATUSREPORTREQUEST._serialized_end=12733
-  _SUMMARYRECORDREQUEST._serialized_start=12735
-  _SUMMARYRECORDREQUEST._serialized_end=12805
-  _TELEMETRYRECORDREQUEST._serialized_start=12807
-  _TELEMETRYRECORDREQUEST._serialized_end=12883
-  _SERVERINFOREQUEST._serialized_start=12885
-  _SERVERINFOREQUEST._serialized_end=12950
-  _SERVERINFORESPONSE._serialized_start=12952
-  _SERVERINFORESPONSE._serialized_end=13076
-  _SERVERMESSAGES._serialized_start=13078
-  _SERVERMESSAGES._serialized_end=13139
-  _SERVERMESSAGE._serialized_start=13141
-  _SERVERMESSAGE._serialized_end=13242
-  _FILECOUNTS._serialized_start=13244
-  _FILECOUNTS._serialized_end=13343
-  _FILEPUSHERSTATS._serialized_start=13345
-  _FILEPUSHERSTATS._serialized_end=13430
-  _LOCALINFO._serialized_start=13432
-  _LOCALINFO._serialized_end=13481
-  _SHUTDOWNREQUEST._serialized_start=13483
-  _SHUTDOWNREQUEST._serialized_end=13546
-  _SHUTDOWNRESPONSE._serialized_start=13548
-  _SHUTDOWNRESPONSE._serialized_end=13566
-  _ATTACHREQUEST._serialized_start=13568
-  _ATTACHREQUEST._serialized_end=13648
-  _ATTACHRESPONSE._serialized_start=13650
-  _ATTACHRESPONSE._serialized_end=13748
-  _TESTINJECTREQUEST._serialized_start=13751
-  _TESTINJECTREQUEST._serialized_end=14092
-  _TESTINJECTRESPONSE._serialized_start=14094
-  _TESTINJECTRESPONSE._serialized_end=14114
-  _HISTORYACTION._serialized_start=14116
-  _HISTORYACTION._serialized_end=14146
-  _PARTIALHISTORYREQUEST._serialized_start=14149
-  _PARTIALHISTORYREQUEST._serialized_end=14351
-  _PARTIALHISTORYRESPONSE._serialized_start=14353
-  _PARTIALHISTORYRESPONSE._serialized_end=14377
-  _SAMPLEDHISTORYREQUEST._serialized_start=14379
-  _SAMPLEDHISTORYREQUEST._serialized_end=14448
-  _SAMPLEDHISTORYITEM._serialized_start=14450
-  _SAMPLEDHISTORYITEM._serialized_end=14545
-  _SAMPLEDHISTORYRESPONSE._serialized_start=14547
-  _SAMPLEDHISTORYRESPONSE._serialized_end=14621
-  _RUNSTATUSREQUEST._serialized_start=14623
-  _RUNSTATUSREQUEST._serialized_end=14687
-  _RUNSTATUSRESPONSE._serialized_start=14689
-  _RUNSTATUSRESPONSE._serialized_end=14809
-  _RUNSTARTREQUEST._serialized_start=14811
-  _RUNSTARTREQUEST._serialized_end=14914
-  _RUNSTARTRESPONSE._serialized_start=14916
-  _RUNSTARTRESPONSE._serialized_end=14934
-  _CHECKVERSIONREQUEST._serialized_start=14936
-  _CHECKVERSIONREQUEST._serialized_end=15028
-  _CHECKVERSIONRESPONSE._serialized_start=15030
-  _CHECKVERSIONRESPONSE._serialized_end=15123
-  _JOBINFOREQUEST._serialized_start=15125
-  _JOBINFOREQUEST._serialized_end=15187
-  _JOBINFORESPONSE._serialized_start=15189
-  _JOBINFORESPONSE._serialized_end=15243
-  _LOGARTIFACTREQUEST._serialized_start=15246
-  _LOGARTIFACTREQUEST._serialized_end=15384
-  _LOGARTIFACTRESPONSE._serialized_start=15386
-  _LOGARTIFACTRESPONSE._serialized_end=15451
-  _KEEPALIVEREQUEST._serialized_start=15453
-  _KEEPALIVEREQUEST._serialized_end=15517
-  _KEEPALIVERESPONSE._serialized_start=15519
-  _KEEPALIVERESPONSE._serialized_end=15538
-  _ARTIFACTINFO._serialized_start=15540
-  _ARTIFACTINFO._serialized_end=15610
-  _GITINFO._serialized_start=15612
-  _GITINFO._serialized_end=15653
-  _GITSOURCE._serialized_start=15655
-  _GITSOURCE._serialized_end=15747
-  _IMAGESOURCE._serialized_start=15749
-  _IMAGESOURCE._serialized_end=15777
-  _SOURCE._serialized_start=15780
-  _SOURCE._serialized_end=15920
-  _JOBSOURCE._serialized_start=15922
-  _JOBSOURCE._serialized_end=16029
-  _PARTIALJOBARTIFACT._serialized_start=16031
-  _PARTIALJOBARTIFACT._serialized_end=16117
-  _USEARTIFACTRECORD._serialized_start=16120
-  _USEARTIFACTRECORD._serialized_end=16277
-  _USEARTIFACTRESULT._serialized_start=16279
-  _USEARTIFACTRESULT._serialized_end=16298
-  _CANCELREQUEST._serialized_start=16300
-  _CANCELREQUEST._serialized_end=16382
-  _CANCELRESPONSE._serialized_start=16384
-  _CANCELRESPONSE._serialized_end=16400
-  _DISKINFO._serialized_start=16402
-  _DISKINFO._serialized_end=16441
-  _MEMORYINFO._serialized_start=16443
-  _MEMORYINFO._serialized_end=16470
-  _CPUINFO._serialized_start=16472
-  _CPUINFO._serialized_end=16519
-  _GPUAPPLEINFO._serialized_start=16521
-  _GPUAPPLEINFO._serialized_end=16568
-  _GPUNVIDIAINFO._serialized_start=16570
-  _GPUNVIDIAINFO._serialized_end=16621
-  _METADATAREQUEST._serialized_start=16624
-  _METADATAREQUEST._serialized_end=17511
-  _METADATAREQUEST_DISKENTRY._serialized_start=17442
-  _METADATAREQUEST_DISKENTRY._serialized_end=17511
+  _METADATAREQUEST_SLURMENTRY._options = None
+  _METADATAREQUEST_SLURMENTRY._serialized_options = b'8\001'
+  _RECORD._serialized_start=180
+  _RECORD._serialized_end=1353
+  _CONTROL._serialized_start=1356
+  _CONTROL._serialized_end=1524
+  _RESULT._serialized_start=1527
+  _RESULT._serialized_end=2026
+  _FINALRECORD._serialized_start=2028
+  _FINALRECORD._serialized_end=2086
+  _VERSIONINFO._serialized_start=2088
+  _VERSIONINFO._serialized_end=2186
+  _HEADERRECORD._serialized_start=2188
+  _HEADERRECORD._serialized_end=2298
+  _FOOTERRECORD._serialized_start=2300
+  _FOOTERRECORD._serialized_end=2359
+  _RUNRECORD._serialized_start=2362
+  _RUNRECORD._serialized_end=2968
+  _GITREPORECORD._serialized_start=2970
+  _GITREPORECORD._serialized_end=3029
+  _RUNUPDATERESULT._serialized_start=3031
+  _RUNUPDATERESULT._serialized_end=3130
+  _ERRORINFO._serialized_start=3133
+  _ERRORINFO._serialized_end=3305
+  _ERRORINFO_ERRORCODE._serialized_start=3214
+  _ERRORINFO_ERRORCODE._serialized_end=3305
+  _RUNEXITRECORD._serialized_start=3307
+  _RUNEXITRECORD._serialized_end=3403
+  _RUNEXITRESULT._serialized_start=3405
+  _RUNEXITRESULT._serialized_end=3420
+  _RUNPREEMPTINGRECORD._serialized_start=3422
+  _RUNPREEMPTINGRECORD._serialized_end=3488
+  _RUNPREEMPTINGRESULT._serialized_start=3490
+  _RUNPREEMPTINGRESULT._serialized_end=3511
+  _SETTINGSRECORD._serialized_start=3513
+  _SETTINGSRECORD._serialized_end=3618
+  _SETTINGSITEM._serialized_start=3620
+  _SETTINGSITEM._serialized_end=3667
+  _HISTORYSTEP._serialized_start=3669
+  _HISTORYSTEP._serialized_end=3695
+  _HISTORYRECORD._serialized_start=3698
+  _HISTORYRECORD._serialized_end=3844
+  _HISTORYITEM._serialized_start=3846
+  _HISTORYITEM._serialized_end=3912
+  _HISTORYRESULT._serialized_start=3914
+  _HISTORYRESULT._serialized_end=3929
+  _OUTPUTRECORD._serialized_start=3932
+  _OUTPUTRECORD._serialized_end=4152
+  _OUTPUTRECORD_OUTPUTTYPE._serialized_start=4116
+  _OUTPUTRECORD_OUTPUTTYPE._serialized_end=4152
+  _OUTPUTRESULT._serialized_start=4154
+  _OUTPUTRESULT._serialized_end=4168
+  _OUTPUTRAWRECORD._serialized_start=4171
+  _OUTPUTRAWRECORD._serialized_end=4397
+  _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_start=4116
+  _OUTPUTRAWRECORD_OUTPUTTYPE._serialized_end=4152
+  _OUTPUTRAWRESULT._serialized_start=4399
+  _OUTPUTRAWRESULT._serialized_end=4416
+  _METRICRECORD._serialized_start=4419
+  _METRICRECORD._serialized_end=4827
+  _METRICRECORD_METRICGOAL._serialized_start=4761
+  _METRICRECORD_METRICGOAL._serialized_end=4827
+  _METRICRESULT._serialized_start=4829
+  _METRICRESULT._serialized_end=4843
+  _METRICOPTIONS._serialized_start=4845
+  _METRICOPTIONS._serialized_end=4912
+  _METRICCONTROL._serialized_start=4914
+  _METRICCONTROL._serialized_end=4948
+  _METRICSUMMARY._serialized_start=4950
+  _METRICSUMMARY._serialized_end=5061
+  _CONFIGRECORD._serialized_start=5064
+  _CONFIGRECORD._serialized_end=5211
+  _CONFIGITEM._serialized_start=5213
+  _CONFIGITEM._serialized_end=5278
+  _CONFIGRESULT._serialized_start=5280
+  _CONFIGRESULT._serialized_end=5294
+  _SUMMARYRECORD._serialized_start=5297
+  _SUMMARYRECORD._serialized_end=5447
+  _SUMMARYITEM._serialized_start=5449
+  _SUMMARYITEM._serialized_end=5515
+  _SUMMARYRESULT._serialized_start=5517
+  _SUMMARYRESULT._serialized_end=5532
+  _FILESRECORD._serialized_start=5534
+  _FILESRECORD._serialized_end=5634
+  _FILESITEM._serialized_start=5637
+  _FILESITEM._serialized_end=5873
+  _FILESITEM_POLICYTYPE._serialized_start=5768
+  _FILESITEM_POLICYTYPE._serialized_end=5808
+  _FILESITEM_FILETYPE._serialized_start=5810
+  _FILESITEM_FILETYPE._serialized_end=5867
+  _FILESRESULT._serialized_start=5875
+  _FILESRESULT._serialized_end=5888
+  _STATSRECORD._serialized_start=5891
+  _STATSRECORD._serialized_end=6121
+  _STATSRECORD_STATSTYPE._serialized_start=6098
+  _STATSRECORD_STATSTYPE._serialized_end=6121
+  _STATSITEM._serialized_start=6123
+  _STATSITEM._serialized_end=6167
+  _ARTIFACTRECORD._serialized_start=6170
+  _ARTIFACTRECORD._serialized_end=6643
+  _ARTIFACTMANIFEST._serialized_start=6646
+  _ARTIFACTMANIFEST._serialized_end=6862
+  _ARTIFACTMANIFESTENTRY._serialized_start=6865
+  _ARTIFACTMANIFESTENTRY._serialized_end=7072
+  _EXTRAITEM._serialized_start=7074
+  _EXTRAITEM._serialized_end=7118
+  _STORAGEPOLICYCONFIGITEM._serialized_start=7120
+  _STORAGEPOLICYCONFIGITEM._serialized_end=7178
+  _ARTIFACTRESULT._serialized_start=7180
+  _ARTIFACTRESULT._serialized_end=7196
+  _LINKARTIFACTRESULT._serialized_start=7198
+  _LINKARTIFACTRESULT._serialized_end=7218
+  _LINKARTIFACTREQUEST._serialized_start=7221
+  _LINKARTIFACTREQUEST._serialized_end=7429
+  _LINKARTIFACTRESPONSE._serialized_start=7431
+  _LINKARTIFACTRESPONSE._serialized_end=7476
+  _TBRECORD._serialized_start=7478
+  _TBRECORD._serialized_end=7582
+  _TBRESULT._serialized_start=7584
+  _TBRESULT._serialized_end=7594
+  _ALERTRECORD._serialized_start=7596
+  _ALERTRECORD._serialized_end=7721
+  _ALERTRESULT._serialized_start=7723
+  _ALERTRESULT._serialized_end=7736
+  _REQUEST._serialized_start=7739
+  _REQUEST._serialized_end=9783
+  _RESPONSE._serialized_start=9786
+  _RESPONSE._serialized_end=11364
+  _DEFERREQUEST._serialized_start=11367
+  _DEFERREQUEST._serialized_end=11687
+  _DEFERREQUEST_DEFERSTATE._serialized_start=11440
+  _DEFERREQUEST_DEFERSTATE._serialized_end=11687
+  _PAUSEREQUEST._serialized_start=11689
+  _PAUSEREQUEST._serialized_end=11749
+  _PAUSERESPONSE._serialized_start=11751
+  _PAUSERESPONSE._serialized_end=11766
+  _RESUMEREQUEST._serialized_start=11768
+  _RESUMEREQUEST._serialized_end=11829
+  _RESUMERESPONSE._serialized_start=11831
+  _RESUMERESPONSE._serialized_end=11847
+  _LOGINREQUEST._serialized_start=11849
+  _LOGINREQUEST._serialized_end=11926
+  _LOGINRESPONSE._serialized_start=11928
+  _LOGINRESPONSE._serialized_end=11966
+  _GETSUMMARYREQUEST._serialized_start=11968
+  _GETSUMMARYREQUEST._serialized_end=12033
+  _GETSUMMARYRESPONSE._serialized_start=12035
+  _GETSUMMARYRESPONSE._serialized_end=12098
+  _GETSYSTEMMETRICSREQUEST._serialized_start=12100
+  _GETSYSTEMMETRICSREQUEST._serialized_end=12171
+  _SYSTEMMETRICSAMPLE._serialized_start=12173
+  _SYSTEMMETRICSAMPLE._serialized_end=12255
+  _SYSTEMMETRICSBUFFER._serialized_start=12257
+  _SYSTEMMETRICSBUFFER._serialized_end=12330
+  _GETSYSTEMMETRICSRESPONSE._serialized_start=12333
+  _GETSYSTEMMETRICSRESPONSE._serialized_end=12535
+  _GETSYSTEMMETRICSRESPONSE_SYSTEMMETRICSENTRY._serialized_start=12446
+  _GETSYSTEMMETRICSRESPONSE_SYSTEMMETRICSENTRY._serialized_end=12535
+  _STATUSREQUEST._serialized_start=12537
+  _STATUSREQUEST._serialized_end=12598
+  _STATUSRESPONSE._serialized_start=12600
+  _STATUSRESPONSE._serialized_end=12641
+  _STOPSTATUSREQUEST._serialized_start=12643
+  _STOPSTATUSREQUEST._serialized_end=12708
+  _STOPSTATUSRESPONSE._serialized_start=12710
+  _STOPSTATUSRESPONSE._serialized_end=12755
+  _NETWORKSTATUSREQUEST._serialized_start=12757
+  _NETWORKSTATUSREQUEST._serialized_end=12825
+  _NETWORKSTATUSRESPONSE._serialized_start=12827
+  _NETWORKSTATUSRESPONSE._serialized_end=12907
+  _HTTPRESPONSE._serialized_start=12909
+  _HTTPRESPONSE._serialized_end=12977
+  _INTERNALMESSAGESREQUEST._serialized_start=12979
+  _INTERNALMESSAGESREQUEST._serialized_end=13050
+  _INTERNALMESSAGESRESPONSE._serialized_start=13052
+  _INTERNALMESSAGESRESPONSE._serialized_end=13130
+  _INTERNALMESSAGES._serialized_start=13132
+  _INTERNALMESSAGES._serialized_end=13167
+  _POLLEXITREQUEST._serialized_start=13169
+  _POLLEXITREQUEST._serialized_end=13232
+  _POLLEXITRESPONSE._serialized_start=13235
+  _POLLEXITRESPONSE._serialized_end=13423
+  _SYNCOVERWRITE._serialized_start=13425
+  _SYNCOVERWRITE._serialized_end=13489
+  _SYNCSKIP._serialized_start=13491
+  _SYNCSKIP._serialized_end=13521
+  _SENDERMARKREQUEST._serialized_start=13523
+  _SENDERMARKREQUEST._serialized_end=13542
+  _SYNCREQUEST._serialized_start=13545
+  _SYNCREQUEST._serialized_end=13692
+  _SYNCRESPONSE._serialized_start=13694
+  _SYNCRESPONSE._serialized_end=13763
+  _SENDERREADREQUEST._serialized_start=13765
+  _SENDERREADREQUEST._serialized_end=13828
+  _STATUSREPORTREQUEST._serialized_start=13830
+  _STATUSREPORTREQUEST._serialized_end=13939
+  _SUMMARYRECORDREQUEST._serialized_start=13941
+  _SUMMARYRECORDREQUEST._serialized_end=14011
+  _TELEMETRYRECORDREQUEST._serialized_start=14013
+  _TELEMETRYRECORDREQUEST._serialized_end=14089
+  _SERVERINFOREQUEST._serialized_start=14091
+  _SERVERINFOREQUEST._serialized_end=14156
+  _SERVERINFORESPONSE._serialized_start=14158
+  _SERVERINFORESPONSE._serialized_end=14282
+  _SERVERMESSAGES._serialized_start=14284
+  _SERVERMESSAGES._serialized_end=14345
+  _SERVERMESSAGE._serialized_start=14347
+  _SERVERMESSAGE._serialized_end=14448
+  _FILECOUNTS._serialized_start=14450
+  _FILECOUNTS._serialized_end=14549
+  _FILEPUSHERSTATS._serialized_start=14551
+  _FILEPUSHERSTATS._serialized_end=14636
+  _FILESUPLOADED._serialized_start=14638
+  _FILESUPLOADED._serialized_end=14668
+  _FILETRANSFERINFOREQUEST._serialized_start=14671
+  _FILETRANSFERINFOREQUEST._serialized_end=14915
+  _FILETRANSFERINFOREQUEST_TRANSFERTYPE._serialized_start=14875
+  _FILETRANSFERINFOREQUEST_TRANSFERTYPE._serialized_end=14915
+  _LOCALINFO._serialized_start=14917
+  _LOCALINFO._serialized_end=14966
+  _SHUTDOWNREQUEST._serialized_start=14968
+  _SHUTDOWNREQUEST._serialized_end=15031
+  _SHUTDOWNRESPONSE._serialized_start=15033
+  _SHUTDOWNRESPONSE._serialized_end=15051
+  _ATTACHREQUEST._serialized_start=15053
+  _ATTACHREQUEST._serialized_end=15133
+  _ATTACHRESPONSE._serialized_start=15135
+  _ATTACHRESPONSE._serialized_end=15233
+  _TESTINJECTREQUEST._serialized_start=15236
+  _TESTINJECTREQUEST._serialized_end=15577
+  _TESTINJECTRESPONSE._serialized_start=15579
+  _TESTINJECTRESPONSE._serialized_end=15599
+  _HISTORYACTION._serialized_start=15601
+  _HISTORYACTION._serialized_end=15631
+  _PARTIALHISTORYREQUEST._serialized_start=15634
+  _PARTIALHISTORYREQUEST._serialized_end=15836
+  _PARTIALHISTORYRESPONSE._serialized_start=15838
+  _PARTIALHISTORYRESPONSE._serialized_end=15862
+  _SAMPLEDHISTORYREQUEST._serialized_start=15864
+  _SAMPLEDHISTORYREQUEST._serialized_end=15933
+  _SAMPLEDHISTORYITEM._serialized_start=15935
+  _SAMPLEDHISTORYITEM._serialized_end=16030
+  _SAMPLEDHISTORYRESPONSE._serialized_start=16032
+  _SAMPLEDHISTORYRESPONSE._serialized_end=16106
+  _RUNSTATUSREQUEST._serialized_start=16108
+  _RUNSTATUSREQUEST._serialized_end=16172
+  _RUNSTATUSRESPONSE._serialized_start=16174
+  _RUNSTATUSRESPONSE._serialized_end=16294
+  _RUNSTARTREQUEST._serialized_start=16296
+  _RUNSTARTREQUEST._serialized_end=16399
+  _RUNSTARTRESPONSE._serialized_start=16401
+  _RUNSTARTRESPONSE._serialized_end=16419
+  _CHECKVERSIONREQUEST._serialized_start=16421
+  _CHECKVERSIONREQUEST._serialized_end=16513
+  _CHECKVERSIONRESPONSE._serialized_start=16515
+  _CHECKVERSIONRESPONSE._serialized_end=16608
+  _JOBINFOREQUEST._serialized_start=16610
+  _JOBINFOREQUEST._serialized_end=16672
+  _JOBINFORESPONSE._serialized_start=16674
+  _JOBINFORESPONSE._serialized_end=16728
+  _LOGARTIFACTREQUEST._serialized_start=16731
+  _LOGARTIFACTREQUEST._serialized_end=16890
+  _LOGARTIFACTRESPONSE._serialized_start=16892
+  _LOGARTIFACTRESPONSE._serialized_end=16957
+  _DOWNLOADARTIFACTREQUEST._serialized_start=16960
+  _DOWNLOADARTIFACTREQUEST._serialized_end=17150
+  _DOWNLOADARTIFACTRESPONSE._serialized_start=17152
+  _DOWNLOADARTIFACTRESPONSE._serialized_end=17201
+  _KEEPALIVEREQUEST._serialized_start=17203
+  _KEEPALIVEREQUEST._serialized_end=17267
+  _KEEPALIVERESPONSE._serialized_start=17269
+  _KEEPALIVERESPONSE._serialized_end=17288
+  _ARTIFACTINFO._serialized_start=17290
+  _ARTIFACTINFO._serialized_end=17403
+  _GITINFO._serialized_start=17405
+  _GITINFO._serialized_end=17446
+  _GITSOURCE._serialized_start=17449
+  _GITSOURCE._serialized_end=17584
+  _IMAGESOURCE._serialized_start=17586
+  _IMAGESOURCE._serialized_end=17614
+  _SOURCE._serialized_start=17617
+  _SOURCE._serialized_end=17757
+  _JOBSOURCE._serialized_start=17759
+  _JOBSOURCE._serialized_end=17866
+  _PARTIALJOBARTIFACT._serialized_start=17868
+  _PARTIALJOBARTIFACT._serialized_end=17954
+  _USEARTIFACTRECORD._serialized_start=17957
+  _USEARTIFACTRECORD._serialized_end=18114
+  _USEARTIFACTRESULT._serialized_start=18116
+  _USEARTIFACTRESULT._serialized_end=18135
+  _CANCELREQUEST._serialized_start=18137
+  _CANCELREQUEST._serialized_end=18219
+  _CANCELRESPONSE._serialized_start=18221
+  _CANCELRESPONSE._serialized_end=18237
+  _DISKINFO._serialized_start=18239
+  _DISKINFO._serialized_end=18278
+  _MEMORYINFO._serialized_start=18280
+  _MEMORYINFO._serialized_end=18307
+  _CPUINFO._serialized_start=18309
+  _CPUINFO._serialized_end=18356
+  _GPUAPPLEINFO._serialized_start=18358
+  _GPUAPPLEINFO._serialized_end=18420
+  _GPUNVIDIAINFO._serialized_start=18422
+  _GPUNVIDIAINFO._serialized_end=18473
+  _GPUAMDINFO._serialized_start=18476
+  _GPUAMDINFO._serialized_end=18741
+  _METADATAREQUEST._serialized_start=18744
+  _METADATAREQUEST._serialized_end=19812
+  _METADATAREQUEST_DISKENTRY._serialized_start=19697
+  _METADATAREQUEST_DISKENTRY._serialized_end=19766
+  _METADATAREQUEST_SLURMENTRY._serialized_start=19768
+  _METADATAREQUEST_SLURMENTRY._serialized_end=19812
+  _PYTHONPACKAGESREQUEST._serialized_start=19815
+  _PYTHONPACKAGESREQUEST._serialized_end=19956
+  _PYTHONPACKAGESREQUEST_PYTHONPACKAGE._serialized_start=19910
+  _PYTHONPACKAGESREQUEST_PYTHONPACKAGE._serialized_end=19956
+  _JOBINPUTPATH._serialized_start=19958
+  _JOBINPUTPATH._serialized_end=19986
+  _JOBINPUTSOURCE._serialized_start=19989
+  _JOBINPUTSOURCE._serialized_end=20203
+  _JOBINPUTSOURCE_RUNCONFIGSOURCE._serialized_start=20142
+  _JOBINPUTSOURCE_RUNCONFIGSOURCE._serialized_end=20159
+  _JOBINPUTSOURCE_CONFIGFILESOURCE._serialized_start=20161
+  _JOBINPUTSOURCE_CONFIGFILESOURCE._serialized_end=20193
+  _JOBINPUTREQUEST._serialized_start=20206
+  _JOBINPUTREQUEST._serialized_end=20405
 # @@protoc_insertion_point(module_scope)

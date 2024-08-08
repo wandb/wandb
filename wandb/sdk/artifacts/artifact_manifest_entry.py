@@ -1,12 +1,13 @@
 """Artifact manifest entry."""
+
 import json
 import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, Optional, Union
 from urllib.parse import urlparse
 
-from wandb.errors.term import termwarn
 from wandb.sdk.lib import filesystem
+from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.sdk.lib.hashutil import (
     B64MD5,
     ETag,
@@ -17,7 +18,19 @@ from wandb.sdk.lib.hashutil import (
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 
 if TYPE_CHECKING:
+    from typing_extensions import TypedDict
+
     from wandb.sdk.artifacts.artifact import Artifact
+
+    class ArtifactManifestEntryDict(TypedDict, total=False):
+        path: str
+        digest: str
+        skip_cache: bool
+        ref: str
+        birthArtifactID: str
+        size: int
+        extra: Dict
+        local_path: str
 
 
 class ArtifactManifestEntry:
@@ -25,6 +38,7 @@ class ArtifactManifestEntry:
 
     path: LogicalPath
     digest: Union[B64MD5, URIStr, FilePathStr, ETag]
+    skip_cache: bool
     ref: Optional[Union[FilePathStr, URIStr]]
     birth_artifact_id: Optional[str]
     size: Optional[int]
@@ -38,6 +52,7 @@ class ArtifactManifestEntry:
         self,
         path: StrPath,
         digest: Union[B64MD5, URIStr, FilePathStr, ETag],
+        skip_cache: Optional[bool] = False,
         ref: Optional[Union[FilePathStr, URIStr]] = None,
         birth_artifact_id: Optional[str] = None,
         size: Optional[int] = None,
@@ -53,6 +68,7 @@ class ArtifactManifestEntry:
         self.local_path = str(local_path) if local_path else None
         if self.local_path and self.size is None:
             self.size = Path(self.local_path).stat().st_size
+        self.skip_cache = skip_cache or False
 
     def __repr__(self) -> str:
         cls = self.__class__.__name__
@@ -65,7 +81,8 @@ class ArtifactManifestEntry:
         size = f", size={self.size}" if self.size is not None else ""
         extra = f", extra={json.dumps(self.extra)}" if self.extra else ""
         local_path = f", local_path={self.local_path!r}" if self.local_path else ""
-        others = ref + birth_artifact_id + size + extra + local_path
+        skip_cache = f", skip_cache={self.skip_cache}"
+        others = ref + birth_artifact_id + size + extra + local_path + skip_cache
         return f"{cls}(path={self.path!r}, digest={self.digest!r}{others})"
 
     def __eq__(self, other: object) -> bool:
@@ -84,12 +101,16 @@ class ArtifactManifestEntry:
             and self.size == other.size
             and self.extra == other.extra
             and self.local_path == other.local_path
+            and self.skip_cache == other.skip_cache
         )
 
     @property
     def name(self) -> LogicalPath:
-        # TODO(hugh): add telemetry to see if anyone is still using this.
-        termwarn("ArtifactManifestEntry.name is deprecated, use .path instead")
+        """Deprecated; use `path` instead."""
+        deprecate(
+            field_name=Deprecated.artifactmanifestentry__name,
+            warning_message="ArtifactManifestEntry.name is deprecated, use .path instead.",
+        )
         return self.path
 
     def parent_artifact(self) -> "Artifact":
@@ -102,7 +123,9 @@ class ArtifactManifestEntry:
             raise NotImplementedError
         return self._parent_artifact
 
-    def download(self, root: Optional[str] = None) -> FilePathStr:
+    def download(
+        self, root: Optional[str] = None, skip_cache: Optional[bool] = None
+    ) -> FilePathStr:
         """Download this artifact entry to the specified root path.
 
         Arguments:
@@ -117,7 +140,13 @@ class ArtifactManifestEntry:
 
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
-        dest_path = os.path.join(root, self.path)
+        path = str(Path(self.path))
+        dest_path = os.path.join(root, path)
+
+        if skip_cache:
+            override_cache_path = dest_path
+        else:
+            override_cache_path = None
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
@@ -126,15 +155,19 @@ class ArtifactManifestEntry:
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(
-                self, local=True
+                self, local=True, dest_path=override_cache_path
             )
         else:
             cache_path = self._parent_artifact.manifest.storage_policy.load_file(
-                self._parent_artifact, self
+                self._parent_artifact, self, dest_path=override_cache_path
             )
-        return FilePathStr(
-            str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
-        )
+
+        if skip_cache:
+            return FilePathStr(dest_path)
+        else:
+            return FilePathStr(
+                str(filesystem.copy_or_overwrite_changed(cache_path, dest_path))
+            )
 
     def ref_target(self) -> Union[FilePathStr, URIStr]:
         """Get the reference URL that is targeted by this artifact entry.
@@ -164,7 +197,7 @@ class ArtifactManifestEntry:
         Examples:
             Basic usage
             ```
-            ref_url = source_artifact.get_path('file.txt').ref_url()
+            ref_url = source_artifact.get_entry('file.txt').ref_url()
             derived_artifact.add_reference(ref_url)
             ```
         """
@@ -177,6 +210,25 @@ class ArtifactManifestEntry:
             + "/"
             + self.path
         )
+
+    def to_json(self) -> "ArtifactManifestEntryDict":
+        contents: ArtifactManifestEntryDict = {
+            "path": self.path,
+            "digest": self.digest,
+        }
+        if self.size is not None:
+            contents["size"] = self.size
+        if self.ref:
+            contents["ref"] = self.ref
+        if self.birth_artifact_id:
+            contents["birthArtifactID"] = self.birth_artifact_id
+        if self.local_path:
+            contents["local_path"] = self.local_path
+        if self.skip_cache:
+            contents["skip_cache"] = self.skip_cache
+        if self.extra:
+            contents["extra"] = self.extra
+        return contents
 
     def _is_artifact_reference(self) -> bool:
         return self.ref is not None and urlparse(self.ref).scheme == "wandb-artifact"

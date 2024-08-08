@@ -52,6 +52,6 @@ class ProtobufErrorHandler:
         code = None
         for subclass in type(exc).__mro__:
             if subclass in from_exception_map:
-                code = from_exception_map[subclass]
+                code = from_exception_map[subclass]  # type: ignore
                 break
-        return pb.ErrorInfo(code=code, message=str(exc))
+        return pb.ErrorInfo(code=code, message=str(exc))  # type: ignore

@@ -6,7 +6,6 @@ def main():
     model = YOLO("yolov8n-seg.pt")
     add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
     model.train(data="coco128-seg.yaml", epochs=2, imgsz=640, batch=64)
-    model.val()
 
 
 if __name__ == "__main__":

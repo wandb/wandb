@@ -2,7 +2,11 @@ id: 0.mp.05-pool-nofinish
 plugin:
   - wandb
 tag:
-  shard: service
+  skips:
+    - platform: win
+  shards:
+    - default
+    - wandb_core_failure
 parametrize:
   permute:
     - :yea:start_method:

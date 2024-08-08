@@ -17,14 +17,15 @@ try:
     import ultralytics
     from tqdm.auto import tqdm
 
-    if version.parse(ultralytics.__version__) > version.parse("8.0.186"):
+    if version.parse(ultralytics.__version__) > version.parse("8.0.238"):
         wandb.termwarn(
-            """This integration is tested and supported for ultralytics v8.0.186 and below.
+            """This integration is tested and supported for ultralytics v8.0.238 and below.
             Please report any issues to https://github.com/wandb/wandb/issues with the tag `yolov8`.""",
             repeat=False,
         )
 
     from ultralytics.models import YOLO
+    from ultralytics.models.sam.predict import Predictor as SAMPredictor
     from ultralytics.models.yolo.classify import (
         ClassificationPredictor,
         ClassificationTrainer,
@@ -42,11 +43,15 @@ try:
         SegmentationValidator,
     )
     from ultralytics.utils.torch_utils import de_parallel
-    from ultralytics.yolo.utils import RANK, __version__
+
+    try:
+        from ultralytics.yolo.utils import RANK, __version__
+    except ModuleNotFoundError:
+        from ultralytics.utils import RANK, __version__
 
     from wandb.integration.ultralytics.bbox_utils import (
-        plot_predictions,
-        plot_validation_results,
+        plot_bbox_predictions,
+        plot_detection_validation_results,
     )
     from wandb.integration.ultralytics.classification_utils import (
         plot_classification_predictions,
@@ -54,14 +59,15 @@ try:
     )
     from wandb.integration.ultralytics.mask_utils import (
         plot_mask_predictions,
-        plot_mask_validation_results,
+        plot_sam_predictions,
+        plot_segmentation_validation_results,
     )
     from wandb.integration.ultralytics.pose_utils import (
         plot_pose_predictions,
         plot_pose_validation_results,
     )
-except ImportError as e:
-    wandb.error(e)
+except Exception as e:
+    wandb.Error(e)
 
 
 TRAINER_TYPE = Union[
@@ -71,7 +77,11 @@ VALIDATOR_TYPE = Union[
     ClassificationValidator, DetectionValidator, SegmentationValidator, PoseValidator
 ]
 PREDICTOR_TYPE = Union[
-    ClassificationPredictor, DetectionPredictor, SegmentationPredictor, PosePredictor
+    ClassificationPredictor,
+    DetectionPredictor,
+    SegmentationPredictor,
+    PosePredictor,
+    SAMPredictor,
 ]
 
 
@@ -83,54 +93,65 @@ class WandBUltralyticsCallback:
     to Weights & Biases Tables during training, validation and prediction
     for a `ultratytics` workflow.
 
-    **Usage:**
+    Example:
+        ```python
+        from ultralytics.yolo.engine.model import YOLO
+        from wandb.yolov8 import add_wandb_callback
 
-    ```python
-    from ultralytics.yolo.engine.model import YOLO
-    from wandb.yolov8 import add_wandb_callback
+        # initialize YOLO model
+        model = YOLO("yolov8n.pt")
 
-    # initialize YOLO model
-    model = YOLO("yolov8n.pt")
+        # add wandb callback
+        add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
 
-    # add wandb callback
-    add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
+        # train
+        model.train(data="coco128.yaml", epochs=5, imgsz=640)
 
-    # train
-    model.train(data="coco128.yaml", epochs=5, imgsz=640)
+        # validate
+        model.val()
 
-    # validate
-    model.val()
+        # perform inference
+        model(["img1.jpeg", "img2.jpeg"])
+        ```
 
-    # perform inference
-    model(["img1.jpeg", "img2.jpeg"])
-    ```
-
-    Args:
-        model: YOLO Model of type `:class:ultralytics.yolo.engine.model.YOLO`.
-        max_validation_batches: maximum number of validation batches to log to
+    Arguments:
+        model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
+            `ultralytics.yolo.engine.model.YOLO`.
+        epoch_logging_interval: (int) interval to log the prediction visualizations
+            during training.
+        max_validation_batches: (int) maximum number of validation batches to log to
             a table per epoch.
-        enable_model_checkpointing: enable logging model checkpoints as
+        enable_model_checkpointing: (bool) enable logging model checkpoints as
             artifacts at the end of eveny epoch if set to `True`.
-        visualize_skeleton: visualize pose skeleton by drawing lines connecting
+        visualize_skeleton: (bool) visualize pose skeleton by drawing lines connecting
             keypoints for human pose.
     """
 
     def __init__(
         self,
         model: YOLO,
+        epoch_logging_interval: int = 1,
         max_validation_batches: int = 1,
         enable_model_checkpointing: bool = False,
         visualize_skeleton: bool = False,
     ) -> None:
+        self.epoch_logging_interval = epoch_logging_interval
         self.max_validation_batches = max_validation_batches
         self.enable_model_checkpointing = enable_model_checkpointing
         self.visualize_skeleton = visualize_skeleton
         self.task = model.task
         self.task_map = model.task_map
-        self.model_name = model.overrides["model"].split(".")[0]
+        self.model_name = (
+            model.overrides["model"].split(".")[0]
+            if "model" in model.overrides
+            else None
+        )
         self._make_tables()
         self._make_predictor(model)
         self.supported_tasks = ["detect", "segment", "pose", "classify"]
+        self.prompts = None
+        self.run_id = None
+        self.train_epoch = None
 
     def _make_tables(self):
         if self.task in ["detect", "segment"]:
@@ -208,14 +229,15 @@ class WandBUltralyticsCallback:
     def _make_predictor(self, model: YOLO):
         overrides = copy.deepcopy(model.overrides)
         overrides["conf"] = 0.1
-        self.predictor = self.task_map[self.task]["predictor"](
-            overrides=overrides, _callbacks=None
-        )
+        self.predictor = self.task_map[self.task]["predictor"](overrides=overrides)
+        self.predictor.callbacks = {}
+        self.predictor.args.save = False
+        self.predictor.args.save_txt = False
+        self.predictor.args.save_crop = False
+        self.predictor.args.verbose = None
 
     def _save_model(self, trainer: TRAINER_TYPE):
-        model_checkpoint_artifact = wandb.Artifact(
-            f"run_{wandb.run.id}_model", "model", metadata=vars(trainer.args)
-        )
+        model_checkpoint_artifact = wandb.Artifact(f"run_{wandb.run.id}_model", "model")
         checkpoint_dict = {
             "epoch": trainer.epoch,
             "best_fitness": trainer.best_fitness,
@@ -238,13 +260,16 @@ class WandBUltralyticsCallback:
         with telemetry.context(run=wandb.run) as tel:
             tel.feature.ultralytics_yolov8 = True
         wandb.config.train = vars(trainer.args)
+        self.run_id = wandb.run.id
 
-    def on_fit_epoch_end(self, trainer: TRAINER_TYPE):
-        if self.task in self.supported_tasks:
-            validator = trainer.validator
-            dataloader = validator.dataloader
-            class_label_map = validator.names
-            with torch.no_grad():
+    @torch.no_grad()
+    def on_fit_epoch_end(self, trainer: DetectionTrainer):
+        if self.task in self.supported_tasks and self.train_epoch != trainer.epoch:
+            self.train_epoch = trainer.epoch
+            if (self.train_epoch + 1) % self.epoch_logging_interval == 0:
+                validator = trainer.validator
+                dataloader = validator.dataloader
+                class_label_map = validator.names
                 self.device = next(trainer.model.parameters()).device
                 if isinstance(trainer.model, torch.nn.parallel.DistributedDataParallel):
                     model = trainer.model.module
@@ -264,7 +289,7 @@ class WandBUltralyticsCallback:
                         epoch=trainer.epoch,
                     )
                 elif self.task == "segment":
-                    self.train_validation_table = plot_mask_validation_results(
+                    self.train_validation_table = plot_segmentation_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
                         model_name=self.model_name,
@@ -274,7 +299,7 @@ class WandBUltralyticsCallback:
                         epoch=trainer.epoch,
                     )
                 elif self.task == "detect":
-                    self.train_validation_table = plot_validation_results(
+                    self.train_validation_table = plot_detection_validation_results(
                         dataloader=dataloader,
                         class_label_map=class_label_map,
                         model_name=self.model_name,
@@ -296,58 +321,71 @@ class WandBUltralyticsCallback:
                     )
             if self.enable_model_checkpointing:
                 self._save_model(trainer)
-            self.model.to("cpu")
             trainer.model.to(self.device)
 
     def on_train_end(self, trainer: TRAINER_TYPE):
         if self.task in self.supported_tasks:
-            wandb.log({"Train-Validation-Table": self.train_validation_table})
+            wandb.log({"Train-Table": self.train_validation_table}, commit=False)
 
+    def on_val_start(self, validator: VALIDATOR_TYPE):
+        wandb.run or wandb.init(
+            project=validator.args.project or "YOLOv8",
+            job_type="validation_" + validator.args.task,
+        )
+
+    @torch.no_grad()
     def on_val_end(self, trainer: VALIDATOR_TYPE):
         if self.task in self.supported_tasks:
             validator = trainer
             dataloader = validator.dataloader
             class_label_map = validator.names
-            with torch.no_grad():
-                self.model.to(self.device)
-                self.predictor.setup_model(model=self.model, verbose=False)
-                if self.task == "pose":
-                    self.validation_table = plot_pose_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        visualize_skeleton=self.visualize_skeleton,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-                elif self.task == "segment":
-                    self.validation_table = plot_mask_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-                elif self.task == "detect":
-                    self.validation_table = plot_validation_results(
-                        dataloader=dataloader,
-                        class_label_map=class_label_map,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-                elif self.task == "classify":
-                    self.validation_table = plot_classification_validation_results(
-                        dataloader=dataloader,
-                        model_name=self.model_name,
-                        predictor=self.predictor,
-                        table=self.validation_table,
-                        max_validation_batches=self.max_validation_batches,
-                    )
-            wandb.log({"Validation-Table": self.validation_table})
+            if self.task == "pose":
+                self.validation_table = plot_pose_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    visualize_skeleton=self.visualize_skeleton,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "segment":
+                self.validation_table = plot_segmentation_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "detect":
+                self.validation_table = plot_detection_validation_results(
+                    dataloader=dataloader,
+                    class_label_map=class_label_map,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            elif self.task == "classify":
+                self.validation_table = plot_classification_validation_results(
+                    dataloader=dataloader,
+                    model_name=self.model_name,
+                    predictor=self.predictor,
+                    table=self.validation_table,
+                    max_validation_batches=self.max_validation_batches,
+                )
+            wandb.log({"Validation-Table": self.validation_table}, commit=False)
+
+    def on_predict_start(self, predictor: PREDICTOR_TYPE):
+        wandb.run or wandb.init(
+            project=predictor.args.project or "YOLOv8",
+            config=vars(predictor.args),
+            job_type="prediction_" + predictor.args.task,
+        )
+        if isinstance(predictor, SAMPredictor):
+            self.prompts = copy.deepcopy(predictor.prompts)
+            self.prediction_table = wandb.Table(columns=["Image"])
 
     def on_predict_end(self, predictor: PREDICTOR_TYPE):
         wandb.config.prediction_configs = vars(predictor.args)
@@ -361,11 +399,16 @@ class WandBUltralyticsCallback:
                         self.prediction_table,
                     )
                 elif self.task == "segment":
-                    self.prediction_table = plot_mask_predictions(
-                        result, self.model_name, self.prediction_table
-                    )
+                    if isinstance(predictor, SegmentationPredictor):
+                        self.prediction_table = plot_mask_predictions(
+                            result, self.model_name, self.prediction_table
+                        )
+                    elif isinstance(predictor, SAMPredictor):
+                        self.prediction_table = plot_sam_predictions(
+                            result, self.prompts, self.prediction_table
+                        )
                 elif self.task == "detect":
-                    self.prediction_table = plot_predictions(
+                    self.prediction_table = plot_bbox_predictions(
                         result, self.model_name, self.prediction_table
                     )
                 elif self.task == "classify":
@@ -373,7 +416,7 @@ class WandBUltralyticsCallback:
                         result, self.model_name, self.prediction_table
                     )
 
-            wandb.log({"Prediction-Table": self.prediction_table})
+            wandb.log({"Prediction-Table": self.prediction_table}, commit=False)
 
     @property
     def callbacks(self) -> Dict[str, Callable]:
@@ -382,13 +425,17 @@ class WandBUltralyticsCallback:
             "on_train_start": self.on_train_start,
             "on_fit_epoch_end": self.on_fit_epoch_end,
             "on_train_end": self.on_train_end,
+            "on_val_start": self.on_val_start,
             "on_val_end": self.on_val_end,
+            "on_predict_start": self.on_predict_start,
             "on_predict_end": self.on_predict_end,
         }
 
 
+# TODO: Add epoch interval
 def add_wandb_callback(
     model: YOLO,
+    epoch_logging_interval: int = 1,
     enable_model_checkpointing: bool = False,
     enable_train_validation_logging: bool = True,
     enable_validation_logging: bool = True,
@@ -398,54 +445,60 @@ def add_wandb_callback(
 ):
     """Function to add the `WandBUltralyticsCallback` callback to the `YOLO` model.
 
-    **Usage:**
+    Example:
+        ```python
+        from ultralytics.yolo.engine.model import YOLO
+        from wandb.yolov8 import add_wandb_callback
 
-    ```python
-    from ultralytics.yolo.engine.model import YOLO
-    from wandb.yolov8 import add_wandb_callback
+        # initialize YOLO model
+        model = YOLO("yolov8n.pt")
 
-    # initialize YOLO model
-    model = YOLO("yolov8n.pt")
+        # add wandb callback
+        add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
 
-    # add wandb callback
-    add_wandb_callback(model, max_validation_batches=2, enable_model_checkpointing=True)
+        # train
+        model.train(data="coco128.yaml", epochs=5, imgsz=640)
 
-    # train
-    model.train(data="coco128.yaml", epochs=5, imgsz=640)
+        # validate
+        model.val()
 
-    # validate
-    model.val()
+        # perform inference
+        model(["img1.jpeg", "img2.jpeg"])
+        ```
 
-    # perform inference
-    model(["img1.jpeg", "img2.jpeg"])
-    ```
-
-    Args:
-        model: YOLO Model of type `:class:ultralytics.yolo.engine.model.YOLO`.
-        enable_model_checkpointing: enable logging model checkpoints as
+    Arguments:
+        model: (ultralytics.yolo.engine.model.YOLO) YOLO Model of type
+            `ultralytics.yolo.engine.model.YOLO`.
+        epoch_logging_interval: (int) interval to log the prediction visualizations
+            during training.
+        enable_model_checkpointing: (bool) enable logging model checkpoints as
             artifacts at the end of eveny epoch if set to `True`.
-        enable_train_validation_logging: enable logging the predictions and
+        enable_train_validation_logging: (bool) enable logging the predictions and
             ground-truths as interactive image overlays on the images from
             the validation dataloader to a `wandb.Table` along with
             mean-confidence of the predictions per-class at the end of each
             training epoch.
-        enable_validation_logging: enable logging the predictions and
+        enable_validation_logging: (bool) enable logging the predictions and
             ground-truths as interactive image overlays on the images from the
             validation dataloader to a `wandb.Table` along with
             mean-confidence of the predictions per-class at the end of
             validation.
-        enable_prediction_logging: enable logging the predictions and
+        enable_prediction_logging: (bool) enable logging the predictions and
             ground-truths as interactive image overlays on the images from the
             validation dataloader to a `wandb.Table` along with mean-confidence
             of the predictions per-class at the end of each prediction.
-        max_validation_batches: maximum number of validation batches to log to
+        max_validation_batches: (Optional[int]) maximum number of validation batches to log to
             a table per epoch.
-        visualize_skeleton: visualize pose skeleton by drawing lines connecting
+        visualize_skeleton: (Optional[bool]) visualize pose skeleton by drawing lines connecting
             keypoints for human pose.
+
+    Returns:
+        An instance of `ultralytics.yolo.engine.model.YOLO` with the `WandBUltralyticsCallback`.
     """
     if RANK in [-1, 0]:
         wandb_callback = WandBUltralyticsCallback(
             copy.deepcopy(model),
+            epoch_logging_interval,
             max_validation_batches,
             enable_model_checkpointing,
             visualize_skeleton,
@@ -455,8 +508,10 @@ def add_wandb_callback(
             _ = callbacks.pop("on_fit_epoch_end")
             _ = callbacks.pop("on_train_end")
         if not enable_validation_logging:
+            _ = callbacks.pop("on_val_start")
             _ = callbacks.pop("on_val_end")
         if not enable_prediction_logging:
+            _ = callbacks.pop("on_predict_start")
             _ = callbacks.pop("on_predict_end")
         for event, callback_fn in callbacks.items():
             model.add_callback(event, callback_fn)

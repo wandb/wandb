@@ -33,7 +33,7 @@ class Html(BatchableMedia):
         if data_is_path:
             assert isinstance(data, str)
             data_path = data
-            with open(data_path) as file:
+            with open(data_path, encoding="utf-8") as file:
                 self.html = file.read()
         elif isinstance(data, str):
             self.html = data
@@ -86,7 +86,7 @@ class Html(BatchableMedia):
     def from_json(
         cls: Type["Html"], json_obj: dict, source_artifact: "Artifact"
     ) -> "Html":
-        return cls(source_artifact.get_path(json_obj["path"]).download(), inject=False)
+        return cls(source_artifact.get_entry(json_obj["path"]).download(), inject=False)
 
     @classmethod
     def seq_to_json(

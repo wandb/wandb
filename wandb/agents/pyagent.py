@@ -4,7 +4,6 @@ Manage wandb agent.
 
 """
 
-
 import ctypes
 import logging
 import os
@@ -12,6 +11,7 @@ import queue
 import socket
 import threading
 import time
+import traceback
 
 import wandb
 from wandb import wandb_sdk
@@ -223,8 +223,17 @@ class Agent:
                         self._run_status[run_id] = RunStatus.DONE
                     elif self._run_status[run_id] == RunStatus.ERRORED:
                         exc = self._exceptions[run_id]
-                        logger.error(f"Run {run_id} errored: {repr(exc)}")
-                        wandb.termerror(f"Run {run_id} errored: {repr(exc)}")
+                        exc_type, exc_value, exc_traceback = (
+                            exc.__class__,
+                            exc,
+                            exc.__traceback__,
+                        )
+                        exc_traceback_formatted = traceback.format_exception(
+                            exc_type, exc_value, exc_traceback
+                        )
+                        exc_repr = "".join(exc_traceback_formatted)
+                        logger.error(f"Run {run_id} errored:\n{exc_repr}")
+                        wandb.termerror(f"Run {run_id} errored:\n{exc_repr}")
                         if os.getenv(wandb.env.AGENT_DISABLE_FLAPPING) == "true":
                             self._exit_flag = True
                             return
@@ -337,7 +346,7 @@ def pyagent(sweep_id, function, entity=None, project=None, count=None):
         count (int, optional): the number of trials to run.
     """
     if not callable(function):
-        raise Exception("function paramter must be callable!")
+        raise Exception("function parameter must be callable!")
     agent = Agent(
         sweep_id,
         function=function,

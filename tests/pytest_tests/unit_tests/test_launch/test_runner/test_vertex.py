@@ -42,7 +42,8 @@ class MockCustomJob:
         return "test-name"
 
 
-def test_vertex_submitted_run():
+@pytest.mark.asyncio
+async def test_vertex_submitted_run():
     """Test that the submitted run works as expected."""
     job = MockCustomJob(["PENDING", "RUNNING", "SUCCEEDED", "FAILED"])
     run = VertexSubmittedRun(job)
@@ -51,10 +52,10 @@ def test_vertex_submitted_run():
         link
         == "https://console.cloud.google.com/vertex-ai/locations/test-location/training/test-name?project=test-project"
     )
-    assert run.get_status().state == "starting"
-    assert run.get_status().state == "running"
-    assert run.get_status().state == "finished"
-    assert run.get_status().state == "failed"
+    assert (await run.get_status()).state == "starting"
+    assert (await run.get_status()).state == "running"
+    assert (await run.get_status()).state == "finished"
+    assert (await run.get_status()).state == "failed"
 
 
 def launch_project_factory(resource_args: dict, api: Api):
@@ -83,8 +84,17 @@ def vertex_runner(test_settings):
     """Vertex runner initialized with no backend config."""
     registry = MagicMock()
     environment = MagicMock()
+
+    async def _mock_get_credentials(*args, **kwargs):
+        return MagicMock()
+
+    async def _mock_verify(*args, **kwargs):
+        return MagicMock()
+
+    environment.get_credentials = _mock_get_credentials
+    environment.verify = _mock_verify
     api = Api(default_settings=test_settings(), load_settings=False)
-    runner = VertexRunner(api, {"SYNCHRONOUS": False}, registry, environment)
+    runner = VertexRunner(api, {"SYNCHRONOUS": False}, environment, registry)
     return runner
 
 
@@ -103,16 +113,18 @@ def mock_aiplatform(mocker):
     return mock
 
 
-def test_vertex_missing_worker_spec(vertex_runner):
+@pytest.mark.asyncio
+async def test_vertex_missing_worker_spec(vertex_runner):
     """Test that a launch error is raised when we are missing a worker spec."""
     resource_args = {"vertex": {"worker_pool_specs": []}}
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
     with pytest.raises(LaunchError) as e:
-        vertex_runner.run(launch_project, "test-image")
+        await vertex_runner.run(launch_project, "test-image")
     assert "requires at least one worker pool spec" in str(e.value)
 
 
-def test_vertex_missing_staging_bucket(vertex_runner):
+@pytest.mark.asyncio
+async def test_vertex_missing_staging_bucket(vertex_runner):
     """Test that a launch error is raised when we are missing a staging bucket."""
     resource_args = {
         "vertex": {
@@ -129,11 +141,12 @@ def test_vertex_missing_staging_bucket(vertex_runner):
     }
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
     with pytest.raises(LaunchError) as e:
-        vertex_runner.run(launch_project, "test-image")
+        await vertex_runner.run(launch_project, "test-image")
     assert "requires a staging bucket" in str(e.value)
 
 
-def test_vertex_missing_image(vertex_runner):
+@pytest.mark.asyncio
+async def test_vertex_missing_image(vertex_runner):
     """Test that a launch error is raised when we are missing an image."""
     resource_args = {
         "vertex": {
@@ -155,11 +168,12 @@ def test_vertex_missing_image(vertex_runner):
     }
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
     with pytest.raises(LaunchError) as e:
-        vertex_runner.run(launch_project, "test-image")
+        await vertex_runner.run(launch_project, "test-image")
     assert "requires a container spec" in str(e.value)
 
 
-def test_vertex_runner_works(vertex_runner, mock_aiplatform):
+@pytest.mark.asyncio
+async def test_vertex_runner_works(vertex_runner, mock_aiplatform):
     """Test that the vertex runner works as expected with good inputs."""
     resource_args = {
         "vertex": {
@@ -181,7 +195,7 @@ def test_vertex_runner_works(vertex_runner, mock_aiplatform):
         }
     }
     launch_project = launch_project_factory(resource_args, vertex_runner._api)
-    submitted_run = vertex_runner.run(launch_project, "test-image")
+    submitted_run = await vertex_runner.run(launch_project, "test-image")
     mock_aiplatform.init()
     mock_aiplatform.CustomJob.assert_called_once()
     submitted_spec = mock_aiplatform.CustomJob.call_args[1]["worker_pool_specs"]
@@ -191,10 +205,10 @@ def test_vertex_runner_works(vertex_runner, mock_aiplatform):
     assert submitted_spec[0]["container_spec"]["image_uri"] == "test-image"
     assert submitted_spec[1]["machine_spec"]["machine_type"] == "n1-standard-8"
     assert submitted_spec[1]["replica_count"] == 1
-    # This assertion tests macro substituion of the image uri.
+    # This assertion tests macro substitution of the image uri.
     assert submitted_spec[1]["container_spec"]["image_uri"] == "test-image"
 
     submitted_run._job = MockCustomJob(["PENDING", "RUNNING", "SUCCEEDED"])
-    assert submitted_run.get_status().state == "starting"
-    assert submitted_run.get_status().state == "running"
-    assert submitted_run.get_status().state == "finished"
+    assert (await submitted_run.get_status()).state == "starting"
+    assert (await submitted_run.get_status()).state == "running"
+    assert (await submitted_run.get_status()).state == "finished"

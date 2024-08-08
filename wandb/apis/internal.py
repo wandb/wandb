@@ -44,6 +44,10 @@ class Api:
         return self.api.api_key
 
     @property
+    def is_authenticated(self):
+        return self.api.access_token is not None or self.api.api_key is not None
+
+    @property
     def api_url(self):
         return self.api.api_url
 
@@ -169,9 +173,6 @@ class Api:
 
     def upload_multipart_file_chunk_retry(self, *args, **kwargs):
         return self.api.upload_multipart_file_chunk_retry(*args, **kwargs)
-
-    async def upload_file_retry_async(self, *args, **kwargs):
-        return await self.api.upload_file_retry_async(*args, **kwargs)
 
     def get_run_info(self, *args, **kwargs):
         return self.api.get_run_info(*args, **kwargs)

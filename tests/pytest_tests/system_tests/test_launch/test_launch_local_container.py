@@ -1,14 +1,19 @@
 from unittest.mock import MagicMock
 
+import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
 from wandb.sdk.launch._project_spec import EntryPoint
 
 
-def test_local_container_entrypoint(relay_server, monkeypatch):
+@pytest.mark.asyncio
+async def test_local_container_entrypoint(relay_server, monkeypatch):
     def mock_run_entrypoint(*args, **kwargs):
         # return first arg, which is command
         return args[0]
+
+    async def mock_build_image(*args, **kwargs):
+        return "testimage"
 
     monkeypatch.setattr(
         "wandb.sdk.launch.runner.local_container._run_entry_point",
@@ -25,7 +30,7 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
     )
     monkeypatch.setattr(
         "wandb.sdk.launch.builder.noop.NoOpBuilder.build_image",
-        lambda *args, **kwargs: "testimage",
+        mock_build_image,
     )
 
     with relay_server():
@@ -44,8 +49,9 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
         project.sweep_id = "sweeeeep"
         project.override_config = {}
         project.override_entrypoint = entrypoint
-        project.get_single_entry_point.return_value = entrypoint
+        project.get_job_entry_point.return_value = entrypoint
         project.override_args = ["--a1", "20", "--a2", "10"]
+        project.override_files = {}
         project.docker_image = "testimage"
         project.image_name = "testimage"
         project.job = "testjob"
@@ -62,14 +68,14 @@ def test_local_container_entrypoint(relay_server, monkeypatch):
             environment,
             MagicMock(),
         )
-        command = runner.run(project, project.docker_image)
+        command = await runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command
         )
 
         # test with no user provided image
-        command = runner.run(project, project.docker_image)
+        command = await runner.run(project, project.docker_image)
         assert (
             f"--entrypoint {entry_command[0]} {project.docker_image} {' '.join(entry_command[1:])}"
             in command

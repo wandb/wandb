@@ -1,10 +1,18 @@
+from typing import Optional
+
 import wandb
 from wandb import util
-from wandb.plots.utils import test_missing, test_types
+
+from .utils import test_missing, test_types
 
 
 def roc_curve(
-    y_true=None, y_probas=None, labels=None, classes_to_plot=None, title=None
+    y_true=None,
+    y_probas=None,
+    labels=None,
+    classes_to_plot=None,
+    title=None,
+    split_table: Optional[bool] = False,
 ):
     """Calculate and visualize receiver operating characteristic (ROC) scores.
 
@@ -18,6 +26,7 @@ def roc_curve(
                         For example labels = ['dog', 'cat', 'owl'] all 0s are
                         replaced by 'dog', 1s by 'cat'.
         classes_to_plot (list): unique values of y_true to include in the plot
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -105,4 +114,5 @@ def roc_curve(
             "x-axis-title": "False positive rate",
             "y-axis-title": "True positive rate",
         },
+        split_table=split_table,
     )

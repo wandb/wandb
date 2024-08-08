@@ -4,7 +4,6 @@ import wandb
 
 
 def main():
-    wandb.require("service")
     run = wandb.init()
     run.log(dict(m1=1))
     run.log(dict(m2=2))

@@ -6,10 +6,15 @@ import pytest
 if platform.system() == "Windows":
     pytest.skip("metaflow does not support native Windows", allow_module_level=True)
 
-import pandas as pd
-from metaflow import FlowSpec, step
-from sklearn.ensemble import GradientBoostingClassifier, RandomForestClassifier
-from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use
+pytest.importorskip("metaflow")
+
+import pandas as pd  # noqa: E402
+from metaflow import FlowSpec, step  # noqa: E402
+from sklearn.ensemble import (  # noqa: E402
+    GradientBoostingClassifier,
+    RandomForestClassifier,
+)
+from wandb.integration.metaflow import wandb_log, wandb_track, wandb_use  # noqa: E402
 
 try:
     import torch
@@ -161,6 +166,8 @@ def test_track_sklearn_model():
 
 
 def test_track_pytorch_model():
+    pytest.importorskip("torch")
+
     class Net(nn.Module):
         def __init__(self):
             super().__init__()
@@ -237,6 +244,8 @@ def test_use_datasets():
 
 
 def test_use_models():
+    pytest.importorskip("torch")
+
     rf_clf = RandomForestClassifier()
     assert wandb_use("rf_clf", rf_clf, testing=True, models=True) == "models"
     assert wandb_use("rf_clf", rf_clf, testing=True, models=False) is None

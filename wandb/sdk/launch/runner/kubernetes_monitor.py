@@ -1,94 +1,97 @@
-import logging
-from threading import Lock, Thread
-from typing import Any, Dict, List, Optional
+"""Monitors kubernetes resources managed by the launch agent."""
 
+import asyncio
+import logging
+import sys
+import traceback
+from typing import Any, Dict, List, Optional, Tuple, Union
+
+import kubernetes_asyncio  # type: ignore # noqa: F401
 import urllib3
-from kubernetes import watch  # type: ignore # noqa: F401
-from kubernetes.client import (  # type: ignore # noqa: F401
+from kubernetes_asyncio import watch
+from kubernetes_asyncio.client import (  # type: ignore  # noqa: F401
     ApiException,
     BatchV1Api,
     CoreV1Api,
     CustomObjectsApi,
+    V1Pod,
     V1PodStatus,
 )
 
 import wandb
+from wandb.sdk.launch.agent import LaunchAgent
+from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.runner.abstract import State, Status
+from wandb.sdk.launch.utils import get_kube_context_and_api_client
 
-from .abstract import State, Status
+WANDB_K8S_LABEL_NAMESPACE = "wandb.ai"
+WANDB_K8S_RUN_ID = f"{WANDB_K8S_LABEL_NAMESPACE}/run-id"
+WANDB_K8S_LABEL_AGENT = f"{WANDB_K8S_LABEL_NAMESPACE}/agent"
+WANDB_K8S_LABEL_MONITOR = f"{WANDB_K8S_LABEL_NAMESPACE}/monitor"
 
-# Dict for mapping possible states of custom objects to the states we want to report
-# to the agent.
+
+class Resources:
+    JOBS = "jobs"
+    PODS = "pods"
+
+
+class CustomResource:
+    """Class for custom resources."""
+
+    def __init__(self, group: str, version: str, plural: str) -> None:
+        """Initialize the CustomResource."""
+        self.group = group
+        self.version = version
+        self.plural = plural
+
+    def __str__(self) -> str:
+        """Return a string representation of the CustomResource."""
+        return f"{self.group}/{self.version}/{self.plural}"
+
+    def __hash__(self) -> int:
+        """Return a hash of the CustomResource."""
+        return hash(str(self))
+
+
+# Maps phases and conditions of custom objects to agent's internal run states.
 CRD_STATE_DICT: Dict[str, State] = {
-    # Starting states.
     "created": "starting",
     "pending": "starting",
-    # Running states.
     "running": "running",
     "completing": "running",
-    # Finished states.
     "succeeded": "finished",
     "completed": "finished",
-    # Failed states.
     "failed": "failed",
     "aborted": "failed",
     "timeout": "failed",
     "terminated": "failed",
-    # Stopping states.
     "terminating": "stopping",
 }
-
 
 _logger = logging.getLogger(__name__)
 
 
-class SafeWatch:
-    """Wrapper for the kubernetes watch class that can recover in more situations."""
+def create_named_task(name: str, coro: Any, *args: Any, **kwargs: Any) -> asyncio.Task:
+    """Create a named task."""
+    task = asyncio.create_task(coro(*args, **kwargs))
+    if sys.version_info >= (3, 8):
+        task.set_name(name)
+    task.add_done_callback(_log_err_task_callback)
+    return task
 
-    def __init__(self, watcher: "watch.Watch") -> None:
-        """Initialize the SafeWatch."""
-        self._watcher = watcher
-        self._last_seen_resource_version: Optional[str] = None
-        self._stopped = False
 
-    def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
-        """Stream the watcher."""
-        while True:
-            try:
-                for event in self._watcher.stream(
-                    func, *args, **kwargs, timeout_seconds=15
-                ):
-                    if self._stopped:
-                        break
-                    # Save the resource version so that we can resume the stream
-                    # if it breaks.
-                    object = event.get("object")
-                    if isinstance(object, dict):
-                        self._last_seen_resource_version = object.get(
-                            "metadata", dict()
-                        ).get("resourceVersion")
-                    else:
-                        self._last_seen_resource_version = (
-                            object.metadata.resource_version
-                        )
-                    kwargs["resource_version"] = self._last_seen_resource_version
-                    yield event
-                # If stream ends after stop just break
-                if self._stopped:
-                    break
-            except urllib3.exceptions.ProtocolError as e:
-                wandb.termwarn(f"Broken event stream: {e}")
-            except ApiException as e:
-                if e.status == 410:
-                    # If resource version is too old we need to start over.
-                    del kwargs["resource_version"]
-                    self._last_seen_resource_version = None
-            except Exception as E:
-                wandb.termerror(f"Unknown exception in event stream: {E}")
-
-    def stop(self) -> None:
-        """Stop the watcher."""
-        self._watcher.stop()
-        self._stopped = True
+def _log_err_task_callback(task: asyncio.Task) -> None:
+    """Callback to log exceptions from tasks."""
+    exec = task.exception()
+    if exec is not None:
+        if isinstance(exec, asyncio.CancelledError):
+            wandb.termlog(f"Task {task.get_name()} was cancelled")
+            return
+        name = str(task) if sys.version_info < (3, 8) else task.get_name()
+        wandb.termerror(f"Exception in task {name}")
+        tb = exec.__traceback__
+        tb_str = "".join(traceback.format_tb(tb))
+        wandb.termerror(tb_str)
 
 
 def _is_preempted(status: "V1PodStatus") -> bool:
@@ -116,7 +119,28 @@ def _is_container_creating(status: "V1PodStatus") -> bool:
     return False
 
 
-def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
+def _is_pod_unschedulable(status: "V1PodStatus") -> Tuple[bool, str]:
+    """Return whether the pod is unschedulable along with the reason message."""
+    if not status.conditions:
+        return False, ""
+    for condition in status.conditions:
+        if (
+            condition.type == "PodScheduled"
+            and condition.status == "False"
+            and condition.reason == "Unschedulable"
+        ):
+            return True, condition.message
+    return False, ""
+
+
+def _get_crd_job_name(object: "V1Pod") -> Optional[str]:
+    refs = object.metadata.owner_references
+    if refs:
+        return refs[0].name
+    return None
+
+
+def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[State]:
     """Get the status from the pod conditions."""
     true_conditions = [
         c.get("type", "").lower() for c in conditions if c.get("status") == "True"
@@ -124,192 +148,263 @@ def _state_from_conditions(conditions: List[Dict[str, Any]]) -> Optional[str]:
     detected_states = {
         CRD_STATE_DICT[c] for c in true_conditions if c in CRD_STATE_DICT
     }
-    for state in ["finished", "failed", "stopping", "running", "starting"]:
+    # The list below is ordered so that returning the first state detected
+    # will accurately reflect the state of the job.
+    states_in_order: List[State] = [
+        "finished",
+        "failed",
+        "stopping",
+        "running",
+        "starting",
+    ]
+    for state in states_in_order:
         if state in detected_states:
             return state
     return None
 
 
-class KubernetesRunMonitor:
+def _state_from_replicated_status(status_dict: Dict[str, int]) -> Optional[State]:
+    """Infer overall job status from replicated job status for jobsets.
+
+    More info on jobset:
+    https://github.com/kubernetes-sigs/jobset/blob/main/docs/concepts/README.md
+
+    This is useful for detecting when jobsets are starting.
+    """
+    pods_ready = status_dict.get("ready", 0)
+    pods_active = status_dict.get("active", 0)
+    if pods_ready >= 1:
+        return "running"
+    elif pods_active >= 1:
+        return "starting"
+    return None
+
+
+class LaunchKubernetesMonitor:
+    """Monitors kubernetes resources managed by the launch agent.
+
+    Note: this class is forced to be a singleton in order to prevent multiple
+    threads from being created that monitor the same kubernetes resources.
+    """
+
+    _instance = None  # This is used to ensure only one instance is created.
+
+    def __new__(cls, *args: Any, **kwargs: Any) -> "LaunchKubernetesMonitor":
+        """Create a new instance of the LaunchKubernetesMonitor.
+
+        This method ensures that only one instance of the LaunchKubernetesMonitor
+        is created. This is done to prevent multiple threads from being created
+        that monitor the same kubernetes resources.
+        """
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(
         self,
-        job_field_selector: str,
-        pod_label_selector: str,
-        namespace: str,
-        batch_api: "BatchV1Api",
-        core_api: "CoreV1Api",
-        custom_api: "CustomObjectsApi" = None,
-        group: Optional[str] = None,
-        version: Optional[str] = None,
-        plural: Optional[str] = None,
+        core_api: CoreV1Api,
+        batch_api: BatchV1Api,
+        custom_api: CustomObjectsApi,
+        label_selector: str,
+    ):
+        """Initialize the LaunchKubernetesMonitor."""
+        self._core_api: CoreV1Api = core_api
+        self._batch_api: BatchV1Api = batch_api
+        self._custom_api: CustomObjectsApi = custom_api
+
+        self._label_selector: str = label_selector
+
+        # Dict mapping a tuple of (namespace, resource_type) to an
+        # asyncio.Task that is monitoring that resource type in that namespace.
+        self._monitor_tasks: Dict[
+            Tuple[str, Union[str, CustomResource]], asyncio.Task
+        ] = dict()
+
+        # Map from job name to job state.
+        self._job_states: Dict[str, Status] = dict()
+
+    @classmethod
+    async def ensure_initialized(
+        cls,
     ) -> None:
-        """Initialize KubernetesRunMonitor.
+        """Initialize the LaunchKubernetesMonitor."""
+        if cls._instance is None:
+            _, api_client = await get_kube_context_and_api_client(
+                kubernetes_asyncio, {}
+            )
+            core_api = CoreV1Api(api_client)
+            batch_api = BatchV1Api(api_client)
+            custom_api = CustomObjectsApi(api_client)
+            label_selector = f"{WANDB_K8S_LABEL_MONITOR}=true"
+            if LaunchAgent.initialized():
+                label_selector += f",{WANDB_K8S_LABEL_AGENT}={LaunchAgent.name()}"
+            cls(
+                core_api=core_api,
+                batch_api=batch_api,
+                custom_api=custom_api,
+                label_selector=label_selector,
+            )
 
-        If a custom api is provided, the group, version, and plural arguments must also
-        be provided. These are used to query the custom api for a launched custom
-        object (CRD). Group, version, and plural in this context refer to the
-        Kubernetes API group, version, and plural for the CRD. For more information
-        see: https://kubernetes.io/docs/tasks/access-kubernetes-api/custom-resources/custom-resource-definitions/
+    @classmethod
+    def monitor_namespace(
+        cls, namespace: str, custom_resource: Optional[CustomResource] = None
+    ) -> None:
+        """Start monitoring a namespaces for resources."""
+        if cls._instance is None:
+            raise LaunchError(
+                "LaunchKubernetesMonitor not initialized, cannot monitor namespace."
+            )
+        cls._instance.__monitor_namespace(namespace, custom_resource=custom_resource)
 
-        The run monitor starts two threads to watch for pods and jobs/crds matching the
-        provided selectors. The status is set to "starting" when the run monitor is
-        initialized. The status is set to "running" when a pod matching the pod selector
-        is found with a status of "Running" or has a container with a status of
-        "ContainerCreating". The status is set to "finished" when a job matching the job
-        selector is found with a status of "Succeeded". The status is set to "failed"
-        when a job matching the job selector is found with a status of "Failed" or a pod
-        matching the pod selector is found with a status of "Failed". The status is set
-        to "preempted" when a pod matching the pod selector is found with a condition
-        type of "DisruptionTarget" and a reason of "EvictionByEvictionAPI",
-        "PreemptionByScheduler", or "TerminationByKubelet".
+    @classmethod
+    def get_status(cls, job_name: str) -> Status:
+        """Get the status of a job."""
+        if cls._instance is None:
+            raise LaunchError(
+                "LaunchKubernetesMonitor not initialized, cannot get status."
+            )
+        return cls._instance.__get_status(job_name)
 
-        The logic for the CRD is similar to the logic for the job, but we inspect
-        both the phase of the CRD and the conditions since some CRDs do not have a
-        phase field.
+    @classmethod
+    def status_count(cls) -> Dict[State, int]:
+        """Get a dictionary mapping statuses to the # monitored jobs with each status."""
+        if cls._instance is None:
+            raise ValueError(
+                "LaunchKubernetesMonitor not initialized, cannot get status counts."
+            )
+        return cls._instance.__status_count()
 
-        Arguments:
-            job_field_selector: The field selector for the job or crd.
-            pod_label_selector: The label selector for the pods.
-            namespace: The namespace to monitor.
-            batch_api: The batch api client.
-            core_api: The core api client.
-            custom_api: The custom api client.
-            group: The group of the CRD.
-            version: The version of the CRD.
-            plural: The plural of the CRD.
-
-        Returns:
-            None.
-        """
-        self.pod_label_selector = pod_label_selector
-        self.job_field_selector = job_field_selector
-        self.namespace = namespace
-        self.batch_api = batch_api
-        self.core_api = core_api
-        self.custom_api = custom_api
-        self.group = group
-        self.version = version
-        self.plural = plural
-
-        self._status_lock = Lock()
-        self._status = Status("starting")
-
-        # Only one of the job or crd watchers will be used.
-        self._watch_job_thread = Thread(target=self._watch_job, daemon=True)
-        self._watch_crd_thread = Thread(target=self._watch_crd, daemon=True)
-
-        self._watch_pods_thread = Thread(target=self._watch_pods, daemon=True)
-
-        self._job_watcher = SafeWatch(watch.Watch())
-        self._pod_watcher = SafeWatch(watch.Watch())
-
-    def start(self) -> None:
-        """Start the run monitor."""
-        if self.custom_api is None:
-            self._watch_job_thread.start()
+    def __monitor_namespace(
+        self, namespace: str, custom_resource: Optional[CustomResource] = None
+    ) -> None:
+        """Start monitoring a namespaces for resources."""
+        if (namespace, Resources.PODS) not in self._monitor_tasks:
+            self._monitor_tasks[(namespace, Resources.PODS)] = create_named_task(
+                f"monitor_pods_{namespace}",
+                self._monitor_pods,
+                namespace,
+            )
+        # If a custom resource is specified then we will start monitoring
+        # that resource type in the namespace instead of jobs.
+        if custom_resource is not None:
+            if (namespace, custom_resource) not in self._monitor_tasks:
+                self._monitor_tasks[(namespace, custom_resource)] = create_named_task(
+                    f"monitor_{custom_resource}_{namespace}",
+                    self._monitor_crd,
+                    namespace,
+                    custom_resource=custom_resource,
+                )
         else:
-            self._watch_crd_thread.start()
-        self._watch_pods_thread.start()
+            if (namespace, Resources.JOBS) not in self._monitor_tasks:
+                self._monitor_tasks[(namespace, Resources.JOBS)] = create_named_task(
+                    f"monitor_jobs_{namespace}",
+                    self._monitor_jobs,
+                    namespace,
+                )
 
-    def stop(self) -> None:
-        """Stop the run monitor."""
-        self._job_watcher.stop()
-        self._pod_watcher.stop()
+    def __get_status(self, job_name: str) -> Status:
+        """Get the status of a job."""
+        if job_name not in self._job_states:
+            return Status("unknown")
+        state = self._job_states[job_name]
+        return state
 
-    def _set_status(self, status: Status) -> None:
-        """Set the run status."""
-        with self._status_lock:
-            self._status = status
+    def __status_count(self) -> Dict[State, int]:
+        """Get a dictionary mapping statuses to the # monitored jobs with each status."""
+        counts = dict()
+        for _, status in self._job_states.items():
+            state = status.state
+            if state not in counts:
+                counts[state] = 1
+            else:
+                counts[state] += 1
+        return counts
 
-    def get_status(self) -> Status:
-        """Get the run status."""
-        with self._status_lock:
-            # Each time this is called we verify that our watchers are active.
-            if self._status.state in ["running", "starting"]:
-                if self.custom_api is None:
-                    if not self._watch_job_thread.is_alive():
-                        wandb.termwarn(
-                            f"Job watcher thread is dead for {self.job_field_selector}"
-                        )
-                        self._watch_job_thread = Thread(
-                            target=self._watch_job, daemon=True
-                        )
-                        self._watch_job_thread.start()
-                else:
-                    if not self._watch_crd_thread.is_alive():
-                        wandb.termwarn(
-                            f"CRD watcher thread is dead for {self.job_field_selector}"
-                        )
-                        self._watch_crd_thread = Thread(
-                            target=self._watch_crd, daemon=True
-                        )
-                        self._watch_crd_thread.start()
-                if not self._watch_pods_thread.is_alive():
-                    wandb.termwarn(
-                        f"Pod watcher thread is dead for {self.pod_label_selector}"
-                    )
-                    self._watch_pods_thread = Thread(
-                        target=self._watch_pods, daemon=True
-                    )
-                    self._watch_pods_thread.start()
-            return self._status
+    def _set_status_state(self, job_name: str, state: State) -> None:
+        """Set the status of the run."""
+        if job_name not in self._job_states:
+            self._job_states[job_name] = Status(state)
+        elif self._job_states[job_name].state != state:
+            self._job_states[job_name].state = state
 
-    def _watch_pods(self) -> None:
-        """Watch for pods created matching the jobname."""
-        # Stream with no timeout polling for pod status updates
-        for event in self._pod_watcher.stream(
-            self.core_api.list_namespaced_pod,
-            namespace=self.namespace,
-            label_selector=self.pod_label_selector,
+    def _add_status_message(self, job_name: str, message: str) -> None:
+        if job_name not in self._job_states:
+            self._job_states[job_name] = Status("unknown")
+        wandb.termwarn(f"Warning from Kubernetes for job {job_name}: {message}")
+        self._job_states[job_name].messages.append(message)
+
+    async def _monitor_pods(self, namespace: str) -> None:
+        """Monitor a namespace for changes."""
+        watcher = SafeWatch(watch.Watch())
+        async for event in watcher.stream(
+            self._core_api.list_namespaced_pod,
+            namespace=namespace,
+            label_selector=self._label_selector,
         ):
-            object = event.get("object")
-            # Sometimes ADDED events will be missing field.
-            if not hasattr(object, "status"):
+            obj = event.get("object")
+            job_name = obj.metadata.labels.get("job-name") or _get_crd_job_name(obj)
+            if job_name is None or not hasattr(obj, "status"):
                 continue
-            if object.status.phase == "Running":
-                self._set_status(Status("running"))
-            if _is_preempted(object.status):
-                self._set_status(Status("preempted"))
-                self.stop()
-                break
-            if _is_container_creating(object.status):
-                self._set_status(Status("running"))
+            if self.__get_status(job_name) in ["finished", "failed"]:
+                continue
 
-    def _watch_job(self) -> None:
-        """Watch for job matching the jobname."""
-        for event in self._job_watcher.stream(
-            self.batch_api.list_namespaced_job,
-            namespace=self.namespace,
-            field_selector=self.job_field_selector,
+            is_unschedulable, reason = _is_pod_unschedulable(obj.status)
+            if is_unschedulable:
+                self._add_status_message(job_name, reason)
+            if obj.status.phase == "Running" or _is_container_creating(obj.status):
+                self._set_status_state(job_name, "running")
+            elif _is_preempted(obj.status):
+                self._set_status_state(job_name, "preempted")
+
+    async def _monitor_jobs(self, namespace: str) -> None:
+        """Monitor a namespace for changes."""
+        watcher = SafeWatch(watch.Watch())
+        async for event in watcher.stream(
+            self._batch_api.list_namespaced_job,
+            namespace=namespace,
+            label_selector=self._label_selector,
+        ):
+            obj = event.get("object")
+            job_name = obj.metadata.name
+
+            if obj.status.succeeded == 1:
+                self._set_status_state(job_name, "finished")
+            elif obj.status.failed is not None and obj.status.failed >= 1:
+                self._set_status_state(job_name, "failed")
+
+            # If the job is deleted and we haven't seen a terminal state
+            # then we will consider the job failed.
+            if event.get("type") == "DELETED":
+                if self._job_states.get(job_name) != Status("finished"):
+                    self._set_status_state(job_name, "failed")
+
+    async def _monitor_crd(
+        self, namespace: str, custom_resource: CustomResource
+    ) -> None:
+        """Monitor a namespace for changes."""
+        watcher = SafeWatch(watch.Watch())
+        async for event in watcher.stream(
+            self._custom_api.list_namespaced_custom_object,
+            namespace=namespace,
+            plural=custom_resource.plural,
+            group=custom_resource.group,
+            version=custom_resource.version,
+            label_selector=self._label_selector,
         ):
             object = event.get("object")
-            if object.status.succeeded == 1:
-                self._set_status(Status("finished"))
-                self.stop()
-                break
-            elif object.status.failed is not None and object.status.failed >= 1:
-                self._set_status(Status("failed"))
-                self.stop()
-                break
-
-    def _watch_crd(self) -> None:
-        """Watch for CRD matching the jobname."""
-        for event in self._job_watcher.stream(
-            self.custom_api.list_namespaced_custom_object,
-            namespace=self.namespace,
-            field_selector=self.job_field_selector,
-            group=self.group,
-            version=self.version,
-            plural=self.plural,
-        ):
-            object = event.get("object")
+            name = object.get("metadata", dict()).get("name")
             status = object.get("status")
+            state = None
             if status is None:
                 continue
-            state = status.get("state")
-            if isinstance(state, dict):
-                raw_state = state.get("phase", "")
-                state = CRD_STATE_DICT.get(raw_state)
+            replicated_jobs_status = status.get("ReplicatedJobsStatus")
+            if isinstance(replicated_jobs_status, dict):
+                state = _state_from_replicated_status(replicated_jobs_status)
+            state_dict = status.get("state")
+            if isinstance(state_dict, dict):
+                phase = state_dict.get("phase")
+                if phase:
+                    state = CRD_STATE_DICT.get(phase.lower())
             else:
                 conditions = status.get("conditions")
                 if isinstance(conditions, list):
@@ -318,12 +413,62 @@ class KubernetesRunMonitor:
                     # This should never happen.
                     _logger.warning(
                         f"Unexpected conditions type {type(conditions)} "
-                        f"for CRD {self.job_field_selector}: {conditions}"
+                        f"for CRD watcher in {namespace}"
                     )
             if state is None:
                 continue
-            status = Status(state)
-            self._set_status(status)
-            if status.state in ["finished", "failed", "preempted"]:
-                self.stop()
-                break
+            self._set_status_state(name, state)
+
+
+class SafeWatch:
+    """Wrapper for the kubernetes watch class that can recover in more situations."""
+
+    def __init__(self, watcher: watch.Watch) -> None:
+        """Initialize the SafeWatch."""
+        self._watcher = watcher
+        self._last_seen_resource_version: Optional[str] = None
+        self._stopped = False
+
+    async def stream(self, func: Any, *args: Any, **kwargs: Any) -> Any:
+        """Stream the watcher.
+
+        This method will automatically resume the stream if it breaks. It will
+        also save the resource version so that the stream can be resumed from
+        the last seen resource version.
+        """
+        while True:
+            try:
+                async for event in self._watcher.stream(
+                    func, *args, **kwargs, timeout_seconds=30
+                ):
+                    if self._stopped:
+                        break
+                    # Save the resource version so that we can resume the stream
+                    # if it breaks.
+                    object = event.get("object")
+                    if isinstance(object, dict):
+                        self._last_seen_resource_version = object.get(
+                            "metadata", dict()
+                        ).get("resourceVersion")
+                    else:
+                        self._last_seen_resource_version = (
+                            object.metadata.resource_version
+                        )
+                    kwargs["resource_version"] = self._last_seen_resource_version
+                    yield event
+                # If stream ends after stop just break
+                if self._stopped:
+                    break
+            except urllib3.exceptions.ProtocolError as e:
+                wandb.termwarn(f"Broken event stream: {e}, attempting to recover")
+            except ApiException as e:
+                if e.status == 410:
+                    # If resource version is too old we need to start over.
+                    del kwargs["resource_version"]
+                    self._last_seen_resource_version = None
+            except Exception as E:
+                exc_type = type(E).__name__
+                stack_trace = traceback.format_exc()
+                wandb.termerror(
+                    f"Unknown exception in event stream of type {exc_type}: {E}, attempting to recover. Stack trace: {stack_trace}"
+                )

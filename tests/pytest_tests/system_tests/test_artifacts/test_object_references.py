@@ -360,7 +360,7 @@ def test_artifact_add_reference_via_url(user, cleanup):
             assert file.read() == file_text
 
 
-# # Artifact1.add_reference(artifact2.get_path(file_name))
+# # Artifact1.add_reference(artifact2.get_entry(file_name))
 def test_add_reference_via_artifact_entry(user, cleanup):
     """Test adding a reference to an artifact via an ArtifactEntry.
 
@@ -401,7 +401,7 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
         artifact.add_reference(
-            upstream_artifact.get_path(upstream_artifact_file_path),
+            upstream_artifact.get_entry(upstream_artifact_file_path),
             middle_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -411,7 +411,7 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
         artifact.add_reference(
-            middle_artifact.get_path(middle_artifact_file_path),
+            middle_artifact.get_entry(middle_artifact_file_path),
             downstream_artifact_file_path,
         )
         run.log_artifact(artifact)
@@ -637,7 +637,7 @@ def assert_media_obj_referential_equality(obj):
     assert obj2 == obj
     # name = "obj2." + type(obj)._log_type + ".json"
     # start_path = os.path.join(mid_dir, name)
-    # mid_artifact_ref.get_path(name).download()
+    # mid_artifact_ref.get_entry(name).download()
     # assert os.path.islink(start_path)
     # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
@@ -661,7 +661,7 @@ def assert_media_obj_referential_equality(obj):
     assert not os.path.isdir(os.path.join(mid_dir))
     # name = "obj3." + type(obj)._log_type + ".json"
     # start_path = os.path.join(down_dir, name)
-    # down_artifact_ref.get_path(name).download()
+    # down_artifact_ref.get_entry(name).download()
     # assert os.path.islink(start_path)
     # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
@@ -768,7 +768,7 @@ def test_joined_table_add_by_path(user, cleanup):
 
         # Able to add by reference
         jt = wandb.JoinedTable(
-            upstream.get_path("src_table_1"), upstream.get_path("src_table_2"), "id"
+            upstream.get_entry("src_table_1"), upstream.get_entry("src_table_2"), "id"
         )
         tables_2.add(jt, "jt")
         run.log_artifact(tables_2)

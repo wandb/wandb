@@ -22,11 +22,13 @@ import logging
 import os
 import struct
 import zlib
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import wandb
 
 if TYPE_CHECKING:
+    from typing import IO, Any
+
     from wandb.proto.wandb_internal_pb2 import Record
 
 logger = logging.getLogger(__name__)
@@ -50,7 +52,7 @@ try:
     bytes("", "ascii")
 
     def strtobytes(x):
-        """strtobytes."""
+        """Strtobytes."""
         return bytes(x, "iso8859-1")
 
     # def bytestostr(x):
@@ -67,7 +69,7 @@ class DataStore:
 
     def __init__(self) -> None:
         self._opened_for_scan = False
-        self._fp = None
+        self._fp: Optional["IO[Any]"] = None
         self._index = 0
         self._flush_offset = 0
         self._size_bytes = 0
@@ -77,7 +79,7 @@ class DataStore:
             self._crc[x] = zlib.crc32(strtobytes(chr(x))) & 0xFFFFFFFF
 
         assert (
-            wandb._assert_is_internal_process
+            wandb._assert_is_internal_process  # type: ignore
         ), "DataStore can only be used in the internal process"
 
     def open_for_write(self, fname: str) -> None:
@@ -104,11 +106,11 @@ class DataStore:
         self._read_header()
 
     def seek(self, offset: int) -> None:
-        self._fp.seek(offset)
+        self._fp.seek(offset)  # type: ignore
         self._index = offset
 
     def get_offset(self) -> int:
-        offset = self._fp.tell()
+        offset = self._fp.tell()  # type: ignore
         return offset
 
     def in_last_block(self):
@@ -270,7 +272,7 @@ class DataStore:
         return start_offset, self._index, self._flush_offset
 
     def ensure_flushed(self, off: int) -> None:
-        self._fp.flush()
+        self._fp.flush()  # type: ignore
 
     def write(self, obj: "Record") -> Tuple[int, int, int]:
         """Write a protocol buffer.

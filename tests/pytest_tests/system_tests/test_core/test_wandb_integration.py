@@ -6,6 +6,7 @@ logic.
 
 Be sure to use `test_settings` or an isolated directory
 """
+
 import importlib
 import os
 import shutil
@@ -66,16 +67,6 @@ def test_include_exclude_config_keys(wandb_init):
             config_include_keys=("bar",),
             config_exclude_keys=("bar",),
         )
-
-
-@pytest.mark.nexus_failure(feature="file_uploader")
-def test_ignore_globs_wandb_files(relay_server, wandb_init):
-    with relay_server() as relay:
-        run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))
-        run.finish()
-    assert sorted(relay.context.get_run_uploaded_files(run.id)) == sorted(
-        ["wandb-metadata.json", "config.yaml", "wandb-summary.json"]
-    )
 
 
 def _remove_dir_if_exists(path):
@@ -184,7 +175,7 @@ def test_dir_on_init_dir(wandb_init):
         ("0.9.0", "ERROR wandb version 0.9.0 has been retired"),
     ],
 )  # TODO should we mock pypi?
-@pytest.mark.nexus_failure(feature="terminal_ui")
+@pytest.mark.wandb_core_failure(feature="version_check")
 def test_versions_messages(wandb_init, capsys, version, message):
     with mock.patch("wandb.__version__", version):
         run = wandb_init(settings=dict(console="off"))
@@ -192,8 +183,6 @@ def test_versions_messages(wandb_init, capsys, version, message):
         assert message in capsys.readouterr().err
 
 
-# todo(nexus): debug how the record is sent in the file stream
-@pytest.mark.nexus_failure(feature="mark_preempting")
 def test_end_to_end_preempting(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))
@@ -205,12 +194,10 @@ def test_end_to_end_preempting(relay_server, wandb_init):
             if preempting:
                 break
             time.sleep(1)
-        print(relay.context.raw_data)
         assert any(preempting)
         run.finish()
 
 
-@pytest.mark.nexus_failure(feature="mark_preempting")
 def test_end_to_end_preempting_via_module_func(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(console="off"))

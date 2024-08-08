@@ -1,6 +1,5 @@
 id: 0.mp.20-2-thread-pool-executor
 tag:
-  shard: service
   skip: true
 
 plugin:

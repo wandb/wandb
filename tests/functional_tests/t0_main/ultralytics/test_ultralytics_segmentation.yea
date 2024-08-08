@@ -9,7 +9,7 @@ command:
     program: test_ultralytics_segmentation.py
 depend:
     requirements:
-        - "ultralytics>=8.0.167"
+        - "ultralytics>=8.0.238"
 assert:
     - :wandb:runs_len: 1
     - :wandb:runs[0][config][batch]: 64
@@ -18,8 +18,8 @@ assert:
     - :wandb:runs[0][summary][model/parameters]: 3409968
     - :wandb:runs[0][summary][Validation-Table][_type]: table-file
     - :wandb:runs[0][summary][Validation-Table][nrows]: 126
-    - :wandb:runs[0][summary][Train-Validation-Table][_type]: table-file
-    - :wandb:runs[0][summary][Train-Validation-Table][nrows]: 378
+    - :wandb:runs[0][summary][Train-Table][_type]: table-file
+    - :wandb:runs[0][summary][Train-Table][nrows]: 252
     - :op:>=:
         - :wandb:runs[0][summary][model/GFLOPs]
         - 0

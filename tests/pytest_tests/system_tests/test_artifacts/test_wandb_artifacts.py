@@ -12,9 +12,10 @@ import requests
 import responses
 import wandb
 import wandb.data_types as data_types
-import wandb.sdk.artifacts.artifacts_cache as artifacts_cache
+import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.artifacts.artifact_state import ArtifactState
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -103,10 +104,10 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     return mock
 
 
-def mock_gcs(artifact, path=False):
+def mock_gcs(artifact, path=False, hash=True):
     class Blob:
         def __init__(self, name="my_object.pb", metadata=None, generation=None):
-            self.md5_hash = "1234567890abcde"
+            self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
             self.generation = generation or "1"
             self.name = name
@@ -137,7 +138,7 @@ def mock_gcs(artifact, path=False):
 
 
 @pytest.fixture
-def mock_azure_handler():
+def mock_azure_handler():  # noqa: C901
     class BlobServiceClient:
         def __init__(self, account_url, credential):
             pass
@@ -179,22 +180,47 @@ def mock_azure_handler():
             raise Exception("Blob does not exist")
 
     class BlobProperties:
-        def __init__(self, name, version_id, etag, size):
+        def __init__(self, name, version_id, etag, size, metadata):
             self.name = name
             self.version_id = version_id
             self.etag = etag
             self.size = size
+            self.metadata = metadata
+
+        def has_key(self, k):
+            return k in self.__dict__
 
     blobs = [
         BlobProperties(
-            "my-blob", version_id=None, etag="my-blob version None", size=42
+            "my-blob",
+            version_id=None,
+            etag="my-blob version None",
+            size=42,
+            metadata={},
         ),
-        BlobProperties("my-blob", version_id="v2", etag="my-blob version v2", size=42),
         BlobProperties(
-            "my-dir/a", version_id=None, etag="my-dir/a version None", size=42
+            "my-blob", version_id="v2", etag="my-blob version v2", size=42, metadata={}
         ),
         BlobProperties(
-            "my-dir/b", version_id=None, etag="my-dir/b version None", size=42
+            "my-dir/a",
+            version_id=None,
+            etag="my-dir/a version None",
+            size=42,
+            metadata={},
+        ),
+        BlobProperties(
+            "my-dir/b",
+            version_id=None,
+            etag="my-dir/b version None",
+            size=42,
+            metadata={},
+        ),
+        BlobProperties(
+            "my-dir",
+            version_id=None,
+            etag="my-dir version None",
+            size=0,
+            metadata={"hdi_isfolder": "true"},
         ),
     ]
 
@@ -328,10 +354,7 @@ def test_add_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir(".")
 
-    # note: we are auto-using local_netrc resulting in
-    # the .netrc file being picked by the artifact, see manifest
-
-    assert artifact.digest == "c409156beb903b74fe9097bb249a26d2"
+    assert artifact.digest == "a00c2239f036fb656c1dcbf9a32d89b4"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -345,7 +368,7 @@ def test_add_named_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_dir(".", name="subdir")
 
-    assert artifact.digest == "a2184d2d318ddb2f3aa82818365827df"
+    assert artifact.digest == "a757208d042e8627b2970d72a71bed5b"
 
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["subdir/file1.txt"] == {
@@ -421,7 +444,7 @@ def test_add_reference_local_dir():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd())
 
-    assert artifact.digest == "13d688af2d0dab74e0544a4c5c542735"
+    assert artifact.digest == "72414374bfd4b0f60a116e7267845f71"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -461,7 +484,7 @@ def test_add_reference_local_dir_no_checksum():
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd(), checksum=False)
 
-    assert artifact.digest == "7ca355c7f600119151d607c98921ab50"
+    assert artifact.digest == "3d0e6471486eec5070cf9351bacaa103"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["file1.txt"] == {
         "digest": md5_string(str(size_1)),
@@ -490,10 +513,12 @@ def test_add_reference_local_dir_with_name():
     with open("nest/nest/file3.txt", "w") as f:
         f.write("dude")
 
+    print(os.listdir("."))
+
     artifact = wandb.Artifact(type="dataset", name="my-arty")
     artifact.add_reference("file://" + os.getcwd(), name="top")
 
-    assert artifact.digest == "c406b09e8b6cb180e9be7fa010bf5a83"
+    assert artifact.digest == "f718baf2d4c910dc6ccd0d9c586fa00f"
     manifest = artifact.manifest.to_manifest_json()
     assert manifest["contents"]["top/file1.txt"] == {
         "digest": "XUFAKrxLKna5cZ2REBfFkg==",
@@ -674,9 +699,22 @@ def test_add_gs_reference_object():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "extra": {"versionID": "1"},
         "size": 10,
     }
+
+
+def test_load_gs_reference_object_without_generation_and_mismatched_etag():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_gcs(artifact)
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+    artifact._state = ArtifactState.COMMITTED
+    entry = artifact.get_entry("my_object.pb")
+    entry.extra = {}
+    entry.digest = "abad0"
+
+    with pytest.raises(ValueError, match="Digest mismatch"):
+        entry.download()
 
 
 def test_add_gs_reference_object_with_version():
@@ -689,7 +727,7 @@ def test_add_gs_reference_object_with_version():
     assert manifest["contents"]["my_object.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "2"},
+        "extra": {"versionID": "2"},
         "size": 10,
     }
 
@@ -704,7 +742,7 @@ def test_add_gs_reference_object_with_name():
     assert manifest["contents"]["renamed.pb"] == {
         "digest": "1234567890abcde",
         "ref": "gs://my-bucket/my_object.pb",
-        "extra": {"etag": "1234567890abcde", "versionID": "1"},
+        "extra": {"versionID": "1"},
         "size": 10,
     }
 
@@ -720,11 +758,26 @@ def test_add_gs_reference_path(runner, capsys):
         assert manifest["contents"]["my_object.pb"] == {
             "digest": "1234567890abcde",
             "ref": "gs://my-bucket/my_object.pb",
-            "extra": {"etag": "1234567890abcde", "versionID": "1"},
+            "extra": {"versionID": "1"},
             "size": 10,
         }
         _, err = capsys.readouterr()
         assert "Generating checksum" in err
+
+
+def test_add_gs_reference_object_no_md5():
+    artifact = wandb.Artifact(type="dataset", name="my-arty")
+    mock_gcs(artifact, hash=False)
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+
+    assert artifact.digest == "8aec0d6978da8c2b0bf5662b3fd043a4"
+    manifest = artifact.manifest.to_manifest_json()
+    assert manifest["contents"]["my_object.pb"] == {
+        "digest": "1234567890abcde",
+        "ref": "gs://my-bucket/my_object.pb",
+        "extra": {"versionID": "1"},
+        "size": 10,
+    }
 
 
 def test_add_azure_reference_no_checksum(mock_azure_handler):
@@ -1372,7 +1425,7 @@ def test_http_storage_handler_uses_etag_for_digest(
 def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact)
+    mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
@@ -1388,8 +1441,82 @@ def test_s3_storage_handler_load_path_missing_reference(monkeypatch, wandb_init)
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    with pytest.raises(FileNotFoundError, match="Unable to find"):
-        artifact.download()
+    with wandb_init(project="test") as run:
+        with pytest.raises(FileNotFoundError, match="Unable to find"):
+            artifact.download()
+
+
+def test_change_artifact_collection_type(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        artifact.collection.change_type("lucas_type")
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("image_data:latest")
+        assert artifact.type == "lucas_type"
+
+
+def test_save_artifact_sequence(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("sequence_name", "data")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+        artifact = run.use_artifact("sequence_name:latest")
+        collection = wandb.Api().artifact_collection("data", "sequence_name")
+        collection.description = "new description"
+        collection.name = "new_name"
+        collection.type = "new_type"
+        collection.tags = ["tag"]
+        collection.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        assert artifact.type == "new_type"
+        collection = artifact.collection
+        assert collection.type == "new_type"
+        assert collection.name == "new_name"
+        assert collection.description == "new description"
+        assert len(collection.tags) == 1 and collection.tags[0] == "tag"
+
+        collection.tags = ["new_tag"]
+        collection.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        collection = artifact.collection
+        assert len(collection.tags) == 1 and collection.tags[0] == "new_tag"
+
+
+def test_save_artifact_portfolio(monkeypatch, wandb_init):
+    with wandb_init() as run:
+        artifact = wandb.Artifact("image_data", "data")
+        run.log_artifact(artifact)
+        artifact.link("portfolio_name")
+        artifact.wait()
+
+        portfolio = wandb.Api().artifact_collection("data", "portfolio_name")
+        portfolio.description = "new description"
+        portfolio.name = "new_name"
+        with pytest.raises(ValueError):
+            portfolio.type = "new_type"
+        portfolio.tags = ["tag"]
+        portfolio.save()
+
+        port_artifact = run.use_artifact("new_name:v0")
+        portfolio = port_artifact.collection
+        assert portfolio.name == "new_name"
+        assert portfolio.description == "new description"
+        assert len(portfolio.tags) == 1 and portfolio.tags[0] == "tag"
+
+        portfolio.tags = ["new_tag"]
+        portfolio.save()
+
+        artifact = run.use_artifact("new_name:latest")
+        portfolio = artifact.collection
+        assert len(portfolio.tags) == 1 and portfolio.tags[0] == "new_tag"
 
 
 def test_s3_storage_handler_load_path_missing_reference_allowed(
@@ -1397,7 +1524,7 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 ):
     # Create an artifact that references a non-existent S3 object.
     artifact = wandb.Artifact(type="dataset", name="my-arty")
-    mock_boto(artifact)
+    mock_boto(artifact, version_id="")
     artifact.add_reference("s3://my-bucket/my_object.pb")
 
     with wandb_init(project="test") as run:
@@ -1413,7 +1540,8 @@ def test_s3_storage_handler_load_path_missing_reference_allowed(
 
     monkeypatch.setattr(S3Handler, "_etag_from_obj", bad_request)
 
-    artifact.download(allow_missing_references=True)
+    with wandb_init(project="test") as run:
+        artifact.download(allow_missing_references=True)
 
     # It should still log a warning about skipping the missing reference.
     assert "Unable to find my_object.pb" in capsys.readouterr().err
@@ -1423,7 +1551,7 @@ def test_s3_storage_handler_load_path_uses_cache(tmp_path):
     uri = "s3://some-bucket/path/to/file.json"
     etag = "some etag"
 
-    cache = artifacts_cache.ArtifactsCache(tmp_path)
+    cache = artifact_file_cache.ArtifactFileCache(tmp_path)
     path, _, opener = cache.check_etag_obj_path(uri, etag, 123)
     with opener() as f:
         f.write(123 * "a")
@@ -1489,10 +1617,8 @@ def test_manifest_json_invalid_version(version):
 @pytest.mark.flaky
 @pytest.mark.xfail(reason="flaky")
 def test_cache_cleanup_allows_upload(wandb_init, tmp_path, monkeypatch):
-    cache = artifacts_cache.ArtifactsCache(tmp_path)
-    monkeypatch.setattr(artifacts_cache, "_artifacts_cache", cache)
-    assert cache == artifacts_cache.get_artifacts_cache()
-    cache.cleanup(0)
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    cache = artifact_file_cache.get_artifact_file_cache()
 
     artifact = wandb.Artifact(type="dataset", name="survive-cleanup")
     with open("test-file", "wb") as f:

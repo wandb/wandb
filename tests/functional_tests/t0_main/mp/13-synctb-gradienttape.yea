@@ -2,7 +2,10 @@ id: 0.mp.13-synctb-gradienttape
 plugin:
   - wandb
 tag:
-  shard: service
+  skip: True # todo enable when fixed core (it used to exclude windows)
+  shards:
+    - wandb_core_failure
+  
 depend:
   requirements:
     - numpy

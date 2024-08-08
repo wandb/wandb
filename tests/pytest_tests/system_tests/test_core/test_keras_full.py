@@ -3,11 +3,14 @@ import json
 import os
 
 import pytest
-import tensorflow as tf
-from tensorflow.keras import backend as K  # noqa: N812
-from tensorflow.keras.layers import Dense, Flatten, Reshape
-from tensorflow.keras.models import Sequential
-from wandb.keras import WandbCallback
+
+pytest.importorskip("tensorflow")
+
+import tensorflow as tf  # noqa: E402
+from tensorflow.keras import backend as K  # noqa: N812, E402
+from tensorflow.keras.layers import Dense, Flatten, Reshape  # noqa: E402
+from tensorflow.keras.models import Sequential  # noqa: E402
+from wandb.integration.keras import WandbCallback  # noqa: E402
 
 
 @pytest.fixture
@@ -331,7 +334,6 @@ def test_keras_save_model(dummy_model, dummy_data, wandb_init):
     assert len(glob.glob(os.path.join(run.dir, "model-best.h5"))) == 1
 
 
-@pytest.mark.nexus_failure(feature="artifacts")
 def test_keras_dsviz(dummy_model, dummy_data, wandb_init):
     run = wandb_init()
     dummy_model.fit(

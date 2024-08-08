@@ -1,10 +1,11 @@
+import asyncio
 import pprint
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.apis.public as public
 from wandb.apis.internal import Api
-from wandb.sdk.launch._project_spec import create_project_from_spec
+from wandb.errors import CommError
 from wandb.sdk.launch.builder.build import build_image_from_project
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.utils import (
@@ -14,22 +15,27 @@ from wandb.sdk.launch.utils import (
     validate_launch_spec_source,
 )
 
+from ._project_spec import LaunchProject
+
 
 def push_to_queue(
-    api: Api, queue_name: str, launch_spec: Dict[str, Any], project_queue: str
+    api: Api,
+    queue_name: str,
+    launch_spec: Dict[str, Any],
+    template_variables: Optional[dict],
+    project_queue: str,
+    priority: Optional[int] = None,
 ) -> Any:
-    try:
-        res = api.push_to_run_queue(queue_name, launch_spec, project_queue)
-    except Exception as e:
-        wandb.termwarn(f"{LOG_PREFIX}Exception when pushing to queue {e}")
-        return None
-    return res
+    return api.push_to_run_queue(
+        queue_name, launch_spec, template_variables, project_queue, priority
+    )
 
 
 def launch_add(
     uri: Optional[str] = None,
     job: Optional[str] = None,
     config: Optional[Dict[str, Any]] = None,
+    template_variables: Optional[Dict[str, Union[float, int, str]]] = None,
     project: Optional[str] = None,
     entity: Optional[str] = None,
     queue_name: Optional[str] = None,
@@ -45,6 +51,7 @@ def launch_add(
     repository: Optional[str] = None,
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
+    priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     """Enqueue a W&B launch experiment. With either a source uri, job or docker_image.
 
@@ -53,9 +60,12 @@ def launch_add(
         job: string reference to a wandb.Job eg: wandb/test/my-job:latest
         config: A dictionary containing the configuration for the run. May also contain
             resource specific arguments under the key "resource_args"
+        template_variables: A dictionary containing values of template variables for a run queue.
+            Expected format of {"VAR_NAME": VAR_VALUE}
         project: Target project to send launched run to
         entity: Target entity to send launched run to
         queue: the name of the queue to enqueue the run to
+        priority: the priority level of the job, where 1 is the highest priority
         resource: Execution backend for the run: W&B provides built-in support for "local-container" backend
         entry_point: Entry point to run within the project. Defaults to using the entry point used
             in the original run for wandb URIs, or main.py for git repository URIs.
@@ -99,9 +109,9 @@ def launch_add(
 
     return _launch_add(
         api,
-        uri,
         job,
         config,
+        template_variables,
         project,
         entity,
         queue_name,
@@ -117,14 +127,15 @@ def launch_add(
         repository=repository,
         sweep_id=sweep_id,
         author=author,
+        priority=priority,
     )
 
 
 def _launch_add(
     api: Api,
-    uri: Optional[str],
     job: Optional[str],
     config: Optional[Dict[str, Any]],
+    template_variables: Optional[dict],
     project: Optional[str],
     entity: Optional[str],
     queue_name: Optional[str],
@@ -140,9 +151,10 @@ def _launch_add(
     repository: Optional[str] = None,
     sweep_id: Optional[str] = None,
     author: Optional[str] = None,
+    priority: Optional[int] = None,
 ) -> "public.QueuedRun":
     launch_spec = construct_launch_spec(
-        uri,
+        None,
         job,
         api,
         name,
@@ -170,15 +182,17 @@ def _launch_add(
             wandb.termwarn("Build doesn't support setting a job. Overwriting job.")
             launch_spec["job"] = None
 
-        launch_project = create_project_from_spec(launch_spec, api)
-        docker_image_uri = build_image_from_project(launch_project, api, config or {})
+        launch_project = LaunchProject.from_spec(launch_spec, api)
+        docker_image_uri = asyncio.run(
+            build_image_from_project(launch_project, api, config or {})
+        )
         run = wandb.run or wandb.init(
             project=launch_spec["project"],
             entity=launch_spec["entity"],
             job_type="launch_job",
         )
 
-        job_artifact = run._log_job_artifact_with_image(
+        job_artifact = run._log_job_artifact_with_image(  # type: ignore
             docker_image_uri, launch_project.override_args
         )
         job_name = job_artifact.wait().name
@@ -191,9 +205,21 @@ def _launch_add(
         queue_name = "default"
     if project_queue is None:
         project_queue = LAUNCH_DEFAULT_PROJECT
+    spec_template_vars = launch_spec.get("template_variables")
+    if isinstance(spec_template_vars, dict):
+        launch_spec.pop("template_variables")
+        if template_variables is None:
+            template_variables = spec_template_vars
+        else:
+            template_variables = {
+                **spec_template_vars,
+                **template_variables,
+            }
 
     validate_launch_spec_source(launch_spec)
-    res = push_to_queue(api, queue_name, launch_spec, project_queue)
+    res = push_to_queue(
+        api, queue_name, launch_spec, template_variables, project_queue, priority
+    )
 
     if res is None or "runQueueItemId" not in res:
         raise LaunchError("Error adding run to queue")
@@ -210,19 +236,20 @@ def _launch_add(
     else:
         wandb.termlog(f"{LOG_PREFIX}Added run to queue {project_queue}/{queue_name}.")
     wandb.termlog(f"{LOG_PREFIX}Launch spec:\n{pprint.pformat(launch_spec)}\n")
+
     public_api = public.Api()
-    container_job = False
-    if job:
-        job_artifact = public_api.job(job)
-        if job_artifact._job_info.get("source_type") == "image":
-            container_job = True
+    if job is not None:
+        try:
+            public_api.artifact(job, type="job")
+        except (ValueError, CommError) as e:
+            raise LaunchError(f"Unable to fetch job with name {job}: {e}")
 
     queued_run = public_api.queued_run(
         launch_spec["entity"],
         launch_spec["project"],
         queue_name,
         res["runQueueItemId"],
-        container_job,
         project_queue,
+        priority,
     )
     return queued_run  # type: ignore

@@ -1,7 +1,6 @@
 import copy
 import os
 import platform
-import unittest.mock as mock
 
 import numpy as np
 import pytest
@@ -167,28 +166,30 @@ def test_run_pub_history(mock_run, record_q, parse_records):
     assert history[1]["that"] == "2"
 
 
-def test_deprecated_run_log_sync(mock_run, capsys):
+def test_deprecated_run_log_sync(mock_run, mock_wandb_log):
     run = mock_run()
+
     run.log(dict(this=1), sync=True)
-    _, stderr = capsys.readouterr()
-    assert (
-        "`sync` argument is deprecated and does not affect the behaviour of `wandb.log`"
-        in stderr
+
+    assert mock_wandb_log.warned(
+        "`sync` argument is deprecated"
+        " and does not affect the behaviour of `wandb.log`"
     )
 
 
-def test_run_log_mp_warn(mock_run, test_settings, capsys):
+def test_run_log_mp_warn(mock_run, test_settings, monkeypatch, mock_wandb_log):
+    monkeypatch.setenv("WANDB_DISABLE_SERVICE", "true")
     test_settings = test_settings()
-    with mock.patch.dict("os.environ", {"WANDB_DISABLE_SERVICE": "true"}):
-        test_settings._apply_env_vars(os.environ)
-        run = mock_run(settings=test_settings)
-        run._init_pid = os.getpid()
-        run._init_pid += 1
-        run.log(dict(this=1))
-    _, stderr = capsys.readouterr()
-    assert (
+    test_settings._apply_env_vars(os.environ)
+
+    run = mock_run(settings=test_settings)
+    run._init_pid = os.getpid()
+    run._init_pid += 1
+    run.log(dict(this=1))
+
+    assert mock_wandb_log.warned(
         f"`log` ignored (called from pid={os.getpid()}, "
-        f"`init` called from pid={run._init_pid})" in stderr
+        f"`init` called from pid={run._init_pid})"
     )
 
 

@@ -1,63 +1,66 @@
 """Implementation of Google Artifact Registry for wandb launch."""
+
 import logging
-import re
-from typing import Tuple
+from typing import Optional, Tuple
 
-import yaml
+import google.auth  # type: ignore
+import google.cloud.artifactregistry  # type: ignore
 
-from wandb.sdk.launch.environment.gcp_environment import GcpEnvironment
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.utils import (
+    GCP_ARTIFACT_REGISTRY_URI_REGEX,
+    event_loop_thread_exec,
+)
 from wandb.util import get_module
 
 from .abstract import AbstractRegistry
 
-google = get_module(
-    "google",
-    required="Google Cloud Platform support requires the google package. Please"
-    " install it with `pip install wandb[launch]`.",
-)
-
-google.cloud.artifactregistry = get_module(
-    "google.cloud.artifactregistry",
-    required="Google Cloud Platform support requires the google-cloud-artifact-registry package. "
-    "Please install it with `pip install wandb[launch]`.",
-)
-
-google.auth.credentials = get_module(
-    "google.auth.credentials",
-    required="Google Cloud Platform support requires google-auth. "
-    "Please install it with `pip install wandb[launch]`.",
-)
-
 _logger = logging.getLogger(__name__)
+
+google = get_module(  # noqa: F811
+    "google",
+    required="The google package is required to use launch with Google. Please install it with `pip install wandb[launch]`.",
+)
+google.auth = get_module(  # noqa: F811
+    "google.auth",
+    required="The google-auth package is required to use launch with Google. Please install it with `pip install wandb[launch]`.",
+)
+
+google.cloud.artifactregistry = get_module(  # noqa: F811
+    "google.cloud.artifactregistry",
+    required="The google-cloud-artifactregistry package is required to use launch with Google. Please install it with `pip install wandb[launch]`.",
+)
 
 
 class GoogleArtifactRegistry(AbstractRegistry):
-    """Google Artifact Registry.
+    """Google Artifact Registry helper for interacting with the registry.
 
-    Attributes:
-        repository: The repository name.
-        environment: A GcpEnvironment configured for access to this registry.
+    This helper should be constructed from either a uri or a repository,
+    project, and optional image-name. If constructed from a uri, the uri
+    must be of the form REGION-docker.pkg.dev/PROJECT/REPOSITORY/[IMAGE_NAME],
+    with an optional https:// preceding.
     """
-
-    repository: str
-    image_name: str
-    environment: GcpEnvironment
 
     def __init__(
         self,
-        repository: str,
-        image_name: str,
-        environment: GcpEnvironment,
-        verify: bool = True,
+        uri: Optional[str] = None,
+        repository: Optional[str] = None,
+        image_name: Optional[str] = None,
+        project: Optional[str] = None,
+        region: Optional[str] = None,
     ) -> None:
         """Initialize the Google Artifact Registry.
 
+        Either uri or repository and image_name must be provided. Project and
+        region are optional, and will be inferred from the uri if provided, or
+        from the default credentials if not.
+
         Arguments:
-            repository: The repository name.
-            image_name: The image name.
-            environment: A GcpEnvironment configured for access to this registry.
-            verify: Whether to verify the credentials, region, and project.
+            uri (optional): The uri of the repository.
+            repository (optional): The repository name.
+            image_name (optional): The image name.
+            project (optional): The GCP project name.
+            region (optional): The GCP region name.
 
         Raises:
             LaunchError: If verify is True and the container registry or its
@@ -68,33 +71,59 @@ class GoogleArtifactRegistry(AbstractRegistry):
             f"Initializing Google Artifact Registry with repository {repository} "
             f"and image name {image_name}"
         )
-        self.repository = repository
-        self.image_name = image_name
-        if not re.match(r"^\w[\w.-]+$", image_name):
-            raise LaunchError(
-                f"The image name {image_name} is invalid. The image name must "
-                "consist of alphanumeric characters and underscores."
-            )
-        self.environment = environment
-        if verify:
-            self.verify()
 
-    @property
-    def uri(self) -> str:
-        """The uri of the registry."""
-        return f"{self.environment.region}-docker.pkg.dev/{self.environment.project}/{self.repository}/{self.image_name}"
+        if uri is not None:
+            self.uri = uri
+            # Raise an error if any other kwargs were provided in addition to uri.
+            if any([repository, image_name, project, region]):
+                raise LaunchError(
+                    "The Google Artifact Registry must be specified with either "
+                    "the uri key or the repository, image-name, project and region "
+                    "keys, but not both."
+                )
+            match = GCP_ARTIFACT_REGISTRY_URI_REGEX.match(self.uri)
+            if not match:
+                raise LaunchError(
+                    f"The Google Artifact Registry uri {self.uri} is invalid. "
+                    "Please provide a uri of the form "
+                    "REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE_NAME."
+                )
+            self.project = match.group("project")
+            self.region = match.group("region")
+            self.repository = match.group("repository")
+            self.image_name = match.group("image_name")
+        else:
+            if any(x is None for x in (repository, region, image_name)):
+                raise LaunchError(
+                    "The Google Artifact Registry must be specified with either "
+                    "the uri key or the repository, image-name, project and region "
+                    "keys."
+                )
+            self.project = project
+            self.region = region
+            self.repository = repository
+            self.image_name = image_name
+            self.uri = f"{self.region}-docker.pkg.dev/{self.project}/{self.repository}/{self.image_name}"
 
-    @uri.setter
-    def uri(self, uri: str) -> None:
-        """Set the uri of the registry."""
-        raise LaunchError("The uri of the Google Artifact Registry cannot be set.")
+        _missing_kwarg_msg = (
+            "The Google Artifact Registry is missing the {} kwarg. "
+            "Please specify it by name or as part of the uri argument."
+        )
+        if not self.region:
+            raise LaunchError(_missing_kwarg_msg.format("region"))
+        if not self.repository:
+            raise LaunchError(_missing_kwarg_msg.format("repository"))
+        if not self.image_name:
+            raise LaunchError(_missing_kwarg_msg.format("image-name"))
+        # Try to load default project from the default credentials.
+        self.credentials, project = google.auth.default()
+        self.project = self.project or project
+        self.credentials.refresh(google.auth.transport.requests.Request())
 
     @classmethod
-    def from_config(  # type: ignore[override]
+    def from_config(
         cls,
         config: dict,
-        environment: GcpEnvironment,
-        verify: bool = True,
     ) -> "GoogleArtifactRegistry":
         """Create a Google Artifact Registry from a config.
 
@@ -107,95 +136,41 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Returns:
             A GoogleArtifactRegistry.
         """
-        if "uri" in config:
-            if "repository" in config or "image-name" in config:
-                raise LaunchError(
-                    "The Google Artifact Registry must be specified with either "
-                    "the uri key or the repository and image-name keys, but not both. "
-                    f"The provided config is:\n{yaml.dump(config)}."
-                )
-            match = re.match(
-                r"^(?P<region>[\w-]+)-docker\.pkg\.dev/(?P<project>[\w-]+)/(?P<repository>[\w-]+)/(?P<image_name>[\w-]+)$",
-                config["uri"],
-            )
-            if not match:
-                raise LaunchError(
-                    f"The Google Artifact Registry uri {config['uri']} is invalid. "
-                    "Please provide a uri of the form "
-                    "REGION-docker.pkg.dev/PROJECT/REPOSITORY/IMAGE_NAME."
-                )
-            else:
-                repository = match.group("repository")
-                image_name = match.group("image_name")
-                if match.group("region") != environment.region:
-                    raise LaunchError(
-                        f"The Google Artifact Registry uri {config['uri']} does not "
-                        f"match the configured region {environment.region}."
-                    )
-                if match.group("project") != environment.project:
-                    raise LaunchError(
-                        f"The Google Artifact Registry uri {config['uri']} does not "
-                        f"match the configured project {environment.project}."
-                    )
-        else:
-            repository = config.get("repository")
-            if not repository:
-                raise LaunchError(
-                    "The Google Artifact Registry repository must be specified "
-                    "by setting the either the uri or  repository key of your "
-                    f"registry config. The provided config is:\n{yaml.dump(config)}."
-                )
-            image_name = config.get("image-name")
-            if not image_name:
-                raise LaunchError(
-                    "The Google Artifact Registry repository must be specified "
-                    "by setting the either the uri or  repository key of your "
-                    f"registry config. The provided config is:\n{yaml.dump(config)}."
-                )
-        return cls(repository, image_name, environment, verify=verify)
-
-    def verify(self) -> None:
-        """Verify the registry is properly configured.
-
-        Raises:
-            LaunchError: If the registry is not properly configured.
-        """
-        credentials = self.environment.get_credentials()
-        parent = (
-            f"projects/{self.environment.project}/locations/{self.environment.region}"
-        )
-        # We need to list the repositories to verify that the repository exists.
-        request = google.cloud.artifactregistry.ListRepositoriesRequest(parent=parent)
-        client = google.cloud.artifactregistry.ArtifactRegistryClient(
-            credentials=credentials
-        )
-        try:
-            response = client.list_repositories(request=request)
-        except google.api_core.exceptions.PermissionDenied:
+        # TODO: Replace this with pydantic.
+        acceptable_keys = {
+            "uri",
+            "type",
+            "repository",
+            "image-name",
+            "region",
+            "project",
+        }
+        unacceptable_keys = set(config.keys()) - acceptable_keys
+        if unacceptable_keys:
             raise LaunchError(
-                "The provided credentials do not have permission to access the "
-                f"Google Artifact Registry repository {self.repository}."
+                f"The Google Artifact Registry config contains unacceptable keys: "
+                f"{unacceptable_keys}. Please remove these keys. The acceptable "
+                f"keys are: {acceptable_keys}."
             )
-        # Look for self.repository in the list of responses.
-        for repo in response:
-            if repo.name.endswith(self.repository):
-                break
-        # If we didn't find the repository, raise an error.
-        else:
-            raise LaunchError(
-                f"The Google Artifact Registry repository {self.repository} does not exist."
-            )
+        return cls(
+            uri=config.get("uri"),
+            repository=config.get("repository"),
+            image_name=config.get("image-name"),
+            project=config.get("project"),
+            region=config.get("region"),
+        )
 
-    def get_username_password(self) -> Tuple[str, str]:
+    async def get_username_password(self) -> Tuple[str, str]:
         """Get the username and password for the registry.
 
         Returns:
             A tuple of the username and password.
         """
-        credentials = self.environment.get_credentials()
-        return "oauth2accesstoken", credentials.token
+        if not self.credentials.token:
+            self.credentials.refresh(google.auth.transport.requests.Request())
+        return "oauth2accesstoken", self.credentials.token
 
-    def get_repo_uri(self) -> str:
+    async def get_repo_uri(self) -> str:
         """Get the URI for the given repository.
 
         Arguments:
@@ -205,11 +180,11 @@ class GoogleArtifactRegistry(AbstractRegistry):
             The repository URI.
         """
         return (
-            f"{self.environment.region}-docker.pkg.dev/"
-            f"{self.environment.project}/{self.repository}/{self.image_name}"
+            f"{self.region}-docker.pkg.dev/"
+            f"{self.project}/{self.repository}/{self.image_name}"
         )
 
-    def check_image_exists(self, image_uri: str) -> bool:
+    async def check_image_exists(self, image_uri: str) -> bool:
         """Check if the image exists.
 
         Arguments:
@@ -218,28 +193,27 @@ class GoogleArtifactRegistry(AbstractRegistry):
         Returns:
             True if the image exists, False otherwise.
         """
-        _logger.info(
-            f"Checking if image {image_uri} exists. In Google Artifact Registry {self.uri}."
-        )
+        _logger.info(f"Checking if image {image_uri} exists")
         repo_uri, tag = image_uri.split(":")
-        if repo_uri != self.get_repo_uri():
+        self_repo_uri = await self.get_repo_uri()
+        if repo_uri != self_repo_uri:
             raise LaunchError(
-                f"The image {image_uri} does not belong to the Google Artifact "
-                f"Repository {self.get_repo_uri()}."
+                f"The image {image_uri} does not match to the image uri "
+                f"repository {self.uri}."
             )
-        credentials = self.environment.get_credentials()
-
-        # request = google.cloud.artifactregistry.GetTagRequest(name=image_uri)
-        parent = f"projects/{self.environment.project}/locations/{self.environment.region}/repositories/{self.repository}"
-        client = google.cloud.artifactregistry.ArtifactRegistryClient(
-            credentials=credentials
+        parent = f"projects/{self.project}/locations/{self.region}/repositories/{self.repository}"
+        artifact_registry_client = event_loop_thread_exec(
+            google.cloud.artifactregistry.ArtifactRegistryClient
         )
+        client = await artifact_registry_client(credentials=self.credentials)
+        list_images = event_loop_thread_exec(client.list_docker_images)
         try:
-            for image in client.list_docker_images(request={"parent": parent}):
+            for image in await list_images(request={"parent": parent}):
                 if tag in image.tags:
                     return True
-        except google.api_core.exceptions.NotFound as e:
+        except google.api_core.exceptions.NotFound as e:  # type: ignore[attr-defined]
             raise LaunchError(
-                f"The Google Artifact Registry repository {self.repository} does not exist."
+                f"The Google Artifact Registry repository {self.repository} "
+                f"does not exist. Please create it or modify your registry configuration."
             ) from e
         return False

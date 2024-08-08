@@ -1,0 +1,21 @@
+id: 0.llm-openai.09-finetuning.wandblogger
+plugin:
+  - wandb
+tag:
+  shard: llm
+  skips:
+    - platform: win
+depend:
+    requirements:
+        - "openai>=1.0.1"
+assert:
+  - :wandb:runs_len: 1
+  - :wandb:runs[0][exitcode]: 0
+  - :wandb:runs[0][name]: 'ftjob-H3DHssnC1C82qfc3ePQWeP3V'
+  - :wandb:runs[0][summary][fine_tuned_model]: 'ft:gpt-3.5-turbo-0613:weights-biases::8KWIS3Yj'
+  - :wandb:runs[0][summary][status]: 'succeeded'
+  - :wandb:runs[0][summary][train_accuracy]: 1.0
+  - :wandb:runs[0][summary][valid_mean_token_accuracy]: 0.33333
+  - :wandb:runs[0][config][training_file]: 'file-r3A6hLffY2cEXBUPoEfJSPkC'
+  - :wandb:runs[0][config][validation_file]: 'file-z2xYlp21ljsfc7mXBcX1Jimg'
+

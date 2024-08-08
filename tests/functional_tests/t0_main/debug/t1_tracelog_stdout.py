@@ -24,7 +24,6 @@ import os
 import wandb
 
 os.environ["WANDB_TRACELOG"] = "stdout"
-wandb.require("service")
 wandb.init()
 wandb.log(dict(m1=1))
 wandb.log(dict(m2=2))

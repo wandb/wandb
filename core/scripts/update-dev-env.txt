@@ -1,0 +1,6 @@
+protocolbuffers/protobuf 23.4 scripts/install-protoc.sh
+google.golang.org/protobuf/cmd/protoc-gen-go v1.33.0
+golang.org/x/tools/cmd/goimports v0.11.0
+github.com/go-critic/go-critic/cmd/gocritic v0.11.3
+github.com/fzipp/gocyclo/cmd/gocyclo v0.6.0
+github.com/golangci/golangci-lint/cmd/golangci-lint v1.59.0 scripts/install-golangci-lint.sh

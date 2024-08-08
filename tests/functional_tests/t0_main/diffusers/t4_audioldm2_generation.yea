@@ -1,0 +1,50 @@
+id: 0.diffusers.audioldm2
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: t4_audioldm2_generation.py
+depend:
+    requirements:
+        - "diffusers>=0.23.1"
+        - "soundfile>=0.12.1"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][workflow][0][params][callback_on_step_end_tensor_inputs][0]: "latents"
+    - :wandb:runs[0][config][workflow][0][params][eta]: 0
+    - :wandb:runs[0][config][workflow][0][params][guidance_scale]: 7.5
+    - :wandb:runs[0][config][workflow][0][params][guidance_rescale]: 0
+    - :wandb:runs[0][config][workflow][0][params][num_images_per_prompt]: 2
+    - :wandb:runs[0][config][workflow][0][params][num_inference_steps]: 50
+    - :wandb:runs[0][config][workflow][0][params][output_type]: "pil"
+    - :wandb:runs[0][config][workflow][0][params][prompt][0]: "a photograph of an astronaut riding a horse"
+    - :wandb:runs[0][config][workflow][0][params][prompt][1]: "a photograph of a dragon"
+    - :wandb:runs[0][config][workflow][0][params][negative_prompt][0]: "ugly, deformed"
+    - :wandb:runs[0][config][workflow][0][params][negative_prompt][1]: "ugly, deformed"
+    - :wandb:runs[0][config][workflow][0][params][return_dict]: true
+    - :wandb:runs[0][config][workflow][0][params][generator][seed]: 10
+    - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "runwayml/stable-diffusion-v1-5"
+    - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "StableDiffusionPipeline"
+    - :wandb:runs[0][config][workflow][0][pipeline][requires_safety_checker]: true
+    - :wandb:runs[0][config][workflow][0][pipeline][feature_extractor][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][feature_extractor][1]: "CLIPImageProcessor"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][1]: "PNDMScheduler"
+    - :wandb:runs[0][config][workflow][0][pipeline][safety_checker][0]: "stable_diffusion"
+    - :wandb:runs[0][config][workflow][0][pipeline][safety_checker][1]: "StableDiffusionSafetyChecker"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][1]: "CLIPTextModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][1]: "CLIPTokenizer"
+    - :wandb:runs[0][config][workflow][0][pipeline][unet][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][unet][1]: "UNet2DConditionModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][1]: "AutoencoderKL"
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][_type]: table-file
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][nrows]: 4
+    - :wandb:runs[0][summary][Generated-Audio][Pipeline-Call-1][_type]: audio-file
+    - :wandb:runs[0][summary][Generated-Audio][Pipeline-Call-1][caption]: "The sound of a hammer hitting a wooden surface."
+    - :wandb:runs[0][exitcode]: 0

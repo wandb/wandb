@@ -1,4 +1,6 @@
 """Sweep tests."""
+
+import asyncio
 from typing import Dict
 from unittest.mock import Mock, patch
 
@@ -245,12 +247,12 @@ def test_sweep_scheduler_base_scheduler_states(
         assert _scheduler.state == SchedulerState.COMPLETED
         assert _scheduler.is_alive is False
 
-        def mock_run_raise_keyboard_interupt(*args, **kwargs):
+        def mock_run_raise_keyboard_interrupt(*args, **kwargs):
             raise KeyboardInterrupt
 
         monkeypatch.setattr(
             "wandb.sdk.launch.sweeps.scheduler.Scheduler._update_run_states",
-            mock_run_raise_keyboard_interupt,
+            mock_run_raise_keyboard_interrupt,
         )
 
         sweep_id = wandb.sweep(sweep_config, entity=_entity, project=_project)
@@ -455,7 +457,7 @@ def test_sweep_scheduler_base_add_to_launch_queue(user, sweep_config, monkeypatc
 
 @pytest.mark.parametrize("sweep_config", VALID_SWEEP_CONFIGS_MINIMAL)
 @pytest.mark.parametrize("num_workers", [1, 8])
-def test_sweep_scheduler_sweeps_stop_agent_hearbeat(
+def test_sweep_scheduler_sweeps_stop_agent_heartbeat(
     user, sweep_config, num_workers, monkeypatch
 ):
     _patch_wandb_run(monkeypatch)
@@ -719,8 +721,6 @@ def test_launch_sweep_scheduler_construct_entrypoint(sweep_config):
         f"{queue!r}",
         "--project",
         f"{project!r}",
-        "--sweep_type",
-        "wandb",
         "--author",
         "'author'",
     ]
@@ -774,6 +774,6 @@ def test_launch_sweep_scheduler_macro_args(user, monkeypatch, command):
     scheduler = SweepScheduler(
         api, sweep_id=s, entity=user, project="t", queue="q", num_workers=1
     )
-    scheduler._register_agents()
+    asyncio.run(scheduler._register_agents())
     srun2 = scheduler._get_next_sweep_run(0)
     scheduler._add_to_launch_queue(srun2)

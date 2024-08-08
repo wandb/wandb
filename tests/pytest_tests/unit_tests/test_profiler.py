@@ -4,6 +4,7 @@ from wandb.errors import UsageError
 
 
 def test_profiler_without_init():
+    pytest.importorskip("torch")
     import torch
 
     with pytest.raises(UsageError) as e_info:

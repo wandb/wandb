@@ -1,14 +1,16 @@
 pytest
+pytest-asyncio
 pytest-cov
 pytest-xdist
 pytest-split
 pytest-mock
 pytest-timeout
-pytest-openfiles
 pytest-flakefinder
-pytest-rerunfailures
+pyfakefs
 parameterized
 
 flask>2.0.0
 pandas
 responses
+
+coverage[toml]

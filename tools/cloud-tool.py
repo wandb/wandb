@@ -257,7 +257,7 @@ class GCE:
             "sudo apt install -y python3-pip; "
             "pip3 install --upgrade pip; "
             "pip3 install --upgrade wheel; "
-            "pip3 install --upgrade wandb distributed; "
+            "pip3 install --upgrade wandb distributed; ",
             # "wandb login; ",
         ]
         self.logger.print(" ".join(cmd))

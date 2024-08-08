@@ -1,10 +1,10 @@
+import asyncio
 import logging
 import os
 import shlex
 import subprocess
 import sys
 import threading
-import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
@@ -12,15 +12,16 @@ from wandb.sdk.launch.environment.abstract import AbstractEnvironment
 from wandb.sdk.launch.registry.abstract import AbstractRegistry
 
 from .._project_spec import LaunchProject
-from ..builder.build import get_env_vars_dict
 from ..errors import LaunchError
 from ..utils import (
+    CODE_MOUNT_DIR,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
     _is_wandb_dev_uri,
     _is_wandb_local_uri,
     docker_image_exists,
+    event_loop_thread_exec,
     pull_docker_image,
     sanitize_wandb_api_key,
 )
@@ -54,24 +55,25 @@ class LocalSubmittedRun(AbstractRun):
             return None
         return str(self._command_proc.pid)
 
-    def wait(self) -> bool:
+    async def wait(self) -> bool:
         assert self._thread is not None
         # if command proc is not set
         # wait for thread to set it
         if self._command_proc is None:
             while self._thread.is_alive():
-                time.sleep(5)
+                await asyncio.sleep(5)
                 # command proc can be updated by another thread
                 if self._command_proc is not None:
-                    return self._command_proc.wait() == 0  # type: ignore
-            return False
+                    break  # type: ignore  # mypy thinks this is unreachable
+            else:
+                return False
+        wait = event_loop_thread_exec(self._command_proc.wait)
+        return int(await wait()) == 0
 
-        return self._command_proc.wait() == 0
-
-    def get_logs(self) -> Optional[str]:
+    async def get_logs(self) -> Optional[str]:
         return self._stdout
 
-    def cancel(self) -> None:
+    async def cancel(self) -> None:
         # thread is set immediately after starting, should always exist
         assert self._thread is not None
 
@@ -79,7 +81,7 @@ class LocalSubmittedRun(AbstractRun):
         # indicates to thread to not start command proc if not already started
         self._terminate_flag = True
 
-    def get_status(self) -> Status:
+    async def get_status(self) -> Status:
         assert self._thread is not None, "Failed to get status, self._thread = None"
         if self._command_proc is None:
             if self._thread.is_alive():
@@ -120,10 +122,18 @@ class LocalContainerRunner(AbstractRunner):
                 docker_args["network"] = "host"
             if sys.platform == "linux" or sys.platform == "linux2":
                 docker_args["add-host"] = "host.docker.internal:host-gateway"
-
+        base_image = launch_project.job_base_image
+        if base_image is not None:
+            # Mount code into the container and set the working directory.
+            if "volume" not in docker_args:
+                docker_args["volume"] = []
+            docker_args["volume"].append(
+                f"{launch_project.project_dir}:{CODE_MOUNT_DIR}"
+            )
+            docker_args["workdir"] = CODE_MOUNT_DIR
         return docker_args
 
-    def run(
+    async def run(
         self,
         launch_project: LaunchProject,
         image_uri: str,
@@ -131,8 +141,8 @@ class LocalContainerRunner(AbstractRunner):
         docker_args = self._populate_docker_args(launch_project, image_uri)
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
-        env_vars = get_env_vars_dict(
-            launch_project, self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
+        env_vars = launch_project.get_env_vars_dict(
+            self._api, MAX_ENV_LENGTHS[self.__class__.__name__]
         )
 
         # When running against local port, need to swap to local docker host
@@ -145,36 +155,25 @@ class LocalContainerRunner(AbstractRunner):
         elif _is_wandb_dev_uri(self._api.settings("base_url")):
             env_vars["WANDB_BASE_URL"] = "http://host.docker.internal:9001"
 
-        if launch_project.docker_image:
-            if image_uri.endswith(":latest") or not docker_image_exists(image_uri):
-                try:
-                    pull_docker_image(image_uri)
-                except Exception as e:
-                    wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
-                    if not docker_image_exists(image_uri):
-                        raise LaunchError(
-                            f"Failed to pull docker image {image_uri} with error: {e}"
-                        )
+        if launch_project.docker_image or launch_project.job_base_image:
+            try:
+                pull_docker_image(image_uri)
+            except Exception as e:
+                wandb.termwarn(f"Error attempting to pull docker image {image_uri}")
+                if not docker_image_exists(image_uri):
+                    raise LaunchError(
+                        f"Failed to pull docker image {image_uri} with error: {e}"
+                    )
 
-            assert launch_project.docker_image == image_uri
-
-        additional_args = (
-            launch_project.override_args if launch_project.docker_image else None
-        )
-
-        entry_cmd = (
-            launch_project.override_entrypoint.command
-            if launch_project.override_entrypoint is not None
-            else None
-        )
-
+        entrypoint = launch_project.get_job_entry_point()
+        entry_cmd = None if entrypoint is None else entrypoint.command
         command_str = " ".join(
             get_docker_command(
                 image_uri,
                 env_vars,
                 docker_args=docker_args,
                 entry_cmd=entry_cmd,
-                additional_args=additional_args,
+                additional_args=launch_project.override_args,
             )
         ).strip()
         sanitized_cmd_str = sanitize_wandb_api_key(command_str)
@@ -182,7 +181,7 @@ class LocalContainerRunner(AbstractRunner):
         wandb.termlog(_msg)
         run = _run_entry_point(command_str, launch_project.project_dir)
         if synchronous:
-            run.wait()
+            await run.wait()
         return run
 
 
@@ -215,6 +214,7 @@ def _thread_process_runner(
     # cancel was called before we started the subprocess
     if run._terminate_flag:
         return
+    # TODO: Make this async
     process = subprocess.Popen(
         args,
         close_fds=True,
@@ -235,7 +235,13 @@ def _thread_process_runner(
         if not chunk:
             break
         index = chunk.find(b"\r")
-        decoded_chunk = chunk.decode()
+        decoded_chunk = None
+        while not decoded_chunk:
+            try:
+                decoded_chunk = chunk.decode()
+            except UnicodeDecodeError:
+                # Multi-byte character cut off, try to get the rest of it
+                chunk += os.read(process.stdout.fileno(), 1)  # type: ignore
         if index != -1:
             run._stdout += decoded_chunk
             print(chunk.decode(), end="")

@@ -1,10 +1,11 @@
 """WB local artifact storage handler."""
+
 import os
 from typing import TYPE_CHECKING, Optional, Sequence, Union
 
 import wandb
 from wandb import util
-from wandb.sdk.artifacts.artifact_cache import artifact_cache
+from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import StorageHandler
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
@@ -53,10 +54,10 @@ class WBLocalArtifactHandler(StorageHandler):
         """
         client_id = util.host_from_path(path)
         target_path = util.uri_from_path(path)
-        target_artifact = artifact_cache.get(client_id)
+        target_artifact = artifact_instance_cache.get(client_id)
         if not isinstance(target_artifact, wandb.Artifact):
             raise RuntimeError("Local Artifact not found - invalid reference")
-        target_entry = target_artifact._manifest.entries[target_path]
+        target_entry = target_artifact._manifest.entries[target_path]  # type: ignore
         if target_entry is None:
             raise RuntimeError("Local entry not found - invalid reference")
 

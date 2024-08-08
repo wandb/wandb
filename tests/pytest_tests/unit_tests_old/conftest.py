@@ -61,8 +61,7 @@ servers = ServerMap()
 
 
 def get_temp_dir_kwargs(tmp_path):
-    # Click>=8 implements temp_dir argument which depends on python>=3.7
-    return dict(temp_dir=tmp_path) if sys.version_info >= (3, 7) else {}
+    return dict(temp_dir=tmp_path)
 
 
 def test_cleanup(*args, **kwargs):
@@ -335,7 +334,10 @@ def local_netrc(monkeypatch):
         # TODO: this seems overkill...
         origexpand = os.path.expanduser
         # Touch that netrc
-        open(".netrc", "wb").close()
+
+        netrc_file = ".netrc" if platform.system() != "Windows" else "_netrc"
+
+        open(netrc_file, "wb").close()
 
         def expand(path):
             if "netrc" in path:
@@ -426,7 +428,7 @@ def wandb_init_run(request, runner, mocker, mock_server):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
             run = wandb.init(
-                settings=dict(console="off", mode="offline", _except_exit=False),
+                settings=dict(console="off", mode="offline"),
                 **args["wandb_init"],
             )
             yield run
@@ -443,7 +445,7 @@ def wandb_init(request, runner, mocker, mock_server):
             #  TODO: likely not the right thing to do, we shouldn't be setting this
             wandb._IS_INTERNAL_PROCESS = False
             return wandb.init(
-                settings=dict(console="off", mode="offline", _except_exit=False),
+                settings=dict(console="off", mode="offline"),
                 *args,
                 **kwargs,
             )

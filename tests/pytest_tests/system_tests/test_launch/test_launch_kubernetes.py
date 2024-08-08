@@ -1,13 +1,26 @@
 from unittest.mock import MagicMock
 
-import kubernetes
+import kubernetes_asyncio
+import pytest
 from wandb.apis.internal import Api
 from wandb.sdk.launch import loader
-from wandb.sdk.launch.runner import kubernetes_runner
+from wandb.sdk.launch.agent.agent import LaunchAgent
+from wandb.sdk.launch.runner import kubernetes_monitor, kubernetes_runner
 from wandb.sdk.launch.utils import make_name_dns_safe
 
 
-def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_path):
+async def _mock_maybe_create_imagepull_secret(*args, **kwargs):
+    pass
+
+
+async def _mock_ensure_api_key_secret(*args, **kwargs):
+    pass
+
+
+@pytest.mark.asyncio
+async def test_kubernetes_run_clean_generate_name(
+    relay_server, monkeypatch, assets_path
+):
     jobs = {}
     status = MockDict(
         {
@@ -34,15 +47,23 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
                 "configFile": str(assets_path("launch_k8s_config.yaml")),
             }
         }
+        project.name = "testname"
+        project.sweep_id = None
         project.target_entity = entity_name
         project.target_project = project_name
         project.override_config = {}
+        project.override_args = ["-a", "2"]
+        project.override_files = {}
+        project.run_id = "testname"
+        project.docker_image = "hello-world"
         project.job = "testjob"
         project.launch_spec = {"_resume_count": 0}
         project.fill_macros = lambda _: project.resource_args
+        project.override_entrypoint.command = None
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.job_base_image = None
 
         environment = loader.environment_from_config({})
         api = Api()
@@ -56,15 +77,20 @@ def test_kubernetes_run_clean_generate_name(relay_server, monkeypatch, assets_pa
         monkeypatch.setattr(
             kubernetes_runner,
             "maybe_create_imagepull_secret",
-            lambda *args, **kwargs: None,
+            _mock_maybe_create_imagepull_secret,
         )
-        run = runner.run(project, project.docker_image)
+        run = await runner.run(project, "hello-world")
 
     assert run.name == expected_run_name
-    assert run.get_job()["metadata"]["generateName"] == expected_generate_name
+
+    job = await run.batch_api.read_namespaced_job(
+        name=run.name, namespace=run.namespace
+    )
+    assert job["metadata"]["generateName"] == expected_generate_name
 
 
-def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path):
+@pytest.mark.asyncio
+async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path):
     jobs = {}
     status = MockDict(
         {
@@ -76,7 +102,6 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
     )
 
     with relay_server():
-        api = Api()
         environment = loader.environment_from_config({})
         api = Api()
         runner = loader.runner_from_config(
@@ -103,26 +128,129 @@ def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets_path)
                 "metadata": {"annotations": {"x": "y"}},
             }
         }
+        project.name = "testname"
+        project.sweep_id = None
         project.target_entity = entity_name
         project.target_project = project_name
         project.override_config = {}
         project.override_args = ["-a", "2"]
+        project.override_files = {}
+        project.override_entrypoint.command = None
+        project.run_id = "testname"
+        project.docker_image = "hello-world"
         project.job = "testjob"
         project.fill_macros = lambda _: project.resource_args
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
+        project.job_base_image = None
+
         monkeypatch.setattr(
             kubernetes_runner,
             "maybe_create_imagepull_secret",
-            lambda *args, **kwargs: None,
+            _mock_maybe_create_imagepull_secret,
         )
         project.launch_spec = {"_resume_count": 0}
-        run = runner.run(image_uri="hello-world", launch_project=project)
-    assert run.name == expected_run_name
-    assert run.get_job()["metadata"]["generateName"] == expected_generate_name
-    assert run.get_job()["metadata"]["annotations"] == {"x": "y"}
-    assert run.get_job()["spec"]["template"]["spec"]["containers"][0]["args"] == [
+        run = await runner.run(image_uri="hello-world", launch_project=project)
+    job = await run.batch_api.read_namespaced_job(
+        name=run.name, namespace=run.namespace
+    )
+    assert job["metadata"]["generateName"] == expected_generate_name
+    assert job["metadata"]["annotations"] == {"x": "y"}
+    assert job["spec"]["template"]["spec"]["containers"][0]["args"] == [
         "-a",
         "2",
     ]
+
+
+@pytest.mark.asyncio
+async def test_kubernetes_run_env_vars(relay_server, monkeypatch, assets_path):
+    jobs = {}
+    status = MockDict(
+        {
+            "succeeded": 1,
+            "failed": 0,
+            "active": 0,
+            "conditions": None,
+        }
+    )
+
+    with relay_server():
+        entity_name = "testentity"
+        project_name = "testproject"
+        expected_generate_name = make_name_dns_safe(
+            f"launch-{entity_name}-{project_name}-"
+        )
+        expected_run_name = expected_generate_name + "testname"
+
+        setup_mock_kubernetes_client(monkeypatch, jobs, pods(expected_run_name), status)
+
+        project = MagicMock()
+        project.resource_args = {
+            "kubernetes": {
+                "configFile": str(assets_path("launch_k8s_config.yaml")),
+            }
+        }
+        project.name = "testname"
+        project.sweep_id = None
+        project.target_entity = entity_name
+        project.target_project = project_name
+        project.override_config = {}
+        project.override_args = ["-a", "2"]
+        project.override_files = {}
+        project.run_id = "testname"
+        project.docker_image = "hello-world"
+        project.job = "testjob"
+        project.launch_spec = {"_resume_count": 0, "_wandb_api_key": "test-key"}
+        project.fill_macros = lambda _: project.resource_args
+        project.override_entrypoint.command = None
+        project.queue_name = None
+        project.queue_entity = None
+        project.run_queue_item_id = None
+        project.get_env_vars_dict = lambda _, __: {
+            "WANDB_API_KEY": "test-key",
+        }
+        project.job_base_image = None
+
+        environment = loader.environment_from_config({})
+        api = Api()
+        runner = loader.runner_from_config(
+            runner_name="kubernetes",
+            api=api,
+            runner_config={"DOCKER_ARGS": {}, "SYNCHRONOUS": False},
+            environment=environment,
+            registry=MagicMock(),
+        )
+        monkeypatch.setattr(
+            kubernetes_runner,
+            "maybe_create_imagepull_secret",
+            _mock_maybe_create_imagepull_secret,
+        )
+        monkeypatch.setattr(
+            kubernetes_runner,
+            "ensure_api_key_secret",
+            _mock_ensure_api_key_secret,
+        )
+        monkeypatch.setattr(LaunchAgent, "initialized", lambda: True)
+        monkeypatch.setattr(LaunchAgent, "name", lambda: "test-launch-agent")
+        run = await runner.run(project, "hello-world")
+
+    assert run.name == expected_run_name
+
+    job = await run.batch_api.read_namespaced_job(
+        name=run.name, namespace=run.namespace
+    )
+
+    api_key_secret = {
+        "name": "WANDB_API_KEY",
+        "valueFrom": {
+            "secretKeyRef": {
+                "name": f"wandb-api-key-{project.run_id}",
+                "key": "password",
+            }
+        },
+    }
+    assert api_key_secret in job["spec"]["template"]["spec"]["containers"][0]["env"]
 
 
 class MockDict(dict):
@@ -145,8 +273,17 @@ class MockBatchV1Api:
     def __init__(self, mock_api_client, jobs):
         self.jobs = jobs
 
-    def read_namespaced_job(self, name, namespace):
+    async def read_namespaced_job(self, name, namespace):
         return self.jobs[name]
+
+    async def list_namespaced_job(self, namespace, label_selector="", **kwargs):
+        ret = []
+        k, v = label_selector.split("=")
+        if k == "job-name":
+            for job in self.jobs.items():
+                if job.metadata.name == v:
+                    ret.append(job)
+        return MockPodList(ret)
 
 
 class MockCoreV1Api:
@@ -154,7 +291,7 @@ class MockCoreV1Api:
         # self.context = mock_api_client["context_name"]
         self.pods = pods
 
-    def list_namespaced_pod(self, label_selector, namespace):
+    async def list_namespaced_pod(self, label_selector, namespace, **kwargs):
         ret = []
         k, v = label_selector.split("=")
         if k == "job-name":
@@ -184,25 +321,38 @@ def pods(job_name):
 
 def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
     monkeypatch.setattr(
-        kubernetes.client,
+        kubernetes_asyncio.client,
         "BatchV1Api",
         lambda api_client: MockBatchV1Api(api_client, jobs),
     )
     monkeypatch.setattr(
-        kubernetes.client,
+        kubernetes_asyncio.client,
         "CoreV1Api",
         lambda api_client: MockCoreV1Api(api_client, pods),
     )
     monkeypatch.setattr(
-        kubernetes.utils,
-        "create_from_yaml",
-        lambda _, yaml_objects, namespace: mock_create_from_yaml(
+        kubernetes_asyncio.utils,
+        "create_from_dict",
+        lambda _, yaml_objects, namespace: mock_create_from_dict(
             yaml_objects, jobs, mock_job_base
         ),
     )
+    monkeypatch.setattr(
+        kubernetes_monitor,
+        "LaunchKubernetesMonitor",
+        MagicMock(),
+    )
 
-    def mock_create_from_yaml(yaml_objects, jobs_dict, mock_status):
-        jobd = yaml_objects[0]
+    async def _mock_get_context_and_client(*args, **kwargs):
+        return None, None
+
+    monkeypatch.setattr(
+        kubernetes_monitor,
+        "get_kube_context_and_api_client",
+        _mock_get_context_and_client,
+    )
+
+    async def mock_create_from_dict(jobd, jobs_dict, mock_status):
         name = jobd["metadata"].get("name")
         if not name:
             name = jobd["metadata"]["generateName"] + "testname"
@@ -240,4 +390,4 @@ def setup_mock_kubernetes_client(monkeypatch, jobs, pods, mock_job_base):
             }
         )
         jobs_dict[name] = mock_job
-        return [[mock_job]]
+        return [mock_job]

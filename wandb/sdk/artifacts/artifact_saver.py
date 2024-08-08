@@ -1,4 +1,5 @@
 """Artifact saver."""
+
 import concurrent.futures
 import json
 import os
@@ -10,7 +11,6 @@ import wandb
 import wandb.filesync.step_prepare
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.paths import URIStr
 
@@ -52,7 +52,10 @@ class ArtifactSaver:
         self._api = api
         self._file_pusher = file_pusher
         self._digest = digest
-        self._manifest = ArtifactManifest.from_manifest_json(manifest_json)
+        self._manifest = ArtifactManifest.from_manifest_json(
+            manifest_json,
+            api=self._api,
+        )
         self._is_user_created = is_user_created
         self._server_artifact = None
 
@@ -73,25 +76,22 @@ class ArtifactSaver:
         history_step: Optional[int] = None,
         base_id: Optional[str] = None,
     ) -> Optional[Dict]:
-        try:
-            return self._save_internal(
-                type,
-                name,
-                client_id,
-                sequence_client_id,
-                distributed_id,
-                finalize,
-                metadata,
-                ttl_duration_seconds,
-                description,
-                aliases,
-                use_after_commit,
-                incremental,
-                history_step,
-                base_id,
-            )
-        finally:
-            self._cleanup_staged_entries()
+        return self._save_internal(
+            type,
+            name,
+            client_id,
+            sequence_client_id,
+            distributed_id,
+            finalize,
+            metadata,
+            ttl_duration_seconds,
+            description,
+            aliases,
+            use_after_commit,
+            incremental,
+            history_step,
+            base_id,
+        )
 
     def _save_internal(
         self,
@@ -173,14 +173,7 @@ class ArtifactSaver:
         self._file_pusher.store_manifest_files(
             self._manifest,
             artifact_id,
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_sync(
-                artifact_id,
-                artifact_manifest_id,
-                entry,
-                step_prepare,
-                progress_callback=progress_callback,
-            ),
-            lambda entry, progress_callback: self._manifest.storage_policy.store_file_async(
+            lambda entry, progress_callback: self._manifest.storage_policy.store_file(
                 artifact_id,
                 artifact_manifest_id,
                 entry,
@@ -266,19 +259,3 @@ class ArtifactSaver:
                             b64_to_hex_id(B64MD5(artifact_id)), artifact_file_path
                         )
                     )
-
-    def _cleanup_staged_entries(self) -> None:
-        """Remove all staging copies of local files.
-
-        We made a staging copy of each local file to freeze it at "add" time.
-        We need to delete them once we've uploaded the file or confirmed we
-        already have a committed copy.
-        """
-        staging_dir = get_staging_dir()
-        for entry in self._manifest.entries.values():
-            if entry.local_path and entry.local_path.startswith(staging_dir):
-                try:
-                    os.chmod(entry.local_path, 0o600)
-                    os.remove(entry.local_path)
-                except OSError:
-                    pass

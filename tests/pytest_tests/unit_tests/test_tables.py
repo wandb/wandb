@@ -236,7 +236,6 @@ def test_loading_from_json_with_mixed_types():
 
     artifact = wandb.Artifact("my_artifact", type="dataset")
     _ = wandb.Table.from_json(json_obj, artifact)
-    assert True
 
 
 def test_datetime_conversion():

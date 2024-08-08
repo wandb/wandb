@@ -1,4 +1,5 @@
 """Dummy local environment implementation. This is the default environment."""
+
 from typing import Any, Dict, Union
 
 from wandb.sdk.launch.errors import LaunchError
@@ -27,11 +28,11 @@ class LocalEnvironment(AbstractEnvironment):
         """
         return cls()
 
-    def verify(self) -> None:
+    async def verify(self) -> None:
         """Verify that the local environment is configured correctly."""
         raise LaunchError("Attempted to verify LocalEnvironment.")
 
-    def verify_storage_uri(self, uri: str) -> None:
+    async def verify_storage_uri(self, uri: str) -> None:
         """Verify that the storage URI is configured correctly.
 
         Arguments:
@@ -39,7 +40,7 @@ class LocalEnvironment(AbstractEnvironment):
         """
         raise LaunchError("Attempted to verify storage uri for LocalEnvironment.")
 
-    def upload_file(self, source: str, destination: str) -> None:
+    async def upload_file(self, source: str, destination: str) -> None:
         """Upload a file from the local filesystem to storage in the environment.
 
         Arguments:
@@ -48,7 +49,7 @@ class LocalEnvironment(AbstractEnvironment):
         """
         raise LaunchError("Attempted to upload file for LocalEnvironment.")
 
-    def upload_dir(self, source: str, destination: str) -> None:
+    async def upload_dir(self, source: str, destination: str) -> None:
         """Upload the contents of a directory from the local filesystem to the environment.
 
         Arguments:
@@ -57,7 +58,7 @@ class LocalEnvironment(AbstractEnvironment):
         """
         raise LaunchError("Attempted to upload directory for LocalEnvironment.")
 
-    def get_project(self) -> str:
+    async def get_project(self) -> str:
         """Get the project of the local environment.
 
         Returns: An empty string.

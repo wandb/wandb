@@ -12,6 +12,7 @@ def confusion_matrix(
     preds: Optional[Sequence] = None,
     class_names: Optional[Sequence[str]] = None,
     title: Optional[str] = None,
+    split_table: Optional[bool] = False,
 ):
     """Compute a multi-run confusion matrix.
 
@@ -20,6 +21,7 @@ def confusion_matrix(
         y_true (arr): Array of label indices.
         preds (arr): Array of predicted label indices.
         class_names (arr): Array of class names.
+        split_table (bool): If True, adds "Custom Chart Tables/" to the key of the table so that it's logged in a different section.
 
     Returns:
         Nothing. To see plots, go to your W&B run page then expand the 'media' tab
@@ -46,7 +48,7 @@ def confusion_matrix(
 
     assert (probs is None or preds is None) and not (
         probs is None and preds is None
-    ), "Must provide probabilties or predictions but not both to confusion matrix"
+    ), "Must provide probabilities or predictions but not both to confusion matrix"
 
     if probs is not None:
         preds = np.argmax(probs, axis=1).tolist()
@@ -93,4 +95,5 @@ def confusion_matrix(
         wandb.Table(columns=["Actual", "Predicted", "nPredictions"], data=data),
         fields,
         {"title": title},
+        split_table=split_table,
     )

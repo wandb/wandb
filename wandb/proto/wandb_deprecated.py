@@ -20,7 +20,13 @@ DEPRECATED_FEATURES = Literal[
     "init__config_include_keys",
     "init__config_exclude_keys",
     "keras_callback__save_model",
-    "langchain_tracer"
+    "langchain_tracer",
+    "artifact__get_path",
+    "artifactmanifestentry__name",
+    "api__artifact_versions",
+    "artifact_collection__change_type",
+    "run__define_metric_copy",
+    "run_disabled",
 ]
 
 
@@ -35,3 +41,9 @@ class Deprecated:
     init__config_exclude_keys: DEPRECATED_FEATURES = "init__config_exclude_keys"
     keras_callback__save_model: DEPRECATED_FEATURES = "keras_callback__save_model"
     langchain_tracer: DEPRECATED_FEATURES = "langchain_tracer"
+    artifact__get_path: DEPRECATED_FEATURES = "artifact__get_path"
+    artifactmanifestentry__name: DEPRECATED_FEATURES = "artifactmanifestentry__name"
+    api__artifact_versions: DEPRECATED_FEATURES = "api__artifact_versions"
+    artifact_collection__change_type: DEPRECATED_FEATURES = "artifact_collection__change_type"
+    run__define_metric_copy: DEPRECATED_FEATURES = "run__define_metric_copy"
+    run_disabled: DEPRECATED_FEATURES = "run_disabled"

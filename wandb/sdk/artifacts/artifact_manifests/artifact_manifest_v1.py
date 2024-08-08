@@ -1,9 +1,11 @@
 """Artifact manifest v1."""
+
 from typing import Any, Dict, Mapping, Optional
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5, _md5
 
 
@@ -13,10 +15,12 @@ class ArtifactManifestV1(ArtifactManifest):
         return 1
 
     @classmethod
-    def from_manifest_json(cls, manifest_json: Dict) -> "ArtifactManifestV1":
+    def from_manifest_json(
+        cls, manifest_json: Dict, api: Optional[InternalApi] = None
+    ) -> "ArtifactManifestV1":
         if manifest_json["version"] != cls.version():
             raise ValueError(
-                "Expected manifest version 1, got %s" % manifest_json["version"]
+                "Expected manifest version 1, got {}".format(manifest_json["version"])
             )
 
         storage_policy_name = manifest_json["storagePolicy"]
@@ -33,11 +37,14 @@ class ArtifactManifestV1(ArtifactManifest):
                 size=val.get("size"),
                 extra=val.get("extra"),
                 local_path=val.get("local_path"),
+                skip_cache=val.get("skip_cache"),
             )
             for name, val in manifest_json["contents"].items()
         }
 
-        return cls(storage_policy_cls.from_config(storage_policy_config), entries)
+        return cls(
+            storage_policy_cls.from_config(storage_policy_config, api=api), entries
+        )
 
     def __init__(
         self,

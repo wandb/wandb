@@ -255,15 +255,15 @@ class AuthConfig(dict):
 
     @property
     def auths(self) -> Dict[str, Dict[str, Any]]:
-        return self.get("auths", {})
+        return self.get("auths", {})  # type: ignore
 
     @property
     def creds_store(self) -> Optional[str]:
-        return self.get("credsStore", None)
+        return self.get("credsStore", None)  # type: ignore
 
     @property
     def cred_helpers(self) -> Dict:
-        return self.get("credHelpers", {})
+        return self.get("credHelpers", {})  # type: ignore
 
     @property
     def is_empty(self) -> bool:

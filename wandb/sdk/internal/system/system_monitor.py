@@ -137,8 +137,8 @@ class SystemMonitor:
 
         if aggregated_metrics:
             # update buffer:
-            # todo: get t from publish_stats instead?
-            #  either is not too accurate, just use nexus!
+            # todo: get it from publish_stats instead?
+            #  either is not too accurate, just use wandb-core!
             t = datetime.datetime.now().timestamp()
             for k, v in aggregated_metrics.items():
                 self.buffer[k].append((t, v))

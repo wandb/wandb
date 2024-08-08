@@ -2,7 +2,7 @@ import platform
 from unittest import mock
 
 import pytest
-from wandb.docker import is_buildx_installed
+from wandb.docker import is_buildx_installed, should_add_load_argument
 
 
 @pytest.fixture
@@ -20,3 +20,12 @@ def mock_shell():
 def test_buildx_not_installed(runner):
     with runner.isolated_filesystem():
         assert is_buildx_installed() is False
+
+
+@pytest.mark.parametrize(
+    "platform,adds_load_arg",
+    [(None, True), ("linux/amd64", True), ("linux/amd64,linux/arm64", False)],
+)
+def test_buildx_load_platform(platform, adds_load_arg):
+    res = should_add_load_argument(platform)
+    assert res == adds_load_arg

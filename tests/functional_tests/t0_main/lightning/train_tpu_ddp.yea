@@ -2,12 +2,12 @@ id: 0.lightning.ddp.tpu
 plugin:
   - wandb
 tag:
-  shard: service
+  shard: lightning
   skip: true
 depend:
   requirements:
     - torch
-    - git+https://github.com/wandb/pytorch-lightning.git@wandb-service-attach
+    - lightning
 assert:
   - :wandb:runs_len: 1
   - :wandb:runs[0][config][some_hparam]: Logged Before Trainer starts DDP

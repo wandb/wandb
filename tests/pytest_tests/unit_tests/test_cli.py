@@ -11,6 +11,7 @@ import pytest
 import wandb
 from wandb.apis.internal import InternalApi
 from wandb.cli import cli
+from wandb.sdk.lib.apikey import get_netrc_file_path
 
 DOCKER_SHA = (
     "wandb/deepo@sha256:"
@@ -103,20 +104,20 @@ def test_login_key_arg(runner, dummy_api_key):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc") as f:
+        with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
         assert dummy_api_key in generated_netrc
 
 
 def test_login_host_trailing_slash_fix_invalid(runner, dummy_api_key, local_settings):
     with runner.isolated_filesystem():
-        with open("netrc", "w") as f:
+        with open(get_netrc_file_path(), "w") as f:
             f.write(f"machine \n  login user\npassword {dummy_api_key}")
         result = runner.invoke(
             cli.login, ["--host", "https://google.com/", dummy_api_key]
         )
         assert result.exit_code == 0
-        with open("netrc") as f:
+        with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
         assert generated_netrc == (
             f"machine google.com\n  login user\n  password {dummy_api_key}\n"
@@ -146,7 +147,7 @@ def test_login_onprem_key_arg(runner, dummy_api_key):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc") as f:
+        with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
         assert onprem_key in generated_netrc
 
@@ -174,7 +175,7 @@ def test_login_anonymously(runner, dummy_api_key, monkeypatch, empty_netrc):
         print("Exception: ", result.exception)
         print("Traceback: ", traceback.print_tb(result.exc_info[2]))
         assert result.exit_code == 0
-        with open("netrc") as f:
+        with open(get_netrc_file_path()) as f:
             generated_netrc = f.read()
         assert dummy_api_key in generated_netrc
 
@@ -230,7 +231,7 @@ def test_cli_login_reprompts_when_no_key_specified(runner, mocker, dummy_api_key
         print(f"DEBUG(login) out = {result.output}")
         print(f"DEBUG(login) exc = {result.exception}")
         print(f"DEBUG(login) tb = {traceback.print_tb(result.exc_info[2])}")
-        with open("netrc") as f:
+        with open(get_netrc_file_path()) as f:
             print(f.read())
         assert "ERROR No API key specified." in result.output
 
@@ -248,10 +249,10 @@ def test_docker_run_digest(runner, docker, monkeypatch):
             "-e",
             "WANDB_API_KEY=test",
             "-e",
-            "WANDB_DOCKER=%s" % DOCKER_SHA,
+            "WANDB_DOCKER={}".format(DOCKER_SHA),
             "--runtime",
             "nvidia",
-            "%s" % DOCKER_SHA,
+            "{}".format(DOCKER_SHA),
         ]
     )
 
@@ -576,7 +577,7 @@ def test_local_default(runner, docker, local_settings):
                 "--name",
                 "wandb-local",
                 "-e",
-                "LOCAL_USERNAME=%s" % user,
+                "LOCAL_USERNAME={}".format(user),
                 "-d",
                 "wandb/local",
             ]
@@ -601,7 +602,7 @@ def test_local_custom_port(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME=%s" % user,
+            "LOCAL_USERNAME={}".format(user),
             "-d",
             "wandb/local",
         ]
@@ -626,7 +627,7 @@ def test_local_custom_env(runner, docker, local_settings):
             "--name",
             "wandb-local",
             "-e",
-            "LOCAL_USERNAME=%s" % user,
+            "LOCAL_USERNAME={}".format(user),
             "-e",
             "FOO=bar",
             "-d",

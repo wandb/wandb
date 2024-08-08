@@ -5,7 +5,6 @@ Compare to a run in a single process.
 Example usage of `run.log` with user provide step greater than the internal step.
 """
 
-
 import io
 import multiprocessing as mp
 from contextlib import redirect_stderr
@@ -51,8 +50,6 @@ def reference_run():
 
 
 def main():
-    wandb.require("service")
-
     reference_run()
 
     share_run()

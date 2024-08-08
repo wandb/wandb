@@ -16,7 +16,6 @@ def do_run(num):
 
 
 def main():
-    wandb.require("service")
     wandb.setup()
     num_proc = 4
     pool = mp.Pool(processes=num_proc)

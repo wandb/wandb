@@ -1,12 +1,13 @@
 id: 0.mp.19-2-log-image-sequence-attach
 plugin:
     - wandb
+tag:
+  skips:
+    - platform: win
 depend:
     requirements:
         - numpy
         - pillow
-tag:
-    shard: service
 parametrize:
     permute:
         - :yea:start_method:

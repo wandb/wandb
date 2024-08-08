@@ -13,11 +13,10 @@ these values in many cases.
 import json
 import os
 import sys
-from distutils.util import strtobool
 from pathlib import Path
 from typing import List, MutableMapping, Optional, Union
 
-import appdirs
+import platformdirs  # type: ignore
 
 Env = Optional[MutableMapping]
 
@@ -53,6 +52,8 @@ SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
 FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
+IDENTITY_TOKEN_FILE = "WANDB_IDENTITY_TOKEN_FILE"
+CREDENTIALS_FILE = "WANDB_CREDENTIALS_FILE"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
 DISABLE_GIT = "WANDB_DISABLE_GIT"
@@ -61,6 +62,8 @@ SAVE_CODE = "WANDB_SAVE_CODE"
 TAGS = "WANDB_TAGS"
 IGNORE = "WANDB_IGNORE_GLOBS"
 ERROR_REPORTING = "WANDB_ERROR_REPORTING"
+CORE_ERROR_REPORTING = "WANDB_CORE_ERROR_REPORTING"
+CORE_DEBUG = "WANDB_CORE_DEBUG"
 DOCKER = "WANDB_DOCKER"
 AGENT_REPORT_INTERVAL = "WANDB_AGENT_REPORT_INTERVAL"
 AGENT_KILL_DELAY = "WANDB_AGENT_KILL_DELAY"
@@ -87,6 +90,7 @@ _EXECUTABLE = "WANDB_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
+_REQUIRE_CORE = "WANDB__REQUIRE_CORE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -130,6 +134,8 @@ def immutable_keys() -> List[str]:
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
+        IDENTITY_TOKEN_FILE,
+        CREDENTIALS_FILE,
     ]
 
 
@@ -139,19 +145,38 @@ def _env_as_bool(
     if env is None:
         env = os.environ
     val = env.get(var, default)
+    if not isinstance(val, str):
+        return False
     try:
-        val = bool(strtobool(val))  # type: ignore
-    except (AttributeError, ValueError):
-        pass
-    return val if isinstance(val, bool) else False
+        return strtobool(val)
+    except ValueError:
+        return False
+
+
+def is_require_core(env: Optional[Env] = None) -> bool:
+    return _env_as_bool(_REQUIRE_CORE, default="False", env=env)
 
 
 def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
 
 
+def is_offline(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    return env.get(MODE) == "offline"
+
+
 def error_reporting_enabled() -> bool:
     return _env_as_bool(ERROR_REPORTING, default="True")
+
+
+def core_error_reporting_enabled(default: Optional[str] = None) -> bool:
+    return _env_as_bool(CORE_ERROR_REPORTING, default=default)
+
+
+def core_debug(default: Optional[str] = None) -> bool:
+    return _env_as_bool(CORE_DEBUG, default=default)
 
 
 def ssl_disabled() -> bool:
@@ -370,7 +395,7 @@ def get_magic(
 
 
 def get_data_dir(env: Optional[Env] = None) -> str:
-    default_dir = appdirs.user_data_dir("wandb")
+    default_dir = platformdirs.user_data_dir("wandb")
     if env is None:
         env = os.environ
     val = env.get(DATA_DIR, default_dir)
@@ -382,7 +407,7 @@ def get_artifact_dir(env: Optional[Env] = None) -> str:
     if env is None:
         env = os.environ
     val = env.get(ARTIFACT_DIR, default_dir)
-    return val
+    return os.path.abspath(val)
 
 
 def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
@@ -395,7 +420,7 @@ def get_artifact_fetch_file_url_batch_size(env: Optional[Env] = None) -> int:
 
 def get_cache_dir(env: Optional[Env] = None) -> Path:
     env = env or os.environ
-    return Path(env.get(CACHE_DIR, appdirs.user_cache_dir("wandb")))
+    return Path(env.get(CACHE_DIR, platformdirs.user_cache_dir("wandb")))
 
 
 def get_use_v1_artifacts(env: Optional[Env] = None) -> bool:
@@ -464,3 +489,30 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
         env = os.environ
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
+
+
+def get_credentials_file(default: str, env: Optional[Env] = None) -> Path:
+    """Retrieve the path for the credentials file used to save access tokens.
+
+    The credentials file path can be set via an environment variable, otherwise
+    the default path is used.
+    """
+    if env is None:
+        env = os.environ
+    credentials_file = env.get(CREDENTIALS_FILE, default)
+    return Path(credentials_file)
+
+
+def strtobool(val: str) -> bool:
+    """Convert a string representation of truth to true or false.
+
+    Copied from distutils. distutils was removed in Python 3.12.
+    """
+    val = val.lower()
+
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    elif val in ("n", "no", "f", "false", "off", "0"):
+        return False
+    else:
+        raise ValueError(f"invalid truth value {val!r}")
