@@ -11,7 +11,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.6.dev1"
+__version__ = "0.17.6rc1"
 
 
 # Used with pypi checks and other messages related to pip
