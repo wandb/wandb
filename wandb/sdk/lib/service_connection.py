@@ -68,6 +68,7 @@ def _start_and_connect_service(
 
     conn = ServiceConnection(client=client, proc=proc)
 
+    # TODO: ExitHooks?
     atexit.register(conn._teardown_atexit)
 
     return conn
