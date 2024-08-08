@@ -1089,13 +1089,14 @@ class Run:
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__mode,
+                warning_message=(
+                    "The mode property of wandb.run is deprecated "
+                    "and will be removed in a future release."
+                ),
+            )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -2158,12 +2159,14 @@ class Run:
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__join,
-            warning_message=(
-                "wandb.run.join() is deprecated, please use wandb.run.finish()."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            print(hasattr(self, "_telemetry_obj"))
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__join,
+                warning_message=(
+                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
+                ),
+            )
         self._finish(exit_code=exit_code)
 
     @_run_decorator._noop_on_finish()
@@ -2368,11 +2371,7 @@ class Run:
             return
         self._atexit_cleanup_called = True
 
-        exit_code = (
-            exit_code  #
-            or (self._hooks and self._hooks.exit_code)
-            or 0
-        )
+        exit_code = exit_code or (self._hooks and self._hooks.exit_code) or 0
         self._exit_code = exit_code
         logger.info(f"got exitcode: {exit_code}")
 
@@ -3415,8 +3414,8 @@ class Run:
             path: (str) path to downloaded model artifact file(s).
         """
         artifact = self.use_artifact(artifact_or_name=name)
-        assert (
-            "model" in str(artifact.type.lower())
+        assert "model" in str(
+            artifact.type.lower()
         ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
         path = artifact.download()
 
@@ -3508,8 +3507,8 @@ class Run:
         public_api = self._public_api()
         try:
             artifact = public_api.artifact(name=f"{name}:latest")
-            assert (
-                "model" in str(artifact.type.lower())
+            assert "model" in str(
+                artifact.type.lower()
             ), "You can only use this method for 'model' artifacts. For an artifact to be a 'model' artifact, its type property must contain the substring 'model'."
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
