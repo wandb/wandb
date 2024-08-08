@@ -371,6 +371,7 @@ jobs:
         with:
           name: v${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}
+          target_commitish: release-${{ github.event.inputs.version }}
           body_path: release_notes.md
           files: |
             wandb-${{ github.event.inputs.version }}.zip
