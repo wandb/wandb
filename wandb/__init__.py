@@ -61,10 +61,6 @@ wandb.sdk.wandb_require._import_module_hook()
 from wandb import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
-from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
-
-_cleanup_media_tmp_dir()
-
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
