@@ -87,6 +87,11 @@ func (m definedMetric) With(
 	return m
 }
 
+// HasUIHints reports whether this metric should be saved to the run config.
+func (m definedMetric) HasUIHints() bool {
+	return len(m.Step) > 0 || m.IsHidden
+}
+
 // ToRecord returns a MetricRecord representing this metric.
 func (m definedMetric) ToRecord(name string) *service.MetricRecord {
 	rec := &service.MetricRecord{

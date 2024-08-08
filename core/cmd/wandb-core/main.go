@@ -110,6 +110,7 @@ func main() {
 			PortFilename:    *portFilename,
 			ParentPid:       *pid,
 			SentryClient:    sentryClient,
+			Commit:          commit,
 		},
 	)
 	if err != nil {
