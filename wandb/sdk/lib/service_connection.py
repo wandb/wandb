@@ -1,6 +1,5 @@
 import atexit
 import os
-import threading
 from typing import Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
@@ -18,7 +17,7 @@ class WandbServiceNotOwnedError(Exception):
     """Raised when the current process does not own the service process."""
 
 
-def connect_to_service(settings: "pb.Settings") -> "ServiceConnection":
+def connect_to_service(settings: "wandb_settings_pb2.Settings") -> "ServiceConnection":
     """Connects to the service process, starting one up if necessary."""
     conn = _try_connect_to_existing_service()
     if conn:
@@ -43,7 +42,9 @@ def _try_connect_to_existing_service() -> "Optional[ServiceConnection]":
     return ServiceConnection(client=client, proc=None)
 
 
-def _start_and_connect_service(settings: "pb.Settings") -> "ServiceConnection":
+def _start_and_connect_service(
+    settings: "wandb_settings_pb2.Settings",
+) -> "ServiceConnection":
     """Starts a service process and returns a connection to it.
 
     An atexit hook is registered to tear down the service process and wait for

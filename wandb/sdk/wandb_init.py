@@ -884,8 +884,11 @@ def _attach(
         raise UsageError("logger is not initialized")
 
     service = _wl.service
-    attach_settings = service and service.inform_attach(attach_id=attach_id)
-    if attach_settings is None:
+    if not service:
+        raise UsageError(f"Unable to attach to run {attach_id}")
+
+    attach_settings = service.inform_attach(attach_id=attach_id)
+    if not attach_settings:
         raise UsageError(f"Unable to attach to run {attach_id}")
 
     settings: Settings = copy.copy(_wl._settings)
