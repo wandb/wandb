@@ -218,9 +218,16 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.22.5` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.22.6` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
 brew install go@1.22
+```
+
+### Setting up Rust on Linux
+
+If you are developing on a Linux machine, you will need the Rust toolchain to build the `nvidia_gpu_stats` binary used to monitor Nvidia GPUs on Linux. Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ### Building/installing the package
