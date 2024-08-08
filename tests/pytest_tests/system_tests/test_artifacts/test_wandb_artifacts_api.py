@@ -85,6 +85,28 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
+@pytest.mark.xfail(reason="Still working on logging with artifact tags", strict=True)
+def test_save_tags_after_logging_artifact(user, wandb_init):
+    project = "test"
+    run = wandb_init(entity=user, project=project)
+    artifact = wandb.Artifact("test-artifact", "test-type")
+    with open("boom.txt", "w") as f:
+        f.write("testing")
+    artifact.add_file("boom.txt", "test-name")
+    run.log_artifact(artifact, tags=["sequence"])
+    artifact.wait()
+    artifact.tags.append("hello")
+    artifact.save()
+    run.finish()
+
+    # fetch artifact and verify tag exists
+    artifact = Api().artifact(
+        name=f"{user}/{project}/test-artifact:v0", type="test-type"
+    )
+    tags = artifact.tags
+    assert "hello" in tags
+
+
 def test_update_aliases_on_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
