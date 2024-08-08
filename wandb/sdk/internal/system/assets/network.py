@@ -1,4 +1,5 @@
 import threading
+import time
 from collections import deque
 from typing import TYPE_CHECKING, List
 
@@ -68,6 +69,79 @@ class NetworkRecv:
         return {self.name: aggregate}
 
 
+class NetworkTrafficSent:
+    """Network traffic sent."""
+
+    name = "network.upload_speed"
+    samples: "Deque[float]"
+    last_sample: float
+
+    def __init__(self) -> None:
+        self.upload_speed = psutil.net_io_counters().bytes_sent
+        self.samples = deque([])
+        self.upload_speed.sample()
+        self.last_sample = self.upload_speed.samples[-1]
+        self.initial_timestamp = time.time()
+
+    def sample(self) -> None:
+        self.upload_speed.sample()
+        current_timestamp = time.time()
+        current_sample = self.network_sent.samples[-1]
+        delta_sent = (current_sample - self.last_sample) / (
+            current_timestamp - self.initial_timestamp
+        )  # this should be the difference in timestamps
+        self.samples.append(delta_sent)
+        self.last_sample = current_sample
+        self.initial_timestamp = current_timestamp
+
+    def clear(self) -> None:
+        self.network_sent.clear()
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        return (
+            {self.name: aggregate_mean(self.samples)}
+            if self.samples
+            else {self.name: 0}
+        )
+
+
+class NetworkTrafficReceived:
+    """Network traffic received."""
+
+    name = "network.download_speed"
+    samples: "Deque[float]"
+
+    def __init__(self) -> None:
+        self.network_received = psutil.net_io_counters().bytes_recv
+        self.samples = deque([])
+        self.network_received.sample()
+        self.last_sample = self.network_received.samples[-1]
+        self.initial_timestamp = time.time()
+
+    def sample(self) -> None:
+        self.network_received.sample()
+        current_timestamp = time.time()
+        current_sample = self.network_received.samples[-1]
+        delta_sent = (current_sample - self.last_sample) / (
+            current_timestamp - self.initial_timestamp
+        )
+        self.samples.append(delta_sent)
+        self.last_sample = current_sample
+        self.initial_timestamp = current_timestamp
+
+    def clear(self) -> None:
+        self.network_received.clear()
+        self.samples.clear()
+
+    def aggregate(self) -> dict:
+        return (
+            {self.name: aggregate_mean(self.samples)}
+            if self.samples
+            else {self.name: 0}
+        )
+
+
 @asset_registry.register
 class Network:
     def __init__(
@@ -80,6 +154,8 @@ class Network:
         self.metrics: List[Metric] = [
             NetworkSent(),
             NetworkRecv(),
+            NetworkTrafficSent(),
+            NetworkTrafficReceived(),
         ]
         self.metrics_monitor = MetricsMonitor(
             self.name,
