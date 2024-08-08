@@ -540,7 +540,9 @@ class _WandbInit:
         drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
         drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
         drun.join = drun.finish  # type: ignore
-        drun.define_metric = lambda *_, **__: wandb.wandb_sdk.wandb_metric.Metric("dummy")  # type: ignore
+        drun.define_metric = lambda *_, **__: wandb.wandb_sdk.wandb_metric.Metric(
+            "dummy"
+        )  # type: ignore
         drun.save = lambda *_, **__: False  # type: ignore
         for symbol in (
             "alert",
