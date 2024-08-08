@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.6] - 2024-08-08
+
 ### Added
 
 - Specify job input schemas when calling manage_config_file or manage_wandb_config to create a nicer UI when launching the job, by @TimH98 in https://github.com/wandb/wandb/pull/7907, https://github.com/wandb/wandb/pull/7924, https://github.com/wandb/wandb/pull/7971
