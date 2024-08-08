@@ -322,6 +322,11 @@ def _setup(
 def setup(
     settings: Optional[Settings] = None,
 ) -> Optional["_WandbSetup"]:
+    """Set up a wandb session.
+
+    Note: This sets up a process-local singleton object.
+    (Forked processes will get a new copy of the object)
+    """
     ret = _setup(settings=settings)
     return ret
 

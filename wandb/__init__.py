@@ -115,13 +115,6 @@ def _assert_is_user_process():
     assert not _IS_INTERNAL_PROCESS
 
 
-# toplevel:
-# save()
-# restore()
-# login()
-# sweep()
-# agent()
-
 # globals
 Api = PublicApi
 api = InternalApi()
@@ -224,9 +217,9 @@ _sentry.setup()
 
 
 __all__ = (
-    "__version__",
-    "init",
-    "setup",
+    "__version__", #
+    "init", #
+    "setup", #
     "save",
     "sweep",
     "controller",
