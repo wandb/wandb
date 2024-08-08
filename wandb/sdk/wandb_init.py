@@ -15,6 +15,7 @@ import os
 import platform
 import sys
 import tempfile
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
@@ -174,7 +175,9 @@ class _WandbInit:
         # we add this logic to be backward compatible with the old behavior of disable
         # where it would disable the service if the mode was set to disabled
         mode = kwargs.get("mode")
-        settings_mode = (kwargs.get("settings") or {}).get("mode")
+        settings_mode = (kwargs.get("settings") or {}).get("mode") or os.environ.get(
+            "WANDB_MODE"
+        )
         _disable_service = mode == "disabled" or settings_mode == "disabled"
         setup_settings = {"_disable_service": _disable_service}
 
@@ -522,17 +525,60 @@ class _WandbInit:
         logger.info(f"Logging internal logs to {settings.log_internal}")
 
     def _make_run_disabled(self) -> Run:
+        """Returns a Run-like object where all methods are no-ops.
+
+        This enables the user to call wandb.init(mode="disabled") and still have a Run object.
+        We ensure that the attributes and methods of the run object are available, but do nothing.
+        """
         drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        # config and summary objects
         drun._config = wandb.wandb_sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
         drun._config.update(self.config)
         drun.summary = SummaryDisabled()  # type: ignore
+        # methods
         drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
         drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
+        drun.join = drun.finish  # type: ignore
+        drun.define_metric = lambda *_, **__: wandb.wandb_sdk.wandb_metric.Metric(
+            "dummy"
+        )  # type: ignore
+        drun.save = lambda *_, **__: False  # type: ignore
+        for symbol in (
+            "alert",
+            "finish_artifact",
+            "get_project_url",
+            "get_sweep_url",
+            "get_url",
+            "link_artifact",
+            "link_model",
+            "use_artifact",
+            "log_artifact",
+            "log_code",
+            "log_model",
+            "use_model",
+            "mark_preempting",
+            "plot_table",
+            "restore",
+            "status",
+            "watch",
+            "unwatch",
+            "upsert_artifact",
+        ):
+            setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+        # attributes
         drun._step = 0
+        drun._attach_id = None
         drun._run_obj = None
         drun._run_id = runid.generate_id()
         drun._name = "dummy-" + drun.id
+        drun._project = "dummy"
+        drun._entity = "dummy"
+        drun._tags = tuple()
+        drun._notes = None
+        drun._group = None
+        drun._start_time = time.time()
+        drun._starting_step = 0
         module.set_global(
             run=drun,
             config=drun.config,
