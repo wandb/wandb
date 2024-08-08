@@ -2160,7 +2160,6 @@ class Run:
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
         if hasattr(self, "_telemetry_obj"):
-            print(hasattr(self, "_telemetry_obj"))
             deprecate.deprecate(
                 field_name=deprecate.Deprecated.run__join,
                 warning_message=(
