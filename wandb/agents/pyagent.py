@@ -55,6 +55,7 @@ class Job:
         self.type = job_type
         self.run_id = command.get("run_id")
         self.config = command.get("args")
+        self.run_queue_item_id = command.get("runqueue_item_id")
 
     def __repr__(self):
         if self.type == "run":
@@ -216,6 +217,23 @@ class Agent:
                     thread = threading.Thread(target=self._run_job, args=(job,))
                     self._run_threads[run_id] = thread
                     thread.start()
+                    if job.run_queue_item_id is not None:
+                        try:
+                            self._api.ack_run_queue_item(
+                                job.run_queue_item_id, run_id, False
+                            )
+                        except wandb.CommError as e:
+                            logger.error("Failed to ack run queue item: %s", e)
+                            _already_acked_msg = (
+                                "item already claimed or not eligible to be claimed"
+                            )
+                            if _already_acked_msg in e.message:
+                                logger.info("Run queue item already acked, moving on.")
+                            else:
+                                raise e
+                        except Exception as e:
+                            logger.error("Failed to ack run queue item: %s", e)
+                            raise e
                     self._run_status[run_id] = RunStatus.RUNNING
                     thread.join()
                     logger.debug(f"Thread joined for run {run_id}.")

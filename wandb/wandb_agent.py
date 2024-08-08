@@ -369,6 +369,7 @@ class Agent:
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
+        run_queue_item_id = command.get("runqueue_item_id")
         # TODO(jhr): move into settings
         config_file = os.path.join(
             "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
@@ -425,6 +426,21 @@ class Agent:
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run_id] = proc
 
+        if run_queue_item_id is not None:
+            try:
+                self._api.ack_run_queue_item(run_queue_item_id, run_id, False)
+            except wandb.CommError as e:
+                logger.error("Failed to ack run queue item: %s", e)
+                _already_acked_msg = (
+                    "item already claimed or not eligible to be claimed"
+                )
+                if _already_acked_msg in e.message:
+                    logger.info("Run queue item already acked, moving on.")
+                else:
+                    raise e
+            except Exception as e:
+                logger.error("Failed to ack run queue item: %s", e)
+                raise e
         # we keep track of when we sent the sigterm to give processes a chance
         # to handle the signal before sending sigkill every heartbeat
         self._run_processes[run_id].last_sigterm_time = None
