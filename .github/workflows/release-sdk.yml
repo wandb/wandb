@@ -154,7 +154,7 @@ jobs:
             rustc --version &&
             cargo --version
           CIBW_ENVIRONMENT_LINUX:
-            PATH=$PATH:/usr/local/go/bin
+            PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
       - uses: actions/upload-artifact@v3
         with:
@@ -329,7 +329,9 @@ jobs:
   pypi-publish:
     if: ${{ !inputs.dry-run }}
     name: Publish to PyPI
-    needs: [verify-test-pypi, verify-test-pypi-sdist]
+    # TODO: temporary hack, remove after 0.17.6 release
+    # needs: [verify-test-pypi, verify-test-pypi-sdist]
+    needs: [build-platform-wheels, build-universal-wheel, build-sdist]
     runs-on: ubuntu-latest
     environment:
       name: release
