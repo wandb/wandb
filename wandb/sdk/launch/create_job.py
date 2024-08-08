@@ -114,6 +114,7 @@ def _create_job(
     git_hash: Optional[str] = None,
     build_context: Optional[str] = None,
     dockerfile: Optional[str] = None,
+    base_image: Optional[str] = None,
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
@@ -188,6 +189,7 @@ def _create_job(
         api.api,
         dockerfile=dockerfile,
         build_context=build_context,
+        base_image=base_image,
     )
     if not artifact:
         wandb.termerror("JobBuilder failed to build a job")
