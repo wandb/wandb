@@ -1,4 +1,3 @@
-from ast import alias
 import copy
 import os
 import platform
@@ -200,11 +199,13 @@ def test_use_artifact_offline(mock_run):
         run.use_artifact("boom-data")
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
 
+
 def test_use_artifact_aliases(mock_run):
     run = mock_run(settings=wandb.Settings(mode="online"))
     with pytest.raises(Exception) as e_info:
         run.use_artifact("boom-data", alias="boom-data")
         assert "boom-data" in run._artifact_aliases
+
 
 def test_run_basic():
     s = wandb.Settings()
