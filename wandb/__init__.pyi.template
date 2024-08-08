@@ -1,0 +1,53 @@
+"""Weights & Biases Models: use wandb to train and productionize models.
+
+Train and fine-tune models, manage models from experimentation to production.
+
+For guides and examples, see https://docs.wandb.ai.
+
+For scripts and interactive notebooks, see https://github.com/wandb/examples.
+
+For reference documentation, see https://docs.wandb.com/ref/python.
+"""
+
+# from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
+
+# if TYPE_CHECKING:
+from wandb.sdk import Settings
+from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.wandb_run import Run
+
+def init(
+    job_type: Optional[str] = None,
+    dir: Optional[StrPath] = None,
+    config: Union[Dict, str, None] = None,
+    project: Optional[str] = None,
+    entity: Optional[str] = None,
+    reinit: Optional[bool] = None,
+    tags: Optional[Sequence] = None,
+    group: Optional[str] = None,
+    name: Optional[str] = None,
+    notes: Optional[str] = None,
+    magic: Optional[Union[dict, str, bool]] = None,
+    config_exclude_keys: Optional[List[str]] = None,
+    config_include_keys: Optional[List[str]] = None,
+    anonymous: Optional[str] = None,
+    mode: Optional[str] = None,
+    allow_val_change: Optional[bool] = None,
+    resume: Optional[Union[bool, str]] = None,
+    force: Optional[bool] = None,
+    tensorboard: Optional[bool] = None,  # alias for sync_tensorboard
+    sync_tensorboard: Optional[bool] = None,
+    monitor_gym: Optional[bool] = None,
+    save_code: Optional[bool] = None,
+    id: Optional[str] = None,
+    fork_from: Optional[str] = None,
+    resume_from: Optional[str] = None,
+    settings: Union[Settings, Dict[str, Any], None] = None,
+) -> Run:
+    """LOL DUDE."""
+    ...
+
+def log() -> None:
+    """LOL DUDE."""
+    ...
