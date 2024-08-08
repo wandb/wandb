@@ -1,4 +1,4 @@
-"""W&B Models: use wandb to train and productionize models.
+"""Weights & Biases Models: use wandb to train and productionize models.
 
 Train and fine-tune models, manage models from experimentation to production.
 
