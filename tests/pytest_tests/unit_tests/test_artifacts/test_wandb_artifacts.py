@@ -1,4 +1,5 @@
 import functools
+from pdb import run
 import queue
 import shutil
 import unittest.mock as mock
@@ -485,3 +486,4 @@ def test_download_with_pathlib_root(monkeypatch):
     root = list(artifact._download_roots)[0]
     path_parts = custom_path.parts
     assert Path(root).parts[-len(path_parts) :] == path_parts
+

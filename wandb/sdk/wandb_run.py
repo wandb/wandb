@@ -3011,7 +3011,7 @@ class Run:
                 aliases = []
             elif isinstance(aliases, str):
                 aliases = [aliases]
-            artifact.aliases+=aliases
+            artifact.aliases += aliases
         else:
             artifact = artifact_or_name
             if aliases is None:
