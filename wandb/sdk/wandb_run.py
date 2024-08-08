@@ -2159,12 +2159,13 @@ class Run:
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__join,
-            warning_message=(
-                "wandb.run.join() is deprecated, please use wandb.run.finish()."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__join,
+                warning_message=(
+                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
+                ),
+            )
         self._finish(exit_code=exit_code)
 
     @_run_decorator._noop_on_finish()
