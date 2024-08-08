@@ -525,7 +525,7 @@ class _WandbInit:
         logger.info(f"Logging internal logs to {settings.log_internal}")
 
     def _make_run_disabled(self) -> Run:
-        """Create a disabled Run object.
+        """Returns a Run-like object where all methods are no-ops.
 
         This method is used when wandb.init(mode="disabled") is called or WANDB_MODE=disabled
         is set. It creates a Run object that mimics the behavior of a normal Run but doesn't
