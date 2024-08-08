@@ -203,7 +203,7 @@ def test_use_artifact_offline(mock_run):
 def test_use_artifact_aliases(mock_run):
     run = mock_run(settings=wandb.Settings(mode="online"))
     with pytest.raises(Exception) as e_info:
-        run.use_artifact("boom-data",alias="boom-data")
+        run.use_artifact("boom-data", alias="boom-data")
         assert "boom-data" in run._artifact_aliases
 
 def test_run_basic():
