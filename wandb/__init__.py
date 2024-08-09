@@ -1,9 +1,6 @@
-"""Use wandb to track machine learning work.
+"""Weights & Biases Models: use wandb to train and productionize models.
 
-The most commonly used functions/objects are:
-  - wandb.init — initialize a new run at the top of your training script
-  - wandb.config — track hyperparameters and metadata
-  - wandb.log — log metrics and media over time within your training loop
+Train and fine-tune models, manage models from experimentation to production.
 
 For guides and examples, see https://docs.wandb.ai.
 
@@ -118,13 +115,6 @@ def _assert_is_user_process():
     assert not _IS_INTERNAL_PROCESS
 
 
-# toplevel:
-# save()
-# restore()
-# login()
-# sweep()
-# agent()
-
 # globals
 Api = PublicApi
 api = InternalApi()
@@ -227,15 +217,15 @@ _sentry.setup()
 
 
 __all__ = (
-    "__version__",
-    "init",
-    "setup",
-    "save",
+    "__version__", #
+    "init", #
+    "setup", #
+    "save", 
     "sweep",
     "controller",
     "agent",
     "config",
-    "log",
+    "log", #
     "summary",
     "join",
     "Api",
