@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -93,7 +92,7 @@ func (rb *ResumeBranch) GetUpdates(
 
 	// if we have data and we are in the MUST or ALLOW resume mode, we can resume the run
 	if data != nil && rb.mode != "never" {
-		update, err := extractRunState(params, data)
+		update, err := processResponse(params, data)
 		if err != nil && rb.mode == "must" {
 			info := &service.ErrorInfo{
 				Code: service.ErrorInfo_USAGE,
@@ -140,191 +139,100 @@ func runExists(response *gql.RunResumeStatusResponse) bool {
 	return true
 }
 
-// extractRunState extracts the run state from the data we get from the server
+// processResponse extracts the run state from the data we get from the server
 //
 //gocyclo:ignore
-func extractRunState(params *RunParams, data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
-	r := &RunParams{}
-	r.Merge(params)
+func processResponse(params *RunParams, data *gql.RunResumeStatusModelProjectBucketRun) (*RunParams, error) {
+	r := params.Clone()
 
-	if r.FileStreamOffset == nil {
-		r.FileStreamOffset = make(filestream.FileStreamOffsetMap)
+	// Get Config information
+	if config, err := processConfigResume(data.GetConfig()); err != nil {
+		return nil, err
+	} else if config != nil {
+		r.Config = config
 	}
 
-	// update the file stream offsets with the data from the server
-	if data.GetHistoryLineCount() != nil {
-		r.FileStreamOffset[filestream.HistoryChunk] = *data.GetHistoryLineCount()
-	} else {
-		return nil, errors.New("no history line count found in resume response")
-	}
-	if data.GetEventsLineCount() != nil {
-		r.FileStreamOffset[filestream.EventsChunk] = *data.GetEventsLineCount()
-	} else {
-		return nil, errors.New("no events line count found in resume response")
-	}
-	if data.GetLogLineCount() != nil {
-		r.FileStreamOffset[filestream.OutputChunk] = *data.GetLogLineCount()
-	} else {
-		return nil, errors.New("no log line count found in resume response")
+	if filestreamOffset, err := processAllOffsets(
+		data.GetHistoryLineCount(),
+		data.GetEventsLineCount(),
+		data.GetLogLineCount(),
+	); err != nil {
+		return nil, err
+	} else if filestreamOffset != nil {
+		r.Merge(&RunParams{FileStreamOffset: filestreamOffset})
 	}
 
-	// Get History information
-	history := data.GetHistoryTail()
-	if history == nil {
-		return nil, errors.New("no history tail found in resume response")
-	} else {
-		// Since we just expect a list of strings, we unmarshal using the
-		// standard JSON library.
-		var histories []string
-		if err := json.Unmarshal([]byte(*history), &histories); err != nil {
-			return nil, err
-		}
-
-		if len(histories) > 0 {
-			historyTail, err := simplejsonext.UnmarshalObjectString(histories[len(histories)-1])
-
-			if err != nil {
-				return nil, err
-			}
-
-			if step, ok := historyTail["_step"]; ok {
-				// if we are resuming, we need to update the starting step
-				// to be the next step after the last step we ran
-				if x, ok := step.(int64); ok {
-					r.StartingStep = x
-				}
-			}
-
-			if runtime, ok := historyTail["_runtime"]; ok {
-				switch x := runtime.(type) {
-				case int64:
-					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
-				case float64:
-					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
-				}
-			}
+	// extract runtime from the events tail if it exists we will use the maximal
+	// value of runtime that we find
+	if events, err := processEventsTail(data.GetEventsTail()); err != nil {
+		return nil, err
+	} else if events != nil {
+		if runtime, ok := events["_runtime"]; ok {
+			r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
 		}
 	}
 
 	// Get Summary information
-	summary := data.GetSummaryMetrics()
-	if summary == nil {
-		return nil, errors.New("no summary metrics found in resume response")
-	} else {
-		// If we are unable to parse the summary, we should fail if resume is set to
-		// must for any other case of resume status, it is fine to ignore it
-		summaryVal, err := simplejsonext.UnmarshalString(*summary)
-		if err != nil {
-			return nil, err
+	if summary, err := processSummary(data.GetSummaryMetrics()); err != nil {
+		return nil, err
+	} else if summary != nil {
+		r.Summary = summary
+
+		if step, ok := summary["_step"]; ok {
+			// if we are resuming, we need to update the starting step
+			// to be the next step after the last step we ran
+			if x, ok := step.(int64); ok {
+				r.StartingStep = x
+			}
 		}
 
-		switch x := summaryVal.(type) {
-		case nil: // OK, summary is nil
+		// if summary["wandb"]["runtime"] exists it takes precedence over
+		// summary["_runtime"] for the runtime value
+		switch x := r.Summary["wandb"].(type) {
 		case map[string]any:
-			r.Summary = x
-			// check if r.summary["wandb"]["runtime"] exists
-			if wandb, ok := r.Summary["wandb"].(map[string]any); ok {
-				if runtime, ok := wandb["runtime"]; ok {
-					switch x := runtime.(type) {
-					case int64:
-						r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
-					case float64:
-						r.Runtime = int32(math.Max(x, float64(r.Runtime)))
-					}
-				}
-			} else if runtime, ok := r.Summary["_runtime"]; ok {
-				switch x := runtime.(type) {
-				case int64:
-					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
-				case float64:
-					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
-				}
+			if runtime, ok := x["runtime"]; ok {
+				r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
 			}
-
 		default:
-			return nil, fmt.Errorf("unexpected type %T for %s", x, *summary)
-		}
-
-	}
-
-	// Get Config information
-	config := data.GetConfig()
-	if config == nil {
-		return nil, errors.New("no config found in resume response")
-	} else {
-		// If we are unable to parse the config, we should fail if resume is set to
-		// must for any other case of resume status, it is fine to ignore it
-		cfgVal, err := simplejsonext.UnmarshalString(*config)
-		if err != nil {
-			return nil, fmt.Errorf("failed to unmarshal config: %s", err)
-		}
-
-		var cfg map[string]any
-		switch x := cfgVal.(type) {
-		case nil: // OK, cfg is nil
-		case map[string]any:
-			cfg = x
-		default:
-			return nil, fmt.Errorf(
-				"sender: updateConfig: got type %T for %s",
-				x, *config,
-			)
-		}
-
-		if r.Config == nil {
-			r.Config = make(map[string]any)
-		}
-		for key, value := range cfg {
-			valueDict, ok := value.(map[string]any)
-			if !ok {
-				return nil, fmt.Errorf("unexpected type %T for %s", value, key)
-			} else if val, ok := valueDict["value"]; ok {
-				r.Config[key] = val
+			if runtime, ok := r.Summary["_runtime"]; ok {
+				r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
 			}
 		}
 	}
 
-	// Get Events (system metrics) information
-	events := data.GetEventsTail()
-	if events == nil {
-		return nil, errors.New("no events tail found in resume response")
-	} else {
-		// Since we just expect a list of strings, we unmarshal using the
-		// standard JSON library.
-		var eventsTail []string
-		if err := json.Unmarshal([]byte(*events), &eventsTail); err != nil {
-			return nil, err
+	// TODO: do we need both history and summary? is it a legacy from old
+	// versions of the backend?
+	if history, err := processHistory(data.GetHistoryTail()); err != nil {
+		return nil, err
+	} else if history != nil {
+		if step, ok := history["_step"]; ok {
+			// if we are resuming, we need to update the starting step
+			// to be the next step after the last step we ran
+			if x, ok := step.(int64); ok {
+				r.StartingStep = x
+			}
 		}
 
-		if len(eventsTail) > 0 {
-			eventTail, err := simplejsonext.UnmarshalObjectString(eventsTail[len(eventsTail)-1])
-			if err != nil {
-				return nil, err
-			}
-
-			if runtime, ok := eventTail["_runtime"]; ok {
-				switch x := runtime.(type) {
-				case int64:
-					r.Runtime = int32(math.Max(float64(x), float64(r.Runtime)))
-				case float64:
-					r.Runtime = int32(math.Max(x, float64(r.Runtime)))
-				}
-			}
+		if runtime, ok := history["_runtime"]; ok {
+			r.Runtime = int32(math.Max(extractRuntime(runtime), float64(r.Runtime)))
 		}
 	}
-
-	// Get Tags information
-	r.Tags = data.GetTags()
 
 	// if we are resuming, we need to update the starting step
 	if r.FileStreamOffset[filestream.HistoryChunk] > 0 {
 		r.StartingStep += 1
 	}
-	r.Resumed = true
 
+	// if we are resuming, we need to update the start time to be the start time
+	// of the last run minus the runtime for the duration computation
 	if !r.StartTime.IsZero() {
 		r.StartTime = r.StartTime.Add(time.Duration(-r.Runtime) * time.Second)
 	}
+
+	// Get Tags information
+	r.Tags = data.GetTags()
+
+	r.Resumed = true
 
 	return r, nil
 }

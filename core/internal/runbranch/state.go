@@ -14,6 +14,12 @@ type RunPath struct {
 	RunID   string
 }
 
+type BranchPoint struct {
+	RunID       string
+	MetricName  string
+	MetricValue float64
+}
+
 type BranchError struct {
 	Err      error
 	Response *service.ErrorInfo
@@ -41,6 +47,7 @@ type RunParams struct {
 	Summary map[string]any
 
 	Resumed bool
+	Forked  bool
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
@@ -223,6 +230,17 @@ func (r *RunParams) Merge(other *RunParams) {
 	if other.Resumed {
 		r.Resumed = true
 	}
+
+	if other.Forked {
+		r.Forked = true
+	}
+
+}
+
+func (r *RunParams) Clone() *RunParams {
+	clone := &RunParams{}
+	clone.Merge(r)
+	return clone
 }
 
 func NewRunParams() *RunParams {
