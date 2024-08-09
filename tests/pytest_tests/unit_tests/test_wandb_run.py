@@ -7,7 +7,6 @@ import pytest
 import wandb
 import wandb.errors
 from wandb import wandb_sdk
-from wandb.sdk.artifacts.artifact import Artifact
 
 
 def test_run_step_property(mock_run):
