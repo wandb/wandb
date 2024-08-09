@@ -27,6 +27,7 @@ from typing import (
     NamedTuple,
     Optional,
     Sequence,
+    Set,
     TextIO,
     Tuple,
     Type,
@@ -1466,39 +1467,110 @@ class Run:
         files: FilesDict = dict(files=[(GlobStr(glob.escape(fname)), "now")])
         self._backend.interface.publish_files(files)
 
-    def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
-        # TODO(jhr): move visualize hack somewhere else
-        chart_keys = set()
-        split_table_set = set()
-        for k in row:
-            if isinstance(row[k], Visualize):
-                key = row[k].get_config_key(k)
-                value = row[k].get_config_value(k)
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
-            elif isinstance(row[k], CustomChart):
-                chart_keys.add(k)
-                key = row[k].get_config_key(k)
-                if row[k]._split_table:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"Custom Chart Tables/{k}_table")
-                    )
-                    split_table_set.add(k)
-                else:
-                    value = row[k].get_config_value(
-                        "Vega2", row[k].user_query(f"{k}_table")
-                    )
-                row[k] = row[k]._data
-                self._config_callback(val=value, key=key)
+    def _get_nested_value(self, row: Dict[str, Any], chart_key_list: List[str]) -> Any:
+        """Recursively retrieves a nested value from a dictionary using a list of keys.
 
-        for k in chart_keys:
-            # remove the chart key from the row
-            # TODO: is this really the right move? what if the user logs
-            #     a non-custom chart to this key?
-            if k in split_table_set:
-                row[f"Custom Chart Tables/{k}_table"] = row.pop(k)
+        Arguments:
+            row (dict): the row logged through `wandb.log()`
+            chart_key_list(list): the keys logged during the step of `wandb.log()`
+        Returns:
+            Value found at the specified path in the dictionary
+        """
+        if len(chart_key_list) == 1:
+            return row[chart_key_list[0]]
+        return self._get_nested_value(row[chart_key_list[0]], chart_key_list[1:])
+
+    def _set_nested_value(
+        self, row: Dict[str, Any], chart_keys: List[str], value: Any, split_table: bool
+    ) -> None:
+        """Updates the row to append _table to all chart keys and optionally create a new workspace section in the UI.
+
+        Arguments:
+            row (dict): the row logged through wandb.log()
+            chart_keys (list) : the keys logged during this step that point to a custom chart
+            value (any): the logged value
+            split_table (bool): whether to create a new section within the UI
+        Returns:
+            Nothing. All updates are in-place.
+        """
+        if len(chart_keys) == 1:
+            key = f"{chart_keys[0]}_table"
+            if split_table:
+                key = "Custom Chart Tables/" + key
+            row[key] = value
+
+            row.pop(chart_keys[0])
+        else:
+            self._set_nested_value(
+                row[chart_keys[0]], chart_keys[1:], value, split_table
+            )
+
+    def _visualization_hack(self, row: Dict[str, Any]) -> Dict[str, Any]:
+        """Flattens the `row` dictionary by using Depth First Traversal.
+
+        Arguments:
+            row (dict): row logged with wandb.log() for a given step.
+
+        Returns:
+            The flattened row.
+        """
+        chart_keys: Set[Tuple[str, ...]] = set()
+        split_table_set = set()
+
+        def transform(key: List[str], value: Any) -> Any:
+            if isinstance(value, dict):
+                return {k: transform([*key, k], v) for k, v in value.items()}
+            if isinstance(value, Visualize):
+                formatted_key = ".".join(key)
+                config_key = value.get_config_key(formatted_key)
+                config_value = value.get_config_value(formatted_key)
+                value = value._data
+                self._config_callback(val=config_value, key=config_key)
+                return value
+            elif isinstance(value, CustomChart):
+                formatted_key = ".".join(key)
+                chart_keys.add(tuple(key))
+                config_key = value.get_config_key(formatted_key)
+                if value._split_table and len(key) == 1:
+                    config_value = value.get_config_value(
+                        "Vega2",
+                        value.user_query(f"Custom Chart Tables/{formatted_key}_table"),
+                    )
+                    split_table_set.add(tuple(key))
+
+                elif value._split_table and len(key) > 1:
+                    config_value = value.get_config_value(
+                        "Vega2",
+                        value.user_query(
+                            f"{key[0]}.Custom Chart Tables/{key[1]}_table"
+                        ),
+                    )
+                    split_table_set.add(tuple(key))
+
+                else:
+                    config_value = value.get_config_value(
+                        "Vega2", value.user_query(f"{formatted_key}_table")
+                    )
+                value = value._data
+                self._config_callback(val=config_value, key=config_key)
+                return value
             else:
-                row[f"{k}_table"] = row.pop(k)
+                return value
+
+        for k, v in row.items():
+            row[k] = transform([k], v)
+
+        for chart_key_tuple in chart_keys:
+            chart_key_list = list(chart_key_tuple)
+            value = self._get_nested_value(row, chart_key_list)
+
+            self._set_nested_value(
+                row,
+                chart_key_list,
+                value,
+                split_table=chart_key_tuple in split_table_set,
+            )
+
         return row
 
     def _partial_history_callback(
@@ -1641,7 +1713,6 @@ class Run:
 
         if any(not isinstance(key, str) for key in data.keys()):
             raise ValueError("Key values passed to `wandb.log` must be strings.")
-
         self._partial_history_callback(data, step, commit)
 
         if step is not None:
@@ -2349,7 +2420,6 @@ class Run:
             self._err_redir = err_redir
             logger.info("Redirects installed.")
         except Exception as e:
-            print(e)
             logger.error("Failed to redirect.", exc_info=e)
         return
 
