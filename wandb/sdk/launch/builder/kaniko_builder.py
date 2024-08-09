@@ -63,6 +63,13 @@ else:
     NAMESPACE = "wandb"
 
 
+def get_pod_name_safe(job: client.V1Job):
+    try:
+        return job.spec.template.metadata.name
+    except AttributeError:
+        return None
+
+
 async def _wait_for_completion(
     batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
@@ -319,17 +326,18 @@ class KanikoBuilder(AbstractBuilder):
                 await self._create_docker_ecr_config_map(
                     build_job_name, core_v1, repo_uri
                 )
-            await batch_v1.create_namespaced_job(NAMESPACE, build_job)
-
+            k8s_job = await batch_v1.create_namespaced_job(NAMESPACE, build_job)
             # wait for double the job deadline since it might take time to schedule
             if not await _wait_for_completion(
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
                 if job_tracker:
                     job_tracker.set_err_stage("build")
-                raise Exception(
-                    f"Failed to build image in kaniko for job {run_id}. View logs with `kubectl logs -n {NAMESPACE} {build_job_name}`."
-                )
+                msg = f"Failed to build image in kaniko for job {run_id}."
+                pod_name = get_pod_name_safe(k8s_job)
+                if pod_name:
+                    msg += f" View logs with `kubectl logs -n {NAMESPACE} {pod_name}`."
+                raise Exception(msg)
             try:
                 pods_from_job = await core_v1.list_namespaced_pod(
                     namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
