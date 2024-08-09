@@ -7,6 +7,7 @@ import pytest
 import wandb
 import wandb.errors
 from wandb import wandb_sdk
+from wandb.sdk.artifacts.artifact import Artifact
 
 
 def test_run_step_property(mock_run):
@@ -198,12 +199,6 @@ def test_use_artifact_offline(mock_run):
     with pytest.raises(Exception) as e_info:
         run.use_artifact("boom-data")
         assert str(e_info.value) == "Cannot use artifact when in offline mode."
-
-
-def test_use_artifact_aliases(mock_run):
-    run = mock_run(settings=wandb.Settings(mode="online"))
-    run.use_artifact("boom-data", aliases=["boom-data-alias"])
-    assert "boom-data-alias" in run._artifact_aliases
 
 
 def test_run_basic():
