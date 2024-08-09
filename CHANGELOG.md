@@ -14,6 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Allow `define_metric("x", step_metric="x")` when using core (@timoffex in https://github.com/wandb/wandb/pull/8107)
+- Correctly upload empty files when using core (@timoffex in https://github.com/wandb/wandb/pull/8109)
 
 ## [0.17.6] - 2024-08-08
 
