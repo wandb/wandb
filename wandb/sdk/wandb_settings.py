@@ -1,7 +1,6 @@
 import collections.abc
 import configparser
 import enum
-import getpass
 import json
 import logging
 import multiprocessing
@@ -1737,14 +1736,6 @@ class Settings(SettingsData):
         # vars exist -- but if they don't, we'll fill them in here
         if self.host is None:
             settings["host"] = socket.gethostname()  # type: ignore
-
-        if self.username is None:
-            try:  # type: ignore
-                settings["username"] = getpass.getuser()
-            except KeyError:
-                # getuser() could raise KeyError in restricted environments like
-                # chroot jails or docker containers. Return user id in these cases.
-                settings["username"] = str(os.getuid())
 
         _executable = (
             self._executable
