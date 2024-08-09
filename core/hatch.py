@@ -37,12 +37,7 @@ def build_wandb_core(
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
 
-    ld_flags = _go_linker_flags(
-        wandb_commit_sha=wandb_commit_sha,
-        target_system=target_system,
-        target_arch=target_arch,
-    )
-    ld_flags = [f"-ldflags={ld_flags}"]
+    ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha=wandb_commit_sha)}"]
 
     vendor_flags = ["-mod=vendor"]
 
@@ -68,33 +63,15 @@ def build_wandb_core(
     )
 
 
-def _go_linker_flags(
-    wandb_commit_sha: Optional[str],
-    target_system: str,
-    target_arch: str,
-) -> str:
+def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
     """Returns linker flags for the Go binary as a string."""
     flags = [
         "-s",  # Omit the symbol table and debug info.
         "-w",  # Omit the DWARF symbol table.
         # Set the Git commit variable in the main package.
         "-X",
-        f"main.commit={wandb_commit_sha or ''}",
+        f"main.commit={wandb_commit_sha or 'unknown'}",
     ]
-
-    if target_system == "linux" and target_arch == "amd64":
-        ext_ld_flags = " ".join(
-            [
-                # Use https://en.wikipedia.org/wiki/Gold_(linker)
-                "-fuse-ld=gold",
-                # Set the --weak-unresolved-symbols option in gold, converting
-                # unresolved symbols to weak references. This is necessary to
-                # build a Go binary with cgo on Linux, where the NVML libraries
-                # needed for Nvidia GPU monitoring may not be available at build time.
-                "-Wl,--weak-unresolved-symbols",
-            ]
-        )
-        flags += ["-extldflags", f'"{ext_ld_flags}"']
 
     return " ".join(flags)
 
@@ -109,21 +86,12 @@ def _go_env(
     env["GOOS"] = target_system
     env["GOARCH"] = target_arch
 
+    env["CGO_ENABLED"] = "0"
     if with_race_detection:
         # Crash if a race is detected. The default behavior is to print
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
-
-    if (target_system, target_arch) in [
-        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        ("linux", "amd64"),
-        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
-        # system metrics are unavailable.
-        ("darwin", "arm64"),
-    ] or (
-        # On Windows, -race requires cgo.
-        target_system == "windows" and with_race_detection
-    ):
+        # -race requires cgo.
         env["CGO_ENABLED"] = "1"
 
     return env

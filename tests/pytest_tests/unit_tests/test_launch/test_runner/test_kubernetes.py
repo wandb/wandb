@@ -1,11 +1,13 @@
 import asyncio
 import base64
 import json
+import platform
 from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 import wandb
+import wandb.sdk.launch.runner.kubernetes_runner
 from kubernetes_asyncio import client
 from kubernetes_asyncio.client import ApiException
 from wandb.sdk.launch._project_spec import LaunchProject
@@ -693,6 +695,148 @@ async def test_launch_crd_pod_schedule_warning(
     await asyncio.sleep(0.1)
     status = await submitted_run.get_status()
     assert status.messages == ["Test message"]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Launch does not support Windows and this test is failing on Windows.",
+)
+@pytest.mark.asyncio
+async def test_launch_kube_base_image_works(
+    monkeypatch,
+    mock_event_streams,
+    mock_batch_api,
+    mock_kube_context_and_api_client,
+    mock_maybe_create_image_pullsecret,
+    mock_create_from_dict,
+    test_api,
+    manifest,
+    clean_monitor,
+    tmpdir,
+):
+    """Test that runner works as expected with base image jobs."""
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_MOUNT_PATH",
+        tmpdir,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_NAME",
+        "wandb-source-code-pvc",
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(manifest)}
+    project = LaunchProject(
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": manifest},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+        docker_config={},
+    )
+    project._job_artifact = MagicMock()
+    project.set_job_base_image("test_base_image")
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+
+    await runner.run(project, "test_base_image")
+    manifest = mock_create_from_dict.call_args_list[0][0][1]
+    pod = manifest["spec"]["template"]["spec"]
+    container = pod["containers"][0]
+    assert container["workingDir"] == "/mnt/wandb"
+    assert container["volumeMounts"] == [
+        {
+            "mountPath": "/mnt/wandb",
+            "subPath": project.get_image_source_string(),
+            "name": "wandb-source-code-volume",
+        }
+    ]
+    assert pod["volumes"] == [
+        {
+            "name": "wandb-source-code-volume",
+            "persistentVolumeClaim": {"claimName": "wandb-source-code-pvc"},
+        }
+    ]
+
+
+@pytest.mark.skipif(
+    platform.system() == "Windows",
+    reason="Launch does not support Windows and this test is failing on Windows.",
+)
+@pytest.mark.asyncio
+async def test_launch_crd_base_image_works(
+    monkeypatch,
+    mock_event_streams,
+    mock_custom_api,
+    mock_kube_context_and_api_client,
+    test_api,
+    volcano_spec,
+    tmpdir,
+):
+    """Test that runner works as expected with base image jobs."""
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_MOUNT_PATH",
+        tmpdir,
+    )
+    monkeypatch.setattr(
+        wandb.sdk.launch.runner.kubernetes_runner,
+        "SOURCE_CODE_PVC_NAME",
+        "wandb-source-code-pvc",
+    )
+    mock_batch_api.jobs = {"test-job": MockDict(volcano_spec)}
+    project = LaunchProject(
+        docker_config={},
+        target_entity="test_entity",
+        target_project="test_project",
+        resource_args={"kubernetes": volcano_spec},
+        launch_spec={},
+        overrides={
+            "args": ["--test_arg", "test_value"],
+            "command": ["test_entry"],
+        },
+        resource="kubernetes",
+        api=test_api,
+        git_info={},
+        job="",
+        uri="https://wandb.ai/test_entity/test_project/runs/test_run",
+        run_id="test_run_id",
+        name="test_run",
+    )
+    project._job_artifact = MagicMock()
+    project.set_job_base_image("test_base_image")
+    runner = KubernetesRunner(
+        test_api, {"SYNCHRONOUS": False}, MagicMock(), MagicMock()
+    )
+    await runner.run(project, "test_base_image")
+    job = mock_custom_api.jobs["test-job"]
+    pod = job["tasks"][0]["template"]["spec"]
+    container = pod["containers"][0]
+    assert container["workingDir"] == "/mnt/wandb"
+    assert container["volumeMounts"] == [
+        {
+            "mountPath": "/mnt/wandb",
+            "subPath": project.get_image_source_string(),
+            "name": "wandb-source-code-volume",
+        }
+    ]
+    assert pod["volumes"] == [
+        {
+            "name": "wandb-source-code-volume",
+            "persistentVolumeClaim": {"claimName": "wandb-source-code-pvc"},
+        }
+    ]
 
 
 @pytest.mark.timeout(320)

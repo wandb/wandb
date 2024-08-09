@@ -202,6 +202,7 @@ message Feature {
   bool metric_goal = 64;                 // goal arg passed to define_metric
   bool metric_hidden = 65;               // hidden arg passed to define_metric
   bool metric_step_sync = 66;            // step_sync arg passed to define_metric
+  bool shared_mode = 67;                 // shared mode was added in wandb.Settings
 }
 
 message Env {
@@ -249,6 +250,8 @@ message Deprecated {
 
   // wandb.run.define_metric() called with summary="copy"
   bool run__define_metric_copy = 15;
+
+  bool run_disabled = 16;  // wandb.sdk.lib.disabled.RunDisabled used
 }
 
 message Issues {

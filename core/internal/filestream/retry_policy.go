@@ -61,6 +61,8 @@ func RetryPolicy(
 		return false, nil
 	case http.StatusGone: // don't retry on 410 Gone
 		return false, nil
+	case http.StatusRequestEntityTooLarge: // don't retry on 413 Content Too Large
+		return false, nil
 	case http.StatusNotImplemented: // don't retry on 501 not implemented
 		return false, nil
 	}
