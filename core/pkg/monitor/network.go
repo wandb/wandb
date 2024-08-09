@@ -11,17 +11,15 @@ import (
 type Network struct {
 	name     string
 	metrics  map[string][]float64
-	settings *service.Settings
 	mutex    sync.RWMutex
 	sentInit int
 	recvInit int
 }
 
-func NewNetwork(settings *service.Settings) *Network {
+func NewNetwork() *Network {
 	nw := &Network{
-		name:     "network",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "network",
+		metrics: map[string][]float64{},
 	}
 
 	netIOCounters, err := net.IOCounters(false)

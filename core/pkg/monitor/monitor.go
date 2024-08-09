@@ -156,14 +156,17 @@ func NewSystemMonitor(
 		return systemMonitor
 	}
 
+	pid := settings.XStatsPid.GetValue()
+	diskPaths := settings.XStatsDiskPaths.GetValue()
+
 	systemMonitor.assets = []Asset{
-		NewMemory(settings),
-		NewCPU(settings),
-		NewDisk(settings),
-		NewNetwork(settings),
+		NewMemory(pid),
+		NewCPU(pid),
+		NewDisk(diskPaths),
+		NewNetwork(),
 		NewGPUNvidia(settings),
-		NewGPUAMD(settings),
-		NewGPUApple(settings),
+		NewGPUAMD(),
+		NewGPUApple(),
 	}
 
 	return systemMonitor

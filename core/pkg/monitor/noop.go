@@ -37,14 +37,12 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 }
 
 type GPUAMD struct {
-	name     string
-	settings *service.Settings
+	name string
 }
 
-func NewGPUAMD(settings *service.Settings) *GPUAMD {
+func NewGPUAMD() *GPUAMD {
 	gpu := &GPUAMD{
-		name:     "gpu",
-		settings: settings,
+		name: "gpu",
 	}
 
 	return gpu
