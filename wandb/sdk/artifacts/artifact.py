@@ -103,13 +103,11 @@ class Artifact:
         type: The artifact's type. Use the type of an artifact to both organize
             and differentiate artifacts. You can use any string that contains letters,
             numbers, underscores, hyphens, and dots. Common types include `dataset` or `model`.
-            Include `model` within your type string if you want to link the artifact
-            to the W&B Model Registry.
-        description: A description of the artifact. For Model or Dataset Artifacts,
-            add documentation for your standardized team model or dataset card. View
+            For W&B Registry users, ensure that the artifact type you specify is
+            permitted by the registry you want to link the artifact to.
+        description: A description of the artifact. View
             an artifact's description programmatically with the `Artifact.description`
-            attribute or programmatically with the W&B App UI. W&B renders the
-            description as markdown in the W&B App.
+            attribute or interactively with the W&B App UI.
         metadata: Additional information about an artifact. Specify metadata as a
             dictionary of key-value pairs. You can specify no more than 100 total keys.
 
@@ -2058,19 +2056,14 @@ class Artifact:
 
     @normalize_exceptions
     def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
-        """Link this artifact to a portfolio (a promoted collection of artifacts).
+        """Link this artifact to a project.
 
         Arguments:
-            target_path: The path to the portfolio inside a project.
+            target_path: The path inside a project.
                 The target path must adhere to one of the following
-                schemas `{portfolio}`, `{project}/{portfolio}` or
-                `{entity}/{project}/{portfolio}`.
-                To link the artifact to the Model Registry, rather than to a generic
-                portfolio inside a project, set `target_path` to the following
-                schema `{"model-registry"}/{Registered Model Name}` or
-                `{entity}/{"model-registry"}/{Registered Model Name}`.
-            aliases: A list of strings that uniquely identifies the artifact inside the
-                specified portfolio.
+                schemas `{artifact_name}`, `{project}/{artifact_name}` or
+                `{entity}/{project}/{artifact_name}`.
+            aliases: A list of strings that uniquely identifies the artifact.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
