@@ -643,17 +643,10 @@ func (s *Sender) sendUseArtifact(record *service.Record) {
 
 // Inserts W&B-internal information into the run configuration.
 func (s *Sender) updateConfigPrivate() {
-	metrics, err := s.runConfigMetrics.ToRunConfigData()
-
-	if err != nil {
-		s.logger.CaptureError(
-			fmt.Errorf(
-				"sender: failed to encode some metrics in the run config: %v",
-				err,
-			))
-	}
-
-	s.runConfig.AddTelemetryAndMetrics(s.telemetry, metrics)
+	s.runConfig.AddTelemetryAndMetrics(
+		s.telemetry,
+		s.runConfigMetrics.ToRunConfigData(),
+	)
 }
 
 // Serializes the run configuration to send to the backend.
