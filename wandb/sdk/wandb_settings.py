@@ -156,7 +156,7 @@ def _get_program() -> Optional[str]:
         if __main__.__spec__ is None:
             return __main__.__file__
         # likely run as `python -m ...`
-        return f"-m {__main__.__spec__.name}"
+        return __main__.__spec__.origin
     except (ImportError, AttributeError):
         return None
 
