@@ -6,12 +6,11 @@
 package runfiles
 
 import (
-	"context"
-
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
@@ -58,7 +57,7 @@ type UploaderTesting interface {
 }
 
 type UploaderParams struct {
-	Ctx          context.Context
+	ExtraWork    runwork.ExtraWork
 	Logger       *observability.CoreLogger
 	Settings     *settings.Settings
 	FileStream   filestream.FileStream
