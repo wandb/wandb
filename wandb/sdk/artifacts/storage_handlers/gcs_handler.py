@@ -1,5 +1,6 @@
 """GCS storage handler."""
 
+import logging
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
@@ -12,6 +13,8 @@ from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHandler
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
@@ -69,6 +72,12 @@ class GCSHandler(StorageHandler):
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
+
+        if self._is_dir(bucket, key, manifest_entry.size):
+            logger.debug(
+                f"Skipping downloading {manifest_entry.ref} because it seems to be a directory"
+            )
+            return ""
 
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
@@ -135,6 +144,7 @@ class GCSHandler(StorageHandler):
         entries = [
             self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
             for obj in objects
+            if not obj.name.endswith("/")
         ]
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
@@ -193,3 +203,21 @@ class GCSHandler(StorageHandler):
             size=obj.size,
             extra={"versionID": obj.generation},
         )
+
+    def _is_dir(
+        self,
+        bucket: str,
+        key: str,
+        size: int,
+    ):
+        if key.endswith("/"):
+            return True
+        elif (
+            self._client.bucket(bucket).get_blob(key) is None
+            and PurePosixPath(key).suffix == ""
+            and size == 0
+        ):
+            key += "/"
+            if self._client.bucket(bucket).get_blob(key) is not None:
+                return True
+        return False
