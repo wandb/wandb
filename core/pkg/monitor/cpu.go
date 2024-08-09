@@ -6,6 +6,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/cpu"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 
 	"github.com/shirou/gopsutil/v4/process"
@@ -16,13 +17,15 @@ type CPU struct {
 	metrics map[string][]float64
 	pid     int32
 	mutex   sync.RWMutex
+	logger  *observability.CoreLogger
 }
 
-func NewCPU(pid int32) *CPU {
+func NewCPU(logger *observability.CoreLogger, pid int32) *CPU {
 	return &CPU{
 		name:    "cpu",
 		metrics: map[string][]float64{},
 		pid:     pid,
+		logger:  logger,
 	}
 }
 

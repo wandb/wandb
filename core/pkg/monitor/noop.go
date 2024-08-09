@@ -3,18 +3,23 @@
 package monitor
 
 import (
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type GPUNvidia struct {
-	name     string
-	settings *service.Settings
+	name             string
+	pid              int32
+	samplingInterval float64
+	logger           *observability.CoreLogger
 }
 
-func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
+func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
 	gpu := &GPUNvidia{
-		name:     "gpu",
-		settings: settings,
+		name:             "gpu",
+		pid:              pid,
+		samplingInterval: samplingInterval,
+		logger:           logger,
 	}
 
 	return gpu
@@ -37,12 +42,14 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 }
 
 type GPUAMD struct {
-	name string
+	name   string
+	logger *observability.CoreLogger
 }
 
-func NewGPUAMD() *GPUAMD {
+func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
 	gpu := &GPUAMD{
-		name: "gpu",
+		name:   "gpu",
+		logger: logger,
 	}
 
 	return gpu

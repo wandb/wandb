@@ -81,32 +81,32 @@ type Asset interface {
 }
 
 type SystemMonitor struct {
-	// ctx is the context for the system monitor
+	// The context for the system monitor
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// wg is the wait group for the system monitor
+	// The wait group for the system monitor
 	wg sync.WaitGroup
 
-	// assets is the list of assets to monitor
+	// The list of assets to monitor
 	assets []Asset
 
-	//	outChan is the channel for outgoing messages
+	// The channel for outgoing messages
 	outChan chan *service.Record
 
-	// Buffer is the metrics buffer for the system monitor
+	// The metrics buffer for the system monitor
 	buffer *Buffer
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
 
-	// samplingInterval is the interval at which metrics are sampled
+	// The interval at which metrics are sampled
 	samplingInterval time.Duration
 
-	// samplesToAverage is the number of samples to average before sending the metrics
+	// The number of samples to average before sending the metrics
 	samplesToAverage int
 
-	// logger is the logger for the system monitor
+	// A logger for internal debug logging.
 	logger *observability.CoreLogger
 }
 
@@ -118,9 +118,9 @@ func NewSystemMonitor(
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()
 	var buffer *Buffer
-	// if buffer size is 0, don't create a buffer
-	// a positive buffer size restricts the number of metrics that are kept in memory
-	// value of -1 indicates that all sampled metrics will be kept in memory
+	// if buffer size is 0, don't create a buffer.
+	// a positive buffer size limits the number of metrics that are kept in memory.
+	// a value of -1 indicates that all sampled metrics will be kept in memory.
 	if sbs != 0 {
 		buffer = NewBuffer(sbs)
 	}
@@ -158,15 +158,16 @@ func NewSystemMonitor(
 
 	pid := settings.XStatsPid.GetValue()
 	diskPaths := settings.XStatsDiskPaths.GetValue()
+	samplingInterval := settings.XStatsSampleRateSeconds.GetValue()
 
 	systemMonitor.assets = []Asset{
-		NewMemory(pid),
-		NewCPU(pid),
-		NewDisk(diskPaths),
-		NewNetwork(),
-		NewGPUNvidia(settings),
-		NewGPUAMD(),
-		NewGPUApple(),
+		NewMemory(logger, pid),
+		NewCPU(logger, pid),
+		NewDisk(logger, diskPaths),
+		NewNetwork(logger),
+		NewGPUNvidia(logger, pid, samplingInterval),
+		NewGPUAMD(logger),
+		NewGPUApple(logger),
 	}
 
 	return systemMonitor

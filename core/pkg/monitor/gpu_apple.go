@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -31,12 +32,14 @@ type GPUApple struct {
 	mutex       sync.RWMutex
 	isAvailable bool
 	exPath      string
+	logger      *observability.CoreLogger
 }
 
-func NewGPUApple() *GPUApple {
+func NewGPUApple(logger *observability.CoreLogger) *GPUApple {
 	gpu := &GPUApple{
 		name:    "gpu",
 		metrics: map[string][]float64{},
+		logger:  logger,
 	}
 
 	if exPath, err := getExecPath(); err == nil {

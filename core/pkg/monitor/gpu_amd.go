@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -39,14 +40,16 @@ type GPUAMD struct {
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	IsAvailableFunc     func() bool
 	mutex               sync.RWMutex
+	logger              *observability.CoreLogger
 }
 
-func NewGPUAMD() *GPUAMD {
+func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
 	g := &GPUAMD{
 		name:    "gpu",
 		metrics: make(map[string][]float64),
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
+		logger:              logger,
 	}
 	return g
 }

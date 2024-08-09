@@ -5,6 +5,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/net"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -14,12 +15,14 @@ type Network struct {
 	mutex    sync.RWMutex
 	sentInit int
 	recvInit int
+	logger   *observability.CoreLogger
 }
 
-func NewNetwork() *Network {
+func NewNetwork(logger *observability.CoreLogger) *Network {
 	nw := &Network{
 		name:    "network",
 		metrics: map[string][]float64{},
+		logger:  logger,
 	}
 
 	netIOCounters, err := net.IOCounters(false)

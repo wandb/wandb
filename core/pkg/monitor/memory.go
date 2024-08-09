@@ -3,6 +3,7 @@ package monitor
 import (
 	"sync"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 
 	"github.com/shirou/gopsutil/v4/mem"
@@ -14,13 +15,15 @@ type Memory struct {
 	metrics map[string][]float64
 	pid     int32
 	mutex   sync.RWMutex
+	logger  *observability.CoreLogger
 }
 
-func NewMemory(pid int32) *Memory {
+func NewMemory(logger *observability.CoreLogger, pid int32) *Memory {
 	return &Memory{
 		name:    "memory",
 		metrics: map[string][]float64{},
 		pid:     pid,
+		logger:  logger,
 	}
 }
 

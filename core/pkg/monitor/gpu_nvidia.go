@@ -48,20 +48,22 @@ func isRunning(cmd *exec.Cmd) bool {
 }
 
 type GPUNvidia struct {
-	name     string
-	sample   map[string]any   // latest reading from nvidia_gpu_stats command
-	metrics  map[string][]any // all readings
-	settings *service.Settings
-	mutex    sync.RWMutex
-	cmd      *exec.Cmd
+	name             string
+	sample           map[string]any   // latest reading from nvidia_gpu_stats command
+	metrics          map[string][]any // all readings
+	pid              int32            // pid of the process to monitor
+	samplingInterval float64          // sampling interval in seconds
+	mutex            sync.RWMutex
+	cmd              *exec.Cmd
 }
 
-func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
+func NewGPUNvidia(pid int32, samplingInterval float64) *GPUNvidia {
 	gpu := &GPUNvidia{
-		name:     "gpu",
-		sample:   map[string]any{},
-		metrics:  map[string][]any{},
-		settings: settings,
+		name:             "gpu",
+		sample:           map[string]any{},
+		metrics:          map[string][]any{},
+		pid:              pid,
+		samplingInterval: samplingInterval,
 	}
 
 	exPath, err := getCmdPath()
@@ -69,16 +71,15 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		return gpu
 	}
 
-	samplingInterval := defaultSamplingInterval.Seconds()
-	if settings.XStatsSampleRateSeconds.GetValue() > 0 {
-		samplingInterval = settings.XStatsSampleRateSeconds.GetValue()
+	if samplingInterval == 0 {
+		samplingInterval = defaultSamplingInterval.Seconds()
 	}
 
 	// we will use nvidia_gpu_stats to get GPU stats
 	gpu.cmd = exec.Command(
 		exPath,
 		// monitor for GPU usage for this pid and its children
-		fmt.Sprintf("--pid=%d", settings.XStatsPid.GetValue()),
+		fmt.Sprintf("--pid=%d", pid),
 		// pid of the current process. nvidia_gpu_stats will exit when this process exits
 		fmt.Sprintf("--ppid=%d", os.Getpid()),
 		// sampling interval in seconds

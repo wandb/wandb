@@ -6,6 +6,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/disk"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -16,13 +17,15 @@ type Disk struct {
 	mutex     sync.RWMutex
 	readInit  int
 	writeInit int
+	logger    *observability.CoreLogger
 }
 
-func NewDisk(diskPaths []string) *Disk {
+func NewDisk(logger *observability.CoreLogger, diskPaths []string) *Disk {
 	d := &Disk{
 		name:      "disk",
 		metrics:   map[string][]float64{},
 		diskPaths: diskPaths,
+		logger:    logger,
 	}
 
 	// todo: collect metrics for each disk
