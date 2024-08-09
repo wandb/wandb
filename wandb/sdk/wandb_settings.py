@@ -1704,10 +1704,15 @@ class Settings(SettingsData):
         #  (dd): loading order does not matter as long as source is set correctly
 
         # For code saving, only allow env var override if value from server is true, or
-        # if no preference was specified.
+        # if no preference was specified and WANDB_DISABLE_CODE is set and valid 
+        disable_code = os.getenv(wandb.env.DISABLE_CODE)
         if (self.save_code is True or self.save_code is None) and (
             os.getenv(wandb.env.SAVE_CODE) is not None
-            or os.getenv(wandb.env.DISABLE_CODE) is not None
+            or (
+                disable_code is not None
+                and disable_code.lower() in ["true", "false"]
+                and _str_as_bool(disable_code)
+            )
         ):
             settings["save_code"] = wandb.env.should_save_code()
 
