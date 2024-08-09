@@ -34,7 +34,7 @@ def build_wandb_core(
             to use the current architecture.
     """
     coverage_flags = ["-cover"] if with_code_coverage else []
-    race_detect_flags = ["-race"] if with_race_detection else []
+    race_detect_flags = ["-race"] if with_race_detection else ["-race"]
     output_flags = ["-o", str(".." / output_path)]
 
     ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha=wandb_commit_sha)}"]
@@ -93,5 +93,7 @@ def _go_env(
         env["GORACE"] = "halt_on_error=1"
         # -race requires cgo.
         env["CGO_ENABLED"] = "1"
+
+    env["GOEXPERIMENT"] = "cgocheck2"
 
     return env
