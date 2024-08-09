@@ -16,8 +16,9 @@ from typing import Any, Dict, List, Optional
 import wandb
 import wandb.data_types
 from wandb.sdk.launch.errors import LaunchError
+from wandb.sdk.launch.inputs.schema import META_SCHEMA
 from wandb.sdk.wandb_run import Run
-from wandb.util import get_module, load_json_yaml_dict
+from wandb.util import get_module
 
 from .files import config_path_is_valid, override_file
 
@@ -177,10 +178,7 @@ def _validate_schema(schema: dict) -> None:
         required="Setting job schema requires the jsonschema package. Please install it with `pip install 'wandb[launch]'`.",
         lazy=False,
     )
-    metaschema = load_json_yaml_dict(
-        os.path.join(os.path.dirname(__file__), "schema.json")
-    )
-    validator = jsonschema.Draft202012Validator(metaschema)
+    validator = jsonschema.Draft202012Validator(META_SCHEMA)
     errs = sorted(validator.iter_errors(schema), key=str)
     if errs:
         wandb.termwarn(f"Schema includes unhandled or invalid configurations:\n{errs}")
