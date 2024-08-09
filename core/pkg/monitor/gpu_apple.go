@@ -35,8 +35,8 @@ type GPUApple struct {
 
 func NewGPUApple() *GPUApple {
 	gpu := &GPUApple{
-		name:     "gpu",
-		metrics:  map[string][]float64{},
+		name:    "gpu",
+		metrics: map[string][]float64{},
 	}
 
 	if exPath, err := getExecPath(); err == nil {
