@@ -9,9 +9,11 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 
+import os
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 from wandb.sdk import Settings
+from wandb.sdk.interface.interface import PolicyName
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
@@ -65,4 +67,13 @@ def log(
     sync: Optional[bool] = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::log>"""
+    ...
+
+
+def save(
+    glob_str: Optional[Union[str, os.PathLike]] = None,
+    base_path: Optional[Union[str, os.PathLike]] = None,
+    policy: "PolicyName" = "live",
+) -> Union[bool, List[str]]:
+    """<sdk/wandb_run.py::Run::save>"""
     ...

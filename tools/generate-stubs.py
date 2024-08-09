@@ -33,7 +33,7 @@ def extract_docstring(file_path, location):
     return None
 
 
-def update_template_file(wandb_root, template, output, functions_to_update):
+def generate_stubs(wandb_root, template, output, functions_to_update):
     template_path = wandb_root / template
     output_path = wandb_root / output
     content = template_path.read_text()
@@ -72,16 +72,17 @@ def lint_and_format_stub() -> str:
     )
 
 
-# Usage
-wandb_root = Path(__file__).parent.parent / "wandb"
-template = "__init__.pyi.template"
-output = "__init__.pyi"
+if __name__ == "__main__":
+    wandb_root = Path(__file__).parent.parent / "wandb"
+    template = "__init__.pyi.template"
+    output = "__init__.pyi"
 
-functions_to_update = {
-    "init": "sdk/wandb_init.py::init",
-    "setup": "sdk/wandb_setup.py::setup",
-    "log": "sdk/wandb_run.py::Run::log",
-}
+    functions_to_update = {
+        "init": "sdk/wandb_init.py::init",
+        "setup": "sdk/wandb_setup.py::setup",
+        "log": "sdk/wandb_run.py::Run::log",
+        "save": "sdk/wandb_run.py::Run::save",
+    }
 
-update_template_file(wandb_root, template, output, functions_to_update)
-lint_and_format_stub()
+    generate_stubs(wandb_root, template, output, functions_to_update)
+    lint_and_format_stub()
