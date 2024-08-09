@@ -27,7 +27,7 @@ def sample_data():
 
     with wandb.init(id="second_run", settings={"silent": True}):
         wandb.run.use_artifact("mnist:v0")
-        art = wandb.run.use_artifact("mnist:v0",aliases=["my_alias_2"])
+        art = wandb.run.use_artifact("mnist:v0", aliases=["my_alias_2"])
         assert "my_alias_2" in art.aliases
         assert "my_alias" in art.aliases
         assert len(art.aliases) == 2
