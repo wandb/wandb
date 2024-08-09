@@ -1,31 +1,33 @@
-import sys
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Literal, Optional, Union
 
-import tensorflow as tf  # type: ignore
+import keras
+from keras.callbacks import Callback
 from packaging import version
-from tensorflow.keras import callbacks  # type: ignore
 
 import wandb
-from wandb.integration.keras.keras import patch_tf_keras
-from wandb.sdk.lib import telemetry
-
-if sys.version_info >= (3, 8):
-    from typing import Literal
-else:
-    from typing_extensions import Literal
-
+from wandb.util import get_module
 
 LogStrategy = Literal["epoch", "batch"]
 
 
-patch_tf_keras()
-
-
-class WandbMetricsLogger(callbacks.Callback):
-    """Logger that sends Keras metrics to W&B.
+class WandbMetricsLogger(Callback):
+    """Logger that sends system metrics to W&B.
 
     `WandbMetricsLogger` automatically logs the `logs` dictionary that callback methods
-    take as argument to wandb.
+    take as argument to wandb. The callback works for both [Keras3](https://keras.io/api/)
+    and [Keras2](https://keras.io/2.15/api/) or `tf.keras`.
+
+    Example:
+        ```python
+        from wandb.integration.keras3 import WandbMetricsLogger
+
+        model.fit(
+            X_train,
+            y_train,
+            validation_data=(X_test, y_test),
+            callbacks=[WandbCallback()],
+        )
+        ```
 
     This callback automatically logs the following to a W&B run page:
     * system (CPU/GPU/TPU) metrics,
@@ -44,7 +46,7 @@ class WandbMetricsLogger(callbacks.Callback):
             at the end of each epoch. If "batch", logs metrics at the end
             of each batch. If an integer, logs metrics at the end of that
             many batches. Defaults to "epoch".
-        initial_global_step: (int) Use this argument to correctly log the
+        initial_global_step: (int) Use this argument to correcly log the
             learning rate when you resume training from some `initial_epoch`,
             and a learning rate scheduler is used. This can be computed as
             `step_size * initial_step`. Defaults to 0.
@@ -64,18 +66,9 @@ class WandbMetricsLogger(callbacks.Callback):
                 "You must call `wandb.init()` before WandbMetricsLogger()"
             )
 
-        if version.parse(tf.__version__) > version.parse("2.15.0"):
-            wandb.termwarn(
-                """This callback is deprecated and will not be supported with the upcoming releases.
-                We recommend you use `wandb.integration.keras3.WandbMetricsLogger` instead.""",
-                repeat=False,
-            )
+        wandb.config.update({"keras_backend": keras.backend.backend()})
 
-        with telemetry.context(run=wandb.run) as tel:
-            tel.feature.keras_metrics_logger = True
-
-        if log_freq == "batch":
-            log_freq = 1
+        log_freq = 1 if log_freq == "batch" else log_freq
 
         self.logging_batch_wise = isinstance(log_freq, int)
         self.log_freq: Any = log_freq if self.logging_batch_wise else None
@@ -94,18 +87,24 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
     def _get_lr(self) -> Union[float, None]:
-        if isinstance(self.model.optimizer.learning_rate, tf.Variable):
-            return float(self.model.optimizer.learning_rate.numpy().item())
-        try:
-            return float(
-                self.model.optimizer.learning_rate(step=self.global_step).numpy().item()
-            )
-        except Exception:
-            wandb.termerror("Unable to log learning rate.", repeat=False)
-            return None
+        if version.parse(keras.__version__) > version.parse("3.0.0"):
+            if isinstance(self.model.optimizer, keras.optimizers.Optimizer):
+                return keras.ops.convert_to_numpy(self.model.optimizer.learning_rate)
+        else:
+            tf = get_module("tensorflow")
+            if isinstance(self.model.optimizer.learning_rate, tf.Variable):
+                return float(self.model.optimizer.learning_rate.numpy().item())
+            try:
+                return float(
+                    self.model.optimizer.learning_rate(step=self.global_step)
+                    .numpy()
+                    .item()
+                )
+            except Exception:
+                wandb.termerror("Unable to log learning rate.", repeat=False)
+                return None
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
-        """Called at the end of an epoch."""
         logs = dict() if logs is None else {f"epoch/{k}": v for k, v in logs.items()}
 
         logs["epoch/epoch"] = epoch
@@ -118,7 +117,6 @@ class WandbMetricsLogger(callbacks.Callback):
 
     def on_batch_end(self, batch: int, logs: Optional[Dict[str, Any]] = None) -> None:
         self.global_step += 1
-        """An alias for `on_train_batch_end` for backwards compatibility."""
         if self.logging_batch_wise and batch % self.log_freq == 0:
             logs = {f"batch/{k}": v for k, v in logs.items()} if logs else {}
             logs["batch/batch_step"] = self.global_batch
@@ -134,5 +132,4 @@ class WandbMetricsLogger(callbacks.Callback):
     def on_train_batch_end(
         self, batch: int, logs: Optional[Dict[str, Any]] = None
     ) -> None:
-        """Called at the end of a training batch in `fit` methods."""
         self.on_batch_end(batch, logs if logs else {})
