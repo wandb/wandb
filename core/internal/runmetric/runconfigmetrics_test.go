@@ -11,11 +11,11 @@ import (
 func TestMetricSelfStep(t *testing.T) {
 	rcm := runmetric.NewRunConfigMetrics()
 
-	rcm.ProcessRecord(&service.MetricRecord{
+	_ = rcm.ProcessRecord(&service.MetricRecord{
 		Name:       "x",
 		StepMetric: "y",
 	})
-	rcm.ProcessRecord(&service.MetricRecord{
+	_ = rcm.ProcessRecord(&service.MetricRecord{
 		Name:       "y",
 		StepMetric: "x",
 	})
