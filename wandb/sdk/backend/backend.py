@@ -11,7 +11,7 @@ import os
 import queue
 import sys
 import threading
-from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union, cast
+from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Union
 
 import wandb
 from wandb.sdk.interface.interface import InterfaceBase
@@ -19,17 +19,16 @@ from wandb.sdk.interface.interface_queue import InterfaceQueue
 from wandb.sdk.internal.internal import wandb_internal
 from wandb.sdk.internal.settings_static import SettingsStatic
 from wandb.sdk.lib.mailbox import Mailbox
-from wandb.sdk.wandb_manager import _Manager
 from wandb.sdk.wandb_settings import Settings
 
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import Record, Result
+    from wandb.sdk.lib import service_connection
 
-    from ..service.service_sock import ServiceSockInterface
     from ..wandb_run import Run
 
-    RecordQueue = Union[queue.Queue[Record], multiprocessing.Queue[Record]]
-    ResultQueue = Union[queue.Queue[Result], multiprocessing.Queue[Result]]
+    RecordQueue = Union["queue.Queue[Record]", multiprocessing.Queue[Record]]
+    ResultQueue = Union["queue.Queue[Result]", multiprocessing.Queue[Result]]
 
 logger = logging.getLogger("wandb")
 
@@ -65,7 +64,7 @@ class Backend:
         mailbox: Mailbox,
         settings: Optional[Settings] = None,
         log_level: Optional[int] = None,
-        manager: Optional[_Manager] = None,
+        service: "Optional[service_connection.ServiceConnection]" = None,
     ) -> None:
         self._done = False
         self.record_q = None
@@ -75,7 +74,7 @@ class Backend:
         self._internal_pid = None
         self._settings = settings
         self._log_level = log_level
-        self._manager = manager
+        self._service = service
         self._mailbox = mailbox
 
         self._multiprocessing = multiprocessing  # type: ignore
@@ -139,27 +138,10 @@ class Backend:
         if self._save_mod_path:
             main_module.__file__ = self._save_mod_path
 
-    def _ensure_launched_manager(self) -> None:
-        assert self._manager
-        svc = self._manager._get_service()
-        assert svc
-        svc_iface = svc.service_interface
-
-        svc_transport = svc_iface.get_transport()
-        if svc_transport == "tcp":
-            from ..interface.interface_sock import InterfaceSock
-
-            svc_iface_sock = cast("ServiceSockInterface", svc_iface)
-            sock_client = svc_iface_sock._get_sock_client()
-            sock_interface = InterfaceSock(sock_client, mailbox=self._mailbox)
-            self.interface = sock_interface
-        else:
-            raise AssertionError(f"Unsupported service transport: {svc_transport}")
-
     def ensure_launched(self) -> None:
         """Launch backend worker if not running."""
-        if self._manager:
-            self._ensure_launched_manager()
+        if self._service:
+            self.interface = self._service.make_interface(self._mailbox)
             return
 
         assert self._settings

@@ -648,9 +648,9 @@ class _WandbInit:
                         f"Successfully finished last run (ID:{latest_run._run_id}). Initializing new run:<br/>"
                     )
         elif isinstance(wandb.run, Run):
-            manager = self._wl._get_manager()
+            service = self._wl.service
             # We shouldn't return a stale global run if we are in a new pid
-            if not manager or os.getpid() == wandb.run._init_pid:
+            if not service or os.getpid() == wandb.run._init_pid:
                 logger.info("wandb.init() called when a run is still active")
                 with telemetry.context() as tel:
                     tel.feature.init_return_run = True
@@ -658,15 +658,20 @@ class _WandbInit:
 
         logger.info("starting backend")
 
-        manager = self._wl._get_manager()
-        if manager:
-            logger.info("setting up manager")
-            manager._inform_init(
-                settings=self.settings.to_proto(), run_id=self.settings.run_id
+        service = self._wl.service
+        if service:
+            logger.info("sending inform_init request")
+            service.inform_init(
+                settings=self.settings.to_proto(),
+                run_id=self.settings.run_id,
             )
 
         mailbox = Mailbox()
-        backend = Backend(settings=self.settings, manager=manager, mailbox=mailbox)
+        backend = Backend(
+            settings=self.settings,
+            service=service,
+            mailbox=mailbox,
+        )
         backend.ensure_launched()
         logger.info("backend started and connected")
         # Make sure we are logged in
@@ -732,7 +737,7 @@ class _WandbInit:
             if os.environ.get(wandb.env._DISABLE_SERVICE):
                 tel.feature.service_disabled = True
 
-            if manager:
+            if service:
                 tel.feature.service = True
             if self.settings._flow_control_disabled:
                 tel.feature.flow_control_disabled = True
@@ -823,7 +828,7 @@ class _WandbInit:
 
         if error is not None:
             logger.error(f"encountered error: {error}")
-            if not manager:
+            if not service:
                 # Shutdown the backend and get rid of the logger
                 # we don't need to do console cleanup at this point
                 backend.cleanup()
@@ -850,9 +855,10 @@ class _WandbInit:
         logger.info("starting run threads in backend")
         # initiate run (stats and metadata probing)
 
-        if manager:
-            manager._inform_start(
-                settings=self.settings.to_proto(), run_id=self.settings.run_id
+        if service:
+            service.inform_start(
+                settings=self.settings.to_proto(),
+                run_id=self.settings.run_id,
             )
 
         assert backend.interface
@@ -927,9 +933,12 @@ def _attach(
     if logger is None:
         raise UsageError("logger is not initialized")
 
-    manager = _wl._get_manager()
-    response = manager._inform_attach(attach_id=attach_id) if manager else None
-    if response is None:
+    service = _wl.service
+    if not service:
+        raise UsageError(f"Unable to attach to run {attach_id}")
+
+    attach_settings = service.inform_attach(attach_id=attach_id)
+    if not attach_settings:
         raise UsageError(f"Unable to attach to run {attach_id}")
 
     settings: Settings = copy.copy(_wl._settings)
@@ -937,16 +946,16 @@ def _attach(
     settings.update(
         {
             "run_id": attach_id,
-            "_start_time": response._start_time.value,
-            "_start_datetime": response._start_datetime.value,
-            "_offline": response._offline.value,
+            "_start_time": attach_settings._start_time.value,
+            "_start_datetime": attach_settings._start_datetime.value,
+            "_offline": attach_settings._offline.value,
         },
         source=Source.INIT,
     )
 
     # TODO: consolidate this codepath with wandb.init()
     mailbox = Mailbox()
-    backend = Backend(settings=settings, manager=manager, mailbox=mailbox)
+    backend = Backend(settings=settings, service=service, mailbox=mailbox)
     backend.ensure_launched()
     logger.info("attach backend started and connected")
 
