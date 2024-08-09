@@ -34,7 +34,6 @@ def sample_data():
         wandb.run.use_artifact("mnist:v1")
 
 
-
 def test_artifact_versions(user, api, sample_data):
     versions = api.artifact_versions("dataset", "mnist")
     assert len(versions) == 2
