@@ -11,14 +11,14 @@ import (
 )
 
 func TestNewGPUAMD(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	assert.NotNil(t, gpu)
 	assert.Equal(t, "gpu", gpu.Name())
 	assert.Len(t, gpu.Samples(), 0)
 }
 
 func TestGPUAMD_ParseStats(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	stats := map[string]interface{}{
 		"GPU use (%)":                        "10",
 		"GPU memory use (%)":                 "20",
@@ -51,7 +51,7 @@ func getROCMSMIStatsMock() (monitor.InfoDict, error) {
 }
 
 func TestGPUAMD_SampleStats(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	assert.Len(t, gpu.Samples(), 0)
 	gpu.SampleMetrics()
@@ -71,7 +71,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 }
 
 func TestGPUAMD_Probe(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	gpu.IsAvailableFunc = func() bool { return true }
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	info := gpu.Probe()

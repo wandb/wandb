@@ -29,16 +29,14 @@ type GPUApple struct {
 	name        string
 	metrics     map[string][]float64
 	mutex       sync.RWMutex
-	settings    *service.Settings
 	isAvailable bool
 	exPath      string
 }
 
-func NewGPUApple(settings *service.Settings) *GPUApple {
+func NewGPUApple() *GPUApple {
 	gpu := &GPUApple{
-		name:     "gpu",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "gpu",
+		metrics: map[string][]float64{},
 	}
 
 	if exPath, err := getExecPath(); err == nil {

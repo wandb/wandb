@@ -12,17 +12,17 @@ import (
 type Disk struct {
 	name      string
 	metrics   map[string][]float64
-	settings  *service.Settings
+	diskPaths []string
 	mutex     sync.RWMutex
 	readInit  int
 	writeInit int
 }
 
-func NewDisk(settings *service.Settings) *Disk {
+func NewDisk(diskPaths []string) *Disk {
 	d := &Disk{
-		name:     "disk",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:      "disk",
+		metrics:   map[string][]float64{},
+		diskPaths: diskPaths,
 	}
 
 	// todo: collect metrics for each disk
@@ -41,7 +41,7 @@ func (d *Disk) SampleMetrics() {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
-	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+	for _, diskPath := range d.diskPaths {
 		usage, err := disk.Usage(diskPath)
 		if err == nil {
 			// used disk space as a percentage
@@ -100,7 +100,7 @@ func (d *Disk) Probe() *service.MetadataRequest {
 	info := &service.MetadataRequest{
 		Disk: make(map[string]*service.DiskInfo),
 	}
-	for _, diskPath := range d.settings.XStatsDiskPaths.GetValue() {
+	for _, diskPath := range d.diskPaths {
 		usage, err := disk.Usage(diskPath)
 		if err != nil {
 			continue

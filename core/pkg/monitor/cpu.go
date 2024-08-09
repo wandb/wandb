@@ -12,17 +12,17 @@ import (
 )
 
 type CPU struct {
-	name     string
-	metrics  map[string][]float64
-	settings *service.Settings
-	mutex    sync.RWMutex
+	name    string
+	metrics map[string][]float64
+	pid     int32
+	mutex   sync.RWMutex
 }
 
-func NewCPU(settings *service.Settings) *CPU {
+func NewCPU(pid int32) *CPU {
 	return &CPU{
-		name:     "cpu",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "cpu",
+		metrics: map[string][]float64{},
+		pid:     pid,
 	}
 }
 
@@ -33,7 +33,7 @@ func (c *CPU) SampleMetrics() {
 	defer c.mutex.Unlock()
 
 	// process-related metrics
-	proc := process.Process{Pid: c.settings.XStatsPid.GetValue()}
+	proc := process.Process{Pid: c.pid}
 	// process CPU usage in percent
 	procCPU, err := proc.CPUPercent()
 	if err == nil {

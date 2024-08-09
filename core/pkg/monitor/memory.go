@@ -10,17 +10,17 @@ import (
 )
 
 type Memory struct {
-	name     string
-	metrics  map[string][]float64
-	settings *service.Settings
-	mutex    sync.RWMutex
+	name    string
+	metrics map[string][]float64
+	pid     int32
+	mutex   sync.RWMutex
 }
 
-func NewMemory(settings *service.Settings) *Memory {
+func NewMemory(pid int32) *Memory {
 	return &Memory{
-		name:     "memory",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "memory",
+		metrics: map[string][]float64{},
+		pid:     pid,
 	}
 }
 
@@ -46,7 +46,7 @@ func (m *Memory) SampleMetrics() {
 	}
 
 	// process-related metrics
-	proc := process.Process{Pid: m.settings.XStatsPid.GetValue()}
+	proc := process.Process{Pid: m.pid}
 	procMem, err := proc.MemoryInfo()
 	if err == nil {
 		// process memory usage in MB
