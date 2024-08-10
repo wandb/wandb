@@ -87,28 +87,39 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 		task.Size = stat.Size() - task.Offset
 	}
 
-	reader := io.NewSectionReader(file, task.Offset, task.Size)
+	// Due to historical mistakes, net/http interprets a 0 value of
+	// Request.ContentLength as "unknown" if the body is non-nil, and
+	// doesn't send the Content-Length header which is usually required.
+	//
+	// To have it understand 0 as 0, the body must be set to nil or
+	// the NoBody sentinel.
+	var requestBody any
+	if task.Size == 0 {
+		requestBody = http.NoBody
+	} else {
+		if task.Size > math.MaxInt {
+			return fmt.Errorf("file transfer: file too large (%d bytes)", task.Size)
+		}
 
-	progressReader, err := NewProgressReader(
-		reader,
-		task.Size,
-		func(processed int, total int) {
-			if task.ProgressCallback != nil {
-				task.ProgressCallback(processed, total)
-			}
+		requestBody = NewProgressReader(
+			io.NewSectionReader(file, task.Offset, task.Size),
+			int(task.Size),
+			func(processed int, total int) {
+				if task.ProgressCallback != nil {
+					task.ProgressCallback(processed, total)
+				}
 
-			ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
-				FileKind:      task.FileKind,
-				Path:          task.Path,
-				UploadedBytes: int64(processed),
-				TotalBytes:    int64(total),
-			})
-		},
-	)
-	if err != nil {
-		return err
+				ft.fileTransferStats.UpdateUploadStats(FileUploadInfo{
+					FileKind:      task.FileKind,
+					Path:          task.Path,
+					UploadedBytes: int64(processed),
+					TotalBytes:    int64(total),
+				})
+			},
+		)
 	}
-	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, progressReader)
+
+	req, err := retryablehttp.NewRequest(http.MethodPut, task.Url, requestBody)
 	if err != nil {
 		return err
 	}
@@ -199,15 +210,16 @@ type ProgressReader struct {
 	callback func(processed, total int)
 }
 
-func NewProgressReader(reader io.ReadSeeker, size int64, callback func(processed, total int)) (*ProgressReader, error) {
-	if size > math.MaxInt {
-		return &ProgressReader{}, fmt.Errorf("file larger than %v", math.MaxInt)
-	}
+func NewProgressReader(
+	reader io.ReadSeeker,
+	size int,
+	callback func(processed, total int),
+) *ProgressReader {
 	return &ProgressReader{
 		ReadSeeker: reader,
-		len:        int(size),
+		len:        size,
 		callback:   callback,
-	}, nil
+	}
 }
 
 func (pr *ProgressReader) Read(p []byte) (int, error) {
@@ -224,5 +236,5 @@ func (pr *ProgressReader) Read(p []byte) (int, error) {
 }
 
 func (pr *ProgressReader) Len() int {
-	return pr.len
+	return int(pr.len)
 }
