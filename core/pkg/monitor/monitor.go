@@ -240,7 +240,9 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			sm.logger.CaptureError(fmt.Errorf("monitor: panic: %v", err))
+			sm.logger.CaptureError(
+				fmt.Errorf("monitor: panic: %v", err),
+				"asset_name", asset.Name())
 		}
 	}()
 
