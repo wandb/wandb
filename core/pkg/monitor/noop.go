@@ -3,6 +3,7 @@
 package monitor
 
 import (
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -10,13 +11,15 @@ type GPUNvidia struct {
 	name             string
 	pid              int32
 	samplingInterval float64
+	logger           *observability.CoreLogger
 }
 
-func NewGPUNvidia(pid int32, samplingInterval float64) *GPUNvidia {
+func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
 	gpu := &GPUNvidia{
 		name:             "gpu",
 		pid:              pid,
 		samplingInterval: samplingInterval,
+		logger:           logger,
 	}
 
 	return gpu

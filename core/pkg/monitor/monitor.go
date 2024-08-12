@@ -165,7 +165,10 @@ func NewSystemMonitor(
 		NewDisk(diskPaths),
 		NewMemory(pid),
 		NewNetwork(),
-		NewGPUNvidia(pid, samplingInterval),
+		// NOTE: we pass the logger for more detailed error reporting
+		// during the initial rollout of the GPU monitoring with nvidia_gpu_stats
+		// TODO: remove the logger once we are confident that it is stable
+		NewGPUNvidia(logger, pid, samplingInterval),
 		NewGPUAMD(),
 		NewGPUApple(),
 	}
