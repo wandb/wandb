@@ -63,23 +63,6 @@ impl NvidiaGpu {
             let device = self.nvml.device_by_index(di)?;
             let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
 
-            let name = device.name()?;
-            metrics.add_metric(&format!("_gpu.{}.name", di), name);
-
-            let brand = device.brand()?;
-            metrics.add_metric(&format!("gpu.{}.brand", di), format!("{:?}", brand));
-
-            if let Ok(fan_speed) = device.fan_speed(0) {
-                metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
-            }
-
-            if let Ok(encoder_util) = device.encoder_utilization() {
-                metrics.add_metric(
-                    &format!("_gpu.{}.encoderUtilization", di),
-                    encoder_util.utilization,
-                );
-            }
-
             let utilization = device.utilization_rates()?;
             metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
             metrics.add_metric(&format!("gpu.{}.memory", di), utilization.memory);
@@ -134,6 +117,23 @@ impl NvidiaGpu {
                     );
                     metrics.add_metric(&format!("gpu.process.{}.powerPercent", di), power_percent);
                 }
+            }
+
+            let name = device.name()?;
+            metrics.add_metric(&format!("_gpu.{}.name", di), name);
+
+            let brand = device.brand()?;
+            metrics.add_metric(&format!("gpu.{}.brand", di), format!("{:?}", brand));
+
+            if let Ok(fan_speed) = device.fan_speed(0) {
+                metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
+            }
+
+            if let Ok(encoder_util) = device.encoder_utilization() {
+                metrics.add_metric(
+                    &format!("_gpu.{}.encoderUtilization", di),
+                    encoder_util.utilization,
+                );
             }
 
             let graphics_clock = device.clock_info(Clock::Graphics)?;
