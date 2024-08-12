@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -48,37 +49,40 @@ func isRunning(cmd *exec.Cmd) bool {
 }
 
 type GPUNvidia struct {
-	name     string
-	sample   map[string]any   // latest reading from nvidia_gpu_stats command
-	metrics  map[string][]any // all readings
-	settings *service.Settings
-	mutex    sync.RWMutex
-	cmd      *exec.Cmd
+	name             string
+	sample           map[string]any   // latest reading from nvidia_gpu_stats command
+	metrics          map[string][]any // all readings
+	pid              int32            // pid of the process to monitor
+	samplingInterval float64          // sampling interval in seconds
+	mutex            sync.RWMutex
+	cmd              *exec.Cmd
+	logger           *observability.CoreLogger
 }
 
-func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
-	gpu := &GPUNvidia{
-		name:     "gpu",
-		sample:   map[string]any{},
-		metrics:  map[string][]any{},
-		settings: settings,
+func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
+	g := &GPUNvidia{
+		name:             "gpu",
+		sample:           map[string]any{},
+		metrics:          map[string][]any{},
+		pid:              pid,
+		samplingInterval: samplingInterval,
+		logger:           logger,
 	}
 
 	exPath, err := getCmdPath()
 	if err != nil {
-		return gpu
+		return g
 	}
 
-	samplingInterval := defaultSamplingInterval.Seconds()
-	if settings.XStatsSampleRateSeconds.GetValue() > 0 {
-		samplingInterval = settings.XStatsSampleRateSeconds.GetValue()
+	if samplingInterval == 0 {
+		samplingInterval = defaultSamplingInterval.Seconds()
 	}
 
 	// we will use nvidia_gpu_stats to get GPU stats
-	gpu.cmd = exec.Command(
+	g.cmd = exec.Command(
 		exPath,
 		// monitor for GPU usage for this pid and its children
-		fmt.Sprintf("--pid=%d", settings.XStatsPid.GetValue()),
+		fmt.Sprintf("--pid=%d", pid),
 		// pid of the current process. nvidia_gpu_stats will exit when this process exits
 		fmt.Sprintf("--ppid=%d", os.Getpid()),
 		// sampling interval in seconds
@@ -86,13 +90,20 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 	)
 
 	// get a pipe to read from the command's stdout
-	stdout, err := gpu.cmd.StdoutPipe()
+	stdout, err := g.cmd.StdoutPipe()
 	if err != nil {
-		return gpu
+		g.logger.CaptureError(
+			fmt.Errorf("monitor: %v: error getting stdout pipe: %v for command: %v", g.name, err, g.cmd),
+		)
+		return g
 	}
 
-	if err := gpu.cmd.Start(); err != nil {
-		return gpu
+	if err := g.cmd.Start(); err != nil {
+		// this is a relevant error, so we will report it to sentry
+		g.logger.CaptureError(
+			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
+		)
+		return g
 	}
 
 	// read and process nvidia_gpu_stats output in a separate goroutine.
@@ -105,15 +116,18 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 			// Try to parse the line as JSON
 			var data map[string]any
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
+				g.logger.CaptureError(
+					fmt.Errorf("monitor: %v: error parsing JSON %v: %v", g.name, line, err),
+				)
 				continue
 			}
 
 			// Process the JSON data
-			gpu.mutex.Lock()
+			g.mutex.Lock()
 			for key, value := range data {
-				gpu.sample[key] = value
+				g.sample[key] = value
 			}
-			gpu.mutex.Unlock()
+			g.mutex.Unlock()
 		}
 
 		if err := scanner.Err(); err != nil {
@@ -121,32 +135,35 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 		}
 	}()
 
-	return gpu
+	return g
 }
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) SampleMetrics() {
+func (g *GPUNvidia) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	if !isRunning(g.cmd) {
-		return
+		// do not log error if the command is not running
+		return nil
 	}
 
 	// do not sample if the last timestamp is the same
 	currentTimestamp, ok := g.sample["_timestamp"]
 	if !ok {
-		return
+		return nil
 	}
 	lastTimestamps, ok := g.metrics["_timestamp"]
 	if ok && len(lastTimestamps) > 0 && lastTimestamps[len(lastTimestamps)-1] == currentTimestamp {
-		return
+		return nil
 	}
 
 	for key, value := range g.sample {
 		g.metrics[key] = append(g.metrics[key], value)
 	}
+
+	return nil
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
@@ -184,12 +201,16 @@ func (g *GPUNvidia) ClearMetrics() {
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
+	exPath, err := getCmdPath()
+	if err != nil || exPath == "" {
+		return false
+	}
 	return isRunning(g.cmd)
 }
 
 func (g *GPUNvidia) Close() {
 	// send signal to close
-	if isRunning(g.cmd) {
+	if g.IsAvailable() {
 		if err := g.cmd.Process.Signal(os.Kill); err != nil {
 			return
 		}
