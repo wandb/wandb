@@ -1,0 +1,1251 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "google/protobuf/timestamp.proto";
+import "wandb/proto/wandb_base.proto";
+import "wandb/proto/wandb_telemetry.proto";
+
+/*
+ * Record: Persistent on disk data (BE CAREFUL)
+ * Result: responses from Record requests
+ *
+ * Request: Communication requests between processes
+ * Response: Responses from Request messages
+ */
+
+/************************
+ * Records and Results
+ ************************/
+
+/*
+ * Record: joined record for message passing and persistence
+ */
+message Record {
+  int64 num = 1;
+  oneof record_type {
+    // Low numbers for more frequent data
+    HistoryRecord history = 2;
+    SummaryRecord summary = 3;
+    OutputRecord output = 4;
+    ConfigRecord config = 5;
+    FilesRecord files = 6;
+    StatsRecord stats = 7;
+    ArtifactRecord artifact = 8;
+    TBRecord tbrecord = 9;
+    AlertRecord alert = 10;
+    TelemetryRecord telemetry = 11;
+    MetricRecord metric = 12;
+    OutputRawRecord output_raw = 13;
+    // Higher numbers for less frequent data
+    RunRecord run = 17;
+    RunExitRecord exit = 18;
+    FinalRecord final = 20;
+    HeaderRecord header = 21;
+    FooterRecord footer = 22;
+    RunPreemptingRecord preempting = 23;
+    LinkArtifactRecord link_artifact = 24;
+    UseArtifactRecord use_artifact = 25;
+
+    // request field does not belong here longterm
+    Request request = 100;
+  }
+  Control control = 16;
+  string uuid = 19;
+  _RecordInfo _info = 200;
+}
+
+message Control {
+  bool req_resp = 1;         // record is expecting a result
+  bool local = 2;            // should not be persisted or synchronized
+  string relay_id = 3;       // used by service transport to identify correct stream
+  string mailbox_slot = 4;   // mailbox slot
+  bool always_send = 5;      // message to sender
+  bool flow_control = 6;     // message should be passed to flow control
+  int64 end_offset = 7;      // end of message offset of this written message
+  string connection_id = 8;  // connection id
+}
+
+/*
+ * Result: all results
+ */
+message Result {
+  oneof result_type {
+    RunUpdateResult run_result = 17;
+    RunExitResult exit_result = 18;
+    HistoryResult log_result = 20;
+    SummaryResult summary_result = 21;
+    OutputResult output_result = 22;
+    ConfigResult config_result = 23;
+    /* response field does not belong here longterm */
+    Response response = 100;
+  }
+  Control control = 16;
+  string uuid = 24;
+  _ResultInfo _info = 200;
+}
+
+/*
+ * FinalRecord
+ */
+message FinalRecord {
+  _RecordInfo _info = 200;
+}
+
+/*
+ * Version definition
+ */
+message VersionInfo {
+  // The version of the SDK backend that produced the data
+  string producer = 1;
+  // Minimum version of the wandb server that can read the data
+  string min_consumer = 2;
+  _RecordInfo _info = 200;
+}
+
+/*
+ * HeaderRecord
+ */
+message HeaderRecord {
+  VersionInfo version_info = 1;
+  _RecordInfo _info = 200;
+}
+
+/*
+ * FooterRecord
+ */
+message FooterRecord {
+  _RecordInfo _info = 200;
+}
+
+/*
+ * RunRecord: wandb/sdk/wandb_run/Run
+ */
+message RunRecord {
+  string run_id = 1;
+  string entity = 2;
+  string project = 3;
+  ConfigRecord config = 4;
+  SummaryRecord summary = 5;
+  string run_group = 6;
+  string job_type = 7;
+  string display_name = 8;
+  string notes = 9;
+  repeated string tags = 10;
+  SettingsRecord settings = 11;
+  string sweep_id = 12;
+  string host = 13;
+  int64 starting_step = 14;
+
+  string storage_id = 16;
+  google.protobuf.Timestamp start_time = 17;
+  bool resumed = 18;
+  TelemetryRecord telemetry = 19;
+  int32 runtime = 20;
+  GitRepoRecord git = 21;
+  bool forked = 22;
+  _RecordInfo _info = 200;
+}
+
+message GitRepoRecord {
+  string remote_url = 1 [json_name = "remote"];
+  string commit = 2;
+}
+
+message RunUpdateResult {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
+}
+
+message ErrorInfo {
+  enum ErrorCode {
+    UNKNOWN = 0;
+    COMMUNICATION = 1;
+    AUTHENTICATION = 2;
+    USAGE = 3;
+    UNSUPPORTED = 4;
+  }
+  string message = 1;
+  ErrorCode code = 2;
+}
+
+/*
+ * RunExitRecord: exit status of process
+ */
+message RunExitRecord {
+  int32 exit_code = 1;
+  int32 runtime = 2;
+  _RecordInfo _info = 200;
+}
+
+message RunExitResult {}
+
+/*
+ * RunPreemptingRecord: run being preempted
+ */
+message RunPreemptingRecord {
+  _RecordInfo _info = 200;
+}
+
+message RunPreemptingResult {}
+
+/*
+ * SettingsRecord: wandb/sdk/wandb_settings/Settings
+ */
+message SettingsRecord {
+  repeated SettingsItem item = 1;
+  _RecordInfo _info = 200;
+}
+
+message SettingsItem {
+  string key = 1;
+  string value_json = 16;
+}
+
+/*
+ * HistoryRecord: wandb/sdk/wandb_history/History
+ */
+message HistoryStep {
+  int64 num = 1;
+}
+
+message HistoryRecord {
+  repeated HistoryItem item = 1;
+  HistoryStep step = 2;
+  _RecordInfo _info = 200;
+}
+
+/*
+ * HistoryItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
+message HistoryItem {
+  string key = 1;
+  repeated string nested_key = 2;
+  string value_json = 16;
+}
+
+message HistoryResult {}
+
+/*
+ * OutputRecord: console output
+ */
+message OutputRecord {
+  enum OutputType {
+    STDERR = 0;
+    STDOUT = 1;
+  }
+  OutputType output_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string line = 3;
+  _RecordInfo _info = 200;
+}
+
+message OutputResult {}
+
+/*
+ * OutputRawRecord: raw console output
+ */
+message OutputRawRecord {
+  enum OutputType {
+    STDERR = 0;
+    STDOUT = 1;
+  }
+  OutputType output_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  string line = 3;
+  _RecordInfo _info = 200;
+}
+
+message OutputRawResult {}
+
+/*
+ * MetricRecord: wandb/sdk/wandb_metric/Metric
+ */
+message MetricRecord {
+  // only name or globname is set
+  string name = 1;
+  string glob_name = 2;
+
+  // step metric index can be used instead of step_metric when
+  // MetricRecord is encoded in a list of MetricRecords
+  string step_metric = 4;
+  int32 step_metric_index = 5;  // one-based array index
+
+  MetricOptions options = 6;
+  MetricSummary summary = 7;
+  MetricGoal goal = 8;
+  MetricControl _control = 9;
+
+  enum MetricGoal {
+    GOAL_UNSET = 0;
+    GOAL_MINIMIZE = 1;
+    GOAL_MAXIMIZE = 2;
+  }
+  _RecordInfo _info = 200;
+}
+
+message MetricResult {}
+
+message MetricOptions {
+  bool step_sync = 1;
+  bool hidden = 2;
+  bool defined = 3;  // metric explicitly defined (not from glob match or step metric)
+}
+
+message MetricControl {
+  bool overwrite = 1;
+}
+
+message MetricSummary {
+  bool min = 1;
+  bool max = 2;
+  bool mean = 3;
+  bool best = 4;
+  bool last = 5;
+  bool none = 6;
+  bool copy = 7;
+}
+
+/*
+ * ConfigRecord: wandb/sdk/wandb_config/Config
+ */
+message ConfigRecord {
+  repeated ConfigItem update = 1;
+  repeated ConfigItem remove = 2;
+  _RecordInfo _info = 200;
+}
+
+/*
+ * ConfigItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
+message ConfigItem {
+  string key = 1;
+  repeated string nested_key = 2;
+  string value_json = 16;
+}
+
+message ConfigResult {}
+
+/*
+ * SummaryRecord: wandb/sdk/wandb_summary/Summary
+ */
+message SummaryRecord {
+  repeated SummaryItem update = 1;
+  repeated SummaryItem remove = 2;
+  _RecordInfo _info = 200;
+}
+
+/*
+ * SummaryItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
+message SummaryItem {
+  string key = 1;
+  repeated string nested_key = 2;
+  string value_json = 16;
+}
+
+message SummaryResult {}
+
+// Files added to a run, such as through run.save().
+message FilesRecord {
+  repeated FilesItem files = 1;
+  _RecordInfo _info = 200;
+}
+
+// One or more files being saved with a run.
+message FilesItem {
+  reserved 16;
+
+  enum PolicyType {
+    // Upload the file immediately.
+    NOW = 0;
+
+    // Upload the file during run.finish().
+    END = 1;
+
+    // Re-upload the file continuously as it changes.
+    LIVE = 2;
+  }
+
+  enum FileType {
+    OTHER = 0;
+    WANDB = 1;
+    MEDIA = 2;
+    ARTIFACT = 3;
+  }
+
+  // A path or Unix glob relative to the W&B files directory.
+  string path = 1;
+
+  // When to upload the file.
+  PolicyType policy = 2;
+
+  // What kind of file it is.
+  FileType type = 3;
+}
+
+message FilesResult {}
+
+/*
+ * StatsRecord: system metrics
+ */
+message StatsRecord {
+  enum StatsType {
+    SYSTEM = 0;
+  }
+  StatsType stats_type = 1;
+  google.protobuf.Timestamp timestamp = 2;
+  repeated StatsItem item = 3;
+  _RecordInfo _info = 200;
+}
+
+message StatsItem {
+  string key = 1;
+  string value_json = 16;
+}
+
+/*
+ * ArtifactRecord: track artifacts
+ */
+message ArtifactRecord {
+  string run_id = 1;
+  string project = 2;
+  string entity = 3;
+  string type = 4;
+  string name = 5;
+  string digest = 6;
+  string description = 7;
+  string metadata = 8;
+  bool user_created = 9;
+  bool use_after_commit = 10;
+  repeated string aliases = 11;
+  ArtifactManifest manifest = 12;
+  string distributed_id = 13;
+  bool finalize = 14;
+  string client_id = 15;
+  string sequence_client_id = 16;
+  string base_id = 17;
+  int64 ttl_duration_seconds = 18;
+  bool incremental_beta1 = 100;
+  _RecordInfo _info = 200;
+}
+
+message ArtifactManifest {
+  int32 version = 1;
+  string storage_policy = 2;
+  repeated StoragePolicyConfigItem storage_policy_config = 3;
+  repeated ArtifactManifestEntry contents = 4;
+}
+
+message ArtifactManifestEntry {
+  string path = 1;
+  string digest = 2;
+  string ref = 3;
+  int64 size = 4;
+  string mimetype = 5;
+  string local_path = 6;
+  string birth_artifact_id = 7;
+  // Whether to avoid copying/moving files to the cache while uploading.
+  bool skip_cache = 8;
+  repeated ExtraItem extra = 16;
+}
+
+message ExtraItem {
+  string key = 1;
+  string value_json = 2;
+}
+
+message StoragePolicyConfigItem {
+  string key = 1;
+  string value_json = 2;
+}
+
+message ArtifactResult {}
+
+message LinkArtifactResult {}
+
+/*
+ * LinkArtifactRecord: link artifact to portfolio
+ */
+message LinkArtifactRecord {
+  string client_id = 1;
+  string server_id = 2;
+  string portfolio_name = 3;
+  string portfolio_entity = 4;
+  string portfolio_project = 5;
+  repeated string portfolio_aliases = 6;
+  _RecordInfo _info = 200;
+}
+
+// Indicates a directory of TensorBoard tfevents files to sync with the run.
+message TBRecord {
+  _RecordInfo _info = 200;
+
+  // A directory containing tfevents files to watch.
+  //
+  // This may be an absolute or relative path.
+  string log_dir = 1;
+
+  // An optional path to an ancestor of `log_dir` used for namespacing.
+  //
+  // This may be an absolute or relative path.
+  //
+  // If set, then each event from tfevents files under `log_dir` is
+  // prefixed by the file's path relative to this directory. Additionally,
+  // if `save` is true, then each file's upload path is also its path
+  // relative to `root_dir`.
+  //
+  // For example, with `root_dir` set as "tb/logs" and `log_dir` as
+  // "tb/logs/train":
+  //
+  // * Files are uploaded to "train/events.out.tfevents"
+  // * A tfevents value tagged "epoch_loss" is logged as "train/epoch_loss"
+  //
+  // If this is unset, then it is inferred using unspecified rules.
+  string root_dir = 3;
+
+  // Whether to save tfevents files with the run.
+  //
+  // When true, this uploads the tfevents files, enabling the "TensorBoard"
+  // tab in W&B.
+  bool save = 2;
+}
+
+message TBResult {}
+
+/*
+ * AlertRecord: store alert notifications
+ */
+message AlertRecord {
+  string title = 1;
+  string text = 2;
+  string level = 3;
+  int64 wait_duration = 4;
+  _RecordInfo _info = 200;
+}
+
+message AlertResult {}
+
+/************************
+ * Requests and Responses
+ ************************/
+
+/*
+ * Request: all non persistent messages
+ */
+message Request {
+  reserved 75;
+
+  oneof request_type {
+    StopStatusRequest stop_status = 1;
+    NetworkStatusRequest network_status = 2;
+    DeferRequest defer = 3;
+    GetSummaryRequest get_summary = 4;
+    LoginRequest login = 5;
+    PauseRequest pause = 6;
+    ResumeRequest resume = 7;
+    PollExitRequest poll_exit = 8;
+    SampledHistoryRequest sampled_history = 9;
+    PartialHistoryRequest partial_history = 10;
+    RunStartRequest run_start = 11;
+    CheckVersionRequest check_version = 12;
+    LogArtifactRequest log_artifact = 13;
+    DownloadArtifactRequest download_artifact = 14;
+    KeepaliveRequest keepalive = 17;
+    RunStatusRequest run_status = 20;
+    CancelRequest cancel = 21;
+    MetadataRequest metadata = 22;
+    InternalMessagesRequest internal_messages = 23;
+    PythonPackagesRequest python_packages = 24;
+    ShutdownRequest shutdown = 64;
+    AttachRequest attach = 65;
+    StatusRequest status = 66;
+    ServerInfoRequest server_info = 67;
+    SenderMarkRequest sender_mark = 68;
+    SenderReadRequest sender_read = 69;
+    StatusReportRequest status_report = 70;
+    SummaryRecordRequest summary_record = 71;
+    TelemetryRecordRequest telemetry_record = 72;
+    JobInfoRequest job_info = 73;
+    GetSystemMetricsRequest get_system_metrics = 74;
+    SyncRequest sync = 76;
+    JobInputRequest job_input = 77;
+    TestInjectRequest test_inject = 1000;
+  }
+}
+
+/*
+ * Response: all non persistent responses to Requests
+ */
+message Response {
+  oneof response_type {
+    KeepaliveResponse keepalive_response = 18;
+    StopStatusResponse stop_status_response = 19;
+    NetworkStatusResponse network_status_response = 20;
+    LoginResponse login_response = 24;
+    GetSummaryResponse get_summary_response = 25;
+    PollExitResponse poll_exit_response = 26;
+    SampledHistoryResponse sampled_history_response = 27;
+    RunStartResponse run_start_response = 28;
+    CheckVersionResponse check_version_response = 29;
+    LogArtifactResponse log_artifact_response = 30;
+    DownloadArtifactResponse download_artifact_response = 31;
+    RunStatusResponse run_status_response = 35;
+    CancelResponse cancel_response = 36;
+    InternalMessagesResponse internal_messages_response = 37;
+    ShutdownResponse shutdown_response = 64;
+    AttachResponse attach_response = 65;
+    StatusResponse status_response = 66;
+    ServerInfoResponse server_info_response = 67;
+    JobInfoResponse job_info_response = 68;
+    GetSystemMetricsResponse get_system_metrics_response = 69;
+    SyncResponse sync_response = 70;
+    TestInjectResponse test_inject_response = 1000;
+  }
+}
+
+/*
+ * DeferRequest: internal message to defer work
+ */
+message DeferRequest {
+  enum DeferState {
+    BEGIN = 0;
+    FLUSH_RUN = 1;
+    FLUSH_STATS = 2;
+    FLUSH_PARTIAL_HISTORY = 3;
+    FLUSH_TB = 4;
+    FLUSH_SUM = 5;
+    FLUSH_DEBOUNCER = 6;
+    FLUSH_OUTPUT = 7;
+    FLUSH_JOB = 8;
+    FLUSH_DIR = 9;
+    FLUSH_FP = 10;
+    JOIN_FP = 11;
+    FLUSH_FS = 12;
+    FLUSH_FINAL = 13;
+    END = 14;
+  }
+  DeferState state = 1;
+  // Internal message, no _info field needed
+}
+
+/*
+ * PauseRequest: internal message to pause the heartbeat
+ */
+message PauseRequest {
+  _RequestInfo _info = 200;
+}
+
+message PauseResponse {}
+
+/*
+ * ResumeRequest: internal message to resume the heartbeat
+ */
+message ResumeRequest {
+  _RequestInfo _info = 200;
+}
+
+message ResumeResponse {}
+
+/*
+ * LoginRequest: wandb/sdk/wandb_login
+ */
+message LoginRequest {
+  string api_key = 1;
+  _RequestInfo _info = 200;
+}
+
+message LoginResponse {
+  string active_entity = 1;
+}
+
+/*
+ * GetSummaryRequest: request consolidated summary
+ */
+message GetSummaryRequest {
+  _RequestInfo _info = 200;
+}
+
+message GetSummaryResponse {
+  repeated SummaryItem item = 1;
+}
+
+/*
+ * GetSystemMetrics: request system metrics
+ */
+message GetSystemMetricsRequest {
+  _RequestInfo _info = 200;
+}
+
+message SystemMetricSample {
+  google.protobuf.Timestamp timestamp = 1;
+  float value = 2;
+}
+
+message SystemMetricsBuffer {
+  repeated SystemMetricSample record = 1;
+}
+
+message GetSystemMetricsResponse {
+  map<string, SystemMetricsBuffer> system_metrics = 1;
+}
+
+/*
+ * StatusRequest:
+ */
+message StatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message StatusResponse {
+  bool run_should_stop = 1;
+}
+
+message StopStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message StopStatusResponse {
+  bool run_should_stop = 1;
+}
+
+message NetworkStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message NetworkStatusResponse {
+  repeated HttpResponse network_responses = 1;
+}
+
+message HttpResponse {
+  int32 http_status_code = 1;
+  string http_response_text = 2;
+}
+
+/*
+ * InternalMessagesRequest:
+ */
+message InternalMessagesRequest {
+  _RequestInfo _info = 200;
+}
+
+message InternalMessagesResponse {
+  InternalMessages messages = 1;
+}
+
+message InternalMessages {
+  repeated string warning = 1;
+}
+
+/*
+ * PollExitRequest:
+ */
+message PollExitRequest {
+  _RequestInfo _info = 200;
+}
+
+message PollExitResponse {
+  bool done = 1;
+  RunExitResult exit_result = 2;
+  FilePusherStats pusher_stats = 3;
+  FileCounts file_counts = 4;
+}
+
+/*
+ * Sender requests
+ */
+message SyncOverwrite {
+  string run_id = 1;
+  string entity = 2;
+  string project = 3;
+}
+
+message SyncSkip {
+  bool output_raw = 1;
+}
+
+message SenderMarkRequest {}
+
+message SyncRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+  SyncOverwrite overwrite = 3;
+  SyncSkip skip = 4;
+}
+
+message SyncResponse {
+  string url = 1;
+  ErrorInfo error = 2;
+}
+
+message SenderReadRequest {
+  int64 start_offset = 1;
+  int64 final_offset = 2;
+  // TODO: implement cancel for paused ops
+  // repeated string cancel_list = 3;
+}
+
+message StatusReportRequest {
+  int64 record_num = 1;
+  int64 sent_offset = 2;
+  google.protobuf.Timestamp sync_time = 3;
+}
+
+/*
+ * Requests wrapping Records
+ */
+message SummaryRecordRequest {
+  SummaryRecord summary = 1;
+}
+
+message TelemetryRecordRequest {
+  TelemetryRecord telemetry = 1;
+}
+
+/*
+ * ServerInfoRequest:
+ */
+message ServerInfoRequest {
+  _RequestInfo _info = 200;
+}
+
+message ServerInfoResponse {
+  LocalInfo local_info = 1;
+  ServerMessages server_messages = 2;
+}
+
+message ServerMessages {
+  repeated ServerMessage item = 1;
+}
+
+message ServerMessage {
+  string plain_text = 1;
+  string utf_text = 2;
+  string html_text = 3;
+  string type = 4;
+  int32 level = 5;
+}
+
+message FileCounts {
+  int32 wandb_count = 1;
+  int32 media_count = 2;
+  int32 artifact_count = 3;
+  int32 other_count = 4;
+}
+
+message FilePusherStats {
+  int64 uploaded_bytes = 1;
+  int64 total_bytes = 2;
+  int64 deduped_bytes = 3;
+}
+
+message FilesUploaded {
+  repeated string files = 1;
+}
+
+message FileTransferInfoRequest {
+  enum TransferType {
+    Upload = 0;
+    Download = 1;
+  }
+  TransferType type = 1;
+  string path = 2;
+  string url = 3;
+  int64 size = 4;
+  int64 processed = 5;
+  FileCounts file_counts = 6;
+}
+
+message LocalInfo {
+  string version = 1;
+  bool out_of_date = 2;
+}
+
+/*
+ * ShutdownRequest:
+ */
+message ShutdownRequest {
+  _RequestInfo _info = 200;
+}
+
+message ShutdownResponse {}
+
+/*
+ * AttachRequest:
+ */
+message AttachRequest {
+  string attach_id = 20;
+  _RequestInfo _info = 200;
+}
+
+message AttachResponse {
+  RunRecord run = 1;
+  ErrorInfo error = 2;
+}
+
+/*
+ * TestInjectRequest:
+ */
+message TestInjectRequest {
+  bool handler_exc = 1;
+  bool handler_exit = 2;
+  bool handler_abort = 3;
+  bool sender_exc = 4;
+  bool sender_exit = 5;
+  bool sender_abort = 6;
+  bool req_exc = 7;
+  bool req_exit = 8;
+  bool req_abort = 9;
+  bool resp_exc = 10;
+  bool resp_exit = 11;
+  bool resp_abort = 12;
+  bool msg_drop = 13;
+  bool msg_hang = 14;
+  _RequestInfo _info = 200;
+}
+
+message TestInjectResponse {}
+
+/*
+ * PartialHistoryRequest:
+ */
+message HistoryAction {
+  bool flush = 1;
+}
+message PartialHistoryRequest {
+  repeated HistoryItem item = 1;
+  HistoryStep step = 2;
+  HistoryAction action = 3;
+  _RequestInfo _info = 200;
+}
+
+message PartialHistoryResponse {}
+
+/*
+ * SampledHistoryRequest:
+ */
+message SampledHistoryRequest {
+  _RequestInfo _info = 200;
+}
+
+/*
+ * SampledHistoryItem:
+ *
+ * key and nested_key are mutually exclusive. Only one of them should be set.
+ * key is supposedly more performant than nested_key, so nested_key should be
+ * only used for nested keys.
+ */
+message SampledHistoryItem {
+  string key = 1;
+  repeated string nested_key = 2;
+  repeated float values_float = 3;
+  repeated int64 values_int = 4;
+}
+
+message SampledHistoryResponse {
+  repeated SampledHistoryItem item = 1;
+}
+
+/*
+ * RunStatusRequest:
+ */
+message RunStatusRequest {
+  _RequestInfo _info = 200;
+}
+
+message RunStatusResponse {
+  int64 sync_items_total = 1;
+  int64 sync_items_pending = 2;
+  google.protobuf.Timestamp sync_time = 3;
+  // TODO(flowcontrol): can we give the user an indication of step position
+  // int64 sync_history_step = 3;
+  // google.protobuf.Timestamp sync_history_time = 4;
+}
+
+/*
+ * RunStartRequest: start the run
+ */
+message RunStartRequest {
+  RunRecord run = 1;
+  _RequestInfo _info = 200;
+}
+
+message RunStartResponse {}
+
+/*
+ * CheckVersion:
+ */
+message CheckVersionRequest {
+  string current_version = 1;
+  _RequestInfo _info = 200;
+}
+
+message CheckVersionResponse {
+  string upgrade_message = 1;
+  string yank_message = 2;
+  string delete_message = 3;
+}
+
+/*
+ * JobInfo:
+ */
+message JobInfoRequest {
+  _RequestInfo _info = 200;
+}
+
+message JobInfoResponse {
+  string sequenceId = 1;
+  string version = 2;
+}
+
+/*
+ * LogArtifact:
+ */
+message LogArtifactRequest {
+  ArtifactRecord artifact = 1;
+  int64 history_step = 2;
+  string staging_dir = 3;
+  _RequestInfo _info = 200;
+}
+
+message LogArtifactResponse {
+  string artifact_id = 1;
+  string error_message = 2;
+}
+
+/*
+ * DownloadArtifact:
+ */
+message DownloadArtifactRequest {
+  string artifact_id = 1;
+  string download_root = 2;
+  bool allow_missing_references = 4;
+  bool skip_cache = 5;
+  string path_prefix = 6;
+  _RequestInfo _info = 200;
+}
+
+message DownloadArtifactResponse {
+  string error_message = 1;
+}
+
+/*
+ * Keepalive:
+ */
+message KeepaliveRequest {
+  _RequestInfo _info = 200;
+}
+
+message KeepaliveResponse {}
+
+/*
+ * Job info specific for Partial -> Job upgrade
+ */
+message ArtifactInfo {
+  string artifact = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+  string build_context = 4;
+  string dockerfile = 5;
+}
+
+message GitInfo {
+  string remote = 1;
+  string commit = 2;
+}
+
+message GitSource {
+  GitInfo git_info = 1;
+  repeated string entrypoint = 2;
+  bool notebook = 3;
+  string build_context = 4;
+  string dockerfile = 5;
+}
+
+message ImageSource {
+  string image = 1;
+}
+
+message Source {
+  GitSource git = 1;
+  ArtifactInfo artifact = 2;
+  ImageSource image = 3;
+}
+
+/*
+ * Mirrors JobSourceDict:
+ */
+message JobSource {
+  string _version = 1;
+  string source_type = 2;
+  Source source = 3;
+  string runtime = 4;
+}
+
+message PartialJobArtifact {
+  string job_name = 1;
+  JobSource source_info = 2;
+}
+
+/*
+ * UseArtifact:
+ */
+message UseArtifactRecord {
+  string id = 1;
+  string type = 2;
+  string name = 3;
+
+  PartialJobArtifact partial = 4;
+
+  _RecordInfo _info = 200;
+}
+
+message UseArtifactResult {}
+
+/*
+ * Cancel:
+ */
+message CancelRequest {
+  string cancel_slot = 1;  // mailbox slot
+  _RequestInfo _info = 200;
+}
+
+message CancelResponse {}
+
+/*
+ * MetadataRequest
+ */
+message DiskInfo {
+  uint64 total = 1;
+  uint64 used = 2;
+}
+
+message MemoryInfo {
+  uint64 total = 1;
+}
+
+message CpuInfo {
+  uint32 count = 1;
+  uint32 count_logical = 2;
+}
+
+message GpuAppleInfo {
+  string gpuType = 1;
+  string vendor = 2;
+  uint32 cores = 3;
+}
+
+message GpuNvidiaInfo {
+  string name = 1;
+  uint64 memory_total = 2;
+}
+
+message GpuAmdInfo {
+  string id = 1;
+  string unique_id = 2;
+  string vbios_version = 3;
+  string performance_level = 4;
+  string gpu_overdrive = 5;
+  string gpu_memory_overdrive = 6;
+  string max_power = 7;
+  string series = 8;
+  string model = 9;
+  string vendor = 10;
+  string sku = 11;
+  string sclk_range = 12;
+  string mclk_range = 13;
+}
+
+message MetadataRequest {
+  string os = 1;
+  string python = 2;
+  google.protobuf.Timestamp heartbeatAt = 3;
+  google.protobuf.Timestamp startedAt = 4;
+  string docker = 5;
+  string cuda = 6;
+  repeated string args = 7;
+  string state = 8;
+  string program = 9;
+  string code_path = 10 [json_name = "codePath"];
+  GitRepoRecord git = 11;
+  string email = 12;
+  string root = 13;
+  string host = 14;
+  string username = 15;
+  string executable = 16;
+  string code_path_local = 17 [json_name = "codePathLocal"];
+  string colab = 18;
+  uint32 cpu_count = 19 [json_name = "cpu_count"];
+  uint32 cpu_count_logical = 20 [json_name = "cpu_count_logical"];
+  string gpu_type = 21 [json_name = "gpu"];
+  uint32 gpu_count = 22 [json_name = "gpu_count"];
+  map<string, DiskInfo> disk = 23;
+  MemoryInfo memory = 24;
+  CpuInfo cpu = 25;
+  GpuAppleInfo gpu_apple = 26 [json_name = "gpuapple"];
+  repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
+  repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
+  map<string, string> slurm = 29;
+}
+
+message PythonPackagesRequest {
+  message PythonPackage {
+    string name = 1;
+    string version = 2;
+  }
+  repeated PythonPackage package = 1;
+}
+
+// Path within nested configuration object.
+//
+// The path is a list of strings, each string is a key in a nested configuration
+// dict. These paths are used to filter subtrees in and out of the config
+// before we capture a schema. This gives users the ability to limit which
+// parts of the config are exposed as inputs to a job.
+message JobInputPath {
+  repeated string path = 1;
+}
+
+// Specifies a source for job inputs.
+//
+// The source is either the run config (wandb.config) or a config file.
+// If a config file is specified, the file path is relative to
+// <run-files-dir>/configs.
+message JobInputSource {
+  message RunConfigSource {}
+  message ConfigFileSource {
+    string path = 1;
+  }
+  oneof source {
+    RunConfigSource run_config = 1;
+    ConfigFileSource file = 2;
+  }
+}
+
+// Specifies a new source for job inputs.
+//
+// source tells us where this config is coming from and therefore how it can
+// be patched in future runs.
+//
+// If include_paths is not empty, then endpoints of the config not prefixed by
+// an include path will be ignored.
+//
+// If exclude_paths is not empty, then endpoints of the config prefixed by an
+// exclude path will be ignored.
+message JobInputRequest {
+  JobInputSource input_source = 1;
+  repeated JobInputPath include_paths = 2;
+  repeated JobInputPath exclude_paths = 3;
+}

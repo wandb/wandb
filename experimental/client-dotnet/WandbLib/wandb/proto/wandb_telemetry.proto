@@ -1,0 +1,254 @@
+syntax = "proto3";
+
+package wandb_internal;
+
+import "wandb/proto/wandb_base.proto";
+
+/*
+ * Telemetry
+ */
+message TelemetryRecord {
+  Imports imports_init = 1;
+  Imports imports_finish = 2;
+  Feature feature = 3;
+  string python_version = 4;
+  string cli_version = 5;
+  string huggingface_version = 6;
+  // string  framework = 7;
+  Env env = 8;
+  Labels label = 9;
+  Deprecated deprecated = 10;
+  Issues issues = 11;
+  string core_version = 12;
+  string platform = 13;
+  _RecordInfo _info = 200;
+}
+
+message TelemetryResult {}
+
+message Imports {
+  bool torch = 1;
+  bool keras = 2;
+  bool tensorflow = 3;
+  bool fastai = 4;
+  bool sklearn = 5;
+  bool xgboost = 6;
+  bool catboost = 7;
+  bool lightgbm = 8;
+  bool pytorch_lightning = 9;
+  bool ignite = 10;
+  bool transformers = 11;
+  bool jax = 12;
+  bool metaflow = 13;
+  bool allennlp = 14;
+  bool autogluon = 15;
+  bool autokeras = 16;
+  // bool avalanche = 17;
+  bool catalyst = 18;
+  // bool dalle_pytorch = 19;
+  // bool datasets = 20;
+  bool deepchem = 21;
+  bool deepctr = 22;
+  // bool deeppavlov = 23;
+  // bool detectron = 24;
+  // bool paddle = 25;
+  // bool parlai = 26;
+  // bool prophet = 27;
+  bool pycaret = 28;
+  bool pytorchvideo = 29;
+  bool ray = 30;
+  bool simpletransformers = 31;
+  bool skorch = 32;
+  bool spacy = 33;
+  bool flash = 34;
+  bool optuna = 35;
+  bool recbole = 36;
+  bool mmcv = 37;
+  bool mmdet = 38;
+  bool torchdrug = 39;
+  bool torchtext = 40;
+  bool torchvision = 41;
+  bool elegy = 42;
+  bool detectron2 = 43;
+  bool flair = 44;
+  bool flax = 45;
+  bool syft = 46;
+  bool TTS = 47;
+  bool monai = 48;
+  bool huggingface_hub = 49;
+  bool hydra = 50;
+  bool datasets = 51;
+  bool sacred = 52;
+  bool joblib = 53;
+  bool dask = 54;
+  bool asyncio = 55;
+  bool paddleocr = 56;
+  bool ppdet = 57;
+  bool paddleseg = 58;
+  bool paddlenlp = 59;
+  bool mmseg = 60;
+  bool mmocr = 61;
+  bool mmcls = 62;
+  bool timm = 63;
+  bool fairseq = 64;
+  bool deepchecks = 65;
+  bool composer = 66;
+  bool sparseml = 67;
+  bool anomalib = 68;
+  bool zenml = 69;
+  bool colossalai = 70;
+  bool accelerate = 71;
+  bool merlin = 72;
+  bool nanodet = 73;
+  bool segmentation_models_pytorch = 74;
+  bool sentence_transformers = 75;
+  bool dgl = 76;
+  bool torch_geometric = 77;
+  bool jina = 78;
+  bool kornia = 79;
+  bool albumentations = 80;
+  bool keras_cv = 81;
+  bool mmengine = 82;
+  bool diffusers = 83;
+  bool trl = 84;
+  bool trlx = 85;
+  bool langchain = 86;
+  bool llama_index = 87;
+  bool stability_sdk = 88;
+  bool prefect = 89;
+  bool prefect_ray = 90;
+  bool pinecone = 91;  // pinecone-client
+  bool chromadb = 92;
+  bool weaviate = 93;  // weaviate-client
+  bool promptlayer = 94;
+  bool openai = 95;
+  bool cohere = 96;
+  bool anthropic = 97;
+  bool peft = 98;
+  bool optimum = 99;
+  bool evaluate = 100;
+  bool langflow = 101;
+  bool keras_core = 102;            // keras-core
+  bool lightning_fabric = 103;      // lightning-fabric
+  bool curated_transformers = 104;  // curated-transformers
+  bool orjson = 105;
+}
+
+message Feature {
+  bool watch = 1;                        // wandb.watch() called
+  bool finish = 2;                       // wandb.finish() called
+  bool save = 3;                         // wandb.save() called
+  bool offline = 4;                      // offline run was synced
+  bool resumed = 5;                      // run was resumed
+  bool grpc = 6;                         // grpc-server (java integration)
+  bool metric = 7;                       // define_metric() called
+  bool keras = 8;                        // Keras WandbCallback used
+  bool sagemaker = 9;                    // User is using sagemaker
+  bool artifact_incremental = 10;        // Artifact(incremental=True) used
+  bool metaflow = 11;                    // Using metaflow integration
+  bool prodigy = 12;                     // Using prodigy integration
+  bool set_init_name = 13;               // users set run name from wandb.init
+  bool set_init_id = 14;                 // users set run id from wandb.init
+  bool set_init_tags = 15;               // users set tags within wandb.init
+  bool set_init_config = 16;             // users set run config in wandb.init
+  bool set_run_name = 17;                // user sets run name via wandb.run.name = ...
+  bool set_run_tags = 18;                // user sets run name via wandb.run.tags = ...
+  bool set_config_item = 19;             // users set key in run config via run.config.key
+                                         // or run.config["key"]
+  bool launch = 20;                      // run is created through wandb launch
+  bool torch_profiler_trace = 21;        // wandb.profiler.torch_trace_handler() called
+  bool sb3 = 22;                         // Using stable_baselines3 integration
+  bool service = 23;                     // Using wandb service internal process
+  bool init_return_run = 24;             // wandb.init() called in the same process returning previous run
+  bool lightgbm_wandb_callback = 25;     // lightgbm callback used
+  bool lightgbm_log_summary = 26;        // lightgbm log summary used
+  bool catboost_wandb_callback = 27;     // catboost callback used
+  bool catboost_log_summary = 28;        // catboost log summary used
+  bool tensorboard_log = 29;             // wandb.tensorflow.log or wandb.tensorboard.log used
+  bool estimator_hook = 30;              // wandb.tensorflow.WandbHook used
+  bool xgboost_wandb_callback = 31;      // xgboost callback used
+  bool xgboost_old_wandb_callback = 32;  // xgboost old callback used (to be depreciated)
+  bool attach = 33;                      // attach to a run in another process
+  bool tensorboard_patch = 34;           // wandb.tensorboard.patch(...)
+  bool tensorboard_sync = 35;            // wandb.init(sync_tensorboard=True)
+  bool kfp_wandb_log = 36;               // wandb.integration.kfp.wandb_log
+  bool maybe_run_overwrite = 37;         // Run might have been overwritten
+  bool keras_metrics_logger = 38;        // Keras WandbMetricsLogger used
+  bool keras_model_checkpoint = 39;      // Keras WandbModelCheckpoint used
+  bool keras_wandb_eval_callback = 40;   // Keras WandbEvalCallback used
+  bool flow_control_overflow = 41;       // Hit flow control threshold
+  bool sync = 42;                        // Run was synced with wandb sync
+  bool flow_control_disabled = 43;       // Flow control disabled by user
+  bool flow_control_custom = 44;         // Flow control customized by user
+  bool service_disabled = 45;            // Service disabled by user
+  bool open_metrics = 46;                // Consuming metrics from an OpenMetrics endpoint
+  bool ultralytics_yolov8 = 47;          // Ultralytics YOLOv8 integration callbacks used
+  bool importer_mlflow = 48;             // Using Import API for MLFlow
+  bool sync_tfevents = 49;               // Using wandb sync for tfevent files
+  bool async_uploads = 50;               // Async file uploads enabled by user
+  bool openai_autolog = 51;              // OpenAI autolog used
+  bool langchain_tracer = 52;            // Langchain wandb tracer callback used
+  bool cohere_autolog = 53;              // Cohere autolog used
+  bool hf_pipeline_autolog = 54;         // HuggingFace Autologging
+  bool core = 55;                        // Using wandb core internal process
+  bool lib_c = 56;                       // Using c wandb library
+  bool lib_cpp = 57;                     // Using cpp wandb library
+  bool openai_finetuning = 58;           // Using openai finetuning WandbLogger
+  bool diffusers_autolog = 59;           // Using Diffusers autologger
+  bool lightning_fabric_logger = 60;     // Using Lightning Fabric logger
+  bool set_step_log = 61;                // step was set in wandb.log
+  bool set_summary = 62;                 // summary was set by the user
+  bool metric_summary = 63;              // summary arg passed to define_metric
+  bool metric_goal = 64;                 // goal arg passed to define_metric
+  bool metric_hidden = 65;               // hidden arg passed to define_metric
+  bool metric_step_sync = 66;            // step_sync arg passed to define_metric
+}
+
+message Env {
+  bool jupyter = 1;           // jupyter env detected
+  bool kaggle = 2;            // kaggle env detected
+  bool windows = 3;           // windows detected
+  bool m1_gpu = 4;            // apple silicon M1 gpu found
+  bool start_spawn = 5;       // multiprocessing spawn
+  bool start_fork = 6;        // multiprocessing fork
+  bool start_forkserver = 7;  // multiprocessing forkserver
+  bool start_thread = 8;      // thread start method
+  bool maybe_mp = 9;          // maybe user running multiprocessing
+  bool trainium = 10;         // AWS Trainium env detected
+  bool pex = 11;              // pex env detected
+  bool colab = 12;            // colab env detected
+  bool ipython = 13;          // ipython env detected
+  bool aws_lambda = 14;       // running in AWS Lambda
+  bool amd_gpu = 15;          // AMD GPU detected
+}
+
+message Labels {
+  string code_string = 1;   // code identification
+  string repo_string = 2;   // repo identification
+  string code_version = 3;  // code version
+}
+
+message Deprecated {
+  bool keras_callback__data_type = 1;   // wandb.keras.WandbCallback(data_type=...) called
+  bool run__mode = 2;                   // wandb.run.mode called
+  bool run__save_no_args = 3;           // wandb.run.save() called without arguments
+  bool run__join = 4;                   // wandb.run.join() called
+  bool plots = 5;                       // wandb.plots.* called
+  bool run__log_sync = 6;               // wandb.run.log(sync=...) called
+  bool init__config_include_keys = 7;   // wandb.init(config_include_keys=...) called
+  bool init__config_exclude_keys = 8;   // wandb.init(config_exclude_keys=...) called
+  bool keras_callback__save_model = 9;  // wandb.keras.WandbCallback(save_model=True) called
+  bool langchain_tracer = 10;           // wandb.integration.langchain.WandbTracer called
+  bool artifact__get_path = 11;         // wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
+  bool artifactmanifestentry__name =
+      12;                            // wandb.sdk.artifacts.artifact_manifest_entry.ArtifactManifestEntry.name() called
+  bool api__artifact_versions = 13;  // wandb.Api().artifact_versions(...) called
+  bool artifact_collection__change_type =
+      14;  // wandb.sdk.artifact_collection.ArtifactCollection.change_type(...) called
+}
+
+message Issues {
+  bool settings__validation_warnings = 1;     // validation warnings for settings
+  bool settings__unexpected_args = 2;         // unexpected settings init args
+  bool settings__preprocessing_warnings = 3;  // settings preprocessing warnings
+}
