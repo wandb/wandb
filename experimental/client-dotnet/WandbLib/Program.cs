@@ -1,4 +1,5 @@
 ﻿using WandbCoreLib;
+using System.Collections.Generic;
 
 // See https://aka.ms/new-console-template for more information
 Console.WriteLine("Hello, World!");
@@ -11,10 +12,14 @@ try
     wandb.Init();
 
     // Log a message using WandbCore
-    wandb.Log("This is a test log message.");
-
-    // Optionally, you can log more messages as needed
-    wandb.Log("Another message to log.");
+    var logData = new Dictionary<string, object>
+    {
+        { "accuracy", 0.95 },
+        { "epoch", 3 },
+        { "loss", 0.123 },
+    };
+    wandb.Log(logData);
+    wandb.Log(logData);
 
     // Finish the session and close the connection
     wandb.Finish();

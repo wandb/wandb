@@ -7,6 +7,8 @@ using System.Text.RegularExpressions;
 using System.Threading;
 using System.Collections.Generic;
 using System.Buffers.Binary;
+using Newtonsoft.Json;
+
 
 using Google.Protobuf; // Ensure you have the Protobuf C# library installed
 using WandbInternal; // Namespace for protobuf
@@ -22,10 +24,14 @@ namespace WandbCoreLib
         private int _port = 5000; // Default port number
         private const string PortFileName = "port_file.txt";
         private const byte MagicByte = (byte)'W';
+        private string _runID = "unknown";
 
         public void Init()
         {
             DeletePortFileIfExists();
+
+            _runID = RandomIdGenerator.GenerateId(8);
+            Console.WriteLine($"Generated ID: {_runID}");
 
             // Start the wandb-core process
             _wandbProcess = new Process
@@ -49,26 +55,92 @@ namespace WandbCoreLib
             activeClients.Add(_client);
 
             // Example: Send an inform_init request using ServerRequest
+            var settings = InitializeSettings(_runID);
             var initRequest = new ServerRequest
             {
                 InformInit = new ServerInformInitRequest
                 {
-                    Settings = new Settings
-                    {
-                        //ApiKey = new Google.Protobuf.WellKnownTypes.StringValue { Value = "your-api-key-here" },
-                        //BaseUrl = new Google.Protobuf.WellKnownTypes.StringValue { Value = "https://api.wandb.ai" },
-                        //RunId = new Google.Protobuf.WellKnownTypes.StringValue { Value = "unique-run-id" }
-                        BaseUrl = "https://api.wandb.ai",
-                        RunId = "junk-run"
-                    },
-                    Info = new _RecordInfo { StreamId = "stream1", TracelogId = "trace1" }
+                    Settings = settings,
+                    Info = new _RecordInfo { StreamId = _runID }
                 }
             };
             SendMessage(initRequest);
+
+            var runRecord = new RunRecord {
+                RunId = _runID
+            };
+
+            var runRequest = new ServerRequest
+            {
+                RecordPublish = new Record {
+                    Info = new _RecordInfo { StreamId = _runID },
+                    Run = runRecord,
+                    Control = new Control { MailboxSlot = "junkmail" }
+                }
+            };
+            SendMessage(runRequest);
+            Console.WriteLine($"sent");
             var response = ReceiveMessage();
+            Console.WriteLine($"Received Init Response: {response}");
+
+            var startRequest = new ServerRequest
+            {
+                InformStart = new ServerInformStartRequest
+                {
+                    Settings = settings,
+                    Info = new _RecordInfo { StreamId = _runID }
+                }
+            };
+            SendMessage(startRequest);
+
+            var runStartRequest = new ServerRequest
+            {
+                RecordPublish = new Record {
+                    Info = new _RecordInfo { StreamId = _runID },
+                    Request = new Request {
+                        RunStart = new RunStartRequest {
+                            Run = runRecord
+                        }
+                    },
+                    Control = new Control { MailboxSlot = "junkstart2" }
+                }
+            };
+            SendMessage(runStartRequest);
+            Console.WriteLine($"sent");
+            var responseStart = ReceiveMessage();
+            Console.WriteLine($"Received RunStart Response: {responseStart}");
 
             // Console.WriteLine($"Received Init Response: {response.Message}");
-            Console.WriteLine($"Received Init Response: {response}");
+        }
+
+        private Settings InitializeSettings(string runId)
+        {
+            var now = DateTime.Now;
+            string timestamp = now.ToString("yyyyMMdd_HHmmss");
+            string wandbDir = "wandb";
+            string runMode = "run";
+            string syncDir = Path.Combine(wandbDir, $"{runMode}-{timestamp}-{runId}");
+            string logDir = Path.Combine(syncDir, "logs");
+            string filesDir = Path.Combine(syncDir, "files");
+
+            // Create directories
+            Directory.CreateDirectory(syncDir);
+            Directory.CreateDirectory(logDir);
+            Directory.CreateDirectory(filesDir);
+
+            // Set up the Settings object
+            var settings = new Settings
+            {
+                BaseUrl = "https://api.wandb.ai",
+                // Project = "test-csharp",
+                RunId = runId,
+                SyncDir = syncDir,
+                SyncFile = Path.Combine(syncDir, $"run-{runId}.wandb"),
+                LogInternal = Path.Combine(logDir, "debug-internal.log"),
+                FilesDir = filesDir
+            };
+
+            return settings;
         }
 
         private void DeletePortFileIfExists()
@@ -119,39 +191,69 @@ namespace WandbCoreLib
             }
         }
 
-        public void Log(string logMessage)
+        public void Log(Dictionary<string, object> logData)
         {
             if (_client == null || !_client.Connected) throw new InvalidOperationException("Socket is not connected");
 
+            var historyItems = logData.Select(kv => new HistoryItem
+            {
+                Key = kv.Key,
+                ValueJson = JsonConvert.SerializeObject(kv.Value)
+            }).ToList();
+
             var logMsg = new ServerRequest
             {
-                RecordPublish = new Record { /* Set fields as necessary */ }
+                RecordPublish = new Record {
+                    Info = new _RecordInfo { StreamId = _runID },
+                    Request = new Request {
+                        PartialHistory = new PartialHistoryRequest {
+                            Item = { historyItems },
+                            Action = new HistoryAction { Flush = true }
+                        }
+                    },
+                    // no mailbox
+                    // Control = new Control { MailboxSlot = "histmail" }
+                }
             };
             SendMessage(logMsg);
+
             // var response = ReceiveMessage();
 
             // Console.WriteLine($"Received Log Response: {response.Message}");
             // Console.WriteLine($"Received Log Response: {response}");
-            Console.WriteLine($"sent");
+            Console.WriteLine($"sent history");
         }
 
         public void Finish()
         {
             if (_client == null || !_client.Connected) return;
 
+            var exitMsg = new ServerRequest
+            {
+                RecordPublish = new Record {
+                    Info = new _RecordInfo { StreamId = _runID },
+                    Exit = new RunExitRecord { },
+                    Control = new Control { MailboxSlot = "exitmail" }
+                }
+            };
+            Console.WriteLine($"send exit");
+            SendMessage(exitMsg);
+            Console.WriteLine($"sent exit");
+            var response = ReceiveMessage();
+            Console.WriteLine($"got response {response}");
+
             var finishRequest = new ServerRequest
             {
                 InformFinish = new ServerInformFinishRequest
                 {
-                    Info = new _RecordInfo { StreamId = "stream1", TracelogId = "trace1" }
+                    Info = new _RecordInfo { StreamId = _runID }
                 }
             };
+            Console.WriteLine($"send fin");
             SendMessage(finishRequest);
-            var response = ReceiveMessage();
 
 
             // Console.WriteLine($"Received Finish Response: {response.Message}");
-            Console.WriteLine($"Received Finish Response: {response}");
 
             _stream.Close();
             _client.Close();
