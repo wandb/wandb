@@ -4,26 +4,67 @@ use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
 use sysinfo::{Pid, System};
 
+/// Struct to capture NVIDIA GPU metrics.
+/// Metrics captured include:
+/// cuda_version: The version of CUDA installed on the system.
+/// gpu.count: The total number of GPUs detected in the system.
+/// gpu.{i}.name: The name of the GPU at index i (e.g., Tesla T4).
+/// gpu.{i}.brand: The brand of the GPU at index i (e.g., GeForce, Nvidia).
+/// gpu.{i}.fanSpeed: The current fan speed of the GPU at index i (in percentage).
+/// gpu.{i}.encoderUtilization: The utilization of the GPU's encoder at index i (in percentage).
+/// gpu.{i}.gpu: The overall GPU utilization at index i (in percentage).
+/// gpu.{i}.memory: The GPU memory utilization at index i (in percentage).
+/// gpu.{i}.memoryTotal: The total memory of the GPU at index i (in bytes).
+/// gpu.{i}.memoryAllocated: The percentage of GPU memory allocated at index i.
+/// gpu.{i}.memoryAllocatedBytes: The amount of GPU memory allocated at index i (in bytes).
+/// gpu.{i}.temp: The temperature of the GPU at index i (in Celsius).
+/// gpu.{i}.powerWatts: The power consumption of the GPU at index i (in Watts).
+/// gpu.{i}.enforcedPowerLimitWatts: The enforced power limit of the GPU at index i (in Watts).
+/// gpu.{i}.powerPercent: The percentage of power limit being used by the GPU at index i.
+/// gpu.{i}.graphicsClock: The current graphics clock speed of the GPU at index i (in MHz).
+/// gpu.{i}.memoryClock: The current memory clock speed of the GPU at index i (in MHz).
+/// gpu.{i}.pcieLinkGen: The current PCIe link generation of the GPU at index i.
+/// gpu.{i}.pcieLinkSpeed: The current PCIe link speed of the GPU at index i (in bits per second).
+/// gpu.{i}.pcieLinkWidth: The current PCIe link width of the GPU at index i.
+/// gpu.{i}.maxPcieLinkGen: The maximum PCIe link generation supported by the GPU at index i.
+/// gpu.{i}.maxPcieLinkWidth: The maximum PCIe link width supported by the GPU at index i.
+/// gpu.{i}.cudaCores: The number of CUDA cores in the GPU at index i.
+/// gpu.{i}.architecture: The architecture of the GPU at index i (e.g., Ampere, Turing).
+/// gpu.process.{i}.*: Various metrics specific to the monitored process
+///    (if the GPU is in use by the process). These include GPU utilization, memory utilization,
+///     temperature, and power consumption.
+/// _timestamp: The Unix timestamp when the metrics were collected.
+///
+/// Note that {i} represents the index of each GPU in the system, starting from 0.
 pub struct NvidiaGpu {
     nvml: Nvml,
+    cuda_version: String,
+    device_count: u32,
 }
 
 impl NvidiaGpu {
     pub fn new() -> Result<Self, NvmlError> {
-        Ok(NvidiaGpu {
-            nvml: Nvml::init()?,
-        })
-    }
-
-    fn get_cuda_version(&self) -> Result<String, NvmlError> {
-        let cuda_version = self.nvml.sys_cuda_driver_version()?;
-        Ok(format!(
+        let nvml = Nvml::init()?;
+        let cuda_version = nvml.sys_cuda_driver_version()?;
+        format!(
             "{}.{}",
             nvml_wrapper::cuda_driver_version_major(cuda_version),
             nvml_wrapper::cuda_driver_version_minor(cuda_version)
-        ))
+        );
+        let device_count = nvml.device_count()?;
+
+        Ok(NvidiaGpu {
+            nvml,
+            cuda_version: format!(
+                "{}.{}",
+                nvml_wrapper::cuda_driver_version_major(cuda_version),
+                nvml_wrapper::cuda_driver_version_minor(cuda_version)
+            ),
+            device_count,
+        })
     }
 
+    /// Function to check if a GPU is being used by a specific process or its children
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
         let our_pids: Vec<i32> = std::iter::once(pid)
             .chain(self.get_child_pids(pid))
@@ -41,6 +82,7 @@ impl NvidiaGpu {
         our_pids.iter().any(|&p| device_pids.contains(&p))
     }
 
+    /// Function to get child process IDs for a given parent PID
     fn get_child_pids(&self, pid: i32) -> Vec<i32> {
         let mut sys = System::new_all();
         sys.refresh_all();
@@ -52,14 +94,43 @@ impl NvidiaGpu {
             .collect()
     }
 
+    /// Samples GPU metrics using NVML.
+    ///
+    /// This function collects various metrics from all available GPUs, including
+    /// utilization, memory usage, temperature, and power consumption. It also
+    /// checks if the specified process is using each GPU and collects process-specific
+    /// metrics if applicable.
+    ///
+    /// # Arguments
+    ///
+    /// * `metrics` - A mutable reference to a `Metrics` struct to store the collected metrics.
+    /// * `pid` - The process ID to monitor for GPU usage.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `Result` with an empty tuple on success or an `NvmlError` on failure.
+    /// The collected metrics are stored in the `Metrics` struct provided as an argument.
+    ///
+    /// # Errors
+    ///
+    /// This function will return an error if:
+    /// * NVML fails to retrieve device information
+    /// * Any of the metric collection operations fail
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use crate::gpu_nvidia::NvidiaGpu;
+    /// use crate::metrics::Metrics;
+    /// let nvidia_gpu = NvidiaGpu::new().unwrap();
+    /// let mut metrics = Metrics::new();
+    /// nvidia_gpu.sample_metrics(&mut metrics, 1234).unwrap();
+    /// ```
     pub fn sample_metrics(&self, metrics: &mut Metrics, pid: i32) -> Result<(), NvmlError> {
-        let cuda_version = self.get_cuda_version()?;
-        metrics.add_metric("cuda_version", cuda_version);
+        metrics.add_metric("cuda_version", &*self.cuda_version);
+        metrics.add_metric("_gpu.count", self.device_count);
 
-        let device_count = self.nvml.device_count()?;
-        metrics.add_metric("_gpu.count", device_count);
-
-        for di in 0..device_count {
+        for di in 0..self.device_count {
             let device = self.nvml.device_by_index(di)?;
             let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
 

@@ -1,6 +1,11 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
 
+/// A struct to store system metrics.
+/// Metrics are stored in a BTreeMap to ensure
+/// consistent ordering of keys in the output JSON.
+/// The output map is flat to make it easier to parse
+/// in downstream applications.
 #[derive(Serialize)]
 pub struct Metrics {
     #[serde(flatten)]
@@ -22,6 +27,7 @@ impl Metrics {
         self.add_metric("_timestamp", timestamp);
     }
 
+    /// Print the metrics as a JSON string to stdout.
     pub fn print_json(&self) -> Result<(), serde_json::Error> {
         let json_output = serde_json::to_string(&self.metrics)?;
         println!("{}", json_output);

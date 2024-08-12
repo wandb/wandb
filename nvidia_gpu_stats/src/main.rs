@@ -46,7 +46,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let nvidia_gpu = NvidiaGpu::new().map_err(|e| {
         // this typically means that the NVIDIA driver is not installed /
         // libnvidia-ml.so is not found / no NVIDIA GPU is present
-        // sentry::capture_error(&e);
         e
     })?;
 
@@ -75,7 +74,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut metrics = Metrics::new();
         if let Err(e) = nvidia_gpu.sample_metrics(&mut metrics, args.pid) {
             sentry::capture_error(&e);
-            // eprintln!("Error sampling GPU metrics: {}", e);
         }
 
         // Add timestamp to metrics
