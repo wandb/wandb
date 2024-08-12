@@ -59,7 +59,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 	assert.Len(t, gpu.Samples(), 10)
 	assert.Len(t, gpu.Samples()["gpu.0.gpu"], 1)
 	assert.Len(t, gpu.Samples()["gpu.1.gpu"], 1)
-	err := gpu.SampleMetrics()
+	err = gpu.SampleMetrics()
 	assert.Nil(t, err)
 	assert.Len(t, gpu.Samples(), 10)
 	assert.Len(t, gpu.Samples()["gpu.0.gpu"], 2)
