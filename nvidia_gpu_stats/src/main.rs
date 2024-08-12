@@ -283,6 +283,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments
     let args = Args::parse();
 
+    // initialize Sentry
+    let _guard = sentry::init((
+        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.us.sentry.io/4506068829470720",
+        sentry::ClientOptions {
+            release: sentry::release_name!(),
+            ..Default::default()
+        },
+    ));
+
     // Initialize NVML
     let nvml_result = nvml_wrapper::Nvml::init();
 
@@ -298,6 +307,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             break;
         }
     });
+
+    // We stop the program if NVML fails to initialize
+    if let Err(_) = &nvml_result {
+        running.store(false, Ordering::Relaxed);
+    }
 
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
@@ -318,12 +332,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     );
                     match sample_metrics(nvml, args.pid, cuda_version) {
                         Ok(metrics) => metrics,
-                        Err(_) => sample_metrics_fallback(),
+                        Err(err) => {
+                            sentry::capture_error(&err);
+                            sample_metrics_fallback()
+                        }
                     }
                 }
-                Err(_) => sample_metrics_fallback(),
+                Err(err) => {
+                    sentry::capture_error(&err);
+                    sample_metrics_fallback()
+                }
             },
-            Err(_) => sample_metrics_fallback(),
+            Err(err) => {
+                sentry::capture_error(&err);
+                sample_metrics_fallback()
+            }
         };
 
         // Add timestamp to metrics
@@ -333,7 +356,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Convert metrics to JSON and print to stdout for collection
         // TODO: Add error handling for JSON serialization
-        let json_output = serde_json::to_string(&gpu_metrics.metrics).unwrap();
+        let json_output = serde_json::to_string(&gpu_metrics.metrics).unwrap_or_default();
         println!("{}", json_output);
 
         // Check if parent process is still alive and break loop if not

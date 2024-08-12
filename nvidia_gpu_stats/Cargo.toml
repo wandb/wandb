@@ -1,6 +1,6 @@
 [package]
 name = "nvidia_gpu_stats"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 
 [dependencies]
@@ -11,3 +11,4 @@ signal-hook = "0.3"
 nix = { version = "0.29", features = ["process"] }
 clap = { version = "4.5", features = ["derive"] }
 sysinfo = "0.31"
+sentry = "0.34.0"
