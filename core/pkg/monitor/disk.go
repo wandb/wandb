@@ -1,12 +1,12 @@
 package monitor
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/disk"
 
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -17,15 +17,13 @@ type Disk struct {
 	mutex     sync.RWMutex
 	readInit  int
 	writeInit int
-	logger    *observability.CoreLogger
 }
 
-func NewDisk(logger *observability.CoreLogger, diskPaths []string) *Disk {
+func NewDisk(diskPaths []string) *Disk {
 	d := &Disk{
 		name:      "disk",
 		metrics:   map[string][]float64{},
 		diskPaths: diskPaths,
-		logger:    logger,
 	}
 
 	// todo: collect metrics for each disk
@@ -40,13 +38,17 @@ func NewDisk(logger *observability.CoreLogger, diskPaths []string) *Disk {
 
 func (d *Disk) Name() string { return d.name }
 
-func (d *Disk) SampleMetrics() {
+func (d *Disk) SampleMetrics() error {
 	d.mutex.Lock()
 	defer d.mutex.Unlock()
 
+	var errs []error
+
 	for _, diskPath := range d.diskPaths {
 		usage, err := disk.Usage(diskPath)
-		if err == nil {
+		if err != nil {
+			errs = append(errs, err)
+		} else {
 			// used disk space as a percentage
 			keyPercent := fmt.Sprintf("disk.%s.usagePercent", diskPath)
 			d.metrics[keyPercent] = append(
@@ -64,7 +66,9 @@ func (d *Disk) SampleMetrics() {
 
 	// IO counters
 	ioCounters, err := disk.IOCounters()
-	if err == nil {
+	if err != nil {
+		errs = append(errs, err)
+	} else {
 		// MB read/written
 		d.metrics["disk.in"] = append(
 			d.metrics["disk.in"],
@@ -75,6 +79,8 @@ func (d *Disk) SampleMetrics() {
 			float64(int(ioCounters["disk0"].WriteBytes)-d.writeInit)/1024/1024,
 		)
 	}
+
+	return errors.Join(errs...)
 }
 
 func (d *Disk) AggregateMetrics() map[string]float64 {

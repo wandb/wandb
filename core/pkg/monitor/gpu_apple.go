@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -32,14 +31,12 @@ type GPUApple struct {
 	mutex       sync.RWMutex
 	isAvailable bool
 	exPath      string
-	logger      *observability.CoreLogger
 }
 
-func NewGPUApple(logger *observability.CoreLogger) *GPUApple {
+func NewGPUApple() *GPUApple {
 	gpu := &GPUApple{
 		name:    "gpu",
 		metrics: map[string][]float64{},
-		logger:  logger,
 	}
 
 	if exPath, err := getExecPath(); err == nil {
@@ -68,13 +65,13 @@ func (g *GPUApple) parseStats() (map[string]any, error) {
 func (g *GPUApple) Name() string { return g.name }
 
 //gocyclo:ignore
-func (g *GPUApple) SampleMetrics() {
+func (g *GPUApple) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	stats, err := g.parseStats()
 	if err != nil {
-		return
+		return err
 	}
 	// TODO: add more metrics to g.metrics,
 	//  such as render or tiler utilization
@@ -152,6 +149,8 @@ func (g *GPUApple) SampleMetrics() {
 			temperature/float64(nMeasurements),
 		)
 	}
+
+	return nil
 }
 
 func (g *GPUApple) AggregateMetrics() map[string]float64 {

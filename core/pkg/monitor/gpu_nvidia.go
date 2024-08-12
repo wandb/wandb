@@ -127,27 +127,30 @@ func NewGPUNvidia(pid int32, samplingInterval float64) *GPUNvidia {
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) SampleMetrics() {
+func (g *GPUNvidia) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	if !isRunning(g.cmd) {
-		return
+		// do not log error if the command is not running
+		return nil
 	}
 
 	// do not sample if the last timestamp is the same
 	currentTimestamp, ok := g.sample["_timestamp"]
 	if !ok {
-		return
+		return nil
 	}
 	lastTimestamps, ok := g.metrics["_timestamp"]
 	if ok && len(lastTimestamps) > 0 && lastTimestamps[len(lastTimestamps)-1] == currentTimestamp {
-		return
+		return nil
 	}
 
 	for key, value := range g.sample {
 		g.metrics[key] = append(g.metrics[key], value)
 	}
+
+	return nil
 }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {

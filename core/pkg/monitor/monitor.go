@@ -73,7 +73,7 @@ func makeMetadataRecord(metadata *service.MetadataRequest) *service.Record {
 
 type Asset interface {
 	Name() string
-	SampleMetrics()
+	SampleMetrics() error
 	AggregateMetrics() map[string]float64
 	ClearMetrics()
 	IsAvailable() bool
@@ -161,13 +161,13 @@ func NewSystemMonitor(
 	samplingInterval := settings.XStatsSampleRateSeconds.GetValue()
 
 	systemMonitor.assets = []Asset{
-		NewMemory(logger, pid),
-		NewCPU(logger, pid),
-		NewDisk(logger, diskPaths),
-		NewNetwork(logger),
-		NewGPUNvidia(logger, pid, samplingInterval),
-		NewGPUAMD(logger),
-		NewGPUApple(logger),
+		NewCPU(pid),
+		NewDisk(diskPaths),
+		NewMemory(pid),
+		NewNetwork(),
+		NewGPUNvidia(pid, samplingInterval),
+		NewGPUAMD(),
+		NewGPUApple(),
 	}
 
 	return systemMonitor
@@ -259,7 +259,14 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 		case <-sm.ctx.Done():
 			return
 		case <-ticker.C:
-			asset.SampleMetrics()
+			// NOTE: the pattern in SampleMetric is to capture whatever metrics are available,
+			// accumulate errors along the way, and log them here.
+			err := asset.SampleMetrics()
+			if err != nil {
+				sm.logger.CaptureError(
+					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
+				)
+			}
 
 			sometimes.Do(func() {
 				aggregatedMetrics := asset.AggregateMetrics()

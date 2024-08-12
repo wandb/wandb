@@ -11,7 +11,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -40,16 +39,14 @@ type GPUAMD struct {
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	IsAvailableFunc     func() bool
 	mutex               sync.RWMutex
-	logger              *observability.CoreLogger
 }
 
-func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
+func NewGPUAMD() *GPUAMD {
 	g := &GPUAMD{
 		name:    "gpu",
 		metrics: make(map[string][]float64),
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
-		logger:              logger,
 	}
 	return g
 }
@@ -294,7 +291,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func (g *GPUAMD) SampleMetrics() {
+func (g *GPUAMD) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -306,6 +303,8 @@ func (g *GPUAMD) SampleMetrics() {
 			g.metrics[formattedKey] = append(g.metrics[formattedKey], value)
 		}
 	}
+
+	return nil
 }
 
 func parseFloat(s string) (float64, error) {

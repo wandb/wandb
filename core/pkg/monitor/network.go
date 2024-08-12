@@ -5,7 +5,6 @@ import (
 
 	"github.com/shirou/gopsutil/v4/net"
 
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -15,14 +14,12 @@ type Network struct {
 	mutex    sync.RWMutex
 	sentInit int
 	recvInit int
-	logger   *observability.CoreLogger
 }
 
-func NewNetwork(logger *observability.CoreLogger) *Network {
+func NewNetwork() *Network {
 	nw := &Network{
 		name:    "network",
 		metrics: map[string][]float64{},
-		logger:  logger,
 	}
 
 	netIOCounters, err := net.IOCounters(false)
@@ -36,22 +33,24 @@ func NewNetwork(logger *observability.CoreLogger) *Network {
 
 func (n *Network) Name() string { return n.name }
 
-func (n *Network) SampleMetrics() {
+func (n *Network) SampleMetrics() error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
 	netIOCounters, err := net.IOCounters(false)
-	if err == nil {
-		n.metrics["network.sent"] = append(
-			n.metrics["network.sent"],
-			float64(int(netIOCounters[0].BytesSent)-n.sentInit),
-		)
-		n.metrics["network.recv"] = append(
-			n.metrics["network.recv"],
-			float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
-		)
+	if err != nil {
+		return err
 	}
+	n.metrics["network.sent"] = append(
+		n.metrics["network.sent"],
+		float64(int(netIOCounters[0].BytesSent)-n.sentInit),
+	)
+	n.metrics["network.recv"] = append(
+		n.metrics["network.recv"],
+		float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
+	)
 
+	return nil
 }
 
 func (n *Network) AggregateMetrics() map[string]float64 {
