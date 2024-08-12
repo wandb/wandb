@@ -63,10 +63,13 @@ func (m *Memory) SampleMetrics() error {
 			float64(procMem.RSS)/1024/1024,
 		)
 		// process memory usage in percent
-		m.metrics["proc.memory.percent"] = append(
-			m.metrics["proc.memory.percent"],
-			float64(procMem.RSS)/float64(virtualMem.Total)*100,
-		)
+		// vertualMem.Total should not be nil
+		if virtualMem != nil {
+			m.metrics["proc.memory.percent"] = append(
+				m.metrics["proc.memory.percent"],
+				float64(procMem.RSS)/float64(virtualMem.Total)*100,
+			)
+		}
 	}
 
 	return errors.Join(errs...)

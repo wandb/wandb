@@ -3,6 +3,7 @@ package monitor
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/disk"
@@ -67,7 +68,10 @@ func (d *Disk) SampleMetrics() error {
 	// IO counters
 	ioCounters, err := disk.IOCounters()
 	if err != nil {
-		errs = append(errs, err)
+		// do not log "not implemented yet" errors
+		if !strings.Contains(err.Error(), "not implemented yet") {
+			errs = append(errs, err)
+		}
 	} else {
 		// MB read/written
 		d.metrics["disk.in"] = append(

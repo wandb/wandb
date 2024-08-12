@@ -3,6 +3,7 @@ package monitor
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/cpu"
@@ -72,7 +73,10 @@ func (c *CPU) SampleMetrics() error {
 	// total system CPU usage in percent
 	utilization, err := cpu.Percent(0, true)
 	if err != nil {
-		errs = append(errs, err)
+		// do not log "not implemented yet" errors
+		if !strings.Contains(err.Error(), "not implemented yet") {
+			errs = append(errs, err)
+		}
 	} else {
 		for i, u := range utilization {
 			metricName := fmt.Sprintf("cpu.%d.cpu_percent", i)
