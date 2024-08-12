@@ -4,7 +4,6 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 
 	"github.com/shirou/gopsutil/v4/mem"
@@ -16,7 +15,6 @@ type Memory struct {
 	metrics map[string][]float64
 	pid     int32
 	mutex   sync.RWMutex
-	logger  *observability.CoreLogger
 }
 
 func NewMemory(pid int32) *Memory {
