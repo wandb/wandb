@@ -44,7 +44,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize NVIDIA GPU
     let nvidia_gpu = NvidiaGpu::new().map_err(|e| {
-        sentry::capture_error(&e);
+        // this typically means that the NVIDIA driver is not installed /
+        // libnvidia-ml.so is not found / no NVIDIA GPU is present
+        // sentry::capture_error(&e);
         e
     })?;
 
