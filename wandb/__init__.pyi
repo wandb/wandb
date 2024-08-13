@@ -42,6 +42,7 @@ __all__ = (
     "termlog",
     "termerror",
     "termwarn",
+    "Artifact",
 )
 
 import os
@@ -64,7 +65,7 @@ from wandb.data_types import (
 )
 from wandb.errors import Error
 from wandb.errors.term import termerror, termlog, termsetup, termwarn
-from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
+from wandb.sdk import Artifact, Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.interface.interface import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
@@ -73,6 +74,12 @@ from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
 __version__: str = "0.17.7.dev1"
+
+run: Optional[Run] = None
+config = wandb_config.Config
+summary = wandb_summary.Summary
+Api = PublicApi
+_sentry = _Sentry()
 
 def setup(
     settings: Optional[Settings] = None,
@@ -732,10 +739,6 @@ def agent(
     """
     ...
 
-run: Optional[Run] = None
-config = wandb_config.Config
-summary = wandb_summary.Summary
-
 def define_metric(
     name: str,
     step_metric: Union[str, wandb_metric.Metric, None] = None,
@@ -930,6 +933,3 @@ def link_model(
     None
     """
     ...
-
-Api = PublicApi
-_sentry = _Sentry()

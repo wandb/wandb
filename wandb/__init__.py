@@ -10,10 +10,6 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 """
 __version__ = "0.17.7.dev1"
 
-
-# Used with pypi checks and other messages related to pip
-_wandb_module = "wandb"
-
 from typing import Optional
 
 from wandb.errors import Error
