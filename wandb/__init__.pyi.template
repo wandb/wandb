@@ -1,4 +1,4 @@
-"""Weights & Biases Models: use wandb to train and productionize models.
+"""Use wandb to track machine learning work.
 
 Train and fine-tune models, manage models from experimentation to production.
 
@@ -36,18 +36,22 @@ __all__ = (
     "use_model",
     "link_model",
     "define_metric",
+    "Error",
+    "termsetup",
+    "termlog",
+    "termerror",
+    "termwarn",
 )
 
 
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
+from wandb.analytics import Sentry as _Sentry
 from wandb.apis import PublicApi
-
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
-
 from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
@@ -56,7 +60,8 @@ from wandb.data_types import box3d
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
-
+from wandb.errors import Error
+from wandb.errors.term import termsetup, termlog, termerror, termwarn
 from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.interface.interface import PolicyName
@@ -191,3 +196,4 @@ def link_model(
     ...
     
 Api = PublicApi
+_sentry = _Sentry()

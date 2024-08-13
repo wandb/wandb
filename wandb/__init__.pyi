@@ -37,11 +37,17 @@ __all__ = (
     "use_model",
     "link_model",
     "define_metric",
+    "Error",
+    "termsetup",
+    "termlog",
+    "termerror",
+    "termwarn",
 )
 
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
+from wandb.analytics import Sentry as _Sentry
 from wandb.apis import PublicApi
 from wandb.data_types import (
     Audio,
@@ -56,6 +62,8 @@ from wandb.data_types import (
     Video,
     box3d,
 )
+from wandb.errors import Error
+from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.interface.interface import PolicyName
@@ -841,3 +849,4 @@ def link_model(
     ...
 
 Api = PublicApi
+_sentry = _Sentry()
