@@ -12,7 +12,6 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	"sync"
 )
 
 type netrcLine struct {
@@ -20,13 +19,6 @@ type netrcLine struct {
 	Login    string
 	Password string
 }
-
-var (
-	// netrcOnce sync.Once
-	netrc []netrcLine
-	// netrcErr  error
-	netrcMu sync.Mutex
-)
 
 func parseNetrc(data string) []netrcLine {
 	// See https://www.gnu.org/software/inetutils/manual/html_node/The-_002enetrc-file.html
@@ -105,9 +97,6 @@ func NetrcPath() (string, error) {
 }
 
 func ReadNetrc() ([]netrcLine, error) {
-	netrcMu.Lock()
-	defer netrcMu.Unlock()
-
 	path, err := NetrcPath()
 	if err != nil {
 		// netrcErr = err
@@ -116,14 +105,10 @@ func ReadNetrc() ([]netrcLine, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		// if !os.IsNotExist(err) {
-		// 	netrcErr = err
-		// }
 		return []netrcLine{}, err
 	}
 
-	netrc = parseNetrc(string(data))
-	return netrc, nil
+	return parseNetrc(string(data)), nil
 }
 
 func GetNetrcLogin(machine string) (string, string, error) {
