@@ -124,8 +124,9 @@ def setup(
 
     Example:
         ```python
-        import wandb
         import multiprocessing
+
+        import wandb
 
 
         def run_experiment(params):
