@@ -8,6 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
+
 __all__ = (
     "__version__",
     "init",
@@ -43,25 +44,26 @@ __all__ = (
     "termwarn",
 )
 
-
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import PublicApi
-from wandb.data_types import Graph
-from wandb.data_types import Image
-from wandb.data_types import Plotly
-from wandb.data_types import Video
-from wandb.data_types import Audio
-from wandb.data_types import Table
-from wandb.data_types import Html
-from wandb.data_types import box3d
-from wandb.data_types import Object3D
-from wandb.data_types import Molecule
-from wandb.data_types import Histogram
+from wandb.data_types import (
+    Audio,
+    Graph,
+    Histogram,
+    Html,
+    Image,
+    Molecule,
+    Object3D,
+    Plotly,
+    Table,
+    Video,
+    box3d,
+)
 from wandb.errors import Error
-from wandb.errors.term import termsetup, termlog, termerror, termwarn
+from wandb.errors.term import termerror, termlog, termsetup, termwarn
 from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.interface.interface import PolicyName
@@ -72,13 +74,11 @@ from wandb.wandb_controller import _WandbController
 
 __version__: str = "0.17.7.dev1"
 
-
 def setup(
     settings: Optional[Settings] = None,
-) -> Optional["_WandbSetup"]:
+) -> Optional[_WandbSetup]:
     """<sdk/wandb_setup.py::setup>"""
     ...
-
 
 def init(
     job_type: Optional[str] = None,
@@ -111,7 +111,6 @@ def init(
     """<sdk/wandb_init.py::init>"""
     ...
 
-
 def log(
     data: Dict[str, Any],
     step: Optional[int] = None,
@@ -121,11 +120,10 @@ def log(
     """<sdk/wandb_run.py::Run::log>"""
     ...
 
-
 def save(
     glob_str: Optional[Union[str, os.PathLike]] = None,
     base_path: Optional[Union[str, os.PathLike]] = None,
-    policy: "PolicyName" = "live",
+    policy: PolicyName = "live",
 ) -> Union[bool, List[str]]:
     """<sdk/wandb_run.py::Run::save>"""
     ...
@@ -143,7 +141,7 @@ def controller(
     sweep_id_or_config: Optional[Union[str, Dict]] = None,
     entity: Optional[str] = None,
     project: Optional[str] = None,
-) -> "_WandbController":
+) -> _WandbController:
     """<sdk/wandb_sweep.py::controller>"""
     ...
 
@@ -157,7 +155,7 @@ def agent(
     """<wandb_agent.py::agent>"""
     ...
 
-run: Optional["Run"] = None
+run: Optional[Run] = None
 config = wandb_config.Config
 summary = wandb_summary.Summary
 
@@ -181,7 +179,6 @@ def log_model(
     """<sdk/wandb_run.py::Run::log_model>"""
     ...
 
-
 def use_model(name: str) -> FilePathStr:
     """<sdk/wandb_run.py::Run::use_model>"""
     ...
@@ -194,6 +191,6 @@ def link_model(
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
     ...
-    
+
 Api = PublicApi
 _sentry = _Sentry()

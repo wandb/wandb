@@ -170,7 +170,7 @@ def verify_signatures(wandb_root, output, template) -> int:
 
 if __name__ == "__main__":
     wandb_root = Path(__file__).parent.parent / "wandb"
-    template = "__init__.pyi.template"
+    template = "__init__.template.pyi"
     output = "__init__.pyi"
 
     generate_stubs(wandb_root, template, output)
