@@ -16,8 +16,7 @@ class Credentials:
     __token_info = {}
 
     def __init__(self, base_url: str, token_file: Path, credentials_file: Path):
-        """Initialize the Credentials object with base URL, token file, and
-           credentials file and load the credentials
+        """Initialize the Credentials object and load the credentials.
 
         Args:
             base_url (str): The base URL of the server
@@ -135,9 +134,7 @@ class Credentials:
         return difference <= timedelta(minutes=5)
 
     def __refresh_token(self):
-        """Refresh the access token by reading credentials from a file, creating
-        a new access token, and updating the credentials file with the new token.
-        """
+        """Refresh the access token by reading credentials from a file."""
         data = self.__read_credentials_from_file()
         creds = self.__create_access_token()
         with open(self.credentials_file, "w") as file:
