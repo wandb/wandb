@@ -13,7 +13,6 @@ _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 
 class Credentials:
-
     __token_info = {}
 
     def __init__(self, base_url: str, token_file: Path, credentials_file: Path):
@@ -137,7 +136,7 @@ class Credentials:
 
     def __refresh_token(self):
         """Refresh the access token by reading credentials from a file, creating
-           a new access token, and updating the credentials file with the new token.
+        a new access token, and updating the credentials file with the new token.
         """
         data = self.__read_credentials_from_file()
         creds = self.__create_access_token()
