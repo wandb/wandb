@@ -2,8 +2,8 @@ package filestream
 
 import (
 	"fmt"
-	"slices"
 	"time"
+	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -15,21 +15,28 @@ type HistoryUpdate struct {
 }
 
 func (u *HistoryUpdate) Apply(ctx UpdateContext) error {
-	items := slices.Clone(u.Record.Item)
-
 	rh := runhistory.New()
-	rh.ApplyChangeRecord(
-		items,
-		func(err error) {
-			// TODO: maybe we should shut down filestream if this fails?
+
+	for _, item := range u.Record.Item {
+		err := rh.SetFromRecord(item)
+		if err != nil {
+			// TODO(corruption): Remove after data corruption is resolved.
+			valueJSONLen := min(50, len(item.ValueJson))
+			valueJSON := item.ValueJson[:valueJSONLen]
+
 			ctx.Logger.CaptureError(
 				fmt.Errorf(
 					"filestream: failed to apply history record: %v",
 					err,
-				))
-		},
-	)
-	line, err := rh.Serialize()
+				),
+				"key", item.Key,
+				"&key", unsafe.StringData(item.Key),
+				"nested_key", item.NestedKey,
+				"value_json[:50]", valueJSON,
+				"&value_json", unsafe.StringData(item.ValueJson))
+		}
+	}
+	line, err := rh.ToExtendedJSON()
 	if err != nil {
 		return fmt.Errorf(
 			"filestream: failed to serialize history: %v", err)

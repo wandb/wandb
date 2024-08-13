@@ -8,11 +8,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 import wandb
-from wandb import Api
+from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.lib.hashutil import md5_string
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -163,19 +164,36 @@ def test_artifact_finish_distributed_id(wandb_init):
     run.finish()
 
 
-# this test hangs, which seems to be the result of incomplete mocks.
-# would be worth returning to it in the future
-# def test_artifact_incremental( relay_server, parse_ctx, test_settings):
-#
-#         open("file1.txt", "w").write("hello")
-#         run = wandb.init(settings=test_settings)
-#         artifact = wandb.Artifact(type="dataset", name="incremental_test_PENDING", incremental=True)
-#         artifact.add_file("file1.txt")
-#         run.log_artifact(artifact)
-#         run.finish()
+@pytest.mark.parametrize("incremental", [False, True])
+def test_add_file_respects_incremental(tmp_path, wandb_init, api, incremental):
+    art_name = "incremental-test"
+    art_type = "dataset"
 
-#         manifests_created = parse_ctx(relay_server.get_ctx()).manifests_created
-#         assert manifests_created[0]["type"] == "INCREMENTAL"
+    # Setup: create and log the original artifact
+    orig_filepath = tmp_path / "orig.txt"
+    orig_filepath.write_text("orig data")
+    with wandb_init() as orig_run:
+        orig_artifact = Artifact(art_name, art_type)
+        orig_artifact.add_file(str(orig_filepath))
+
+        orig_run.log_artifact(orig_artifact)
+
+    # Now add data from a new file to the same artifact, with or without `incremental=True`
+    new_filepath = tmp_path / "new.txt"
+    new_filepath.write_text("new data")
+    with wandb_init() as new_run:
+        new_artifact = Artifact(art_name, art_type, incremental=incremental)
+        new_artifact.add_file(str(new_filepath))
+
+        new_run.log_artifact(new_artifact)
+
+    # If `incremental=True` was used, expect both files in the artifact.  If not, expect only the last one.
+    final_artifact = api.artifact(f"{art_name}:latest")
+    final_manifest_entry_keys = final_artifact.manifest.entries.keys()
+    if incremental is True:
+        assert final_manifest_entry_keys == {orig_filepath.name, new_filepath.name}
+    else:
+        assert final_manifest_entry_keys == {new_filepath.name}
 
 
 @pytest.mark.flaky
@@ -283,6 +301,43 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
     # The staging directory should be empty again.
     assert dir_size() == 0
+
+
+def test_large_manifests_passed_by_file(wandb_init, monkeypatch, mocker):
+    writer_spy = mocker.spy(
+        wandb.sdk.interface.interface.InterfaceBase,
+        "_write_artifact_manifest_file",
+    )
+    monkeypatch.setattr(
+        wandb.sdk.interface.interface,
+        "MANIFEST_FILE_SIZE_THRESHOLD",
+        0,
+    )
+
+    content = "test content\n"
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="large-manifest", type="dataset")
+        with artifact.new_file("test_file.txt") as f:
+            f.write(content)
+        artifact.manifest.entries["test_file.txt"].extra["test_key"] = {"x": 1}
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    assert writer_spy.call_count == 1
+    file_written = writer_spy.spy_return
+    assert file_written is not None
+    # The file should have been cleaned up and deleted by the receiving process.
+    assert not os.path.exists(file_written)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("large-manifest:latest")
+        assert len(artifact.manifest) == 1
+        entry = artifact.manifest.entries.get("test_file.txt")
+        assert entry is not None
+        assert entry.digest == md5_string(content)
+        assert entry.size == len(content)
+        assert entry.ref is None
+        assert entry.extra["test_key"] == {"x": 1}
 
 
 def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):

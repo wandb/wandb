@@ -1303,12 +1303,18 @@ class ArtifactManifest(google.protobuf.message.Message):
     STORAGE_POLICY_FIELD_NUMBER: builtins.int
     STORAGE_POLICY_CONFIG_FIELD_NUMBER: builtins.int
     CONTENTS_FIELD_NUMBER: builtins.int
+    MANIFEST_FILE_PATH_FIELD_NUMBER: builtins.int
     version: builtins.int
     storage_policy: builtins.str
     @property
     def storage_policy_config(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StoragePolicyConfigItem]: ...
     @property
-    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]: ...
+    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]:
+        """Only one of {contents, manifest_file_path} should be set."""
+    manifest_file_path: builtins.str
+    """`manifest_file_path` is used for manifests that approach the 2GiB message limit.
+    It should point to a gzipped, line-delimited JSON file containing manifest entries.
+    """
     def __init__(
         self,
         *,
@@ -1316,8 +1322,9 @@ class ArtifactManifest(google.protobuf.message.Message):
         storage_policy: builtins.str = ...,
         storage_policy_config: collections.abc.Iterable[global___StoragePolicyConfigItem] | None = ...,
         contents: collections.abc.Iterable[global___ArtifactManifestEntry] | None = ...,
+        manifest_file_path: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["contents", b"contents", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["contents", b"contents", "manifest_file_path", b"manifest_file_path", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
 
 global___ArtifactManifest = ArtifactManifest
 
@@ -3685,6 +3692,7 @@ class MetadataRequest(google.protobuf.message.Message):
     GPU_NVIDIA_FIELD_NUMBER: builtins.int
     GPU_AMD_FIELD_NUMBER: builtins.int
     SLURM_FIELD_NUMBER: builtins.int
+    CUDA_VERSION_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     @property
@@ -3725,6 +3733,7 @@ class MetadataRequest(google.protobuf.message.Message):
     def gpu_amd(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___GpuAmdInfo]: ...
     @property
     def slurm(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
+    cuda_version: builtins.str
     def __init__(
         self,
         *,
@@ -3757,9 +3766,10 @@ class MetadataRequest(google.protobuf.message.Message):
         gpu_nvidia: collections.abc.Iterable[global___GpuNvidiaInfo] | None = ...,
         gpu_amd: collections.abc.Iterable[global___GpuAmdInfo] | None = ...,
         slurm: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
+        cuda_version: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
 
@@ -3881,20 +3891,23 @@ class JobInputRequest(google.protobuf.message.Message):
     INPUT_SOURCE_FIELD_NUMBER: builtins.int
     INCLUDE_PATHS_FIELD_NUMBER: builtins.int
     EXCLUDE_PATHS_FIELD_NUMBER: builtins.int
+    INPUT_SCHEMA_FIELD_NUMBER: builtins.int
     @property
     def input_source(self) -> global___JobInputSource: ...
     @property
     def include_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___JobInputPath]: ...
     @property
     def exclude_paths(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___JobInputPath]: ...
+    input_schema: builtins.str
     def __init__(
         self,
         *,
         input_source: global___JobInputSource | None = ...,
         include_paths: collections.abc.Iterable[global___JobInputPath] | None = ...,
         exclude_paths: collections.abc.Iterable[global___JobInputPath] | None = ...,
+        input_schema: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["input_source", b"input_source"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_source", b"input_source"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["exclude_paths", b"exclude_paths", "include_paths", b"include_paths", "input_schema", b"input_schema", "input_source", b"input_source"]) -> None: ...
 
 global___JobInputRequest = JobInputRequest

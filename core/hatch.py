@@ -2,7 +2,6 @@
 
 import os
 import pathlib
-import platform
 import subprocess
 from typing import Mapping, Optional
 
@@ -13,6 +12,8 @@ def build_wandb_core(
     with_code_coverage: bool,
     with_race_detection: bool,
     wandb_commit_sha: Optional[str],
+    target_system,
+    target_arch,
 ) -> None:
     """Builds the wandb-core Go module.
 
@@ -27,11 +28,17 @@ def build_wandb_core(
         wandb_commit_sha: The Git commit hash we're building from, if this
             is the https://github.com/wandb/wandb repository. Otherwise, an
             empty string.
+        target_system: The target operating system (GOOS) or an empty string
+            to use the current OS.
+        target_arch: The target architecture (GOARCH) or an empty string
+            to use the current architecture.
     """
     coverage_flags = ["-cover"] if with_code_coverage else []
     race_detect_flags = ["-race"] if with_race_detection else []
     output_flags = ["-o", str(".." / output_path)]
-    ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha)}"]
+
+    ld_flags = [f"-ldflags={_go_linker_flags(wandb_commit_sha=wandb_commit_sha)}"]
+
     vendor_flags = ["-mod=vendor"]
 
     # We have to invoke Go from the directory with go.mod, hence the
@@ -48,7 +55,11 @@ def build_wandb_core(
             str(pathlib.Path("cmd", "wandb-core", "main.go")),
         ],
         cwd="./core",
-        env=_go_env(with_race_detection=with_race_detection),
+        env=_go_env(
+            with_race_detection=with_race_detection,
+            target_system=target_system,
+            target_arch=target_arch,
+        ),
     )
 
 
@@ -59,51 +70,28 @@ def _go_linker_flags(wandb_commit_sha: Optional[str]) -> str:
         "-w",  # Omit the DWARF symbol table.
         # Set the Git commit variable in the main package.
         "-X",
-        f"main.commit={wandb_commit_sha or ''}",
+        f"main.commit={wandb_commit_sha or 'unknown'}",
     ]
-
-    if platform.system().lower() == "linux" and platform.machine().lower() in (
-        "x86_64",
-        "amd64",
-    ):
-        ext_ld_flags = " ".join(
-            [
-                # Use https://en.wikipedia.org/wiki/Gold_(linker)
-                "-fuse-ld=gold",
-                # Set the --weak-unresolved-symbols option in gold, converting
-                # unresolved symbols to weak references. This is necessary to
-                # build a Go binary with cgo on Linux, where the NVML libraries
-                # needed for Nvidia GPU monitoring may not be available at build time.
-                "-Wl,--weak-unresolved-symbols",
-            ]
-        )
-        flags += ["-extldflags", f'"{ext_ld_flags}"']
 
     return " ".join(flags)
 
 
-def _go_env(with_race_detection: bool) -> Mapping[str, str]:
+def _go_env(
+    with_race_detection: bool,
+    target_system: str,
+    target_arch: str,
+) -> Mapping[str, str]:
     env = os.environ.copy()
 
+    env["GOOS"] = target_system
+    env["GOARCH"] = target_arch
+
+    env["CGO_ENABLED"] = "0"
     if with_race_detection:
         # Crash if a race is detected. The default behavior is to print
         # to stderr and continue.
         env["GORACE"] = "halt_on_error=1"
-
-    system = platform.system().lower()
-    arch = platform.machine().lower()
-    if (system, arch) in [
-        # Use cgo on AMD64 Linux to build dependencies needed for GPU metrics.
-        ("linux", "amd64"),
-        ("linux", "x86_64"),
-        # Use cgo on ARM64 macOS for the gopsutil dependency, otherwise several
-        # system metrics are unavailable.
-        ("darwin", "arm64"),
-        ("darwin", "aarch64"),
-    ] or (
-        # On Windows, -race requires cgo.
-        system == "windows" and with_race_detection
-    ):
+        # -race requires cgo.
         env["CGO_ENABLED"] = "1"
 
     return env

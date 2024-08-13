@@ -96,6 +96,9 @@ def run_pytest(
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
+        # Tool settings are often set here. We invoke Docker in system tests,
+        # which uses auth information from the home directory.
+        "HOME": session.env.get("HOME"),
     }
 
     # Print 20 slowest tests.
@@ -678,6 +681,7 @@ def mypy_report(session: nox.Session) -> None:
         "lxml",
         "pandas-stubs",
         "types-click",
+        "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
         "types-PyYAML",

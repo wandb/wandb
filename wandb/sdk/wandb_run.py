@@ -235,10 +235,10 @@ class RunStatusChecker:
 
             with lock:
                 if self._join_event.is_set():
-                    return
+                    break
                 set_handle(local_handle)
             try:
-                result = local_handle.wait(timeout=timeout)
+                result = local_handle.wait(timeout=timeout, release=False)
             except MailboxError:
                 # background threads are oportunistically getting results
                 # from the internal process but the internal process could
@@ -253,6 +253,7 @@ class RunStatusChecker:
             if result:
                 process(result)
                 # if request finished, clear the handle to send on the next interval
+                local_handle.abandon()
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
@@ -591,8 +592,12 @@ class Run:
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
+        self._settings = settings
+
+        if settings._noop:
+            return
+
         self._init(
-            settings=settings,
             config=config,
             sweep_config=sweep_config,
             launch_config=launch_config,
@@ -600,12 +605,10 @@ class Run:
 
     def _init(
         self,
-        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self._settings = settings
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
@@ -1086,13 +1089,14 @@ class Run:
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__mode,
+                warning_message=(
+                    "The mode property of wandb.run is deprecated "
+                    "and will be removed in a future release."
+                ),
+            )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -2155,12 +2159,13 @@ class Run:
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__join,
-            warning_message=(
-                "wandb.run.join() is deprecated, please use wandb.run.finish()."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__join,
+                warning_message=(
+                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
+                ),
+            )
         self._finish(exit_code=exit_code)
 
     @_run_decorator._noop_on_finish()
@@ -2365,11 +2370,7 @@ class Run:
             return
         self._atexit_cleanup_called = True
 
-        exit_code = (
-            exit_code  #
-            or (self._hooks and self._hooks.exit_code)
-            or 0
-        )
+        exit_code = exit_code or (self._hooks and self._hooks.exit_code) or 0
         self._exit_code = exit_code
         logger.info(f"got exitcode: {exit_code}")
 
@@ -2703,29 +2704,48 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
-        """Define metric properties which will later be logged with `wandb.log()`.
+        """Customize metrics logged with `wandb.log()`.
 
         Arguments:
-            name: Name of the metric.
-            step_metric: Independent variable associated with the metric.
-            step_sync: Automatically add `step_metric` to history if needed.
-                Defaults to True if step_metric is specified.
+            name: The name of the metric to customize.
+            step_metric: The name of another metric to serve as the X-axis
+                for this metric in automatically generated charts.
+            step_sync: Automatically insert the last value of step_metric into
+                `run.log()` if it is not provided explicitly. Defaults to True
+                 if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best,last,none"
-                Default aggregation is `copy`
-                Aggregation `best` defaults to `goal`==`minimize`
-            goal: Specify direction for optimizing the metric.
-                Supported directions: "minimize,maximize"
+                Supported aggregations include "min", "max", "mean", "last",
+                "best", "copy" and "none". "best" is used together with the
+                goal parameter. "none" prevents a summary from being generated.
+                "copy" is deprecated and should not be used.
+            goal: Specify how to interpret the "best" summary type.
+                Supported options are "minimize" and "maximize".
+            overwrite: If false, then this call is merged with previous
+                `define_metric` calls for the same metric by using their
+                values for any unspecified parameters. If true, then
+                unspecified parameters overwrite values specified by
+                previous calls.
 
         Returns:
-            A metric object is returned that can be further specified.
-
+            An object that represents this call but can otherwise be discarded.
         """
+        if summary and "copy" in summary:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_copy,
+                "define_metric(summary='copy') is deprecated and will be removed.",
+                self,
+            )
+
         return self._define_metric(
-            name, step_metric, step_sync, hidden, summary, goal, overwrite, **kwargs
+            name,
+            step_metric,
+            step_sync,
+            hidden,
+            summary,
+            goal,
+            overwrite,
         )
 
     def _define_metric(
@@ -2737,12 +2757,9 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
-        for k in kwargs:
-            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
