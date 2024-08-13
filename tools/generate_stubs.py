@@ -75,7 +75,7 @@ def extract_docstring(file_path: Path, location: str) -> Optional[str]:
 
 
 def extract_functions_from_template(template_content: str) -> Dict[str, str]:
-    """Extract function names and their corresponding source information from the template content.
+    """Extracts function names and their source information from the template.
 
     Args:
         template_content (str): The content of the template file.
