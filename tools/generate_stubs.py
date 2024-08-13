@@ -1,24 +1,58 @@
-r"""Generate stubs for public apis in wandb module.
+r"""Generate and verify stubs for public APIs in the wandb module.
 
-Steps:
-- __init__.pyi.template contains signatures of the public apis
-    in the wandb module. Docstrings are replaced with placeholders
-    of the form \"\"\"<source_file::location>\"\"\". For example:
-    \"\"\"<wandb/__init__.py::init>\"\"\"
-- Create __init__.pyi by replacing the placeholders with the
-    docstrings from the corresponding source files.
-- Run ruff to format and lint the generated stub.
-- Check that the signatures of the apis in __init__.pyi
-    matche the signatures in the source files.
+This script automates the process of creating and validating type stub files
+for the wandb module's public APIs. It performs the following steps:
+
+1. Generate stubs:
+   - Read the __init__.template.pyi file, which contains signatures of public APIs
+     with placeholders for docstrings.
+   - Extract docstrings from corresponding source files.
+   - Replace placeholders in the template with the extracted docstrings.
+   - Write the generated content to __init__.pyi.
+
+2. Lint and format:
+   - Use ruff to format the generated __init__.pyi file.
+   - Run ruff to lint and automatically fix minor issues in the generated stub.
+
+3. Verify signatures:
+   - Compare the signatures of APIs in the generated __init__.pyi
+     with the signatures in the original source files.
+   - Report any mismatches found during the verification process.
+
+Usage:
+    Run this script from the command line:
+    $ python generate_stubs.py
+
+    The script assumes it's located in the 'wandb' parent directory and will
+    look for the 'wandb' directory relative to its location.
+
+Dependencies:
+    - Python 3.7+
+    - ruff (for linting and formatting)
+
+Note:
+    Ensure that the wandb module source code and the __init__.template.pyi
+    file are up to date before running this script.
 """
 
 import ast
 import re
 import subprocess
 from pathlib import Path
+from typing import Dict, Optional
 
 
-def extract_docstring(file_path, location):
+def extract_docstring(file_path: Path, location: str) -> Optional[str]:
+    """Extract the docstring for a given function or method from a source file.
+
+    Args:
+        file_path (Path): The path to the source file.
+        location (str): The location of the function or method in the format
+                        "ClassName::method_name" or "function_name".
+
+    Returns:
+        Optional[str]: The extracted docstring, or None if not found.
+    """
     content = file_path.read_text()
     tree = ast.parse(content)
 
@@ -40,13 +74,28 @@ def extract_docstring(file_path, location):
     return None
 
 
-def extract_functions_from_template(template_content):
+def extract_functions_from_template(template_content: str) -> Dict[str, str]:
+    """Extract function names and their corresponding source information from the template content.
+
+    Args:
+        template_content (str): The content of the template file.
+
+    Returns:
+        Dict[str, str]: A dictionary mapping function names to their source information.
+    """
     pattern = r'"""<(.+?)>"""'
     matches = re.findall(pattern, template_content)
     return {match.split("::")[-1]: match for match in matches}
 
 
-def generate_stubs(wandb_root, template, output):
+def generate_stubs(wandb_root: Path, template: str, output: str) -> None:
+    """Generate stubs for public APIs in the wandb module.
+
+    Args:
+        wandb_root (Path): The root directory of the wandb module.
+        template (str): The name of the template file.
+        output (str): The name of the output file.
+    """
     template_path = wandb_root / template
     output_path = wandb_root / output
     template_content = template_path.read_text()
@@ -70,7 +119,13 @@ def generate_stubs(wandb_root, template, output):
     print("All updates completed.")
 
 
-def lint_and_format_stub(wandb_root, output):
+def lint_and_format_stub(wandb_root: Path, output: str) -> None:
+    """Lint and format the generated stub file using ruff.
+
+    Args:
+        wandb_root (Path): The root directory of the wandb module.
+        output (str): The name of the output file.
+    """
     subprocess.run(["ruff", "format", str(wandb_root / output)], check=True)
     subprocess.run(
         [
@@ -83,7 +138,17 @@ def lint_and_format_stub(wandb_root, output):
     )
 
 
-def verify_signatures(wandb_root, output, template) -> int:
+def verify_signatures(wandb_root: Path, output: str, template: str) -> int:
+    """Verify that the signatures of the APIs in the generated stub match the signatures in the source files.
+
+    Args:
+        wandb_root (Path): The root directory of the wandb module.
+        output (str): The name of the output file.
+        template (str): The name of the template file.
+
+    Returns:
+        int: Exit code (0 for success, 1 for mismatch).
+    """
     output_path = wandb_root / output
     template_path = wandb_root / template
 
