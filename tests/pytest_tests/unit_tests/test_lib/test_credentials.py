@@ -45,7 +45,7 @@ def test_fetch_credentials(tmp_path: Path):
     token_file = tmp_path / "jwt.txt"
     credentials_file = tmp_path / "credentials.json"
 
-    expires_at = datetime.now() + timedelta(days=5)
+    expires_at = datetime.utcnow() + timedelta(hours=1)
     expected = {
         "credentials": {
             base_url: {
@@ -57,7 +57,7 @@ def test_fetch_credentials(tmp_path: Path):
 
     write_credentials(expected, credentials_file)
     creds = Credentials(base_url, token_file, credentials_file)
-    assert creds.token == expected["access_token"]
+    assert creds.token == expected["credentials"]["base_url"]["access_token"]
 
 
 def test_refresh_credentials(tmp_path: Path):
@@ -66,7 +66,7 @@ def test_refresh_credentials(tmp_path: Path):
     write_token(token_file)
     credentials_file = tmp_path / "credentials.json"
 
-    expires_at = datetime.now()
+    expires_at = datetime.utcnow()
     old_credentials = {
         "credentials": {
             base_url: {
@@ -100,7 +100,7 @@ def test_write_credentials_other_base_url(tmp_path: Path):
     write_token(token_file)
     credentials_file = tmp_path / "credentials.json"
 
-    expires_at = datetime.now() + timedelta(days=5)
+    expires_at = datetime.utcnow() + timedelta(days=5)
     other_credentials = {
         "credentials": {
             other_base_url: {

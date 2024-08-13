@@ -13,6 +13,9 @@ _expires_at_fmt = "%Y-%m-%d %H:%M:%S"
 
 
 class Credentials:
+
+    __token_info = {}
+
     def __init__(self, base_url: str, token_file: Path, credentials_file: Path):
         """Initialize the Credentials object with base URL, token file, and
            credentials file and load the credentials
@@ -41,8 +44,7 @@ class Credentials:
         self.__token_info = self.__read_credentials_from_file()
 
     def __write_credentials_file(self):
-        """Obtain an access token from the server and write it to the credentials file.
-        """
+        """Obtain an access token from the server and write it to the credentials file."""
         credentials = self.__create_access_token()
         data = {"credentials": {self.base_url: credentials}}
         with open(self.credentials_file, "w") as file:
@@ -62,17 +64,14 @@ class Credentials:
         """
         creds = {}
         with open(self.credentials_file) as file:
-            data = json.load(file)
-            if "credentials" not in data:
-                data["credentials"] = {}
-            if self.base_url in data["credentials"]:
-                creds = data["credentials"][self.base_url]
+            creds = json.load(file)
+            if "credentials" not in creds:
+                creds["credentials"] = {}
 
-        if self.__is_token_expiring():
-            creds = self.__create_access_token()
+        if self.base_url not in creds["credentials"]:
+            creds["credentials"][self.base_url] = self.__create_access_token()
             with open(self.credentials_file, "w") as file:
-                data["credentials"][self.base_url] = creds
-                json.dump(data, file, indent=4)
+                json.dump(creds, file, indent=4)
 
         return creds
 
@@ -133,10 +132,21 @@ class Credentials:
             expires_at = datetime.strptime(
                 self.__token_info["expires_at"], _expires_at_fmt
             )
-        return expires_at <= datetime.utcnow() + timedelta(minutes=5)
+        difference = expires_at - datetime.utcnow()
+        return difference <= timedelta(minutes=5)
+
+    def __refresh_token(self):
+        """Refresh the access token by reading credentials from a file, creating
+           a new access token, and updating the credentials file with the new token.
+        """
+        data = self.__read_credentials_from_file()
+        creds = self.__create_access_token()
+        with open(self.credentials_file, "w") as file:
+            data["credentials"][self.base_url] = creds
+            json.dump(data, file, indent=4)
 
     @property
     def token(self):
         if self.__is_token_expiring():
-            self.__load_credentials()
+            self.__refresh_token()
         return self.__token_info["access_token"]
