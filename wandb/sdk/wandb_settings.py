@@ -1715,7 +1715,7 @@ class Settings(SettingsData):
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self.silent)
+            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
             settings["_jupyter_path"] = meta.get("path")
             settings["_jupyter_name"] = meta.get("name")
             settings["_jupyter_root"] = meta.get("root")

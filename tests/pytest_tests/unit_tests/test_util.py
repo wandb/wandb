@@ -390,11 +390,11 @@ def test_matplotlib_contains_images():
 def test_matplotlib_to_plotly():
     """Test transforming a pyplot object to a plotly object (not the wandb.* versions)."""
     fig = matplotlib_without_image()
-    assert type(util.matplotlib_to_plotly(fig)) == plotly.graph_objs._figure.Figure
+    assert type(util.matplotlib_to_plotly(fig)) is plotly.graph_objs._figure.Figure
     plt.close()
 
     fig = matplotlib_without_image()
-    assert type(util.matplotlib_to_plotly(plt)) == plotly.graph_objs._figure.Figure
+    assert type(util.matplotlib_to_plotly(plt)) is plotly.graph_objs._figure.Figure
     plt.close()
 
 
