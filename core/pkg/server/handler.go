@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -58,8 +57,8 @@ type HandlerParams struct {
 // Handler is the handler for a stream it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
-	// ctx is the context for the handler
-	ctx context.Context
+	// commit is the W&B Git commit hash
+	commit string
 
 	// settings is the settings for the handler
 	settings *service.Settings
@@ -140,11 +139,11 @@ type Handler struct {
 
 // NewHandler creates a new handler
 func NewHandler(
-	ctx context.Context,
+	commit string,
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		ctx:                   ctx,
+		commit:                commit,
 		runTimer:              timer.New(),
 		terminalPrinter:       params.TerminalPrinter,
 		logger:                params.Logger,
@@ -508,7 +507,7 @@ func (h *Handler) handleRequestPollExit(record *service.Record) {
 
 func (h *Handler) handleHeader(record *service.Record) {
 	// populate with version info
-	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit))
+	versionString := fmt.Sprintf("%s+%s", version.Version, h.commit)
 	record.GetHeader().VersionInfo = &service.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
