@@ -47,7 +47,6 @@ __all__ = (
 )
 
 import os
-from re import I
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from wandb.analytics import Sentry as _Sentry
