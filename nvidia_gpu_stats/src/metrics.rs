@@ -1,10 +1,10 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
 
-/// A struct to store system metrics.
-/// Metrics are stored in a BTreeMap to ensure
-/// consistent ordering of keys in the output JSON.
-/// The output map is flat to make it easier to parse
+/// System metrics storage.
+///
+/// Metrics are stored in a BTreeMap to ensure consistent ordering of keys
+/// in the output JSON. The output map is flat to make it easier to parse
 /// in downstream applications.
 #[derive(Serialize)]
 pub struct Metrics {
