@@ -79,7 +79,7 @@ def test_pk_cast(use_helper=False):
             table.cast("id", wandb.data_types._PrimaryKeyType())
 
     # Assert that the table was not modified
-    assert all([row[0].__class__ == int for row in table.data])
+    assert all([row[0].__class__ is int for row in table.data])
     assert not isinstance(
         table._column_types.params["type_map"]["id"],
         wandb.data_types._PrimaryKeyType,
@@ -145,7 +145,7 @@ def test_fk_cast(use_helper=False):
             table.cast("fk", wandb.data_types._ForeignKeyType(table_a, "id"))
 
     # Assert that the table was not modified
-    assert all([row[0].__class__ == int for row in table.data])
+    assert all([row[0].__class__ is int for row in table.data])
     assert not isinstance(
         table._column_types.params["type_map"]["fk"],
         wandb.data_types._ForeignKeyType,
