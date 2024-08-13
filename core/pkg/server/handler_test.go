@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -14,11 +13,12 @@ import (
 )
 
 func makeHandler(
-	ctx context.Context,
 	inChan, fwdChan chan *service.Record,
 	outChan chan *service.Result,
+	commit string,
 ) *server.Handler {
-	h := server.NewHandler(ctx,
+	h := server.NewHandler(
+		commit,
 		server.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
 			Settings:        &service.Settings{},
@@ -715,7 +715,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			fwdChan := make(chan *service.Record, server.BufferSize)
 			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(context.Background(), inChan, fwdChan, outChan)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -814,7 +814,7 @@ func TestHandleHistory(t *testing.T) {
 			fwdChan := make(chan *service.Record, server.BufferSize)
 			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(context.Background(), inChan, fwdChan, outChan)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -850,9 +850,7 @@ func TestHandleHeader(t *testing.T) {
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
-	ctx := context.Background()
-	ctx = context.WithValue(ctx, observability.Commit, sha)
-	makeHandler(ctx, inChan, fwdChan, outChan)
+	makeHandler(inChan, fwdChan, outChan, sha)
 
 	record := &service.Record{
 		RecordType: &service.Record_Header{
@@ -864,5 +862,5 @@ func TestHandleHeader(t *testing.T) {
 	record = <-fwdChan
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
-	assert.Equal(t, record.GetHeader().GetVersionInfo().GetProducer(), versionInfo, "wrong version info")
+	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
 }
