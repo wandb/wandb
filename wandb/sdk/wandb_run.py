@@ -69,7 +69,7 @@ from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
-from .interface.interface import GlobStr, InterfaceBase
+from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
@@ -108,7 +108,6 @@ if TYPE_CHECKING:
         SampledHistoryResponse,
     )
 
-    from .interface.interface import FilesDict, PolicyName
     from .lib.printer import PrinterJupyter, PrinterTerm
     from .wandb_alerts import AlertLevel
 
@@ -1886,7 +1885,7 @@ class Run:
         self,
         glob_str: Optional[Union[str, os.PathLike]] = None,
         base_path: Optional[Union[str, os.PathLike]] = None,
-        policy: "PolicyName" = "live",
+        policy: PolicyName = "live",
     ) -> Union[bool, List[str]]:
         """Sync one or more files to W&B.
 
