@@ -90,10 +90,10 @@ func (fm *fileTransferManager) AddTask(task *Task) {
 		if task.Err != nil {
 			fm.logger.CaptureError(
 				fmt.Errorf(
-					"filetransfer: uploader: error uploading to %v: %v",
-					task.Url,
+					"filetransfer: uploader: error uploading: %v",
 					task.Err,
 				),
+				"url", task.Url,
 				"path", task.Path,
 			)
 		}

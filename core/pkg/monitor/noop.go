@@ -3,18 +3,23 @@
 package monitor
 
 import (
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 type GPUNvidia struct {
-	name     string
-	settings *service.Settings
+	name             string
+	pid              int32
+	samplingInterval float64
+	logger           *observability.CoreLogger
 }
 
-func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
+func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
 	gpu := &GPUNvidia{
-		name:     "gpu",
-		settings: settings,
+		name:             "gpu",
+		pid:              pid,
+		samplingInterval: samplingInterval,
+		logger:           logger,
 	}
 
 	return gpu
@@ -22,7 +27,7 @@ func NewGPUNvidia(settings *service.Settings) *GPUNvidia {
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) SampleMetrics() {}
+func (g *GPUNvidia) SampleMetrics() error { return nil }
 
 func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
 	return map[string]float64{}
@@ -37,14 +42,12 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 }
 
 type GPUAMD struct {
-	name     string
-	settings *service.Settings
+	name string
 }
 
-func NewGPUAMD(settings *service.Settings) *GPUAMD {
+func NewGPUAMD() *GPUAMD {
 	gpu := &GPUAMD{
-		name:     "gpu",
-		settings: settings,
+		name: "gpu",
 	}
 
 	return gpu
@@ -52,7 +55,7 @@ func NewGPUAMD(settings *service.Settings) *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
-func (g *GPUAMD) SampleMetrics() {}
+func (g *GPUAMD) SampleMetrics() error { return nil }
 
 func (g *GPUAMD) AggregateMetrics() map[string]float64 {
 	return map[string]float64{}
