@@ -11,4 +11,9 @@ signal-hook = "0.3"
 nix = { version = "0.29", features = ["process"] }
 clap = { version = "4.5", features = ["derive"] }
 sysinfo = "0.31"
-sentry = "0.34.0"
+sentry = { version = "0.34", default-features = false, features = [
+    "backtrace",
+    "contexts",
+    "panic",
+    "rustls",
+] }
