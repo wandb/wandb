@@ -188,6 +188,7 @@ def link_model(
     registered_model_name: str,
     name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
+    lol: Optional[str] = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
     ...
