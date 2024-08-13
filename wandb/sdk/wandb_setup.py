@@ -319,13 +319,91 @@ def _setup(
     return wl
 
 
-def setup(
-    settings: Optional[Settings] = None,
-) -> Optional["_WandbSetup"]:
-    """Set up a wandb session.
+def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
+    """Set up the W&B backend process and configure the wandb environment.
 
-    Note: This sets up a process-local singleton object.
-    (Forked processes will get a new copy of the object)
+    This function prepares the W&B SDK for use by starting the backend process
+    and configuring the necessary environment. It sets the WANDB_SERVICE
+    environment variable with information (such as the port number and process ID)
+    required for future connections to the backend. The backend process will
+    be listening for connections on a TCP socket.
+
+    When to use:
+    - Explicitly starting the SDK backend before any `wandb.init()` calls
+    - Setting up a single backend for multiple parallel processes or jobs
+
+    Note: It's not mandatory to call this function directly. If you call `wandb.init()`,
+    `setup()` will be called automatically under the hood.
+
+    Args:
+        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
+            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
+
+    Returns:
+        Optional[_WandbSetup]: A singleton object representing the wandb setup.
+
+    Usage:
+    1. (Optional) Call `wandb.setup()` early in your script.
+    2. If needed, pass a `settings` dictionary or `wandb.Settings` object to configure
+       global settings.
+    3. Proceed with a `wandb.init()` call to start a run.
+
+    Settings parameter:
+    - Used to configure global wandb settings
+    - Can include settings like project name, entity, or other configuration options
+    - Applied to all subsequent runs, but can be overridden in `wandb.init()` calls
+
+    Relationship to wandb.init():
+    - `setup()` prepares the global wandb environment and starts the SDK backend process
+    - If not called explicitly, `wandb.init()` will automatically call `setup()`
+    - `wandb.init()` can override settings applied in `setup()`
+
+    Relationship to wandb.teardown():
+    - `setup()` initializes the wandb session and starts the SDK backend process
+    - `wandb.teardown()` is not required but can be called to explicitly shut down
+      the SDK backend process and clear the WANDB_SERVICE environment variable
+    - Use `teardown()` if you need to ensure the backend process is stopped or
+      to reset the environment for a new wandb session
+
+    Example:
+        ```python
+        import wandb
+        import multiprocessing
+
+        def run_experiment(params):
+            with wandb.init(config=params):
+                # Run experiment
+                pass
+
+        if __name__ == "__main__":
+            # Start backend and set global config
+            wandb.setup(settings={'project': 'my_project'})
+
+            # Define experiment parameters
+            experiment_params = [
+                {'learning_rate': 0.01, 'epochs': 10},
+                {'learning_rate': 0.001, 'epochs': 20},
+            ]
+
+            # Start multiple processes, each running a separate experiment
+            processes = []
+            for params in experiment_params:
+                p = multiprocessing.Process(target=run_experiment, args=(params,))
+                p.start()
+                processes.append(p)
+
+            # Wait for all processes to complete
+            for p in processes:
+                p.join()
+
+            # Optional: Explicitly shut down the backend
+            wandb.teardown()
+        ```
+
+    Note:
+    This function sets up a process-local singleton object and starts a single
+    SDK backend process. The WANDB_SERVICE environment variable is set to facilitate
+    communication with this backend process.
     """
     ret = _setup(settings=settings)
     return ret
