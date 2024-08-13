@@ -224,9 +224,9 @@ __all__ = (
     "sweep", #
     "controller", #
     "agent", #
-    "config", 
+    "config", #
     "log", #
-    "summary",
+    "summary", #
     "join",
     "Api",
     "Graph",
@@ -241,7 +241,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
-    "log_model",
-    "use_model",
-    "link_model",
+    "log_model", #
+    "use_model", #
+    "link_model", #
+    "define_metric", #
 )

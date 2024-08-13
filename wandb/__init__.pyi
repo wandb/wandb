@@ -12,9 +12,9 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-from wandb.sdk import Settings
+from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.interface.interface import PolicyName
-from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
@@ -593,5 +593,203 @@ def agent(
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
     count: The number of sweep config trials to try.
+    """
+    ...
+
+config = wandb_config.Config
+summary = wandb_summary.Summary
+
+def define_metric(
+    name: str,
+    step_metric: Union[str, wandb_metric.Metric, None] = None,
+    step_sync: Optional[bool] = None,
+    hidden: Optional[bool] = None,
+    summary: Optional[str] = None,
+    goal: Optional[str] = None,
+    overwrite: Optional[bool] = None,
+) -> wandb_metric.Metric:
+    """Customize metrics logged with `wandb.log()`.
+
+    Arguments:
+        name: The name of the metric to customize.
+        step_metric: The name of another metric to serve as the X-axis
+            for this metric in automatically generated charts.
+        step_sync: Automatically insert the last value of step_metric into
+            `run.log()` if it is not provided explicitly. Defaults to True
+             if step_metric is specified.
+        hidden: Hide this metric from automatic plots.
+        summary: Specify aggregate metrics added to summary.
+            Supported aggregations include "min", "max", "mean", "last",
+            "best", "copy" and "none". "best" is used together with the
+            goal parameter. "none" prevents a summary from being generated.
+            "copy" is deprecated and should not be used.
+        goal: Specify how to interpret the "best" summary type.
+            Supported options are "minimize" and "maximize".
+        overwrite: If false, then this call is merged with previous
+            `define_metric` calls for the same metric by using their
+            values for any unspecified parameters. If true, then
+            unspecified parameters overwrite values specified by
+            previous calls.
+
+    Returns:
+    An object that represents this call but can otherwise be discarded.
+    """
+    ...
+
+def log_model(
+    path: StrPath,
+    name: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+) -> None:
+    """Logs a model artifact containing the contents inside the 'path' to a run and marks it as an output to this run.
+
+    Arguments:
+        path: (str) A path to the contents of this model,
+            can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+        name: (str, optional) A name to assign to the model artifact that the file contents will be added to.
+            The string must contain only the following alphanumeric characters: dashes, underscores, and dots.
+            This will default to the basename of the path prepended with the current
+            run id  if not specified.
+        aliases: (list, optional) Aliases to apply to the created model artifact,
+                defaults to `["latest"]`
+
+    Examples:
+        ```python
+        run.log_model(
+            path="/local/directory",
+            name="my_model_artifact",
+            aliases=["production"],
+        )
+        ```
+
+        Invalid usage
+        ```python
+        run.log_model(
+            path="/local/directory",
+            name="my_entity/my_project/my_model_artifact",
+            aliases=["production"],
+        )
+        ```
+
+    Raises:
+        ValueError: if name has invalid special characters
+
+    Returns:
+    None
+    """
+    ...
+
+def use_model(name: str) -> FilePathStr:
+    """Download the files logged in a model artifact 'name'.
+
+    Arguments:
+        name: (str) A model artifact name. 'name' must match the name of an existing logged
+            model artifact.
+            May be prefixed with entity/project/. Valid names
+            can be in the following forms:
+                - model_artifact_name:version
+                - model_artifact_name:alias
+
+    Examples:
+        ```python
+        run.use_model(
+            name="my_model_artifact:latest",
+        )
+
+        run.use_model(
+            name="my_project/my_model_artifact:v0",
+        )
+
+        run.use_model(
+            name="my_entity/my_project/my_model_artifact:<digest>",
+        )
+        ```
+
+        Invalid usage
+        ```python
+        run.use_model(
+            name="my_entity/my_project/my_model_artifact",
+        )
+        ```
+
+    Raises:
+        AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
+
+    Returns:
+    path: (str) path to downloaded model artifact file(s).
+    """
+    ...
+
+def link_model(
+    path: StrPath,
+    registered_model_name: str,
+    name: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+) -> None:
+    """Log a model artifact version and link it to a registered model in the model registry.
+
+    The linked model version will be visible in the UI for the specified registered model.
+
+    Steps:
+        - Check if 'name' model artifact has been logged. If so, use the artifact version that matches the files
+        located at 'path' or log a new version. Otherwise log files under 'path' as a new model artifact, 'name'
+        of type 'model'.
+        - Check if registered model with name 'registered_model_name' exists in the 'model-registry' project.
+        If not, create a new registered model with name 'registered_model_name'.
+        - Link version of model artifact 'name' to registered model, 'registered_model_name'.
+        - Attach aliases from 'aliases' list to the newly linked model artifact version.
+
+    Arguments:
+        path: (str) A path to the contents of this model,
+            can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+        registered_model_name: (str) - the name of the registered model that the model is to be linked to.
+            A registered model is a collection of model versions linked to the model registry, typically representing a
+            team's specific ML Task. The entity that this registered model belongs to will be derived from the run
+            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+            default to the basename of the path prepended with the current run id  if not specified.
+        aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
+            inside the registered model.
+            The alias "latest" will always be applied to the latest version of an artifact that is linked.
+
+    Examples:
+        ```python
+        run.link_model(
+            path="/local/directory",
+            registered_model_name="my_reg_model",
+            name="my_model_artifact",
+            aliases=["production"],
+        )
+        ```
+
+        Invalid usage
+        ```python
+        run.link_model(
+            path="/local/directory",
+            registered_model_name="my_entity/my_project/my_reg_model",
+            name="my_model_artifact",
+            aliases=["production"],
+        )
+
+        run.link_model(
+            path="/local/directory",
+            registered_model_name="my_reg_model",
+            name="my_entity/my_project/my_model_artifact",
+            aliases=["production"],
+        )
+        ```
+
+    Raises:
+        AssertionError: if registered_model_name is a path or
+            if model artifact 'name' is of a type that does not contain the substring 'model'
+        ValueError: if name has invalid special characters
+
+    Returns:
+    None
     """
     ...

@@ -12,9 +12,9 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
-from wandb.sdk import Settings
+from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
 from wandb.sdk.interface.interface import PolicyName
-from wandb.sdk.lib.paths import StrPath
+from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
@@ -105,3 +105,41 @@ def agent(
 ) -> None:
     """<wandb_agent.py::agent>"""
     ...
+
+config = wandb_config.Config
+summary = wandb_summary.Summary
+
+def define_metric(
+    name: str,
+    step_metric: Union[str, wandb_metric.Metric, None] = None,
+    step_sync: Optional[bool] = None,
+    hidden: Optional[bool] = None,
+    summary: Optional[str] = None,
+    goal: Optional[str] = None,
+    overwrite: Optional[bool] = None,
+) -> wandb_metric.Metric:
+    """<sdk/wandb_run.py::Run::define_metric>"""
+    ...
+
+def log_model(
+    path: StrPath,
+    name: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+) -> None:
+    """<sdk/wandb_run.py::Run::log_model>"""
+    ...
+
+
+def use_model(name: str) -> FilePathStr:
+    """<sdk/wandb_run.py::Run::use_model>"""
+    ...
+
+def link_model(
+    path: StrPath,
+    registered_model_name: str,
+    name: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+) -> None:
+    """<sdk/wandb_run.py::Run::link_model>"""
+    ...
+    
