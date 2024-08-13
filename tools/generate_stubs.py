@@ -139,7 +139,7 @@ def lint_and_format_stub(wandb_root: Path, output: str) -> None:
 
 
 def verify_signatures(wandb_root: Path, output: str, template: str) -> int:
-    """Verify that the signatures of the APIs in the generated stub match the signatures in the source files.
+    """Verifies that generated stubs match their source signatures.
 
     Args:
         wandb_root (Path): The root directory of the wandb module.
