@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	// "sync"
+	"sync"
 )
 
 type netrcLine struct {
@@ -25,6 +25,7 @@ var (
 	// netrcOnce sync.Once
 	netrc []netrcLine
 	// netrcErr  error
+	netrcMu sync.Mutex
 )
 
 func parseNetrc(data string) []netrcLine {
@@ -104,6 +105,9 @@ func NetrcPath() (string, error) {
 }
 
 func ReadNetrc() ([]netrcLine, error) {
+	netrcMu.Lock()
+	defer netrcMu.Unlock()
+
 	path, err := NetrcPath()
 	if err != nil {
 		// netrcErr = err
