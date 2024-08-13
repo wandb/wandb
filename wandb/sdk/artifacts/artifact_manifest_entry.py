@@ -150,12 +150,13 @@ class ArtifactManifestEntry:
 
         # Skip checking the cache (and possibly downloading) if the file already exists
         # and has the digest we're expecting.
-        if (
-            os.path.exists(dest_path)
-            and not os.path.isdir(dest_path)
-            and self.digest == md5_file_b64(dest_path)
-        ):
-            return FilePathStr(dest_path)
+        try:
+            md5_hash = md5_file_b64(dest_path)
+        except (FileNotFoundError, IsADirectoryError):
+            pass
+        else:
+            if self.digest == md5_hash:
+                return FilePathStr(dest_path)
 
         if self.ref is not None:
             cache_path = self._parent_artifact.manifest.storage_policy.load_reference(

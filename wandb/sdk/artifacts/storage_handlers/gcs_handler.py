@@ -73,7 +73,7 @@ class GCSHandler(StorageHandler):
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
 
-        if self._is_dir(bucket, key, manifest_entry.size):
+        if self._is_dir(manifest_entry):
             logger.debug(
                 f"Skipping downloading {manifest_entry.ref} because it seems to be a directory"
             )
@@ -206,18 +206,12 @@ class GCSHandler(StorageHandler):
 
     def _is_dir(
         self,
-        bucket: str,
-        key: str,
-        size: int,
+        manifest_entry: ArtifactManifestEntry,
     ):
-        if key.endswith("/"):
-            return True
-        elif (
-            self._client.bucket(bucket).get_blob(key) is None
-            and PurePosixPath(key).suffix == ""
-            and size == 0
-        ):
-            key += "/"
-            if self._client.bucket(bucket).get_blob(key) is not None:
-                return True
-        return False
+        bucket, key, _ = self._parse_uri(manifest_entry.ref)
+        bucket_obj = self._client.bucket(bucket)
+        return key.endswith("/") or (
+            not (manifest_entry.size or PurePosixPath(key).suffix)
+            and bucket_obj.get_blob(key) is None
+            and bucket_obj.get_blob(f"{key}/") is not None
+        )

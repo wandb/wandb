@@ -395,6 +395,23 @@ def test_gcs_storage_handler_load_path_uses_cache(artifact_file_cache):
     assert local_path == path
 
 
+def test_gcs_storage_handler_skips_folder():
+    uri = "gs://some-bucket/path/to/folder/"
+    etag = "some etag"
+
+    handler = GCSHandler()
+    local_path = handler.load_path(
+        ArtifactManifestEntry(
+            path="foo/bar",
+            ref=uri,
+            digest=etag,
+            size=123,
+        ),
+        local=True,
+    )
+    assert local_path == ""
+
+
 def test_cache_add_gives_useful_error_when_out_of_space(
     artifact_file_cache, monkeypatch
 ):
