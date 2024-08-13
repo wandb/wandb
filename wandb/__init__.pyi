@@ -44,6 +44,7 @@ __all__ = (
     "termwarn",
     "Artifact",
     "Settings",
+    "teardown",
 )
 
 import os
@@ -100,10 +101,7 @@ def setup(
     Note that `wandb.setup()` modifies `os.environ`, and it is important
     that child processes inherit the modified environment variables.
 
-    While `wandb.setup()` prepares W&B for use, `wandb.teardown()` can be optionally
-    called to explicitly clean up resources and reset the W&B environment. This
-    might be useful if you need to start fresh with W&B within the same process
-    or want to ensure all W&B-related resources are released before your program exits.
+    See also `wandb.teardown()`.
 
     Args:
         settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
@@ -146,6 +144,19 @@ def setup(
             # Optional: Explicitly shut down the backend
             wandb.teardown()
     ```
+    """
+    ...
+
+def teardown(exit_code: Optional[int] = None) -> None:
+    """Waits for wandb to finish and frees resources.
+
+    Completes any runs that were not explicitly finished
+    using `run.finish()` and waits for all data to be uploaded.
+
+    It is recommended to call this at the end of a session
+    that used `wandb.setup()`. It is invoked automatically
+    in an `atexit` hook, but this is not reliable in certain setups
+    such as when using Python's `multiprocessing` module.
     """
     ...
 

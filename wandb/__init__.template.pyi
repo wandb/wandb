@@ -44,6 +44,7 @@ __all__ = (
     "termwarn",
     "Artifact",
     "Settings",
+    "teardown",
 )
 
 import os
@@ -90,6 +91,10 @@ def setup(
     settings: Optional[Settings] = None,
 ) -> Optional[_WandbSetup]:
     """<sdk/wandb_setup.py::setup>"""
+    ...
+
+def teardown(exit_code: Optional[int] = None) -> None:
+    """<sdk/wandb_setup.py::teardown>"""
     ...
 
 def init(
