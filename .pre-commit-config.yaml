@@ -63,7 +63,7 @@ repos:
     hooks:
       - id: generate-stubs
         name: 'generate-stubs'
-        entry: python wandb/generate_stubs.py
+        entry: python tools/generate_stubs.py
         language: 'system'
         pass_filenames: false
         always_run: true
