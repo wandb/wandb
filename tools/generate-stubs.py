@@ -8,6 +8,8 @@
 """
 
 import ast
+import re
+import subprocess
 from pathlib import Path
 
 
@@ -33,10 +35,18 @@ def extract_docstring(file_path, location):
     return None
 
 
-def generate_stubs(wandb_root, template, output, functions_to_update):
+def extract_functions_from_template(template_content):
+    pattern = r'"""<(.+?)>"""'
+    matches = re.findall(pattern, template_content)
+    return {match.split("::")[-1]: match for match in matches}
+
+
+def generate_stubs(wandb_root, template, output):
     template_path = wandb_root / template
     output_path = wandb_root / output
-    content = template_path.read_text()
+    template_content = template_path.read_text()
+
+    functions_to_update = extract_functions_from_template(template_content)
 
     for func_name, source_info in functions_to_update.items():
         source_file, location = source_info.split("::", 1)
@@ -48,16 +58,14 @@ def generate_stubs(wandb_root, template, output, functions_to_update):
             continue
 
         placeholder = f'"""<{source_info}>"""'
-        content = content.replace(placeholder, f'"""{docstring}"""')
+        template_content = template_content.replace(placeholder, f'"""{docstring}"""')
         print(f"Docstring updated for '{func_name}'.")
 
-    output_path.write_text(content)
+    output_path.write_text(template_content)
     print("All updates completed.")
 
 
-def lint_and_format_stub() -> str:
-    import subprocess
-
+def lint_and_format_stub(wandb_root, output):
     subprocess.run(["ruff", "format", str(wandb_root / output)], check=True)
     subprocess.run(
         [
@@ -65,8 +73,6 @@ def lint_and_format_stub() -> str:
             "check",
             str(wandb_root / output),
             "--fix",
-            # "--ignore",
-            # "UP007,F821,UP006,UP037",
         ],
         check=True,
     )
@@ -77,12 +83,5 @@ if __name__ == "__main__":
     template = "__init__.pyi.template"
     output = "__init__.pyi"
 
-    functions_to_update = {
-        "init": "sdk/wandb_init.py::init",
-        "setup": "sdk/wandb_setup.py::setup",
-        "log": "sdk/wandb_run.py::Run::log",
-        "save": "sdk/wandb_run.py::Run::save",
-    }
-
-    generate_stubs(wandb_root, template, output, functions_to_update)
-    lint_and_format_stub()
+    generate_stubs(wandb_root, template, output)
+    lint_and_format_stub(wandb_root, output)
