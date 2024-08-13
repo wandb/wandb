@@ -43,13 +43,15 @@ __all__ = (
     "termerror",
     "termwarn",
     "Artifact",
+    "Settings",
 )
 
 import os
+from re import I
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 from wandb.analytics import Sentry as _Sentry
-from wandb.apis import PublicApi
+from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
     Audio,
     Graph,
@@ -79,7 +81,11 @@ run: Optional[Run] = None
 config = wandb_config.Config
 summary = wandb_summary.Summary
 Api = PublicApi
+api = InternalApi()
 _sentry = _Sentry()
+
+# record of patched libraries
+patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore
 
 def setup(
     settings: Optional[Settings] = None,
