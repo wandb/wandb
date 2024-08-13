@@ -715,7 +715,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			fwdChan := make(chan *service.Record, server.BufferSize)
 			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "")
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -814,7 +814,7 @@ func TestHandleHistory(t *testing.T) {
 			fwdChan := make(chan *service.Record, server.BufferSize)
 			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan, "")
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
