@@ -367,22 +367,25 @@ def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
 
     Example:
         ```python
-        import wandb
         import multiprocessing
+
+        import wandb
+
 
         def run_experiment(params):
             with wandb.init(config=params):
                 # Run experiment
                 pass
 
+
         if __name__ == "__main__":
             # Start backend and set global config
-            wandb.setup(settings={'project': 'my_project'})
+            wandb.setup(settings={"project": "my_project"})
 
             # Define experiment parameters
             experiment_params = [
-                {'learning_rate': 0.01, 'epochs': 10},
-                {'learning_rate': 0.001, 'epochs': 20},
+                {"learning_rate": 0.01, "epochs": 10},
+                {"learning_rate": 0.001, "epochs": 20},
             ]
 
             # Start multiple processes, each running a separate experiment
