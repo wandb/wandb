@@ -23,7 +23,6 @@ def annotate_keypoint_results(result: Results, visualize_skeleton: bool):
 
 
 def annotate_keypoint_batch(image_path: str, keypoints: Any, visualize_skeleton: bool):
-    original_image = None
     with Image.open(image_path) as original_image:
         original_image = np.ascontiguousarray(original_image)
         annotator = Annotator(original_image)

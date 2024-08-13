@@ -537,11 +537,11 @@ def test_make_plot_media_from_matplotlib_without_image():
     image.
     """
     fig = matplotlib_without_image()
-    assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Plotly
+    assert type(wandb.Plotly.make_plot_media(fig)) is wandb.Plotly
     plt.close()
 
     fig = matplotlib_without_image()
-    assert type(wandb.Plotly.make_plot_media(plt)) == wandb.Plotly
+    assert type(wandb.Plotly.make_plot_media(plt)) is wandb.Plotly
     plt.close()
 
 
@@ -552,11 +552,11 @@ def test_make_plot_media_from_matplotlib_with_image():
     image in the matplotlib figure.
     """
     fig = matplotlib_with_image()
-    assert type(wandb.Plotly.make_plot_media(fig)) == wandb.Image
+    assert type(wandb.Plotly.make_plot_media(fig)) is wandb.Image
     plt.close()
 
     fig = matplotlib_with_image()
-    assert type(wandb.Plotly.make_plot_media(plt)) == wandb.Image
+    assert type(wandb.Plotly.make_plot_media(plt)) is wandb.Image
     plt.close()
 
 
