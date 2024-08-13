@@ -17,6 +17,7 @@ from wandb.sdk.interface.interface import PolicyName
 from wandb.sdk.lib.paths import StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
+from wandb.wandb_controller import _WandbController
 
 __version__: str = "0.17.7.dev1"
 
@@ -85,4 +86,22 @@ def sweep(
     prior_runs: Optional[List[str]] = None,
 ) -> str:
     """<sdk/wandb_sweep.py::sweep>"""
+    ...
+
+def controller(
+    sweep_id_or_config: Optional[Union[str, Dict]] = None,
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
+) -> "_WandbController":
+    """<sdk/wandb_sweep.py::controller>"""
+    ...
+
+def agent(
+    sweep_id: str,
+    function: Optional[Callable] = None,
+    entity: Optional[str] = None,
+    project: Optional[str] = None,
+    count: Optional[int] = None,
+) -> None:
+    """<wandb_agent.py::agent>"""
     ...
