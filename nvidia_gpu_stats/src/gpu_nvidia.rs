@@ -193,11 +193,15 @@ impl NvidiaGpu {
             let name = device.name()?;
             metrics.add_metric(&format!("_gpu.{}.name", di), name);
 
+            // Additional metrics. These may not be available on all devices.
+            // Not reported to the backend, but could be useful for debugging
+            // and may be added in the future.
+
             let brand = device.brand()?;
-            metrics.add_metric(&format!("gpu.{}.brand", di), format!("{:?}", brand));
+            metrics.add_metric(&format!("_gpu.{}.brand", di), format!("{:?}", brand));
 
             if let Ok(fan_speed) = device.fan_speed(0) {
-                metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
+                metrics.add_metric(&format!("_gpu.{}.fanSpeed", di), fan_speed);
             }
 
             if let Ok(encoder_util) = device.encoder_utilization() {
