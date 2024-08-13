@@ -9,10 +9,55 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 
+__all__ = (
+    "__version__",
+    "init",
+    "setup",
+    "save",
+    "sweep",
+    "controller",
+    "agent",
+    "config",
+    "log",
+    "summary",
+    "Api",
+    "Graph",
+    "Image",
+    "Plotly",
+    "Video",
+    "Audio",
+    "Table",
+    "Html",
+    "box3d",
+    "Object3D",
+    "Molecule",
+    "Histogram",
+    "ArtifactTTL",
+    "log_model",
+    "use_model",
+    "link_model",
+    "define_metric",
+)
+
 import os
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
+from wandb.apis import PublicApi
+from wandb.data_types import (
+    Audio,
+    Graph,
+    Histogram,
+    Html,
+    Image,
+    Molecule,
+    Object3D,
+    Plotly,
+    Table,
+    Video,
+    box3d,
+)
 from wandb.sdk import Settings, wandb_config, wandb_metric, wandb_summary
+from wandb.sdk.artifacts.artifact_ttl import ArtifactTTL
 from wandb.sdk.interface.interface import PolicyName
 from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
@@ -596,6 +641,7 @@ def agent(
     """
     ...
 
+run: Optional[Run] = None
 config = wandb_config.Config
 summary = wandb_summary.Summary
 
@@ -793,3 +839,5 @@ def link_model(
     None
     """
     ...
+
+Api = PublicApi

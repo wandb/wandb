@@ -217,16 +217,16 @@ _sentry.setup()
 
 
 __all__ = (
-    "__version__", #
-    "init", #
-    "setup", #
-    "save", #
-    "sweep", #
-    "controller", #
-    "agent", #
-    "config", #
-    "log", #
-    "summary", #
+    "__version__",
+    "init",
+    "setup",
+    "save",
+    "sweep",
+    "controller",
+    "agent",
+    "config",
+    "log",
+    "summary",
     "join",
     "Api",
     "Graph",
@@ -241,8 +241,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
-    "log_model", #
-    "use_model", #
-    "link_model", #
-    "define_metric", #
+    "log_model",
+    "use_model",
+    "link_model",
+    "define_metric",
 )
