@@ -331,7 +331,7 @@ def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
     Note that `wandb.setup()` modifies `os.environ`, and it is important
     that child processes inherit the modified environment variables.
 
-    While `setup()` prepares W&B for use, `wandb.teardown()` can be optionally
+    While `wandb.setup()` prepares W&B for use, `wandb.teardown()` can be optionally
     called to explicitly clean up resources and reset the W&B environment. This
     might be useful if you need to start fresh with W&B within the same process
     or want to ensure all W&B-related resources are released before your program exits.
