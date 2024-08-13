@@ -152,7 +152,9 @@ jobs:
             curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y &&
             source $HOME/.cargo/env &&
             rustc --version &&
-            cargo --version
+            cargo --version &&
+            apt-get update &&
+            apt-get install -y libssl-dev pkg-config
           CIBW_ENVIRONMENT_LINUX:
             PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
