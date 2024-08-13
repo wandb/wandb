@@ -782,6 +782,7 @@ def link_model(
     registered_model_name: str,
     name: Optional[str] = None,
     aliases: Optional[List[str]] = None,
+    lol: Optional[str] = None,
 ) -> None:
     """Log a model artifact version and link it to a registered model in the model registry.
 
