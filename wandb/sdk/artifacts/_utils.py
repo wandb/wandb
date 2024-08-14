@@ -3,7 +3,13 @@
 from __future__ import annotations
 
 import re
-from typing import Collection
+from typing import TYPE_CHECKING, Hashable, TypeVar
+
+if TYPE_CHECKING:
+    from typing import Collection, Iterable, Iterator
+
+
+HashableT = TypeVar("HashableT", bound=Hashable)
 
 
 def validate_aliases(aliases: Collection[str]) -> list[str]:
@@ -36,5 +42,17 @@ def validate_tags(tags: Collection[str]) -> list[str]:
             "Invalid tag(s).  "
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
         )
+    return list(iter_unique(tags))
+
+
+def iter_unique(iterable: Iterable[HashableT]) -> Iterator[HashableT]:
+    """Yield from the given iterable, keeping only the first occurrence of any duplicate values.
+
+    Simplified from `more_itertools.unique_everseen`, but intended only for use on iterables of hashable objects
+    (e.g. strings).
+    """
     seen = set()
-    return [(seen.add(tag) or tag) for tag in tags if (tag not in seen)]
+    for value in iterable:
+        if value not in seen:
+            seen.add(value)
+            yield value
