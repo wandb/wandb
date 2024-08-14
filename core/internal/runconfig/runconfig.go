@@ -26,12 +26,12 @@ const (
 //
 // The server process builds this up incrementally throughout a run's lifetime.
 type RunConfig struct {
-	pathTree *pathtree.PathTree
+	pathTree *pathtree.PathTree[any]
 }
 
 func New() *RunConfig {
 	return &RunConfig{
-		pathTree: pathtree.New(),
+		pathTree: pathtree.New[any](),
 	}
 }
 
@@ -41,7 +41,7 @@ func NewFrom(tree map[string]any) *RunConfig {
 	for key, value := range tree {
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(pathtree.PathOf(key), x)
+			pathtree.SetSubtree(rc.pathTree, pathtree.PathOf(key), x)
 		default:
 			rc.pathTree.Set(pathtree.PathOf(key), x)
 		}
@@ -85,7 +85,7 @@ func (rc *RunConfig) ApplyChangeRecord(
 
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(keyPath(item), x)
+			pathtree.SetSubtree(rc.pathTree, keyPath(item), x)
 		default:
 			rc.pathTree.Set(keyPath(item), x)
 		}
@@ -171,7 +171,7 @@ func (rc *RunConfig) addUnsetKeysFromSubtree(
 		path := pathtree.PathWithPrefix(prefix, key)
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(path, x)
+			pathtree.SetSubtree(rc.pathTree, path, x)
 		default:
 			rc.pathTree.Set(path, x)
 		}

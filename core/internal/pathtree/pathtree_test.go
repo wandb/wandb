@@ -8,7 +8,7 @@ import (
 )
 
 func TestSet_NewNode(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b"), 1)
 	tree.Set(pathtree.PathOf("a", "c", "d"), 2)
@@ -22,7 +22,7 @@ func TestSet_NewNode(t *testing.T) {
 }
 
 func TestSet_OverwriteLeaf(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a"), 1)
 	tree.Set(pathtree.PathOf("a", "b"), 2)
@@ -36,7 +36,7 @@ func TestSet_OverwriteLeaf(t *testing.T) {
 }
 
 func TestRemove_Leaf(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b"), 1)
 	tree.Set(pathtree.PathOf("a", "c"), 2)
@@ -51,7 +51,7 @@ func TestRemove_Leaf(t *testing.T) {
 }
 
 func TestRemove_Node(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b", "c"), 1)
 	tree.Set(pathtree.PathOf("a", "d"), 2)
@@ -66,7 +66,7 @@ func TestRemove_Node(t *testing.T) {
 }
 
 func TestRemove_DeletesParentMaps(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b", "c"), 1)
 	tree.Remove(pathtree.PathOf("a", "b", "c"))
@@ -77,7 +77,7 @@ func TestRemove_DeletesParentMaps(t *testing.T) {
 }
 
 func TestGetLeaf_UnderLeaf(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a"), 1)
 
@@ -87,7 +87,7 @@ func TestGetLeaf_UnderLeaf(t *testing.T) {
 }
 
 func TestGetLeaf_PathIsNotLeaf(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b"), 1)
 
@@ -97,16 +97,16 @@ func TestGetLeaf_PathIsNotLeaf(t *testing.T) {
 }
 
 func TestGetOrMakeLeaf_PathIsNotLeaf(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b"), 1)
 
-	x := tree.GetOrMakeLeaf(pathtree.PathOf("a"), func() any { return 2 })
+	x := tree.GetOrMakeLeaf(pathtree.PathOf("a"), func() int { return 2 })
 	assert.Equal(t, 2, x)
 }
 
 func TestFlatten(t *testing.T) {
-	tree := pathtree.New()
+	tree := pathtree.New[int]()
 
 	tree.Set(pathtree.PathOf("a", "b"), 1)
 	tree.Set(pathtree.PathOf("a", "c"), 2)
