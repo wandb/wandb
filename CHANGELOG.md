@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- Add support for `Artifact.tags` and assigning tags via `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
+
 ### Fixed
 
 - Allow `define_metric("x", step_metric="x")` when using core (@timoffex in https://github.com/wandb/wandb/pull/8107)
