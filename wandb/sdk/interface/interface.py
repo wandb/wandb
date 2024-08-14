@@ -114,15 +114,14 @@ class InterfaceBase:
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
-    def communicate_status(self) -> Optional[pb.StatusResponse]:
-        status = pb.StatusRequest()
-        resp = self._communicate_status(status)
-        return resp
+    def deliver_status(self) -> MailboxHandle:
+        return self._deliver_status(pb.StatusRequest())
 
     @abstractmethod
-    def _communicate_status(
-        self, status: pb.StatusRequest
-    ) -> Optional[pb.StatusResponse]:
+    def _deliver_status(
+        self,
+        status: pb.StatusRequest,
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def _make_config(
