@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 
 	// add strconv below
-	"strconv"
+	// exp:media "strconv"
 
 	"strings"
 
@@ -21,7 +21,7 @@ import (
 	"image/color"
 	"image/png"
 
-	"github.com/wandb/simplejsonext"
+	// exp:media "github.com/wandb/simplejsonext"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -953,6 +953,7 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 	}
 }
 
+/*
 func createPNG(data []byte, width, height int, filesPath string, imagePath string) (string, string, int, error) {
 	// Create a new RGBA image
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
@@ -1020,12 +1021,14 @@ type Media struct {
 	Sha256 string `json:"sha256"`
 	Size   int    `json:"size"`
 }
+*/
 
 // might want to move this info filestream... ideally we should do something like this:
 //
 //	process during sendHistory,  schedule work to be done for the history data especially the media
 //	then at filestream process time / or fs transmit time, do final step coallescing data, for example
 //	it might be cool to sprite multiple steps of the same image key. kinda tricky to do
+/*
 func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*service.HistoryRecord, []string) {
 	hrecordNew := &service.HistoryRecord{
 		Step: hrecord.Step,
@@ -1078,6 +1081,7 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
 	}
 	return hrecordNew, hFiles
 }
+*/
 
 // sendHistory sends a history record to the file stream,
 // which will then send it to the server
