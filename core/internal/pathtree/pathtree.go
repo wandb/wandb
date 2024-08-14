@@ -196,7 +196,8 @@ func (pt *PathTree) GetOrMakeLeaf(
 	subtree := pt.getOrMakeSubtree(path.Prefix())
 
 	value, exists := subtree[path.End()]
-	if !exists {
+	_, isTree := value.(*treeData)
+	if !exists || isTree {
 		value = makeDefault()
 		subtree[path.End()] = value
 	}

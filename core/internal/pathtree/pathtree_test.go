@@ -86,6 +86,16 @@ func TestGetLeaf_UnderLeaf(t *testing.T) {
 	assert.Nil(t, x)
 }
 
+func TestGetLeaf_PathIsNotLeaf(t *testing.T) {
+	tree := pathtree.New()
+
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+
+	x, exists := tree.GetLeaf(pathtree.PathOf("a"))
+	assert.False(t, exists)
+	assert.Nil(t, x)
+}
+
 func TestFlatten(t *testing.T) {
 	tree := pathtree.New()
 
