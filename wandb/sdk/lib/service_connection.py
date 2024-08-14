@@ -63,7 +63,7 @@ def _start_and_connect_service(
     client.connect(port)
 
     service_token.put_service_token(
-        parent_pid=str(os.getpid()),
+        parent_pid=os.getpid(),
         transport="tcp",
         host="localhost",
         port=port,
