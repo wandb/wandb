@@ -21,7 +21,7 @@ import (
 	"image/color"
 	"image/png"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/simplejsonext"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -1064,7 +1064,7 @@ func historyMediaProcess(hrecord *service.HistoryRecord, filesPath string) (*ser
 					Sha256: hash,
 					Path:   fname,
 				}
-				jsonString, err := json.Marshal(media)
+				jsonString, err := simplejsonext.Marshal(media)
 				if err != nil {
 					fmt.Printf("GOT err %+v\n", err)
 				}
