@@ -10251,6 +10251,7 @@ type MetadataRequest struct {
 	GpuNvidia       []*GpuNvidiaInfo       `protobuf:"bytes,27,rep,name=gpu_nvidia,proto3" json:"gpu_nvidia,omitempty"`
 	GpuAmd          []*GpuAmdInfo          `protobuf:"bytes,28,rep,name=gpu_amd,proto3" json:"gpu_amd,omitempty"`
 	Slurm           map[string]string      `protobuf:"bytes,29,rep,name=slurm,proto3" json:"slurm,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	CudaVersion     string                 `protobuf:"bytes,30,opt,name=cuda_version,json=cudaVersion,proto3" json:"cuda_version,omitempty"`
 }
 
 func (x *MetadataRequest) Reset() {
@@ -10486,6 +10487,13 @@ func (x *MetadataRequest) GetSlurm() map[string]string {
 		return x.Slurm
 	}
 	return nil
+}
+
+func (x *MetadataRequest) GetCudaVersion() string {
+	if x != nil {
+		return x.CudaVersion
+	}
+	return ""
 }
 
 type PythonPackagesRequest struct {

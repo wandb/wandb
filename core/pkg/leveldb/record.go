@@ -222,6 +222,18 @@ func (r *Reader) nextChunk(wantFirst bool) error {
 	}
 }
 
+// ReadHeader reads the first block and copies the header into a buffer
+func (r *Reader) ReadHeader(headerBuffer []byte) error {
+	l := len(headerBuffer)
+	n, err := io.ReadFull(r.r, r.buf[:])
+	if err != nil && err != io.ErrUnexpectedEOF {
+		return err
+	}
+	copy(headerBuffer, r.buf[0:l])
+	r.i, r.j, r.n = l, l, n
+	return nil
+}
+
 // Next returns a reader for the next record. It returns io.EOF if there are no
 // more records. The reader returned becomes stale after the next Next call,
 // and should no longer be used.
@@ -368,7 +380,7 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer.
-func NewWriterExt(w io.Writer, algo CRCAlgo) *Writer {
+func NewWriterExt(w io.Writer, algo CRCAlgo, initialData []byte) *Writer {
 	f, _ := w.(flusher)
 
 	var o int64
@@ -383,17 +395,29 @@ func NewWriterExt(w io.Writer, algo CRCAlgo) *Writer {
 		crc = CRCStandard
 	}
 
-	return &Writer{
+	writer := &Writer{
 		w:                w,
 		f:                f,
 		baseOffset:       o,
 		lastRecordOffset: -1,
 		crc:              crc,
 	}
+	// prepend data into the block buffer if the file has no initial offset
+	// NOTE: prepended data will be part of the block which will influence the
+	// chunk handling at block boundaries.
+	if initialData != nil && o == 0 {
+		// Copy bytes into the block buffer.
+		n := copy(writer.buf[writer.j:], initialData)
+		writer.j += n
+	}
+	return writer
 }
 
 func NewWriter(w io.Writer) *Writer {
-	return NewWriterExt(w, CRCAlgoCustom)
+	return NewWriterExt(w, CRCAlgoCustom, nil)
+}
+
+func (w *Writer) Insert(buf []byte) {
 }
 
 // fillHeader fills in the header for the pending chunk.

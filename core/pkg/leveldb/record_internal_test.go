@@ -799,3 +799,60 @@ func TestNoLastRecordOffset(t *testing.T) {
 		t.Fatalf("LastRecordOffset: got %d, want 0", off)
 	}
 }
+
+// header read on a short data file just gets an incomplete header
+func TestHeaderShort(t *testing.T) {
+	data := []byte("hello")
+	r := NewReader(bytes.NewReader(data))
+	header := make([]byte, 7)
+	err := r.ReadHeader(header)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(header, data) {
+		t.Fatalf("header invalid: %+v", header)
+	}
+}
+
+// add a header and a single chunk o f data, read back header and record
+func TestHeaderNormal(t *testing.T) {
+	buf := new(bytes.Buffer)
+	headerWrite := []byte("header")
+	w := NewWriterExt(buf, CRCAlgoIEEE, headerWrite)
+
+	// write a good record
+	w1, _ := w.Next()
+	_, _ = w1.Write([]byte("junk1"))
+
+	if err := w.Close(); err != nil {
+		t.Fatalf("Close: %v", err)
+	}
+	header := make([]byte, 6)
+	r := NewReaderExt(buf, CRCAlgoIEEE)
+	if err := r.ReadHeader(header); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.HasPrefix(header, headerWrite) {
+		t.Fatalf("header invalid: %+v", header)
+	}
+
+	r1, err := r.Next()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	p := make([]byte, 10)
+	if _, err := r1.Read(p); err != nil {
+		t.Fatal(err)
+	}
+
+	if !bytes.HasPrefix(p, []byte("junk1")) {
+		t.Fatalf("data invalid: %+v", p)
+	}
+
+	// No more
+	_, err = r.Next()
+	if err != io.EOF {
+		t.Fatal(err)
+	}
+}

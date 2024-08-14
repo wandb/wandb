@@ -20,6 +20,7 @@ SYMBOLS_ROOT_DATATYPES = {
     "Audio",
     "Table",
     "Html",
+    "box3d",
     "Object3D",
     "Molecule",
     "Histogram",

@@ -54,18 +54,20 @@ MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 
+if sys.version_info >= (3, 8):
+    from typing import Literal, TypedDict
+else:
+    from typing_extensions import Literal, TypedDict
+
+PolicyName = Literal["now", "live", "end"]
+
+
+class FilesDict(TypedDict):
+    files: Iterable[Tuple[GlobStr, PolicyName]]
+
+
 if TYPE_CHECKING:
     from ..wandb_run import Run
-
-    if sys.version_info >= (3, 8):
-        from typing import Literal, TypedDict
-    else:
-        from typing_extensions import Literal, TypedDict
-
-    PolicyName = Literal["now", "live", "end"]
-
-    class FilesDict(TypedDict):
-        files: Iterable[Tuple[GlobStr, PolicyName]]
 
 
 logger = logging.getLogger("wandb")
