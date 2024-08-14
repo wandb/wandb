@@ -89,6 +89,9 @@ type SystemMonitor struct {
 	// The wait group for the system monitor
 	wg sync.WaitGroup
 
+	// Probe the system information once
+	probeOnce sync.Once
+
 	// The list of assets to monitor
 	assets []Asset
 
@@ -191,16 +194,21 @@ func (sm *SystemMonitor) Do() {
 		go sm.Monitor(asset)
 	}
 
-	// probe the asset information
-	go func() {
-		systemInfo := sm.Probe()
-		if systemInfo != nil {
-			sm.extraWork.AddRecordOrCancel(
-				sm.ctx.Done(),
-				makeMetadataRecord(systemInfo),
-			)
-		}
-	}()
+	// probe the asset information.
+	// NOTE: in notebook environments, we stop the system monitor when a cell has finished
+	// executing, and start it again when a new cell is executed. There is no need to probe
+	// the system information every time the system monitor is started.
+	sm.probeOnce.Do(func() {
+		go func() {
+			systemInfo := sm.Probe()
+			if systemInfo != nil {
+				sm.extraWork.AddRecordOrCancel(
+					sm.ctx.Done(),
+					makeMetadataRecord(systemInfo),
+				)
+			}
+		}()
+	})
 }
 
 func getSlurmEnvVars() map[string]string {
