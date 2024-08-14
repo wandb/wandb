@@ -132,30 +132,47 @@ class Run:
         return self._session._api
 
     def log(self, data):
+        if USE_DATAVALUE:
+            self._log_datavalue(data)
+            return
+        record = pb2.Record()
+        request = pb2.Request()
+        msg = pb2.PartialHistoryRequest()
+
+        msg.action.flush = True
+        # req.step.num = self._step
+        for k, v in data.items():
+            item = msg.item.add()
+            item.key = k
+            item.value_json = json.dumps(v)
+
+        request.partial_history.CopyFrom(msg)
+        record.request.CopyFrom(request)
+        record._info.stream_id = self._run_id
+        self._sock_client.send_record_publish(record)
+
+    def _log_datavalue(self, data):
         data_msg = pb2.HistoryRecord()
         data_msg.step.num = self._step
         self._step += 1
         for k, v in data.items():
             item = data_msg.item.add()
             item.key = k
-            if USE_DATAVALUE:
-                d = pb2.DataValue()
-                if isinstance(v, int):
-                    d.value_int = v
-                elif isinstance(v, float):
-                    d.value_double = v
-                elif isinstance(v, str):
-                    d.value_string = v
-                elif isinstance(v, Image):
-                    tensor_msg = pb2.TensorData()
-                    tensor_msg.tensor_content = v._data.tobytes()
-                    tensor_msg.shape.extend(v._data.shape)
-                    # TODO: see if we can do this without the CopyFrom
-                    d.value_tensor.CopyFrom(tensor_msg)
+            d = pb2.DataValue()
+            if isinstance(v, int):
+                d.value_int = v
+            elif isinstance(v, float):
+                d.value_double = v
+            elif isinstance(v, str):
+                d.value_string = v
+            elif isinstance(v, Image):
+                tensor_msg = pb2.TensorData()
+                tensor_msg.tensor_content = v._data.tobytes()
+                tensor_msg.shape.extend(v._data.shape)
                 # TODO: see if we can do this without the CopyFrom
-                item.value_data.CopyFrom(d)
-            else:
-                item.value_json = json.dumps(v)
+                d.value_tensor.CopyFrom(tensor_msg)
+            # TODO: see if we can do this without the CopyFrom
+            item.value_data.CopyFrom(d)
 
         # _ = data_msg.SerializeToString()
         # self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
