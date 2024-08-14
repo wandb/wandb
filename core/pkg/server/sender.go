@@ -14,12 +14,13 @@ import (
 	"strings"
 
 	// add below
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
-	"image"
-	"image/color"
-	"image/png"
+	// -       "bytes"
+	// -       "crypto/sha256"
+	// -       "encoding/hex"
+	// -       "image"
+	// -       "image/color"
+	// -       "image/png"
+
 
 	// exp:media "github.com/wandb/simplejsonext"
 
