@@ -1085,6 +1085,8 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 	if s.fileStream == nil {
 		return
 	}
+	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
+	/*
 	// fmt.Printf("history %+v\n", record)
 
 	filesPath := s.settings.GetFilesDir().GetValue()
@@ -1104,20 +1106,19 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 		}
 		s.runfilesUploader.Process(filesRecord)
 	}
-	/*
 		// TODO: do this better?
-		recordNew := &service.Record{
-			RecordType: &service.Record_History{
-				History: hrecordNew,
-			},
-			Control: record.Control,
-			Uuid:    record.Uuid,
-		}
-	*/
+		// recordNew := &service.Record{
+		// 	RecordType: &service.Record_History{
+		// 		History: hrecordNew,
+		// 	},
+		// 	Control: record.Control,
+		// 	Uuid:    record.Uuid,
+		// }
 
 	// s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: record})
 	// fmt.Printf("historyNew %+v\n", hrecordNew)
 	s.fileStream.StreamUpdate(&fs.HistoryUpdate{Record: hrecordNew})
+	*/
 }
 
 func (s *Sender) streamSummary() {
