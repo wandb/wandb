@@ -70,7 +70,7 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
