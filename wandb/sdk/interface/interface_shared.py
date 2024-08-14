@@ -299,7 +299,7 @@ class InterfaceShared(InterfaceBase):
         raise NotImplementedError
 
     def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 5, local: Optional[bool] = None
+        self, rec: pb.Record, timeout: Optional[int] = 30, local: Optional[bool] = None
     ) -> Optional[pb.Result]:
         return self._communicate_async(rec, local=local).get(timeout=timeout)
 
