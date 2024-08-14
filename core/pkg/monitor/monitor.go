@@ -181,7 +181,7 @@ func New(
 	diskPaths := settings.XStatsDiskPaths.GetValue()
 	samplingInterval := settings.XStatsSampleRateSeconds.GetValue()
 
-	systemMonitor.assets = []Asset{
+	systemMonitor.SetAssets([]Asset{
 		NewCPU(pid),
 		NewDisk(diskPaths),
 		NewMemory(pid),
@@ -192,9 +192,18 @@ func New(
 		NewGPUNvidia(logger, pid, samplingInterval),
 		NewGPUAMD(),
 		NewGPUApple(),
-	}
+	})
 
 	return systemMonitor
+}
+
+func (sm *SystemMonitor) SetAssets(assets []Asset) {
+	sm.assets = assets
+}
+
+// GetState returns the current state of the SystemMonitor
+func (sm *SystemMonitor) GetState() int32 {
+	return sm.state.Load()
 }
 
 func (sm *SystemMonitor) probe() *service.MetadataRequest {
