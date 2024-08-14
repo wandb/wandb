@@ -94,6 +94,15 @@ func (as *ArtifactSaver) createArtifact() (
 		)
 	}
 
+	var tags []gql.TagInput
+	for _, tag := range as.Artifact.Tags {
+		tags = append(tags,
+			gql.TagInput{
+				TagName: tag,
+			},
+		)
+	}
+
 	var runId *string
 	if !as.Artifact.UserCreated {
 		runId = &as.Artifact.RunId
@@ -110,6 +119,7 @@ func (as *ArtifactSaver) createArtifact() (
 		as.Artifact.Digest,
 		utils.NilIfZero(as.Artifact.Description),
 		aliases,
+		tags,
 		utils.NilIfZero(as.Artifact.Metadata),
 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
 		utils.NilIfZero(as.HistoryStep),

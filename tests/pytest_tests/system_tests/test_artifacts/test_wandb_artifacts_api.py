@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 import wandb
 from wandb import Api
 
@@ -85,7 +86,6 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
-@pytest.mark.xfail(reason="Adding tags via run.log_artifact still WIP", strict=True)
 def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api):
     project = "test"
     artifact_name = "test-artifact"

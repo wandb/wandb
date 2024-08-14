@@ -747,6 +747,21 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceStr
 	return v.VersionOnThisInstanceString
 }
 
+type TagInput struct {
+	TagCategoryName *string `json:"tagCategoryName"`
+	TagName         string  `json:"tagName"`
+	Attributes      *string `json:"attributes"`
+}
+
+// GetTagCategoryName returns TagInput.TagCategoryName, and is useful for accessing the field via an interface.
+func (v *TagInput) GetTagCategoryName() *string { return v.TagCategoryName }
+
+// GetTagName returns TagInput.TagName, and is useful for accessing the field via an interface.
+func (v *TagInput) GetTagName() string { return v.TagName }
+
+// GetAttributes returns TagInput.Attributes, and is useful for accessing the field via an interface.
+func (v *TagInput) GetAttributes() *string { return v.Attributes }
+
 // UpdateArtifactManifestResponse is returned by UpdateArtifactManifest on success.
 type UpdateArtifactManifestResponse struct {
 	UpdateArtifactManifest *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload `json:"updateArtifactManifest"`
@@ -1120,6 +1135,7 @@ type __CreateArtifactInput struct {
 	Digest                 string               `json:"digest"`
 	Description            *string              `json:"description"`
 	Aliases                []ArtifactAliasInput `json:"aliases"`
+	Tags                   []TagInput           `json:"tags"`
 	Metadata               *string              `json:"metadata"`
 	TtlDurationSeconds     *int64               `json:"ttlDurationSeconds"`
 	HistoryStep            *int64               `json:"historyStep"`
@@ -1151,6 +1167,9 @@ func (v *__CreateArtifactInput) GetDescription() *string { return v.Description 
 
 // GetAliases returns __CreateArtifactInput.Aliases, and is useful for accessing the field via an interface.
 func (v *__CreateArtifactInput) GetAliases() []ArtifactAliasInput { return v.Aliases }
+
+// GetTags returns __CreateArtifactInput.Tags, and is useful for accessing the field via an interface.
+func (v *__CreateArtifactInput) GetTags() []TagInput { return v.Tags }
 
 // GetMetadata returns __CreateArtifactInput.Metadata, and is useful for accessing the field via an interface.
 func (v *__CreateArtifactInput) GetMetadata() *string { return v.Metadata }
@@ -1661,8 +1680,8 @@ func CompleteMultipartUploadArtifact(
 
 // The query or mutation executed by CreateArtifact.
 const CreateArtifact_Operation = `
-mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
-	createArtifact(input: {entityName:$entityName,projectName:$projectName,artifactTypeName:$artifactTypeName,artifactCollectionName:$artifactCollectionName,runName:$runName,digest:$digest,digestAlgorithm:MANIFEST_MD5,description:$description,aliases:$aliases,metadata:$metadata,ttlDurationSeconds:$ttlDurationSeconds,historyStep:$historyStep,enableDigestDeduplication:true,distributedID:$distributedID,clientID:$clientID,sequenceClientID:$sequenceClientID}) {
+mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $tags: [TagInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
+	createArtifact(input: {entityName:$entityName,projectName:$projectName,artifactTypeName:$artifactTypeName,artifactCollectionName:$artifactCollectionName,runName:$runName,digest:$digest,digestAlgorithm:MANIFEST_MD5,description:$description,aliases:$aliases,tags:$tags,metadata:$metadata,ttlDurationSeconds:$ttlDurationSeconds,historyStep:$historyStep,enableDigestDeduplication:true,distributedID:$distributedID,clientID:$clientID,sequenceClientID:$sequenceClientID}) {
 		artifact {
 			id
 			state
@@ -1687,6 +1706,7 @@ func CreateArtifact(
 	digest string,
 	description *string,
 	aliases []ArtifactAliasInput,
+	tags []TagInput,
 	metadata *string,
 	ttlDurationSeconds *int64,
 	historyStep *int64,
@@ -1706,6 +1726,7 @@ func CreateArtifact(
 			Digest:                 digest,
 			Description:            description,
 			Aliases:                aliases,
+			Tags:                   tags,
 			Metadata:               metadata,
 			TtlDurationSeconds:     ttlDurationSeconds,
 			HistoryStep:            historyStep,
