@@ -8,6 +8,7 @@ from wandb.proto import wandb_settings_pb2
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import service_token
+from wandb.sdk.lib.exit_hooks import ExitHooks
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.sock_client import SockClient
 from wandb.sdk.service import service
@@ -17,7 +18,9 @@ class WandbServiceNotOwnedError(Exception):
     """Raised when the current process does not own the service process."""
 
 
-def connect_to_service(settings: "wandb_settings_pb2.Settings") -> "ServiceConnection":
+def connect_to_service(
+    settings: "wandb_settings_pb2.Settings",
+) -> "ServiceConnection":
     """Connects to the service process, starting one up if necessary."""
     conn = _try_connect_to_existing_service()
     if conn:
@@ -68,8 +71,12 @@ def _start_and_connect_service(
 
     conn = ServiceConnection(client=client, proc=proc)
 
-    # TODO: ExitHooks?
-    atexit.register(conn._teardown_atexit)
+    def teardown_atexit():
+        conn.teardown(hooks.exit_code)
+
+    hooks = ExitHooks()
+    hooks.hook()
+    atexit.register(teardown_atexit)
 
     return conn
 
@@ -126,10 +133,6 @@ class ServiceConnection:
         request.settings.CopyFrom(settings)
         request._info.stream_id = run_id
         self._client.send(inform_start=request)
-
-    def _teardown_atexit(self):
-        """Shuts down the service process with a 0 exit code."""
-        self.teardown(0)
 
     def teardown(self, exit_code: int) -> int:
         """Shut downs down the service process and returns its exit code.

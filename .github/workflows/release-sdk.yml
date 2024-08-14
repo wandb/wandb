@@ -70,7 +70,7 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -154,7 +154,7 @@ jobs:
             rustc --version &&
             cargo --version
           CIBW_ENVIRONMENT_LINUX:
-            PATH=$PATH:/usr/local/go/bin
+            PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
       - uses: actions/upload-artifact@v3
         with:
@@ -371,6 +371,7 @@ jobs:
         with:
           name: v${{ github.event.inputs.version }}
           tag_name: v${{ github.event.inputs.version }}
+          target_commitish: release-${{ github.event.inputs.version }}
           body_path: release_notes.md
           files: |
             wandb-${{ github.event.inputs.version }}.zip

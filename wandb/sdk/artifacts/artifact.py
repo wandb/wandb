@@ -751,7 +751,7 @@ class Artifact:
     def save(
         self,
         project: Optional[str] = None,
-        settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
+        settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
     ) -> None:
         """Persist any changes made to the artifact.
 

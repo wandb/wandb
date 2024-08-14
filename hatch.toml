@@ -16,6 +16,7 @@ include = [
 include = [
     "apple_stats",
     "core",
+    "nvidia_gpu_stats",
     "wandb/py.typed",
     "package_readme.md",
     "wandb/**/*.py",

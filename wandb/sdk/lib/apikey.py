@@ -107,7 +107,7 @@ def prompt_api_key(  # noqa: C901
 
     if jupyter and "google.colab" in sys.modules:
         log_string = term.LOG_STRING_NOCOLOR
-        key = wandb.jupyter.attempt_colab_login(app_url)
+        key = wandb.jupyter.attempt_colab_login(app_url)  # type: ignore
         if key is not None:
             write_key(settings, key, api=api)
             return key  # type: ignore
