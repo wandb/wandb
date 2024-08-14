@@ -3627,6 +3627,10 @@ class Api:
             types += "$ttlDurationSeconds: Int64,"
             values += "ttlDurationSeconds: $ttlDurationSeconds,"
 
+        if "tags" in fields:
+            types += "$tags: [TagInput!],"
+            values += "tags: $tags,"
+
         query_template = """
             mutation CreateArtifact(
                 $artifactTypeName: String!,
@@ -3686,6 +3690,7 @@ class Api:
         metadata: Optional[Dict] = None,
         ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
+        tags: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         history_step: Optional[int] = None,
@@ -3698,6 +3703,11 @@ class Api:
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
             ttl_duration_seconds = None
+        if "tags" not in artifact_fields and tags:
+            wandb.termwarn(
+                "Server not compatible with setting Artifact tags, please upgrade the server to use Artifact tags"
+            )
+
         query_template = self._get_create_artifact_mutation(
             fields, history_step, distributed_id
         )
@@ -3708,6 +3718,8 @@ class Api:
             run_name = run_name or self.current_run_id
         if aliases is None:
             aliases = []
+        if tags is None:
+            tags = []
 
         mutation = gql(query_template)
         response = self.gql(
@@ -3723,6 +3735,7 @@ class Api:
                 "digest": digest,
                 "description": description,
                 "aliases": [alias for alias in aliases],
+                "tags": [tag for tag in tags],
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
