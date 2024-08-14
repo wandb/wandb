@@ -174,6 +174,19 @@ class Run:
             # TODO: see if we can do this without the CopyFrom
             item.value_data.CopyFrom(d)
 
+        # add _step and _runtime manually for now
+        item = data_msg.item.add()
+        item.key = "_step"
+        d = pb2.DataValue()
+        d.value_int = data_msg.step.num
+        item.value_data.CopyFrom(d)
+
+        item = data_msg.item.add()
+        item.key = "_runtime"
+        d = pb2.DataValue()
+        d.value_double = time.time()
+        item.value_data.CopyFrom(d)
+
         # _ = data_msg.SerializeToString()
         # self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
         record = pb2.Record()
