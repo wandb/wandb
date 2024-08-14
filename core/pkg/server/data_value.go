@@ -18,7 +18,6 @@ import (
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
-
 func createPNG(data []byte, width, height int, filesPath string, imagePath string) (string, string, int, error) {
 	// Create a new RGBA image
 	img := image.NewRGBA(image.Rect(0, 0, width, height))
