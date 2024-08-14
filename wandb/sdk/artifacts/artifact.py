@@ -1082,8 +1082,8 @@ class Artifact:
                 .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
             )
 
-        tags_to_add = set(self._tags) - set(self._saved_tags)
-        tags_to_delete = set(self._saved_tags) - set(self._tags)
+        tags_to_add = validate_tags(set(self._tags) - set(self._saved_tags))
+        tags_to_delete = validate_tags(set(self._saved_tags) - set(self._tags))
         if "tags" in fields:
             mutation_template = (
                 mutation_template.replace(

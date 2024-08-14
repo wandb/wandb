@@ -1,8 +1,11 @@
 import os
+import re
 
 import pytest
+
 import wandb
 from wandb import Api
+from wandb.errors import CommError
 
 
 def test_fetching_artifact_files(user, wandb_init):
@@ -85,7 +88,15 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
-def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api):
+@pytest.mark.parametrize(
+    "orig_tags",
+    (
+        ["orig-tag", "other-tag"],
+        ["orig tag", "other-tag"],
+        ["orig-TAG 1", "other-tag"],
+    ),
+)
+def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api, orig_tags):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -94,9 +105,8 @@ def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api):
     artifact_filepath = tmp_path / "boom.txt"
     artifact_filepath.write_text("testing")
 
-    orig_tags = ["orig-tag", "other-tag"]  # Initial tags on the logged artifact
-    to_delete = ["other-tag"]  # Tags to delete later on
-    to_add = ["added-tag"]  # Tags to add later on
+    tags_to_delete = ["other-tag"]  # Tags to delete later on
+    tags_to_add = ["added-tag"]  # Tags to add later on
 
     with wandb_init(entity=user, project=project) as run:
         artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
@@ -109,21 +119,119 @@ def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api):
     # Add new tags after and outside the run
     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    # Partial check that expected behavior is (reasonably) resilient to in-place mutations, not just reassignment,
-    # of the `.tags` list attribute.  Not ideal, but it's reasonable to expect some users might do this.
-    for added_tag in to_add:
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+
+    # Partial check that expected behavior is (reasonably) resilient to in-place mutations
+    # of the list-type `.tags` attribute -- and not just reassignment.
+    #
+    # The latter is preferable in python (generally) as well as here (it actually calls the property setter),
+    # but it's reasonable to expect some users might prefer or need to rely instead on:
+    # - `artifact.tags.extend`
+    # - `artiafct.tags.append`
+    # - `artifact.tags += ["new-tag"]`
+    # - etc.
+    for added_tag in tags_to_add:
         fetched_artifact.tags.append(added_tag)
-    for deleted_tag in to_delete:
+    for deleted_tag in tags_to_delete:
         fetched_artifact.tags.remove(deleted_tag)
     fetched_artifact.save()
 
     # fetch the final artifact and verify its tags
-    final_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+    final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
 
-    assert set(final_artifact.tags) == set(orig_tags + to_add) - set(to_delete)
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(final_tags) == sorted({*orig_tags, *tags_to_add} - {*tags_to_delete})
 
-    # Verify uniqueness, since tagCategories are currently unused/ignored
-    assert len(set(final_artifact.tags)) == len(final_artifact.tags)
+
+INVALID_TAGS = (
+    "!invalid-tag:with-punctuation",
+    "",
+    " ",
+    "trailing space ",
+    " leading space",
+)
+
+
+@pytest.mark.parametrize(
+    # Note: Consider `hypothesis` for testing/fuzzing instead if we can reduce setup + wandb.init() time
+    "tags_to_add",
+    (
+        # Given a single invalid tag
+        *([bad] for bad in INVALID_TAGS),
+        # Given an invalid + valid tag
+        *([bad, "good-tag"] for bad in INVALID_TAGS),
+        # Given pairs of invalid tags
+        *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
+    ),
+)
+def test_save_invalid_tags_after_logging_artifact(
+    tmp_path, user, wandb_init, api, tags_to_add
+):
+    project = "test"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+    artifact_fullname = f"{user}/{project}/{artifact_name}:v0"
+
+    artifact_filepath = tmp_path / "boom.txt"
+    artifact_filepath.write_text("testing")
+
+    orig_tags = ["orig-tag", "other-tag"]  # Initial tags on the logged artifact
+
+    with wandb_init(entity=user, project=project) as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        artifact.add_file(str(artifact_filepath), "test-name")
+
+        # Assign tags when logging
+        run.log_artifact(artifact, tags=orig_tags)
+        artifact.wait()
+
+    # Add new tags after and outside the run
+    fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+
+    with pytest.raises(
+        (ValueError, CommError),
+        match=re.compile(r"Invalid tag", re.IGNORECASE),
+    ):
+        fetched_artifact.tags.extend(tags_to_add)
+        fetched_artifact.save()
+
+    # tags should remain unchanged
+    final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
+
+    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+    assert sorted(final_tags) == sorted(set(orig_tags))
+
+
+@pytest.mark.parametrize(
+    "invalid_tags",
+    (
+        # Given a single invalid tag
+        *([bad] for bad in INVALID_TAGS),
+        # Given an invalid + valid tag
+        *([bad, "good-tag"] for bad in INVALID_TAGS),
+        # Given pairs of invalid tags
+        *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
+    ),
+)
+def test_log_artifact_with_invalid_tags(tmp_path, user, wandb_init, api, invalid_tags):
+    project = "test"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    artifact_filepath = tmp_path / "boom.txt"
+    artifact_filepath.write_text("testing")
+
+    with wandb_init(entity=user, project=project) as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        artifact.add_file(str(artifact_filepath), "test-name")
+
+        # Logging an artifact with invalid tags should fail
+        with pytest.raises(ValueError, match=re.compile(r"Invalid tag", re.IGNORECASE)):
+            run.log_artifact(artifact, tags=invalid_tags)
 
 
 def test_update_aliases_on_artifact(user, wandb_init):
