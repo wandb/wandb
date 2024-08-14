@@ -433,6 +433,8 @@ def log(
     `train` and `val` sections in the W&B UI.
 
     `run.log` is not intended to be called more than a few times per second.
+    Instead, try logging once every N iterations, or collect data over multiple
+    iterations and log it in a single step.
 
     ### Summary values
 
@@ -447,7 +449,8 @@ def log(
     run.summary["train"]["loss"] = 90
     ```
 
-    See also `define_metric` for more control over summary calculations.
+    See also [define_metric](https://docs.wandb.ai/ref/python/run#define_metric)
+    for more control over summary calculations.
 
     ### The W&B step
 
@@ -464,7 +467,7 @@ def log(
     run.log({"epoch": 40, "train-loss": 0.5})
     ```
 
-    See also `run.define_metric`.
+    See also [define_metric](https://docs.wandb.ai/ref/python/run#define_metric).
 
     It is possible to use multiple `log` invocations to log to
     the same step with the `step` and `commit` parameters.
