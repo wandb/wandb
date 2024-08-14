@@ -2,16 +2,18 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/segmentio/encoding/json"
+	"golang.org/x/time/rate"
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -34,33 +36,45 @@ func Average(nums []float64) float64 {
 }
 
 func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
-	record := &service.Record{
-		RecordType: &service.Record_Stats{
-			Stats: &service.StatsRecord{
-				StatsType: service.StatsRecord_SYSTEM,
-				Timestamp: timeStamp,
-			},
-		},
-		Control: &service.Control{AlwaysSend: true},
-	}
-
+	statsItems := make([]*service.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := json.Marshal(v)
 		if err != nil {
 			continue
 		}
-		record.GetStats().Item = append(record.GetStats().Item, &service.StatsItem{
+		statsItems = append(statsItems, &service.StatsItem{
 			Key:       k,
 			ValueJson: string(jsonData),
 		})
 	}
 
-	return record
+	return &service.Record{
+		RecordType: &service.Record_Stats{
+			Stats: &service.StatsRecord{
+				StatsType: service.StatsRecord_SYSTEM,
+				Timestamp: timeStamp,
+				Item:      statsItems,
+			},
+		},
+		Control: &service.Control{AlwaysSend: true},
+	}
+}
+
+func makeMetadataRecord(metadata *service.MetadataRequest) *service.Record {
+	return &service.Record{
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_Metadata{
+					Metadata: metadata,
+				},
+			},
+		},
+	}
 }
 
 type Asset interface {
 	Name() string
-	SampleMetrics()
+	SampleMetrics() error
 	AggregateMetrics() map[string]float64
 	ClearMetrics()
 	IsAvailable() bool
@@ -68,32 +82,32 @@ type Asset interface {
 }
 
 type SystemMonitor struct {
-	// ctx is the context for the system monitor
+	// The context for the system monitor
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	// wg is the wait group for the system monitor
+	// The wait group for the system monitor
 	wg sync.WaitGroup
 
-	// assets is the list of assets to monitor
+	// The list of assets to monitor
 	assets []Asset
 
-	//	outChan is the channel for outgoing messages
-	outChan chan *service.Record
+	// extraWork accepts outgoing messages for the run
+	extraWork runwork.ExtraWork
 
-	// Buffer is the metrics buffer for the system monitor
+	// The metrics buffer for the system monitor
 	buffer *Buffer
 
 	// settings is the settings for the system monitor
 	settings *service.Settings
 
-	// samplingInterval is the interval at which metrics are sampled
+	// The interval at which metrics are sampled
 	samplingInterval time.Duration
 
-	// samplesToAverage is the number of samples to average before sending the metrics
-	samplesToAverage int32
+	// The number of samples to average before sending the metrics
+	samplesToAverage int
 
-	// logger is the logger for the system monitor
+	// A logger for internal debug logging.
 	logger *observability.CoreLogger
 }
 
@@ -101,13 +115,13 @@ type SystemMonitor struct {
 func NewSystemMonitor(
 	logger *observability.CoreLogger,
 	settings *service.Settings,
-	outChan chan *service.Record,
+	extraWork runwork.ExtraWork,
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()
 	var buffer *Buffer
-	// if buffer size is 0, don't create a buffer
-	// a positive buffer size restricts the number of metrics that are kept in memory
-	// value of -1 indicates that all sampled metrics will be kept in memory
+	// if buffer size is 0, don't create a buffer.
+	// a positive buffer size limits the number of metrics that are kept in memory.
+	// a value of -1 indicates that all sampled metrics will be kept in memory.
 	if sbs != 0 {
 		buffer = NewBuffer(sbs)
 	}
@@ -116,7 +130,7 @@ func NewSystemMonitor(
 		wg:               sync.WaitGroup{},
 		settings:         settings,
 		logger:           logger,
-		outChan:          outChan,
+		extraWork:        extraWork,
 		buffer:           buffer,
 		samplingInterval: defaultSamplingInterval,
 		samplesToAverage: defaultSamplesToAverage,
@@ -127,7 +141,7 @@ func NewSystemMonitor(
 		systemMonitor.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
 	}
 	if sta := settings.XStatsSamplesToAverage; sta != nil {
-		systemMonitor.samplesToAverage = int32(sta.GetValue())
+		systemMonitor.samplesToAverage = int(sta.GetValue())
 	}
 
 	systemMonitor.logger.Debug(
@@ -143,21 +157,21 @@ func NewSystemMonitor(
 		return systemMonitor
 	}
 
-	assets := []Asset{
-		NewMemory(settings),
-		NewCPU(settings),
-		NewDisk(settings),
-		NewNetwork(settings),
-		NewGPUNvidia(settings),
-		NewGPUAMD(settings),
-		NewGPUApple(settings),
-	}
+	pid := settings.XStatsPid.GetValue()
+	diskPaths := settings.XStatsDiskPaths.GetValue()
+	samplingInterval := settings.XStatsSampleRateSeconds.GetValue()
 
-	// if asset is available, add it to the list of assets to monitor
-	for _, asset := range assets {
-		if asset.IsAvailable() {
-			systemMonitor.assets = append(systemMonitor.assets, asset)
-		}
+	systemMonitor.assets = []Asset{
+		NewCPU(pid),
+		NewDisk(diskPaths),
+		NewMemory(pid),
+		NewNetwork(),
+		// NOTE: we pass the logger for more detailed error reporting
+		// during the initial rollout of the GPU monitoring with nvidia_gpu_stats
+		// TODO: remove the logger once we are confident that it is stable
+		NewGPUNvidia(logger, pid, samplingInterval),
+		NewGPUAMD(),
+		NewGPUApple(),
 	}
 
 	return systemMonitor
@@ -176,6 +190,17 @@ func (sm *SystemMonitor) Do() {
 		sm.wg.Add(1)
 		go sm.Monitor(asset)
 	}
+
+	// probe the asset information
+	go func() {
+		systemInfo := sm.Probe()
+		if systemInfo != nil {
+			sm.extraWork.AddRecordOrCancel(
+				sm.ctx.Done(),
+				makeMetadataRecord(systemInfo),
+			)
+		}
+	}()
 }
 
 func getSlurmEnvVars() map[string]string {
@@ -194,9 +219,6 @@ func getSlurmEnvVars() map[string]string {
 }
 
 func (sm *SystemMonitor) Probe() *service.MetadataRequest {
-	if sm == nil {
-		return nil
-	}
 	systemInfo := service.MetadataRequest{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
@@ -216,12 +238,18 @@ func (sm *SystemMonitor) Probe() *service.MetadataRequest {
 }
 
 func (sm *SystemMonitor) Monitor(asset Asset) {
+	if !asset.IsAvailable() {
+		sm.wg.Done()
+		return
+	}
+
 	// recover from panic and log the error
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			e := fmt.Errorf("%v", err)
-			sm.logger.CaptureError("monitor: panic", e)
+			sm.logger.CaptureError(
+				fmt.Errorf("monitor: panic: %v", err),
+				"asset_name", asset.Name())
 		}
 	}()
 
@@ -229,53 +257,43 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	ticker := time.NewTicker(sm.samplingInterval)
 	defer ticker.Stop()
 
-	// Create a new channel and immediately send a signal to it.
-	// This is to ensure that the first sample is taken immediately.
-	tickChan := make(chan time.Time, 1)
-	tickChan <- time.Now()
+	sometimes := rate.Sometimes{Every: sm.samplesToAverage}
 
-	// Forward signals from the ticker to tickChan
-	go func() {
-		for t := range ticker.C {
-			tickChan <- t
-		}
-	}()
-
-	samplesCollected := int32(0)
 	for {
 		select {
 		case <-sm.ctx.Done():
 			return
-		case <-tickChan:
-			asset.SampleMetrics()
-			samplesCollected++
+		case <-ticker.C:
+			// NOTE: the pattern in SampleMetric is to capture whatever metrics are available,
+			// accumulate errors along the way, and log them here.
+			err := asset.SampleMetrics()
+			if err != nil {
+				sm.logger.CaptureError(
+					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
+				)
+			}
 
-			if samplesCollected == sm.samplesToAverage {
+			sometimes.Do(func() {
 				aggregatedMetrics := asset.AggregateMetrics()
-				if len(aggregatedMetrics) > 0 {
-					ts := timestamppb.Now()
-					// store in buffer
-					for k, v := range aggregatedMetrics {
-						if sm.buffer != nil {
-							sm.buffer.push(k, ts, v)
-						}
-					}
+				asset.ClearMetrics()
 
-					// publish metrics
-					record := makeStatsRecord(aggregatedMetrics, ts)
-					// ensure that the context is not done before sending the record
-					select {
-					case <-sm.ctx.Done():
-						return
-					default:
-						sm.outChan <- record
+				if len(aggregatedMetrics) == 0 {
+					return // nothing to do
+				}
+				ts := timestamppb.Now()
+				// Also store aggregated metrics in the buffer if we have one
+				if sm.buffer != nil {
+					for k, v := range aggregatedMetrics {
+						sm.buffer.push(k, ts, v)
 					}
-					asset.ClearMetrics()
 				}
 
-				// reset samplesCollected
-				samplesCollected = int32(0)
-			}
+				// publish metrics
+				sm.extraWork.AddRecordOrCancel(
+					sm.ctx.Done(),
+					makeStatsRecord(aggregatedMetrics, ts),
+				)
+			})
 		}
 	}
 

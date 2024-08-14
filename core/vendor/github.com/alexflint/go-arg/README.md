@@ -134,10 +134,10 @@ arg.MustParse(&args)
 
 ```shell
 $ ./example -h
-Usage: [--verbose] [--dataset DATASET] [--optimize OPTIMIZE] [--help] INPUT [OUTPUT [OUTPUT ...]] 
+Usage: [--verbose] [--dataset DATASET] [--optimize OPTIMIZE] [--help] INPUT [OUTPUT [OUTPUT ...]]
 
 Positional arguments:
-  INPUT 
+  INPUT
   OUTPUT
 
 Options:
@@ -178,6 +178,24 @@ var args struct {
     Test  string `arg:"-t,env:TEST" default:"something"`
 }
 arg.MustParse(&args)
+```
+
+#### Ignoring environment variables and/or default values
+
+The values in an existing structure can be kept in-tact by ignoring environment
+variables and/or default values.
+
+```go
+var args struct {
+    Test  string `arg:"-t,env:TEST" default:"something"`
+}
+
+p, err := arg.NewParser(arg.Config{
+    IgnoreEnv: true,
+    IgnoreDefault: true,
+}, &args)
+
+err = p.Parse(os.Args)
 ```
 
 ### Arguments with multiple values
@@ -444,6 +462,9 @@ Options:
 
 ### Description strings
 
+A descriptive message can be added at the top of the help text by implementing
+a `Description` function that returns a string.
+
 ```go
 type args struct {
 	Foo string
@@ -467,6 +488,35 @@ Usage: example [--foo FOO]
 Options:
   --foo FOO
   --help, -h             display this help and exit
+```
+
+Similarly an epilogue can be added at the end of the help text by implementing
+the `Epilogue` function.
+
+```go
+type args struct {
+	Foo string
+}
+
+func (args) Epilogue() string {
+	return "For more information visit github.com/alexflint/go-arg"
+}
+
+func main() {
+	var args args
+	arg.MustParse(&args)
+}
+```
+
+```shell
+$ ./example -h
+Usage: example [--foo FOO]
+
+Options:
+  --foo FOO
+  --help, -h             display this help and exit
+
+For more information visit github.com/alexflint/go-arg
 ```
 
 ### Subcommands

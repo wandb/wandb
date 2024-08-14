@@ -1,9 +1,9 @@
 module github.com/wandb/wandb/experimental/client-go
 
-go 1.22.3
+go 1.22.6
 
 require (
-	github.com/segmentio/encoding v0.4.0
+	github.com/wandb/segmentio-encoding v0.0.0-20240626235424-a08f80ebfb91
 	github.com/wandb/wandb/core v0.0.0-20240502211842-3579a7c6fe44
 	google.golang.org/protobuf v1.34.0
 )
@@ -32,6 +32,7 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55 // indirect
 	github.com/radovskyb/watcher v1.0.7 // indirect
 	github.com/segmentio/asm v1.2.0 // indirect
+	github.com/segmentio/encoding v0.4.0 // indirect
 	github.com/sergi/go-diff v1.3.1 // indirect
 	github.com/shirou/gopsutil/v3 v3.24.2 // indirect
 	github.com/shoenig/go-m1cpu v0.1.6 // indirect

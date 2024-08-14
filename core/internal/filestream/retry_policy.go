@@ -21,37 +21,57 @@ const (
 )
 
 // RetryPolicy is the retry policy to be used for file stream operations.
+//
+// The policy is to retry by default, unless we know an error is not retryable.
 func RetryPolicy(
 	ctx context.Context,
 	resp *http.Response,
 	err error,
 ) (bool, error) {
-	// non-retryable status codes
-	if resp != nil {
-		switch resp.StatusCode {
-		case http.StatusBadRequest: // don't retry on 400 bad request or 409 conflict
-			return false, err
-		case http.StatusUnauthorized: // don't retry on 401 unauthorized
-			return false, err
-		case http.StatusForbidden: // don't retry on 403 forbidden
-			return false, err
-		case http.StatusNotFound: // don't retry on 404 not found
-			return false, err
-		case http.StatusConflict: // don't retry on 409 conflict
-			return false, err
-		case http.StatusGone: // don't retry on 410 Gone
-			return false, err
-		}
+	// Respect context cancellation and deadlines.
+	if ctx.Err() != nil {
+		return false, ctx.Err()
 	}
-	// if err != nil, retryablehttp's base policy is to retry
-	// if the error is recoverable, meaning it's not:
-	//   - due to too many redirects.
-	//   - due to an invalid protocol scheme.
-	//   - due to an invalid header.
-	//   - due to TLS cert verification failure.
-	// if resp != nil and err == nil, retryablehttp's base policy is to retry
-	// if the status code is 429, 5xx, or invalid. We want to be extra cautious
-	// and retry in other remaining cases as well.
-	// TODO: consider moving this logic from the retryablehttp package to here.
-	return retryablehttp.ErrorPropagatedRetryPolicy(ctx, resp, err)
+
+	// Use retryablehttp's defaults for errors.
+	//
+	// Go's http package sometimes returns errors that are retryable rather
+	// than retrying them itself, such as https://github.com/golang/go/issues/4677
+	// That issue is closed, but we encountered what seems to be the same error
+	// in 2024.
+	//
+	// retryablehttp retries errors by default, with exceptions for known
+	// non-retryable errors, for which it has to use regexp matching on the
+	// error string (ugh!).
+	if err != nil {
+		return retryablehttp.DefaultRetryPolicy(ctx, resp, err)
+	}
+
+	// Avoid retrying specific status codes.
+	switch resp.StatusCode {
+	case http.StatusBadRequest: // don't retry on 400 bad request
+		return false, nil
+	case http.StatusUnauthorized: // don't retry on 401 unauthorized
+		return false, nil
+	case http.StatusForbidden: // don't retry on 403 forbidden
+		return false, nil
+	case http.StatusNotFound: // don't retry on 404 not found
+		return false, nil
+	case http.StatusConflict: // don't retry on 409 conflict
+		return false, nil
+	case http.StatusGone: // don't retry on 410 Gone
+		return false, nil
+	case http.StatusRequestEntityTooLarge: // don't retry on 413 Content Too Large
+		return false, nil
+	case http.StatusNotImplemented: // don't retry on 501 not implemented
+		return false, nil
+	}
+
+	// Retry some invalid HTTP codes.
+	if resp.StatusCode == 0 || resp.StatusCode >= 600 {
+		return true, nil
+	}
+
+	// Retry any other client or server errors.
+	return resp.StatusCode >= 400 && resp.StatusCode <= 599, nil
 }

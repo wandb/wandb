@@ -8,7 +8,7 @@ from typing_extensions import override
 
 import wandb
 from wandb import Artifact
-from wandb.sdk.lib import RunDisabled, telemetry
+from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 
 try:
@@ -293,7 +293,7 @@ class WandbLogger(Logger):
         anonymous: Optional[bool] = None,
         project: Optional[str] = None,
         log_model: Union[Literal["all"], bool] = False,
-        experiment: Union["Run", "RunDisabled", None] = None,
+        experiment: Optional["Run"] = None,
         prefix: str = "",
         checkpoint_name: Optional[str] = None,
         log_checkpoint_on: Union[Literal["success"], Literal["all"]] = "success",
@@ -312,7 +312,7 @@ class WandbLogger(Logger):
         self._prefix = prefix
         self._experiment = experiment
         self._logged_model_time: Dict[str, float] = {}
-        self._checkpoint_callback: Optional["ModelCheckpoint"] = None
+        self._checkpoint_callback: Optional[ModelCheckpoint] = None
 
         # paths are processed as strings
         if save_dir is not None:
@@ -360,7 +360,7 @@ class WandbLogger(Logger):
 
     @property
     @rank_zero_experiment
-    def experiment(self) -> Union["Run", "RunDisabled"]:
+    def experiment(self) -> "Run":
         r"""Actual wandb object.
 
         To use wandb features in your :class:`~lightning.pytorch.core.LightningModule`, do the
@@ -393,7 +393,7 @@ class WandbLogger(Logger):
                 self._experiment = wandb.init(**self._wandb_init)
 
                 # define default x-axis
-                if isinstance(self._experiment, (Run, RunDisabled)) and getattr(
+                if isinstance(self._experiment, Run) and getattr(
                     self._experiment, "define_metric", None
                 ):
                     self._experiment.define_metric("trainer/global_step")

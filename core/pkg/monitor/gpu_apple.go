@@ -1,13 +1,13 @@
 package monitor
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sync"
 
-	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -29,16 +29,14 @@ type GPUApple struct {
 	name        string
 	metrics     map[string][]float64
 	mutex       sync.RWMutex
-	settings    *service.Settings
 	isAvailable bool
 	exPath      string
 }
 
-func NewGPUApple(settings *service.Settings) *GPUApple {
+func NewGPUApple() *GPUApple {
 	gpu := &GPUApple{
-		name:     "gpu",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "gpu",
+		metrics: map[string][]float64{},
 	}
 
 	if exPath, err := getExecPath(); err == nil {
@@ -49,85 +47,69 @@ func NewGPUApple(settings *service.Settings) *GPUApple {
 	return gpu
 }
 
-func (g *GPUApple) parseStats() (map[string]interface{}, error) {
+func (g *GPUApple) parseStats() (map[string]any, error) {
 	rawStats, err := exec.Command(g.exPath).Output()
 	if err != nil {
 		return nil, err
 	}
-	stats := make(map[string]interface{})
+
+	var stats map[string]any
 	err = json.Unmarshal(rawStats, &stats)
 	if err != nil {
 		return nil, err
 	}
+
 	return stats, nil
 }
 
 func (g *GPUApple) Name() string { return g.name }
 
 //gocyclo:ignore
-func (g *GPUApple) SampleMetrics() {
+func (g *GPUApple) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	stats, err := g.parseStats()
 	if err != nil {
-		return
+		return err
 	}
 	// TODO: add more metrics to g.metrics,
 	//  such as render or tiler utilization
 
 	// GPU + Neural Engine Total Power (W)
-	if powerUsage, ok := stats["gpuPower"]; ok {
+	if powerUsage, ok := queryMapNumber(stats, "gpuPower"); ok {
 		key := fmt.Sprintf("gpu.%d.powerWatts", 0)
-		g.metrics[key] = append(
-			g.metrics[key],
-			powerUsage.(float64),
-		)
+		g.metrics[key] = append(g.metrics[key], powerUsage)
 	}
 
 	// System Power (W)
-	if systemPower, ok := stats["systemPower"]; ok {
+	if systemPower, ok := queryMapNumber(stats, "systemPower"); ok {
 		key := "system.powerWatts"
-		g.metrics[key] = append(
-			g.metrics[key],
-			systemPower.(float64),
-		)
+		g.metrics[key] = append(g.metrics[key], systemPower)
 	}
 
 	// recover count
-	if recoveryCount, ok := stats["recoveryCount"]; ok {
+	if recoveryCount, ok := queryMapNumber(stats, "recoveryCount"); ok {
 		key := "gpu.0.recoveryCount"
-		g.metrics[key] = append(
-			g.metrics[key],
-			recoveryCount.(float64), // it's an int actually
-		)
+		g.metrics[key] = append(g.metrics[key], recoveryCount)
 	}
 
 	// gpu utilization (%)
-	if gpuUtilization, ok := stats["utilization"]; ok {
+	if gpuUtilization, ok := queryMapNumber(stats, "utilization"); ok {
 		key := fmt.Sprintf("gpu.%d.gpu", 0)
-		g.metrics[key] = append(
-			g.metrics[key],
-			gpuUtilization.(float64),
-		)
+		g.metrics[key] = append(g.metrics[key], gpuUtilization)
 	}
 
 	// memory allocated (bytes)
-	if allocatedMemory, ok := stats["allocatedSystemMemory"]; ok {
+	if allocatedMemory, ok := queryMapNumber(stats, "allocatedSystemMemory"); ok {
 		key := fmt.Sprintf("gpu.%d.memoryAllocatedBytes", 0)
-		g.metrics[key] = append(
-			g.metrics[key],
-			allocatedMemory.(float64),
-		)
+		g.metrics[key] = append(g.metrics[key], allocatedMemory)
 	}
 
 	// memory in use (bytes)
-	if inUseMemory, ok := stats["inUseSystemMemory"]; ok {
+	if inUseMemory, ok := queryMapNumber(stats, "inUseSystemMemory"); ok {
 		key := fmt.Sprintf("gpu.%d.memoryUsed", 0)
-		g.metrics[key] = append(
-			g.metrics[key],
-			inUseMemory.(float64),
-		)
+		g.metrics[key] = append(g.metrics[key], inUseMemory)
 	}
 
 	// temperature (C)
@@ -152,9 +134,9 @@ func (g *GPUApple) SampleMetrics() {
 	}
 
 	for _, mXGpuN := range tempKeys {
-		if temp, ok := stats[mXGpuN]; ok {
-			if temp.(float64) > 0 {
-				temperature += temp.(float64)
+		if temp, ok := queryMapNumber(stats, mXGpuN); ok {
+			if temp > 0 {
+				temperature += temp
 				nMeasurements++
 			}
 		}
@@ -167,6 +149,8 @@ func (g *GPUApple) SampleMetrics() {
 			temperature/float64(nMeasurements),
 		)
 	}
+
+	return nil
 }
 
 func (g *GPUApple) AggregateMetrics() map[string]float64 {
@@ -206,14 +190,14 @@ func (g *GPUApple) Probe() *service.MetadataRequest {
 		GpuApple: &service.GpuAppleInfo{},
 	}
 
-	if gpuType, ok := stats["name"]; ok {
-		info.GpuApple.GpuType = gpuType.(string)
+	if gpuType, ok := queryMapString(stats, "name"); ok {
+		info.GpuApple.GpuType = gpuType
 	}
-	if vendor, ok := stats["vendor"]; ok {
-		info.GpuApple.Vendor = vendor.(string)
+	if vendor, ok := queryMapString(stats, "vendor"); ok {
+		info.GpuApple.Vendor = vendor
 	}
-	if cores, ok := stats["cores"]; ok {
-		info.GpuApple.Cores = uint32(cores.(float64))
+	if cores, ok := queryMapNumber(stats, "cores"); ok {
+		info.GpuApple.Cores = uint32(cores)
 	}
 
 	return &info

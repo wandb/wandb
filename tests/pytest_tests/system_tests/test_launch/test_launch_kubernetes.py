@@ -63,6 +63,7 @@ async def test_kubernetes_run_clean_generate_name(
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.job_base_image = None
 
         environment = loader.environment_from_config({})
         api = Api()
@@ -142,6 +143,7 @@ async def test_kubernetes_run_with_annotations(relay_server, monkeypatch, assets
         project.queue_name = None
         project.queue_entity = None
         project.run_queue_item_id = None
+        project.job_base_image = None
 
         monkeypatch.setattr(
             kubernetes_runner,
@@ -208,6 +210,7 @@ async def test_kubernetes_run_env_vars(relay_server, monkeypatch, assets_path):
         project.get_env_vars_dict = lambda _, __: {
             "WANDB_API_KEY": "test-key",
         }
+        project.job_base_image = None
 
         environment = loader.environment_from_config({})
         api = Api()

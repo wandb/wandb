@@ -5,7 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 )
 
@@ -87,7 +87,8 @@ func numbersToHistogramJSON[T numeric](data []T) (string, error) {
 	case len(data) == 1:
 		return fmt.Sprintf("%v", data[0]), nil
 	case len(data) <= 32:
-		result, err := json.Marshal(data)
+		// simplejsonext encodes +-Infinity and NaN, which we must support.
+		result, err := simplejsonext.Marshal(data)
 
 		// Impossible: we should always be able to marshal a slice of numbers.
 		if err != nil {

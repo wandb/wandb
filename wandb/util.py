@@ -1,6 +1,7 @@
 import colorsys
 import contextlib
 import dataclasses
+import enum
 import functools
 import gzip
 import importlib
@@ -637,6 +638,8 @@ def json_friendly(  # noqa: C901
     elif isinstance(obj, set):
         # set is not json serializable, so we convert it to tuple
         obj = tuple(obj)
+    elif isinstance(obj, enum.Enum):
+        obj = obj.name
     else:
         converted = False
     if getsizeof(obj) > VALUE_BYTES_LIMIT:
@@ -1745,21 +1748,39 @@ def make_docker_image_name_safe(name: str) -> str:
     return trimmed if trimmed else "image"
 
 
-def merge_dicts(source: Dict[str, Any], destination: Dict[str, Any]) -> Dict[str, Any]:
-    """Recursively merge two dictionaries."""
+def merge_dicts(
+    source: Dict[str, Any],
+    destination: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Recursively merge two dictionaries.
+
+    This mutates the destination and its nested dictionaries and lists.
+
+    Instances of `dict` are recursively merged and instances of `list`
+    are appended to the destination. If the destination type is not
+    `dict` or `list`, respectively, the key is overwritten with the
+    source value.
+
+    For all other types, the source value overwrites the destination value.
+    """
     for key, value in source.items():
         if isinstance(value, dict):
-            # get node or create one
-            node = destination.setdefault(key, {})
-            merge_dicts(value, node)
-        else:
-            if isinstance(value, list):
-                if key in destination:
-                    destination[key].extend(value)
-                else:
-                    destination[key] = value
+            node = destination.get(key)
+            if isinstance(node, dict):
+                merge_dicts(value, node)
             else:
                 destination[key] = value
+
+        elif isinstance(value, list):
+            dest_value = destination.get(key)
+            if isinstance(dest_value, list):
+                dest_value.extend(value)
+            else:
+                destination[key] = value
+
+        else:
+            destination[key] = value
+
     return destination
 
 

@@ -11,6 +11,9 @@ func Unmarshal(b []byte) (any, error) {
 	return val, p.CheckEmpty()
 }
 
+// UnmarshalObject decodes JSON as a simply-typed JSON object and returns it. If
+// the JSON is a value of a type other than object, such as JSON null or a JSON
+// string, an error will be returned.
 func UnmarshalObject(b []byte) (map[string]any, error) {
 	p := NewParserFromSlice(b)
 	val, err := p.ParseObject()
@@ -31,6 +34,9 @@ func UnmarshalString(s string) (any, error) {
 	return val, p.CheckEmpty()
 }
 
+// UnmarshalObjectString decodes JSON as a simply-typed JSON object and returns
+// it. If the JSON is a value of a type other than object, such as JSON null or
+// a JSON string, an error will be returned.
 func UnmarshalObjectString(s string) (map[string]any, error) {
 	p := NewParserFromString(s)
 	val, err := p.ParseObject()

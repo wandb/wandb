@@ -7,7 +7,11 @@ import pytest
 import wandb
 from google.cloud import storage
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
-from wandb.sdk.launch.builder.kaniko_builder import KanikoBuilder, _wait_for_completion
+from wandb.sdk.launch.builder.kaniko_builder import (
+    KanikoBuilder,
+    _wait_for_completion,
+    get_pod_name_safe,
+)
 from wandb.sdk.launch.environment.aws_environment import AwsEnvironment
 from wandb.sdk.launch.environment.azure_environment import AzureEnvironment
 from wandb.sdk.launch.registry.anon import AnonynmousRegistry
@@ -497,3 +501,22 @@ def test_kaniko_builder_from_config(aws_environment, elastic_container_registry)
         config, aws_environment, elastic_container_registry
     )
     assert builder.build_context_store == "s3://test-bucket/test-prefix"
+
+
+def test_get_pod_name():
+    job = kubernetes_asyncio.client.V1Job(
+        api_version="batch/v1",
+        kind="Job",
+        metadata=kubernetes_asyncio.client.V1ObjectMeta(name="test-job"),
+        spec=kubernetes_asyncio.client.V1JobSpec(
+            template=kubernetes_asyncio.client.V1PodTemplateSpec(
+                metadata=kubernetes_asyncio.client.V1ObjectMeta(name="test-pod-name"),
+            )
+        ),
+    )
+    assert get_pod_name_safe(job) == "test-pod-name"
+    job = kubernetes_asyncio.client.V1Job(
+        api_version="batch/v1",
+        kind="Job",
+    )
+    assert get_pod_name_safe(job) is None

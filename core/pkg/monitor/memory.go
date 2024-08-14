@@ -1,38 +1,43 @@
 package monitor
 
 import (
+	"errors"
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/service"
 
-	"github.com/shirou/gopsutil/v3/mem"
-	"github.com/shirou/gopsutil/v3/process"
+	"github.com/shirou/gopsutil/v4/mem"
+	"github.com/shirou/gopsutil/v4/process"
 )
 
 type Memory struct {
-	name     string
-	metrics  map[string][]float64
-	settings *service.Settings
-	mutex    sync.RWMutex
+	name    string
+	metrics map[string][]float64
+	pid     int32
+	mutex   sync.RWMutex
 }
 
-func NewMemory(settings *service.Settings) *Memory {
+func NewMemory(pid int32) *Memory {
 	return &Memory{
-		name:     "memory",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "memory",
+		metrics: map[string][]float64{},
+		pid:     pid,
 	}
 }
 
 func (m *Memory) Name() string { return m.name }
 
-func (m *Memory) SampleMetrics() {
+func (m *Memory) SampleMetrics() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	var errs []error
+
 	virtualMem, err := mem.VirtualMemory()
 
-	if err == nil {
+	if err != nil {
+		errs = append(errs, err)
+	} else {
 		// total system memory usage in percent
 		m.metrics["memory_percent"] = append(
 			m.metrics["memory_percent"],
@@ -46,9 +51,11 @@ func (m *Memory) SampleMetrics() {
 	}
 
 	// process-related metrics
-	proc := process.Process{Pid: m.settings.XStatsPid.GetValue()}
+	proc := process.Process{Pid: m.pid}
 	procMem, err := proc.MemoryInfo()
-	if err == nil {
+	if err != nil {
+		errs = append(errs, err)
+	} else {
 		// process memory usage in MB
 		m.metrics["proc.memory.rssMB"] = append(
 			m.metrics["proc.memory.rssMB"],
@@ -56,11 +63,16 @@ func (m *Memory) SampleMetrics() {
 			float64(procMem.RSS)/1024/1024,
 		)
 		// process memory usage in percent
-		m.metrics["proc.memory.percent"] = append(
-			m.metrics["proc.memory.percent"],
-			float64(procMem.RSS)/float64(virtualMem.Total)*100,
-		)
+		// vertualMem.Total should not be nil
+		if virtualMem != nil {
+			m.metrics["proc.memory.percent"] = append(
+				m.metrics["proc.memory.percent"],
+				float64(procMem.RSS)/float64(virtualMem.Total)*100,
+			)
+		}
 	}
+
+	return errors.Join(errs...)
 }
 
 func (m *Memory) AggregateMetrics() map[string]float64 {

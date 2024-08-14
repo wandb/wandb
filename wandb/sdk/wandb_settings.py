@@ -43,7 +43,7 @@ from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import credentials, filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -314,6 +314,7 @@ class SettingsData:
     _disable_machine_info: bool  # Disable automatic machine info collection
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_max_bytes: int  # max size for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
@@ -349,7 +350,9 @@ class SettingsData:
     _sync: bool
     _os: str
     _platform: str
-    _proxies: Mapping[str, str]  # dedicated global proxy servers [scheme -> url]
+    _proxies: Mapping[
+        str, str
+    ]  # custom proxy servers for the requests to W&B [scheme -> url]
     _python: str
     _runqueue_item_id: str
     _require_core: bool
@@ -389,6 +392,7 @@ class SettingsData:
     config_paths: Sequence[str]
     console: str
     console_multipart: bool  # whether to produce multipart console log files
+    credentials_file: str  # file path to write access tokens
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -408,6 +412,9 @@ class SettingsData:
     git_root: str
     heartbeat_seconds: int
     host: str
+    http_proxy: str  # proxy server for the http requests to W&B
+    https_proxy: str  # proxy server for the https requests to W&B
+    identity_token_file: str  # file path to supply a jwt for authentication
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
@@ -655,6 +662,7 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
+            _file_stream_max_bytes={"preprocessor": int},
             _file_stream_retry_max={"preprocessor": int},
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
@@ -706,6 +714,7 @@ class Settings(SettingsData):
             },
             _platform={"value": util.get_platform_name()},
             _proxies={
+                # TODO: deprecate and ask the user to use http_proxy and https_proxy instead
                 "preprocessor": _str_as_json,
             },
             _require_core={"value": False, "preprocessor": _str_as_bool},
@@ -778,6 +787,10 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             console_multipart={"value": False, "preprocessor": _str_as_bool},
+            credentials_file={
+                "value": str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE),
+                "preprocessor": str,
+            },
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -816,6 +829,15 @@ class Settings(SettingsData):
             },
             git_remote={"value": "origin"},
             heartbeat_seconds={"value": 30},
+            http_proxy={
+                "hook": lambda x: self._proxies and self._proxies.get("http") or x,
+                "auto_hook": True,
+            },
+            https_proxy={
+                "hook": lambda x: self._proxies and self._proxies.get("https") or x,
+                "auto_hook": True,
+            },
+            identity_token_file={"value": None, "preprocessor": str},
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
@@ -860,7 +882,9 @@ class Settings(SettingsData):
             program={
                 "hook": lambda x: self._get_program(x),
             },
-            project={"validator": self._validate_project},
+            project={
+                "validator": self._validate_project,
+            },
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
@@ -1691,7 +1715,7 @@ class Settings(SettingsData):
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self.silent)
+            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
             settings["_jupyter_path"] = meta.get("path")
             settings["_jupyter_name"] = meta.get("name")
             settings["_jupyter_root"] = meta.get("root")
@@ -1858,9 +1882,10 @@ class Settings(SettingsData):
         if self.resume_from is None:
             return
 
-        if self.run_id is not None:
+        if self.run_id is not None and (self.resume_from.run != self.run_id):
             wandb.termwarn(
-                "You cannot specify both run_id and resume_from. " "Ignoring run_id."
+                "Both `run_id` and `resume_from` have been specified with different ids. "
+                "`run_id` will be ignored."
             )
         self.update({"run_id": self.resume_from.run}, source=Source.INIT)
 

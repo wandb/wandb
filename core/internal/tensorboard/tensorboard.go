@@ -13,6 +13,7 @@
 package tensorboard
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
@@ -41,7 +43,7 @@ type TBHandler struct {
 	// wg is done after all work is done.
 	wg sync.WaitGroup
 
-	outChan       chan<- *service.Record
+	extraWork     runwork.ExtraWork
 	logger        *observability.CoreLogger
 	settings      *settings.Settings
 	hostname      string
@@ -68,7 +70,7 @@ type TBHandler struct {
 }
 
 type Params struct {
-	OutputRecords chan<- *service.Record
+	runwork.ExtraWork
 
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
@@ -83,7 +85,7 @@ func NewTBHandler(params Params) *TBHandler {
 	}
 
 	tb := &TBHandler{
-		outChan:       params.OutputRecords,
+		extraWork:     params.ExtraWork,
 		logger:        params.Logger,
 		settings:      params.Settings,
 		hostname:      params.Hostname,
@@ -172,9 +174,10 @@ func (tb *TBHandler) startStream(
 
 			if err != nil {
 				tb.logger.CaptureError(
-					"tensorboard: failed to infer root directory",
-					err,
-				)
+					fmt.Errorf(
+						"tensorboard: failed to infer root directory: %v",
+						err,
+					))
 				tb.startWG.Done()
 				return
 			}
@@ -318,19 +321,20 @@ func (tb *TBHandler) convertToRunHistory(
 }
 
 func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) {
-	tb.outChan <- &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_PartialHistory{
-					PartialHistory: request,
+	tb.extraWork.AddRecord(
+		&service.Record{
+			RecordType: &service.Record_Request{
+				Request: &service.Request{
+					RequestType: &service.Request_PartialHistory{
+						PartialHistory: request,
+					},
 				},
 			},
-		},
 
-		// Don't persist the record to the transaction log---
-		// the data already exists in tfevents files.
-		Control: &service.Control{Local: true},
-	}
+			// Don't persist the record to the transaction log---
+			// the data already exists in tfevents files.
+			Control: &service.Control{Local: true},
+		})
 }
 
 func (tb *TBHandler) saveFiles(
@@ -363,7 +367,7 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	maybeRelPath, err := path.RelativeTo(rootDir)
 	if err != nil {
 		tb.logger.CaptureError(
-			"tensorboard: error getting relative path", err,
+			fmt.Errorf("tensorboard: error getting relative path: %v", err),
 			"rootDir", rootDir,
 			"path", path)
 		return
@@ -372,7 +376,7 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 
 	if !relPath.IsLocal() {
 		tb.logger.CaptureError(
-			"tensorboard: file is not under TB root", nil,
+			errors.New("tensorboard: file is not under TB root"),
 			"rootDir", rootDir,
 			"path", path,
 		)
@@ -396,15 +400,16 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	}
 
 	// Write a record indicating that the file should be uploaded.
-	tb.outChan <- &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Policy: service.FilesItem_END, Path: string(relPath)},
+	tb.extraWork.AddRecord(
+		&service.Record{
+			RecordType: &service.Record_Files{
+				Files: &service.FilesRecord{
+					Files: []*service.FilesItem{
+						{Policy: service.FilesItem_END, Path: string(relPath)},
+					},
 				},
 			},
-		},
-	}
+		})
 }
 
 // getNamespace computes the namespace corresponding to a log directory.
@@ -415,8 +420,7 @@ func (tb *TBHandler) getNamespace(logDir, rootDir paths.AbsolutePath) string {
 
 	if !success {
 		tb.logger.CaptureError(
-			"tensorboard: rootDir not prefix of logDir",
-			nil,
+			errors.New("tensorboard: rootDir not prefix of logDir"),
 			"rootDir", rootDir,
 			"logDir", logDir,
 		)

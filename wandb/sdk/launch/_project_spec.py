@@ -7,6 +7,7 @@ import enum
 import json
 import logging
 import os
+import shutil
 import tempfile
 from copy import deepcopy
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, cast
@@ -112,6 +113,9 @@ class LaunchProject:
         self.sweep_id = sweep_id
         self.author = launch_spec.get("author")
         self.python_version: Optional[str] = launch_spec.get("python_version")
+        self._job_dockerfile: Optional[str] = None
+        self._job_build_context: Optional[str] = None
+        self._job_base_image: Optional[str] = None
         self.accelerator_base_image: Optional[str] = resource_args_build.get(
             "accelerator", {}
         ).get("base_image") or resource_args_build.get("cuda", {}).get("base_image")
@@ -131,8 +135,6 @@ class LaunchProject:
         self._queue_name: Optional[str] = None
         self._queue_entity: Optional[str] = None
         self._run_queue_item_id: Optional[str] = None
-        self._job_dockerfile: Optional[str] = None
-        self._job_build_context: Optional[str] = None
 
     def init_source(self) -> None:
         if self.docker_image is not None:
@@ -141,10 +143,25 @@ class LaunchProject:
         elif self.job is not None:
             self.source = LaunchSource.JOB
             self.project_dir = tempfile.mkdtemp()
-        if self.uri and self.uri.startswith("placeholder"):
+        elif self.uri and self.uri.startswith("placeholder"):
             self.source = LaunchSource.SCHEDULER
             self.project_dir = os.getcwd()
             self._entry_point = self.override_entrypoint
+
+    def change_project_dir(self, new_dir: str) -> None:
+        """Change the project directory to a new directory."""
+        # Copy the contents of the old project dir to the new project dir.
+        old_dir = self.project_dir
+        if old_dir is not None:
+            shutil.copytree(
+                old_dir,
+                new_dir,
+                symlinks=True,
+                dirs_exist_ok=True,
+                ignore=shutil.ignore_patterns("fsmonitor--daemon.ipc", ".git"),
+            )
+            shutil.rmtree(old_dir)
+        self.project_dir = new_dir
 
     def init_git(self, git_info: Dict[str, str]) -> None:
         self.git_version = git_info.get("version")
@@ -212,14 +229,23 @@ class LaunchProject:
     def job_build_context(self) -> Optional[str]:
         return self._job_build_context
 
+    @property
+    def job_base_image(self) -> Optional[str]:
+        return self._job_base_image
+
     def set_job_dockerfile(self, dockerfile: str) -> None:
         self._job_dockerfile = dockerfile
 
     def set_job_build_context(self, build_context: str) -> None:
         self._job_build_context = build_context
 
+    def set_job_base_image(self, base_image: str) -> None:
+        self._job_base_image = base_image
+
     @property
     def image_name(self) -> str:
+        if self.job_base_image is not None:
+            return self.job_base_image
         if self.docker_image is not None:
             return self.docker_image
         elif self.uri is not None:
@@ -299,10 +325,8 @@ class LaunchProject:
 
     def build_required(self) -> bool:
         """Checks the source to see if a build is required."""
-        # since the image tag for images built from jobs
-        # is based on the job version index, which is immutable
-        # we don't need to build the image for a job if that tag
-        # already exists
+        if self.job_base_image is not None:
+            return False
         if self.source != LaunchSource.JOB:
             return True
         return False
@@ -316,7 +340,9 @@ class LaunchProject:
         Returns:
             Optional[str]: The Docker image or None if not specified.
         """
-        return self._docker_image
+        if self._docker_image:
+            return self._docker_image
+        return None
 
     @docker_image.setter
     def docker_image(self, value: str) -> None:
@@ -336,7 +362,7 @@ class LaunchProject:
         # assuming project only has 1 entry point, pull that out
         # tmp fn until we figure out if we want to support multiple entry points or not
         if not self._entry_point:
-            if not self.docker_image:
+            if not self.docker_image and not self.job_base_image:
                 raise LaunchError(
                     "Project must have at least one entry point unless docker image is specified."
                 )

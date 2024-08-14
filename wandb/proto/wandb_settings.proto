@@ -41,7 +41,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 168
+// Next ID: 173
 message Settings {
   reserved 12, 94;
 
@@ -52,6 +52,12 @@ message Settings {
 
   // Whether we are in offline mode.
   google.protobuf.BoolValue _offline = 30;
+
+  // Whether we are in shared mode.
+  //
+  // In "shared" mode, multiple processes can write to the same run,
+  // for example from different machines.
+  google.protobuf.BoolValue _shared = 162;
 
   // The ID of the run.
   google.protobuf.StringValue run_id = 107;
@@ -86,6 +92,50 @@ message Settings {
   // Indicate whether wandb-core is to be used.
   google.protobuf.BoolValue _require_core = 36;
 
+  // Path to file containing an identity token for authentication.
+  google.protobuf.StringValue identity_token_file = 170;
+
+  // Path to file for writing temporary access tokens.
+  google.protobuf.StringValue credentials_file = 171;
+
+  // An approximate maximum request size for the filestream API.
+  //
+  // This applies when wandb-core is enabled. Its purpose is to prevent
+  // HTTP requests from failing due to containing too much data.
+  //
+  // This number is approximate: requests will be slightly larger.
+  google.protobuf.Int32Value _file_stream_max_bytes = 172;
+
+  // Additional headers to add to all outgoing HTTP requests.
+  MapStringKeyStringValue _extra_http_headers = 14;
+
+  // Maximum number of retries for filestream operations.
+  google.protobuf.Int32Value _file_stream_retry_max = 147;
+  // Initial wait in-between filestream retries.
+  google.protobuf.DoubleValue _file_stream_retry_wait_min_seconds = 148;
+  // Final wait in-between filestream retries.
+  google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
+  // Per-retry timeout for filestream operations.
+  google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;
+
+  // Maximum number of retries for file upload/download operations.
+  google.protobuf.Int32Value _file_transfer_retry_max = 150;
+  // Initial wait in-between file upload/download retries.
+  google.protobuf.DoubleValue _file_transfer_retry_wait_min_seconds = 151;
+  // Final wait in-between file upload/download retries.
+  google.protobuf.DoubleValue _file_transfer_retry_wait_max_seconds = 152;
+  // Per-retry timeout for file upload/download operations.
+  google.protobuf.DoubleValue _file_transfer_timeout_seconds = 153;
+
+  // Maximum number of retries for GraphQL operations.
+  google.protobuf.Int32Value _graphql_retry_max = 154;
+  // Initial wait in-between GraphQL retries.
+  google.protobuf.DoubleValue _graphql_retry_wait_min_seconds = 155;
+  // Final wait in-between GraphQL retries.
+  google.protobuf.DoubleValue _graphql_retry_wait_max_seconds = 156;
+  // Per-retry timeout for GraphQL operations.
+  google.protobuf.DoubleValue _graphql_timeout_seconds = 157;
+
   ListStringValue _args = 1;
   google.protobuf.BoolValue _aws_lambda = 2;
   google.protobuf.BoolValue _cli_only_mode = 4;
@@ -97,8 +147,6 @@ message Settings {
   google.protobuf.BoolValue _disable_stats = 10;
   google.protobuf.BoolValue _disable_viewer = 11;
   google.protobuf.StringValue _executable = 13;
-  MapStringKeyStringValue _extra_http_headers = 14;
-  google.protobuf.DoubleValue _file_stream_timeout_seconds = 15;
   google.protobuf.BoolValue _flow_control_custom = 16;
   google.protobuf.BoolValue _flow_control_disabled = 17;
   google.protobuf.DoubleValue _internal_check_process = 18;
@@ -218,25 +266,22 @@ message Settings {
   google.protobuf.StringValue _jupyter_path = 144;
   google.protobuf.StringValue job_name = 145;
   ListStringValue _stats_disk_paths = 146;
-  google.protobuf.Int32Value _file_stream_retry_max = 147;
-  google.protobuf.DoubleValue _file_stream_retry_wait_min_seconds = 148;
-  google.protobuf.DoubleValue _file_stream_retry_wait_max_seconds = 149;
-  google.protobuf.Int32Value _file_transfer_retry_max = 150;
-  google.protobuf.DoubleValue _file_transfer_retry_wait_min_seconds = 151;
-  google.protobuf.DoubleValue _file_transfer_retry_wait_max_seconds = 152;
-  google.protobuf.DoubleValue _file_transfer_timeout_seconds = 153;
-  google.protobuf.Int32Value _graphql_retry_max = 154;
-  google.protobuf.DoubleValue _graphql_retry_wait_min_seconds = 155;
-  google.protobuf.DoubleValue _graphql_retry_wait_max_seconds = 156;
-  google.protobuf.DoubleValue _graphql_timeout_seconds = 157;
   google.protobuf.BoolValue _disable_machine_info = 158;
   google.protobuf.StringValue program_abspath = 159;
   google.protobuf.StringValue colab_url = 160;
   google.protobuf.Int32Value _stats_buffer_size = 161;
-  google.protobuf.BoolValue _shared = 162;
   google.protobuf.StringValue _code_path_local = 163;
   google.protobuf.BoolValue console_multipart = 166;
+  // The custom proxy servers for http requests to W&B.
+  google.protobuf.StringValue http_proxy = 168;
+  // The custom proxy servers for https requests to W&B.
+  google.protobuf.StringValue https_proxy = 169;
 
+  // Custom proxy servers for the requests to W&B.
+  //
+  // The key is the protocol, e.g. "http", "https", "socks5".
+  // The value is the proxy URL.
+  // TODO: deprecated, use http_proxy and https_proxy instead.
   MapStringKeyStringValue _proxies = 200;
 
   // todo?

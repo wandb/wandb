@@ -678,7 +678,7 @@ def sync(
     skip_console=None,
 ):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync offline runs")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -880,6 +880,14 @@ def sync(
     default=False,
     help="Resume a sweep to continue running new runs.",
 )
+@click.option(
+    "--prior_run",
+    "-R",
+    "prior_runs",
+    multiple=True,
+    default=None,
+    help="ID of an existing run to add to this sweep",
+)
 @click.argument("config_yaml_or_sweep_id")
 @click.pass_context
 @display_error
@@ -897,6 +905,7 @@ def sweep(
     cancel,
     pause,
     resume,
+    prior_runs,
     config_yaml_or_sweep_id,
 ):
     state_args = "stop", "cancel", "pause", "resume"
@@ -907,7 +916,7 @@ def sweep(
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
         api = _get_cling_api()
-        if api.api_key is None:
+        if not api.is_authenticated:
             wandb.termlog("Login to W&B to use the sweep feature")
             ctx.invoke(login, no_offline=True)
             api = _get_cling_api(reset=True)
@@ -950,7 +959,7 @@ def sweep(
         return ret
 
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1038,6 +1047,7 @@ def sweep(
         project=project,
         entity=entity,
         obj_id=sweep_obj_id,
+        prior_runs=prior_runs,
     )
     sweep_utils.handle_sweep_config_violations(warnings)
 
@@ -1104,6 +1114,14 @@ def sweep(
     default=None,
     help="Resume a launch sweep by passing an 8-char sweep id. Queue required",
 )
+@click.option(
+    "--prior_run",
+    "-R",
+    "prior_runs",
+    multiple=True,
+    default=None,
+    help="ID of an existing run to add to this sweep",
+)
 @click.argument("config", required=False, type=click.Path(exists=True))
 @click.pass_context
 @display_error
@@ -1114,10 +1132,11 @@ def launch_sweep(
     queue,
     config,
     resume_id,
+    prior_runs,
 ):
     api = _get_cling_api()
     env = os.environ
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1298,6 +1317,8 @@ def launch_sweep(
         obj_id=sweep_obj_id,  # if resuming
         launch_scheduler=launch_scheduler_with_queue,
         state="PENDING",
+        prior_runs=prior_runs,
+        template_variable_values=scheduler_args.get("template_variables", None),
     )
     sweep_utils.handle_sweep_config_violations(warnings)
     # Log nicely formatted sweep information
@@ -1397,6 +1418,13 @@ def launch_sweep(
     If passed in, will override the docker image value passed in using a config file.""",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    default=None,
+    metavar="BASE IMAGE",
+    help="""Docker image to run job code in. Incompatible with --docker-image.""",
+)
+@click.option(
     "--config",
     "-c",
     metavar="FILE",
@@ -1487,6 +1515,7 @@ def launch(
     entity,
     project,
     docker_image,
+    base_image,
     config,
     cli_template_vars,
     queue,
@@ -1583,6 +1612,7 @@ def launch(
             git_hash=git_version,
             name=job_name,
             project=project,
+            base_image=base_image,
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
@@ -1797,7 +1827,7 @@ def launch_agent(
 @display_error
 def agent(ctx, project, entity, count, sweep_id):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1821,7 +1851,7 @@ def scheduler(
     sweep_id,
 ):
     api = InternalApi()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
@@ -1981,6 +2011,12 @@ def describe(job):
     "provided, this is used as the base path for the Dockerfile and entrypoint.",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    type=str,
+    help="Base image to use for the job. Incompatible with image jobs.",
+)
+@click.option(
     "--dockerfile",
     "-D",
     type=str,
@@ -2004,6 +2040,7 @@ def create(
     git_hash,
     runtime,
     build_context,
+    base_image,
     dockerfile,
 ):
     """Create a job from a source, without a wandb run.
@@ -2035,6 +2072,10 @@ def create(
         )
         entrypoint = "main.py"
 
+    if job_type == "image" and base_image:
+        wandb.termerror("Cannot provide --base-image/-B for an `image` job")
+        return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -2048,6 +2089,7 @@ def create(
         git_hash=git_hash,
         runtime=runtime,
         build_context=build_context,
+        base_image=base_image,
         dockerfile=dockerfile,
     )
     if not artifact:

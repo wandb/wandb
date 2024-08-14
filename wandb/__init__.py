@@ -1,9 +1,6 @@
 """Use wandb to track machine learning work.
 
-The most commonly used functions/objects are:
-  - wandb.init — initialize a new run at the top of your training script
-  - wandb.config — track hyperparameters and metadata
-  - wandb.log — log metrics and media over time within your training loop
+Train and fine-tune models, manage models from experimentation to production.
 
 For guides and examples, see https://docs.wandb.ai.
 
@@ -11,11 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.2.dev1"
-
-
-# Used with pypi checks and other messages related to pip
-_wandb_module = "wandb"
+__version__ = "0.17.7.dev1"
 
 from typing import Optional
 
@@ -74,6 +67,7 @@ from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
+from wandb.data_types import box3d
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
@@ -116,13 +110,6 @@ def _assert_is_user_process():
         return
     assert not _IS_INTERNAL_PROCESS
 
-
-# toplevel:
-# save()
-# restore()
-# login()
-# sweep()
-# agent()
 
 # globals
 Api = PublicApi
@@ -214,9 +201,12 @@ from .analytics import Sentry as _Sentry
 if "dev" in __version__:
     import os
 
+    # disable error reporting in dev versions for the python client
     os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
         "WANDB_ERROR_REPORTING", "false"
     )
+    # turn on wandb-core for dev versions
+    os.environ["WANDB__REQUIRE_CORE"] = os.environ.get("WANDB__REQUIRE_CORE", "true")
 
 _sentry = _Sentry()
 _sentry.setup()
@@ -242,6 +232,7 @@ __all__ = (
     "Audio",
     "Table",
     "Html",
+    "box3d",
     "Object3D",
     "Molecule",
     "Histogram",
@@ -249,4 +240,5 @@ __all__ = (
     "log_model",
     "use_model",
     "link_model",
+    "define_metric",
 )

@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"slices"
 
-	"github.com/segmentio/encoding/json"
+	"github.com/wandb/simplejsonext"
 	"gopkg.in/yaml.v3"
 )
 
@@ -84,8 +84,8 @@ func deserializeConfig(path string) (*Config, error) {
 	}
 	switch ext {
 	case ".json":
-		var tree ConfigDict
-		if err := json.Unmarshal(contents, &tree); err != nil {
+		tree, err := simplejsonext.UnmarshalObject(contents)
+		if err != nil {
 			return nil, err
 		}
 		return NewConfigFrom(tree), nil

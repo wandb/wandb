@@ -52,6 +52,8 @@ SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
 FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
+IDENTITY_TOKEN_FILE = "WANDB_IDENTITY_TOKEN_FILE"
+CREDENTIALS_FILE = "WANDB_CREDENTIALS_FILE"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
 DISABLE_GIT = "WANDB_DISABLE_GIT"
@@ -132,6 +134,8 @@ def immutable_keys() -> List[str]:
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
+        IDENTITY_TOKEN_FILE,
+        CREDENTIALS_FILE,
     ]
 
 
@@ -155,6 +159,12 @@ def is_require_core(env: Optional[Env] = None) -> bool:
 
 def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
+
+
+def is_offline(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    return env.get(MODE) == "offline"
 
 
 def error_reporting_enabled() -> bool:
@@ -479,6 +489,18 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
         env = os.environ
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
+
+
+def get_credentials_file(default: str, env: Optional[Env] = None) -> Path:
+    """Retrieve the path for the credentials file used to save access tokens.
+
+    The credentials file path can be set via an environment variable, otherwise
+    the default path is used.
+    """
+    if env is None:
+        env = os.environ
+    credentials_file = env.get(CREDENTIALS_FILE, default)
+    return Path(credentials_file)
 
 
 def strtobool(val: str) -> bool:

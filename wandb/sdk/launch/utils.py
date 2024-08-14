@@ -60,7 +60,7 @@ AZURE_CONTAINER_REGISTRY_URI_REGEX = re.compile(
 )
 
 ELASTIC_CONTAINER_REGISTRY_URI_REGEX = re.compile(
-    r"^(?:https://)?(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\w-]+):?(?P<tag>.*)$"
+    r"^(?:https://)?(?P<account>[\w-]+)\.dkr\.ecr\.(?P<region>[\w-]+)\.amazonaws\.com/(?P<repository>[\.\/\w-]+):?(?P<tag>.*)$"
 )
 
 GCP_ARTIFACT_REGISTRY_URI_REGEX = re.compile(
@@ -86,6 +86,8 @@ LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
+
+CODE_MOUNT_DIR = "/mnt/wandb"
 
 
 def load_wandb_config() -> Config:

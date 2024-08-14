@@ -3,6 +3,7 @@ package filestream
 import (
 	"fmt"
 	"time"
+	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runsummary"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -15,13 +16,29 @@ type SummaryUpdate struct {
 
 func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 	rs := runsummary.New()
-	rs.ApplyChangeRecord(
-		u.Record,
-		func(err error) {
+
+	for _, update := range u.Record.Update {
+		if err := rs.SetFromRecord(update); err != nil {
+			// TODO(corruption): Remove after data corruption is resolved.
+			valueJSONLen := min(50, len(update.ValueJson))
+			valueJSON := update.ValueJson[:valueJSONLen]
+
 			ctx.Logger.CaptureError(
-				"filestream: failed to apply summary record", err)
-		},
-	)
+				fmt.Errorf(
+					"filestream: failed to apply summary record: %v",
+					err,
+				),
+				"key", update.Key,
+				"&key", unsafe.StringData(update.Key),
+				"nested_key", update.NestedKey,
+				"value_json[:50]", valueJSON,
+				"&value_json", unsafe.StringData(update.ValueJson))
+		}
+	}
+
+	for _, remove := range u.Record.Remove {
+		rs.RemoveFromRecord(remove)
+	}
 
 	line, err := rs.Serialize()
 	if err != nil {
@@ -46,18 +63,10 @@ func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
 				len(line),
 				maxFileLineBytes)
 	} else {
-		ctx.ModifyRequest(&collectorSummaryUpdate{
-			newSummary: string(line),
+		ctx.MakeRequest(&FileStreamRequest{
+			LatestSummary: string(line),
 		})
 	}
 
 	return nil
-}
-
-type collectorSummaryUpdate struct {
-	newSummary string
-}
-
-func (u *collectorSummaryUpdate) Apply(state *CollectorState) {
-	state.Buffer.LatestSummary = u.newSummary
 }

@@ -751,7 +751,7 @@ class Artifact:
     def save(
         self,
         project: Optional[str] = None,
-        settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
+        settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
     ) -> None:
         """Persist any changes made to the artifact.
 
@@ -1300,7 +1300,8 @@ class Artifact:
                 automatic integrity validation. Disabling checksumming will speed up
                 artifact creation but reference directories will not iterated through so the
                 objects in the directory will not be saved to the artifact. We recommend
-                adding reference objects in the case checksumming is false.
+                setting `checksum=False` when adding reference objects, in which case
+                a new version will only be created if the reference URI changes.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
                 the maximum number of objects allowed for Amazon S3,
@@ -1627,32 +1628,42 @@ class Artifact:
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
-        Existing files located within `root` are not modified. Explicitly delete
-        `root` before you call `download` if you want the contents of `root` to exactly
-        match the artifact.
+        Existing files located within `root` are not modified. Explicitly delete `root`
+        before you call `download` if you want the contents of `root` to exactly match
+        the artifact.
 
         Arguments:
             root: The directory W&B stores the artifact's files.
             allow_missing_references: If set to `True`, any invalid reference paths
                 will be ignored while downloading referenced files.
-            skip_cache: If set to `True`, the artifact cache will be skipped when downloading
-                and W&B will download each file into the default root or specified download directory.
+            skip_cache: If set to `True`, the artifact cache will be skipped when
+                downloading and W&B will download each file into the default root or
+                specified download directory.
+            path_prefix: If specified, only files with a path that starts with the given
+                prefix will be downloaded. Uses unix format (forward slashes).
 
         Returns:
             The path to the downloaded contents.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+            RuntimeError: If the artifact is attempted to be downloaded in offline mode.
         """
         self._ensure_logged("download")
 
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
+        # TODO: we need a better way to check for offline mode across the app, as this is an anti-pattern
+        if env.is_offline() or util._is_offline():
+            raise RuntimeError("Cannot download artifacts in offline mode.")
+
         if is_require_core():
             return self._download_using_core(
                 root=root,
                 allow_missing_references=allow_missing_references,
+                skip_cache=bool(skip_cache),
+                path_prefix=path_prefix,
             )
         return self._download(
             root=root,
@@ -1660,23 +1671,6 @@ class Artifact:
             skip_cache=skip_cache,
             path_prefix=path_prefix,
         )
-
-    @classmethod
-    def path_contains_dir_prefix(cls, path: StrPath, dir_path: StrPath) -> bool:
-        """Returns true if `path` contains `dir_path` as a prefix."""
-        if not dir_path:
-            return True
-        path_parts = PurePosixPath(path).parts
-        dir_parts = PurePosixPath(dir_path).parts
-        return path_parts[: len(dir_parts)] == dir_parts
-
-    @classmethod
-    def should_download_entry(
-        cls, entry: ArtifactManifestEntry, prefix: Optional[StrPath]
-    ) -> bool:
-        if prefix is None:
-            return True
-        return cls.path_contains_dir_prefix(entry.path, prefix)
 
     def _download_using_core(
         self,
@@ -1814,7 +1808,7 @@ class Artifact:
                         # Handled by core
                         continue
                     entry._download_url = edge["node"]["directUrl"]
-                    if self.should_download_entry(entry, prefix=path_prefix):
+                    if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = fetch_url_batch_size

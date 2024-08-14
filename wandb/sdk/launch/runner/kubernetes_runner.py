@@ -31,6 +31,7 @@ from wandb.util import get_module
 from .._project_spec import EntryPoint, LaunchProject
 from ..errors import LaunchError
 from ..utils import (
+    CODE_MOUNT_DIR,
     LOG_PREFIX,
     MAX_ENV_LENGTHS,
     PROJECT_SYNCHRONOUS,
@@ -64,6 +65,10 @@ TIMEOUT = 5
 API_KEY_SECRET_MAX_RETRIES = 5
 
 _logger = logging.getLogger(__name__)
+
+
+SOURCE_CODE_PVC_MOUNT_PATH = os.environ.get("WANDB_LAUNCH_CODE_PVC_MOUNT_PATH")
+SOURCE_CODE_PVC_NAME = os.environ.get("WANDB_LAUNCH_CODE_PVC_NAME")
 
 
 class KubernetesSubmittedRun(AbstractRun):
@@ -468,6 +473,12 @@ class KubernetesRunner(AbstractRunner):
             "true",
         )
 
+        if launch_project.job_base_image:
+            apply_code_mount_configuration(
+                job,
+                launch_project,
+            )
+
         # Add wandb.ai/agent: current agent label on all pods
         if LaunchAgent.initialized():
             add_label_to_pods(
@@ -503,6 +514,22 @@ class KubernetesRunner(AbstractRunner):
         context, api_client = await get_kube_context_and_api_client(
             kubernetes_asyncio, resource_args
         )
+
+        # If using pvc for code mount, move code there.
+        if launch_project.job_base_image is not None:
+            if SOURCE_CODE_PVC_NAME is None or SOURCE_CODE_PVC_MOUNT_PATH is None:
+                raise LaunchError(
+                    "WANDB_LAUNCH_SOURCE_CODE_PVC_ environment variables not set. "
+                    "Unable to mount source code PVC into base image. "
+                    "Use the `codeMountPvcName` variable in the agent helm chart "
+                    "to enable base image jobs for this agent. See "
+                    "https://github.com/wandb/helm-charts/tree/main/charts/launch-agent "
+                    "for more information."
+                )
+            code_subdir = launch_project.get_image_source_string()
+            launch_project.change_project_dir(
+                os.path.join(SOURCE_CODE_PVC_MOUNT_PATH, code_subdir)
+            )
 
         # If the user specified an alternate api, we need will execute this
         # run by creating a custom object.
@@ -541,6 +568,9 @@ class KubernetesRunner(AbstractRunner):
                 resource_args["metadata"]["labels"][WANDB_K8S_LABEL_AGENT] = (
                     LaunchAgent.name()
                 )
+
+            if launch_project.job_base_image:
+                apply_code_mount_configuration(resource_args, launch_project)
 
             overrides = {}
             if launch_project.override_args:
@@ -889,3 +919,45 @@ def add_entrypoint_args_overrides(manifest: Union[dict, list], overrides: dict) 
                     container["args"] = overrides["args"]
         for value in manifest.values():
             add_entrypoint_args_overrides(value, overrides)
+
+
+def apply_code_mount_configuration(
+    manifest: Union[Dict, list], project: LaunchProject
+) -> None:
+    """Apply code mount configuration to all containers in a manifest.
+
+    Recursively traverses the manifest and adds the code mount configuration to
+    all containers. Containers are identified by the presence of a "spec" key
+    with a "containers" key in the value.
+
+    Arguments:
+        manifest: The manifest to modify.
+        project: The launch project.
+
+    Returns: None.
+    """
+    assert SOURCE_CODE_PVC_NAME is not None
+    source_dir = project.get_image_source_string()
+    for pod in yield_pods(manifest):
+        for container in yield_containers(pod):
+            if "volumeMounts" not in container:
+                container["volumeMounts"] = []
+            container["volumeMounts"].append(
+                {
+                    "name": "wandb-source-code-volume",
+                    "mountPath": CODE_MOUNT_DIR,
+                    "subPath": source_dir,
+                }
+            )
+            container["workingDir"] = CODE_MOUNT_DIR
+        spec = pod["spec"]
+        if "volumes" not in spec:
+            spec["volumes"] = []
+        spec["volumes"].append(
+            {
+                "name": "wandb-source-code-volume",
+                "persistentVolumeClaim": {
+                    "claimName": SOURCE_CODE_PVC_NAME,
+                },
+            }
+        )

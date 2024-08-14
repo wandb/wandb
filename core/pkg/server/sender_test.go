@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -10,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -45,7 +45,7 @@ const validCreateArtifactResponse = `{
 }`
 
 func makeSender(client graphql.Client, recordChan chan *service.Record, resultChan chan *service.Result) *server.Sender {
-	ctx, cancel := context.WithCancel(context.Background())
+	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&service.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
@@ -59,7 +59,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		settings,
 	)
 	runfilesUploader := server.NewRunfilesUploader(
-		ctx,
+		runWork,
 		logger,
 		settings,
 		fileStream,
@@ -68,16 +68,14 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		client,
 	)
 	sender := server.NewSender(
-		ctx,
-		cancel,
+		runWork,
 		server.SenderParams{
 			Logger:              logger,
-			Settings:            settings.Proto,
+			Settings:            settings,
 			Backend:             backend,
 			FileStream:          fileStream,
 			FileTransferManager: fileTransferManager,
 			RunfilesUploader:    runfilesUploader,
-			FwdChan:             recordChan,
 			OutChan:             resultChan,
 			Mailbox:             mailbox.NewMailbox(),
 			GraphqlClient:       client,
@@ -136,14 +134,19 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	// 1. When both clientId and serverId are sent, serverId is used
 	linkArtifact := &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "clientId",
-				ServerId:         "serverId",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_LinkArtifact{
+					LinkArtifact: &service.LinkArtifactRequest{
+						ClientId:         "clientId",
+						ServerId:         "serverId",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
+		},
 		Control: &service.Control{
 			MailboxSlot: "junk",
 		},
@@ -170,16 +173,18 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	// 2. When only clientId is sent, clientId is used
 	linkArtifact = &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "clientId",
-				ServerId:         "",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_LinkArtifact{
+					LinkArtifact: &service.LinkArtifactRequest{
+						ClientId:         "clientId",
+						ServerId:         "",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
 		},
 	}
 
@@ -204,16 +209,18 @@ func TestSendLinkArtifact(t *testing.T) {
 
 	// 3. When only serverId is sent, serverId is used
 	linkArtifact = &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "",
-				ServerId:         "serverId",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
+		RecordType: &service.Record_Request{
+			Request: &service.Request{
+				RequestType: &service.Request_LinkArtifact{
+					LinkArtifact: &service.LinkArtifactRequest{
+						ClientId:         "",
+						ServerId:         "serverId",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
 		},
 	}
 

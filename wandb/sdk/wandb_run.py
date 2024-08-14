@@ -42,6 +42,7 @@ from wandb._globals import _datatypes_set_callback
 from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
+from wandb.errors import CommError
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -69,7 +70,7 @@ from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
-from .interface.interface import GlobStr, InterfaceBase
+from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
 from .lib import (
     config_util,
@@ -89,6 +90,7 @@ from .lib.printer import get_printer
 from .lib.proto_util import message_to_dict
 from .lib.reporting import Reporter
 from .lib.wburls import wburls
+from .wandb_alerts import AlertLevel
 from .wandb_settings import Settings
 from .wandb_setup import _WandbSetup
 
@@ -108,9 +110,7 @@ if TYPE_CHECKING:
         SampledHistoryResponse,
     )
 
-    from .interface.interface import FilesDict, PolicyName
     from .lib.printer import PrinterJupyter, PrinterTerm
-    from .wandb_alerts import AlertLevel
 
     class GitSourceDict(TypedDict):
         remote: str
@@ -235,10 +235,10 @@ class RunStatusChecker:
 
             with lock:
                 if self._join_event.is_set():
-                    return
+                    break
                 set_handle(local_handle)
             try:
-                result = local_handle.wait(timeout=timeout)
+                result = local_handle.wait(timeout=timeout, release=False)
             except MailboxError:
                 # background threads are oportunistically getting results
                 # from the internal process but the internal process could
@@ -253,6 +253,7 @@ class RunStatusChecker:
             if result:
                 process(result)
                 # if request finished, clear the handle to send on the next interval
+                local_handle.abandon()
                 local_handle = None
 
             time_elapsed = time.monotonic() - time_probe
@@ -294,7 +295,7 @@ class RunStatusChecker:
             if stop_status.run_should_stop:
                 # TODO(frz): This check is required
                 # until WB-3606 is resolved on server side.
-                if not wandb.agents.pyagent.is_running():
+                if not wandb.agents.pyagent.is_running():  # type: ignore
                     thread.interrupt_main()
                     return
 
@@ -591,8 +592,12 @@ class Run:
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
+        self._settings = settings
+
+        if settings._noop:
+            return
+
         self._init(
-            settings=settings,
             config=config,
             sweep_config=sweep_config,
             launch_config=launch_config,
@@ -600,12 +605,10 @@ class Run:
 
     def _init(
         self,
-        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        self._settings = settings
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
@@ -618,7 +621,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None
+        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None  # type: ignore
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -917,9 +920,9 @@ class Run:
         self.__dict__.update(state)
 
     @property
-    def _torch(self) -> "wandb.wandb_torch.TorchHistory":
+    def _torch(self) -> "wandb.wandb_torch.TorchHistory":  # type: ignore
         if self._torch_history is None:
-            self._torch_history = wandb.wandb_torch.TorchHistory()
+            self._torch_history = wandb.wandb_torch.TorchHistory()  # type: ignore
         return self._torch_history
 
     @property
@@ -1086,13 +1089,14 @@ class Run:
     @_run_decorator._attach
     def mode(self) -> str:
         """For compatibility with `0.9.x` and earlier, deprecate eventually."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__mode,
-            warning_message=(
-                "The mode property of wandb.run is deprecated "
-                "and will be removed in a future release."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__mode,
+                warning_message=(
+                    "The mode property of wandb.run is deprecated "
+                    "and will be removed in a future release."
+                ),
+            )
         return "dryrun" if self._settings._offline else "run"
 
     @property
@@ -1882,7 +1886,7 @@ class Run:
         self,
         glob_str: Optional[Union[str, os.PathLike]] = None,
         base_path: Optional[Union[str, os.PathLike]] = None,
-        policy: "PolicyName" = "live",
+        policy: PolicyName = "live",
     ) -> Union[bool, List[str]]:
         """Sync one or more files to W&B.
 
@@ -2100,47 +2104,68 @@ class Run:
         return self._finish(exit_code, quiet)
 
     def _finish(
-        self, exit_code: Optional[int] = None, quiet: Optional[bool] = None
+        self,
+        exit_code: Optional[int] = None,
+        quiet: Optional[bool] = None,
     ) -> None:
-        if quiet is not None:
-            self._quiet = quiet
+        logger.info(f"finishing run {self._get_path()}")
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
-        logger.info(f"finishing run {self._get_path()}")
-        # detach jupyter hooks / others that needs to happen before backend shutdown
+
+        if quiet is not None:
+            self._quiet = quiet
+
+        # Pop this run (hopefully) from the run stack, to support the "reinit"
+        # functionality of wandb.init().
+        #
+        # TODO: It's not clear how _global_run_stack could have length other
+        # than 1 at this point in the code. If you're reading this, consider
+        # refactoring this thing.
+        if self._wl and len(self._wl._global_run_stack) > 0:
+            self._wl._global_run_stack.pop()
+
+        # Run hooks that need to happen before the last messages to the
+        # internal service, like Jupyter hooks.
         for hook in self._teardown_hooks:
             if hook.stage == TeardownStage.EARLY:
                 hook.call()
 
-        self._atexit_cleanup(exit_code=exit_code)
-        if self._wl and len(self._wl._global_run_stack) > 0:
-            self._wl._global_run_stack.pop()
-        # detach logger / others meant to be run after we've shutdown the backend
-        for hook in self._teardown_hooks:
-            if hook.stage == TeardownStage.LATE:
-                hook.call()
-        self._teardown_hooks = []
-        module.unset_globals()
-
-        # inform manager this run is finished
-        manager = self._wl and self._wl._get_manager()
-        if manager:
-            manager._inform_finish(run_id=self._run_id)
-
+        # Early-stage hooks may use methods that require _is_finished
+        # to be False, so we set this after running those hooks.
         self._is_finished = True
-        # end sentry session
-        wandb._sentry.end_session()
+
+        try:
+            self._atexit_cleanup(exit_code=exit_code)
+
+            # Run hooks that should happen after the last messages to the
+            # internal service, like detaching the logger.
+            for hook in self._teardown_hooks:
+                if hook.stage == TeardownStage.LATE:
+                    hook.call()
+            self._teardown_hooks = []
+
+            # Inform the service that we're done sending messages for this run.
+            #
+            # TODO: Why not do this in _atexit_cleanup()?
+            manager = self._wl and self._wl._get_manager()
+            if manager:
+                manager._inform_finish(run_id=self._run_id)
+
+        finally:
+            module.unset_globals()
+            wandb._sentry.end_session()
 
     @_run_decorator._noop
     @_run_decorator._attach
     def join(self, exit_code: Optional[int] = None) -> None:
         """Deprecated alias for `finish()` - use finish instead."""
-        deprecate.deprecate(
-            field_name=deprecate.Deprecated.run__join,
-            warning_message=(
-                "wandb.run.join() is deprecated, please use wandb.run.finish()."
-            ),
-        )
+        if hasattr(self, "_telemetry_obj"):
+            deprecate.deprecate(
+                field_name=deprecate.Deprecated.run__join,
+                warning_message=(
+                    "wandb.run.join() is deprecated, please use wandb.run.finish()."
+                ),
+            )
         self._finish(exit_code=exit_code)
 
     @_run_decorator._noop_on_finish()
@@ -2345,36 +2370,45 @@ class Run:
             return
         self._atexit_cleanup_called = True
 
-        exit_code = exit_code or self._hooks.exit_code if self._hooks else 0
+        exit_code = exit_code or (self._hooks and self._hooks.exit_code) or 0
+        self._exit_code = exit_code
         logger.info(f"got exitcode: {exit_code}")
+
+        # Delete this run's "resume" file if the run finished successfully.
+        #
+        # This is used by the "auto" resume mode, which resumes from the last
+        # failed (or unfinished/crashed) run. If we reach this line, then this
+        # run shouldn't be a candidate for "auto" resume.
         if exit_code == 0:
-            # Cleanup our resume file on a clean exit
             if os.path.exists(self._settings.resume_fname):
                 os.remove(self._settings.resume_fname)
 
-        self._exit_code = exit_code
-        report_failure = False
         try:
             self._on_finish()
-        except KeyboardInterrupt as ki:
-            if wandb.wandb_agent._is_running():
-                raise ki
-            wandb.termerror("Control-C detected -- Run data was not synced")
-            if not self._settings._notebook:
-                os._exit(-1)
+
+        except KeyboardInterrupt:
+            if not wandb.wandb_agent._is_running():  # type: ignore
+                wandb.termerror("Control-C detected -- Run data was not synced")
+            raise
+
         except Exception as e:
-            if not self._settings._notebook:
-                report_failure = True
             self._console_stop()
-            self._backend.cleanup()
             logger.error("Problem finishing run", exc_info=e)
             wandb.termerror("Problem finishing run")
-            traceback.print_exc()
-        else:
-            self._on_final()
-        finally:
-            if report_failure:
-                os._exit(-1)
+            raise
+
+        Run._footer(
+            sampled_history=self._sampled_history,
+            final_summary=self._final_summary,
+            poll_exit_response=self._poll_exit_response,
+            server_info_response=self._server_info_response,
+            check_version_response=self._check_version,
+            internal_messages_response=self._internal_messages_response,
+            reporter=self._reporter,
+            quiet=self._quiet,
+            settings=self._settings,
+            printer=self._printer,
+        )
 
     def _console_start(self) -> None:
         logger.info("atexit reg")
@@ -2659,20 +2693,6 @@ class Run:
         for module_name in import_telemetry_set:
             unregister_post_import_hook(module_name, run_id)
 
-    def _on_final(self) -> None:
-        self._footer(
-            sampled_history=self._sampled_history,
-            final_summary=self._final_summary,
-            poll_exit_response=self._poll_exit_response,
-            server_info_response=self._server_info_response,
-            check_version_response=self._check_version,
-            internal_messages_response=self._internal_messages_response,
-            reporter=self._reporter,
-            quiet=self._quiet,
-            settings=self._settings,
-            printer=self._printer,
-        )
-
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach
     def define_metric(
@@ -2684,29 +2704,48 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
-        """Define metric properties which will later be logged with `wandb.log()`.
+        """Customize metrics logged with `wandb.log()`.
 
         Arguments:
-            name: Name of the metric.
-            step_metric: Independent variable associated with the metric.
-            step_sync: Automatically add `step_metric` to history if needed.
-                Defaults to True if step_metric is specified.
+            name: The name of the metric to customize.
+            step_metric: The name of another metric to serve as the X-axis
+                for this metric in automatically generated charts.
+            step_sync: Automatically insert the last value of step_metric into
+                `run.log()` if it is not provided explicitly. Defaults to True
+                 if step_metric is specified.
             hidden: Hide this metric from automatic plots.
             summary: Specify aggregate metrics added to summary.
-                Supported aggregations: "min,max,mean,best,last,none"
-                Default aggregation is `copy`
-                Aggregation `best` defaults to `goal`==`minimize`
-            goal: Specify direction for optimizing the metric.
-                Supported directions: "minimize,maximize"
+                Supported aggregations include "min", "max", "mean", "last",
+                "best", "copy" and "none". "best" is used together with the
+                goal parameter. "none" prevents a summary from being generated.
+                "copy" is deprecated and should not be used.
+            goal: Specify how to interpret the "best" summary type.
+                Supported options are "minimize" and "maximize".
+            overwrite: If false, then this call is merged with previous
+                `define_metric` calls for the same metric by using their
+                values for any unspecified parameters. If true, then
+                unspecified parameters overwrite values specified by
+                previous calls.
 
         Returns:
-            A metric object is returned that can be further specified.
-
+            An object that represents this call but can otherwise be discarded.
         """
+        if summary and "copy" in summary:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_copy,
+                "define_metric(summary='copy') is deprecated and will be removed.",
+                self,
+            )
+
         return self._define_metric(
-            name, step_metric, step_sync, hidden, summary, goal, overwrite, **kwargs
+            name,
+            step_metric,
+            step_sync,
+            hidden,
+            summary,
+            goal,
+            overwrite,
         )
 
     def _define_metric(
@@ -2718,12 +2757,9 @@ class Run:
         summary: Optional[str] = None,
         goal: Optional[str] = None,
         overwrite: Optional[bool] = None,
-        **kwargs: Any,
     ) -> wandb_metric.Metric:
         if not name:
             raise wandb.Error("define_metric() requires non-empty name argument")
-        for k in kwargs:
-            wandb.termwarn(f"Unhandled define_metric() arg: {k}")
         if isinstance(step_metric, wandb_metric.Metric):
             step_metric = step_metric.name
         for arg_name, arg_val, exp_type in (
@@ -2751,12 +2787,14 @@ class Run:
             summary_items = [s.lower() for s in summary.split(",")]
             summary_ops = []
             valid = {"min", "max", "mean", "best", "last", "copy", "none"}
+            # TODO: deprecate copy and best
             for i in summary_items:
                 if i not in valid:
                     raise wandb.Error(f"Unhandled define_metric() arg: summary op: {i}")
                 summary_ops.append(i)
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_summary = True
+        # TODO: deprecate goal
         goal_cleaned: Optional[str] = None
         if goal is not None:
             goal_cleaned = goal[:3].lower()
@@ -2772,6 +2810,9 @@ class Run:
             with telemetry.context(run=self) as tel:
                 tel.feature.metric_step_sync = True
 
+        with telemetry.context(run=self) as tel:
+            tel.feature.metric = True
+
         m = wandb_metric.Metric(
             name=name,
             step_metric=step_metric,
@@ -2783,8 +2824,6 @@ class Run:
         )
         m._set_callback(self._metric_callback)
         m._commit()
-        with telemetry.context(run=self) as tel:
-            tel.feature.metric = True
         return m
 
     # TODO(jhr): annotate this
@@ -2798,12 +2837,12 @@ class Run:
         idx=None,
         log_graph=False,
     ) -> None:
-        wandb.watch(models, criterion, log, log_freq, idx, log_graph)
+        wandb.watch(models, criterion, log, log_freq, idx, log_graph)  # type: ignore
 
     # TODO(jhr): annotate this
     @_run_decorator._attach
     def unwatch(self, models=None) -> None:  # type: ignore
-        wandb.unwatch(models=models)
+        wandb.unwatch(models=models)  # type: ignore
 
     # TODO(kdg): remove all artifact swapping logic
     def _swap_artifact_name(self, artifact_name: str, use_as: Optional[str]) -> str:
@@ -2875,7 +2914,7 @@ class Run:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
-                self._backend.interface.publish_link_artifact(
+                handle = self._backend.interface.deliver_link_artifact(
                     self,
                     artifact,
                     portfolio,
@@ -2887,6 +2926,13 @@ class Run:
                     wandb.termwarn(
                         "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
                     )
+                result = handle.wait(timeout=-1)
+                if result is None:
+                    handle.abandon()
+                else:
+                    response = result.response.link_artifact_response
+                    if response.error_message:
+                        wandb.termerror(response.error_message)
             else:
                 # TODO: implement offline mode + sync
                 raise NotImplementedError
@@ -3466,7 +3512,7 @@ class Run:
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type=artifact.type
             )
-        except (ValueError, wandb.CommError):
+        except (ValueError, CommError):
             artifact = self._log_artifact(
                 artifact_or_path=path, name=name, type="model"
             )
@@ -3486,13 +3532,13 @@ class Run:
         Arguments:
             title: (str) The title of the alert, must be less than 64 characters long.
             text: (str) The text body of the alert.
-            level: (str or wandb.AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
+            level: (str or AlertLevel, optional) The alert level to use, either: `INFO`, `WARN`, or `ERROR`.
             wait_duration: (int, float, or timedelta, optional) The time to wait (in seconds) before sending another
                 alert with this title.
         """
-        level = level or wandb.AlertLevel.INFO
-        level_str: str = level.value if isinstance(level, wandb.AlertLevel) else level
-        if level_str not in {lev.value for lev in wandb.AlertLevel}:
+        level = level or AlertLevel.INFO
+        level_str: str = level.value if isinstance(level, AlertLevel) else level
+        if level_str not in {lev.value for lev in AlertLevel}:
             raise ValueError("level must be one of 'INFO', 'WARN', or 'ERROR'")
 
         wait_duration = wait_duration or timedelta(minutes=1)
@@ -3675,12 +3721,12 @@ class Run:
             return
 
         if printer._html:
-            if not wandb.jupyter.maybe_display():
+            if not wandb.jupyter.maybe_display():  # type: ignore
                 run_line = f"<strong>{printer.link(run_url, run_name)}</strong>"
                 project_line, sweep_line = "", ""
 
                 # TODO(settings): make settings the source of truth
-                if not wandb.jupyter.quiet():
+                if not wandb.jupyter.quiet():  # type: ignore
                     doc_html = printer.link(wburls.get("doc_run"), "docs")
 
                     project_html = printer.link(project_url, "Weights & Biases")
@@ -3759,6 +3805,11 @@ class Run:
             settings=settings,
             printer=printer,
         )
+        Run._footer_notify_wandb_core(
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
         Run._footer_local_warn(
             server_info_response=server_info_response,
             quiet=quiet,
@@ -3828,34 +3879,33 @@ class Run:
         if not poll_exit_response:
             return
 
-        progress = poll_exit_response.pusher_stats
-        done = poll_exit_response.done
+        stats = poll_exit_response.pusher_stats
 
         megabyte = wandb.util.POW_2_BYTES[2][1]
-        line = f"{progress.uploaded_bytes / megabyte :.3f} MB of {progress.total_bytes / megabyte:.3f} MB uploaded"
-        if progress.deduped_bytes > 0:
-            line += f" ({progress.deduped_bytes / megabyte:.3f} MB deduped)\r"
-        else:
-            line += "\r"
-
-        percent_done = (
-            1.0
-            if progress.total_bytes == 0
-            else progress.uploaded_bytes / progress.total_bytes
+        line = (
+            f"{stats.uploaded_bytes / megabyte:.3f} MB"
+            f" of {stats.total_bytes / megabyte:.3f} MB uploaded"
         )
+        if stats.deduped_bytes > 0:
+            line += f" ({stats.deduped_bytes / megabyte:.3f} MB deduped)"
+        line += "\r"
 
-        printer.progress_update(line, percent_done)
-        if done:
+        if stats.total_bytes > 0:
+            printer.progress_update(line, stats.uploaded_bytes / stats.total_bytes)
+        else:
+            printer.progress_update(line, 1.0)
+
+        if poll_exit_response.done:
             printer.progress_close()
 
-            dedupe_fraction = (
-                progress.deduped_bytes / float(progress.total_bytes)
-                if progress.total_bytes > 0
-                else 0
-            )
-            if dedupe_fraction > 0.01:
+            if stats.total_bytes > 0:
+                dedupe_fraction = stats.deduped_bytes / float(stats.total_bytes)
+            else:
+                dedupe_fraction = 0
+
+            if stats.deduped_bytes > 0.01:
                 printer.display(
-                    f"W&B sync reduced upload amount by {dedupe_fraction * 100:.1f}%             "
+                    f"W&B sync reduced upload amount by {dedupe_fraction:.1%}"
                 )
 
     @staticmethod
@@ -4128,6 +4178,24 @@ class Run:
         package_problem = check_version.delete_message or check_version.yank_message
         if package_problem and check_version.upgrade_message:
             printer.display(check_version.upgrade_message)
+
+    @staticmethod
+    def _footer_notify_wandb_core(
+        *,
+        quiet: Optional[bool] = None,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        """Prints a message advertising the upcoming core release."""
+        if quiet or settings._require_core:
+            return
+
+        printer.display(
+            "The new W&B backend becomes opt-out in version 0.18.0;"
+            ' try it out with `wandb.require("core")`!'
+            " See https://wandb.me/wandb-core for more information.",
+            level="warn",
+        )
 
     @staticmethod
     def _footer_reporter_warn_err(
