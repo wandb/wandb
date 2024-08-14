@@ -45,13 +45,11 @@ class CustomBuildHook(BuildHookInterface):
         if self._include_wandb_core():
             artifacts.extend(self._build_wandb_core())
 
-        # TODO(experimental-py): disable apple stats for now
-        # if self._include_apple_stats():
-        #     artifacts.extend(self._build_apple_stats())
+        if self._include_apple_stats():
+            artifacts.extend(self._build_apple_stats())
 
-        # TODO(experimental-py): disable nvidia stats for now
-        # if self._include_nvidia_gpu_stats():
-        #     artifacts.extend(self._build_nvidia_gpu_stats())
+        if self._include_nvidia_gpu_stats():
+            artifacts.extend(self._build_nvidia_gpu_stats())
 
         # TODO(experimental-py): this is not used in upstream hatch_build
         artifacts.extend(self._build_proto())
@@ -116,12 +114,14 @@ class CustomBuildHook(BuildHookInterface):
         return self._include_wandb_core() or self._include_apple_stats()
 
     def _build_apple_stats(self) -> List[str]:
-        output = pathlib.Path("wandb", "bin", "apple_gpu_stats")
-
-        self.app.display_waiting("Building apple_gpu_stats...")
-        hatch_apple_stats.build_applestats(output_path=output)
-
-        return [output.as_posix()]
+        # TODO(experimental-py): disable apple stats for now
+        return []
+        # output = pathlib.Path("wandb", "bin", "apple_gpu_stats")
+        #
+        # self.app.display_waiting("Building apple_gpu_stats...")
+        # hatch_apple_stats.build_applestats(output_path=output)
+        #
+        # return [output.as_posix()]
 
     def _get_and_require_cargo_binary(self) -> pathlib.Path:
         cargo = shutil.which("cargo")
@@ -135,15 +135,17 @@ class CustomBuildHook(BuildHookInterface):
         return pathlib.Path(cargo)
 
     def _build_nvidia_gpu_stats(self) -> List[str]:
-        output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
-
-        self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
-        hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
-            cargo_binary=self._get_and_require_cargo_binary(),
-            output_path=output,
-        )
-
-        return [output.as_posix()]
+        # TODO(experimental-py): disable nvidia stats for now
+        return []
+        # output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
+        #
+        # self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
+        # hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
+        #     cargo_binary=self._get_and_require_cargo_binary(),
+        #     output_path=output,
+        # )
+        #
+        # return [output.as_posix()]
 
     def _git_commit_sha(self) -> str:
         try:
