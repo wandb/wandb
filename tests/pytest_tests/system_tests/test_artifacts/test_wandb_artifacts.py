@@ -13,6 +13,7 @@ import responses
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
+from google.cloud.storage import Blob, Bucket
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
@@ -104,9 +105,9 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     return mock
 
 
-def mock_gcs(artifact, path=False, hash=True):
+def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
     class Blob:
-        def __init__(self, name="my_object.pb", metadata=None, generation=None):
+        def __init__(self, name=override_blob_name, metadata=None, generation=None):
             self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
             self.generation = generation or "1"
@@ -778,6 +779,48 @@ def test_add_gs_reference_object_no_md5():
         "extra": {"versionID": "1"},
         "size": 10,
     }
+
+
+def test_add_gs_reference_with_dir_paths():
+    artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
+    mock_gcs(artifact, override_blob_name="my_folder/")
+    artifact.add_reference("gs://my-bucket/my_object.pb")
+
+    assert len(artifact.manifest.entries) == 0
+
+
+def test_load_gs_reference_with_dir_paths(monkeypatch):
+    def fake_get_blob(self, key: str, **_) -> Optional[Blob]:
+        if key.endswith("/"):
+            return Blob(name=key, bucket="my-bucket")
+        else:
+            return None
+
+    monkeypatch.setattr(Bucket, "get_blob", fake_get_blob)
+
+    gcs_handler = GCSHandler()
+
+    # simple case where ref ends with "/"
+    simple_entry = ArtifactManifestEntry(
+        path="my-bucket/my_folder",
+        ref="gs://my-bucket/my_folder/",
+        digest="1234567890abcde",
+        size=0,
+        extra={"versionID": 1},
+    )
+    loaded_path = gcs_handler.load_path(simple_entry, local=True)
+    assert loaded_path == ""
+
+    # case where we didn't store "/" and have to use get_blob
+    entry = ArtifactManifestEntry(
+        path="my-bucket/my_folder",
+        ref="gs://my-bucket/my_folder",
+        digest="1234567890abcde",
+        size=0,
+        extra={"versionID": 1},
+    )
+    loaded_path = gcs_handler.load_path(entry, local=True)
+    assert loaded_path == ""
 
 
 def test_add_azure_reference_no_checksum(mock_azure_handler):
