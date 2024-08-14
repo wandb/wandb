@@ -11,6 +11,11 @@ import threading
 import time
 from typing import TYPE_CHECKING
 
+# TODO(experimental): remove old json support
+USE_DATAVALUE = os.getenv("_WANDB_EXPERIMENT_DATAVALUE", False)
+if not USE_DATAVALUE:
+    import json
+
 if TYPE_CHECKING:
     from typing import Any, List, Optional
 
@@ -133,21 +138,24 @@ class Run:
         for k, v in data.items():
             item = data_msg.item.add()
             item.key = k
-            d = pb2.DataValue()
-            if isinstance(v, int):
-                d.value_int = v
-            elif isinstance(v, float):
-                d.value_double = v
-            elif isinstance(v, str):
-                d.value_string = v
-            elif isinstance(v, Image):
-                tensor_msg = pb2.TensorData()
-                tensor_msg.tensor_content = v._data.tobytes()
-                tensor_msg.shape.extend(v._data.shape)
+            if USE_DATAVALUE:
+                d = pb2.DataValue()
+                if isinstance(v, int):
+                    d.value_int = v
+                elif isinstance(v, float):
+                    d.value_double = v
+                elif isinstance(v, str):
+                    d.value_string = v
+                elif isinstance(v, Image):
+                    tensor_msg = pb2.TensorData()
+                    tensor_msg.tensor_content = v._data.tobytes()
+                    tensor_msg.shape.extend(v._data.shape)
+                    # TODO: see if we can do this without the CopyFrom
+                    d.value_tensor.CopyFrom(tensor_msg)
                 # TODO: see if we can do this without the CopyFrom
-                d.value_tensor.CopyFrom(tensor_msg)
-            # TODO: see if we can do this without the CopyFrom
-            item.value_data.CopyFrom(d)
+                item.value_data.CopyFrom(d)
+            else:
+                item.value_json = json.dumps(v)
 
         # _ = data_msg.SerializeToString()
         # self._api.pbRunLog(self._run_nexus_id, data_bytes, len(data_bytes))
