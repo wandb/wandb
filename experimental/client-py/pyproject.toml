@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "typing_extensions"]
 build-backend = "hatchling.build"
 
 [project]
@@ -7,15 +7,29 @@ name = "wandb"
 dynamic = ["version"]
 description = "A CLI and library for interacting with the Weights & Biases API."
 authors = [{ name = "Weights & Biases", email = "support@wandb.com" }]
+# TODO(experimental-py): disable these for now
 # readme = "package_readme.md"
 # license = { file = "LICENSE" }
 requires-python = ">=3.7"
 dependencies = [
-    "protobuf>=3.12.0,!=4.21.0,<5; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,<5; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<5; sys_platform != 'linux'",
+    "Click>=7.1,!=8.0.0",        # click 8.0.0 is broken
+    "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
+    "requests>=2.0.0,<3",
+    "psutil>=5.0.0",
+    "sentry-sdk>=1.0.0",
+    "docker-pycreds>=0.4.0",
+    # setuptools is needed for distutils in dependencies after Python 3.12 :(
+    # One such dependency is docker-pycreds, where the latest release is 0.4.0
+    # which was released in 2018.
     "setuptools",
+    "protobuf>=3.12.0,!=4.21.0,<6; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,<6; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<6; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,<6; sys_platform != 'linux'",
+    "PyYAML",
+    "setproctitle",
+    "platformdirs",
+    "typing_extensions; python_version < '3.10'",
 ]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
@@ -38,15 +52,275 @@ classifiers = [
 ]
 
 
-#[project.scripts]
-#wandb = "wandb.cli.cli:cli"
-#wb = "wandb.cli.cli:cli"
+# TODO(experimental-py): disable these for now
+# [project.scripts]
+# wandb = "wandb.cli.cli:cli"
+# wb = "wandb.cli.cli:cli"
 
 [project.urls]
 "Source" = "https://github.com/wandb/wandb"
 "Bug Reports" = "https://github.com/wandb/wandb/issues"
 "Documentation" = "https://docs.wandb.ai/"
 
+[project.optional-dependencies]
+kubeflow = ["kubernetes", "minio", "google-cloud-storage", "sh"]
+gcp = ["google-cloud-storage"]
+aws = ["boto3"]
+azure = ["azure-identity", "azure-storage-blob"]
+media = [
+    "numpy",
+    "moviepy",
+    "pillow",
+    "bokeh",
+    "soundfile",
+    "plotly>=5.18.0",
+    "rdkit-pypi",
+]
+sweeps = ["sweeps>=0.2.0"]
+launch = [
+    "awscli",
+    "azure-identity",
+    "azure-containerregistry",
+    "azure-storage-blob",
+    "boto3",
+    "botocore",
+    "chardet",
+    "google-auth",
+    "google-cloud-aiplatform",
+    "google-cloud-artifact-registry",
+    "google-cloud-compute",
+    "google-cloud-storage",
+    "iso8601",
+    "jsonschema",
+    "kubernetes",
+    "kubernetes_asyncio",
+    "optuna",
+    "nbconvert",
+    "nbformat",
+    "pydantic",
+    "typing_extensions",
+    "tomli",
+    "PyYAML>=6.0.0",
+]
+models = ["cloudpickle"]
+perf = ["orjson"]
+importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
+workspaces = ["wandb-workspaces"]
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+console_output_style = "count"
+addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
+markers = [
+    "image_output",
+    "multiclass",
+    "wandb_args",
+    "flaky",
+    "wandb_core_failure(feature): test failures with wandb-core, grouped by feature",
+    "wandb_core_only: tests for features only available with wandb-core",
+]
+timeout = 60
+log_format = "%(asctime)s %(levelname)s %(message)s"
+log_date_format = "%Y-%m-%d %H:%M:%S"
+testpaths = "tests"
+filterwarnings = ["ignore::DeprecationWarning", "error:ResourceWarning"]
+norecursedirs = [
+    "vendor",
+    "wandb/vendor",
+    "build/",
+    "tests/functional_tests",
+    "tests/standalone_tests",
+]
+
+[tool.coverage.paths]
+source = ["wandb", ".tox/*/lib/python*/site-packages/wandb"]
+
+[tool.coverage.run]
+# branch = true
+concurrency = ["multiprocessing", "thread"]
+source = ["wandb"]
+omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
+
+[tool.coverage.report]
+exclude_lines = ["pragma: no cover", "if TYPE_CHECKING:", "@abstractmethod"]
+omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
+ignore_errors = true
+
+
+[tool.black]
+line-length = 88
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+include = '\.pyi?$'
+exclude = '''
+wandb/vendor/
+| wandb/bin/
+| wandb/proto/
+| wandb/proto_check/
+| wandb/sdk/launch/deploys/
+| wandb/run*
+| wandb/offline-run*
+| __pycache__
+| .pyc
+| .tox/
+'''
+
+[tool.ruff]
+extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
+target-version = "py37"
+
+[tool.ruff.lint]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
+ignore = [
+    "B904",
+    "E501",
+    # pydocstyle rules: https://docs.astral.sh/ruff/rules/#pydocstyle-d
+    "D100",  # Allow missing docstrings in modules.
+    "D101",  # Allow missing docstrings in classes.
+    "D104",  # Allow missing docstrings in packages.
+    "D105",  # Allow missing docstrings in magic (dunder) methods, e.g. __str__().
+    "D106",  # Allow missing docstrings in nested classes.
+    "D107",  # Allow missing docstrings in __init__ methods.
+    "UP022",
+    "UP032", # Allow using format instead of f-string.
+    "UP036",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 18
+
+[tool.ruff.lint.isort]
+split-on-trailing-comma = false
+
+
+[tool.ruff.lint.pycodestyle]
+ignore-overlong-task-comments = true
+
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+ignore-decorators = [
+    # Allow undocumented @property descriptors for now.
+    # As of May 2024, many in the public API module(s) currently lack docs, or may plausibly have been intended
+    # for internal use only.  Consider removing this exemption in the future, when/if/as appropriate.
+    "property",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Ensure stricter docstring requirements for public API module(s).
+"!wandb/apis/public/api.py" = [ # Consider expanding to other `wandb.api.public` submodules as well.
+    "D101", # Require docstrings in public classes
+    "D102", # Require docstrings in public methods
+    "D103", # Require docstrings in public functions
+    "D417", # Require descriptions for all arguments
+]
+
+"**/__init__.py" = ["E402", "F401"]
+"wandb/__init__.py" = ["I001"]
+"wandb/__init__.pyi" = ["UP006", "UP007"]
+"wandb/__init__.template.pyi" = ["UP006", "UP007", "D415", "N999"]
+"wandb/cli/cli.py" = ["C901"]
+"wandb/wandb_controller.py" = ["N806"]
+"wandb/sklearn/**" = ["B010", "B011", "N803", "N806", "UP031"]
+"wandb/wandb_torch.py" = ["C901", "D", "E741", "F841"]
+"wandb/integration/metaflow/metaflow.py" = ["F811"]
+"wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
+"wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
+"wandb/old/**" = ["B006", "B020", "D", "F822"]
+
+# Don't require docstrings on test functions.
+"tests/**" = ["D"]
+
+"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "E", "F", "N", "UP026"]
+"tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
+"tests/functional_tests/t0_main/metaflow/**" = ["N806"]
+
+
+[tool.mypy]
+warn_redundant_casts = true
+exclude = '''
+   (?x)(
+      wandb/vendor/.
+   )
+'''
+
+
+# wandb.*
+[[tool.mypy.overrides]]
+module = "wandb.*"
+ignore_errors = false
+
+[[tool.mypy.overrides]]
+module = [
+    "wandb.testing.*",
+    "wandb.integration.*",
+    "wandb.apis.*",
+    "wandb.proto.*",
+    "wandb.sklearn.*",
+    "wandb.beta.*",
+    "wandb.sdk.wandb_login",
+    "wandb.cli.*",
+    "wandb.wandb_torch.*",
+    "wandb.wandb_controller.*",
+    "wandb.wandb_agent.*",
+    "wandb.sdk.verify.*",
+    "wandb.trigger.*",
+    "wandb.wandb_summary.*",
+    "wandb.jupyter.*",
+    "wandb.sync.*",
+    "wandb.sdk.integration_utils.*",
+    "wandb.plot.*",
+    "wandb.old.*",
+]
+ignore_errors = true
+
+# wandb/env
+[[tool.mypy.overrides]]
+module = "wandb.env"
+ignore_errors = false
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+strict_equality = true
+implicit_reexport = false
+
+# wandb/filesync.*
+[[tool.mypy.overrides]]
+module = "wandb.filesync.*"
+ignore_errors = false
+disallow_incomplete_defs = true
+disallow_untyped_defs = true
+warn_unused_ignores = true
+warn_return_any = true
+warn_unreachable = true
+check_untyped_defs = true
+disallow_untyped_calls = false
+disallow_untyped_decorators = true
+strict_equality = true
+implicit_reexport = false
+
+# More wandb/ modules can be added in a similar manner as overrides
+
+# External libraries
+[[tool.mypy.overrides]]
+module = [
+    "psutil.*",
+    "tensorboard.*",
+    "grpc.*",
+    "setproctitle.*",
+    "ultralytics.*",
+    "wandb_gql.*",
+    "wandb_graphql.*",
+    "wandb.vendor.*",
+    "wandb.vendor.pynvml.pynvml.*",
+]
+ignore_missing_imports = true
+
+# TODO(experimental-py): use setuptools
 [tool.setuptools]
 zip-safe = false
 packages = ["wandb"]
