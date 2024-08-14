@@ -105,7 +105,7 @@ type SystemMonitor struct {
 	// The wait group for the system monitor
 	wg sync.WaitGroup
 
-	isActive atomic.Bool
+	state atomic.Int32
 
 	// The list of assets to monitor
 	assets []Asset
@@ -216,12 +216,20 @@ func (sm *SystemMonitor) probe() *service.MetadataRequest {
 	return &systemInfo
 }
 
+const (
+	StateStopped int32 = iota
+	StateRunning
+	StatePaused
+)
+
 func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
 	}
 
-	sm.isActive.Store(true)
+	if !sm.state.CompareAndSwap(StateStopped, StateRunning) {
+		return // Already started or paused
+	}
 
 	sm.logger.Info("Starting system monitor")
 	// start monitoring the assets
@@ -243,13 +251,13 @@ func (sm *SystemMonitor) Start() {
 }
 
 func (sm *SystemMonitor) Pause() {
-	if sm.isActive.CompareAndSwap(true, false) {
+	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
 		sm.logger.Info("Pausing system monitor")
 	}
 }
 
 func (sm *SystemMonitor) Resume() {
-	if sm.isActive.CompareAndSwap(false, true) {
+	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Info("Resuming system monitor")
 	}
 }
@@ -281,8 +289,8 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 		case <-sm.ctx.Done():
 			return
 		case <-ticker.C:
-			if !sm.isActive.Load() {
-				continue // Skip work when not active
+			if sm.state.Load() != StateRunning {
+				continue // Skip work when not running
 			}
 
 			// NOTE: the pattern in SampleMetric is to capture whatever metrics are available,
@@ -333,8 +341,11 @@ func (sm *SystemMonitor) Finish() {
 	if sm == nil || sm.cancel == nil {
 		return
 	}
+	if sm.state.Swap(StateStopped) == StateStopped {
+		return // Already stopped
+	}
+
 	sm.logger.Info("Stopping system monitor")
-	sm.isActive.Store(false)
 
 	// signal to stop monitoring the assets
 	sm.cancel()
