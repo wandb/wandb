@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -72,6 +73,21 @@ func makeMetadataRecord(metadata *service.MetadataRequest) *service.Record {
 	}
 }
 
+func getSlurmEnvVars() map[string]string {
+	slurmVars := make(map[string]string)
+	for _, envVar := range os.Environ() {
+		keyValPair := strings.SplitN(envVar, "=", 2)
+		key := keyValPair[0]
+		value := keyValPair[1]
+
+		if strings.HasPrefix(key, "SLURM_") {
+			suffix := strings.ToLower(strings.TrimPrefix(key, "SLURM_"))
+			slurmVars[suffix] = value
+		}
+	}
+	return slurmVars
+}
+
 type Asset interface {
 	Name() string
 	SampleMetrics() error
@@ -89,8 +105,7 @@ type SystemMonitor struct {
 	// The wait group for the system monitor
 	wg sync.WaitGroup
 
-	// Probe the system information once
-	probeOnce sync.Once
+	isActive atomic.Bool
 
 	// The list of assets to monitor
 	assets []Asset
@@ -114,8 +129,7 @@ type SystemMonitor struct {
 	logger *observability.CoreLogger
 }
 
-// NewSystemMonitor creates a new SystemMonitor with the given settings
-func NewSystemMonitor(
+func New(
 	logger *observability.CoreLogger,
 	settings *service.Settings,
 	extraWork runwork.ExtraWork,
@@ -129,7 +143,10 @@ func NewSystemMonitor(
 		buffer = NewBuffer(sbs)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	systemMonitor := &SystemMonitor{
+		ctx:              ctx,
+		cancel:           cancel,
 		wg:               sync.WaitGroup{},
 		settings:         settings,
 		logger:           logger,
@@ -180,53 +197,7 @@ func NewSystemMonitor(
 	return systemMonitor
 }
 
-func (sm *SystemMonitor) Do() {
-	if sm == nil {
-		return
-	}
-	// reset context:
-	sm.ctx, sm.cancel = context.WithCancel(context.Background())
-
-	sm.logger.Info("Starting system monitor")
-	// start monitoring the assets
-	for _, asset := range sm.assets {
-		sm.wg.Add(1)
-		go sm.Monitor(asset)
-	}
-
-	// probe the asset information.
-	// NOTE: in notebook environments, we stop the system monitor when a cell has finished
-	// executing, and start it again when a new cell is executed. There is no need to probe
-	// the system information every time the system monitor is started.
-	sm.probeOnce.Do(func() {
-		go func() {
-			systemInfo := sm.Probe()
-			if systemInfo != nil {
-				sm.extraWork.AddRecordOrCancel(
-					sm.ctx.Done(),
-					makeMetadataRecord(systemInfo),
-				)
-			}
-		}()
-	})
-}
-
-func getSlurmEnvVars() map[string]string {
-	slurmVars := make(map[string]string)
-	for _, envVar := range os.Environ() {
-		keyValPair := strings.SplitN(envVar, "=", 2)
-		key := keyValPair[0]
-		value := keyValPair[1]
-
-		if strings.HasPrefix(key, "SLURM_") {
-			suffix := strings.ToLower(strings.TrimPrefix(key, "SLURM_"))
-			slurmVars[suffix] = value
-		}
-	}
-	return slurmVars
-}
-
-func (sm *SystemMonitor) Probe() *service.MetadataRequest {
+func (sm *SystemMonitor) probe() *service.MetadataRequest {
 	systemInfo := service.MetadataRequest{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
@@ -243,6 +214,44 @@ func (sm *SystemMonitor) Probe() *service.MetadataRequest {
 	}
 
 	return &systemInfo
+}
+
+func (sm *SystemMonitor) Start() {
+	if sm == nil {
+		return
+	}
+
+	sm.isActive.Store(true)
+
+	sm.logger.Info("Starting system monitor")
+	// start monitoring the assets
+	for _, asset := range sm.assets {
+		sm.wg.Add(1)
+		go sm.Monitor(asset)
+	}
+
+	// probe the asset information
+	go func() {
+		systemInfo := sm.probe()
+		if systemInfo != nil {
+			sm.extraWork.AddRecordOrCancel(
+				sm.ctx.Done(),
+				makeMetadataRecord(systemInfo),
+			)
+		}
+	}()
+}
+
+func (sm *SystemMonitor) Pause() {
+	if sm.isActive.CompareAndSwap(true, false) {
+		sm.logger.Info("Pausing system monitor")
+	}
+}
+
+func (sm *SystemMonitor) Resume() {
+	if sm.isActive.CompareAndSwap(false, true) {
+		sm.logger.Info("Resuming system monitor")
+	}
 }
 
 func (sm *SystemMonitor) Monitor(asset Asset) {
@@ -272,6 +281,10 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 		case <-sm.ctx.Done():
 			return
 		case <-ticker.C:
+			if !sm.isActive.Load() {
+				continue // Skip work when not active
+			}
+
 			// NOTE: the pattern in SampleMetric is to capture whatever metrics are available,
 			// accumulate errors along the way, and log them here.
 			err := asset.SampleMetrics()
@@ -316,11 +329,13 @@ func (sm *SystemMonitor) GetBuffer() map[string]List {
 	return sm.buffer.elements
 }
 
-func (sm *SystemMonitor) Stop() {
+func (sm *SystemMonitor) Finish() {
 	if sm == nil || sm.cancel == nil {
 		return
 	}
 	sm.logger.Info("Stopping system monitor")
+	sm.isActive.Store(false)
+
 	// signal to stop monitoring the assets
 	sm.cancel()
 	// wait for all assets to stop monitoring
