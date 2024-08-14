@@ -96,6 +96,15 @@ func TestGetLeaf_PathIsNotLeaf(t *testing.T) {
 	assert.Nil(t, x)
 }
 
+func TestGetOrMakeLeaf_PathIsNotLeaf(t *testing.T) {
+	tree := pathtree.New()
+
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+
+	x := tree.GetOrMakeLeaf(pathtree.PathOf("a"), func() any { return 2 })
+	assert.Equal(t, 2, x)
+}
+
 func TestFlatten(t *testing.T) {
 	tree := pathtree.New()
 
