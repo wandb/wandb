@@ -1,7 +1,6 @@
 import os
 
 import pytest
-
 import wandb
 from wandb import Api
 
