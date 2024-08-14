@@ -30,7 +30,7 @@ func (s *Session) start() {
 	}
 
 	if s.Address == "" {
-		launch := launcher.NewLauncher(s.PidParent)
+		launch := launcher.NewLauncher()
 		if len(s.CoreBinary) != 0 {
 			execCmd, err = launch.LaunchBinary(s.CoreBinary)
 		} else {

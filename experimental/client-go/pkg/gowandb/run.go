@@ -25,7 +25,6 @@ type Run struct {
 	run            *service.RunRecord
 	params         *runopts.RunParams
 	partialHistory History
-	step           int64
 }
 
 // NewRun creates a new run with the given settings and responders.
@@ -153,6 +152,7 @@ func (r *Run) start() {
 func (r *Run) logCommit(data map[string]interface{}) {
 	history := service.PartialHistoryRequest{}
 	for key, value := range data {
+		// strValue := strconv.FormatFloat(value, 'f', -1, 64)
 		data, err := json.Marshal(value)
 		if err != nil {
 			panic(err)
@@ -167,23 +167,6 @@ func (r *Run) logCommit(data map[string]interface{}) {
 	}
 	record := service.Record{
 		RecordType: &service.Record_Request{Request: &request},
-		Control:    &service.Control{Local: true},
-		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
-	}
-
-	serverRecord := service.ServerRequest{
-		ServerRequestType: &service.ServerRequest_RecordPublish{RecordPublish: &record},
-	}
-
-	err := r.conn.Send(&serverRecord)
-	if err != nil {
-		return
-	}
-}
-
-func (r *Run) logHistory(hproto *service.HistoryRecord) {
-	record := service.Record{
-		RecordType: &service.Record_History{History: hproto},
 		Control:    &service.Control{Local: true},
 		XInfo:      &service.XRecordInfo{StreamId: r.settings.GetRunId().GetValue()},
 	}
@@ -218,13 +201,6 @@ func (r *Run) LogPartialCommit() {
 
 func (r *Run) Log(data map[string]interface{}) {
 	r.LogPartial(data, true)
-}
-
-// TODO: might want to make this internal?
-func (r *Run) LogHistory(hproto *service.HistoryRecord) {
-	hproto.Step = &service.HistoryStep{Num: r.step}
-	r.step += 1
-	r.logHistory(hproto)
 }
 
 func (r *Run) sendExit() {

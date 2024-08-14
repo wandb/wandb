@@ -1,4 +1,4 @@
-package main
+package core
 
 import (
 	"sync"
@@ -21,8 +21,6 @@ func NewRunKeeper() *RunKeeper {
 }
 
 func (k *RunKeeper) Get(num int) *gowandb.Run {
-	k.mutex.Lock()
-	defer k.mutex.Unlock()
 	return k.runs[num]
 }
 
