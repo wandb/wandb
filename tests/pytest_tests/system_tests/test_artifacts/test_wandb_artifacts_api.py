@@ -95,27 +95,33 @@ def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api):
     artifact_filepath = tmp_path / "boom.txt"
     artifact_filepath.write_text("testing")
 
-    logged_tags = ["logged-tag"]  # Tags to assign when first logging the artifact
-    added_tags = ["added-tag"]  # Tags to add after the fact
+    orig_tags = ["orig-tag", "other-tag"]  # Initial tags on the logged artifact
+    to_delete = ["other-tag"]  # Tags to delete later on
+    to_add = ["added-tag"]  # Tags to add later on
 
     with wandb_init(entity=user, project=project) as run:
         artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
         artifact.add_file(str(artifact_filepath), "test-name")
 
         # Assign tags when logging
-        run.log_artifact(artifact, tags=logged_tags)
+        run.log_artifact(artifact, tags=orig_tags)
         artifact.wait()
 
-    # Add new tags later on
-    recovered_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+    # Add new tags after and outside the run
+    fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    recovered_artifact.tags.extend(added_tags)
-    recovered_artifact.save()
+    # Partial check that expected behavior is (reasonably) resilient to in-place mutations, not just reassignment,
+    # of the `.tags` list attribute.  Not ideal, but it's reasonable to expect some users might do this.
+    for added_tag in to_add:
+        fetched_artifact.tags.append(added_tag)
+    for deleted_tag in to_delete:
+        fetched_artifact.tags.remove(deleted_tag)
+    fetched_artifact.save()
 
     # fetch the final artifact and verify its tags
     final_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    assert set(final_artifact.tags) == {*logged_tags, *added_tags}
+    assert set(final_artifact.tags) == set(orig_tags + to_add) - set(to_delete)
 
     # Verify uniqueness, since tagCategories are currently unused/ignored
     assert len(set(final_artifact.tags)) == len(final_artifact.tags)
