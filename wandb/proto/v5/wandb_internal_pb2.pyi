@@ -687,18 +687,25 @@ class HistoryItem(google.protobuf.message.Message):
     KEY_FIELD_NUMBER: builtins.int
     NESTED_KEY_FIELD_NUMBER: builtins.int
     VALUE_JSON_FIELD_NUMBER: builtins.int
+    VALUE_DATA_FIELD_NUMBER: builtins.int
     key: builtins.str
     value_json: builtins.str
     @property
     def nested_key(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    @property
+    def value_data(self) -> global___DataValue:
+        """DataValue is experimental (using high proto ID)"""
+
     def __init__(
         self,
         *,
         key: builtins.str = ...,
         nested_key: collections.abc.Iterable[builtins.str] | None = ...,
         value_json: builtins.str = ...,
+        value_data: global___DataValue | None = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["key", b"key", "nested_key", b"nested_key", "value_json", b"value_json"]) -> None: ...
+    def HasField(self, field_name: typing.Literal["value_data", b"value_data"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["key", b"key", "nested_key", b"nested_key", "value_data", b"value_data", "value_json", b"value_json"]) -> None: ...
 
 global___HistoryItem = HistoryItem
 
@@ -711,6 +718,61 @@ class HistoryResult(google.protobuf.message.Message):
     ) -> None: ...
 
 global___HistoryResult = HistoryResult
+
+@typing.final
+class TensorData(google.protobuf.message.Message):
+    """
+    DataValue:
+
+    This is an experimental feature enabled with `require("datavalue")`
+    """
+
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    TENSOR_CONTENT_FIELD_NUMBER: builtins.int
+    META_STRING_FIELD_NUMBER: builtins.int
+    SHAPE_FIELD_NUMBER: builtins.int
+    tensor_content: builtins.bytes
+    meta_string: builtins.str
+    @property
+    def shape(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.int]: ...
+    def __init__(
+        self,
+        *,
+        tensor_content: builtins.bytes = ...,
+        meta_string: builtins.str = ...,
+        shape: collections.abc.Iterable[builtins.int] | None = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing.Literal["meta_string", b"meta_string", "shape", b"shape", "tensor_content", b"tensor_content"]) -> None: ...
+
+global___TensorData = TensorData
+
+@typing.final
+class DataValue(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    VALUE_INT_FIELD_NUMBER: builtins.int
+    VALUE_DOUBLE_FIELD_NUMBER: builtins.int
+    VALUE_STRING_FIELD_NUMBER: builtins.int
+    VALUE_TENSOR_FIELD_NUMBER: builtins.int
+    value_int: builtins.int
+    value_double: builtins.float
+    value_string: builtins.str
+    @property
+    def value_tensor(self) -> global___TensorData: ...
+    def __init__(
+        self,
+        *,
+        value_int: builtins.int = ...,
+        value_double: builtins.float = ...,
+        value_string: builtins.str = ...,
+        value_tensor: global___TensorData | None = ...,
+    ) -> None: ...
+    def HasField(self, field_name: typing.Literal["data_type", b"data_type", "value_double", b"value_double", "value_int", b"value_int", "value_string", b"value_string", "value_tensor", b"value_tensor"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing.Literal["data_type", b"data_type", "value_double", b"value_double", "value_int", b"value_int", "value_string", b"value_string", "value_tensor", b"value_tensor"]) -> None: ...
+    def WhichOneof(self, oneof_group: typing.Literal["data_type", b"data_type"]) -> typing.Literal["value_int", "value_double", "value_string", "value_tensor"] | None: ...
+
+global___DataValue = DataValue
 
 @typing.final
 class OutputRecord(google.protobuf.message.Message):

@@ -680,21 +680,22 @@ class HistoryItem(google.protobuf.message.Message):
 
     KEY_FIELD_NUMBER: builtins.int
     NESTED_KEY_FIELD_NUMBER: builtins.int
-    VALUE_DATA_FIELD_NUMBER: builtins.int
     VALUE_JSON_FIELD_NUMBER: builtins.int
+    VALUE_DATA_FIELD_NUMBER: builtins.int
     key: builtins.str
     @property
     def nested_key(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
-    @property
-    def value_data(self) -> global___DataValue: ...
     value_json: builtins.str
+    @property
+    def value_data(self) -> global___DataValue:
+        """DataValue is experimental (using high proto ID)"""
     def __init__(
         self,
         *,
         key: builtins.str = ...,
         nested_key: collections.abc.Iterable[builtins.str] | None = ...,
-        value_data: global___DataValue | None = ...,
         value_json: builtins.str = ...,
+        value_data: global___DataValue | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["value_data", b"value_data"]) -> builtins.bool: ...
     def ClearField(self, field_name: typing_extensions.Literal["key", b"key", "nested_key", b"nested_key", "value_data", b"value_data", "value_json", b"value_json"]) -> None: ...
@@ -715,6 +716,8 @@ global___HistoryResult = HistoryResult
 class TensorData(google.protobuf.message.Message):
     """
     DataValue:
+
+    This is an experimental feature enabled with `require("datavalue")`
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor

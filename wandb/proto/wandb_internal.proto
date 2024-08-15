@@ -227,14 +227,26 @@ message HistoryRecord {
 message HistoryItem {
   string key = 1;
   repeated string nested_key = 2;
-  DataValue value_data = 3;
   string value_json = 16;
+  DataValue value_data = 1000;  // DataValue is experimental (using high proto ID)
 }
 
 message HistoryResult {}
 
 /*
  * DataValue:
+ *
+ * This is an experimental feature enabled with `require("datavalue")`.
+ *
+ * The experiment is to avoid encoding data as json and instead to create
+ * native representations in the protobuffer. This includes media objects
+ * that can be represented as a tensor.
+ *
+ * This is experimental and could change in the future. It is captured as
+ * a Record so that the transaction log can be tested.
+ *
+ * Things that might change:
+ * - Large data might be better managed in the filesystem (safetensors?)
  */
 message TensorData {
   bytes tensor_content = 1;
