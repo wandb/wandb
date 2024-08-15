@@ -262,6 +262,7 @@ jobs:
         with:
           repository-url: https://test.pypi.org/legacy/
           verify-metadata: false
+          verbose: true
 
       # Unfortunately, there's no reliable way to do this.
       #
