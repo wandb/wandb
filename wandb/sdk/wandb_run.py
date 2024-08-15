@@ -1704,30 +1704,25 @@ class Run:
         [guide to logging tables](https://docs.wandb.ai/guides/data-vis/log-tables)
         for details.
 
-        Logging nested metrics is encouraged and is supported in the W&B UI.
-        When you log with a nested dictionary like `run.log({"train":
-        {"acc": 0.9}, "val": {"acc": 0.8}})`, the metrics are organized into
-        `train` and `val` sections in the W&B UI.
+        The W&B UI organizes metrics with a forward slash (`/`) in their name
+        into sections named using the text before the final slash. For example,
+        the following results in two sections named "train" and "validate":
+
+        ```
+        run.log({
+            "train/accuracy": 0.9,
+            "train/loss": 30,
+            "validate/accuracy": 0.8,
+            "validate/loss": 20,
+        })
+        ```
+
+        Only one level of nesting is supported; `run.log({"a/b/c": 1})`
+        produces a section named "a/b".
 
         `run.log` is not intended to be called more than a few times per second.
-        Instead, try logging once every N iterations, or collect data over multiple
-        iterations and log it in a single step.
-
-        ### Summary values
-
-        The UI shows summary values in the run overview page
-        and in the run table for comparison.
-        Summary values can be set directly by using the `summary` property:
-
-        ```
-        run.log({"train": {"loss": 100}})
-        run.log({"train": {"loss": 90}})
-        run.log({"train": {"loss": 98}})
-        run.summary["train"]["loss"] = 90
-        ```
-
-        See also [define_metric](https://docs.wandb.ai/ref/python/run#define_metric)
-        for more control over summary calculations.
+        For optimal performance, limit your logging to once every N iterations,
+        or collect data over multiple iterations and log it in a single step.
 
         ### The W&B step
 
@@ -1736,8 +1731,8 @@ class Run:
         to a previous step.
 
         Note that you can use any metric as the X axis in charts.
-        In many cases, it is better to think of the W&B step as
-        a sort of timestamp rather than a training step.
+        In many cases, it is better to treat the W&B step like
+        you'd treat a timestamp rather than a training step.
 
         ```
         # Example: log an "epoch" metric for use as an X axis.
