@@ -2,7 +2,6 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use std::ffi::OsStr;
 use sysinfo::{Pid, System};
 
 pub struct NvidiaGpu {
@@ -18,7 +17,7 @@ impl NvidiaGpu {
         // We follow go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
         // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
         let nvml = Nvml::builder()
-            .lib_path(OsStr::new("libnvidia-ml.so.1"))
+            .lib_path("libnvidia-ml.so.1".as_ref())
             .init()?;
         let cuda_version = nvml.sys_cuda_driver_version()?;
         format!(
