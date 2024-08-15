@@ -724,7 +724,17 @@ class TensorData(google.protobuf.message.Message):
     """
     DataValue:
 
-    This is an experimental feature enabled with `require("datavalue")`
+    This is an experimental feature enabled with `require("datavalue")`.
+
+    The experiment is to avoid encoding data as json and instead to create
+    native representations in the protobuffer. This includes media objects
+    that can be represented as a tensor.
+
+    This is experimental and could change in the future. It is captured as
+    a Record so that the transaction log can be tested.
+
+    Things that might change:
+    - Large data might be better managed in the filesystem (safetensors?)
     """
 
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
