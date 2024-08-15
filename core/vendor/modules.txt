@@ -205,13 +205,9 @@ github.com/skeema/knownhosts
 github.com/spf13/afero
 github.com/spf13/afero/internal/common
 github.com/spf13/afero/mem
-# github.com/stretchr/objx v0.5.2
-## explicit; go 1.20
-github.com/stretchr/objx
 # github.com/stretchr/testify v1.9.0
 ## explicit; go 1.17
 github.com/stretchr/testify/assert
-github.com/stretchr/testify/mock
 github.com/stretchr/testify/require
 # github.com/tklauser/go-sysconf v0.3.14
 ## explicit; go 1.18

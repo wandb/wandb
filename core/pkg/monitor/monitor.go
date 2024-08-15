@@ -105,6 +105,7 @@ type SystemMonitor struct {
 	// The wait group for the system monitor
 	wg sync.WaitGroup
 
+	// The state of the system monitor: stopped, running, or paused
 	state atomic.Int32
 
 	// The list of assets to monitor
@@ -197,15 +198,17 @@ func New(
 	return systemMonitor
 }
 
+// SetAssets sets the list of assets to be monitored.
 func (sm *SystemMonitor) SetAssets(assets []Asset) {
 	sm.assets = assets
 }
 
-// GetState returns the current state of the SystemMonitor
+// GetState returns the current state of the SystemMonitor.
 func (sm *SystemMonitor) GetState() int32 {
 	return sm.state.Load()
 }
 
+// probe gathers system information from all assets.
 func (sm *SystemMonitor) probe() *service.MetadataRequest {
 	systemInfo := service.MetadataRequest{}
 	for _, asset := range sm.assets {
@@ -231,6 +234,9 @@ const (
 	StatePaused
 )
 
+// Start begins the monitoring process for all assets and probes the system information.
+//
+// Only a stopped monitor can be started. It's safe to call multiple times.
 func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
@@ -259,18 +265,31 @@ func (sm *SystemMonitor) Start() {
 	}()
 }
 
+// NOTE: Pause and Resume are used in notebook environments to ensure that
+// metrics are only collected when a cell is running. We do it this way
+// as opposed to stopping and starting the monitor to prevent the overhead of
+// starting and stopping the monitor for each cell.
+
+// Pause temporarily stops the monitoring process.
+//
+// Monitoring can be resumed later with the Resume method.
 func (sm *SystemMonitor) Pause() {
 	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
 		sm.logger.Info("Pausing system monitor")
 	}
 }
 
+// Resume restarts the monitoring process after it has been paused.
 func (sm *SystemMonitor) Resume() {
 	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
 		sm.logger.Info("Resuming system monitor")
 	}
 }
 
+// Monitor starts the monitoring process for a single asset.
+//
+// It handles sampling, aggregation, and reporting of metrics
+// and is meant to run in its own goroutine.
 func (sm *SystemMonitor) Monitor(asset Asset) {
 	if !asset.IsAvailable() {
 		sm.wg.Done()
@@ -337,6 +356,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 
 }
 
+// GetBuffer returns the current buffer of collected metrics.
 func (sm *SystemMonitor) GetBuffer() map[string]List {
 	if sm == nil || sm.buffer == nil {
 		return nil
@@ -346,6 +366,9 @@ func (sm *SystemMonitor) GetBuffer() map[string]List {
 	return sm.buffer.elements
 }
 
+// Finish stops the monitoring process and performs necessary cleanup.
+//
+// NOTE: asset.Close is a potentially expensive operation.
 func (sm *SystemMonitor) Finish() {
 	if sm == nil || sm.cancel == nil {
 		return
