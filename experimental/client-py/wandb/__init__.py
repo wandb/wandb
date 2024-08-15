@@ -276,7 +276,7 @@ class Run:
         log_dir = sync_dir / "logs"
         files_dir = sync_dir / "files"
 
-        settings.base_url.value = "http://localhost:8080"
+        settings.base_url.value = os.getenv("WANDB_BASE_URL", "https://api.wandb.ai")
         settings.run_id.value = run_id
         settings.sync_dir.value = str(sync_dir)
         settings.sync_file.value = str(sync_dir / ("run-" + run_id + ".wandb"))
