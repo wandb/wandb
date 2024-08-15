@@ -10,11 +10,11 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"image"
 	"image/color"
 	"image/png"
 
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -118,7 +118,7 @@ func dataValueConvert(hrecord *service.HistoryRecord, filesPath string) (*servic
 					Sha256: hash,
 					Path:   fname,
 				}
-				jsonString, err := simplejsonext.Marshal(media)
+				jsonString, err := json.Marshal(media)
 				if err != nil {
 					return nil, nil, err
 				}
