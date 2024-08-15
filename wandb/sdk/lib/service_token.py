@@ -79,7 +79,7 @@ def put_service_token(parent_pid: int, transport: str, host: str, port: int) -> 
 
 def clear_service_token() -> None:
     """Clears the environment variable storing the service token."""
-    os.environ[env.SERVICE] = ""
+    os.environ.pop(env.SERVICE, None)
 
 
 @dataclasses.dataclass(frozen=True)

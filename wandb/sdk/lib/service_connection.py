@@ -1,6 +1,6 @@
 import atexit
 import os
-from typing import Optional
+from typing import Callable, Optional
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
@@ -69,10 +69,14 @@ def _start_and_connect_service(
         port=port,
     )
 
-    conn = ServiceConnection(client=client, proc=proc)
-
     def teardown_atexit():
         conn.teardown(hooks.exit_code)
+
+    conn = ServiceConnection(
+        client=client,
+        proc=proc,
+        cleanup=lambda: atexit.unregister(teardown_atexit),
+    )
 
     hooks = ExitHooks()
     hooks.hook()
@@ -84,9 +88,22 @@ def _start_and_connect_service(
 class ServiceConnection:
     """A connection to the W&B internal service process."""
 
-    def __init__(self, client: "SockClient", proc: "Optional[service._Service]"):
+    def __init__(
+        self,
+        client: "SockClient",
+        proc: "Optional[service._Service]",
+        cleanup: "Optional[Callable[[], None]]",
+    ):
+        """Returns a new ServiceConnection.
+
+        Args:
+            client: A socket that's connected to the service.
+            proc: The service process if we own it, or None otherwise.
+            cleanup: A callback to run on teardown before doing anything.
+        """
         self._client = client
         self._proc = proc
+        self._cleanup = cleanup
 
     def make_interface(self, mailbox: "Mailbox") -> "InterfaceBase":
         """Returns an interface for communicating with the service."""
@@ -135,7 +152,7 @@ class ServiceConnection:
         self._client.send(inform_start=request)
 
     def teardown(self, exit_code: int) -> int:
-        """Shut downs down the service process and returns its exit code.
+        """Shuts down down the service process and returns its exit code.
 
         This may only be called once.
 
@@ -150,6 +167,9 @@ class ServiceConnection:
             raise WandbServiceNotOwnedError(
                 "Cannot tear down service started by different process",
             )
+
+        if self._cleanup:
+            self._cleanup()
 
         # Clear the service token to prevent new connections from being made.
         service_token.clear_service_token()
