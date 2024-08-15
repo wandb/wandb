@@ -6,7 +6,7 @@ path = "hatch_build.py"
 
 [build]
 include = [
-    "wandb/**/*.pyi",
+    "wandb/__init__.pyi",
     "wandb/py.typed",
     "package_readme.md",
     "wandb/**/*.py",
@@ -22,7 +22,7 @@ include = [
     "package_readme.md",
     "wandb/__init__.pyi",
     "wandb/**/*.py",
-    "wandb/**/*.pyi",
+    "wandb/__init__.pyi",
     "wandb/**/*.sh",
 ]
 exclude = ["tests/"]
