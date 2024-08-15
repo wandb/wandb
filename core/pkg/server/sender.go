@@ -7,18 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-
 	"strings"
-
-	// add below
-	// -       "bytes"
-	// -       "crypto/sha256"
-	// -       "encoding/hex"
-	// -       "image"
-	// -       "image/color"
-	// -       "image/png"
-
-	// exp:media "github.com/wandb/simplejsonext"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
