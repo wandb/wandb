@@ -199,7 +199,9 @@ func NewSender(
 			FileStreamOrNil:   params.FileStream,
 		}),
 	}
-
+	if s.settings.GetExperimentDataValue().GetValue() {
+		s.useExperimentDataValue = true
+	}
 	backendOrNil := params.Backend
 	if !s.settings.GetXOffline().GetValue() && backendOrNil != nil && !s.settings.GetDisableJobCreation().GetValue() {
 		s.jobBuilder = launch.NewJobBuilder(s.settings, s.logger, false)

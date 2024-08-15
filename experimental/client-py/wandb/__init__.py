@@ -289,6 +289,7 @@ class Run:
         settings._file_transfer_retry_max.value = 20
         settings._file_transfer_retry_wait_min_seconds.value = 2
         settings._file_transfer_retry_wait_max_seconds.value = 60
+        settings._require_datavalue.value = True
 
         os.makedirs(sync_dir)
         os.makedirs(log_dir)

@@ -41,7 +41,7 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 173
+// Next ID: 174
 message Settings {
   reserved 12, 94;
 
@@ -91,6 +91,9 @@ message Settings {
 
   // Indicate whether wandb-core is to be used.
   google.protobuf.BoolValue _require_core = 36;
+
+  // Indicate whether datavalue experiment is to be used.
+  google.protobuf.BoolValue _require_datavalue = 173;
 
   // Path to file containing an identity token for authentication.
   google.protobuf.StringValue identity_token_file = 170;
