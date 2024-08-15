@@ -199,7 +199,7 @@ func NewSender(
 			FileStreamOrNil:   params.FileStream,
 		}),
 	}
-	if s.settings.GetExperimentDataValue().GetValue() {
+	if s.settings.GetXRequireDataValue().GetValue() {
 		s.useExperimentDataValue = true
 	}
 	backendOrNil := params.Backend
