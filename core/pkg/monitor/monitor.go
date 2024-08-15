@@ -265,14 +265,14 @@ func (sm *SystemMonitor) Start() {
 	}()
 }
 
-// NOTE: Pause and Resume are used in notebook environments to ensure that
-// metrics are only collected when a cell is running. We do it this way
-// as opposed to stopping and starting the monitor to prevent the overhead of
-// starting and stopping the monitor for each cell.
-
 // Pause temporarily stops the monitoring process.
 //
 // Monitoring can be resumed later with the Resume method.
+//
+// Pause and Resume are used in notebook environments to ensure that
+// metrics are only collected when a cell is running. We do it this way
+// as opposed to stopping and starting the monitor to prevent the overhead of
+// starting and stopping the monitor for each cell.
 func (sm *SystemMonitor) Pause() {
 	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
 		sm.logger.Info("Pausing system monitor")
