@@ -22,6 +22,8 @@ jobs:
   prepare-release:
     name: Prepare release (${{ inputs.version }})
     runs-on: ubuntu-20.04
+    outputs:
+      test_pypi_version: ${{ steps.set_test_pypi_version.outputs.test_pypi_version }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,6 +49,13 @@ jobs:
       - name: Bump Version
         run: |
           bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
+
+      - name: Set TestPyPI Version
+        id: set_test_pypi_version
+        run: |
+          TIMESTAMP=$(date +'%Y%m%d%H%M%S')
+          TEST_PYPI_VERSION="${{ github.event.inputs.version }}.dev${TIMESTAMP}"
+          echo "test_pypi_version=${TEST_PYPI_VERSION}" >> $GITHUB_OUTPUT
 
       - name: Update CHANGELOG.md
         if: ${{ inputs.update-changelog }}
@@ -217,7 +226,7 @@ jobs:
 
   test-pypi-publish:
     name: Publish to TestPyPI
-    needs: [build-platform-wheels, build-universal-wheel, build-sdist]
+    needs: [prepare-release, build-platform-wheels, build-universal-wheel, build-sdist]
     continue-on-error: true
     runs-on: ubuntu-latest
     environment:
@@ -237,6 +246,21 @@ jobs:
           name: wandb-sdk-distributions
           path: dist/
 
+      - name: Update version in wheel files
+        run: |
+          pip install wheel
+          for wheel in dist/*.whl; do
+            wheel tags --wheel-dir=dist-updated --build-number=${{ needs.prepare-release.outputs.test_pypi_version }} $wheel
+          done
+          mv dist-updated/* dist/
+
+      - name: Update version in sdist
+        run: |
+          tar -xzf dist/*.tar.gz -C dist/
+          sed -i 's/version = "${{ github.event.inputs.version }}"/version = "${{ needs.prepare-release.outputs.test_pypi_version }}"/' dist/wandb-*/setup.cfg
+          tar -czf dist/wandb-${{ needs.prepare-release.outputs.test_pypi_version }}.tar.gz -C dist wandb-*/
+          rm -rf dist/wandb-*/
+
       - name: List distribution
         run: ls dist/
 
@@ -255,7 +279,7 @@ jobs:
         run: sleep 60
 
   verify-test-pypi:
-    needs: test-pypi-publish
+    needs: [prepare-release, test-pypi-publish]
     name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
 
     runs-on: ${{ matrix.os }}
@@ -280,7 +304,7 @@ jobs:
         run: |
           python -m pip install \
             --extra-index-url https://test.pypi.org/simple/ \
-            wandb==${{ github.event.inputs.version }}
+            wandb==${{ needs.prepare-release.outputs.test_pypi_version }}
 
       - name: Smoke-test wandb
         shell: bash
@@ -290,7 +314,7 @@ jobs:
           python -c "import wandb; run = wandb.init(); run.finish()"
 
   verify-test-pypi-sdist:
-    needs: test-pypi-publish
+    needs: [prepare-release, test-pypi-publish]
     name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -309,7 +333,7 @@ jobs:
           python -m pip install \
             --no-binary wandb \
             --extra-index-url https://test.pypi.org/simple/ \
-            wandb==${{ github.event.inputs.version }}
+            wandb==${{ needs.prepare-release.outputs.test_pypi_version }}
 
       - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
         shell: bash
