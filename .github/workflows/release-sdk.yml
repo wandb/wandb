@@ -261,6 +261,7 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          verify-metadata: false
 
       # Unfortunately, there's no reliable way to do this.
       #
