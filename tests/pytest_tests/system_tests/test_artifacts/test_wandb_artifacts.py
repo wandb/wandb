@@ -13,7 +13,6 @@ import responses
 import wandb
 import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
-from google.cloud.storage import Blob, Bucket
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
@@ -121,8 +120,12 @@ def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True)
         def reload(self, *args, **kwargs):
             return
 
-        def get_blob(self, *args, **kwargs):
-            return None if path else Blob(generation=kwargs.get("generation"))
+        def get_blob(self, key=override_blob_name, *args, **kwargs):
+            return (
+                None
+                if path or key != override_blob_name
+                else Blob(generation=kwargs.get("generation"))
+            )
 
         def list_blobs(self, *args, **kwargs):
             return [Blob(), Blob(name="my_other_object.pb")]
@@ -784,21 +787,18 @@ def test_add_gs_reference_object_no_md5():
 def test_add_gs_reference_with_dir_paths():
     artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
     mock_gcs(artifact, override_blob_name="my_folder/")
-    artifact.add_reference("gs://my-bucket/my_object.pb")
+    artifact.add_reference("gs://my-bucket/my_folder/")
 
     assert len(artifact.manifest.entries) == 0
 
 
-def test_load_gs_reference_with_dir_paths(monkeypatch):
-    def fake_get_blob(self, key: str, **_) -> Optional[Blob]:
-        if key.endswith("/"):
-            return Blob(name=key, bucket="my-bucket")
-        else:
-            return None
-
-    monkeypatch.setattr(Bucket, "get_blob", fake_get_blob)
+def test_load_gs_reference_with_dir_paths():
+    artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
+    mock = mock_gcs(artifact, override_blob_name="my_folder/")
+    artifact.add_reference("gs://my-bucket/my_folder/")
 
     gcs_handler = GCSHandler()
+    gcs_handler._client = mock
 
     # simple case where ref ends with "/"
     simple_entry = ArtifactManifestEntry(
