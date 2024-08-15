@@ -130,7 +130,8 @@ jobs:
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
           CIBW_SKIP: cp36-* pp* *musllinux*
-          CIBW_ARCHS_LINUX: x86_64 aarch64
+          # CIBW_ARCHS_LINUX: x86_64 aarch64  # TODO: FIXME, this is just for testing!!!
+          CIBW_ARCHS_LINUX: x86_64
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
