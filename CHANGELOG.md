@@ -15,6 +15,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Allow `define_metric("x", step_metric="x")` when using core (@timoffex in https://github.com/wandb/wandb/pull/8107)
 - Correctly upload empty files when using core (@timoffex in https://github.com/wandb/wandb/pull/8109)
+- Fix occasional "send on closed channel" panic when finishing a run using core (@timoffex in https://github.com/wandb/wandb/pull/8140)
 
 ## [0.17.6] - 2024-08-08
 
