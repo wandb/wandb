@@ -73,6 +73,8 @@ def setup(args):
         os.environ["WANDB__REQUIRE_CORE"] = "true"
     elif args.core == "false":
         os.environ["WANDB__REQUIRE_CORE"] = "false"
+    if args.require_datavalue == "true":
+        os.environ["WANDB__REQUIRE_DATAVALUE"] = "true"
 
 
 def teardown(args):
@@ -118,6 +120,7 @@ def main():
         "--mode", type=str, default="online", choices=("online", "offline")
     )
     parser.add_argument("--core", type=str, default="", choices=("true", "false"))
+    parser.add_argument("--require_datavalue", type=str, default="", choices=("true", "false"))
     parser.add_argument("--use-spawn", action="store_true")
 
     args = parser.parse_args()

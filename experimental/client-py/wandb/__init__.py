@@ -3,6 +3,7 @@
 __version__ = "0.0.1.dev1+exp.py"
 
 import datetime
+import sys
 import os
 import pathlib
 import secrets
@@ -10,11 +11,6 @@ import string
 import threading
 import time
 from typing import TYPE_CHECKING
-
-# TODO(experimental): remove old json support
-USE_DATAVALUE = os.getenv("_WANDB_EXPERIMENT_DATAVALUE", False)
-if not USE_DATAVALUE:
-    import json
 
 if TYPE_CHECKING:
     from typing import Any, List, Optional
@@ -120,6 +116,7 @@ class Run:
         self._session = _session
         self._run_nexus_id = None
         self._step = 0
+        self._require_datavalue = False
 
     def __enter__(self):
         return self
@@ -132,9 +129,13 @@ class Run:
         return self._session._api
 
     def log(self, data):
-        if USE_DATAVALUE:
+        if self._require_datavalue:
             self._log_datavalue(data)
             return
+
+        # only import this if we are not using datavalue experiment
+        import json
+
         record = pb2.Record()
         request = pb2.Request()
         msg = pb2.PartialHistoryRequest()
@@ -289,7 +290,10 @@ class Run:
         settings._file_transfer_retry_max.value = 20
         settings._file_transfer_retry_wait_min_seconds.value = 2
         settings._file_transfer_retry_wait_max_seconds.value = 60
-        settings._require_datavalue.value = True
+        require_datavalue = os.environ.get("WANDB__REQUIRE_DATAVALUE", "false")
+        if require_datavalue.lower() in {"true", "1"}:
+            self._require_datavalue = True
+            settings._require_datavalue.value = True
 
         os.makedirs(sync_dir)
         os.makedirs(log_dir)
@@ -365,8 +369,24 @@ default_session = new_session()
 # ---
 
 
-def require(_):
-    pass
+def _error(error_string):
+    print(f"ERROR: {error_string}", file=sys.stderr)
+
+
+def require(requirement = None, experiment = None):
+    known_features = {"core", "datavalue"}
+    features = requirement or experiment
+    if not features:
+        return
+    features_seq = (tuple([features]) if isinstance(features, str) else tuple(features))
+    for feat in features_seq:
+        feat1 = feat.split("@", 2)[0]
+        feat2 = feat1.split(":", 2)[0]
+        if feat2 not in known_features:
+            _error(f"wandb.require: unknown requirement '{feat2}'")
+            return
+        if feat == "datavalue":
+            os.setenv("WANDB__REQUIRE_DATAVALUE", "true")
 
 
 def setup():

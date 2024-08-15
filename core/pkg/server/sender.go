@@ -199,6 +199,7 @@ func NewSender(
 			FileStreamOrNil:   params.FileStream,
 		}),
 	}
+
 	if s.settings.GetXRequireDatavalue().GetValue() {
 		s.useExperimentDataValue = true
 	}
