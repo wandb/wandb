@@ -209,6 +209,35 @@ impl NvidiaGpu {
             // Not reported to the backend, but could be useful for debugging
             // and may be added in the future.
 
+            let sm_clock = device.clock_info(Clock::SM)?;
+            metrics.add_metric(&format!("_gpu.{}.smClock", di), sm_clock);
+
+            let mem_clock = device.clock_info(Clock::Memory)?;
+            metrics.add_metric(&format!("_gpu.{}.memoryClock", di), mem_clock);
+
+            let graphics_clock = device.clock_info(Clock::Graphics)?;
+            metrics.add_metric(&format!("_gpu.{}.graphicsClock", di), graphics_clock);
+
+            // nvmlDeviceGetMemoryErrorCounter
+            let corrected_memory_errors = device.memory_error_counter(
+                nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
+                nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
+            )?;
+            metrics.add_metric(
+                &format!("_gpu.{}.correctedMemoryErrors", di),
+                corrected_memory_errors,
+            );
+            let uncorrected_memory_errors = device.memory_error_counter(
+                nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
+                nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
+            )?;
+            metrics.add_metric(
+                &format!("_gpu.{}.uncorrectedMemoryErrors", di),
+                uncorrected_memory_errors,
+            );
+
             let brand = device.brand()?;
             metrics.add_metric(&format!("_gpu.{}.brand", di), format!("{:?}", brand));
 
@@ -222,12 +251,6 @@ impl NvidiaGpu {
                     encoder_util.utilization,
                 );
             }
-
-            let graphics_clock = device.clock_info(Clock::Graphics)?;
-            metrics.add_metric(&format!("_gpu.{}.graphicsClock", di), graphics_clock);
-
-            let mem_clock = device.clock_info(Clock::Memory)?;
-            metrics.add_metric(&format!("_gpu.{}.memoryClock", di), mem_clock);
 
             let link_gen = device.current_pcie_link_gen()?;
             metrics.add_metric(&format!("_gpu.{}.pcieLinkGen", di), link_gen);
