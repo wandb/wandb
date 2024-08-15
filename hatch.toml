@@ -22,7 +22,6 @@ include = [
     "package_readme.md",
     "wandb/__init__.pyi",
     "wandb/**/*.py",
-    "wandb/__init__.pyi",
     "wandb/**/*.sh",
 ]
 exclude = ["tests/"]
