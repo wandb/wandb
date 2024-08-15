@@ -81,9 +81,7 @@ class StreamRecord:
         self._wait_thread_active()
 
     def _wait_thread_active(self) -> None:
-        result = self._iface.communicate_status()
-        # TODO: using the default communicate timeout, is that enough? retries?
-        assert result
+        self._iface.deliver_status().wait(timeout=-1)
 
     def join(self) -> None:
         self._iface.join()
@@ -212,7 +210,7 @@ class StreamMux:
         # run_id = action.stream_id  # will want to fix if a streamid != runid
         settings = action._data
         thread = StreamThread(
-            target=wandb.wandb_sdk.internal.internal.wandb_internal,
+            target=wandb.wandb_sdk.internal.internal.wandb_internal,  # type: ignore
             kwargs=dict(
                 settings=settings,
                 record_q=stream._record_q,

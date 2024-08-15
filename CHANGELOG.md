@@ -11,12 +11,21 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.7] - 2024-08-15
+
+### Fixed
+
+- Ensure Nvidia GPU metrics are captured if `libnvidia-ml.so` is unavailable when using core (@dmitryduev in https://github.com/wandb/wandb/pull/8138)
+- Allow `define_metric("x", step_metric="x")` when using core (@timoffex in https://github.com/wandb/wandb/pull/8107)
+- Correctly upload empty files when using core (@timoffex in https://github.com/wandb/wandb/pull/8109)
+- Fix occasional "send on closed channel" panic when finishing a run using core (@timoffex in https://github.com/wandb/wandb/pull/8140)
+
 ## [0.17.6] - 2024-08-08
 
 ### Added
 
-- Specify job input schemas when calling manage_config_file or manage_wandb_config to create a nicer UI when launching the job, by @TimH98 in https://github.com/wandb/wandb/pull/7907, https://github.com/wandb/wandb/pull/7924, https://github.com/wandb/wandb/pull/7971
-- Use the filesystem rather than protobuf messages to transport manifests with more than 100k entries to the core process @moredatarequired https://github.com/wandb/wandb/pull/7992
+- Specify job input schemas when calling manage_config_file or manage_wandb_config to create a nicer UI when launching the job (@TimH98 in https://github.com/wandb/wandb/pull/7907, https://github.com/wandb/wandb/pull/7924, https://github.com/wandb/wandb/pull/7971)
+- Use the filesystem rather than protobuf messages to transport manifests with more than 100k entries to the core process (@moredatarequired in https://github.com/wandb/wandb/pull/7992)
 - Adds the `box3d` constructor for `Box3D` (@timoffex in https://github.com/wandb/wandb/pull/8086)
 
 ### Changed
@@ -27,18 +36,15 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
-- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled @marijncv https://github.com/wandb/wandb/pull/7876
-- Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
-
-### Fixed
-
+- Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled (@marijncv in https://github.com/wandb/wandb/pull/7876)
 - Docstring in `api.runs()` regarding default sort order, missed in https://github.com/wandb/wandb/pull/7675 (@fellhorn in https://github.com/wandb/wandb/pull/8063)
+- Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ## [0.17.5] - 2024-07-19
 
 ### Added
 
-- When using wandb-core, support multipart uploads to S3 @moredatarequired https://github.com/wandb/wandb/pull/7659
+- When using wandb-core, support multipart uploads to S3 (@moredatarequired in https://github.com/wandb/wandb/pull/7659)
 
 ### Changed
 
@@ -47,29 +53,29 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
-- Handle `path_prefix`es that don't correspond to directory names when downloading artifacts by @moredatarequired in https://github.com/wandb/wandb/pull/7721
-- Fix creating or updating an artifact with the `incremental=True` flag by @amusipatla-wandb in https://github.com/wandb/wandb/pull/7939
-- Use filled resource_arg macros when submitting W&B Launch jobs to AmazonSageMaker by @KyleGoyette https://github.com/wandb/wandb/pull/7993
+- Handle `path_prefix`es that don't correspond to directory names when downloading artifacts (@moredatarequired in https://github.com/wandb/wandb/pull/7721)
+- Fix creating or updating an artifact with the `incremental=True` flag (@amusipatla-wandb in https://github.com/wandb/wandb/pull/7939)
+- Use filled resource_arg macros when submitting W&B Launch jobs to AmazonSageMaker (@KyleGoyette in https://github.com/wandb/wandb/pull/7993)
 
 ## [0.17.4] - 2024-07-03
 
 ### Added
 
-- Support queue template variables in launch sweep scheduler jobs @KyleGoyette https://github.com/wandb/wandb/pull/7787
+- Support queue template variables in launch sweep scheduler jobs (@KyleGoyette in https://github.com/wandb/wandb/pull/7787)
 
 ### Fixed
 
 - Use `sys.exit()` instead of `os._exit()` if an internal subprocess exits with a non-zero code (@timoffex in https://github.com/wandb/wandb/pull/7866)
 - Fix an occasional race condition when using `core` that could affect run logs (@timoffex in https://github.com/wandb/wandb/pull/7889)
-- Fix OSError on `Artifact.download(skip_cache=True)` when encountering different filesystems by @tonyyli-wandb in https://github.com/wandb/wandb/pull/7835
+- Fix OSError on `Artifact.download(skip_cache=True)` when encountering different filesystems (@tonyyli-wandb in https://github.com/wandb/wandb/pull/7835)
 
 ## [0.17.3] - 2024-06-24
 
 ### Fixed
 
-- Correctly name the netrc file on Windows as `_netrc` by @dmitryduev in https://github.com/wandb/wandb/pull/7844
+- Correctly name the netrc file on Windows as `_netrc` (@dmitryduev in https://github.com/wandb/wandb/pull/7844)
 - With core enabled, nested `tqdm` bars show up correctly in the Logs tab (@timoffex in https://github.com/wandb/wandb/pull/7825)
-- Fix W&B Launch registry ECR regex separating tag on forward slash and period @KyleGoyette https://github.com/wandb/wandb/pull/7837
+- Fix W&B Launch registry ECR regex separating tag on forward slash and period (@KyleGoyette in https://github.com/wandb/wandb/pull/7837)
 
 ## [0.17.2] - 2024-06-17
 

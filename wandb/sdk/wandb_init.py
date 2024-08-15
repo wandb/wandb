@@ -265,7 +265,7 @@ class _WandbInit:
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
-            wandb.gym.monitor()
+            wandb.gym.monitor()  # type: ignore
 
         if wandb.patched["tensorboard"]:
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
@@ -274,7 +274,7 @@ class _WandbInit:
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
         if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
-            wandb.tensorboard.patch()
+            wandb.tensorboard.patch()  # type: ignore
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_sync = True
 
@@ -462,7 +462,7 @@ class _WandbInit:
 
     def _jupyter_setup(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
-        self.notebook = wandb.jupyter.Notebook(settings)
+        self.notebook = wandb.jupyter.Notebook(settings)  # type: ignore
         ipython = self.notebook.shell
 
         # Monkey patch ipython publish to capture displayed outputs
@@ -536,7 +536,7 @@ class _WandbInit:
         """
         drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
         # config and summary objects
-        drun._config = wandb.wandb_sdk.wandb_config.Config()
+        drun._config = wandb.sdk.wandb_config.Config()
         drun._config.update(self.sweep_config)
         drun._config.update(self.config)
         drun.summary = SummaryDisabled()  # type: ignore
@@ -544,9 +544,7 @@ class _WandbInit:
         drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
         drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
         drun.join = drun.finish  # type: ignore
-        drun.define_metric = lambda *_, **__: wandb.wandb_sdk.wandb_metric.Metric(
-            "dummy"
-        )  # type: ignore
+        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore
         drun.save = lambda *_, **__: False  # type: ignore
         for symbol in (
             "alert",
@@ -918,7 +916,7 @@ def _attach(
         raise UsageError(
             "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
         )
-    wandb._assert_is_user_process()
+    wandb._assert_is_user_process()  # type: ignore
 
     _wl = wandb_setup._setup()
     assert _wl
@@ -1207,7 +1205,7 @@ def init(
     Returns:
         A `Run` object.
     """
-    wandb._assert_is_user_process()
+    wandb._assert_is_user_process()  # type: ignore
 
     kwargs = dict(locals())
 

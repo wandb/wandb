@@ -10,7 +10,7 @@ def _find_available(
 ) -> Optional[Tuple[str, bool, bool, bool, Optional[str]]]:
     from wandb.util import parse_version
 
-    pypi_url = f"https://pypi.org/pypi/{wandb._wandb_module}/json"
+    pypi_url = "https://pypi.org/pypi/wandb/json"
 
     yanked_dict = {}
     try:
@@ -78,7 +78,7 @@ def check_available(current_version: str) -> Optional[Dict[str, Optional[str]]]:
     if not package_info:
         return None
 
-    wandb_module_name = wandb._wandb_module
+    wandb_module_name = "wandb"
 
     latest_version, pip_prerelease, deleted, yanked, yanked_reason = package_info
     upgrade_message = (
