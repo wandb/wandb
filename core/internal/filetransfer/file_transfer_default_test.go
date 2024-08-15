@@ -41,9 +41,11 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	)
 
 	// Mocking task
-	task := &filetransfer.Task{
-		Path: "test-download-file.txt",
-		Url:  mockServer.URL,
+	task := &filetransfer.DefaultDownloadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path: "test-download-file.txt",
+			Url:  mockServer.URL,
+		},
 	}
 	defer os.Remove(task.Path)
 
@@ -107,11 +109,12 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer os.Remove(filename)
 
 	// Mocking task
-	task := &filetransfer.Task{
-		Type:    filetransfer.UploadTask,
-		Path:    filename,
-		Url:     mockServer.URL,
-		Headers: headers,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path:    filename,
+			Url:     mockServer.URL,
+			Headers: headers,
+		},
 	}
 
 	// Performing the upload
@@ -144,12 +147,13 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type:   filetransfer.UploadTask,
-		Path:   tempFile.Name(),
-		Url:    server.URL,
-		Offset: 5,
-		Size:   7,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path:   tempFile.Name(),
+			Url:    server.URL,
+			Offset: 5,
+			Size:   7,
+		},
 	}
 
 	err = ft.Upload(task)
@@ -176,12 +180,13 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type:   filetransfer.UploadTask,
-		Path:   tempFile.Name(),
-		Url:    server.URL,
-		Offset: 17,
-		Size:   1000,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path:   tempFile.Name(),
+			Url:    server.URL,
+			Offset: 17,
+			Size:   1000,
+		},
 	}
 
 	err = ft.Upload(task)
@@ -232,11 +237,12 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	err = ft.Upload(&filetransfer.Task{
-		Type:    filetransfer.UploadTask,
-		Path:    tempFile.Name(),
-		Url:     server.URL,
-		Context: ctx,
+	err = ft.Upload(&filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path:    tempFile.Name(),
+			Url:     server.URL,
+			Context: ctx,
+		},
 	})
 
 	assert.Error(t, err)
@@ -257,10 +263,11 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type: filetransfer.UploadTask,
-		Path: tempFile.Name(),
-		Url:  server.URL,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path: tempFile.Name(),
+			Url:  server.URL,
+		},
 	}
 
 	// Close the server before the upload begins.
@@ -289,10 +296,11 @@ func uploadToServerWithHandler(
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type: filetransfer.UploadTask,
-		Path: tempFile.Name(),
-		Url:  server.URL,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			Path: tempFile.Name(),
+			Url:  server.URL,
+		},
 	}
 
 	return ft.Upload(task)

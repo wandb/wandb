@@ -290,8 +290,8 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
-				task.SetCompletionCallback(func(t *filetransfer.Task) {
-					doneChan <- uploadResult{name: fileInfo.name, err: t.Err}
+				task.SetCompletionCallback(func(t filetransfer.Task) {
+					doneChan <- uploadResult{name: fileInfo.name, err: t.GetErr()}
 				})
 				as.FileTransferManager.AddTask(task)
 			}
@@ -367,14 +367,15 @@ func (as *ArtifactSaver) batchSize() int {
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
 
-func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.Task {
-	return &filetransfer.Task{
-		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
-		Path:     localPath,
-		Name:     fileInfo.name,
-		Url:      *fileInfo.uploadUrl,
-		Headers:  fileInfo.uploadHeaders,
+func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.DefaultUploadTask {
+	return &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			FileKind: filetransfer.RunFileKindArtifact,
+			Path:     localPath,
+			Name:     fileInfo.name,
+			Url:      *fileInfo.uploadUrl,
+			Headers:  fileInfo.uploadHeaders,
+		},
 	}
 }
 
@@ -439,7 +440,7 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	type partResponse struct {
 		partNumber int64
-		task       *filetransfer.Task
+		task       filetransfer.Task
 	}
 
 	wg := sync.WaitGroup{}
@@ -467,7 +468,7 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Length:" + strconv.FormatInt(task.Size, 10),
 			"Content-Type:" + contentType,
 		}
-		task.SetCompletionCallback(func(t *filetransfer.Task) {
+		task.SetCompletionCallback(func(t filetransfer.Task) {
 			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: t}
 			wg.Done()
 		})
@@ -483,19 +484,24 @@ func (as *ArtifactSaver) uploadMultipart(
 	partEtags := make([]gql.UploadPartsInput, len(partData))
 
 	for t := range partResponses {
-		err := t.task.Err
+		uploadTask, ok := t.task.(*filetransfer.DefaultUploadTask)
+		if !ok {
+			err = fmt.Errorf("received unexpected task type %v", t.task.String())
+			return uploadResult{name: fileInfo.name, err: err}
+		}
+		err := uploadTask.Err
 		if err != nil {
 			return uploadResult{name: fileInfo.name, err: err}
 		}
-		if t.task.Response == nil {
-			err = fmt.Errorf("no response in task %v", t.task.Name)
+		if uploadTask.Response == nil {
+			err = fmt.Errorf("no response in task %v", uploadTask.Name)
 			return uploadResult{name: fileInfo.name, err: err}
 		}
 		etag := ""
-		if t.task.Response != nil {
-			etag = t.task.Response.Header.Get("ETag")
+		if uploadTask.Response != nil {
+			etag = uploadTask.Response.Header.Get("ETag")
 			if etag == "" {
-				err = fmt.Errorf("no ETag in response %v", t.task.Response.Header)
+				err = fmt.Errorf("no ETag in response %v", uploadTask.Response.Header)
 				return uploadResult{name: fileInfo.name, err: err}
 			}
 		}
@@ -593,16 +599,17 @@ func (as *ArtifactSaver) uploadManifest(
 	uploadHeaders []string,
 ) error {
 	resultChan := make(chan *filetransfer.Task)
-	task := &filetransfer.Task{
-		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
-		Path:     manifestFile,
-		Url:      *uploadUrl,
-		Headers:  uploadHeaders,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			FileKind: filetransfer.RunFileKindArtifact,
+			Path:     manifestFile,
+			Url:      *uploadUrl,
+			Headers:  uploadHeaders,
+		},
 	}
 	task.SetCompletionCallback(
-		func(t *filetransfer.Task) {
-			resultChan <- t
+		func(t filetransfer.Task) {
+			resultChan <- &t
 		},
 	)
 

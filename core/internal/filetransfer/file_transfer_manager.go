@@ -17,7 +17,7 @@ const (
 // FileTransferManager uploads and downloads files.
 type FileTransferManager interface {
 	// AddTask schedules a file upload or download operation.
-	AddTask(task *Task)
+	AddTask(task Task)
 
 	// Close waits for all tasks to complete.
 	Close()
@@ -75,8 +75,8 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 	return &fm
 }
 
-func (fm *fileTransferManager) AddTask(task *Task) {
-	fm.logger.Debug("fileTransfer: adding upload task", "path", task.Path, "url", task.Url)
+func (fm *fileTransferManager) AddTask(task Task) {
+	fm.logger.Debug("fileTransfer: adding upload task", "path", task.GetPath(), "url", task.GetUrl())
 
 	fm.wg.Add(1)
 	go func() {
@@ -84,17 +84,17 @@ func (fm *fileTransferManager) AddTask(task *Task) {
 
 		// Guard by a semaphore to limit number of concurrent uploads.
 		fm.semaphore <- struct{}{}
-		task.Err = fm.transfer(task)
+		task.SetErr(fm.transfer(task))
 		<-fm.semaphore
 
-		if task.Err != nil {
+		if task.GetErr() != nil {
 			fm.logger.CaptureError(
 				fmt.Errorf(
-					"filetransfer: uploader: error uploading: %v",
-					task.Err,
+					"filetransfer: uploader: error uploading to %v: %v",
+					task.GetUrl(),
+					task.GetErr(),
 				),
-				"url", task.Url,
-				"path", task.Path,
+				"path", task.GetPath(),
 			)
 		}
 
@@ -104,15 +104,16 @@ func (fm *fileTransferManager) AddTask(task *Task) {
 }
 
 // completeTask runs the completion callback and updates statistics.
-func (fm *fileTransferManager) completeTask(task *Task) {
-	task.CompletionCallback(task)
+func (fm *fileTransferManager) completeTask(task Task) {
+	taskCompletionCallback := task.GetCompletionCallback()
+	taskCompletionCallback(task)
 
-	if task.Type == UploadTask {
+	if task.GetType() == UploadTask {
 		fm.fileTransferStats.UpdateUploadStats(FileUploadInfo{
-			FileKind:      task.FileKind,
-			Path:          task.Path,
-			UploadedBytes: task.Size,
-			TotalBytes:    task.Size,
+			FileKind:      task.GetFileKind(),
+			Path:          task.GetPath(),
+			UploadedBytes: task.GetSize(),
+			TotalBytes:    task.GetSize(),
 		})
 	}
 }
@@ -123,21 +124,6 @@ func (fm *fileTransferManager) Close() {
 }
 
 // Uploads or downloads a file.
-func (fm *fileTransferManager) transfer(task *Task) error {
-	fileTransfer := fm.fileTransfers.GetFileTransferForTask(task)
-	if fileTransfer == nil {
-		return fmt.Errorf("fileTransfer: no transfer for task URL %v", task.Url)
-	}
-
-	var err error
-	switch task.Type {
-	case UploadTask:
-		err = fileTransfer.Upload(task)
-	case DownloadTask:
-		err = fileTransfer.Download(task)
-	default:
-		fm.logger.CaptureFatalAndPanic(
-			fmt.Errorf("fileTransfer: unknown task type: %v", task.Type))
-	}
-	return err
+func (fm *fileTransferManager) transfer(task Task) error {
+	return task.Execute(fm.fileTransfers)
 }

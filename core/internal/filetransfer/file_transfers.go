@@ -6,14 +6,21 @@ import (
 )
 
 type FileTransfer interface {
-	Upload(task *Task) error
-	Download(task *Task) error
+	Upload(task *DefaultUploadTask) error
+	Download(task *DefaultDownloadTask) error
+}
+
+type ReferenceArtifactFileTransfer interface {
+	CanHandle(task Task) bool
+	Upload(task *ReferenceArtifactUploadTask) error
+	Download(task *ReferenceArtifactDownloadTask) error
 }
 
 // FileTransfers is a collection of file transfers by upload destination type.
 type FileTransfers struct {
 	// Default makes an HTTP request to the destination URL with the file contents.
 	Default FileTransfer
+	GCS     ReferenceArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -30,9 +37,4 @@ func NewFileTransfers(
 	return &FileTransfers{
 		Default: defaultFileTransfer,
 	}
-}
-
-// Returns the appropriate fileTransfer depending on task
-func (ft *FileTransfers) GetFileTransferForTask(task *Task) FileTransfer {
-	return ft.Default
 }

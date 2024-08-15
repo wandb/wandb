@@ -9,8 +9,8 @@ import (
 )
 
 type FakeFileTransferManager struct {
-	tasks           []*filetransfer.Task
-	unfinishedTasks map[*filetransfer.Task]struct{}
+	tasks           []filetransfer.Task
+	unfinishedTasks map[filetransfer.Task]struct{}
 	tasksMu         *sync.Mutex
 
 	// Whether new tasks should be completed immediately.
@@ -20,12 +20,12 @@ type FakeFileTransferManager struct {
 func NewFakeFileTransferManager() *FakeFileTransferManager {
 	return &FakeFileTransferManager{
 		tasksMu:         &sync.Mutex{},
-		unfinishedTasks: make(map[*filetransfer.Task]struct{}),
+		unfinishedTasks: make(map[filetransfer.Task]struct{}),
 	}
 }
 
 // All the tasks added via `AddTask`.
-func (m *FakeFileTransferManager) Tasks() []*filetransfer.Task {
+func (m *FakeFileTransferManager) Tasks() []filetransfer.Task {
 	m.tasksMu.Lock()
 	defer m.tasksMu.Unlock()
 	return slices.Clone(m.tasks)
@@ -37,7 +37,8 @@ func (m *FakeFileTransferManager) CompleteTasks() {
 	defer m.tasksMu.Unlock()
 
 	for task := range m.unfinishedTasks {
-		task.CompletionCallback(task)
+		completionCallback := task.GetCompletionCallback()
+		completionCallback(task)
 		delete(m.unfinishedTasks, task)
 	}
 }
@@ -52,14 +53,15 @@ func (m *FakeFileTransferManager) Close() {
 	m.CompleteTasks()
 }
 
-func (m *FakeFileTransferManager) AddTask(t *filetransfer.Task) {
+func (m *FakeFileTransferManager) AddTask(t filetransfer.Task) {
 	m.tasksMu.Lock()
 	defer m.tasksMu.Unlock()
 
 	m.tasks = append(m.tasks, t)
 
 	if m.ShouldCompleteImmediately {
-		t.CompletionCallback(t)
+		completionCallback := t.GetCompletionCallback()
+		completionCallback(t)
 	} else {
 		m.unfinishedTasks[t] = struct{}{}
 	}

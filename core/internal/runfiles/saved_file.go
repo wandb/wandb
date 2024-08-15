@@ -99,13 +99,14 @@ func (f *savedFile) Upload(
 //
 // It must be called while a lock is held. It temporarily releases the lock.
 func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
-	task := &filetransfer.Task{
-		FileKind: f.category,
-		Type:     filetransfer.UploadTask,
-		Path:     f.realPath,
-		Name:     string(f.runPath),
-		Url:      uploadURL,
-		Headers:  uploadHeaders,
+	task := &filetransfer.DefaultUploadTask{
+		DefaultTask: filetransfer.DefaultTask{
+			FileKind: f.category,
+			Path:     f.realPath,
+			Name:     string(f.runPath),
+			Url:      uploadURL,
+			Headers:  uploadHeaders,
+		},
 	}
 
 	f.isUploading = true
@@ -119,8 +120,8 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 }
 
 // onFinishUpload marks an upload completed and triggers another if scheduled.
-func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
-	if task.Err == nil {
+func (f *savedFile) onFinishUpload(task filetransfer.Task) {
+	if task.GetErr() == nil {
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
 			RelativePath: string(f.runPath),
 		})

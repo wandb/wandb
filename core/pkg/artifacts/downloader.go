@@ -153,30 +153,56 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						numDone++
 						continue
 					}
-					task := &filetransfer.Task{
-						FileKind: filetransfer.RunFileKindArtifact,
-						Type:     filetransfer.DownloadTask,
-						Path:     downloadLocalPath,
-						Url:      *entry.DownloadURL,
+					if entry.Ref != nil {
+						task := &filetransfer.ReferenceArtifactDownloadTask{
+							ReferenceArtifactTask: filetransfer.ReferenceArtifactTask{
+								FileKind:  filetransfer.RunFileKindArtifact,
+								Path:      downloadLocalPath,
+								Reference: entry.Ref,
+								Digest:    entry.Digest,
+								Size:      entry.Size,
+							},
+						}
+						versionId, ok := entry.Extra["versionID"]
+						if ok {
+							task.VersionId = versionId
+						}
+
+						task.SetCompletionCallback(
+							func(t filetransfer.Task) {
+								taskResultsChan <- TaskResult{&t, *entry.LocalPath}
+							},
+						)
+						ad.DownloadManager.AddTask(task)
+					} else {
+						task := &filetransfer.DefaultDownloadTask{
+							DefaultTask: filetransfer.DefaultTask{
+								FileKind: filetransfer.RunFileKindArtifact,
+								Path:     downloadLocalPath,
+								Url:      *entry.DownloadURL,
+								Size:     entry.Size,
+							},
+						}
+
+						task.SetCompletionCallback(
+							func(t filetransfer.Task) {
+								taskResultsChan <- TaskResult{&t, *entry.LocalPath}
+							},
+						)
+						ad.DownloadManager.AddTask(task)
 					}
-					task.SetCompletionCallback(
-						func(t *filetransfer.Task) {
-							taskResultsChan <- TaskResult{t, *entry.LocalPath}
-						},
-					)
 					numInProgress++
-					ad.DownloadManager.AddTask(task)
 				}
 			}
 			// Wait for downloader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
 			for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
 				numInProgress--
 				result := <-taskResultsChan
-				if result.Task.Err != nil {
+				if (*result.Task).GetErr() != nil {
 					// We want to retry when the signed URL expires. However, distinguishing that error from others is not
 					// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
 					if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
-						return result.Task.Err
+						return (*result.Task).GetErr()
 					}
 					delete(nameToScheduledTime, result.Name) // retry
 					continue
@@ -184,7 +210,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				numDone++
 				digest := manifest.Contents[result.Name].Digest
 				go func() {
-					err := ad.FileCache.AddFileAndCheckDigest(result.Task.Path, digest)
+					err := ad.FileCache.AddFileAndCheckDigest((*result.Task).GetPath(), digest)
 					if err != nil {
 						slog.Error("Error adding file to cache", "err", err)
 					}
