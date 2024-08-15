@@ -1,6 +1,7 @@
 -r requirements_test.txt
 
-pytest
+astunparse; python_version < '3.9'
+
 hypothesis
 hypothesis-fspaths
 
