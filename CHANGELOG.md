@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.17.7] - 2024-08-15
+
 ### Fixed
 
 - Ensure Nvidia GPU metrics are captured if `libnvidia-ml.so` is unavailable when using core (@dmitryduev in https://github.com/wandb/wandb/pull/8138)
@@ -35,10 +37,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled (@marijncv in https://github.com/wandb/wandb/pull/7876)
-- Docstring in `api.runs()` regarding default sort order, missed in https://github.com/wandb/wandb/pull/7675 (@fellhorn in https://github.com/wandb/wandb/pull/8063)
-
-### Fixed
-
 - Docstring in `api.runs()` regarding default sort order, missed in https://github.com/wandb/wandb/pull/7675 (@fellhorn in https://github.com/wandb/wandb/pull/8063)
 
 ## [0.17.5] - 2024-07-19
