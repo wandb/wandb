@@ -948,6 +948,7 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 	if s.fileStream == nil {
 		return
 	}
+
 	// Handle experimental DataValue format
 	//
 	// This format is passed around as a protocolbuffer instead of json
@@ -965,8 +966,13 @@ func (s *Sender) sendHistory(record *service.HistoryRecord) {
 	// Another eventual improvement: instead of runfiles, this could use artifacts.
 	if s.useExperimentDataValue {
 		filesPath := s.settings.GetFilesDir().GetValue()
+
 		// convert "DataValue" history record into a "json_value" history record
-		newRecord, mediaFileNames := dataValueConvert(record, filesPath)
+		newRecord, mediaFileNames, err := dataValueConvert(record, filesPath)
+		if err != nil {
+			s.logger.CaptureError(fmt.Errorf("sender: dataValueConvert: %v", err))
+			return
+		}
 
 		if len(mediaFileNames) > 0 && s.runfilesUploader != nil {
 			filesRecord := &service.FilesRecord{

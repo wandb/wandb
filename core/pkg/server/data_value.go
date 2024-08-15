@@ -80,7 +80,7 @@ type Media struct {
 }
 
 // dataValueConvert processes a "DataValue" history record and converts to value_json record
-func dataValueConvert(hrecord *service.HistoryRecord, filesPath string) (*service.HistoryRecord, []string) {
+func dataValueConvert(hrecord *service.HistoryRecord, filesPath string) (*service.HistoryRecord, []string, error) {
 	hrecordNew := &service.HistoryRecord{
 		Step: hrecord.Step,
 	}
@@ -106,7 +106,7 @@ func dataValueConvert(hrecord *service.HistoryRecord, filesPath string) (*servic
 				// FIXME: we only handle dtype uint8 also
 				fname, hash, size, err := createPNG(value.ValueTensor.TensorContent, height, width, filesPath, imagePath)
 				if err != nil {
-					fmt.Printf("GOT err %+v\n", err)
+					return nil, nil, err
 				}
 				hFiles = append(hFiles, fname)
 				media := Media{
@@ -120,7 +120,7 @@ func dataValueConvert(hrecord *service.HistoryRecord, filesPath string) (*servic
 				}
 				jsonString, err := simplejsonext.Marshal(media)
 				if err != nil {
-					fmt.Printf("GOT err %+v\n", err)
+					return nil, nil, err
 				}
 				// fmt.Printf("GOT::: %+v %+v %+v %+v\n", string(jsonString), fname, hash, size)
 				hItem.ValueJson = string(jsonString)
@@ -130,5 +130,5 @@ func dataValueConvert(hrecord *service.HistoryRecord, filesPath string) (*servic
 			hrecordNew.Item = append(hrecordNew.Item, item)
 		}
 	}
-	return hrecordNew, hFiles
+	return hrecordNew, hFiles, nil
 }
