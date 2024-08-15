@@ -247,20 +247,12 @@ jobs:
           name: wandb-sdk-distributions
           path: dist/
 
-      - name: Update version in wheel files
+      - name: Rename distribution files
         run: |
-          pip install wheel
-          for wheel in dist/*.whl; do
-            wheel tags --wheel-dir=dist-updated --build-number=${{ needs.prepare-release.outputs.test_pypi_version }} $wheel
+          for file in dist/*; do
+            new_name=$(echo $file | sed "s/${{ github.event.inputs.version }}/${{ needs.prepare-release.outputs.test_pypi_version }}/")
+            mv "$file" "$new_name"
           done
-          mv dist-updated/* dist/
-
-      - name: Update version in sdist
-        run: |
-          tar -xzf dist/*.tar.gz -C dist/
-          sed -i 's/version = "${{ github.event.inputs.version }}"/version = "${{ needs.prepare-release.outputs.test_pypi_version }}"/' dist/wandb-*/setup.cfg
-          tar -czf dist/wandb-${{ needs.prepare-release.outputs.test_pypi_version }}.tar.gz -C dist wandb-*/
-          rm -rf dist/wandb-*/
 
       - name: List distribution
         run: ls dist/
