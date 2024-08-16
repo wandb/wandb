@@ -6,6 +6,7 @@ path = "hatch_build.py"
 
 [build]
 include = [
+    "wandb/__init__.pyi",
     "wandb/py.typed",
     "package_readme.md",
     "wandb/**/*.py",
@@ -19,6 +20,7 @@ include = [
     "nvidia_gpu_stats",
     "wandb/py.typed",
     "package_readme.md",
+    "wandb/__init__.pyi",
     "wandb/**/*.py",
     "wandb/**/*.sh",
 ]
