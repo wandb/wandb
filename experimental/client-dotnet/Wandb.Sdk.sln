@@ -1,0 +1,36 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{B803EAF5-3CE1-45CF-8C60-C3DC6EF737EE}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wandb.Sdk", "src\Wandb.Sdk\Wandb.Sdk.csproj", "{BCDFD1B4-0817-4609-8DE6-B5E80B2FF89E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "examples", "examples", "{D48F1D6A-E61A-4AD7-B9D6-5181AECE6C8C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Simple", "examples\Simple\Simple.csproj", "{2EE51A08-D559-46C9-9A48-D2F85106052A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BCDFD1B4-0817-4609-8DE6-B5E80B2FF89E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BCDFD1B4-0817-4609-8DE6-B5E80B2FF89E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BCDFD1B4-0817-4609-8DE6-B5E80B2FF89E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BCDFD1B4-0817-4609-8DE6-B5E80B2FF89E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EE51A08-D559-46C9-9A48-D2F85106052A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EE51A08-D559-46C9-9A48-D2F85106052A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EE51A08-D559-46C9-9A48-D2F85106052A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EE51A08-D559-46C9-9A48-D2F85106052A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{BCDFD1B4-0817-4609-8DE6-B5E80B2FF89E} = {B803EAF5-3CE1-45CF-8C60-C3DC6EF737EE}
+		{2EE51A08-D559-46C9-9A48-D2F85106052A} = {D48F1D6A-E61A-4AD7-B9D6-5181AECE6C8C}
+	EndGlobalSection
+EndGlobal
