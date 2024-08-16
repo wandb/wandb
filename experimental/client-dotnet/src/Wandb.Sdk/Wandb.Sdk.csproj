@@ -3,8 +3,11 @@
   <PropertyGroup>
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <WandbCoreDir>$(MSBuildProjectDirectory)/wandb-core</WandbCoreDir>
+    <GoSrcDir>$(MSBuildProjectDirectory)/../../../../core</GoSrcDir>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,5 +22,41 @@
     </PackageReference>
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="wandb-core.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>runtimes/win-x64/native/</PackagePath>
+    </None>
+    <None Update="wandb-core">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>runtimes/linux-x64/native/</PackagePath>
+    </None>
+    <None Update="wandb-core">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>runtimes/osx-x64/native/</PackagePath>
+    </None>
+  </ItemGroup>
+
+  <Target Name="BuildGoBinary" BeforeTargets="Build">
+    <!-- Define the path to the Go binary -->
+    <PropertyGroup>
+      <GoBinaryPath Condition="'$(OS)' == 'Windows_NT'">wandb-core.exe</GoBinaryPath>
+      <GoBinaryPath Condition="'$(OS)' != 'Windows_NT'">wandb-core</GoBinaryPath>
+    </PropertyGroup>
+
+    <!-- Execute the Go build command -->
+    <Exec Command="go build -o $(MSBuildProjectDirectory)/$(GoBinaryPath) cmd/wandb-core/main.go" WorkingDirectory="$(GoSrcDir)"/>
+
+    <!-- Include the Go binary in the build output -->
+    <ItemGroup>
+      <None Include="$(GoBinaryPath)">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+  </Target>
 
 </Project>
