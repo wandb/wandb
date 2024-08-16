@@ -14,7 +14,7 @@ type Mailbox struct {
 	*sync.Mutex
 }
 
-func NewMailbox() *Mailbox {
+func New() *Mailbox {
 	return &Mailbox{
 		mb:    make(map[string]context.CancelFunc),
 		Mutex: &sync.Mutex{},
