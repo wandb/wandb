@@ -308,6 +308,7 @@ func TestSendArtifact(t *testing.T) {
 				Name:    "test-artifact",
 				Digest:  "test-digest",
 				Aliases: []string{"latest"},
+				Tags:    []string{"test-tag1", "test-tag2"},
 				Manifest: &spb.ArtifactManifest{
 					Version:       1,
 					StoragePolicy: "wandb-storage-policy-v1",
