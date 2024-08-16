@@ -213,7 +213,7 @@ impl NvidiaGpu {
             }
 
             // Additional metrics. These may not be available on all devices.
-            // Underscorred metrics are ot reported to the backend, but could be useful for debugging
+            // Underscorred metrics are not reported to the backend, but could be useful for debugging
             // and may be added in the future.
 
             if let Ok(sm_clock) = device.clock_info(Clock::SM) {
