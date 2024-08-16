@@ -13,6 +13,14 @@ pub mod session;
 pub mod settings;
 pub mod wandb_internal;
 
+fn parse_bool(s: &str) -> bool {
+    match s.to_lowercase().as_str() {
+        "true" | "1" => true,
+        "false" | "0" => false,
+        _ => true,
+    }
+}
+
 /// Communication layer between user code and nexus
 
 pub fn get_core_version() -> &'static str {
@@ -38,10 +46,23 @@ pub fn init(settings: Option<settings::Settings>) -> run::Run {
 /// import the module.
 #[pymodule]
 fn wandbrs(_py: Python<'_>, m: &PyModule) -> PyResult<()> {
-    // TODO: this doesn't work
-    let _guard = sentry::init(
-        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.sentry.io/4506068829470720",
-    );
+    let error_reporting_enabled = std::env::var("WANDB_ERROR_REPORTING")
+        .map(|v| parse_bool(&v))
+        .unwrap_or(true);
+
+    let dsn: Option<sentry::types::Dsn> = if error_reporting_enabled {
+        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.us.sentry.io/4506068829470720"
+            .parse()
+            .ok()
+    } else {
+        None
+    };
+
+    let _guard = sentry::init(sentry::ClientOptions {
+        dsn,
+        release: sentry::release_name!(),
+        ..Default::default()
+    });
 
     let log_level = tracing::Level::INFO;
     // let log_level = tracing::Level::DEBUG;

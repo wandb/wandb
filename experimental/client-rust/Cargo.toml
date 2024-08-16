@@ -1,7 +1,7 @@
 [package]
 # name = "wandb"
-name = "wandbrs"
-version = "0.18.0"
+name = "wandbrs"           # 🪄🍻
+version = "0.18.0-alpha.1"
 edition = "2021"
 
 [lib]
@@ -15,14 +15,14 @@ crate-type = ["lib", "cdylib"]
 [dependencies]
 bytes = "1.5.0"
 byteorder = "1.5.0"
-prost = "0.12.3"
-prost-types = "0.12.3"
+prost = "0.13"
+prost-types = "0.13"
 rand = "0.8.5"
-pyo3 = { version = "0.20.3", features = ["abi3-py37", "extension-module"] }
+pyo3 = { version = "0.20", features = ["abi3-py37", "extension-module"] }
 tempfile = "3.10.1"
-prost-build = "0.12.3"
+prost-build = "0.13"
 uuid = "1.7.0"
-fork = "0.1.23"
+fork = "0.2"
 tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 sentry = "0.34.0"
@@ -36,6 +36,6 @@ image = "0.24.9"
 sha2 = "0.10.8"
 
 [build-dependencies]
-pyo3-build-config = "0.20.3"
-prost-build = "0.12.3"
+pyo3-build-config = "0.22"
+prost-build = "0.13"
 tempfile = "3.10.1"
