@@ -28,26 +28,30 @@ namespace Wandb.Sdk
 
         public void Init()
         {
-            DeletePortFileIfExists();
+            using (var tempFileHelper = new TempFileHelper(PortFileName))
+            {
+                string tempFilePath = tempFileHelper.FilePath;
+                Console.WriteLine("Temporary file path: " + tempFilePath);
+
+                // Start the wandb-core process
+                _wandbProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = "wandb-core", // Ensure wandb-core is in your PATH or provide the full path
+                        Arguments = $"-debug -port-filename \"{tempFilePath}\"",
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                _wandbProcess.Start();
+
+                // Watch for the port file and update the port number
+                WatchForPortFile(tempFilePath);
+            }
 
             _runID = RandomIdGenerator.GenerateId(8);
             Console.WriteLine($"Generated ID: {_runID}");
-
-            // Start the wandb-core process
-            _wandbProcess = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "wandb-core", // Ensure wandb-core is in your PATH or provide the full path
-                    Arguments = "-debug",
-                    UseShellExecute = false,
-                    CreateNoWindow = true
-                }
-            };
-            _wandbProcess.Start();
-
-            // Watch for the port file and update the port number
-            WatchForPortFile();
 
             // Open a TCP socket to wandb-core
             _client = new TcpClient("127.0.0.1", _port); // Replace with the correct IP and port
@@ -143,31 +147,14 @@ namespace Wandb.Sdk
             return settings;
         }
 
-        private void DeletePortFileIfExists()
-        {
-            if (File.Exists(PortFileName))
-            {
-                try
-                {
-                    File.Delete(PortFileName);
-                    Console.WriteLine("Deleted existing port_file.txt.");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error deleting port_file.txt: {ex.Message}");
-                    throw; // Re-throw the exception to handle it in the calling code
-                }
-            }
-        }
-
-        private void WatchForPortFile()
+        private void WatchForPortFile(string filename)
         {
             // Polling loop to wait for the port_file.txt to be fully written
             while (true)
             {
-                if (File.Exists(PortFileName))
+                if (File.Exists(filename))
                 {
-                    var lines = File.ReadAllLines(PortFileName);
+                    var lines = File.ReadAllLines(filename);
 
                     // Check if the last line is "EOF"
                     if (lines.Length > 0 && lines[^1] == "EOF")
