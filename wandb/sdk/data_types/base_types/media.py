@@ -159,9 +159,11 @@ class Media(WBValue):
         # into Media itself we should get rid of them
         from wandb import Image
         from wandb.data_types import Audio
+        from wandb.sdk.wandb_run import Run
 
         json_obj = {}
-        if isinstance(run, wandb.wandb_sdk.wandb_run.Run):
+
+        if isinstance(run, Run):
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.

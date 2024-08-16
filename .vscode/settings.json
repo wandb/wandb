@@ -19,7 +19,9 @@
   ],
   "[python]": {
     "editor.defaultFormatter": "charliermarsh.ruff",
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "editor.insertSpaces": true,
+    "editor.tabSize": 4
   },
   "rust-analyzer.linkedProjects": [
     "./nvidia_gpu_stats/Cargo.toml",

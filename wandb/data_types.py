@@ -104,7 +104,7 @@ class _TableIndex(int, _TableLinkMixin):
 def _json_helper(val, artifact):
     if isinstance(val, WBValue):
         return val.to_json(artifact)
-    elif val.__class__ == dict:
+    elif val.__class__ is dict:
         res = {}
         for key in val:
             res[key] = _json_helper(val[key], artifact)
@@ -270,10 +270,10 @@ class Table(Media):
         if dtype is None:
             dtype = _dtypes.UnknownType()
 
-        if optional.__class__ != list:
+        if optional.__class__ is not list:
             optional = [optional for _ in range(len(self.columns))]
 
-        if dtype.__class__ != list:
+        if dtype.__class__ is not list:
             dtype = [dtype for _ in range(len(self.columns))]
 
         self._column_types = _dtypes.TypedDictType({})
