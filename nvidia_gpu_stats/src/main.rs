@@ -3,6 +3,7 @@ use nix::unistd::getppid;
 use sentry::types::Dsn;
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 use std::env;
+use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -100,8 +101,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Convert metrics to JSON and print to stdout for collection
         if let Err(e) = metrics.print_json() {
-            eprintln!("Error printing metrics: {}", e);
-            sentry::capture_error(&e);
+            if e.kind() == io::ErrorKind::BrokenPipe {
+                break;
+            } else {
+                sentry::capture_error(&e);
+            }
         }
 
         // Check if parent process is still alive and break loop if not
