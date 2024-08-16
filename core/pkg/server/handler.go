@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -58,8 +57,8 @@ type HandlerParams struct {
 // Handler is the handler for a stream it handles the incoming messages, processes them
 // and passes them to the writer
 type Handler struct {
-	// ctx is the context for the handler
-	ctx context.Context
+	// commit is the W&B Git commit hash
+	commit string
 
 	// settings is the settings for the handler
 	settings *service.Settings
@@ -140,11 +139,11 @@ type Handler struct {
 
 // NewHandler creates a new handler
 func NewHandler(
-	ctx context.Context,
+	commit string,
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		ctx:                   ctx,
+		commit:                commit,
 		runTimer:              timer.New(),
 		terminalPrinter:       params.TerminalPrinter,
 		logger:                params.Logger,
@@ -414,7 +413,7 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_STATS:
 		// stop the system monitor to ensure that we don't send any more system metrics
 		// after the run has exited
-		h.systemMonitor.Stop()
+		h.systemMonitor.Finish()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		// This will force the content of h.runHistory to be flushed and sent
 		// over to the sender.
@@ -508,7 +507,7 @@ func (h *Handler) handleRequestPollExit(record *service.Record) {
 
 func (h *Handler) handleHeader(record *service.Record) {
 	// populate with version info
-	versionString := fmt.Sprintf("%s+%s", version.Version, h.ctx.Value(observability.Commit))
+	versionString := fmt.Sprintf("%s+%s", version.Version, h.commit)
 	record.GetHeader().VersionInfo = &service.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
@@ -613,7 +612,7 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
+		h.systemMonitor.Start()
 	}
 
 	// save code and patch
@@ -816,12 +815,12 @@ func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
 
 func (h *Handler) handleRequestPause() {
 	h.runTimer.Pause()
-	h.systemMonitor.Stop()
+	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
 	h.runTimer.Resume()
-	h.systemMonitor.Do()
+	h.systemMonitor.Resume()
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {

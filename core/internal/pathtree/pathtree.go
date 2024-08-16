@@ -176,16 +176,12 @@ func (pt *PathTree) GetLeaf(path TreePath) (any, bool) {
 	}
 
 	value, exists := subtree[path.End()]
-	if !exists {
+	_, isTree := value.(treeData)
+	if !exists || isTree {
 		return nil, false
 	}
 
-	switch value.(type) {
-	case treeData:
-		return nil, false
-	default:
-		return value, true
-	}
+	return value, true
 }
 
 // GetOrMakeLeaf returns the leaf value at path, creating one if necessary.
@@ -196,7 +192,8 @@ func (pt *PathTree) GetOrMakeLeaf(
 	subtree := pt.getOrMakeSubtree(path.Prefix())
 
 	value, exists := subtree[path.End()]
-	if !exists {
+	_, isTree := value.(treeData)
+	if !exists || isTree {
 		value = makeDefault()
 		subtree[path.End()] = value
 	}

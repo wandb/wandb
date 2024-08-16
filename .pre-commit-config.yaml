@@ -15,17 +15,17 @@ repos:
   #   - id: clippy
   #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.4.4"
+    rev: "v0.5.7"
     hooks:
       - id: ruff
         args: [ --fix]
       - id: ruff-format
   - repo: https://github.com/asottile/blacken-docs
-    rev: 1.16.0
+    rev: 1.18.0
     hooks:
       - id: blacken-docs
   - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v18.1.3
+    rev: v18.1.8
     hooks:
       - id: clang-format
         types_or: [proto]
@@ -61,6 +61,13 @@ repos:
         name: forbid-submodules
   - repo: local
     hooks:
+      - id: generate-stubs
+        name: 'generate-stubs'
+        entry: python tools/generate_stubs.py
+        language: 'system'
+        pass_filenames: false
+        always_run: true
+        description: "Generates stubs for wandb module"
       - id: go-generate-proto
         name: 'go-generate-proto'
         entry: core/scripts/pre-commit-hooks/run-go-generate.sh

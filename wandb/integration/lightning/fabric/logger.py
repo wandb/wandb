@@ -312,7 +312,7 @@ class WandbLogger(Logger):
         self._prefix = prefix
         self._experiment = experiment
         self._logged_model_time: Dict[str, float] = {}
-        self._checkpoint_callback: Optional["ModelCheckpoint"] = None
+        self._checkpoint_callback: Optional[ModelCheckpoint] = None
 
         # paths are processed as strings
         if save_dir is not None:
