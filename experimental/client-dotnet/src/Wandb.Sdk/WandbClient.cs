@@ -13,9 +13,9 @@ using Newtonsoft.Json;
 using Google.Protobuf; // Ensure you have the Protobuf C# library installed
 using WandbInternal; // Namespace for protobuf
 
-namespace WandbCoreLib
+namespace Wandb.Sdk
 {
-    public class WandbCore
+    public class WandbClient
     {
         private static readonly List<TcpClient> activeClients = new List<TcpClient>();
         private TcpClient _client;
@@ -375,7 +375,7 @@ namespace WandbCoreLib
             return response;
         }
 
-        ~WandbCore()
+        ~WandbClient()
         {
             // Ensure Finish is called on any active client
             foreach (var client in activeClients)

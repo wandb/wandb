@@ -1,10 +1,10 @@
-﻿using WandbCoreLib;
+﻿using Wandb.Sdk;
 using System.Collections.Generic;
 
 // See https://aka.ms/new-console-template for more information
 Console.WriteLine("Hello, World!");
 
-var wandb = new WandbCore();
+var wandb = new WandbClient();
 
 try
 {
