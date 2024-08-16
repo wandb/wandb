@@ -70,7 +70,7 @@ jobs:
     name: Build wheels on ${{ matrix.os }}
     needs: prepare-release
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
@@ -244,6 +244,9 @@ jobs:
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
           repository-url: https://test.pypi.org/legacy/
+          verify-metadata: true
+          verbose: true
+          skip-existing: true
 
       # Unfortunately, there's no reliable way to do this.
       #

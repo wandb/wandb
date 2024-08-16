@@ -14,9 +14,9 @@ def get_latest_go_version() -> str:
         match = re.search(r"go(\d+\.\d+\.\d+)", response.text)
         if match:
             return match.group(1)
-        raise ValueError("Failed to parse the latest Go version")
+        raise ValueError(f"Failed to parse the latest Go version: {response.text}")
     else:
-        raise ValueError("Failed to fetch the latest Go version")
+        raise ValueError(f"Failed to parse the latest Go version: {response.text}")
 
 
 if __name__ == "__main__":
