@@ -1,5 +1,6 @@
 use serde::Serialize;
 use std::collections::BTreeMap;
+use std::io;
 
 /// System metrics storage.
 ///
@@ -28,7 +29,7 @@ impl Metrics {
     }
 
     /// Print the metrics as a JSON string to stdout.
-    pub fn print_json(&self) -> Result<(), serde_json::Error> {
+    pub fn print_json(&self) -> io::Result<()> {
         let json_output = serde_json::to_string(&self.metrics)?;
         println!("{}", json_output);
         Ok(())

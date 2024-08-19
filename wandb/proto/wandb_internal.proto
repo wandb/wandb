@@ -1163,6 +1163,8 @@ message GpuAppleInfo {
 message GpuNvidiaInfo {
   string name = 1;
   uint64 memory_total = 2;
+  uint32 cuda_cores = 3;
+  string architecture = 4;
 }
 
 message GpuAmdInfo {

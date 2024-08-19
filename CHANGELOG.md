@@ -13,6 +13,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Added
 
+- Capture SM (Streaming Multiprocessor), memory, and graphics clock speed (MHz), (un)corrected error counts, fan speed (%), and encoder utilization for Nvidia GPU devices when using core (@dmitryduev in https://github.com/wandb/wandb/pull/8144)
 - Add support for `Artifact.tags` and assigning tags via `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
 
 ## [0.17.7] - 2024-08-15
