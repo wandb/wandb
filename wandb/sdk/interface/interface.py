@@ -592,10 +592,8 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
-        if tags:
-            proto_artifact.tags.extend(tags)
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
         self._publish_artifact(proto_artifact)
 
     @abstractmethod
