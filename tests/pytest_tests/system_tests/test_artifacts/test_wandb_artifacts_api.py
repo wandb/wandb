@@ -2,6 +2,7 @@ import os
 import re
 
 import pytest
+
 import wandb
 from wandb import Api
 from wandb.errors import CommError
@@ -95,7 +96,10 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
         ["orig-TAG 1", "other-tag"],
     ),
 )
-def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api, orig_tags):
+@pytest.mark.parametrize("edit_tags_inplace", (True, False))
+def test_save_tags_after_logging_artifact(
+    tmp_path, user, wandb_init, api, orig_tags, edit_tags_inplace
+):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -121,19 +125,26 @@ def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api, orig_
     # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
     assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
 
-    # Partial check that expected behavior is (reasonably) resilient to in-place mutations
-    # of the list-type `.tags` attribute -- and not just reassignment.
-    #
-    # The latter is preferable in python (generally) as well as here (it actually calls the property setter),
-    # but it's reasonable to expect some users might prefer or need to rely instead on:
-    # - `artifact.tags.extend`
-    # - `artiafct.tags.append`
-    # - `artifact.tags += ["new-tag"]`
-    # - etc.
-    for added_tag in tags_to_add:
-        fetched_artifact.tags.append(added_tag)
-    for deleted_tag in tags_to_delete:
-        fetched_artifact.tags.remove(deleted_tag)
+    if edit_tags_inplace:
+        # Partial check that expected behavior is (reasonably) resilient to in-place mutations
+        # of the list-type `.tags` attribute -- and not just reassignment.
+        #
+        # The latter is preferable in python (generally) as well as here (it actually calls the property setter),
+        # but it's reasonable to expect some users might prefer or need to rely instead on:
+        # - `artifact.tags.extend`
+        # - `artiafct.tags.append`
+        # - `artifact.tags += ["new-tag"]`
+        # - etc.
+        for added_tag in tags_to_add:
+            fetched_artifact.tags.append(added_tag)
+        for deleted_tag in tags_to_delete:
+            fetched_artifact.tags.remove(deleted_tag)
+    else:
+        old_tags = fetched_artifact.tags
+        fetched_artifact.tags = [
+            tag for tag in (old_tags + tags_to_add) if (tag not in tags_to_delete)
+        ]
+
     fetched_artifact.save()
 
     # fetch the final artifact and verify its tags
