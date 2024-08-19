@@ -89,7 +89,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 
 	type TaskResult struct {
 		Path string
-		Err error
+		Err  error
 		Name string
 	}
 
@@ -168,7 +168,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						}
 
 						task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}},
+							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath} },
 						}
 						ad.DownloadManager.AddTask(task)
 					} else {
@@ -180,7 +180,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						}
 
 						task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}},
+							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath} },
 						}
 						ad.DownloadManager.AddTask(task)
 					}

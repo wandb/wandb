@@ -291,7 +291,7 @@ func (as *ArtifactSaver) processFiles(
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
 				task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-					CompletionCallback: func() { doneChan <- uploadResult{name: fileInfo.name, err: task.Err }},
+					CompletionCallback: func() { doneChan <- uploadResult{name: fileInfo.name, err: task.Err} },
 				}
 				as.FileTransferManager.AddTask(task)
 			}

@@ -5,7 +5,7 @@ type TaskType int
 const (
 	UploadTask TaskType = iota
 	DownloadTask
- )
+)
 
 // Task is a task to upload/download a file
 type Task interface {

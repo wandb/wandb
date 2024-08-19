@@ -32,6 +32,6 @@ func NewFileTransfers(
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	return &FileTransfers{
 		Default: defaultFileTransfer,
-		GCS: gcsFileTransfer,
+		GCS:     gcsFileTransfer,
 	}
 }
