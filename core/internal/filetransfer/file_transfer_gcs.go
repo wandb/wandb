@@ -3,6 +3,7 @@ package filetransfer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/url"
 
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -59,12 +60,12 @@ func (ft *GCSFileTransfer) CanHandle(task *ReferenceArtifactTask) bool {
 func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
 	ft.logger.Debug("gcs file transfer: uploading file", "path", task.Path)
 
-	return nil
+	return fmt.Errorf("not implemented yet")
 }
 
 // Download downloads a file from the server
 func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug("gcs file transfer: downloading file", "path", task.Path, "ref", task.Reference)
 
-	return nil
+	return fmt.Errorf("not implemented yet")
 }
