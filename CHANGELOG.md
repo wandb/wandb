@@ -17,7 +17,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
-- Kill service process if user process dies even after a teardown signal (@timoffex in https://github.com/wandb/wandb/pull/8153)
+- Avoid leaving behind wandb-core process if user hits Ctrl+C twice (@timoffex in https://github.com/wandb/wandb/pull/8153)
 
 ## [0.17.7] - 2024-08-15
 
