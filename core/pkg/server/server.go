@@ -92,7 +92,9 @@ func NewServer(
 
 // exitWhenParentIsGone exits the process if the parent process is killed.
 func (s *Server) exitWhenParentIsGone() {
-	for os.Getppid() != s.parentPid {
+	slog.Info("Will exit if parent process dies.", "ppid", s.parentPid)
+
+	for os.Getppid() == s.parentPid {
 		time.Sleep(IntervalCheckParentPidMilliseconds * time.Millisecond)
 	}
 
