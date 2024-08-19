@@ -197,7 +197,7 @@ func NewStream(
 		)
 	}
 
-	mailbox := mailbox.NewMailbox()
+	mailbox := mailbox.New()
 
 	s.handler = NewHandler(commit,
 		HandlerParams{
@@ -205,7 +205,7 @@ func NewStream(
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
 			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
+			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,

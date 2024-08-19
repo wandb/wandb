@@ -10,6 +10,7 @@ import (
 // such as config updates.
 type Debouncer struct {
 	limiter       *rate.Limiter
+	finished      bool
 	needsDebounce bool
 	logger        *observability.CoreLogger
 }
@@ -42,7 +43,7 @@ func (d *Debouncer) UnsetNeedsDebounce() {
 
 // Debounce will call the function f if the rate limiter allows it.
 func (d *Debouncer) Debounce(f func()) {
-	if d == nil {
+	if d == nil || d.finished {
 		return
 	}
 	if !d.needsDebounce || !d.limiter.Allow() {
@@ -53,7 +54,7 @@ func (d *Debouncer) Debounce(f func()) {
 
 // Flush will call the function f if it needs to be called.
 func (d *Debouncer) Flush(f func()) {
-	if d == nil {
+	if d == nil || d.finished {
 		return
 	}
 	if d.needsDebounce {
@@ -61,4 +62,9 @@ func (d *Debouncer) Flush(f func()) {
 		f()
 		d.UnsetNeedsDebounce()
 	}
+}
+
+// Stop makes all future debounce operations no-ops.
+func (d *Debouncer) Stop() {
+	d.finished = true
 }

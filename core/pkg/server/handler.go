@@ -413,7 +413,7 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 	case service.DeferRequest_FLUSH_STATS:
 		// stop the system monitor to ensure that we don't send any more system metrics
 		// after the run has exited
-		h.systemMonitor.Stop()
+		h.systemMonitor.Finish()
 	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		// This will force the content of h.runHistory to be flushed and sent
 		// over to the sender.
@@ -612,7 +612,7 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 
 	// start the system monitor
 	if !h.settings.GetXDisableStats().GetValue() {
-		h.systemMonitor.Do()
+		h.systemMonitor.Start()
 	}
 
 	// save code and patch
@@ -815,12 +815,12 @@ func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
 
 func (h *Handler) handleRequestPause() {
 	h.runTimer.Pause()
-	h.systemMonitor.Stop()
+	h.systemMonitor.Pause()
 }
 
 func (h *Handler) handleRequestResume() {
 	h.runTimer.Resume()
-	h.systemMonitor.Do()
+	h.systemMonitor.Resume()
 }
 
 func (h *Handler) handleSystemMetrics(record *service.Record) {

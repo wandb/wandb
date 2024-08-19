@@ -1,6 +1,9 @@
 use clap::Parser;
 use nix::unistd::getppid;
+use sentry::types::Dsn;
 use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
+use std::env;
+use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
@@ -29,18 +32,35 @@ struct Args {
     interval: f64,
 }
 
+fn parse_bool(s: &str) -> bool {
+    match s.to_lowercase().as_str() {
+        "true" | "1" => true,
+        "false" | "0" => false,
+        _ => true,
+    }
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments
     let args = Args::parse();
 
-    // initialize Sentry
-    let _guard = sentry::init((
-        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.us.sentry.io/4506068829470720",
-        sentry::ClientOptions {
-            release: sentry::release_name!(),
-            ..Default::default()
-        },
-    ));
+    let error_reporting_enabled = env::var("WANDB_ERROR_REPORTING")
+        .map(|v| parse_bool(&v))
+        .unwrap_or(true);
+
+    let dsn: Option<Dsn> = if error_reporting_enabled {
+        "https://9e9d0694aa7ccd41aeb5bc34aadd716a@o151352.ingest.us.sentry.io/4506068829470720"
+            .parse()
+            .ok()
+    } else {
+        None
+    };
+
+    let _guard = sentry::init(sentry::ClientOptions {
+        dsn,
+        release: sentry::release_name!(),
+        ..Default::default()
+    });
 
     // Initialize NVIDIA GPU
     let nvidia_gpu = NvidiaGpu::new().map_err(|e| {
@@ -81,8 +101,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Convert metrics to JSON and print to stdout for collection
         if let Err(e) = metrics.print_json() {
-            eprintln!("Error printing metrics: {}", e);
-            sentry::capture_error(&e);
+            if e.kind() == io::ErrorKind::BrokenPipe {
+                break;
+            } else {
+                sentry::capture_error(&e);
+            }
         }
 
         // Check if parent process is still alive and break loop if not
