@@ -1715,7 +1715,7 @@ class Settings(SettingsData):
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self.silent)
+            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
             settings["_jupyter_path"] = meta.get("path")
             settings["_jupyter_name"] = meta.get("name")
             settings["_jupyter_root"] = meta.get("root")
@@ -1882,9 +1882,10 @@ class Settings(SettingsData):
         if self.resume_from is None:
             return
 
-        if self.run_id is not None:
+        if self.run_id is not None and (self.resume_from.run != self.run_id):
             wandb.termwarn(
-                "You cannot specify both run_id and resume_from. " "Ignoring run_id."
+                "Both `run_id` and `resume_from` have been specified with different ids. "
+                "`run_id` will be ignored."
             )
         self.update({"run_id": self.resume_from.run}, source=Source.INIT)
 

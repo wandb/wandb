@@ -448,7 +448,11 @@ message ArtifactManifest {
   int32 version = 1;
   string storage_policy = 2;
   repeated StoragePolicyConfigItem storage_policy_config = 3;
+  // Only one of {contents, manifest_file_path} should be set.
   repeated ArtifactManifestEntry contents = 4;
+  // `manifest_file_path` is used for manifests that approach the 2GiB message limit.
+  // It should point to a gzipped, line-delimited JSON file containing manifest entries.
+  string manifest_file_path = 5;
 }
 
 message ArtifactManifestEntry {
@@ -1158,6 +1162,8 @@ message GpuAppleInfo {
 message GpuNvidiaInfo {
   string name = 1;
   uint64 memory_total = 2;
+  uint32 cuda_cores = 3;
+  string architecture = 4;
 }
 
 message GpuAmdInfo {
@@ -1206,6 +1212,7 @@ message MetadataRequest {
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
+  string cuda_version = 30;
 }
 
 message PythonPackagesRequest {

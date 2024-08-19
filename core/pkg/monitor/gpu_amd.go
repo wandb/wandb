@@ -35,17 +35,16 @@ type InfoDict map[string]interface{}
 
 type GPUAMD struct {
 	name                string
-	settings            *service.Settings
 	metrics             map[string][]float64
 	GetROCMSMIStatsFunc func() (InfoDict, error)
+	IsAvailableFunc     func() bool
 	mutex               sync.RWMutex
 }
 
-func NewGPUAMD(settings *service.Settings) *GPUAMD {
+func NewGPUAMD() *GPUAMD {
 	g := &GPUAMD{
-		name:     "gpu",
-		settings: settings,
-		metrics:  make(map[string][]float64),
+		name:    "gpu",
+		metrics: make(map[string][]float64),
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
 	}
@@ -66,6 +65,10 @@ func GetRocmSMICmd() (string, error) {
 }
 
 func (g *GPUAMD) IsAvailable() bool {
+	if g.IsAvailableFunc != nil {
+		return g.IsAvailableFunc()
+	}
+
 	_, err := GetRocmSMICmd()
 	if err != nil {
 		return false
@@ -120,6 +123,9 @@ func (g *GPUAMD) getCards() map[int]Stats {
 
 //gocyclo:ignore
 func (g *GPUAMD) Probe() *service.MetadataRequest {
+	if !g.IsAvailable() {
+		return nil
+	}
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
@@ -285,7 +291,7 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func (g *GPUAMD) SampleMetrics() {
+func (g *GPUAMD) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
@@ -297,6 +303,8 @@ func (g *GPUAMD) SampleMetrics() {
 			g.metrics[formattedKey] = append(g.metrics[formattedKey], value)
 		}
 	}
+
+	return nil
 }
 
 func parseFloat(s string) (float64, error) {

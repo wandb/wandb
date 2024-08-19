@@ -87,6 +87,8 @@ LOG_PREFIX = f"{click.style('launch:', fg='magenta')} "
 MAX_ENV_LENGTHS: Dict[str, int] = defaultdict(lambda: 32670)
 MAX_ENV_LENGTHS["SageMakerRunner"] = 512
 
+CODE_MOUNT_DIR = "/mnt/wandb"
+
 
 def load_wandb_config() -> Config:
     """Load wandb config from WANDB_CONFIG environment variable(s).

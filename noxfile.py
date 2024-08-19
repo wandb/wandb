@@ -681,6 +681,7 @@ def mypy_report(session: nox.Session) -> None:
         "lxml",
         "pandas-stubs",
         "types-click",
+        "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
         "types-PyYAML",
@@ -844,7 +845,7 @@ def bump_go_version(session: nox.Session) -> None:
 
     # Get the latest Go version
     latest_version = session.run(
-        "./tools/get-go-version.py",
+        "./tools/get_go_version.py",
         silent=True,
         external=True,
     )

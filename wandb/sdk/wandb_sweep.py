@@ -1,5 +1,5 @@
 import urllib.parse
-from typing import Callable, Dict, List, Optional, Union
+from typing import TYPE_CHECKING, Callable, Dict, List, Optional, Union
 
 import wandb
 from wandb import env
@@ -7,6 +7,9 @@ from wandb.apis import InternalApi
 from wandb.sdk.launch.sweeps.utils import handle_sweep_config_violations
 
 from . import wandb_login
+
+if TYPE_CHECKING:
+    from wandb.wandb_controller import _WandbController
 
 
 def _get_sweep_url(api, sweep_id):
@@ -93,7 +96,7 @@ def controller(
     sweep_id_or_config: Optional[Union[str, Dict]] = None,
     entity: Optional[str] = None,
     project: Optional[str] = None,
-):
+) -> "_WandbController":
     """Public sweep controller constructor.
 
     Usage:

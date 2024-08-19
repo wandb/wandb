@@ -1,12 +1,12 @@
 package server_test
 
 import (
-	"context"
+	"fmt"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -15,15 +15,17 @@ import (
 func makeHandler(
 	inChan, fwdChan chan *service.Record,
 	outChan chan *service.Result,
+	commit string,
 ) *server.Handler {
-	h := server.NewHandler(context.Background(),
+	h := server.NewHandler(
+		commit,
 		server.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
 			Settings:        &service.Settings{},
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
-			MetricHandler:   runmetric.NewMetricHandler(),
+			SkipSummary:     true,
 		},
 	)
 
@@ -713,7 +715,7 @@ func TestHandlePartialHistory(t *testing.T) {
 			fwdChan := make(chan *service.Record, server.BufferSize)
 			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
@@ -812,7 +814,7 @@ func TestHandleHistory(t *testing.T) {
 			fwdChan := make(chan *service.Record, server.BufferSize)
 			outChan := make(chan *service.Result, server.BufferSize)
 
-			makeHandler(inChan, fwdChan, outChan)
+			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
@@ -839,4 +841,26 @@ func TestHandleHistory(t *testing.T) {
 		})
 	}
 
+}
+
+func TestHandleHeader(t *testing.T) {
+	inChan := make(chan *service.Record, 1)
+	fwdChan := make(chan *service.Record, 1)
+	outChan := make(chan *service.Result, 1)
+
+	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
+
+	makeHandler(inChan, fwdChan, outChan, sha)
+
+	record := &service.Record{
+		RecordType: &service.Record_Header{
+			Header: &service.HeaderRecord{},
+		},
+	}
+	inChan <- record
+
+	record = <-fwdChan
+
+	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
+	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
 }

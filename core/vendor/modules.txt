@@ -12,10 +12,6 @@ github.com/Microsoft/go-winio/internal/fs
 github.com/Microsoft/go-winio/internal/socket
 github.com/Microsoft/go-winio/internal/stringbuffer
 github.com/Microsoft/go-winio/pkg/guid
-# github.com/NVIDIA/go-nvml v0.12.4-0
-## explicit; go 1.20
-github.com/NVIDIA/go-nvml/pkg/dl
-github.com/NVIDIA/go-nvml/pkg/nvml
 # github.com/ProtonMail/go-crypto v1.0.0
 ## explicit; go 1.13
 github.com/ProtonMail/go-crypto/bitcurves
@@ -189,7 +185,7 @@ github.com/radovskyb/watcher
 # github.com/sergi/go-diff v1.3.2-0.20230802210424-5b0b94c5c0d3
 ## explicit; go 1.13
 github.com/sergi/go-diff/diffmatchpatch
-# github.com/shirou/gopsutil/v4 v4.24.6
+# github.com/shirou/gopsutil/v4 v4.24.7
 ## explicit; go 1.18
 github.com/shirou/gopsutil/v4/common
 github.com/shirou/gopsutil/v4/cpu
@@ -264,10 +260,10 @@ golang.org/x/mod/semver
 golang.org/x/net/context
 golang.org/x/net/internal/socks
 golang.org/x/net/proxy
-# golang.org/x/sync v0.7.0
+# golang.org/x/sync v0.8.0
 ## explicit; go 1.18
 golang.org/x/sync/errgroup
-# golang.org/x/sys v0.21.0
+# golang.org/x/sys v0.22.0
 ## explicit; go 1.18
 golang.org/x/sys/cpu
 golang.org/x/sys/execabs
@@ -285,7 +281,7 @@ golang.org/x/text/language
 golang.org/x/text/runes
 golang.org/x/text/transform
 golang.org/x/text/unicode/norm
-# golang.org/x/time v0.5.0
+# golang.org/x/time v0.6.0
 ## explicit; go 1.18
 golang.org/x/time/rate
 # golang.org/x/tools v0.22.0

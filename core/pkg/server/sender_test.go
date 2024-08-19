@@ -1,7 +1,6 @@
 package server_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
@@ -10,6 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -45,7 +45,7 @@ const validCreateArtifactResponse = `{
 }`
 
 func makeSender(client graphql.Client, recordChan chan *service.Record, resultChan chan *service.Result) *server.Sender {
-	ctx, cancel := context.WithCancel(context.Background())
+	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&service.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
@@ -59,7 +59,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		settings,
 	)
 	runfilesUploader := server.NewRunfilesUploader(
-		ctx,
+		runWork,
 		logger,
 		settings,
 		fileStream,
@@ -68,8 +68,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		client,
 	)
 	sender := server.NewSender(
-		ctx,
-		cancel,
+		runWork,
 		server.SenderParams{
 			Logger:              logger,
 			Settings:            settings,
@@ -77,9 +76,8 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 			FileStream:          fileStream,
 			FileTransferManager: fileTransferManager,
 			RunfilesUploader:    runfilesUploader,
-			FwdChan:             recordChan,
 			OutChan:             resultChan,
-			Mailbox:             mailbox.NewMailbox(),
+			Mailbox:             mailbox.New(),
 			GraphqlClient:       client,
 		},
 	)

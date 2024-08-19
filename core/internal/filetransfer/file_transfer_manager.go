@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/service"
-
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
@@ -36,9 +34,6 @@ type fileTransferManager struct {
 	// semaphore is the semaphore for limiting concurrency
 	semaphore chan struct{}
 
-	// settings is the settings for the file transfer
-	settings *service.Settings
-
 	// logger is the logger for the file transfer
 	logger *observability.CoreLogger
 
@@ -51,12 +46,6 @@ type FileTransferManagerOption func(fm *fileTransferManager)
 func WithLogger(logger *observability.CoreLogger) FileTransferManagerOption {
 	return func(fm *fileTransferManager) {
 		fm.logger = logger
-	}
-}
-
-func WithSettings(settings *service.Settings) FileTransferManagerOption {
-	return func(fm *fileTransferManager) {
-		fm.settings = settings
 	}
 }
 
@@ -101,10 +90,10 @@ func (fm *fileTransferManager) AddTask(task *Task) {
 		if task.Err != nil {
 			fm.logger.CaptureError(
 				fmt.Errorf(
-					"filetransfer: uploader: error uploading to %v: %v",
-					task.Url,
+					"filetransfer: uploader: error uploading: %v",
 					task.Err,
 				),
+				"url", task.Url,
 				"path", task.Path,
 			)
 		}

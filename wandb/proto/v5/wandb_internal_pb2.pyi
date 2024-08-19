@@ -1352,12 +1352,19 @@ class ArtifactManifest(google.protobuf.message.Message):
     STORAGE_POLICY_FIELD_NUMBER: builtins.int
     STORAGE_POLICY_CONFIG_FIELD_NUMBER: builtins.int
     CONTENTS_FIELD_NUMBER: builtins.int
+    MANIFEST_FILE_PATH_FIELD_NUMBER: builtins.int
     version: builtins.int
     storage_policy: builtins.str
+    manifest_file_path: builtins.str
+    """`manifest_file_path` is used for manifests that approach the 2GiB message limit.
+    It should point to a gzipped, line-delimited JSON file containing manifest entries.
+    """
     @property
     def storage_policy_config(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___StoragePolicyConfigItem]: ...
     @property
-    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]: ...
+    def contents(self) -> google.protobuf.internal.containers.RepeatedCompositeFieldContainer[global___ArtifactManifestEntry]:
+        """Only one of {contents, manifest_file_path} should be set."""
+
     def __init__(
         self,
         *,
@@ -1365,8 +1372,9 @@ class ArtifactManifest(google.protobuf.message.Message):
         storage_policy: builtins.str = ...,
         storage_policy_config: collections.abc.Iterable[global___StoragePolicyConfigItem] | None = ...,
         contents: collections.abc.Iterable[global___ArtifactManifestEntry] | None = ...,
+        manifest_file_path: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["contents", b"contents", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["contents", b"contents", "manifest_file_path", b"manifest_file_path", "storage_policy", b"storage_policy", "storage_policy_config", b"storage_policy_config", "version", b"version"]) -> None: ...
 
 global___ArtifactManifest = ArtifactManifest
 
@@ -3708,15 +3716,21 @@ class GpuNvidiaInfo(google.protobuf.message.Message):
 
     NAME_FIELD_NUMBER: builtins.int
     MEMORY_TOTAL_FIELD_NUMBER: builtins.int
+    CUDA_CORES_FIELD_NUMBER: builtins.int
+    ARCHITECTURE_FIELD_NUMBER: builtins.int
     name: builtins.str
     memory_total: builtins.int
+    cuda_cores: builtins.int
+    architecture: builtins.str
     def __init__(
         self,
         *,
         name: builtins.str = ...,
         memory_total: builtins.int = ...,
+        cuda_cores: builtins.int = ...,
+        architecture: builtins.str = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing.Literal["memory_total", b"memory_total", "name", b"name"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["architecture", b"architecture", "cuda_cores", b"cuda_cores", "memory_total", b"memory_total", "name", b"name"]) -> None: ...
 
 global___GpuNvidiaInfo = GpuNvidiaInfo
 
@@ -3838,6 +3852,7 @@ class MetadataRequest(google.protobuf.message.Message):
     GPU_NVIDIA_FIELD_NUMBER: builtins.int
     GPU_AMD_FIELD_NUMBER: builtins.int
     SLURM_FIELD_NUMBER: builtins.int
+    CUDA_VERSION_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     docker: builtins.str
@@ -3856,6 +3871,7 @@ class MetadataRequest(google.protobuf.message.Message):
     cpu_count_logical: builtins.int
     gpu_type: builtins.str
     gpu_count: builtins.int
+    cuda_version: builtins.str
     @property
     def heartbeatAt(self) -> google.protobuf.timestamp_pb2.Timestamp: ...
     @property
@@ -3910,9 +3926,10 @@ class MetadataRequest(google.protobuf.message.Message):
         gpu_nvidia: collections.abc.Iterable[global___GpuNvidiaInfo] | None = ...,
         gpu_amd: collections.abc.Iterable[global___GpuAmdInfo] | None = ...,
         slurm: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
+        cuda_version: builtins.str = ...,
     ) -> None: ...
     def HasField(self, field_name: typing.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def ClearField(self, field_name: typing.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
 

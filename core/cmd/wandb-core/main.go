@@ -4,10 +4,6 @@ import (
 	"context"
 	"flag"
 	"log/slog"
-	_ "net/http/pprof"
-	"os"
-	"runtime"
-	"runtime/trace"
 
 	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -25,10 +21,6 @@ const (
 // this is set by the build script and used by the observability package
 var commit string
 
-func init() {
-	runtime.SetBlockProfileRate(1)
-}
-
 func main() {
 	// Flags to control the server
 	portFilename := flag.String("port-filename", "port_file.txt", "filename for port to communicate with client")
@@ -36,7 +28,7 @@ func main() {
 	enableDebugLogging := flag.Bool("debug", false, "enable debug logging")
 	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
 	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false, "enable OS pid shutdown")
-	traceFile := flag.String("trace", "", "file name to write trace output to")
+	_ = flag.String("trace", "", "file name to write trace output to")
 	// TODO: remove these flags, they are here for backward compatibility
 	_ = flag.Bool("serve-sock", false, "use sockets")
 
@@ -64,7 +56,7 @@ func main() {
 
 	// store commit hash in context
 	ctx := context.Background()
-	ctx = context.WithValue(ctx, observability.Commit("commit"), commit)
+	ctx = context.WithValue(ctx, observability.Commit, commit)
 
 	var loggerPath string
 	if file, _ := observability.GetLoggerPath(); file != nil {
@@ -92,24 +84,24 @@ func main() {
 		defer file.Close()
 	}
 
-	if *traceFile != "" {
-		f, err := os.Create(*traceFile)
-		if err != nil {
-			slog.Error("failed to create trace output file", "err", err)
-			panic(err)
-		}
-		defer func() {
-			if err = f.Close(); err != nil {
-				slog.Error("failed to close trace file", "err", err)
-			}
-		}()
+	// if *traceFile != "" {
+	// 	f, err := os.Create(*traceFile)
+	// 	if err != nil {
+	// 		slog.Error("failed to create trace output file", "err", err)
+	// 		panic(err)
+	// 	}
+	// 	defer func() {
+	// 		if err = f.Close(); err != nil {
+	// 			slog.Error("failed to close trace file", "err", err)
+	// 		}
+	// 	}()
 
-		if err = trace.Start(f); err != nil {
-			slog.Error("failed to start trace", "err", err)
-			panic(err)
-		}
-		defer trace.Stop()
-	}
+	// 	if err = trace.Start(f); err != nil {
+	// 		slog.Error("failed to start trace", "err", err)
+	// 		panic(err)
+	// 	}
+	// 	defer trace.Stop()
+	// }
 
 	srv, err := server.NewServer(
 		ctx,
@@ -118,6 +110,7 @@ func main() {
 			PortFilename:    *portFilename,
 			ParentPid:       *pid,
 			SentryClient:    sentryClient,
+			Commit:          commit,
 		},
 	)
 	if err != nil {
