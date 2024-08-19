@@ -158,7 +158,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						task := &filetransfer.ReferenceArtifactDownloadTask{
 							FileKind:  filetransfer.RunFileKindArtifact,
 							Path:      downloadLocalPath,
-							Reference: entry.Ref,
+							Reference: *entry.Ref,
 							Digest:    entry.Digest,
 							Size:      entry.Size,
 						}

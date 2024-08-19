@@ -11,7 +11,6 @@ type FileTransfer interface {
 }
 
 type ReferenceArtifactFileTransfer interface {
-	CanHandle(task Task) bool
 	Upload(task *ReferenceArtifactUploadTask) error
 	Download(task *ReferenceArtifactDownloadTask) error
 }
@@ -29,12 +28,10 @@ func NewFileTransfers(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
-	defaultFileTransfer := &DefaultFileTransfer{
-		logger:            logger,
-		client:            client,
-		fileTransferStats: fileTransferStats,
-	}
+	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
+	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	return &FileTransfers{
 		Default: defaultFileTransfer,
+		GCS: gcsFileTransfer,
 	}
 }

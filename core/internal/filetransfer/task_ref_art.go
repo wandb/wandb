@@ -1,6 +1,9 @@
 package filetransfer
 
-import "fmt"
+import (
+	"fmt"
+	"net/url"
+)
 
 // ReferenceArtifactTask is a task to upload/download a reference artifacts
 type ReferenceArtifactTask struct {
@@ -19,7 +22,7 @@ type ReferenceArtifactTask struct {
 	Err error
 
 	// Reference to the artifact being transfered
-	Reference *string
+	Reference string
 
 	// VersionId is the version of the file we want to download
 	VersionId interface{}
@@ -28,18 +31,11 @@ type ReferenceArtifactTask struct {
 	Digest string
 }
 
+// ReferenceArtifactUploadTask uploads a reference artifact
 type ReferenceArtifactUploadTask ReferenceArtifactTask
 
-func (t *ReferenceArtifactUploadTask) GetStorageProvider(fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
-	switch {
-	case fts.GCS.CanHandle(t):
-		return fts.GCS, nil
-	default:
-		return nil, fmt.Errorf("fileTransfer: unknown reference type: %v", t.Reference)
-	}
-}
 func (t *ReferenceArtifactUploadTask) Execute(fts *FileTransfers) error {
-	ft, err := t.GetStorageProvider(fts)
+	ft, err := getStorageProvider(t.Reference, fts)
 	if err != nil {
 		return err
 	}
@@ -61,26 +57,19 @@ func (t *ReferenceArtifactUploadTask) Complete(fts FileTransferStats) {
 func (t *ReferenceArtifactUploadTask) String() string {
 	return fmt.Sprintf(
 		"ReferenceArtifactUploadTask{Path: %s, Ref: %s, Size: %d}",
-		t.Path, *t.Reference, t.Size,
+		t.Path, t.Reference, t.Size,
 	)
 }
 func (t *ReferenceArtifactUploadTask) CaptureError(err error) error {
 	t.Err = err
-	return fmt.Errorf("filetransfer: upload: error uploading reference %s: %v", *t.Reference, err)
+	return fmt.Errorf("filetransfer: upload: error uploading reference %s: %v", t.Reference, err)
 }
 
+// ReferenceArtifactUploadTask downloads a reference artifact
 type ReferenceArtifactDownloadTask ReferenceArtifactTask
 
-func (t *ReferenceArtifactDownloadTask) GetStorageProvider(fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
-	switch {
-	case fts.GCS.CanHandle(t):
-		return fts.GCS, nil
-	default:
-		return nil, fmt.Errorf("fileTransfer: unknown reference type: %v", t.Reference)
-	}
-}
 func (t *ReferenceArtifactDownloadTask) Execute(fts *FileTransfers) error {
-	ft, err := t.GetStorageProvider(fts)
+	ft, err := getStorageProvider(t.Reference, fts)
 	if err != nil {
 		return err
 	}
@@ -91,10 +80,22 @@ func (t *ReferenceArtifactDownloadTask) Execute(fts *FileTransfers) error {
 func (t *ReferenceArtifactDownloadTask) String() string {
 	return fmt.Sprintf(
 		"ReferenceArtifactDownloadTask{Path: %s, Ref: %s, Size: %d}",
-		t.Path, *t.Reference, t.Size,
+		t.Path, t.Reference, t.Size,
 	)
 }
 func (t *ReferenceArtifactDownloadTask) CaptureError(err error) error {
 	t.Err = err
-	return fmt.Errorf("filetransfer: download: error downloading reference %s: %v", *t.Reference, err)
+	return fmt.Errorf("filetransfer: download: error downloading reference %s: %v", t.Reference, err)
+}
+
+func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
+	uriParts, err := url.Parse(ref)
+	switch {
+	case err != nil:
+		return nil, err
+	case uriParts.Scheme == "gs":
+		return fts.GCS, nil
+	default:
+		return nil, fmt.Errorf("filetransfer: unknown reference type: %s", ref)
+	}
 }

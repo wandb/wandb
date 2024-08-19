@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/url"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -42,18 +41,6 @@ func NewGCSFileTransfer(
 		ctx:               ctx,
 	}
 	return fileTransfer
-}
-
-// CanHandle returns true if GCSFileTransfer can upload/download the task
-func (ft *GCSFileTransfer) CanHandle(task *ReferenceArtifactTask) bool {
-	reference := *task.Reference
-	uriParts, err := url.Parse(reference)
-	if err != nil {
-		return false
-	} else if uriParts.Scheme == "gs" {
-		return true
-	}
-	return false
 }
 
 // Upload uploads a file to the server
