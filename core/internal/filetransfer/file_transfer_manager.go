@@ -105,8 +105,7 @@ func (fm *fileTransferManager) AddTask(task Task) {
 
 // completeTask runs the completion callback and updates statistics.
 func (fm *fileTransferManager) completeTask(task Task) {
-	taskCompletionCallback := task.GetCompletionCallback()
-	taskCompletionCallback(task)
+	task.Complete()
 
 	if task.GetType() == UploadTask {
 		fm.fileTransferStats.UpdateUploadStats(FileUploadInfo{

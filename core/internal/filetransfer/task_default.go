@@ -7,6 +7,8 @@ import (
 )
 
 type DefaultTask struct {
+	TaskCompletionCallback
+
 	// FileKind is the category of file being uploaded or downloaded
 	FileKind RunFileKind
 
@@ -39,9 +41,6 @@ type DefaultTask struct {
 	// Error, if any.
 	Err error
 
-	// Callback to execute after completion (success or failure).
-	CompletionCallback func(Task)
-
 	// ProgressCallback is a callback to execute on progress updates
 	ProgressCallback func(int, int)
 
@@ -54,15 +53,6 @@ func (t *DefaultTask) GetPath() string                   { return t.Path }
 func (t *DefaultTask) GetUrl() string                    { return t.Url }
 func (t *DefaultTask) GetSize() int64                    { return t.Size }
 func (t *DefaultTask) GetErr() error                     { return t.Err }
-func (t *DefaultTask) GetCompletionCallback() func(Task) { return t.CompletionCallback }
-
-func (t *DefaultTask) SetProgressCallback(callback func(int, int)) {
-	t.ProgressCallback = callback
-}
-
-func (t *DefaultTask) SetCompletionCallback(callback func(Task)) {
-	t.CompletionCallback = callback
-}
 
 func (t *DefaultTask) SetErr(err error) {
 	t.Err = err

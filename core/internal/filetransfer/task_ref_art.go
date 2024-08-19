@@ -17,9 +17,6 @@ type ReferenceArtifactTask struct {
 	// Error, if any.
 	Err error
 
-	// Callback to execute after completion (success or failure).
-	CompletionCallback func(Task)
-
 	// Reference to the artifact being transfered
 	Reference *string
 
@@ -28,6 +25,8 @@ type ReferenceArtifactTask struct {
 
 	// Digest is the checksum to ensure the correct files are being downloaded
 	Digest string
+
+	TaskCompletionCallback
 }
 
 func (t *ReferenceArtifactTask) GetFileKind() RunFileKind { return t.FileKind }
@@ -40,25 +39,8 @@ func (t *ReferenceArtifactTask) GetUrl() string {
 }
 func (t *ReferenceArtifactTask) GetSize() int64                    { return t.Size }
 func (t *ReferenceArtifactTask) GetErr() error                     { return t.Err }
-func (t *ReferenceArtifactTask) GetCompletionCallback() func(Task) { return t.CompletionCallback }
-
-func (t *ReferenceArtifactTask) SetCompletionCallback(callback func(Task)) {
-	t.CompletionCallback = callback
-}
-
 func (t *ReferenceArtifactTask) SetErr(err error) {
 	t.Err = err
-}
-
-func (t *ReferenceArtifactTask) Execute(fts *FileTransfers) error {
-	return nil
-}
-
-func (t *ReferenceArtifactTask) String() string {
-	return fmt.Sprintf(
-		"ReferenceArtifactTask{Path: %s, Ref: %s, Size: %d}",
-		t.Path, *t.Reference, t.Size,
-	)
 }
 
 type ReferenceArtifactUploadTask struct{ ReferenceArtifactTask }

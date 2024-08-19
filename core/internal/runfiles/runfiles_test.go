@@ -287,7 +287,7 @@ func TestUploader(t *testing.T) {
 
 			// Act 2: complete the first upload task.
 			firstUpload := fakeFileTransfer.Tasks()[0]
-			firstUpload.GetCompletionCallback()(firstUpload)
+			firstUpload.Complete()
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Assert 2: the second upload task should get scheduled.
