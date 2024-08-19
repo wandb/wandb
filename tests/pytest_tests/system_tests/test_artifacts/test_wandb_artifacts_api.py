@@ -2,7 +2,6 @@ import os
 import re
 
 import pytest
-
 import wandb
 from wandb import Api
 from wandb.errors import CommError
