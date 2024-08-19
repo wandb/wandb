@@ -198,9 +198,11 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+			task, ok := fakeFileTransfer.Tasks()[0].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filetransfer.RunFileKindArtifact,
-				fakeFileTransfer.Tasks()[0].GetFileKind(),
+				task.FileKind,
 			)
 		})
 
@@ -287,7 +289,7 @@ func TestUploader(t *testing.T) {
 
 			// Act 2: complete the first upload task.
 			firstUpload := fakeFileTransfer.Tasks()[0]
-			firstUpload.Complete()
+			firstUpload.Complete(nil)
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Assert 2: the second upload task should get scheduled.

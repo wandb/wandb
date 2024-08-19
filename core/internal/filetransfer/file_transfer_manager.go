@@ -1,7 +1,6 @@
 package filetransfer
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -76,7 +75,7 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 }
 
 func (fm *fileTransferManager) AddTask(task Task) {
-	fm.logger.Debug("fileTransfer: adding upload task", "path", task.GetPath(), "url", task.GetUrl())
+	fm.logger.Debug("fileTransfer: adding upload task", "task", task.String())
 
 	fm.wg.Add(1)
 	go func() {
@@ -84,37 +83,16 @@ func (fm *fileTransferManager) AddTask(task Task) {
 
 		// Guard by a semaphore to limit number of concurrent uploads.
 		fm.semaphore <- struct{}{}
-		task.SetErr(fm.transfer(task))
+		err := fm.transfer(task)
 		<-fm.semaphore
 
-		if task.GetErr() != nil {
-			fm.logger.CaptureError(
-				fmt.Errorf(
-					"filetransfer: uploader: error uploading to %v: %v",
-					task.GetUrl(),
-					task.GetErr(),
-				),
-				"path", task.GetPath(),
-			)
+		if err != nil {
+			fm.logger.CaptureError(task.CaptureError(err), task, task.String())
 		}
 
 		// Execute the callback.
-		fm.completeTask(task)
+		task.Complete(fm.fileTransferStats)
 	}()
-}
-
-// completeTask runs the completion callback and updates statistics.
-func (fm *fileTransferManager) completeTask(task Task) {
-	task.Complete()
-
-	if task.GetType() == UploadTask {
-		fm.fileTransferStats.UpdateUploadStats(FileUploadInfo{
-			FileKind:      task.GetFileKind(),
-			Path:          task.GetPath(),
-			UploadedBytes: task.GetSize(),
-			TotalBytes:    task.GetSize(),
-		})
-	}
 }
 
 func (fm *fileTransferManager) Close() {

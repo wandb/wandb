@@ -6,6 +6,7 @@ import (
 	"net/http"
 )
 
+// DefaultTask is the default task to upload/download files
 type DefaultTask struct {
 	TaskCompletionCallback
 
@@ -48,42 +49,45 @@ type DefaultTask struct {
 	Context context.Context
 }
 
-func (t *DefaultTask) GetFileKind() RunFileKind          { return t.FileKind }
-func (t *DefaultTask) GetPath() string                   { return t.Path }
-func (t *DefaultTask) GetUrl() string                    { return t.Url }
-func (t *DefaultTask) GetSize() int64                    { return t.Size }
-func (t *DefaultTask) GetErr() error                     { return t.Err }
+type DefaultUploadTask DefaultTask
 
-func (t *DefaultTask) SetErr(err error) {
-	t.Err = err
+func (t *DefaultUploadTask) Execute(fts *FileTransfers) error {
+	return fts.Default.Upload(t)
 }
-
-type DefaultUploadTask struct{ DefaultTask }
-
+func (t *DefaultUploadTask) Complete(fts FileTransferStats) {
+	t.TaskCompletionCallback.Complete(nil)
+	if fts != nil {
+		fts.UpdateUploadStats(FileUploadInfo{
+			FileKind:      t.FileKind,
+			Path:          t.Path,
+			UploadedBytes: t.Size,
+			TotalBytes:    t.Size,
+		})
+	}
+}
 func (t *DefaultUploadTask) String() string {
 	return fmt.Sprintf(
 		"DefaultUploadTask{FileKind: %d, Path: %s, Name: %s, Url: %s, Size: %d}",
 		t.FileKind, t.Path, t.Name, t.Url, t.Size,
 	)
 }
-func (t *DefaultUploadTask) Execute(fts *FileTransfers) error {
-	return fts.Default.Upload(t)
-}
-func (t *DefaultUploadTask) GetType() TaskType {
-	return UploadTask
+func (t *DefaultUploadTask) CaptureError(err error) error {
+	t.Err = err
+	return fmt.Errorf("filetransfer: upload: error uploading to %s: %v", t.Url, err)
 }
 
-type DefaultDownloadTask struct{ DefaultTask }
+type DefaultDownloadTask DefaultTask
 
+func (t *DefaultDownloadTask) Execute(fts *FileTransfers) error {
+	return fts.Default.Download(t)
+}
 func (t *DefaultDownloadTask) String() string {
 	return fmt.Sprintf(
 		"DefaultDownloadTask{FileKind: %d, Path: %s, Name: %s, Url: %s, Size: %d}",
 		t.FileKind, t.Path, t.Name, t.Url, t.Size,
 	)
 }
-func (t *DefaultDownloadTask) Execute(fts *FileTransfers) error {
-	return fts.Default.Download(t)
-}
-func (t *DefaultDownloadTask) GetType() TaskType {
-	return DownloadTask
+func (t *DefaultDownloadTask) CaptureError(err error) error {
+	t.Err = err
+	return fmt.Errorf("filetransfer: download: error downloading from %s: %v", t.Url, err)
 }

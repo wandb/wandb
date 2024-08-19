@@ -369,13 +369,11 @@ func (as *ArtifactSaver) batchSize() int {
 
 func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.DefaultUploadTask {
 	return &filetransfer.DefaultUploadTask{
-		DefaultTask: filetransfer.DefaultTask{
-			FileKind: filetransfer.RunFileKindArtifact,
-			Path:     localPath,
-			Name:     fileInfo.name,
-			Url:      *fileInfo.uploadUrl,
-			Headers:  fileInfo.uploadHeaders,
-		},
+		FileKind: filetransfer.RunFileKindArtifact,
+		Path:     localPath,
+		Name:     fileInfo.name,
+		Url:      *fileInfo.uploadUrl,
+		Headers:  fileInfo.uploadHeaders,
 	}
 }
 
@@ -597,12 +595,10 @@ func (as *ArtifactSaver) uploadManifest(
 ) error {
 	resultChan := make(chan *filetransfer.DefaultUploadTask)
 	task := &filetransfer.DefaultUploadTask{
-		DefaultTask: filetransfer.DefaultTask{
-			FileKind: filetransfer.RunFileKindArtifact,
-			Path:     manifestFile,
-			Url:      *uploadUrl,
-			Headers:  uploadHeaders,
-		},
+		FileKind: filetransfer.RunFileKindArtifact,
+		Path:     manifestFile,
+		Url:      *uploadUrl,
+		Headers:  uploadHeaders,
 	}
 	task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
 		CompletionCallback: func() { resultChan <- task },

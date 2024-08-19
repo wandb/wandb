@@ -44,8 +44,8 @@ func NewGCSFileTransfer(
 }
 
 // CanHandle returns true if GCSFileTransfer can upload/download the task
-func (ft *GCSFileTransfer) CanHandle(task Task) bool {
-	reference := task.GetUrl()
+func (ft *GCSFileTransfer) CanHandle(task *ReferenceArtifactTask) bool {
+	reference := *task.Reference
 	uriParts, err := url.Parse(reference)
 	if err != nil {
 		return false

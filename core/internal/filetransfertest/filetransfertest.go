@@ -37,7 +37,7 @@ func (m *FakeFileTransferManager) CompleteTasks() {
 	defer m.tasksMu.Unlock()
 
 	for task := range m.unfinishedTasks {
-		task.Complete()
+		task.Complete(nil)
 		delete(m.unfinishedTasks, task)
 	}
 }
@@ -59,7 +59,7 @@ func (m *FakeFileTransferManager) AddTask(t filetransfer.Task) {
 	m.tasks = append(m.tasks, t)
 
 	if m.ShouldCompleteImmediately {
-		t.Complete()
+		t.Complete(nil)
 	} else {
 		m.unfinishedTasks[t] = struct{}{}
 	}

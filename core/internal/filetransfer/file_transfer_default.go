@@ -63,7 +63,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	stat, err := file.Stat()
 	if err != nil {
 		return fmt.Errorf(
-			"file transfer: upload: error when stat-ing %s: %v",
+			"error when stat-ing %s: %v",
 			task.Path,
 			err,
 		)
@@ -72,14 +72,14 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	// Don't try to upload directories.
 	if stat.IsDir() {
 		return fmt.Errorf(
-			"file transfer: upload: cannot upload directory %v",
+			"cannot upload directory %v",
 			task.Path,
 		)
 	}
 
 	if task.Offset+task.Size > stat.Size() {
 		// If the range exceeds the file size, there was some kind of error upstream.
-		return fmt.Errorf("file transfer: upload: offset + size exceeds the file size")
+		return fmt.Errorf("offset + size exceeds the file size")
 	}
 
 	if task.Size == 0 {
@@ -98,7 +98,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		requestBody = http.NoBody
 	} else {
 		if task.Size > math.MaxInt {
-			return fmt.Errorf("file transfer: file too large (%d bytes)", task.Size)
+			return fmt.Errorf("file too large (%d bytes)", task.Size)
 		}
 
 		requestBody = NewProgressReader(
@@ -139,7 +139,7 @@ func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
-		return fmt.Errorf("file transfer: upload: failed to upload: %s", resp.Status)
+		return fmt.Errorf("failed to upload: %s", resp.Status)
 	}
 	task.Response = resp
 

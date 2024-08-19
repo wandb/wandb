@@ -7,28 +7,27 @@ const (
 	DownloadTask
  )
 
+// Task is a task to upload/download a file
 type Task interface {
-	// Methods to get shared fields
-	GetFileKind() RunFileKind
-	GetPath() string
-	GetUrl() string
-	GetSize() int64
-	GetErr() error
-	GetType() TaskType
+	// Execute does the action (upload/download) described by the task
+	Execute(*FileTransfers) error
 
-	// Methods to work with the Task
-	SetErr(error)
+	// Complete executes any callbacks necessary to complete the task
+	Complete(FileTransferStats)
+
+	// String describes the task
 	String() string
 
-	Execute(*FileTransfers) error
-	Complete()
+	// CaptureError saves the error to the task and returns a formatted descriptive error
+	CaptureError(error) error
 }
 
+// TaskCompletionCallback handles the completion callback for a task
 type TaskCompletionCallback struct {
 	CompletionCallback func()
 }
 
-func (t TaskCompletionCallback) Complete() {
+func (t TaskCompletionCallback) Complete(fts FileTransferStats) {
 	if t.CompletionCallback == nil {
 		return
 	}

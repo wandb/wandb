@@ -88,7 +88,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	batchSize := BATCH_SIZE
 
 	type TaskResult struct {
-		Task filetransfer.Task
+		Path string
+		Err error
 		Name string
 	}
 
@@ -155,13 +156,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					}
 					if entry.Ref != nil {
 						task := &filetransfer.ReferenceArtifactDownloadTask{
-							ReferenceArtifactTask: filetransfer.ReferenceArtifactTask{
-								FileKind:  filetransfer.RunFileKindArtifact,
-								Path:      downloadLocalPath,
-								Reference: entry.Ref,
-								Digest:    entry.Digest,
-								Size:      entry.Size,
-							},
+							FileKind:  filetransfer.RunFileKindArtifact,
+							Path:      downloadLocalPath,
+							Reference: entry.Ref,
+							Digest:    entry.Digest,
+							Size:      entry.Size,
 						}
 						versionId, ok := entry.Extra["versionID"]
 						if ok {
@@ -169,21 +168,19 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						}
 
 						task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-							CompletionCallback: func() { taskResultsChan <- TaskResult{task, *entry.LocalPath}},
+							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}},
 						}
 						ad.DownloadManager.AddTask(task)
 					} else {
 						task := &filetransfer.DefaultDownloadTask{
-							DefaultTask: filetransfer.DefaultTask{
-								FileKind: filetransfer.RunFileKindArtifact,
-								Path:     downloadLocalPath,
-								Url:      *entry.DownloadURL,
-								Size:     entry.Size,
-							},
+							FileKind: filetransfer.RunFileKindArtifact,
+							Path:     downloadLocalPath,
+							Url:      *entry.DownloadURL,
+							Size:     entry.Size,
 						}
 
 						task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-							CompletionCallback: func() { taskResultsChan <- TaskResult{task, *entry.LocalPath}},
+							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}},
 						}
 						ad.DownloadManager.AddTask(task)
 					}
@@ -194,11 +191,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 			for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
 				numInProgress--
 				result := <-taskResultsChan
-				if result.Task.GetErr() != nil {
+				if result.Err != nil {
 					// We want to retry when the signed URL expires. However, distinguishing that error from others is not
 					// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
 					if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
-						return result.Task.GetErr()
+						return result.Err
 					}
 					delete(nameToScheduledTime, result.Name) // retry
 					continue
@@ -206,7 +203,7 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				numDone++
 				digest := manifest.Contents[result.Name].Digest
 				go func() {
-					err := ad.FileCache.AddFileAndCheckDigest(result.Task.GetPath(), digest)
+					err := ad.FileCache.AddFileAndCheckDigest(result.Path, digest)
 					if err != nil {
 						slog.Error("Error adding file to cache", "err", err)
 					}
