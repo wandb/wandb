@@ -832,55 +832,52 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query_template = """
-            query ArtifactByIDShort($id: ID!) {
-                artifact(id: $id) {
-                    artifactSequence {
-                        project {
+        fields = InternalApi().server_artifact_introspection()
+
+        supports_ttl = "ttlIsInherited" in fields
+        ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
+        ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
+
+        supports_tags = "tags" in fields
+        tags = "tags {name}" if supports_tags else ""
+
+        query_template = f"""
+            query ArtifactByIDShort($id: ID!) {{
+                artifact(id: $id) {{
+                    artifactSequence {{
+                        project {{
                             entityName
                             name
-                        }
+                        }}
                         name
-                    }
+                    }}
                     versionIndex
-                    ttlDurationSeconds
-                    ttlIsInherited
-                    aliases {
-                        artifactCollection {
-                            project {
+                    {ttl_duration_seconds}
+                    {ttl_is_inherited}
+                    aliases {{
+                        artifactCollection {{
+                            project {{
                                 entityName
                                 name
-                            }
+                            }}
                             name
-                        }
+                        }}
                         alias
-                    }
-                    _MAYBE_TAGS_
+                    }}
+                    {tags!s}
                     state
-                    currentManifest {
-                        file {
+                    currentManifest {{
+                        file {{
                             directUrl
-                        }
-                    }
+                        }}
+                    }}
                     commitHash
                     fileCount
                     createdAt
                     updatedAt
-                }
-            }
+                }}
+            }}
         """
-
-        fields = InternalApi().server_artifact_introspection()
-        if "ttlIsInherited" not in fields:
-            query_template = query_template.replace("ttlDurationSeconds", "").replace(
-                "ttlIsInherited",
-                "",
-            )
-
-        if "tags" in fields:
-            query_template = query_template.replace("_MAYBE_TAGS_", "tags {name}")
-        else:
-            query_template = query_template.replace("_MAYBE_TAGS_", "")
 
         query = gql(query_template)
 
@@ -1027,9 +1024,9 @@ class Artifact:
 
         mutation_template = """
             mutation updateArtifact(
-                $artifactID: ID!,
-                $description: String,
-                $metadata: JSONString,
+                $artifactID: ID!
+                $description: String
+                $metadata: JSONString
                 _TTL_DURATION_SECONDS_TYPE_
                 _TAGS_TO_ADD_TYPE_
                 _TAGS_TO_DELETE_TYPE_
@@ -1057,14 +1054,16 @@ class Artifact:
         if "ttlIsInherited" in fields:
             mutation_template = (
                 mutation_template.replace(
-                    "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
+                    "_TTL_DURATION_SECONDS_TYPE_",
+                    "$ttlDurationSeconds: Int64",
                 )
                 .replace(
                     "_TTL_DURATION_SECONDS_VALUE_",
-                    "ttlDurationSeconds: $ttlDurationSeconds,",
+                    "ttlDurationSeconds: $ttlDurationSeconds",
                 )
                 .replace(
-                    "_TTL_DURATION_SECONDS_FIELDS_", "ttlDurationSeconds ttlIsInherited"
+                    "_TTL_DURATION_SECONDS_FIELDS_",
+                    "ttlDurationSeconds ttlIsInherited",
                 )
             )
         else:
@@ -1074,10 +1073,7 @@ class Artifact:
                 )
             mutation_template = (
                 mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
-                .replace(
-                    "_TTL_DURATION_SECONDS_VALUE_",
-                    "",
-                )
+                .replace("_TTL_DURATION_SECONDS_VALUE_", "")
                 .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
             )
 
@@ -1086,9 +1082,9 @@ class Artifact:
         if "tags" in fields:
             mutation_template = (
                 mutation_template.replace(
-                    "_TAGS_TO_ADD_TYPE_", "$tagsToAdd: [TagInput!],"
+                    "_TAGS_TO_ADD_TYPE_", "$tagsToAdd: [TagInput!]"
                 )
-                .replace("_TAGS_TO_DELETE_TYPE_", "$tagsToDelete: [TagInput!],")
+                .replace("_TAGS_TO_DELETE_TYPE_", "$tagsToDelete: [TagInput!]")
                 .replace("_TAGS_TO_ADD_VALUE_", "tagsToAdd: $tagsToAdd")
                 .replace("_TAGS_TO_DELETE_VALUE_", "tagsToDelete: $tagsToDelete")
             )
