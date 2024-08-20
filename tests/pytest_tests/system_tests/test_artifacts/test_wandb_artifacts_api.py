@@ -97,7 +97,12 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
 )
 @pytest.mark.parametrize("edit_tags_inplace", (True, False))
 def test_save_tags_after_logging_artifact(
-    tmp_path, user, wandb_init, api, orig_tags, edit_tags_inplace
+    tmp_path,
+    user,
+    wandb_init,
+    api,
+    orig_tags,
+    edit_tags_inplace,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -161,19 +166,17 @@ INVALID_TAGS = (
     " leading space",
 )
 
-
-@pytest.mark.parametrize(
-    # Note: Consider `hypothesis` for testing/fuzzing instead if we can reduce setup + wandb.init() time
-    "tags_to_add",
-    (
-        # Given a single invalid tag
-        *([bad] for bad in INVALID_TAGS),
-        # Given an invalid + valid tag
-        *([bad, "good-tag"] for bad in INVALID_TAGS),
-        # Given pairs of invalid tags
-        *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
-    ),
+INVALID_TAG_LISTS = (
+    # Given a single invalid tag
+    *([bad] for bad in INVALID_TAGS),
+    # Given an invalid + valid tag
+    *([bad, "good-tag"] for bad in INVALID_TAGS),
+    # Given pairs of invalid tags
+    *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
 )
+
+
+@pytest.mark.parametrize("tags_to_add", INVALID_TAG_LISTS)
 def test_save_invalid_tags_after_logging_artifact(
     tmp_path, user, wandb_init, api, tags_to_add
 ):
@@ -215,17 +218,7 @@ def test_save_invalid_tags_after_logging_artifact(
     assert sorted(final_tags) == sorted(set(orig_tags))
 
 
-@pytest.mark.parametrize(
-    "invalid_tags",
-    (
-        # Given a single invalid tag
-        *([bad] for bad in INVALID_TAGS),
-        # Given an invalid + valid tag
-        *([bad, "good-tag"] for bad in INVALID_TAGS),
-        # Given pairs of invalid tags
-        *([bad1, bad2] for bad1, bad2 in zip(INVALID_TAGS[:-1], INVALID_TAGS[1:])),
-    ),
-)
+@pytest.mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
 def test_log_artifact_with_invalid_tags(tmp_path, user, wandb_init, api, invalid_tags):
     project = "test"
     artifact_name = "test-artifact"
