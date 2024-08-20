@@ -3129,7 +3129,11 @@ class Run:
             An `Artifact` object.
         """
         return self._log_artifact(
-            artifact_or_path, name=name, type=type, aliases=aliases, tags=tags
+            artifact_or_path,
+            name=name,
+            type=type,
+            aliases=aliases,
+            tags=tags,
         )
 
     @_run_decorator._noop_on_finish()
@@ -3286,7 +3290,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
-                    tags or [],
+                    tags,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -3296,7 +3300,7 @@ class Run:
                 self,
                 artifact,
                 aliases,
-                tags or [],
+                tags,
                 finalize=finalize,
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
