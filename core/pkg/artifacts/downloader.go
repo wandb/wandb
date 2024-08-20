@@ -167,8 +167,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 							task.VersionId = versionId
 						}
 
-						task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath} },
+						task.OnComplete = func() {
+							taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}
 						}
 						ad.DownloadManager.AddTask(task)
 					} else {
@@ -179,8 +179,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 							Size:     entry.Size,
 						}
 
-						task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-							CompletionCallback: func() { taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath} },
+						task.OnComplete = func() {
+							taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}
 						}
 						ad.DownloadManager.AddTask(task)
 					}

@@ -290,8 +290,8 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
-				task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-					CompletionCallback: func() { doneChan <- uploadResult{name: fileInfo.name, err: task.Err} },
+				task.OnComplete = func() {
+					doneChan <- uploadResult{name: fileInfo.name, err: task.Err}
 				}
 				as.FileTransferManager.AddTask(task)
 			}
@@ -466,11 +466,9 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Length:" + strconv.FormatInt(task.Size, 10),
 			"Content-Type:" + contentType,
 		}
-		task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-			CompletionCallback: func() {
-				partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
-				wg.Done()
-			},
+		task.OnComplete = func() {
+			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
+			wg.Done()
 		}
 		wg.Add(1)
 		as.FileTransferManager.AddTask(task)
@@ -600,9 +598,7 @@ func (as *ArtifactSaver) uploadManifest(
 		Url:      *uploadUrl,
 		Headers:  uploadHeaders,
 	}
-	task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-		CompletionCallback: func() { resultChan <- task },
-	}
+	task.OnComplete = func() { resultChan <- task }
 
 	as.FileTransferManager.AddTask(task)
 	<-resultChan

@@ -23,14 +23,12 @@ type Task interface {
 }
 
 // TaskCompletionCallback handles the completion callback for a task
-type TaskCompletionCallback struct {
-	CompletionCallback func()
-}
+type TaskCompletionCallback func()
 
-func (t TaskCompletionCallback) Complete(fts FileTransferStats) {
-	if t.CompletionCallback == nil {
+func (t TaskCompletionCallback) Complete() {
+	if t == nil {
 		return
 	}
 
-	t.CompletionCallback()
+	t()
 }

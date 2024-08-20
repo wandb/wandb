@@ -109,9 +109,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 
 	f.isUploading = true
 	f.wg.Add(1)
-	task.TaskCompletionCallback = filetransfer.TaskCompletionCallback{
-		CompletionCallback: func() { f.onFinishUpload(task) },
-	}
+	task.OnComplete = func() { f.onFinishUpload(task) }
 
 	// Temporarily unlock while we run arbitrary code.
 	f.Unlock()

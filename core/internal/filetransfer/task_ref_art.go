@@ -7,7 +7,7 @@ import (
 
 // ReferenceArtifactTask is a task to upload/download a reference artifacts
 type ReferenceArtifactTask struct {
-	TaskCompletionCallback
+	OnComplete TaskCompletionCallback
 
 	// FileKind is the category of file being uploaded or downloaded
 	FileKind RunFileKind
@@ -44,7 +44,7 @@ func (t *ReferenceArtifactUploadTask) Execute(fts *FileTransfers) error {
 	return err
 }
 func (t *ReferenceArtifactUploadTask) Complete(fts FileTransferStats) {
-	t.TaskCompletionCallback.Complete(nil)
+	t.OnComplete.Complete()
 	if fts != nil {
 		fts.UpdateUploadStats(FileUploadInfo{
 			FileKind:      t.FileKind,
@@ -76,6 +76,9 @@ func (t *ReferenceArtifactDownloadTask) Execute(fts *FileTransfers) error {
 
 	err = ft.Download(t)
 	return err
+}
+func (t *ReferenceArtifactDownloadTask) Complete(fts FileTransferStats) {
+	t.OnComplete.Complete()
 }
 func (t *ReferenceArtifactDownloadTask) String() string {
 	return fmt.Sprintf(

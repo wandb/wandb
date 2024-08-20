@@ -8,7 +8,7 @@ import (
 
 // DefaultTask is the default task to upload/download files
 type DefaultTask struct {
-	TaskCompletionCallback
+	OnComplete TaskCompletionCallback
 
 	// FileKind is the category of file being uploaded or downloaded
 	FileKind RunFileKind
@@ -55,7 +55,7 @@ func (t *DefaultUploadTask) Execute(fts *FileTransfers) error {
 	return fts.Default.Upload(t)
 }
 func (t *DefaultUploadTask) Complete(fts FileTransferStats) {
-	t.TaskCompletionCallback.Complete(nil)
+	t.OnComplete.Complete()
 	if fts != nil {
 		fts.UpdateUploadStats(FileUploadInfo{
 			FileKind:      t.FileKind,
@@ -80,6 +80,9 @@ type DefaultDownloadTask DefaultTask
 
 func (t *DefaultDownloadTask) Execute(fts *FileTransfers) error {
 	return fts.Default.Download(t)
+}
+func (t *DefaultDownloadTask) Complete(fts FileTransferStats) {
+	t.OnComplete.Complete()
 }
 func (t *DefaultDownloadTask) String() string {
 	return fmt.Sprintf(
