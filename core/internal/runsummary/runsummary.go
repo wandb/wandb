@@ -13,11 +13,11 @@ import (
 // RunSummary tracks summary statistics for all metrics in a run.
 type RunSummary struct {
 	// summaries maps metrics to metricSummary objects.
-	summaries *pathtree.PathTree
+	summaries *pathtree.PathTree[*metricSummary]
 }
 
 func New() *RunSummary {
-	return &RunSummary{summaries: pathtree.New()}
+	return &RunSummary{summaries: pathtree.New[*metricSummary]()}
 }
 
 // SetFromRecord explicitly sets the summary value of a metric.
@@ -53,7 +53,7 @@ func (rs *RunSummary) Remove(path pathtree.TreePath) {
 		return
 	}
 
-	summary.(*metricSummary).Clear()
+	summary.Clear()
 }
 
 // UpdateSummaries updates metric summaries based on their new values
@@ -159,8 +159,7 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 	var errs []error
 
 	rs.summaries.ForEachLeaf(
-		func(path pathtree.TreePath, value any) bool {
-			summary := value.(*metricSummary)
+		func(path pathtree.TreePath, summary *metricSummary) bool {
 			encoded, err := summary.ToExtendedJSON()
 
 			if err != nil {
@@ -185,13 +184,11 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 	return records, errors.Join(errs...)
 }
 
-func (rs *RunSummary) toSummaryTree() *pathtree.PathTree {
-	jsonTree := pathtree.New()
+func (rs *RunSummary) toSummaryTree() *pathtree.PathTree[any] {
+	jsonTree := pathtree.New[any]()
 
 	rs.summaries.ForEachLeaf(
-		func(path pathtree.TreePath, value any) bool {
-			summary := value.(*metricSummary)
-
+		func(path pathtree.TreePath, summary *metricSummary) bool {
 			if jsonSummary := summary.ToMarshallableValue(); jsonSummary != nil {
 				jsonTree.Set(path, jsonSummary)
 			}
@@ -217,8 +214,8 @@ func (rs *RunSummary) Serialize() ([]byte, error) {
 func (rs *RunSummary) getOrMakeSummary(path pathtree.TreePath) *metricSummary {
 	return rs.summaries.GetOrMakeLeaf(
 		path,
-		func() any { return &metricSummary{} },
-	).(*metricSummary)
+		func() *metricSummary { return &metricSummary{} },
+	)
 }
 
 type summaryOrHistoryItem interface {
