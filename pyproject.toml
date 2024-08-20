@@ -145,23 +145,6 @@ omit = ["**/wandb/vendor/**", "**/wandb/proto/**"]
 ignore_errors = true
 
 
-[tool.black]
-line-length = 88
-target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
-include = '\.pyi?$'
-exclude = '''
-wandb/vendor/
-| wandb/bin/
-| wandb/proto/
-| wandb/proto_check/
-| wandb/sdk/launch/deploys/
-| wandb/run*
-| wandb/offline-run*
-| __pycache__
-| .pyc
-| .tox/
-'''
-
 [tool.ruff]
 extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
 target-version = "py37"
@@ -189,10 +172,8 @@ max-complexity = 18
 [tool.ruff.lint.isort]
 split-on-trailing-comma = false
 
-
 [tool.ruff.lint.pycodestyle]
 ignore-overlong-task-comments = true
-
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
