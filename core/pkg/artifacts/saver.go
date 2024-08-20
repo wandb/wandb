@@ -96,11 +96,7 @@ func (as *ArtifactSaver) createArtifact() (
 
 	var tags []gql.TagInput
 	for _, tag := range as.Artifact.Tags {
-		tags = append(tags,
-			gql.TagInput{
-				TagName: tag,
-			},
-		)
+		tags = append(tags, gql.TagInput{TagName: tag})
 	}
 
 	var runId *string
