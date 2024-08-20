@@ -11,11 +11,11 @@ import (
 
 // RunHistory is a set of metrics in a single step of a run.
 type RunHistory struct {
-	metrics *pathtree.PathTree
+	metrics *pathtree.PathTree[any]
 }
 
 func New() *RunHistory {
-	return &RunHistory{metrics: pathtree.New()}
+	return &RunHistory{metrics: pathtree.New[any]()}
 }
 
 // ToExtendedJSON returns the corresponding wandb-history.jsonl line.
