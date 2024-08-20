@@ -950,7 +950,7 @@ class Artifact:
         if response.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
             aliases_to_add = set(self._aliases) - set(self._saved_aliases)
             aliases_to_delete = set(self._saved_aliases) - set(self._aliases)
-            if len(aliases_to_add) > 0:
+            if aliases_to_add:
                 add_mutation = gql(
                     """
                     mutation addAliases(
@@ -981,7 +981,7 @@ class Artifact:
                         ],
                     },
                 )
-            if len(aliases_to_delete) > 0:
+            if aliases_to_delete:
                 delete_mutation = gql(
                     """
                     mutation deleteAliases(
