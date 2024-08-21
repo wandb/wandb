@@ -18,6 +18,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Avoid leaving behind wandb-core process if user hits Ctrl+C twice (@timoffex in https://github.com/wandb/wandb/pull/8153)
+- Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ## [0.17.7] - 2024-08-15
 
@@ -46,7 +47,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Correctly handle directory stubs when logging external artifact in azure storage account with Hierarchical Namespace enabled (@marijncv in https://github.com/wandb/wandb/pull/7876)
 - Docstring in `api.runs()` regarding default sort order, missed in https://github.com/wandb/wandb/pull/7675 (@fellhorn in https://github.com/wandb/wandb/pull/8063)
-- Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ## [0.17.5] - 2024-07-19
 
