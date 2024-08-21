@@ -218,9 +218,7 @@ def test_save_invalid_tags_after_logging_artifact(
     assert sorted(final_tags) == sorted(set(orig_tags))
 
 
-def test_save_tags_without_server_support(
-    tmp_path, user, wandb_init, api, monkeypatch
-):
+def test_save_tags_without_server_support(tmp_path, user, wandb_init, api, monkeypatch):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -260,7 +258,6 @@ def test_save_tags_without_server_support(
     # tags should remain unchanged, since server doesn't support tags
     final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
     assert final_tags == []
-
 
 
 @pytest.mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
