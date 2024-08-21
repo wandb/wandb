@@ -987,6 +987,7 @@ func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
 				},
 			)
 		}
+		return
 	}
 
 	// manage the state of the run
