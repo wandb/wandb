@@ -118,7 +118,5 @@ func main() {
 		return
 	}
 	srv.SetDefaultLoggerPath(loggerPath)
-	srv.Start()
-	srv.Wait()
-	srv.Close()
+	srv.Serve()
 }

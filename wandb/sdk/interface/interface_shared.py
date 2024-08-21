@@ -421,15 +421,12 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def _communicate_status(
-        self, status: pb.StatusRequest
-    ) -> Optional[pb.StatusResponse]:
+    def _deliver_status(
+        self,
+        status: pb.StatusRequest,
+    ) -> MailboxHandle:
         req = self._make_request(status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.status_response
-        return resp.response.status_response
+        return self._deliver_record(req)
 
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         rec = self._make_record(exit=exit_data)
