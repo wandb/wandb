@@ -128,7 +128,7 @@ class Config:
 
     def __getitem__(self, key):
         return self._items[key]
-    
+
     def __iter__(self):
         return iter(self._items)
 
