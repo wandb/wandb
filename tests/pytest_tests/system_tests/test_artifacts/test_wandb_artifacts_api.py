@@ -218,6 +218,51 @@ def test_save_invalid_tags_after_logging_artifact(
     assert sorted(final_tags) == sorted(set(orig_tags))
 
 
+def test_save_tags_without_server_support(
+    tmp_path, user, wandb_init, api, monkeypatch
+):
+    project = "test"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+    artifact_fullname = f"{user}/{project}/{artifact_name}:v0"
+
+    artifact_filepath = tmp_path / "boom.txt"
+    artifact_filepath.write_text("testing")
+
+    # Mock older server that doesn't recognize `Artifact.tags`
+    from wandb.sdk.internal import internal_api
+
+    actual_artifact_fields = internal_api.Api().server_artifact_introspection()
+
+    def fake_server_artifact_introspection(self) -> list[str]:
+        return [name for name in actual_artifact_fields if name != "tags"]
+
+    monkeypatch.setattr(
+        internal_api.Api,
+        "server_artifact_introspection",
+        fake_server_artifact_introspection,
+    )
+
+    with wandb_init(entity=user, project=project) as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        artifact.add_file(str(artifact_filepath), "test-name")
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+
+    assert fetched_artifact.tags == []
+
+    # Try adding new tags
+    fetched_artifact.tags = ["new-tag", "other tag"]
+    fetched_artifact.save()
+
+    # tags should remain unchanged, since server doesn't support tags
+    final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
+    assert final_tags == []
+
+
+
 @pytest.mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
 def test_log_artifact_with_invalid_tags(tmp_path, user, wandb_init, api, invalid_tags):
     project = "test"
