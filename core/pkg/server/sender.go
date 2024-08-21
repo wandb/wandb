@@ -701,9 +701,22 @@ func (s *Sender) sendForkRun(record *service.Record, run *service.RunRecord) {
 }
 
 func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
+
+	// if there is no client we can't do anything so we just return
+	if s.graphqlClient == nil {
+		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+			s.respond(record,
+				&service.RunUpdateResult{
+					Run: run,
+				},
+			)
+		}
+		return
+	}
+
 	rewind := s.settings.GetResumeFrom()
 	update, err := runbranch.NewRewindBranch(
-		s.ctx,
+		s.runWork.BeforeEndCtx(),
 		s.graphqlClient,
 		rewind.GetRun(),
 		rewind.GetMetric(),
@@ -748,6 +761,18 @@ func (s *Sender) sendRewindRun(record *service.Record, run *service.RunRecord) {
 }
 
 func (s *Sender) sendResumeRun(record *service.Record, run *service.RunRecord) {
+
+	// if there is no client we can't do anything so we just return
+	if s.graphqlClient == nil {
+		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+			s.respond(record,
+				&service.RunUpdateResult{
+					Run: run,
+				},
+			)
+		}
+		return
+	}
 
 	update, err := runbranch.NewResumeBranch(
 		s.runWork.BeforeEndCtx(),
@@ -808,17 +833,6 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 		s.logger.CaptureFatalAndPanic(
 			fmt.Errorf("send: sendRun: failed to send run: %s", err),
 		)
-	}
-
-	// if there is no graphql client, we don't need to do anything
-	if s.graphqlClient == nil {
-		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-			s.respond(record,
-				&service.RunUpdateResult{
-					Run: runClone,
-				})
-		}
-		return
 	}
 
 	// The first run record sent by the client is encoded incorrectly,
@@ -887,6 +901,18 @@ func (s *Sender) sendRun(record *service.Record, run *service.RunRecord) {
 }
 
 func (s *Sender) upsertRun(record *service.Record, run *service.RunRecord) {
+
+	// if there is no graphql client, we don't need to do anything
+	if s.graphqlClient == nil {
+		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+			s.respond(record,
+				&service.RunUpdateResult{
+					Run: run,
+				})
+		}
+		return
+	}
+
 	// start a new context with an additional argument from the parent context
 	// this is used to pass the retry function to the graphql client
 	ctx := context.WithValue(
