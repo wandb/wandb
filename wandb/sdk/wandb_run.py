@@ -3278,7 +3278,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
-                    tags or [],
+                    tags,
                     self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,

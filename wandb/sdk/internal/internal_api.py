@@ -3718,10 +3718,6 @@ class Api:
         project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
-        if aliases is None:
-            aliases = []
-        if tags is None:
-            tags = []
 
         mutation = gql(query_template)
         response = self.gql(
@@ -3736,8 +3732,8 @@ class Api:
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
-                "aliases": [alias for alias in aliases],
-                "tags": [tag for tag in tags],
+                "aliases": list(aliases or []),
+                "tags": list(tags or []),
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,

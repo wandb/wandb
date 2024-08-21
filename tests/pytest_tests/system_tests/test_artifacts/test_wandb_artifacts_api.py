@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import os
 import re
 
@@ -241,10 +243,12 @@ def test_save_tags_without_server_support(tmp_path, user, wandb_init, api, monke
         fake_server_artifact_introspection,
     )
 
+    tags_to_add = ["new-tag", "other tag"]
+
     with wandb_init(entity=user, project=project) as run:
         artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
         artifact.add_file(str(artifact_filepath), "test-name")
-        run.log_artifact(artifact)
+        run.log_artifact(artifact, tags=tags_to_add)
         artifact.wait()
 
     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
@@ -252,7 +256,7 @@ def test_save_tags_without_server_support(tmp_path, user, wandb_init, api, monke
     assert fetched_artifact.tags == []
 
     # Try adding new tags
-    fetched_artifact.tags = ["new-tag", "other tag"]
+    fetched_artifact.tags = tags_to_add
     fetched_artifact.save()
 
     # tags should remain unchanged, since server doesn't support tags
