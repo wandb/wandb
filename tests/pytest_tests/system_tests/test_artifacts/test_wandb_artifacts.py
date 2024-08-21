@@ -21,7 +21,10 @@ from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
 )
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
+    GCSHandler,
+    _GCSIsADirectoryError,
+)
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
@@ -808,8 +811,8 @@ def test_load_gs_reference_with_dir_paths():
         size=0,
         extra={"versionID": 1},
     )
-    loaded_path = gcs_handler.load_path(simple_entry, local=True)
-    assert loaded_path == ""
+    with pytest.raises(_GCSIsADirectoryError):
+        gcs_handler.load_path(simple_entry, local=True)
 
     # case where we didn't store "/" and have to use get_blob
     entry = ArtifactManifestEntry(
@@ -819,8 +822,8 @@ def test_load_gs_reference_with_dir_paths():
         size=0,
         extra={"versionID": 1},
     )
-    loaded_path = gcs_handler.load_path(entry, local=True)
-    assert loaded_path == ""
+    with pytest.raises(_GCSIsADirectoryError):
+        gcs_handler.load_path(entry, local=True)
 
 
 def test_add_azure_reference_no_checksum(mock_azure_handler):

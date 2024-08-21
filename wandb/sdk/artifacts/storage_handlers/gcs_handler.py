@@ -1,6 +1,5 @@
 """GCS storage handler."""
 
-import logging
 import time
 from pathlib import PurePosixPath
 from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
@@ -14,12 +13,16 @@ from wandb.sdk.artifacts.storage_handler import DEFAULT_MAX_OBJECTS, StorageHand
 from wandb.sdk.lib.hashutil import ETag
 from wandb.sdk.lib.paths import FilePathStr, StrPath, URIStr
 
-logger = logging.getLogger(__name__)
-
 if TYPE_CHECKING:
     import google.cloud.storage as gcs_module  # type: ignore
 
     from wandb.sdk.artifacts.artifact import Artifact
+
+
+class _GCSIsADirectoryError(Exception):
+    """Raised when we try to download a GCS folder"""
+
+    pass
 
 
 class GCSHandler(StorageHandler):
@@ -74,10 +77,9 @@ class GCSHandler(StorageHandler):
         version = manifest_entry.extra.get("versionID")
 
         if self._is_dir(manifest_entry):
-            logger.debug(
-                f"Skipping downloading {manifest_entry.ref} because it seems to be a directory"
+            raise _GCSIsADirectoryError(
+                f"Unable to download GCS folder {manifest_entry.ref!r}, skipping"
             )
-            return ""
 
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
@@ -210,6 +212,11 @@ class GCSHandler(StorageHandler):
     ):
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         bucket_obj = self._client.bucket(bucket)
+        # A gcs bucket key should end with a forward slash on gcloud, but
+        # we save these refs without the forward slash in the manifest entry
+        # so we check the size and extension, make sure its not referring to
+        # an actual file with this reference, and that the ref with the slash
+        # exists on gcloud
         return key.endswith("/") or (
             not (manifest_entry.size or PurePosixPath(key).suffix)
             and bucket_obj.get_blob(key) is None
