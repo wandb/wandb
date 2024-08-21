@@ -75,7 +75,7 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 }
 
 func (fm *fileTransferManager) AddTask(task Task) {
-	fm.logger.Debug("fileTransferManager: AddTask:", "task", task.String())
+	fm.logger.Debug("fileTransferManager: AddTask: adding task", "task", task.String())
 
 	fm.wg.Add(1)
 	go func() {
