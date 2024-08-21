@@ -274,6 +274,20 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 			}
 		}
 
+		cudaCores := fmt.Sprintf("_gpu.%d.cudaCores", di)
+		if v, ok := g.sample[cudaCores]; ok {
+			if v, ok := v.(float64); ok {
+				gpuInfo.CudaCores = uint32(v)
+			}
+		}
+
+		architechture := fmt.Sprintf("_gpu.%d.architecture", di)
+		if v, ok := g.sample[architechture]; ok {
+			if v, ok := v.(string); ok {
+				gpuInfo.Architecture = v
+			}
+		}
+
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
 
 	}
