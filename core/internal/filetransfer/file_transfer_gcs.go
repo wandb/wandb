@@ -45,14 +45,14 @@ func NewGCSFileTransfer(
 
 // Upload uploads a file to the server
 func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("gcs file transfer: uploading file", "path", task.Path)
+	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.Path)
 
 	return fmt.Errorf("not implemented yet")
 }
 
 // Download downloads a file from the server
 func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
-	ft.logger.Debug("gcs file transfer: downloading file", "path", task.Path, "ref", task.Reference)
+	ft.logger.Debug("GCSFileTransfer: Download: downloading file", "path", task.Path, "ref", task.Reference)
 
 	return fmt.Errorf("not implemented yet")
 }
