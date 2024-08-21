@@ -1069,8 +1069,7 @@ class Artifact:
         else:
             if self._ttl_changed:
                 termwarn(
-                    "Server not compatible with setting Artifact TTLs, "
-                    "please upgrade the server to use Artifact TTL."
+                    "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
                 )
             mutation_template = (
                 mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")

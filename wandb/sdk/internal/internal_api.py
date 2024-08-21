@@ -3699,15 +3699,14 @@ class Api:
         artifact_fields = self.server_artifact_introspection()
         if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
             wandb.termwarn(
-                "Server not compatible with setting Artifact TTLs, "
-                "Please upgrade the server to use Artifact TTL."
+                "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
             ttl_duration_seconds = None
         if "tags" not in artifact_fields and tags:
             wandb.termwarn(
                 "Server not compatible with setting Artifact tags, "
-                "Please upgrade the server to use Artifact tags."
+                "please upgrade the server to use Artifact tags."
             )
 
         query_template = self._get_create_artifact_mutation(
