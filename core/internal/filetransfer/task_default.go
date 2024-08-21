@@ -71,10 +71,7 @@ func (t *DefaultUploadTask) String() string {
 		t.FileKind, t.Path, t.Name, t.Url, t.Size,
 	)
 }
-func (t *DefaultUploadTask) CaptureError(err error) error {
-	t.Err = err
-	return fmt.Errorf("filetransfer: upload: error uploading to %s: %v", t.Url, err)
-}
+func (t *DefaultUploadTask) SetError(err error) { t.Err = err }
 
 type DefaultDownloadTask DefaultTask
 
@@ -90,7 +87,4 @@ func (t *DefaultDownloadTask) String() string {
 		t.FileKind, t.Path, t.Name, t.Url, t.Size,
 	)
 }
-func (t *DefaultDownloadTask) CaptureError(err error) error {
-	t.Err = err
-	return fmt.Errorf("filetransfer: download: error downloading from %s: %v", t.Url, err)
-}
+func (t *DefaultDownloadTask) SetError(err error) { t.Err = err }

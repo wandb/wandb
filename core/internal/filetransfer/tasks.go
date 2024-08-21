@@ -18,8 +18,8 @@ type Task interface {
 	// String describes the task
 	String() string
 
-	// CaptureError saves the error to the task and returns a formatted descriptive error
-	CaptureError(error) error
+	// SetError sets the error on the task
+	SetError(error)
 }
 
 // TaskCompletionCallback handles the completion callback for a task

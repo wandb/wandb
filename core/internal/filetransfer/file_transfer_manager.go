@@ -75,7 +75,7 @@ func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManag
 }
 
 func (fm *fileTransferManager) AddTask(task Task) {
-	fm.logger.Debug("fileTransfer: adding upload task", "task", task.String())
+	fm.logger.Debug("fileTransferManager: AddTask:", "task", task.String())
 
 	fm.wg.Add(1)
 	go func() {
@@ -84,10 +84,11 @@ func (fm *fileTransferManager) AddTask(task Task) {
 		// Guard by a semaphore to limit number of concurrent uploads.
 		fm.semaphore <- struct{}{}
 		err := fm.transfer(task)
+		task.SetError(err)
 		<-fm.semaphore
 
 		if err != nil {
-			fm.logger.CaptureError(task.CaptureError(err), "task", task.String())
+			fm.logger.CaptureError(err, "task", task.String())
 		}
 
 		// Execute the callback.
