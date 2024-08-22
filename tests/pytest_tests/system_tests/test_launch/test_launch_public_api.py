@@ -5,6 +5,17 @@ import wandb.util
 from wandb import Api
 from wandb.sdk.internal.internal_api import UnsupportedError
 
+SWEEP_CONFIGURATION = {
+    "method": "random",
+    "name": "sweep",
+    "metric": {"goal": "maximize", "name": "val_acc"},
+    "parameters": {
+        "batch_size": {"values": [16, 32, 64]},
+        "epochs": {"values": [5, 10, 15]},
+        "lr": {"max": 0.1, "min": 0.0001},
+    },
+}
+
 
 def test_create_run_queue_template_variables_not_supported(runner, user, monkeypatch):
     queue_name = "tvqueue"
@@ -49,20 +60,34 @@ def test_run_queue(user):
         queue.delete()
 
 
-def test_from_path(api):
-    sweep = api.from_path("test/test/sweeps/test")
+def test_from_path(user):
+    api = Api()
+
+    project = "my-first-sweep"
+    sweep_id = wandb.sweep(sweep=SWEEP_CONFIGURATION, project=project)
+
+    sweep = api.from_path(f"{user}/{project}/sweeps/{sweep_id}")
     assert isinstance(sweep, wandb.apis.public.Sweep)
 
 
-def test_sweep(api):
-    sweep = api.sweep("test/test/test")
-    assert sweep.entity == "test"
-    assert sweep.best_run().name == "beast-bug-33"
-    assert sweep.url == "https://wandb.ai/test/test/sweeps/test"
-    assert sweep.state in ["running", "finished"]
-    assert str(sweep) == "<Sweep test/test/test (running)>"
+def test_sweep(user):
+    api = Api()
+
+    project = "my-first-sweep"
+    sweep_id = wandb.sweep(sweep=SWEEP_CONFIGURATION, project=project)
+
+    sweep = api.sweep(f"{user}/{project}/{sweep_id}")
+
+    assert sweep.entity == user
+    assert sweep.url.endswith(f"{user}/{project}/sweeps/{sweep_id}")
+    assert sweep.state == "PENDING"
+    assert str(sweep) == f"<Sweep {user}/{project}/{sweep_id} (PENDING)>"
 
 
-def test_to_html(mock_server, api):
-    sweep = api.from_path("test/test/sweeps/test")
-    assert "test/test/sweeps/test?jupyter=true" in sweep.to_html()
+def test_to_html(user):
+    project = "my-first-sweep"
+    sweep_id = wandb.sweep(sweep=SWEEP_CONFIGURATION, project=project)
+
+    api = Api()
+    sweep = api.from_path(f"{user}/{project}/sweeps/{sweep_id}")
+    assert f"{user}/{project}/sweeps/{sweep_id}?jupyter=true" in sweep.to_html()
