@@ -2482,8 +2482,7 @@ class Run:
             if not self._settings._disable_update_check:
                 logger.info("communicating current version")
                 version_handle = self._backend.interface.deliver_check_version(
-                    current_version="0.17.4.rc2"
-                    # wandb.__version__
+                    current_version=wandb.__version__
                 )
                 version_result = version_handle.wait(timeout=30)
                 if not version_result:

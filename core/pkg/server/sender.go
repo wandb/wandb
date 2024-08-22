@@ -1502,6 +1502,8 @@ func (s *Sender) sendRequestCheckVersion(record *service.Record, request *servic
 		return
 	}
 
+	// For now, the server should be compatible with all client versions
+	// so we only check if the current version is less than the max version
 	switch x := respone.GetServerInfo().GetCliVersionInfo().(type) {
 	case map[string]any:
 		if maxVersion, ok := x["max_cli_version"].(string); ok {
