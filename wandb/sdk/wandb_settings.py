@@ -1886,8 +1886,8 @@ class Settings(SettingsData):
         if self.run_id is not None and (self.fork_from.run == self.run_id):
             raise ValueError(
                 "Provided `run_id` is the same as the run to `fork_from`. "
-                "Please provide a different `run_id` or remove the `run_id` argument."
-                "If you want to fork the current run, please use `resume_from` instead."
+                "Please provide a different `run_id` or remove the `run_id` argument. "
+                "If you want to rewind the current run, please use `resume_from` instead."
             )
 
     def _handle_rewind_logic(self) -> None:
