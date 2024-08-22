@@ -99,6 +99,9 @@ def run_pytest(
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
         "HOME": session.env.get("HOME"),
+        "CI": session.env.get("CI"),
+        # Required for the importers tests
+        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
     }
 
     # Print 20 slowest tests.
