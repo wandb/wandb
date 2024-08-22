@@ -1589,7 +1589,6 @@ class SendManager:
             ttl_duration_seconds=artifact.ttl_duration_seconds or None,
             description=artifact.description or None,
             aliases=artifact.aliases,
-            tags=artifact.tags,
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,
