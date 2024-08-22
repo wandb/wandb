@@ -886,3 +886,71 @@ def launch_release_tests(session: nox.Session) -> None:
         session,
         paths=session.posargs or ["tests/release_tests/test_launch/"],
     )
+
+
+def install_importer_dependencies(session: nox.Session, importer_type: str):
+    install_wandb(session)
+    session.install("-r", "requirements_dev.txt")
+    if importer_type == "wandb":
+        session.install(".[workspaces]", "pydantic>=2")
+    elif importer_type == "mlflow":
+        session.install("pydantic<2")
+
+    if session.python != "3.7":
+        session.install("polyfactory")
+
+    session.install(
+        "polars<=1.2.1",
+        "rich",
+        "filelock",
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("importer", ["wandb", "mlflow"])
+def importer_tests(session: nox.Session, importer: str):
+    """Run importer tests for wandb->wandb and mlflow->wandb."""
+    install_importer_dependencies(session, importer)
+
+    env = {
+        "WANDB__NETWORK_BUFFER": "1000",
+        "WANDB_ERROR_REPORTING": "false",
+        "WINDIR": "C:\\Windows",
+        "GOCOVERDIR": f"{session.create_tmp()}/.coverage",
+    }
+
+    if importer == "wandb":
+        env["WANDB_TEST_SERVER_URL2"] = session.env.get("WANDB_TEST_SERVER_URL2")
+
+    session.run("mkdir", "-p", "test-results", ".coverage", external=True)
+
+    pytest_args = session.posargs or []
+    if session.env.get("CI_PYTEST_SPLIT_ARGS"):
+        pytest_args.extend(session.env["CI_PYTEST_SPLIT_ARGS"].split())
+
+    if session.env.get("CI_PYTEST_PARALLEL"):
+        pytest_args.append("-n=8")
+
+    run_pytest(
+        session,
+        [
+            "--durations=20",
+            "--junitxml=test-results/junit.xml",
+            "--cov",
+            "--cov-report=xml",
+            "--no-cov-on-fail",
+            "--timeout",
+            "300",
+            *pytest_args,
+        ],
+    )
+
+    session.run(
+        "go",
+        "tool",
+        "covdata",
+        "textfmt",
+        "-i=.coverage",
+        "-o=coverage.txt",
+        external=True,
+    )

@@ -222,31 +222,6 @@ commands:
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
             gcloud auth configure-docker --quiet << parameters.container_registry >>
 
-  restore_cache_tox:
-    steps:
-      - run:
-          name: Store current date
-          command: date "+%F" > tox-cache-date.txt
-      - restore_cache:
-          name: Restore .tox cache
-          keys:
-            # Note that virtualenvs are not portable! We include the job name
-            # in the key in the hopes that it encapsulates the Python version.
-            # We include the architecture (OS + processor) as well to be safe.
-            - &tox-cache v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
-              checksum "tox-cache-date.txt" }}-{{
-              checksum "requirements_dev.txt" }}-{{
-              checksum "requirements_test.txt" }}-{{
-              checksum "tox.ini" }}
-            - v2-tox-{{ .Environment.CIRCLE_JOB }}-{{ arch }}-{{
-              checksum "tox-cache-date.txt" }}
-  save_cache_tox:
-    steps:
-      - save_cache:
-          name: Upload .tox cache
-          key: *tox-cache
-          paths: [.tox]
-
 jobs:
   nox-tests-linux:
     parameters:
@@ -360,7 +335,7 @@ jobs:
       - install_rust
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U tox nox pip uv
+          command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
       - run:
           name: Ensure proto files were generated
@@ -396,19 +371,16 @@ jobs:
       - install_rust
       - run:
           name: Install Python dependencies
-          command: python -m pip install -U tox nox pip uv
+          command: python -m pip install -U nox pip uv
           no_output_timeout: 5m
-      - restore_cache_tox
       - run:
           name: Run tests
           no_output_timeout: 10m
           command: |
             CI_PYTEST_PARALLEL=<< parameters.xdist >> \
-            tox run -v \
-              -e importer-<<parameters.tests>>-py<<parameters.python_version_major>><<parameters.python_version_minor>>  \
-              -- $(if [ "<<parameters.tests>>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
-              tests/pytest_tests/system_tests/test_importers/test_<<parameters.tests>>/
-      - save_cache_tox
+            nox -s "importer_tests(importer='<< parameters.tests >>', python='<< parameters.python_version_major >>.<< parameters.python_version_minor >>')" \
+              -- tests/pytest_tests/system_tests/test_importers/test_<< parameters.tests >>/ \
+              $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi)
       - upload_codecov: { flags: system }
       - save-test-results
 
