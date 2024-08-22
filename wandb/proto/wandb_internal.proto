@@ -440,7 +440,6 @@ message ArtifactRecord {
   string sequence_client_id = 16;
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
-  repeated string tags = 19;
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }
