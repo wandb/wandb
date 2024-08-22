@@ -204,6 +204,11 @@ commands:
           no_output_timeout: 1m
 
   setup_gcloud:
+    parameters:
+      container_registry:
+        description: "Container registry to authenticate with"
+        type: string
+        default: "us-central1-docker.pkg.dev"
     steps:
       - run:
           name: "Setup gcloud and kubectl"
@@ -215,7 +220,7 @@ commands:
             gcloud auth activate-service-account --key-file=${HOME}/gcloud-service-key.json
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
-            gcloud auth configure-docker --quiet << pipeline.parameters.container_registry >>
+            gcloud auth configure-docker --quiet << parameters.container_registry >>
 
   restore_cache_tox:
     steps:
