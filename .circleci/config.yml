@@ -242,8 +242,12 @@ jobs:
       yea_shard: # if running tests with yea, like functional_tests
         default: ""
         type: string
-      server_image: { type: string }
-      server_image_tag: { type: string }
+      server_image:
+        default: << pipeline.parameters.server_image >>
+        type: string
+      server_image_tag:
+        default: << pipeline.parameters.server_image_tag >>
+        type: string
 
     parallelism: <<parameters.parallelism>>
     executor:
