@@ -1,19 +1,18 @@
-import platform
-import sys
-
-import pytest
-
-pytest.importorskip("sweeps")
-
 import sweeps
 import wandb
 
+SWEEP_CONFIGURATION = {
+    "method": "random",
+    "name": "sweep",
+    "metric": {"goal": "maximize", "name": "val_acc"},
+    "parameters": {
+        "batch_size": {"values": [16, 32, 64]},
+        "epochs": {"values": [5, 10, 15]},
+        "lr": {"distribution": "uniform", "max": 0.1, "min": 0.0001},
+    },
+}
 
-# todo: unskip once WB-8120 is resolved
-@pytest.mark.skipif(
-    sys.platform == "darwin" and platform.machine() == "arm64",
-    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
-)
+
 def test_run_from_dict():
     run = sweeps.SweepRun(
         **{
@@ -32,49 +31,32 @@ def test_run_from_dict():
     assert run.summary_metrics == {}
 
 
-# todo: unskip once WB-8120 is resolved
-@pytest.mark.skipif(
-    sys.platform == "darwin" and platform.machine() == "arm64",
-    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
-)
-def test_print_status(runner, mock_server, capsys):
-    c = wandb.controller("test", entity="test", project="test")
+def test_print_status(user, capsys):
+    project = "my-first-sweep"
+    sweep_id = wandb.sweep(sweep=SWEEP_CONFIGURATION, project=project)
+
+    c = wandb.controller(sweep_id, entity=user, project=project)
     c.print_status()
     stdout, stderr = capsys.readouterr()
-    assert stdout == "Sweep: fun-sweep-10 (random) | Runs: 1 (Running: 1)\n"
-    # For some reason, the windows and mac tests are failing in CI
-    # as there are write permissions warnings.
+    assert "Runs: 0" in stdout
+    assert sweep_id in stdout
     try:
         assert stderr == "", "stderr should be empty, but got warnings"
     except AssertionError:
         pass
 
 
-# todo: unskip once WB-8120 is resolved
-@pytest.mark.skipif(
-    sys.platform == "darwin" and platform.machine() == "arm64",
-    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
-)
-def test_controller_existing(mock_server):
-    c = wandb.controller("test", entity="test", project="test")
-    assert c.sweep_id == "test"
-    assert c.sweep_config == {
-        "controller": {"type": "local"},
-        "method": "random",
-        "parameters": {
-            "param1": {"values": [1, 2, 3], "distribution": "categorical"},
-            "param2": {"values": [1, 2, 3], "distribution": "categorical"},
-        },
-        "program": "train-dummy.py",
-    }
+def test_controller_existing(user):
+    project = "my-first-sweep"
+    sweep_id = wandb.sweep(sweep=SWEEP_CONFIGURATION, project=project)
+
+    c = wandb.controller(sweep_id, entity=user, project=project)
+
+    assert c.sweep_id == sweep_id
+    assert c.sweep_config == SWEEP_CONFIGURATION
 
 
-# todo: unskip once WB-8120 is resolved
-@pytest.mark.skipif(
-    sys.platform == "darwin" and platform.machine() == "arm64",
-    reason="sweeps==0.1.0 requires sklearn==0.24.1 that is not compatible with Mac M1",
-)
-def test_controller_new(mock_server):
+def test_controller_new(user):
     tuner = wandb.controller(
         {
             "method": "random",
@@ -86,7 +68,6 @@ def test_controller_new(mock_server):
             "controller": {"type": "local"},
         }
     )
-    # tuner.create()
     assert tuner._create == {
         "controller": {"type": "local"},
         "method": "random",
@@ -97,6 +78,3 @@ def test_controller_new(mock_server):
         "program": "train-dummy.py",
     }
     tuner.step()
-
-
-# TODO: More controller tests!
