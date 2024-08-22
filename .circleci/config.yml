@@ -548,7 +548,7 @@ workflows:
               python: ["3.8", "3.12"]
 
       - nox-tests-linux:
-          name: system-tests-min-server-version-linux-<<matrix.python>>
+          name: system-tests-min-server-version-linux-<<parameters.python>>
           session: system_tests
           codecov_flags: system
           parallelism: 8
