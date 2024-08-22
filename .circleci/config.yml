@@ -243,10 +243,10 @@ jobs:
         default: ""
         type: string
       server_image:
-        default: << pipeline.parameters.server_image >>
+        optional: true
         type: string
       server_image_tag:
-        default: << pipeline.parameters.server_image_tag >>
+        optional: true
         type: string
 
     parallelism: <<parameters.parallelism>>
