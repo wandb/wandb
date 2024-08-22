@@ -26,6 +26,8 @@ executors:
   linux-python:
     parameters:
       python: { type: string }
+      server_image: { type: string }
+      server_image_tag: { type: string }
     docker:
       - image: python:<<parameters.python>>
     resource_class: xlarge
@@ -33,12 +35,8 @@ executors:
   local-testcontainer:
     parameters:
       python: { type: string }
-      server_image:
-        type: string
-        default: << pipeline.parameters.server_image >>
-      server_image_tag:
-        type: string
-        default: << pipeline.parameters.server_image_tag >>
+      server_image: { type: string }
+      server_image_tag: { type: string }
     docker:
       - image: "python:<< parameters.python >>"
       - image: << parameters.server_image >>:<< parameters.server_image_tag >>
@@ -243,10 +241,10 @@ jobs:
         default: ""
         type: string
       server_image:
-        optional: true
+        default: << pipeline.parameters.server_image >>
         type: string
       server_image_tag:
-        optional: true
+        default: << pipeline.parameters.server_image_tag >>
         type: string
 
     parallelism: <<parameters.parallelism>>
