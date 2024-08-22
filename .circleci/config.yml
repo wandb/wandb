@@ -13,7 +13,6 @@ parameters:
   server_image:
     type: string
     default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
-    # us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
   server_image_tag:
     type: string
     default: "master"
@@ -34,9 +33,15 @@ executors:
   local-testcontainer:
     parameters:
       python: { type: string }
+      server_image:
+        type: string
+        default: << pipeline.parameters.server_image >>
+      server_image_tag:
+        type: string
+        default: << pipeline.parameters.server_image_tag >>
     docker:
-      - image: "python:<<parameters.python>>"
-      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
+      - image: "python:<< parameters.python >>"
+      - image: << parameters.server_image >>:<< parameters.server_image_tag >>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -541,6 +546,23 @@ workflows:
           matrix:
             parameters:
               python: ["3.8", "3.12"]
+
+      - nox-tests-linux:
+          name: system-tests-min-server-version-linux-<<matrix.python>>
+          session: system_tests
+          codecov_flags: system
+          parallelism: 8
+          executor_name: local-testcontainer
+
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
+
+          parameters:
+            python: ["3.12"]
+            server_image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+            server_image_tag: "0.48.0"
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
