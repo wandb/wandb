@@ -220,7 +220,34 @@ def test_save_invalid_tags_after_logging_artifact(
     assert sorted(final_tags) == sorted(set(orig_tags))
 
 
-def test_save_tags_without_server_support(tmp_path, user, wandb_init, api, monkeypatch):
+@pytest.fixture
+def mock_old_server_artifact_introspection(monkeypatch) -> None:
+    # Partially mocks an older server that doesn't recognize
+    # newer Artifact fields, e.g. `Artifact.tags` at least via introspection
+    from wandb.sdk.internal import internal_api
+
+    current_fields = internal_api.Api().server_artifact_introspection()
+    excluded_fields = {"tags", "ttlIsInherited", "ttlDurationSeconds"}
+
+    def fake_server_artifact_introspection(self) -> list[str]:
+        return [name for name in current_fields if name not in excluded_fields]
+
+    monkeypatch.setattr(
+        internal_api.Api,
+        "server_artifact_introspection",
+        fake_server_artifact_introspection,
+    )
+
+    yield
+
+
+def test_save_tags_without_server_support(
+    tmp_path,
+    user,
+    wandb_init,
+    api,
+    mock_old_server_artifact_introspection,
+):
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -229,20 +256,7 @@ def test_save_tags_without_server_support(tmp_path, user, wandb_init, api, monke
     artifact_filepath = tmp_path / "boom.txt"
     artifact_filepath.write_text("testing")
 
-    # Mock older server that doesn't recognize `Artifact.tags`
-    from wandb.sdk.internal import internal_api
-
-    actual_artifact_fields = internal_api.Api().server_artifact_introspection()
-
-    def fake_server_artifact_introspection(self) -> list[str]:
-        return [name for name in actual_artifact_fields if name != "tags"]
-
-    monkeypatch.setattr(
-        internal_api.Api,
-        "server_artifact_introspection",
-        fake_server_artifact_introspection,
-    )
-
+    # We've mocked an older server that doesn't recognize `Artifact.tags` on introspection
     tags_to_add = ["new-tag", "other tag"]
 
     with wandb_init(entity=user, project=project) as run:
