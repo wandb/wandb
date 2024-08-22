@@ -548,7 +548,7 @@ workflows:
               python: ["3.8", "3.12"]
 
       - nox-tests-linux:
-          name: system-tests-min-server-version-linux-<<parameters.python>>
+          name: system-tests-min-server-version-linux-<<matrix.python>>
           session: system_tests
           codecov_flags: system
           parallelism: 8
@@ -559,10 +559,11 @@ workflows:
               # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
               ignore: /pull\/[0-9]+/
 
-          parameters:
-            python: ["3.12"]
-            server_image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
-            server_image_tag: "0.48.0"
+          matrix:
+            parameters:
+              python: ["3.12"]
+              server_image: us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+              server_image_tag: "0.48.0"
 
       - nox-tests-linux:
           name: notebook-tests-linux-<<matrix.python>>
