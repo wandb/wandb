@@ -1,3 +1,5 @@
+# Description: This file contains the query to fetch the status of a run resume.
+
 query RunResumeStatus($project: String, $entity: String, $name: String!) {
   model(name: $project, entityName: $entity) {
     id
@@ -19,7 +21,7 @@ query RunResumeStatus($project: String, $entity: String, $name: String!) {
       eventsTail
       config
       tags
-      # Pulling wandbConfig.start_time is required so that runresume.go can determine if a run has actually started
+      # Pulling wandbConfig.t is required so that runresume.go can determine if a run has actually started
       wandbConfig(keys: ["t"])
     }
   }
