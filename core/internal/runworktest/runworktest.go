@@ -14,6 +14,7 @@ import (
 type FakeRunWork struct {
 	rw runwork.RunWork
 
+	wg         sync.WaitGroup
 	mu         sync.Mutex
 	allRecords []*service.Record
 }
@@ -28,6 +29,7 @@ func New() *FakeRunWork {
 			fake.mu.Lock()
 			fake.allRecords = append(fake.allRecords, x)
 			fake.mu.Unlock()
+			fake.wg.Done()
 		}
 	}()
 
@@ -36,12 +38,15 @@ func New() *FakeRunWork {
 
 // AllRecords returns all records added via AddRecord.
 func (w *FakeRunWork) AllRecords() []*service.Record {
+	w.wg.Wait()
+
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	return w.allRecords
 }
 
 func (w *FakeRunWork) AddRecord(record *service.Record) {
+	w.wg.Add(1)
 	w.rw.AddRecord(record)
 }
 
@@ -49,6 +54,7 @@ func (w *FakeRunWork) AddRecordOrCancel(
 	done <-chan struct{},
 	record *service.Record,
 ) {
+	w.wg.Add(1)
 	w.rw.AddRecordOrCancel(done, record)
 }
 
