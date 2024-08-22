@@ -570,7 +570,7 @@ workflows:
           name: "\
             system-tests-linux-importers-\
             <<matrix.tests>>-\
-            <<matrix.python_version_major>>-\
+            <<matrix.python_version_major>>.\
             <<matrix.python_version_minor>>"
 
           matrix:
