@@ -251,7 +251,7 @@ func TestMustResumeValidHistory(t *testing.T) {
 
 	history := `["{\"_step\":1,\"_runtime\":50}"]`
 	config := "{}"
-	summary := "{}"
+	summary := `{"_step": 1, "_runtime": 50}`
 	historyLineCount := 1
 	eventsLineCount := 0
 	logLineCount := 0
@@ -342,7 +342,7 @@ func TestMustResumeHistoryTailStepZero(t *testing.T) {
 	logLineCount := 0
 	history := `["{\"_step\":1}"]`
 	config := "{}"
-	summary := "{}"
+	summary := `{"_step": 1}`
 	rr := ResumeResponse{
 		Model: Model{
 			Bucket: Bucket{
@@ -384,7 +384,7 @@ func TestMustResumeValidSummary(t *testing.T) {
 
 	history := `["{\"_step\":1, \"_runtime\":40.2}"]`
 	config := "{}"
-	summary := `{"loss": 0.5, "_runtime": 20.3, "wandb": {"runtime": 30.1}}`
+	summary := `{"loss": 0.5, "_runtime": 40.2, "wandb": {"runtime": 20.3}, "_step": 1}`
 	historyLineCount := 1
 	eventsLineCount := 0
 	logLineCount := 0
@@ -423,10 +423,10 @@ func TestMustResumeValidSummary(t *testing.T) {
 	assert.True(t, params.Resumed, "GetUpdates should return correct resumed state")
 
 	// check the value of the summary are correct
-	assert.Len(t, params.Summary, 3, "GetUpdates should return correct summary")
+	assert.Len(t, params.Summary, 4, "GetUpdates should return correct summary")
 	assert.Equal(t, 0.5, params.Summary["loss"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(20.3), params.Summary["_runtime"], "GetUpdates should return correct summary")
-	assert.Equal(t, float64(30.1), params.Summary["wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
+	assert.Equal(t, float64(40.2), params.Summary["_runtime"], "GetUpdates should return correct summary")
+	assert.Equal(t, float64(20.3), params.Summary["wandb"].(map[string]any)["runtime"], "GetUpdates should return correct summary")
 
 	assert.Nil(t, err, "GetUpdates should not return an error")
 }
@@ -985,7 +985,7 @@ func TestExtractRunState(t *testing.T) {
 	eventsLineCount := 10
 	logLineCount := 15
 	history := `["{\"_step\":4,\"_runtime\":100}"]`
-	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}}`
+	summary := `{"loss": 0.5, "_runtime": 120, "wandb": {"runtime": 130}, "_step": 4}`
 	config := `{"lr": {"value": 0.001}, "batch_size": {"value": 32}}`
 	eventsTail := `["{\"_runtime\":110}", "{\"_runtime\":120}"]`
 
@@ -1102,6 +1102,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						HistoryTail:      &history,
 						SummaryMetrics:   &summary,
 						EventsTail:       "[]",
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},
@@ -1120,6 +1121,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						HistoryTail:      &history,
 						SummaryMetrics:   &summary,
 						EventsTail:       "[]",
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},
@@ -1138,6 +1140,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						LogLineCount:     &logLineCount,
 						EventsTail:       "[]",
 						SummaryMetrics:   &summary,
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},
@@ -1156,6 +1159,7 @@ func TestExtractRunStateNilCases(t *testing.T) {
 						LogLineCount:     &logLineCount,
 						EventsTail:       "[]",
 						HistoryTail:      &history,
+						Config:           &config,
 						WandbConfig:      `{"t": 1}`,
 					},
 				},
