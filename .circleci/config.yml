@@ -377,7 +377,6 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            CI_PYTEST_PARALLEL=<< parameters.xdist >> \
             nox -s "importer_tests-<< parameters.python_version_major >>.<< parameters.python_version_minor >>(importer='<< parameters.tests >>')" \
               -- tests/pytest_tests/system_tests/test_importers/test_<< parameters.tests >>/ \
               $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi)
