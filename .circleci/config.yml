@@ -47,13 +47,12 @@ executors:
 
   local-testcontainer-importers:
     parameters:
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
+      python: { type: string }
       dst_server_name:
         type: string
         default: localhost-wandb-2
     docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      - image: "python:<<parameters.python>>"
       # the src server
       - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
         auth:
@@ -399,15 +398,8 @@ jobs:
   # and store it in wandb-client-cicd/images/local-testcontainer.
   # No-op if already stored.
   store-local-testcontainer:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 11
     docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
+      - image: "python:3.11"
     resource_class: small
     working_directory: /mnt/ramdisk
     steps:
@@ -569,19 +561,16 @@ workflows:
           name: "\
             system-tests-linux-importers-\
             <<matrix.tests>>-\
-            <<matrix.python_version_major>>.\
-            <<matrix.python_version_minor>>"
+            <<matrix.python>>"
 
           matrix:
             parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
+              python: ["3.9"]
               tests: ["wandb", "mlflow"]
 
           executor:
             name: local-testcontainer-importers
-            python_version_major: << matrix.python_version_major >>
-            python_version_minor: << matrix.python_version_minor >>
+            python: << matrix.python >>
 
       #
       # Functional tests with yea on Linux
