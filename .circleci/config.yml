@@ -350,8 +350,7 @@ jobs:
   importers:
     parameters:
       executor: { type: executor }
-      python_version_major: { type: integer }
-      python_version_minor: { type: integer }
+      python: { type: string }
       tests:
         type: enum
         enum: [wandb, mlflow]
