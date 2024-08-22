@@ -1,61 +1,96 @@
 use fork::{fork, Fork};
 use sentry;
 use std::fs;
+use std::io;
 use std::process::Command;
-use std::{thread, time};
+use std::{fmt, thread, time};
 use tempfile::NamedTempFile;
 use tracing;
+
+#[derive(Debug)]
+pub enum LauncherError {
+    Io(io::Error),
+    ForkFailed(String),
+    PortParseFailed,
+    Timeout,
+}
+
+impl std::error::Error for LauncherError {}
+
+impl fmt::Display for LauncherError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LauncherError::Io(err) => write!(f, "IO error: {}", err),
+            LauncherError::ForkFailed(msg) => write!(f, "Fork failed: {}", msg),
+            LauncherError::PortParseFailed => write!(f, "Failed to parse port number"),
+            LauncherError::Timeout => write!(f, "Timeout waiting for port"),
+        }
+    }
+}
+
+impl From<io::Error> for LauncherError {
+    fn from(err: io::Error) -> Self {
+        LauncherError::Io(err)
+    }
+}
 
 pub struct Launcher {
     pub command: String,
 }
 
-fn wait_for_port(port_filename: &str) -> i32 {
+fn wait_for_port(port_filename: &str, timeout: time::Duration) -> Result<i32, LauncherError> {
+    let start_time = time::Instant::now();
     let delay_time = time::Duration::from_millis(20);
-    loop {
+
+    while start_time.elapsed() < timeout {
         thread::sleep(delay_time);
-        let contents =
-            fs::read_to_string(port_filename).expect("Should have been able to read the file");
-        let lines = contents.lines().collect::<Vec<_>>();
+        let contents = fs::read_to_string(port_filename)?;
+        let lines: Vec<_> = contents.lines().collect();
+
         if lines.last().copied() == Some("EOF") {
             for item in lines.iter() {
-                match item.split_once("=") {
-                    None => continue,
-                    Some((param, val)) => {
-                        if param == "sock" {
-                            let my_int = val.to_string().parse::<i32>().unwrap();
-                            return my_int;
-                        }
+                if let Some((param, val)) = item.split_once('=') {
+                    if param == "sock" {
+                        return val.parse().map_err(|_| LauncherError::PortParseFailed);
                     }
                 }
             }
         }
     }
+
+    Err(LauncherError::Timeout)
 }
 
 impl Launcher {
-    pub fn start(&self) -> i32 {
-        let port_file = NamedTempFile::new().expect("tempfile should be created");
-        let port_filename = port_file.path().as_os_str().to_str().unwrap();
+    pub fn start(&self) -> Result<i32, LauncherError> {
+        let port_file = NamedTempFile::new()?;
+        let port_filename = port_file.path().to_str().ok_or_else(|| {
+            LauncherError::Io(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "Failed to get port filename",
+            ))
+        })?;
+
         match fork() {
-            Ok(Fork::Parent(_child)) => {
-                let port = wait_for_port(port_filename);
-                return port;
-            }
+            Ok(Fork::Parent(_child)) => wait_for_port(port_filename, time::Duration::from_secs(30)),
             Ok(Fork::Child) => {
-                let _command = Command::new(self.command.clone())
+                let output = Command::new(&self.command)
                     .arg("--port-filename")
                     .arg(port_filename)
-                    .output();
+                    .output()?;
+
+                if !output.status.success() {
+                    tracing::error!("Child process failed: {:?}", output);
+                    std::process::exit(1);
+                }
+                std::process::exit(0);
             }
             Err(e) => {
-                sentry::capture_error(&std::io::Error::new(
-                    std::io::ErrorKind::Other,
-                    format!("Fork failed: {}", e),
-                ));
-                tracing::error!("Fork failed");
+                let error = LauncherError::ForkFailed(e.to_string());
+                sentry::capture_error(&error);
+                tracing::error!("Fork failed: {}", e);
+                Err(error)
             }
         }
-        0
     }
 }

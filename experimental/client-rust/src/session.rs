@@ -30,9 +30,21 @@ pub fn get_core_address() -> String {
         .into_os_string()
         .into_string()
         .expect("Failed to convert path to string");
+    println!("Core command: {}", core_cmd);
     let launcher = Launcher { command: core_cmd };
     let port = launcher.start();
-    format!("127.0.0.1:{}", port)
+    // let port = "1";
+    // format!("127.0.0.1:{:?}", port)
+    if let Ok(port) = port {
+        format!("127.0.0.1:{}", port)
+    } else {
+        sentry::capture_error(&io::Error::new(
+            io::ErrorKind::Other,
+            "Couldn't get port from launcher...",
+        ));
+        tracing::error!("Couldn't get port from launcher...");
+        panic!();
+    }
 }
 
 #[pymethods]
