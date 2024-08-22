@@ -69,7 +69,6 @@ from wandb.util import (
 from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._utils import validate_aliases, validate_tags
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
@@ -3102,7 +3101,6 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-        tags: Optional[List[str]] = None,
     ) -> Artifact:
         """Declare an artifact as an output of a run.
 
@@ -3123,17 +3121,12 @@ class Run:
             type: (str) The type of artifact to log, examples include `dataset`, `model`
             aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
-            tags: (list, optional) Tags to apply to this artifact, if any.
 
         Returns:
             An `Artifact` object.
         """
         return self._log_artifact(
-            artifact_or_path,
-            name=name,
-            type=type,
-            aliases=aliases,
-            tags=tags,
+            artifact_or_path, name=name, type=type, aliases=aliases
         )
 
     @_run_decorator._noop_on_finish()
@@ -3250,7 +3243,6 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-        tags: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         is_user_created: bool = False,
@@ -3264,9 +3256,10 @@ class Run:
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:
-            aliases = validate_aliases(aliases)
-        if tags is not None:
-            tags = validate_tags(tags)
+            if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
+                raise ValueError(
+                    "Aliases must not contain any of the following characters: /, :"
+                )
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
@@ -3278,7 +3271,6 @@ class Run:
                     self,
                     artifact,
                     aliases,
-                    tags,
                     self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
@@ -3290,7 +3282,6 @@ class Run:
                     self,
                     artifact,
                     aliases,
-                    tags,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -3300,7 +3291,6 @@ class Run:
                 self,
                 artifact,
                 aliases,
-                tags,
                 finalize=finalize,
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
@@ -3374,7 +3364,6 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
-
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
