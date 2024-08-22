@@ -198,9 +198,11 @@ func TestUploader(t *testing.T) {
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+			task, ok := fakeFileTransfer.Tasks()[0].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filetransfer.RunFileKindArtifact,
-				fakeFileTransfer.Tasks()[0].FileKind,
+				task.FileKind,
 			)
 		})
 
@@ -287,7 +289,7 @@ func TestUploader(t *testing.T) {
 
 			// Act 2: complete the first upload task.
 			firstUpload := fakeFileTransfer.Tasks()[0]
-			firstUpload.CompletionCallback(firstUpload)
+			firstUpload.Complete(nil)
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Assert 2: the second upload task should get scheduled.
@@ -382,22 +384,26 @@ func TestUploader(t *testing.T) {
 			uploadTasks := fakeFileTransfer.Tasks()
 			require.Len(t, uploadTasks, 2)
 
+			task, ok := uploadTasks[0].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filepath.Join(filesDir, "test-file1"),
-				uploadTasks[0].Path)
-			assert.Equal(t, "test-file1", uploadTasks[0].Name)
-			assert.Equal(t, "URL1", uploadTasks[0].Url)
+				task.Path)
+			assert.Equal(t, "test-file1", task.Name)
+			assert.Equal(t, "URL1", task.Url)
 			assert.Equal(t,
 				[]string{"Header1:Value1", "Header2:Value2"},
-				uploadTasks[0].Headers)
+				task.Headers)
 
+			task, ok = uploadTasks[1].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filepath.Join(filesDir, "subdir", "test-file2"),
-				uploadTasks[1].Path)
-			assert.Equal(t, "subdir/test-file2", uploadTasks[1].Name)
-			assert.Equal(t, "URL2", uploadTasks[1].Url)
+				task.Path)
+			assert.Equal(t, "subdir/test-file2", task.Name)
+			assert.Equal(t, "URL2", task.Url)
 			assert.Equal(t,
 				[]string{"Header1:Value1", "Header2:Value2"},
-				uploadTasks[1].Headers)
+				task.Headers)
 		})
 }

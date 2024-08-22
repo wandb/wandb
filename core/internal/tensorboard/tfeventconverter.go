@@ -100,17 +100,27 @@ func processScalars(
 			})
 
 	case *tbproto.Summary_Value_Tensor:
-		str, err := toHistogramJSON(value.Tensor)
-
+		tensor, err := tensorFromProto(value.Tensor)
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error serializing a tensor: %v", err))
+				fmt.Errorf("tensorboard: error parsing tensor: %v", err))
 			return jsonData
-		} else {
-			return append(jsonData, tagAndJSON{tag: tag, json: str})
 		}
 
+		str, err := tensor.ToHistogramJSON(32)
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("tensorboard: error serializing tensor: %v", err))
+			return jsonData
+		}
+
+		return append(jsonData, tagAndJSON{tag: tag, json: str})
+
 	default:
+		logger.CaptureError(
+			fmt.Errorf(
+				"tensorboard: unexpected scalars value type: %T",
+				value))
 		return jsonData
 	}
 }

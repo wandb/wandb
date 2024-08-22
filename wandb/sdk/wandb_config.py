@@ -129,6 +129,9 @@ class Config:
     def __getitem__(self, key):
         return self._items[key]
 
+    def __iter__(self):
+        return iter(self._items)
+
     def _check_locked(self, key, ignore_locked=False) -> bool:
         locked = self._locked.get(key)
         if locked is not None:

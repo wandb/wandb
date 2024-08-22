@@ -99,9 +99,8 @@ func (f *savedFile) Upload(
 //
 // It must be called while a lock is held. It temporarily releases the lock.
 func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
-	task := &filetransfer.Task{
+	task := &filetransfer.DefaultUploadTask{
 		FileKind: f.category,
-		Type:     filetransfer.UploadTask,
 		Path:     f.realPath,
 		Name:     string(f.runPath),
 		Url:      uploadURL,
@@ -110,7 +109,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 
 	f.isUploading = true
 	f.wg.Add(1)
-	task.SetCompletionCallback(f.onFinishUpload)
+	task.OnComplete = func() { f.onFinishUpload(task) }
 
 	// Temporarily unlock while we run arbitrary code.
 	f.Unlock()
@@ -119,7 +118,7 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 }
 
 // onFinishUpload marks an upload completed and triggers another if scheduled.
-func (f *savedFile) onFinishUpload(task *filetransfer.Task) {
+func (f *savedFile) onFinishUpload(task *filetransfer.DefaultUploadTask) {
 	if task.Err == nil {
 		f.fs.StreamUpdate(&filestream.FilesUploadedUpdate{
 			RelativePath: string(f.runPath),

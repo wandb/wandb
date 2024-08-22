@@ -290,9 +290,9 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
-				task.SetCompletionCallback(func(t *filetransfer.Task) {
-					doneChan <- uploadResult{name: fileInfo.name, err: t.Err}
-				})
+				task.OnComplete = func() {
+					doneChan <- uploadResult{name: fileInfo.name, err: task.Err}
+				}
 				as.FileTransferManager.AddTask(task)
 			}
 		// Listen for completed uploads, adding to the retry list if they failed.
@@ -367,10 +367,9 @@ func (as *ArtifactSaver) batchSize() int {
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
 
-func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.Task {
-	return &filetransfer.Task{
+func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.DefaultUploadTask {
+	return &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
 		Path:     localPath,
 		Name:     fileInfo.name,
 		Url:      *fileInfo.uploadUrl,
@@ -439,7 +438,7 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	type partResponse struct {
 		partNumber int64
-		task       *filetransfer.Task
+		task       *filetransfer.DefaultUploadTask
 	}
 
 	wg := sync.WaitGroup{}
@@ -467,10 +466,10 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Length:" + strconv.FormatInt(task.Size, 10),
 			"Content-Type:" + contentType,
 		}
-		task.SetCompletionCallback(func(t *filetransfer.Task) {
-			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: t}
+		task.OnComplete = func() {
+			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
 			wg.Done()
-		})
+		}
 		wg.Add(1)
 		as.FileTransferManager.AddTask(task)
 	}
@@ -592,19 +591,14 @@ func (as *ArtifactSaver) uploadManifest(
 	uploadUrl *string,
 	uploadHeaders []string,
 ) error {
-	resultChan := make(chan *filetransfer.Task)
-	task := &filetransfer.Task{
+	resultChan := make(chan *filetransfer.DefaultUploadTask)
+	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
 		Path:     manifestFile,
 		Url:      *uploadUrl,
 		Headers:  uploadHeaders,
 	}
-	task.SetCompletionCallback(
-		func(t *filetransfer.Task) {
-			resultChan <- t
-		},
-	)
+	task.OnComplete = func() { resultChan <- task }
 
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
