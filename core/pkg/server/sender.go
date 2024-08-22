@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
+	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -376,6 +377,8 @@ func (s *Sender) sendRequest(record *service.Record, request *service.Request) {
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *service.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+	case *service.Request_CheckVersion:
+		s.sendRequestCheckVersion(record, x.CheckVersion)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -1456,6 +1459,74 @@ func (s *Sender) sendRequestSync(record *service.Record, request *service.SyncRe
 		Uuid:    record.Uuid,
 	}
 	s.fwdRecord(rec)
+}
+
+func (s *Sender) sendRequestCheckVersion(record *service.Record, request *service.CheckVersionRequest) {
+	currVersion := request.GetCurrentVersion()
+	// if the current version is empty, we can't check for a new version
+	if currVersion == "" {
+		s.logger.Error("sender: sendRequestCheckVersion: current version is empty")
+		s.respond(record,
+			&service.Response{},
+		)
+		return
+	}
+
+	// if there is no graphql client, we don't need to do anything as we can't
+	// check for the server provided version
+	if s.graphqlClient == nil {
+		s.respond(record,
+			&service.Response{},
+		)
+		return
+	}
+
+	respone, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
+	// if the request failed, we can't check for the server provided version this
+	// check is best effort
+	if err != nil {
+		s.logger.Error("sender: sendRequestCheckVersion: failed to get server info", "error", err)
+		s.respond(record,
+			&service.Response{},
+		)
+		return
+	}
+
+	// if the response is nil or the server info is nil, we can't check for the
+	// server provided version this check is best effort
+	if respone == nil || respone.GetServerInfo() == nil {
+		s.logger.Error("sender: sendRequestCheckVersion: server info is nil")
+		s.respond(record,
+			&service.Response{},
+		)
+		return
+	}
+
+	switch x := respone.GetServerInfo().GetCliVersionInfo().(type) {
+	case map[string]any:
+		if maxVersion, ok := x["max_cli_version"].(string); ok {
+			if semver.Compare(currVersion, maxVersion) == -1 {
+				s.respond(record,
+					&service.Response{
+						ResponseType: &service.Response_CheckVersionResponse{
+							CheckVersionResponse: &service.CheckVersionResponse{
+								UpgradeMessage: fmt.Sprintf(
+									"There is a new version of wandb available. Please upgrade to %s", maxVersion,
+								),
+							},
+						},
+					},
+				)
+				return
+			}
+		}
+	default:
+		err := fmt.Errorf("server client version is of type %T should be a map", x)
+		s.logger.Error("sender: sendRequestCheckVersion: failed to get server info", "error", err)
+	}
+	s.respond(record,
+		&service.Response{},
+	)
 }
 
 func (s *Sender) sendRequestStopStatus(record *service.Record, _ *service.StopStatusRequest) {
