@@ -242,11 +242,15 @@ jobs:
       yea_shard: # if running tests with yea, like functional_tests
         default: ""
         type: string
+      server_image: { type: string }
+      server_image_tag: { type: string }
 
     parallelism: <<parameters.parallelism>>
     executor:
       name: <<parameters.executor_name>>
       python: <<parameters.python>>
+      server_image: <<parameters.server_image>>
+      server_image_tag: <<parameters.server_image_tag>>
 
     steps:
       - checkout
