@@ -3,84 +3,18 @@ version: 2.1
 orbs:
   win: circleci/windows@5.0.0
   slack: circleci/slack@4.12.5
-  go: circleci/go@1.11.0
   gcloud: circleci/gcp-cli@3.1.1
   codecov: codecov/codecov@4.0.1
 
 parameters:
-  manual:
-    type: boolean
-    default: false
-  manual_test:
-    type: boolean
-    default: false
-  manual_win:
-    type: boolean
-    default: false
-  manual_mac:
-    type: boolean
-    default: false
-  manual_test_image:
-    type: string
-    default: "python:3.7"
-  manual_test_toxenv:
-    type: string
-    default: "py37"
-  manual_win_toxenv:
-    type: string
-    default: "py37"
-  manual_mac_toxenv:
-    type: string
-    default: "py37"
-  manual_test_name:
-    type: string
-    default: "man-lin-py37"
-  manual_win_name:
-    type: string
-    default: "man-win-py37"
-  manual_mac_name:
-    type: string
-    default: "man-mac-py37"
-  manual_parallelism:
-    type: integer
-    default: 1
-  manual_xdist:
-    type: integer
-    default: 1
   go_version:
     type: string
     default: "1.22.6"
-  container_registry:
+  server_image:
     type: string
-    default: "us-central1-docker.pkg.dev"
-  gcp_cluster_name:
-    type: string
-    default: "sdk-nightly"
-  manual_nightly:
-    type: boolean
-    default: false
-  nightly_git_branch:
-    type: string
-    default: main
-  nightly_slack_notify:
-    type: boolean
-    default: true
-  nightly_execute_standalone_cpu:
-    type: boolean
-    default: true
-  nightly_execute_standalone_gpu:
-    type: boolean
-    default: true
-  nightly_execute_standalone_gpu_win:
-    type: boolean
-    default: true
-  nightly_execute_regression:
-    type: boolean
-    default: true
-  gcp_project:
-    type: string
-    default: wandb-production # wandb-production or wandb-client-cicd
-  wandb_server_tag:
+    default: "us-central1-docker.pkg.dev/wandb-production/images/local-testcontainer"
+    # us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer
+  server_image_tag:
     type: string
     default: "master"
 
@@ -102,7 +36,7 @@ executors:
       python: { type: string }
     docker:
       - image: "python:<<parameters.python>>"
-      - image: <<pipeline.parameters.container_registry>>/<<pipeline.parameters.gcp_project>>/images/local-testcontainer:<<pipeline.parameters.wandb_server_tag>>
+      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -121,7 +55,7 @@ executors:
     docker:
       - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
       # the src server
-      - image: << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -129,7 +63,7 @@ executors:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
       # the dst server
-      - image: << pipeline.parameters.container_registry >>/<< pipeline.parameters.gcp_project >>/images/local-testcontainer:<< pipeline.parameters.wandb_server_tag >>
+      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -145,17 +79,14 @@ commands:
   save-test-results:
     description: "Save test results"
     steps:
-      - unless:
-          condition: << pipeline.parameters.manual >>
-          steps:
-            - store_test_results:
-                path: test-results
-            - store_artifacts:
-                path: test-results
-            - store_artifacts:
-                path: mypy-results
-            - store_artifacts:
-                path: cover-results
+      - store_test_results:
+          path: test-results
+      - store_artifacts:
+          path: test-results
+      - store_artifacts:
+          path: mypy-results
+      - store_artifacts:
+          path: cover-results
 
   # We only need a separate command to include this workaround to a bug:
   # https://github.com/codecov/codecov-circleci-orb/issues/185#issuecomment-2072147831
@@ -272,24 +203,7 @@ commands:
             $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m
 
-  setup_docker_buildx:
-    description: Enable remote docker, and install the expanded `buildx` command for the CLI. Only works on alpine-based images.
-    parameters:
-      docker_layer_caching:
-        type: boolean
-        default: false
-    steps:
-      - setup_remote_docker:
-          version: 20.10.12
-          docker_layer_caching: << parameters.docker_layer_caching >>
-      - run: apk add docker-cli-buildx --repository=http://dl-cdn.alpinelinux.org/alpine/edge/community
-
   setup_gcloud:
-    parameters:
-      cluster:
-        description: "cluster name"
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
     steps:
       - run:
           name: "Setup gcloud and kubectl"
@@ -302,81 +216,6 @@ commands:
             gcloud --quiet config set project $GOOGLE_PROJECT_ID
             gcloud --quiet config set compute/zone $GOOGLE_COMPUTE_ZONE
             gcloud auth configure-docker --quiet << pipeline.parameters.container_registry >>
-          environment:
-            GKE_CLUSTER_NAME: <<parameters.cluster >>
-
-  create_gke_cluster:
-    parameters:
-      cluster:
-        description: "cluster name"
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
-      no-output-timeout:
-        description: >
-          Elapsed time that the cluster creation command can run on CircleCI without
-          output. The string is a decimal with unit suffix, such as “20m”, “1.25h”,
-          “5s”
-        type: string
-        default: 15m
-      num_nodes:
-        description: "Number of nodes to create"
-        type: integer
-        default: 1
-      machine_type:
-        description: "GKE cluster machine type"
-        type: string
-        default: "n1-standard-8"
-      disk_size:
-        description: "GKE cluster disk size"
-        type: integer
-        default: 100
-      disk_type:
-        description: "GKE cluster disk type"
-        type: string
-        default: "pd-ssd"
-      gpu_type:
-        description: "GKE cluster GPU type"
-        type: string
-        default: "nvidia-tesla-t4"
-      gpu_count:
-        description: "GKE cluster GPU count"
-        type: integer
-        default: 2
-    steps:
-      - setup_gcloud
-      - run:
-          name: "Check if cluster exists and delete if it does"
-          command: |
-            cluster_exists=$(gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)" | wc -l | xargs)
-            gcloud container clusters list --filter="name=<< parameters.cluster >>" --format="value(name)"
-            if [ $? -eq 0 ] && [ $cluster_exists -eq 1 ]; then
-              gcloud container clusters delete << parameters.cluster >> --quiet
-            fi
-            exit 0
-      - run:
-          name: "Create GKE cluster"
-          command: |
-            gcloud container clusters create $GKE_CLUSTER_NAME \
-            --num-nodes=<< parameters.num_nodes >> --machine-type=<< parameters.machine_type >> \
-            --disk-size=<< parameters.disk_size >> --disk-type=<< parameters.disk_type >> \
-            --accelerator=type=<< parameters.gpu_type >>,count=<< parameters.gpu_count >>
-          environment:
-            GKE_CLUSTER_NAME: << parameters.cluster >>
-          no_output_timeout: << parameters.no-output-timeout>>
-
-  get_gke_cluster_credentials:
-    parameters:
-      cluster:
-        description: "cluster name"
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
-    steps:
-      - run:
-          name: "Get gke cluster credentials"
-          command: |
-            gcloud container clusters get-credentials << parameters.cluster >>
-          environment:
-            GKE_CLUSTER_NAME: << parameters.cluster >>
 
   restore_cache_tox:
     steps:
@@ -404,81 +243,6 @@ commands:
           paths: [.tox]
 
 jobs:
-  regression:
-    parameters:
-      python_version_major:
-        type: integer
-        default: 3
-      python_version_minor:
-        type: integer
-        default: 7
-      toxenv:
-        type: string
-      shard:
-        type: string
-        default: "base"
-      notify_on_failure:
-        type: boolean
-        default: false
-      notify_on_failure_channel:
-        type: string
-        default: "$SLACK_SDK_NIGHTLY_CI_CHANNEL"
-      parallelism:
-        type: integer
-        default: 1
-      execute:
-        type: boolean
-        default: true
-      tox_args:
-        type: string
-        default: "--cli_branch $CIRCLE_BRANCH"
-    docker:
-      - image: "python:<<parameters.python_version_major>>.<<parameters.python_version_minor>>"
-    parallelism: << parameters.parallelism >>
-    resource_class: xlarge
-    working_directory: /mnt/ramdisk/wandb
-    steps:
-      - checkout
-      - add_ssh_keys:
-          fingerprints:
-      - when:
-          condition: << parameters.execute >>
-          steps:
-            - run:
-                name: Install system deps
-                command: |
-                  apt-get update && apt-get install -y libsndfile1 ffmpeg psmisc
-            - run:
-                name: Setup environment
-                command: |
-                  curl https://pyenv.run | bash
-                  echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
-                  echo 'eval "$(pyenv init -)"' >> ~/.bashrc
-                  echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
-                  source ~/.bashrc
-                no_output_timeout: 30m
-            - run:
-                name: Install requirements
-                command: python -m pip install -U pip tox
-                no_output_timeout: 5m
-            - run:
-                name: Run tests
-                no_output_timeout: 240m
-                command: |
-                  source ~/.bashrc
-                  tox run -v -e << parameters.toxenv >> -- << parameters.tox_args >>
-            #            - save-test-results
-            # conditionally post a notification to slack if the job failed
-            - when:
-                condition: << parameters.notify_on_failure >>
-                steps:
-                  - slack/notify:
-                      event: fail
-                      template: basic_fail_1
-                      mentions: "@channel"
-                      # taken from slack-secrets context
-                      channel: << parameters.notify_on_failure_channel >>
-
   nox-tests-linux:
     parameters:
       executor_name:
@@ -687,14 +451,6 @@ jobs:
                       # taken from slack-secrets context
                       channel: << parameters.notify_on_failure_channel >>
 
-  prep:
-    docker:
-      - image: "cimg/base:stable"
-    resource_class: small
-    working_directory: /mnt/ramdisk
-    steps:
-      - checkout
-
   importers:
     parameters:
       executor: { type: executor }
@@ -746,6 +502,9 @@ jobs:
             go test -race -coverprofile=coverage.txt -covermode=atomic ./...
       - upload_codecov: { flags: unit }
 
+  # Download the local-testcontainer image corresponding to the latest server release
+  # and store it in wandb-client-cicd/images/local-testcontainer.
+  # No-op if already stored.
   store-local-testcontainer:
     parameters:
       python_version_major:
@@ -946,530 +705,8 @@ jobs:
           name: Print message to stdout
           command: echo << parameters.message >>
 
-  # Build the docker image for a yea shard of the nightly workflow.
-  sdk_docker:
-    parameters:
-      description:
-        type: string
-      path:
-        type: string
-      image_name:
-        type: string
-      python_version:
-        type: string
-        default: "3.9"
-      git_branch:
-        type: string
-        default: "main"
-      execute:
-        type: boolean
-        default: true
-      notify_on_failure:
-        type: boolean
-        default: false
-    docker:
-      - image: "google/cloud-sdk:alpine"
-    steps:
-      - checkout
-      - when:
-          condition: << parameters.execute >>
-          steps:
-            - gcloud/install
-            #            - gcloud/install:
-            #                version: "413.0.0"
-            #                components: "docker-credential-gcr"
-            - setup_gcloud
-            - setup_docker_buildx:
-                docker_layer_caching: false
-            - run:
-                name: "Build << parameters.description >>"
-                command: |
-                  cd << parameters.path >>
-                  docker build \
-                    -t << parameters.image_name >> \
-                    --build-arg PYTHON_VERSION=<< parameters.python_version >> \
-                    --build-arg GIT_BRANCH=<< parameters.git_branch >> \
-                    --build-arg UTC_DATE=$(date -u +%Y%m%d) \
-                    .
-            - run:
-                name: "Push << parameters.description >> to container registry"
-                command: |
-                  docker push << parameters.image_name >>
-            # todo: clean up old images in gcr.io
-      # conditionally post a notification to slack if the job failed
-      - when:
-          condition: << parameters.notify_on_failure >>
-          steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-
-  # Nightly workflow for the SDK.
-  #  - spin_up_cluster job creates a GKE cluster
-  #  - individual test jobs use the cluster created by the spin_up_cluster job
-  #     - each requires spin_up_cluster to be run first
-  #     - each runs in parallel
-  #     - installs gcloud and gke and spins up a pod, deploys the test,
-  #       then polls the pod for results, and finally deletes the pod
-  #  - shut_down_cluster job that deletes the cluster created by the spin_up_cluster job
-  #     - requires spin_up_cluster to be run first
-  #     -
-
-  # manage cluster: spin it up and shut it down
-  spin_up_cluster:
-    parameters:
-      cluster:
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
-      notify_on_failure:
-        type: boolean
-        default: false
-    docker:
-      - image: "cimg/base:stable"
-    steps:
-      - checkout
-      - go/install
-      - gcloud/install
-      - setup_gcloud
-      - create_gke_cluster:
-          cluster: << parameters.cluster >>
-      - get_gke_cluster_credentials:
-          cluster: << parameters.cluster >>
-      - run:
-          name: "Install GPU drivers"
-          command: |
-            kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/container-engine-accelerators/master/nvidia-driver-installer/cos/daemonset-preloaded-latest.yaml
-      # conditionally post a notification to slack if the job failed
-      - when:
-          condition: << parameters.notify_on_failure >>
-          steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-
-  shut_down_cluster:
-    parameters:
-      cluster:
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
-      sleep_time: # time in seconds to wait before re-checking pod status
-        type: integer
-        default: 30
-      notify_on_failure:
-        type: boolean
-        default: false
-    docker:
-      - image: "cimg/base:stable"
-    steps:
-      - checkout
-      - go/install
-      - gcloud/install
-      - setup_gcloud
-      - get_gke_cluster_credentials:
-          cluster: << parameters.cluster >>
-      - run:
-          # todo: think about how to check statuses of pods before deleting cluster
-          name: "Wait for pods to finish"
-          command: |
-            echo "Waiting for pods to finish"
-            sleep 300
-            count_all_pods_terminated=0
-            while true; do
-              kubectl get pods
-              terminated_pods=`kubectl get pods --field-selector=status.phase!=Succeeded,status.phase!=Failed 2>&1`
-              all_pods_terminated=`echo $(echo $terminated_pods | grep -c "No resources found")`
-              if [ "$all_pods_terminated" -eq "1" ]; then
-                count_all_pods_terminated=$((count_all_pods_terminated + 1))
-                echo "All pods have terminated ($count_all_pods_terminated)"
-                # make sure we have seen all pods terminated twice to give pod attach a chance to run
-                if [ $count_all_pods_terminated -ge 2 ]; then break; fi
-              fi
-              sleep << parameters.sleep_time >>
-            done
-          no_output_timeout: "25m"
-      - run:
-          name: "Delete cluster"
-          command: gcloud container clusters delete << parameters.cluster >>
-          when: always
-          no_output_timeout: "10m"
-      # conditionally post a notification to slack if the job failed
-      - when:
-          condition: << parameters.notify_on_failure >>
-          steps:
-            - slack/notify:
-                event: fail
-                template: basic_fail_1
-                mentions: "@channel"
-                # taken from slack-secrets context
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-
-  cloud_test:
-    parameters:
-      cluster:
-        type: string
-        default: << pipeline.parameters.gcp_cluster_name >>
-      image_name:
-        type: string
-      path:
-        type: string
-      pod_config_name:
-        type: string
-        default: pod.yaml
-      pod_name: # same as in <path>/pod.yaml
-        type: string
-      sleep_time: # time in seconds to wait before re-checking pod status
-        type: integer
-        default: 5
-      notify_on_failure:
-        type: boolean
-        default: true
-      notify_on_success:
-        type: boolean
-        default: false
-      execute:
-        type: boolean
-        default: true
-    docker:
-      - image: "cimg/base:stable"
-    steps:
-      - checkout
-      - when:
-          condition: << parameters.execute >>
-          steps:
-            - go/install
-            - gcloud/install
-            - setup_gcloud
-            - get_gke_cluster_credentials:
-                cluster: << parameters.cluster >>
-            - run:
-                name: "Propagate the WANDB_API_KEY environment variable to pod.yaml"
-                command: |
-                  sed -i -e 's/WANDB_API_KEY_PLACEHOLDER/'"$WANDB_API_KEY"'/g' << parameters.path >>/<< parameters.pod_config_name >>
-            - run:
-                name: "Spin up pod"
-                command: |
-                  kubectl apply -f << parameters.path >>/<< parameters.pod_config_name >>
-            - run:
-                name: "Wait for pod to be up and running"
-                command: |
-                  while true; do
-                    kubectl get pods
-                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
-                    if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> is ready"
-                      exit 0
-                    elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> has completed"
-                      exit 0
-                    elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(echo "$pod_state" | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> is in an error state"
-                      kubectl logs << parameters.pod_name >>
-                      exit 1
-                    fi
-                    sleep << parameters.sleep_time >>
-                  done
-                no_output_timeout: "5m"
-            - run:
-                name: "Wait for tests to finish"
-                command: |
-                  sleep 30
-
-                  while true; do
-                    kubectl get pods
-                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>)
-                    if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> is running"
-                    elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> has completed"
-                      break
-                    elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                      echo "Pod for << parameters.image_name >> is in an error state"
-                      kubectl logs << parameters.pod_name >>
-                      exit 1
-                    fi
-                    echo "Sleeping for << parameters.sleep_time >> seconds"
-                    echo
-                    sleep << parameters.sleep_time >>
-                  done
-                no_output_timeout: "20m"
-            - run:
-                name: "Grab results"
-                command: |
-                  # grab result data
-                  echo "Launch attach pod to get results..."
-                  kubectl create -f << parameters.path >>/attach.yaml
-                  while true; do
-                    kubectl get pods
-                    pod_state=$(kubectl get pods | grep << parameters.pod_name >>-attach-pod)
-                    if [ "$(echo "$pod_state" | grep -c 'Running')" -eq "1" ]; then
-                      echo "Attach Pod for << parameters.image_name >> is running"
-                      break
-                    elif [ "$(echo "$pod_state" | grep -c 'Completed')" -eq "1" ]; then
-                      echo "Attach Pod for << parameters.image_name >> has completed"
-                      break
-                    elif [ "$(echo "$pod_state" | grep -c 'Error')" -eq "1" ] || [ "$(kubectl get pods | grep -c 'CrashLoopBackOff')" -eq "1" ]; then
-                      echo "Attach Pod for << parameters.image_name >> is in an error state"
-                      kubectl logs << parameters.pod_name >>-attach-pod
-                      echo "About to exit"
-                      exit 1
-                    fi
-                    echo "Sleeping for << parameters.sleep_time >> seconds"
-                    echo
-                    sleep << parameters.sleep_time >>
-                  done
-                  echo "Copy results from pod..."
-                  mkdir -p results/<< parameters.pod_name >>
-                  kubectl cp << parameters.pod_name >>-attach-pod:/wandb-store/test-results results/<< parameters.pod_name >>
-                  echo "Delete attach pod..."
-                  kubectl delete pod << parameters.pod_name >>-attach-pod
-                no_output_timeout: "10m"
-            - run:
-                # todo: make getting the exit_code more robust: add check for "commands succeeded"
-                name: "Get pod logs and parse exit code"
-                command: |
-                  kubectl logs << parameters.pod_name >>
-                  logs=`kubectl logs << parameters.pod_name >>`
-                  exit_code=`echo $(echo $logs | grep -c "commands failed")`
-                  echo "Pod for << parameters.image_name >> exited with code ${exit_code}"
-                  exit ${exit_code}
-                no_output_timeout: "20m"
-            - store_test_results:
-                path: results/<< parameters.pod_name >>/test-results
-            - store_artifacts:
-                path: results/<< parameters.pod_name >>/test-results
-                destination: test-results
-            - run:
-                name: "Delete the pod"
-                when: always
-                command: |
-                  kubectl get pods
-                  kubectl delete -f << parameters.path >>/<< parameters.pod_config_name >> || echo "Problem deleting pod"
-                  kubectl delete -f << parameters.path >>/attach.pod || echo "Problem deleting attach pod"
-            # conditionally post a notification to slack if the job failed/succeeded
-            - when:
-                condition: << parameters.notify_on_failure >>
-                steps:
-                  - slack/notify:
-                      event: fail
-                      template: basic_fail_1
-                      mentions: "@channel"
-                      # taken from slack-secrets context
-                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-            - when:
-                condition: << parameters.notify_on_success >>
-                steps:
-                  - slack/notify:
-                      event: pass
-                      template: basic_success_1
-                      # taken from slack-secrets context
-                      channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-
 workflows:
-  nightly:
-    when:
-      or:
-        - and:
-            - equal:
-                - << pipeline.trigger_source >>
-                - scheduled_pipeline
-            - equal:
-                - << pipeline.schedule.name >>
-                - "nightly"
-        - << pipeline.parameters.manual_nightly >> # this is a manual trigger
-    jobs:
-      #
-      # "And now my watch begins"
-      #
-      - slack_notify:
-          name: "slack-notify-on-start"
-          context: slack-secrets
-          # todo? add a link to the pipeline in the message
-          message: ":runner: *Nightly run started!*"
-          execute: << pipeline.parameters.nightly_slack_notify >>
-      #
-      # Keep local-testcontainer registry up to date
-      #
-      - store-local-testcontainer:
-          requires:
-            - "slack-notify-on-start"
-      #
-      # Regression tests
-      #
-      - regression:
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [7]
-              shard:
-                - yolov5
-                - huggingface
-                - keras
-                # - tensorflow
-                # - pytorch
-                # - wandb-sdk-standalone
-                - wandb-sdk-examples
-                - wandb-sdk-other
-                - s3
-                - sagemaker
-          name: "regression-<<matrix.shard>>"
-          toxenv: "regression-<<matrix.shard>>-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          execute: << pipeline.parameters.nightly_execute_regression >>
-          context:
-            - slack-secrets
-            - aws-wandb-testing-secrets
-          requires:
-            - "slack-notify-on-start"
-          notify_on_failure: true
-
-      #
-      # standalone GPU tests on Windows
-      #
-      - win:
-          machine_executor: "server-2019-cuda"
-          executor_size: "medium"
-          execute: << pipeline.parameters.nightly_execute_standalone_gpu_win >>
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-          name: "func-s_standalone_gpu-win-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          toxenv: "standalone-gpu-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
-          tox_args: "tests/functional_tests"
-          parallelism: 2
-          xdist: 1
-          requires:
-            - "slack-notify-on-start"
-
-      - nox-tests-linux:
-          name: "\
-            func-tests-linux-\
-            <<matrix.yea_shard>>-\
-            <<matrix.python>>"
-          session: functional_tests
-          codecov_flags: func
-          parallelism: 1
-
-          matrix:
-            parameters:
-              yea_shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
-              python: ["3.7"]
-
-      - nox-tests-linux:
-          name: "\
-            func-tests-linux-\
-            <<matrix.yea_shard>>-\
-            <<matrix.python>>"
-          session: functional_tests
-          codecov_flags: func
-          parallelism: 1
-
-          context: sdk-third-party-api
-
-          matrix:
-            parameters:
-              yea_shard:
-                # - "llm"  # TODO: needs review
-                - noml
-                - ray112
-                - ray2
-                - sklearn
-                - metaflow
-                - fastai
-                - catboost
-                - jax
-                - prefect
-                - prodigy
-                - torch
-                - sacred
-                - sb3
-                - tf
-                - lightning
-              python: ["3.9"]
-
-      # build docker images for yea shards
-      - sdk_docker:
-          name: "build-cpu-docker-image"
-          description: "SDK Docker image for CPU testing"
-          git_branch: << pipeline.parameters.nightly_git_branch >>
-          path: "./tests/standalone_tests/shards/gke_cpu"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-          requires:
-            - "slack-notify-on-start"
-          execute: << pipeline.parameters.nightly_execute_standalone_cpu >>
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-      - sdk_docker:
-          name: "build-gpu-docker-image"
-          description: "SDK Docker image for GPU testing"
-          git_branch: << pipeline.parameters.nightly_git_branch >>
-          path: "./tests/standalone_tests/shards/gke_gpu"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-          requires:
-            - "slack-notify-on-start"
-          execute: << pipeline.parameters.nightly_execute_standalone_gpu >>
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-      # manage the gke cluster
-      - spin_up_cluster:
-          requires:
-            - "slack-notify-on-start"
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-      - shut_down_cluster:
-          requires:
-            - spin_up_cluster
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-      # run the tests
-      - cloud_test:
-          name: "cloud-test-cpu"
-          requires:
-            - "build-cpu-docker-image"
-            - spin_up_cluster
-          path: "./tests/standalone_tests/shards/gke_cpu"
-          pod_name: "cpu-pod"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/cpu-sdk:latest
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-          notify_on_success: << pipeline.parameters.nightly_slack_notify >>
-          execute: << pipeline.parameters.nightly_execute_standalone_cpu >>
-      - cloud_test:
-          name: "cloud-test-gpu"
-          requires:
-            - "build-gpu-docker-image"
-            - spin_up_cluster
-          path: "./tests/standalone_tests/shards/gke_gpu"
-          pod_name: "gpu-pod"
-          image_name: << pipeline.parameters.container_registry >>/${GOOGLE_PROJECT_ID}/gpu-sdk:latest
-          context: slack-secrets
-          notify_on_failure: << pipeline.parameters.nightly_slack_notify >>
-          notify_on_success: << pipeline.parameters.nightly_slack_notify >>
-          execute: << pipeline.parameters.nightly_execute_standalone_gpu >>
-      #
-      # "And now my watch ends"
-      #
-      - slack_notify:
-          execute: << pipeline.parameters.nightly_slack_notify >>
-          name: "slack-notify-on-finish"
-          context: slack-secrets
-          requires:
-            - shut_down_cluster
-          message: ":checkered_flag: *Nightly run finished!*"
-
   main:
-    when:
-      and:
-        - not:
-            equal:
-              - scheduled_pipeline
-              - << pipeline.trigger_source >>
-        - not: << pipeline.parameters.manual >>
     jobs:
       #
       # Linting
@@ -1484,18 +721,6 @@ workflows:
             branches:
               only:
                 - main
-
-      #
-      # Prep jobs
-      #
-      # TODO: remove; these were used for grouping when we had too many tests
-      #
-      - prep:
-          name: "executor-tests"
-          filters:
-            branches:
-              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
-              ignore: /pull\/[0-9]+/
 
       #
       # Unit tests with pytest on Linux, using the old mock server
@@ -1678,19 +903,3 @@ workflows:
           matrix:
             parameters:
               python: ["3.9"]
-
-      #
-      # functional tests with different executors
-      #
-      - tox-base:
-          requires:
-            - "executor-tests"
-          matrix:
-            parameters:
-              python_version_major: [3]
-              python_version_minor: [9]
-              toxenv:
-                - "executor-uwsgi"
-                - "executor-gunicorn"
-                - "executor-pex"
-          name: "<<matrix.toxenv>>-linux-py<<matrix.python_version_major>><<matrix.python_version_minor>>"
