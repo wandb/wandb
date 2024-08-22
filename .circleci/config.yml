@@ -375,7 +375,7 @@ jobs:
           name: Run tests
           no_output_timeout: 10m
           command: |
-            nox -s "importer_tests-<< parameters.python_version_major >>.<< parameters.python_version_minor >>(importer='<< parameters.tests >>')" \
+            nox -s "importer_tests-<< parameters.python >>(importer='<< parameters.tests >>')" \
               -- $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
               tests/pytest_tests/system_tests/test_importers/test_<< parameters.tests >>
       - upload_codecov: { flags: system }
