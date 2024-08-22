@@ -136,10 +136,14 @@ func (fs *fileStream) send(
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+		_ = resp.Body.Close()
+
 		return fmt.Errorf(
-			"filestream: failed to upload: %v path=%v",
+			"filestream: failed to upload: %v path=%v: %s",
 			resp.Status,
 			req.Path,
+			string(body),
 		)
 	}
 
