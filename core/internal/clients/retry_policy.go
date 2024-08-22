@@ -70,8 +70,8 @@ func UpsertBucketRetryPolicy(ctx context.Context, resp *http.Response, err error
 	switch {
 	case statusCode == http.StatusGone: // don't retry on 410 Gone
 		return false, err
-	case statusCode == http.StatusConflict: // retry on 409 Conflict
-		return true, err
+	case statusCode == http.StatusConflict: // don't retry on 409 Conflict
+		return false, err
 	case statusCode == http.StatusBadRequest: // don't retry on 400 bad request
 		return false, err
 	case statusCode == http.StatusUnprocessableEntity:

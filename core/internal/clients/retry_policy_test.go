@@ -49,7 +49,7 @@ func TestUpsertBucketRetryPolicy(t *testing.T) {
 		errMsg      string
 	}{
 		{"Gone", http.StatusGone, false, "the server responded with an error. (Error 410: Gone)"},
-		{"Conflict", http.StatusConflict, true, "conflict, retrying. (Error 409: Conflict)"},
+		{"Conflict", http.StatusConflict, false, "conflict, retrying. (Error 409: Conflict)"},
 	}
 
 	for _, tc := range testCases {
