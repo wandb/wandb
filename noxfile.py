@@ -898,10 +898,8 @@ def importer_tests(session: nox.Session, importer: str):
         session.install(".[workspaces]", "pydantic>=2")
     elif importer == "mlflow":
         session.install("pydantic<2")
-
     if session.python != "3.7":
         session.install("polyfactory")
-
     session.install(
         "polars<=1.2.1",
         "rich",
