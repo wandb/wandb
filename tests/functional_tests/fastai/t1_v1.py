@@ -6,7 +6,7 @@ wandb.init()
 
 path = untar_data(URLs.MNIST_SAMPLE)  # noqa: F405
 data = ImageDataBunch.from_folder(path)  # noqa: F405
-learn = Learner(
+learn = Learner(  # noqa: F405
     data,
     simple_cnn((3, 16, 16, 2)),  # noqa: F405
     metrics=accuracy,  # noqa: F405
