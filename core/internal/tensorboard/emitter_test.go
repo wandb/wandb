@@ -95,7 +95,8 @@ func TestChartModifiesConfig(t *testing.T) {
 	expectedConfigJSON, err := chart.ConfigValueJSON()
 	require.NoError(t, err)
 
-	emitter.EmitChart("mychart", chart)
+	require.NoError(t,
+		emitter.EmitChart("mychart", chart))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
 
@@ -122,7 +123,8 @@ func TestTableWritesToFile(t *testing.T) {
 		Rows:         [][]any{{1, 2}, {3, 4}},
 	}
 
-	emitter.EmitTable(pathtree.PathOf("my", "table"), table)
+	require.NoError(t,
+		emitter.EmitTable(pathtree.PathOf("my", "table"), table))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
 
@@ -148,7 +150,8 @@ func TestTableUpdatesHistory(t *testing.T) {
 		Rows:         [][]any{{1, 2}, {3, 4}},
 	}
 
-	emitter.EmitTable(pathtree.PathOf("my", "table"), table)
+	require.NoError(t,
+		emitter.EmitTable(pathtree.PathOf("my", "table"), table))
 	fakeRunWork := runworktest.New()
 	emitter.Emit(fakeRunWork)
 

@@ -82,9 +82,7 @@ func (h *TFEventConverter) rememberPluginName(
 	return h.pluginNameByTag[namespacedTag]
 }
 
-// processScalars processes a value associated to the "scalars" plugin.
-//
-// Takes ownership of the jsonData slice and returns the amended slice.
+// processScalars processes data logged with `tf.summary.scalar()`.
 func processScalars(
 	emitter Emitter,
 	tag string,
@@ -122,6 +120,23 @@ func processScalars(
 	}
 }
 
+// processPRCurves processes data from the "pr_curves" TensorBoard plugin.
+//
+// In TensorFlow 2, PR curves can be added to the summary like so:
+//
+//	import tensorboard.summary.v1 as tb_summary
+//	import tensorflow as tf
+//	tf.summary.experimental.write_raw_pb(
+//	  tb_summary.pr_curve(
+//		  "pr",
+//		  labels=...,
+//		  predictions=...,
+//		  num_thresholds=...,
+//	  ),
+//	  step=...,
+//	)
+//
+// https://github.com/tensorflow/tensorboard/issues/2902#issuecomment-551301396
 func processPRCurves(
 	emitter Emitter,
 	tag string,
