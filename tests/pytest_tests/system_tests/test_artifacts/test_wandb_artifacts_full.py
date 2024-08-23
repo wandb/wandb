@@ -8,11 +8,12 @@ from pathlib import Path
 import numpy as np
 import pytest
 import wandb
-from wandb import Api
+from wandb import Api, Artifact
 from wandb.errors import CommError
 from wandb.sdk.artifacts import artifact_file_cache
 from wandb.sdk.artifacts.exceptions import ArtifactFinalizedError, WaitTimeoutError
 from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.lib.hashutil import md5_string
 
 sm = wandb.wandb_sdk.internal.sender.SendManager
 
@@ -163,19 +164,36 @@ def test_artifact_finish_distributed_id(wandb_init):
     run.finish()
 
 
-# this test hangs, which seems to be the result of incomplete mocks.
-# would be worth returning to it in the future
-# def test_artifact_incremental( relay_server, parse_ctx, test_settings):
-#
-#         open("file1.txt", "w").write("hello")
-#         run = wandb.init(settings=test_settings)
-#         artifact = wandb.Artifact(type="dataset", name="incremental_test_PENDING", incremental=True)
-#         artifact.add_file("file1.txt")
-#         run.log_artifact(artifact)
-#         run.finish()
+@pytest.mark.parametrize("incremental", [False, True])
+def test_add_file_respects_incremental(tmp_path, wandb_init, api, incremental):
+    art_name = "incremental-test"
+    art_type = "dataset"
 
-#         manifests_created = parse_ctx(relay_server.get_ctx()).manifests_created
-#         assert manifests_created[0]["type"] == "INCREMENTAL"
+    # Setup: create and log the original artifact
+    orig_filepath = tmp_path / "orig.txt"
+    orig_filepath.write_text("orig data")
+    with wandb_init() as orig_run:
+        orig_artifact = Artifact(art_name, art_type)
+        orig_artifact.add_file(str(orig_filepath))
+
+        orig_run.log_artifact(orig_artifact)
+
+    # Now add data from a new file to the same artifact, with or without `incremental=True`
+    new_filepath = tmp_path / "new.txt"
+    new_filepath.write_text("new data")
+    with wandb_init() as new_run:
+        new_artifact = Artifact(art_name, art_type, incremental=incremental)
+        new_artifact.add_file(str(new_filepath))
+
+        new_run.log_artifact(new_artifact)
+
+    # If `incremental=True` was used, expect both files in the artifact.  If not, expect only the last one.
+    final_artifact = api.artifact(f"{art_name}:latest")
+    final_manifest_entry_keys = final_artifact.manifest.entries.keys()
+    if incremental is True:
+        assert final_manifest_entry_keys == {orig_filepath.name, new_filepath.name}
+    else:
+        assert final_manifest_entry_keys == {new_filepath.name}
 
 
 @pytest.mark.flaky
@@ -212,15 +230,24 @@ def test_remove_after_log(wandb_init):
             retrieved.remove("file1.txt")
 
 
-def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
+@pytest.mark.parametrize(
+    # Valid values for `skip_cache` in `Artifact.download()`
+    "skip_download_cache",
+    [None, False, True],
+)
+def test_download_respects_skip_cache(
+    wandb_init, tmp_path, monkeypatch, skip_download_cache
+):
     # Setup cache dir
-    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path))
+    monkeypatch.setenv("WANDB_CACHE_DIR", str(tmp_path / "cache"))
     cache = artifact_file_cache.get_artifact_file_cache()
 
     artifact = wandb.Artifact(name="cache-test", type="dataset")
+    orig_content = "test123"
     file_path = Path(tmp_path / "text.txt")
-    with open(file_path, "w") as f:
-        f.write("test123")
+    file_path.write_text(orig_content)
+
+    # Don't skip cache for setup
     entry = artifact.add_file(file_path, policy="immutable", skip_cache=True)
 
     with wandb_init() as run:
@@ -228,16 +255,29 @@ def test_download_uses_cache(wandb_init, tmp_path, monkeypatch):
     artifact.wait()
 
     # Ensure the uploaded file is in the cache.
-    cache_path, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
+    cache_pathstr, hit, _ = cache.check_md5_obj_path(entry.digest, entry.size)
     assert not hit
 
-    # Manually write a file into the cache path to ensure that it's the one that is used.
+    # Manually write a file into the cache path to check that it's:
+    # - used, if not skipping the cache (default behavior)
+    # - ignored, if skipping the cache
     # This is kind of evil and might break if we later force cache validity.
-    Path(cache_path).parent.mkdir(parents=True, exist_ok=True)
-    with open(cache_path, "w") as f:
-        f.write("corrupt")
-    download_root = Path(artifact.download(tmp_path / "download_root"))
-    assert (download_root / "text.txt").read_text() == "corrupt"
+    replaced_cache_content = "corrupt"
+
+    cache_path = Path(cache_pathstr)
+    cache_path.parent.mkdir(parents=True, exist_ok=True)
+    cache_path.write_text(replaced_cache_content)
+
+    dest_dir = tmp_path / "download_root"
+    download_root = Path(artifact.download(dest_dir, skip_cache=skip_download_cache))
+    downloaded_content = (download_root / "text.txt").read_text()
+
+    if skip_download_cache in (None, False):
+        assert downloaded_content == replaced_cache_content
+        assert downloaded_content != orig_content
+    else:
+        assert downloaded_content != replaced_cache_content
+        assert downloaded_content == orig_content
 
 
 def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
@@ -261,6 +301,43 @@ def test_uploaded_artifacts_are_unstaged(wandb_init, tmp_path, monkeypatch):
 
     # The staging directory should be empty again.
     assert dir_size() == 0
+
+
+def test_large_manifests_passed_by_file(wandb_init, monkeypatch, mocker):
+    writer_spy = mocker.spy(
+        wandb.sdk.interface.interface.InterfaceBase,
+        "_write_artifact_manifest_file",
+    )
+    monkeypatch.setattr(
+        wandb.sdk.interface.interface,
+        "MANIFEST_FILE_SIZE_THRESHOLD",
+        0,
+    )
+
+    content = "test content\n"
+    with wandb_init() as run:
+        artifact = wandb.Artifact(name="large-manifest", type="dataset")
+        with artifact.new_file("test_file.txt") as f:
+            f.write(content)
+        artifact.manifest.entries["test_file.txt"].extra["test_key"] = {"x": 1}
+        run.log_artifact(artifact)
+        artifact.wait()
+
+    assert writer_spy.call_count == 1
+    file_written = writer_spy.spy_return
+    assert file_written is not None
+    # The file should have been cleaned up and deleted by the receiving process.
+    assert not os.path.exists(file_written)
+
+    with wandb_init() as run:
+        artifact = run.use_artifact("large-manifest:latest")
+        assert len(artifact.manifest) == 1
+        entry = artifact.manifest.entries.get("test_file.txt")
+        assert entry is not None
+        assert entry.digest == md5_string(content)
+        assert entry.size == len(content)
+        assert entry.ref is None
+        assert entry.extra["test_key"] == {"x": 1}
 
 
 def test_mutable_uploads_with_cache_enabled(wandb_init, tmp_path, monkeypatch, api):
@@ -526,6 +603,57 @@ def test_artifact_download_root(logged_artifact, monkeypatch, tmp_path):
 
     downloaded = Path(logged_artifact.download())
     assert downloaded == art_dir / name_path
+
+
+@pytest.mark.wandb_core_failure(feature="path_prefix downloads")
+def test_log_and_download_with_path_prefix(wandb_init, tmp_path):
+    artifact = wandb.Artifact(name="test-artifact", type="dataset")
+    file_paths = [
+        tmp_path / "some-prefix" / "one.txt",
+        tmp_path / "some-prefix-two.txt",
+        tmp_path / "other-thing.txt",
+    ]
+
+    # Create files and add them to the artifact
+    for file_path in file_paths:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text(f"Content of {file_path.name}")
+    artifact.add_dir(tmp_path)
+
+    with wandb_init() as run:
+        run.log_artifact(artifact)
+
+    with wandb_init() as run:
+        logged_artifact = run.use_artifact("test-artifact:latest")
+        download_dir = Path(logged_artifact.download(path_prefix="some-prefix"))
+
+    # Check that the files with the prefix are downloaded
+    assert (download_dir / "some-prefix" / "one.txt").is_file()
+    assert (download_dir / "some-prefix-two.txt").is_file()
+
+    # Check that the file without the prefix is not downloaded
+    assert not (download_dir / "other-thing.txt").exists()
+    shutil.rmtree(download_dir)
+
+    with wandb_init() as run:
+        logged_artifact = run.use_artifact("test-artifact:latest")
+        download_dir = Path(logged_artifact.download(path_prefix="some-prefix/"))
+
+    # Only the file in the exact subdirectory should download.
+    assert (download_dir / "some-prefix" / "one.txt").is_file()
+    assert not (download_dir / "some-prefix-two.txt").exists()
+    assert not (download_dir / "other-thing.txt").exists()
+
+    shutil.rmtree(download_dir)
+
+    with wandb_init() as run:
+        logged_artifact = run.use_artifact("test-artifact:latest")
+        download_dir = Path(logged_artifact.download(path_prefix=""))
+
+    # All files should download.
+    assert (download_dir / "some-prefix" / "one.txt").is_file()
+    assert (download_dir / "some-prefix-two.txt").is_file()
+    assert (download_dir / "other-thing.txt").is_file()
 
 
 def test_retrieve_missing_artifact(logged_artifact):

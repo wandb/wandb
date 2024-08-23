@@ -1,108 +1,132 @@
 package pathtree_test
 
 import (
-	"reflect"
-	"sort"
-	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/pathtree"
 )
 
-func TestNewPathTree(t *testing.T) {
-	pt := pathtree.New()
-	if pt == nil {
-		t.Error("NewPathTree() should not return nil")
-	}
-	if pt.Tree() == nil {
-		t.Error("NewPathTree() tree should not be nil")
-	}
+func TestSet_NewNode(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+	tree.Set(pathtree.PathOf("a", "c", "d"), 2)
+
+	ab, abExists := tree.GetLeaf(pathtree.PathOf("a", "b"))
+	acd, acdExists := tree.GetLeaf(pathtree.PathOf("a", "c", "d"))
+	assert.True(t, abExists)
+	assert.Equal(t, 1, ab)
+	assert.True(t, acdExists)
+	assert.Equal(t, 2, acd)
 }
 
-func TestNewPathTreeFrom(t *testing.T) {
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
-		},
-	}
-	pt := pathtree.NewFrom(treeData)
-	if pt == nil {
-		t.Error("NewPathTreeFrom() should not return nil")
-	}
-	if pt.Tree() == nil {
-		t.Error("NewPathTreeFrom() tree should not be nil")
-	}
-	if !reflect.DeepEqual(pt.Tree(), treeData) {
-		t.Errorf("Expected %v, got %v", treeData, pt.Tree())
-	}
+func TestSet_OverwriteLeaf(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a"), 1)
+	tree.Set(pathtree.PathOf("a", "b"), 2)
+
+	a, aExists := tree.GetLeaf(pathtree.PathOf("a"))
+	ab, abExists := tree.GetLeaf(pathtree.PathOf("a", "b"))
+	assert.False(t, aExists)
+	assert.Zero(t, a)
+	assert.True(t, abExists)
+	assert.Equal(t, 2, ab)
 }
 
-func TestApplyRemove(t *testing.T) {
+func TestRemove_Leaf(t *testing.T) {
+	tree := pathtree.New[int]()
 
-	treeData := pathtree.TreeData{
-		"setting0": float64(69),
-		"config": map[string]interface{}{
-			"setting1": 42,
-			"setting2": "goodbye",
-		},
-	}
-	pt := pathtree.NewFrom(treeData)
-	items := []*pathtree.PathItem{
-		{[]string{"config", "setting1"}, ""},
-	}
-	pt.ApplyRemove(items)
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+	tree.Set(pathtree.PathOf("a", "c"), 2)
+	tree.Remove(pathtree.PathOf("a", "b"))
 
-	expectedTree := pathtree.TreeData{
-		"setting0": float64(69),
-		"config": map[string]interface{}{
-			"setting2": "goodbye",
-		},
-	}
+	ab, abExists := tree.GetLeaf(pathtree.PathOf("a", "b"))
+	ac, acExists := tree.GetLeaf(pathtree.PathOf("a", "c"))
+	assert.False(t, abExists)
+	assert.Zero(t, ab)
+	assert.True(t, acExists)
+	assert.Equal(t, 2, ac)
+}
 
-	if !reflect.DeepEqual(pt.Tree(), expectedTree) {
-		t.Errorf("Expected %v, got %v", expectedTree, pt.Tree())
-	}
+func TestRemove_Node(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a", "b", "c"), 1)
+	tree.Set(pathtree.PathOf("a", "d"), 2)
+	tree.Remove(pathtree.PathOf("a", "b"))
+
+	abc, abcExists := tree.GetLeaf(pathtree.PathOf("a", "b", "c"))
+	ad, adExists := tree.GetLeaf(pathtree.PathOf("a", "d"))
+	assert.False(t, abcExists)
+	assert.Zero(t, abc)
+	assert.True(t, adExists)
+	assert.Equal(t, 2, ad)
+}
+
+func TestRemove_DeletesParentMaps(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a", "b", "c"), 1)
+	tree.Remove(pathtree.PathOf("a", "b", "c"))
+
+	// IsEmpty() just checks the length of the root map. If we don't
+	// remove parent maps, this will fail.
+	assert.True(t, tree.IsEmpty())
+}
+
+func TestGetLeaf_UnderLeaf(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a"), 1)
+
+	x, exists := tree.GetLeaf(pathtree.PathOf("a", "b"))
+	assert.False(t, exists)
+	assert.Zero(t, x)
+}
+
+func TestGetLeaf_PathIsNotLeaf(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+
+	x, exists := tree.GetLeaf(pathtree.PathOf("a"))
+	assert.False(t, exists)
+	assert.Zero(t, x)
+}
+
+func TestGetOrMakeLeaf_PathIsNotLeaf(t *testing.T) {
+	tree := pathtree.New[int]()
+
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+
+	x := tree.GetOrMakeLeaf(pathtree.PathOf("a"), func() int { return 2 })
+	assert.Equal(t, 2, x)
 }
 
 func TestFlatten(t *testing.T) {
+	tree := pathtree.New[int]()
 
-	treeData := pathtree.TreeData{
-		"config": map[string]interface{}{
-			"setting1": "value1",
-			"nested": map[string]interface{}{
-				"setting2": 42,
-			},
-		},
-	}
-	pt := pathtree.NewFrom(treeData)
-	leaves := pt.Flatten()
+	tree.Set(pathtree.PathOf("a", "b"), 1)
+	tree.Set(pathtree.PathOf("a", "c"), 2)
+	tree.Set(pathtree.PathOf("a", "d", "e"), 3)
+	leaves := tree.Flatten()
 
-	expectedLeaves := []pathtree.PathItem{
-		{Path: []string{"config", "setting1"}, Value: "value1"},
-		{Path: []string{"config", "nested", "setting2"}, Value: 42},
-	}
-	// Sort slices by joining keys into a single string
-	sort.Slice(leaves, func(i, j int) bool {
-		return strings.Join(leaves[i].Path, ".") < strings.Join(leaves[j].Path, ".")
-	})
-
-	sort.Slice(expectedLeaves, func(i, j int) bool {
-		return strings.Join(expectedLeaves[i].Path, ".") < strings.Join(expectedLeaves[j].Path, ".")
-	})
-
-	if !reflect.DeepEqual(leaves, expectedLeaves) {
-		t.Errorf("Expected %v, got %v", expectedLeaves, leaves)
-	}
-}
-
-// TestFlattenEmptyTree checks behavior with an empty tree.
-func TestFlattenEmptyTree(t *testing.T) {
-
-	pt := pathtree.New()
-
-	items := pt.Flatten()
-
-	if len(items) != 0 {
-		t.Errorf("Expected no items, got %d", len(items))
-	}
+	assert.Len(t, leaves, 3)
+	assert.Contains(t, leaves,
+		pathtree.PathItem{
+			Path:  pathtree.PathOf("a", "b"),
+			Value: 1,
+		})
+	assert.Contains(t, leaves,
+		pathtree.PathItem{
+			Path:  pathtree.PathOf("a", "c"),
+			Value: 2,
+		})
+	assert.Contains(t, leaves,
+		pathtree.PathItem{
+			Path:  pathtree.PathOf("a", "d", "e"),
+			Value: 3,
+		})
 }

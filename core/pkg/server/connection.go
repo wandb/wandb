@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 
@@ -38,6 +38,9 @@ type Connection struct {
 	// conn is the underlying connection
 	conn net.Conn
 
+	// commit is the W&B Git commit hash
+	commit string
+
 	// id is the unique id for the connection
 	id string
 
@@ -55,7 +58,7 @@ type Connection struct {
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.Client
+	sentryClient *sentry_ext.Client
 }
 
 // NewConnection creates a new connection
@@ -63,13 +66,15 @@ func NewConnection(
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
-	sentryClient *sentry.Client,
+	sentryClient *sentry_ext.Client,
+	commit string,
 ) *Connection {
 
 	nc := &Connection{
 		ctx:          ctx,
 		cancel:       cancel,
 		conn:         conn,
+		commit:       commit,
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
 		inChan:       make(chan *service.ServerRequest, BufferSize),
 		outChan:      make(chan *service.ServerResponse, BufferSize),
@@ -146,17 +151,45 @@ func (nc *Connection) readConnection() {
 		msg := &service.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
 			slog.Error(
-				"unmarshalling error",
-				"err", err,
-				"conn", nc.conn.RemoteAddr())
+				"connection: unmarshalling error",
+				"error", err,
+				"id", nc.id)
 		} else {
 			nc.inChan <- msg
 		}
 	}
-	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
-		panic(scanner.Err())
-	}
+
 	close(nc.inChan)
+
+	if scanner.Err() != nil {
+		switch {
+		case errors.Is(scanner.Err(), net.ErrClosed):
+			// All good! The connection closed normally.
+
+		default:
+			// This can happen if:
+			//
+			// A) The client process dies
+			// B) The input is corrupted
+			// C) The client process exits before finishing socket operations
+			//
+			// Case (A) is an expected failure mode. Case (B) should be
+			// extremely rare or the result of a bug.
+			//
+			// Case (C) is subtle and is unavoidable by design. Unfortunately,
+			// data may be lost. This happens when a child process started
+			// using Python's multiprocessing exits without any completion
+			// signal (e.g. run.finish()). `atexit` hooks do not run in
+			// multiprocessing, so there's no way to wait for sockets to
+			// flush.
+
+			slog.Error(
+				"connection: fatal error reading connection",
+				"error", scanner.Err(),
+				"id", nc.id,
+			)
+		}
+	}
 }
 
 // handleServerRequest handles outgoing messages from the server
@@ -243,7 +276,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(settings, streamId, nc.sentryClient)
+	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
@@ -267,7 +300,6 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
-		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("wandb-core", nil)
@@ -334,13 +366,13 @@ func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest)
 	}
 }
 
-// handleInformTeardown is called when the client sends a teardown message
-// this should happen when the client is shutting down and wants to close
-// all streams
+// handleInformTeardown is used by the client to shut down the entire server.
 func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
-	slog.Debug("handle teardown received", "id", nc.id)
-	// cancel the context to signal the server to shutdown
-	// this will trigger all the connections to close
+	slog.Info("connection: teardown", "id", nc.id)
+
+	// Cancelling the context allows the server and all connections to stop.
 	nc.cancel()
+
+	// Wait for all streams to complete.
 	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 }

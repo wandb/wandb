@@ -62,7 +62,7 @@ def wandb_internal(
 
     """
     # mark this process as internal
-    wandb._set_internal_process()
+    wandb._set_internal_process()  # type: ignore
     _setup_tracelog()
     started = time.time()
 

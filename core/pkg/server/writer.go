@@ -1,7 +1,6 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
@@ -35,9 +34,6 @@ type WriterParams struct {
 // if the message is to be persisted it writes them to the log.
 // It also sends the messages to the sender.
 type Writer struct {
-	// ctx is the context for the writer
-	ctx context.Context
-
 	// settings is the settings for the writer
 	settings *service.Settings
 
@@ -61,9 +57,8 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, params WriterParams) *Writer {
+func NewWriter(params WriterParams) *Writer {
 	w := &Writer{
-		ctx:      ctx,
 		wg:       sync.WaitGroup{},
 		logger:   params.Logger,
 		settings: params.Settings,
@@ -81,7 +76,7 @@ func (w *Writer) startStore() {
 	w.storeChan = make(chan *service.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
+	w.store = NewStore(w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic(
@@ -108,7 +103,7 @@ func (w *Writer) startStore() {
 	}()
 }
 
-// Do is the main loop of the writer to process incoming messages
+// Do processes all records on the input channel.
 func (w *Writer) Do(inChan <-chan *service.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: Do: started", "stream_id", w.settings.RunId)
@@ -135,8 +130,8 @@ func (w *Writer) Close() {
 
 // writeRecord Writing messages to the append-only log,
 // and passing them to the sender.
-// We ensure that the messages are written to the log
-// before they are sent to the server.
+// Ensure that the messages are numbered and written to the transaction log
+// before network operations could block processing of the record.
 func (w *Writer) writeRecord(record *service.Record) {
 	switch record.RecordType.(type) {
 	case *service.Record_Request:
@@ -144,9 +139,20 @@ func (w *Writer) writeRecord(record *service.Record) {
 	case nil:
 		w.logger.Error("writer: writeRecord: nil record type")
 	default:
-		w.fwdRecord(record)
+		// applyRecordNumber() should be called before passing the record to another goroutine
+		w.applyRecordNumber(record)
 		w.storeRecord(record)
+		w.fwdRecord(record)
 	}
+}
+
+// applyRecordNumber labels the protobuf with an increasing number to be stored in transaction log
+func (w *Writer) applyRecordNumber(record *service.Record) {
+	if record.GetControl().GetLocal() {
+		return
+	}
+	w.recordNum += 1
+	record.Num = w.recordNum
 }
 
 // storeRecord stores the record in the append-only log
@@ -154,8 +160,6 @@ func (w *Writer) storeRecord(record *service.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
-	w.recordNum += 1
-	record.Num = w.recordNum
 	w.storeChan <- record
 }
 

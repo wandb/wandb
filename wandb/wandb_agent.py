@@ -43,6 +43,8 @@ class AgentProcess:
                 kwargs = dict(creationflags=subprocess.CREATE_NEW_PROCESS_GROUP)
             else:
                 kwargs = dict(preexec_fn=os.setpgrp)
+            if env.get(wandb.env.SERVICE):
+                env.pop(wandb.env.SERVICE)
             self._popen = subprocess.Popen(command, env=env, **kwargs)
         elif function:
             self._proc = multiprocessing.Process(

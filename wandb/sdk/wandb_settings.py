@@ -314,6 +314,7 @@ class SettingsData:
     _disable_machine_info: bool  # Disable automatic machine info collection
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_max_bytes: int  # max size for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
@@ -661,6 +662,7 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
+            _file_stream_max_bytes={"preprocessor": int},
             _file_stream_retry_max={"preprocessor": int},
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
@@ -1713,7 +1715,7 @@ class Settings(SettingsData):
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self.silent)
+            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
             settings["_jupyter_path"] = meta.get("path")
             settings["_jupyter_name"] = meta.get("name")
             settings["_jupyter_root"] = meta.get("root")
@@ -1873,16 +1875,29 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_fork_logic()
         self._handle_rewind_logic()
         self._handle_resume_logic()
+
+    def _handle_fork_logic(self) -> None:
+        if self.fork_from is None:
+            return
+
+        if self.run_id is not None and (self.fork_from.run == self.run_id):
+            raise ValueError(
+                "Provided `run_id` is the same as the run to `fork_from`. "
+                "Please provide a different `run_id` or remove the `run_id` argument. "
+                "If you want to rewind the current run, please use `resume_from` instead."
+            )
 
     def _handle_rewind_logic(self) -> None:
         if self.resume_from is None:
             return
 
-        if self.run_id is not None:
+        if self.run_id is not None and (self.resume_from.run != self.run_id):
             wandb.termwarn(
-                "You cannot specify both run_id and resume_from. " "Ignoring run_id."
+                "Both `run_id` and `resume_from` have been specified with different ids. "
+                "`run_id` will be ignored."
             )
         self.update({"run_id": self.resume_from.run}, source=Source.INIT)
 

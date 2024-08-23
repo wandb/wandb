@@ -63,6 +63,13 @@ else:
     NAMESPACE = "wandb"
 
 
+def get_pod_name_safe(job: client.V1Job):
+    try:
+        return job.spec.template.metadata.name
+    except AttributeError:
+        return None
+
+
 async def _wait_for_completion(
     batch_client: client.BatchV1Api, job_name: str, deadline_secs: Optional[int] = None
 ) -> bool:
@@ -263,11 +270,17 @@ class KanikoBuilder(AbstractBuilder):
         repo_uri = await self.registry.get_repo_uri()
         image_uri = repo_uri + ":" + image_tag
 
-        if (
-            not launch_project.build_required()
-            and await self.registry.check_image_exists(image_uri)
-        ):
-            return image_uri
+        # The DOCKER_CONFIG_SECRET option is mutually exclusive with the
+        # registry classes, so we must skip the check for image existence in
+        # that case.
+        if not launch_project.build_required():
+            if DOCKER_CONFIG_SECRET:
+                wandb.termlog(
+                    f"Skipping check for existing image {image_uri} due to custom dockerconfig."
+                )
+            else:
+                if await self.registry.check_image_exists(image_uri):
+                    return image_uri
 
         _logger.info(f"Building image {image_uri}...")
         _, api_client = await get_kube_context_and_api_client(
@@ -286,7 +299,12 @@ class KanikoBuilder(AbstractBuilder):
         wandb.termlog(f"{LOG_PREFIX}Created kaniko job {build_job_name}")
 
         try:
-            if isinstance(self.registry, AzureContainerRegistry):
+            # DOCKER_CONFIG_SECRET is a user provided dockerconfigjson. Skip our
+            # dockerconfig handling if it's set.
+            if (
+                isinstance(self.registry, AzureContainerRegistry)
+                and not DOCKER_CONFIG_SECRET
+            ):
                 dockerfile_config_map = client.V1ConfigMap(
                     metadata=client.V1ObjectMeta(
                         name=f"docker-config-{build_job_name}"
@@ -308,17 +326,18 @@ class KanikoBuilder(AbstractBuilder):
                 await self._create_docker_ecr_config_map(
                     build_job_name, core_v1, repo_uri
                 )
-            await batch_v1.create_namespaced_job(NAMESPACE, build_job)
-
+            k8s_job = await batch_v1.create_namespaced_job(NAMESPACE, build_job)
             # wait for double the job deadline since it might take time to schedule
             if not await _wait_for_completion(
                 batch_v1, build_job_name, 3 * _DEFAULT_BUILD_TIMEOUT_SECS
             ):
                 if job_tracker:
                     job_tracker.set_err_stage("build")
-                raise Exception(
-                    f"Failed to build image in kaniko for job {run_id}. View logs with `kubectl logs -n {NAMESPACE} {build_job_name}`."
-                )
+                msg = f"Failed to build image in kaniko for job {run_id}."
+                pod_name = get_pod_name_safe(k8s_job)
+                if pod_name:
+                    msg += f" View logs with `kubectl logs -n {NAMESPACE} {pod_name}`."
+                raise Exception(msg)
             try:
                 pods_from_job = await core_v1.list_namespaced_pod(
                     namespace=NAMESPACE, label_selector=f"job-name={build_job_name}"
@@ -344,7 +363,10 @@ class KanikoBuilder(AbstractBuilder):
         finally:
             wandb.termlog(f"{LOG_PREFIX}Cleaning up resources")
             try:
-                if isinstance(self.registry, AzureContainerRegistry):
+                if (
+                    isinstance(self.registry, AzureContainerRegistry)
+                    and not DOCKER_CONFIG_SECRET
+                ):
                     await core_v1.delete_namespaced_config_map(
                         f"docker-config-{build_job_name}", "wandb"
                     )
@@ -498,7 +520,10 @@ class KanikoBuilder(AbstractBuilder):
                     "readOnly": True,
                 }
             )
-        if isinstance(self.registry, AzureContainerRegistry):
+        if (
+            isinstance(self.registry, AzureContainerRegistry)
+            and not DOCKER_CONFIG_SECRET
+        ):
             # Add the docker config map
             volumes.append(
                 {
@@ -533,7 +558,11 @@ class KanikoBuilder(AbstractBuilder):
         # Apply the rest of our defaults
         pod_labels["wandb"] = "launch"
         # This annotation is required to enable azure workload identity.
-        if isinstance(self.registry, AzureContainerRegistry):
+        # Don't add this label if using a docker config secret for auth.
+        if (
+            isinstance(self.registry, AzureContainerRegistry)
+            and not DOCKER_CONFIG_SECRET
+        ):
             pod_labels["azure.workload.identity/use"] = "true"
         pod_spec["restartPolicy"] = pod_spec.get("restartPolicy", "Never")
         pod_spec["activeDeadlineSeconds"] = pod_spec.get(

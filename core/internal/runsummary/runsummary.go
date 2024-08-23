@@ -1,277 +1,235 @@
 package runsummary
 
 import (
+	"errors"
 	"fmt"
-	"path/filepath"
-	"strings"
 
-	"github.com/wandb/segmentio-encoding/json"
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/runmetric"
+	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
+// RunSummary tracks summary statistics for all metrics in a run.
 type RunSummary struct {
-	pathTree *pathtree.PathTree
-	stats    *Node
-	mh       *runmetric.MetricHandler
+	// summaries maps metrics to metricSummary objects.
+	summaries *pathtree.PathTree[*metricSummary]
 }
 
-type Params struct {
-	MetricHandler *runmetric.MetricHandler
+func New() *RunSummary {
+	return &RunSummary{summaries: pathtree.New[*metricSummary]()}
 }
 
-func New(params Params) *RunSummary {
-	if params.MetricHandler == nil {
-		params.MetricHandler = runmetric.NewMetricHandler()
-	}
-
-	rs := &RunSummary{
-		pathTree: pathtree.New(),
-		stats:    NewNode(),
-		mh:       params.MetricHandler,
-	}
-	return rs
-}
-
-func statsTreeFromPathTree(tree pathtree.TreeData) *Node {
-	stats := NewNode()
-	for k, v := range tree {
-		if subtree, ok := v.(pathtree.TreeData); ok {
-			stats.nodes[k] = statsTreeFromPathTree(subtree)
-		} else {
-			stats.nodes[k] = &Node{
-				stats: &Stats{},
-			}
-		}
-	}
-	return stats
-}
-
-func NewFrom(tree pathtree.TreeData) *RunSummary {
-	return &RunSummary{
-		pathTree: pathtree.NewFrom(tree),
-		stats:    statsTreeFromPathTree(tree),
-		mh:       runmetric.NewMetricHandler(),
-	}
-}
-
-// GetSummaryTypes matches the path against the defined metrics and returns the
-// requested summary type for the metric.
+// SetFromRecord explicitly sets the summary value of a metric.
 //
-// It first checked the concrete metrics and then the glob metrics.
-// The first match wins. If no match is found, it returns Latest.
-func (rs *RunSummary) GetSummaryTypes(path []string) []SummaryType {
-	// look for a matching rule
-	// TODO: properly implement dot notation for nested keys,
-	// see test_metric_full.py::test_metric_dotted for an example
-	name := strings.Join(path, ".")
-
-	types := make([]SummaryType, 0)
-
-	for pattern, definedMetric := range rs.mh.DefinedMetrics {
-		if pattern == name {
-			summary := definedMetric.GetSummary()
-			if summary.GetNone() {
-				return []SummaryType{None}
-			}
-			if summary.GetMax() {
-				types = append(types, Max)
-			}
-			if summary.GetMin() {
-				types = append(types, Min)
-			}
-			if summary.GetMean() {
-				types = append(types, Mean)
-			}
-			if summary.GetLast() {
-				types = append(types, Latest)
-			}
-		}
-	}
-	for pattern, globMetric := range rs.mh.GlobMetrics {
-		// match the key against the glob pattern:
-		// note check for no error
-		if match, err := filepath.Match(pattern, name); err == nil && match {
-			summary := globMetric.GetSummary()
-			if summary.GetNone() {
-				return []SummaryType{None}
-			}
-			if summary.GetMax() {
-				types = append(types, Max)
-			}
-			if summary.GetMin() {
-				types = append(types, Min)
-			}
-			if summary.GetMean() {
-				types = append(types, Mean)
-			}
-			if summary.GetLast() {
-				types = append(types, Latest)
-			}
-		}
+// Returns an error if the item is not valid.
+func (rs *RunSummary) SetFromRecord(record *service.SummaryItem) error {
+	value, err := simplejsonext.UnmarshalString(record.ValueJson)
+	if err != nil {
+		return fmt.Errorf("runsummary: invalid summary JSON: %v", err)
 	}
 
-	return types
+	rs.getOrMakeSummary(keyPath(record)).SetExplicit(value)
+
+	return nil
 }
 
-// ApplyChangeRecord updates and/or removes values from the configuration tree.
+func (rs *RunSummary) RemoveFromRecord(record *service.SummaryItem) {
+	if len(record.NestedKey) > 0 {
+		rs.Remove(
+			pathtree.PathOf(
+				record.NestedKey[0],
+				record.NestedKey[1:]...,
+			))
+	} else {
+		rs.Remove(pathtree.PathOf(record.Key))
+	}
+}
+
+// Remove deletes the summary for a metric.
+func (rs *RunSummary) Remove(path pathtree.TreePath) {
+	summary, ok := rs.summaries.GetLeaf(path)
+	if !ok {
+		return
+	}
+
+	summary.Clear()
+}
+
+// UpdateSummaries updates metric summaries based on their new values
+// and returns the updates made.
 //
-// Does a best-effort job to apply all changes. Errors are passed to `onError`
-// and skipped.
-func (rs *RunSummary) ApplyChangeRecord(
-	summaryRecord *service.SummaryRecord,
-	onError func(error),
+// The list of updates may be non-empty even on error. An error state
+// may leave the run summary partially updated.
+func (rs *RunSummary) UpdateSummaries(
+	history *runhistory.RunHistory,
+) ([]*service.SummaryItem, error) {
+	var updates []*service.SummaryItem
+	var errs []error
+
+	history.ForEach(
+		func(path pathtree.TreePath, value float64) bool {
+			update, err := rs.updateSummary(path, func(ms *metricSummary) {
+				ms.UpdateFloat(value)
+			})
+
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if update != nil {
+				updates = append(updates, update)
+			}
+
+			return true
+		},
+		func(path pathtree.TreePath, value int64) bool {
+			update, err := rs.updateSummary(path, func(ms *metricSummary) {
+				ms.UpdateInt(value)
+			})
+
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if update != nil {
+				updates = append(updates, update)
+			}
+
+			return true
+		},
+		func(path pathtree.TreePath, value any) bool {
+			update, err := rs.updateSummary(path, func(ms *metricSummary) {
+				ms.UpdateOther(value)
+			})
+
+			if err != nil {
+				errs = append(errs, err)
+			}
+			if update != nil {
+				updates = append(updates, update)
+			}
+
+			return true
+		},
+	)
+
+	return updates, errors.Join(errs...)
+}
+
+func (rs *RunSummary) updateSummary(
+	path pathtree.TreePath,
+	update func(*metricSummary),
+) (*service.SummaryItem, error) {
+	summary := rs.getOrMakeSummary(path)
+
+	update(summary)
+	json, err := summary.ToExtendedJSON()
+
+	switch {
+	case err != nil:
+		return nil, err
+
+	case json != "":
+		return &service.SummaryItem{
+			NestedKey: path.Labels(),
+			ValueJson: json,
+		}, nil
+
+	default:
+		return nil, nil
+	}
+}
+
+// ConfigureMetric sets the values to track for a metric.
+func (rs *RunSummary) ConfigureMetric(
+	path pathtree.TreePath,
+	noSummary bool,
+	track SummaryTypeFlags,
 ) {
-	// handle updates
-	updates := make([]*pathtree.PathItem, 0, len(summaryRecord.GetUpdate()))
-
-	for _, item := range summaryRecord.GetUpdate() {
-		var update interface{}
-		// custom unmarshal function that handles NaN and +-Inf
-		err := json.Unmarshal([]byte(item.GetValueJson()), &update)
-		if err != nil {
-			onError(err)
-			continue
-		}
-		// update all the stats for the given key path
-		path := keyPath(item)
-		err = rs.stats.UpdateStats(path, update)
-		if err != nil {
-			onError(err)
-			continue
-		}
-		// get the summary type for the item
-		summaryTypes := rs.GetSummaryTypes(path)
-
-		// skip if None in the summary type slice
-		if len(summaryTypes) == 1 && summaryTypes[0] == None {
-			continue
-		}
-
-		// get the requested stats for the item
-		updateMap := make(map[string]interface{})
-		for summaryType := range summaryTypes {
-			update, err := rs.stats.GetStat(path, summaryTypes[summaryType])
-			if err != nil {
-				onError(err)
-				continue
-			}
-
-			switch summaryTypes[summaryType] {
-			case Max:
-				updateMap["max"] = update
-			case Min:
-				updateMap["min"] = update
-			case Mean:
-				updateMap["mean"] = update
-			case Latest:
-				updateMap["last"] = update
-			}
-		}
-
-		if len(updateMap) > 0 {
-			// update summaryRecord with the new value
-			jsonValue, err := json.Marshal(updateMap)
-			if err != nil {
-				onError(err)
-				continue
-			}
-			item.ValueJson = string(jsonValue)
-
-			// update the value to be stored in the tree
-			update = updateMap
-		}
-
-		// store the update
-		updates = append(updates, &pathtree.PathItem{
-			Path:  keyPath(item),
-			Value: update,
-		})
-
-	}
-	rs.pathTree.ApplyUpdate(updates, onError)
-
-	// handle removes
-	removes := make([]*pathtree.PathItem, 0, len(summaryRecord.GetRemove()))
-	for _, item := range summaryRecord.GetRemove() {
-		removes = append(removes, &pathtree.PathItem{
-			Path: keyPath(item),
-		})
-		// remove the stats
-		err := rs.stats.DeleteNode(keyPath(item))
-		if err != nil {
-			onError(err)
-		}
-	}
-	rs.pathTree.ApplyRemove(removes)
+	summary := rs.getOrMakeSummary(path)
+	summary.noSummary = noSummary
+	summary.track = track
 }
 
-// Flatten the summary tree into a slice of SummaryItems.
+// ToRecords returns this summary as a list of SummaryItem protos.
 //
-// There is no guarantee for the order of the items in the slice.
-// The order of the items is determined by the order of the tree traversal.
-// The tree traversal is depth-first but based on a map, so the order is not
-// guaranteed.
-func (rs *RunSummary) Flatten() ([]*service.SummaryItem, error) {
-	leaves := rs.pathTree.Flatten()
+// It may return a non-empty list even on error, in which case some
+// values may be missing.
+func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
+	var records []*service.SummaryItem
+	var errs []error
 
-	summary := make([]*service.SummaryItem, 0, len(leaves))
-	for _, leaf := range leaves {
-		pathLen := len(leaf.Path)
-		if pathLen == 0 {
-			return nil, fmt.Errorf(
-				"runsummary: empty path for item %v",
-				leaf,
-			)
-		}
+	rs.summaries.ForEachLeaf(
+		func(path pathtree.TreePath, summary *metricSummary) bool {
+			encoded, err := summary.ToExtendedJSON()
 
-		value, err := json.Marshal(leaf.Value)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"runhistory: failed to marshal value for item %v: %v",
-				leaf, err,
-			)
-		}
+			if err != nil {
+				errs = append(errs, err)
+				return true
+			}
+			if len(encoded) == 0 {
+				return true
+			}
 
-		if pathLen == 1 {
-			summary = append(summary, &service.SummaryItem{
-				Key:       leaf.Path[0],
-				ValueJson: string(value),
-			})
-		} else {
-			summary = append(summary, &service.SummaryItem{
-				NestedKey: leaf.Path,
-				ValueJson: string(value),
-			})
-		}
-	}
-	return summary, nil
+			item := &service.SummaryItem{ValueJson: encoded}
+			if path.Len() == 1 {
+				item.Key = path.End()
+			} else {
+				item.NestedKey = path.Labels()
+			}
+			records = append(records, item)
+
+			return true
+		})
+
+	return records, errors.Join(errs...)
 }
 
-// CloneTree clones the tree. This is useful for creating a snapshot of the tree.
-func (rs *RunSummary) CloneTree() (pathtree.TreeData, error) {
+func (rs *RunSummary) toSummaryTree() *pathtree.PathTree[any] {
+	jsonTree := pathtree.New[any]()
 
-	return rs.pathTree.CloneTree()
+	rs.summaries.ForEachLeaf(
+		func(path pathtree.TreePath, summary *metricSummary) bool {
+			if jsonSummary := summary.ToMarshallableValue(); jsonSummary != nil {
+				jsonTree.Set(path, jsonSummary)
+			}
+
+			return true
+		})
+
+	return jsonTree
 }
 
-// Tree returns the tree data.
-func (rs *RunSummary) Tree() pathtree.TreeData {
-
-	return rs.pathTree.Tree()
+// ToNestedMaps returns a nested-map representation of the summary.
+//
+// All values are JSON-marshallable types.
+func (rs *RunSummary) ToNestedMaps() map[string]any {
+	return rs.toSummaryTree().CloneTree()
 }
 
 // Serializes the object to send to the backend.
 func (rs *RunSummary) Serialize() ([]byte, error) {
-	return json.Marshal(rs.Tree())
+	return rs.toSummaryTree().ToExtendedJSON()
 }
 
-// keyPath returns the key path for the given config item.
-// If the item has a nested key, it returns the nested key.
-// Otherwise, it returns a slice with the key.
-func keyPath(item *service.SummaryItem) []string {
+func (rs *RunSummary) getOrMakeSummary(path pathtree.TreePath) *metricSummary {
+	return rs.summaries.GetOrMakeLeaf(
+		path,
+		func() *metricSummary { return &metricSummary{} },
+	)
+}
+
+type summaryOrHistoryItem interface {
+	GetNestedKey() []string
+	GetKey() string
+}
+
+// keyPath returns the key on the summary or history proto as a path.
+func keyPath[T summaryOrHistoryItem](item T) pathtree.TreePath {
 	if len(item.GetNestedKey()) > 0 {
-		return item.GetNestedKey()
+		return pathtree.PathOf(
+			item.GetNestedKey()[0],
+			item.GetNestedKey()[1:]...,
+		)
 	}
-	return []string{item.GetKey()}
+	return pathtree.PathOf(item.GetKey())
 }

@@ -2,6 +2,7 @@ syntax = "proto3";
 
 package wandb_internal;
 
+import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
@@ -44,7 +45,8 @@ message Record {
     HeaderRecord header = 21;
     FooterRecord footer = 22;
     RunPreemptingRecord preempting = 23;
-    LinkArtifactRecord link_artifact = 24;
+    // Removed but kept to avoid panics in `wandb sync`.
+    google.protobuf.Empty noop_link_artifact = 24;
     UseArtifactRecord use_artifact = 25;
 
     // request field does not belong here longterm
@@ -446,7 +448,11 @@ message ArtifactManifest {
   int32 version = 1;
   string storage_policy = 2;
   repeated StoragePolicyConfigItem storage_policy_config = 3;
+  // Only one of {contents, manifest_file_path} should be set.
   repeated ArtifactManifestEntry contents = 4;
+  // `manifest_file_path` is used for manifests that approach the 2GiB message limit.
+  // It should point to a gzipped, line-delimited JSON file containing manifest entries.
+  string manifest_file_path = 5;
 }
 
 message ArtifactManifestEntry {
@@ -477,9 +483,9 @@ message ArtifactResult {}
 message LinkArtifactResult {}
 
 /*
- * LinkArtifactRecord: link artifact to portfolio
+ * LinkArtifactRequest: link artifact to portfolio
  */
-message LinkArtifactRecord {
+message LinkArtifactRequest {
   string client_id = 1;
   string server_id = 2;
   string portfolio_name = 3;
@@ -487,6 +493,10 @@ message LinkArtifactRecord {
   string portfolio_project = 5;
   repeated string portfolio_aliases = 6;
   _RecordInfo _info = 200;
+}
+
+message LinkArtifactResponse {
+  string error_message = 1;
 }
 
 // Indicates a directory of TensorBoard tfevents files to sync with the run.
@@ -582,6 +592,7 @@ message Request {
     GetSystemMetricsRequest get_system_metrics = 74;
     SyncRequest sync = 76;
     JobInputRequest job_input = 77;
+    LinkArtifactRequest link_artifact = 78;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -612,6 +623,7 @@ message Response {
     JobInfoResponse job_info_response = 68;
     GetSystemMetricsResponse get_system_metrics_response = 69;
     SyncResponse sync_response = 70;
+    LinkArtifactResponse link_artifact_response = 71;
     TestInjectResponse test_inject_response = 1000;
   }
 }
@@ -1150,6 +1162,8 @@ message GpuAppleInfo {
 message GpuNvidiaInfo {
   string name = 1;
   uint64 memory_total = 2;
+  uint32 cuda_cores = 3;
+  string architecture = 4;
 }
 
 message GpuAmdInfo {
@@ -1198,6 +1212,7 @@ message MetadataRequest {
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
+  string cuda_version = 30;
 }
 
 message PythonPackagesRequest {
@@ -1248,4 +1263,5 @@ message JobInputRequest {
   JobInputSource input_source = 1;
   repeated JobInputPath include_paths = 2;
   repeated JobInputPath exclude_paths = 3;
+  string input_schema = 4;
 }

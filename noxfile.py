@@ -37,6 +37,11 @@ def install_timed(session: nox.Session, *args, **kwargs):
 
 
 def install_wandb(session: nox.Session):
+    """Builds and installs wandb."""
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
     else:
@@ -92,6 +97,12 @@ def run_pytest(
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
+        # Tool settings are often set here. We invoke Docker in system tests,
+        # which uses auth information from the home directory.
+        "HOME": session.env.get("HOME"),
+        "CI": session.env.get("CI"),
+        # Required for the importers tests
+        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
     }
 
     # Print 20 slowest tests.
@@ -220,9 +231,6 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
 
     install_timed(
@@ -242,9 +250,6 @@ def unit_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
     install_timed(
         session,
@@ -268,9 +273,6 @@ def system_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
     install_timed(
         session,
@@ -683,6 +685,7 @@ def mypy_report(session: nox.Session) -> None:
         "lxml",
         "pandas-stubs",
         "types-click",
+        "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
         "types-PyYAML",
@@ -837,6 +840,83 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+@nox.session(name="bump-go-version")
+def bump_go_version(session: nox.Session) -> None:
+    """Bump the Go version."""
+    install_timed(session, "bump2version", "requests")
+
+    # Get the latest Go version
+    latest_version = session.run(
+        "./tools/get_go_version.py",
+        silent=True,
+        external=True,
+    )
+    latest_version = latest_version.strip()
+
+    session.log(f"Latest Go version: {latest_version}")
+
+    # Run bump2version with the fetched version
+    session.run(
+        "bump2version",
+        "patch",
+        "--new-version",
+        latest_version,
+        "--config-file",
+        ".bumpversion.go.cfg",
+        "--no-commit",
+        "--allow-dirty",
+        external=True,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def launch_release_tests(session: nox.Session) -> None:
+    """Run launch-release tests.
+
+    See tests/release_tests/test_launch/README.md for more info.
+    """
+    install_wandb(session)
+    install_timed(
+        session,
+        "pytest",
+        "wandb[launch]",
+    )
+
+    session.run("wandb", "login")
+
+    run_pytest(
+        session,
+        paths=session.posargs or ["tests/release_tests/test_launch/"],
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("importer", ["wandb", "mlflow"])
+def importer_tests(session: nox.Session, importer: str):
+    """Run importer tests for wandb->wandb and mlflow->wandb."""
+    install_wandb(session)
+    session.install("-r", "requirements_dev.txt")
+    if importer == "wandb":
+        session.install(".[workspaces]", "pydantic>=2")
+    elif importer == "mlflow":
+        session.install("pydantic<2")
+    if session.python != "3.7":
+        session.install("polyfactory")
+    session.install(
+        "polars<=1.2.1",
+        "rich",
+        "filelock",
+    )
+
+    run_pytest(
+        session,
+        paths=(
+            session.posargs
+            or [f"tests/pytest_tests/system_tests/test_importers/test_{importer}"]
+        ),
+    )
 
 
 def run_funky_test(

@@ -4,10 +4,9 @@
 # Conventional location for Python virtual environments.
 .venv/*
 
-# tox and nox caches.
+# nox cache
 .nox/
 .nox-wandb/
-.tox/
 
 # Test results.
 test-results/

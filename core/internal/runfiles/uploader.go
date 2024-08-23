@@ -1,7 +1,7 @@
 package runfiles
 
 import (
-	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -12,6 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -20,7 +21,7 @@ import (
 
 // uploader is the implementation of the Uploader interface.
 type uploader struct {
-	ctx           context.Context
+	extraWork     runwork.ExtraWork
 	logger        *observability.CoreLogger
 	fs            filestream.FileStream
 	ftm           filetransfer.FileTransferManager
@@ -49,12 +50,12 @@ type uploader struct {
 
 func newUploader(params UploaderParams) *uploader {
 	uploader := &uploader{
-		ctx:      params.Ctx,
-		logger:   params.Logger,
-		fs:       params.FileStream,
-		ftm:      params.FileTransfer,
-		settings: params.Settings,
-		graphQL:  params.GraphQL,
+		extraWork: params.ExtraWork,
+		logger:    params.Logger,
+		fs:        params.FileStream,
+		ftm:       params.FileTransfer,
+		settings:  params.Settings,
+		graphQL:   params.GraphQL,
 
 		knownFiles:  make(map[paths.RelativePath]*savedFile),
 		uploadAtEnd: make(map[paths.RelativePath]struct{}),
@@ -74,13 +75,14 @@ func newUploader(params UploaderParams) *uploader {
 }
 
 func (u *uploader) Process(record *service.FilesRecord) {
-	if !u.lockForOperation("Process") {
+	if err := u.lockForOperation("Process"); err != nil {
+		u.logger.CaptureError(err, "record", record)
 		return
 	}
 	defer u.stateMu.Unlock()
 
 	// Ignore file records in sync mode---we just upload everything at the end.
-	if u.settings.Proto.GetXSync().GetValue() {
+	if u.settings.IsSync() {
 		return
 	}
 
@@ -115,10 +117,10 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			}); err != nil {
 				u.logger.CaptureError(
 					fmt.Errorf(
-						"runfiles: error watching file %s: %v",
-						file.GetPath(),
+						"runfiles: error watching file: %v",
 						err,
-					))
+					),
+					"path", file.GetPath())
 			}
 
 		case service.FilesItem_END:
@@ -141,7 +143,8 @@ func (u *uploader) toRealPath(path string) string {
 }
 
 func (u *uploader) UploadNow(path paths.RelativePath) {
-	if !u.lockForOperation("UploadNow") {
+	if err := u.lockForOperation("UploadNow"); err != nil {
+		u.logger.CaptureError(err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -150,7 +153,8 @@ func (u *uploader) UploadNow(path paths.RelativePath) {
 }
 
 func (u *uploader) UploadAtEnd(path paths.RelativePath) {
-	if !u.lockForOperation("UploadAtEnd") {
+	if err := u.lockForOperation("UploadAtEnd"); err != nil {
+		u.logger.CaptureError(err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -159,7 +163,8 @@ func (u *uploader) UploadAtEnd(path paths.RelativePath) {
 }
 
 func (u *uploader) UploadRemaining() {
-	if !u.lockForOperation("UploadRemaining") {
+	if err := u.lockForOperation("UploadRemaining"); err != nil {
+		u.logger.CaptureError(err)
 		return
 	}
 	defer u.stateMu.Unlock()
@@ -217,22 +222,19 @@ func (u *uploader) knownFile(runPath paths.RelativePath) *savedFile {
 
 // Acquires the stateMu mutex if Finish() has not been called.
 //
-// Returns whether the mutex was locked. If it was locked, the caller
-// is responsible for calling Unlock(). Otherwise, the caller must return
-// immediately because Finish() has been called.
-func (u *uploader) lockForOperation(method string) bool {
+// On success, the mutex is locked and the caller is responsible for
+// calling Unlock(). On failure, the mutex is not locked, an error is
+// returned, and the caller must return immediately.
+func (u *uploader) lockForOperation(method string) error {
 	u.stateMu.Lock()
 
 	if u.isFinished {
 		u.stateMu.Unlock()
 
-		u.logger.CaptureError(
-			fmt.Errorf("runfiles: called %v() after Finish()", method))
-
-		return false
+		return fmt.Errorf("runfiles: called %v() after Finish()", method)
 	}
 
-	return true
+	return nil
 }
 
 // Uploads the given files unless we are offline.
@@ -257,7 +259,7 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 	go func() {
 		createRunFilesResponse, err := gql.CreateRunFiles(
-			u.ctx,
+			u.extraWork.BeforeEndCtx(),
 			u.graphQL,
 			u.settings.GetEntity(),
 			u.settings.GetProject(),
@@ -273,11 +275,12 @@ func (u *uploader) upload(runPaths []paths.RelativePath) {
 
 		if len(createRunFilesResponse.CreateRunFiles.Files) != len(runPaths) {
 			u.logger.CaptureError(
-				fmt.Errorf(
-					"runfiles: CreateRunFiles returned %d files but expected %d",
-					len(createRunFilesResponse.CreateRunFiles.Files),
-					len(runPaths),
-				))
+				errors.New(
+					"runfiles: CreateRunFiles returned"+
+						" unexpected number of files"),
+				"actual", len(createRunFilesResponse.CreateRunFiles.Files),
+				"expected", len(runPaths),
+			)
 			u.uploadWG.Add(-len(runPaths))
 			return
 		}

@@ -3,23 +3,22 @@
 package monitor_test
 
 import (
+	"encoding/json"
 	"testing"
-
-	"github.com/wandb/segmentio-encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/monitor"
 )
 
 func TestNewGPUAMD(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	assert.NotNil(t, gpu)
 	assert.Equal(t, "gpu", gpu.Name())
 	assert.Len(t, gpu.Samples(), 0)
 }
 
 func TestGPUAMD_ParseStats(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	stats := map[string]interface{}{
 		"GPU use (%)":                        "10",
 		"GPU memory use (%)":                 "20",
@@ -52,14 +51,16 @@ func getROCMSMIStatsMock() (monitor.InfoDict, error) {
 }
 
 func TestGPUAMD_SampleStats(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	assert.Len(t, gpu.Samples(), 0)
-	gpu.SampleMetrics()
+	err := gpu.SampleMetrics()
+	assert.Nil(t, err)
 	assert.Len(t, gpu.Samples(), 10)
 	assert.Len(t, gpu.Samples()["gpu.0.gpu"], 1)
 	assert.Len(t, gpu.Samples()["gpu.1.gpu"], 1)
-	gpu.SampleMetrics()
+	err = gpu.SampleMetrics()
+	assert.Nil(t, err)
 	assert.Len(t, gpu.Samples(), 10)
 	assert.Len(t, gpu.Samples()["gpu.0.gpu"], 2)
 	assert.Len(t, gpu.Samples()["gpu.1.gpu"], 2)
@@ -72,7 +73,8 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 }
 
 func TestGPUAMD_Probe(t *testing.T) {
-	gpu := monitor.NewGPUAMD(nil)
+	gpu := monitor.NewGPUAMD()
+	gpu.IsAvailableFunc = func() bool { return true }
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	info := gpu.Probe()
 	assert.Equal(t, info.GpuCount, uint32(2))

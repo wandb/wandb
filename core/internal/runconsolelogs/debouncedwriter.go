@@ -15,10 +15,10 @@ type debouncedWriter struct {
 	ctx context.Context
 
 	isFlushing bool
-	flush      func(sparselist.SparseList[RunLogsLine])
+	flush      func(sparselist.SparseList[*RunLogsLine])
 	rateLimit  *rate.Limiter
 
-	buffer sparselist.SparseList[RunLogsLine]
+	buffer sparselist.SparseList[*RunLogsLine]
 }
 
 // NewDebouncedWriter creates a writer that buffers changes and invokes flush
@@ -28,7 +28,7 @@ type debouncedWriter struct {
 func NewDebouncedWriter(
 	rateLimit *rate.Limiter,
 	ctx context.Context,
-	flush func(sparselist.SparseList[RunLogsLine]),
+	flush func(sparselist.SparseList[*RunLogsLine]),
 ) *debouncedWriter {
 	return &debouncedWriter{
 		ctx:       ctx,
@@ -37,11 +37,11 @@ func NewDebouncedWriter(
 	}
 }
 
-func (b *debouncedWriter) OnChanged(lineNum int, line RunLogsLine) {
+func (b *debouncedWriter) OnChanged(lineNum int, line *RunLogsLine) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	b.buffer.Put(lineNum, line)
+	b.buffer.Put(lineNum, line.Clone())
 
 	if !b.isFlushing {
 		b.isFlushing = true
@@ -71,7 +71,7 @@ func (b *debouncedWriter) loopFlushBuffer() {
 		}
 
 		lines := b.buffer
-		b.buffer = sparselist.SparseList[RunLogsLine]{}
+		b.buffer = sparselist.SparseList[*RunLogsLine]{}
 		b.mu.Unlock()
 
 		b.flush(lines)
