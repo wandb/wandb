@@ -322,6 +322,9 @@ class StreamMux:
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
             internal_messages_handle = stream.interface.deliver_internal_messages()
+            check_version_handle = stream.interface.deliver_check_version(
+                wandb.__version__
+            )
 
             result = internal_messages_handle.wait(timeout=-1)
             assert result
@@ -344,11 +347,16 @@ class StreamMux:
             assert result
             final_summary = result.response.get_summary_response
 
+            result = check_version_handle.wait(timeout=30)
+            assert result
+            check_version = result.response.check_version_response
+
             Run._footer(
                 sampled_history=sampled_history,
                 final_summary=final_summary,
                 poll_exit_response=poll_exit_response,
                 server_info_response=server_info_response,
+                check_version_response=check_version,
                 internal_messages_response=internal_messages_response,
                 settings=stream._settings,  # type: ignore
                 printer=printer,

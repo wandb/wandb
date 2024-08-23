@@ -362,7 +362,7 @@ func TestSendRequestCheckVersion(t *testing.T) {
 			expectedResponse: &service.Response{
 				ResponseType: &service.Response_CheckVersionResponse{
 					CheckVersionResponse: &service.CheckVersionResponse{
-						UpgradeMessage: "There is a new version of wandb available. Please upgrade to 0.10.0",
+						UpgradeMessage: "There is a new version of wandb available. Please upgrade to wandb==0.10.0",
 					},
 				},
 			},
