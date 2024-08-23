@@ -663,7 +663,8 @@ class HandleManager:
         if self._settings._offline:
             result = proto_util._result_from_record(record)
             self._respond_result(result)
-        self._dispatch_record(record)
+        else:
+            self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
