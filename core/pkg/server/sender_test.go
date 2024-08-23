@@ -388,7 +388,7 @@ func TestSendRequestCheckVersion(t *testing.T) {
 		{
 			name:             "Server client version is not a map",
 			currentVersion:   "0.10.0",
-			mockResponse:     "invalid_response",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo":null}}`,
 			expectedResponse: &service.Response{},
 		},
 		{
