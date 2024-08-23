@@ -42,7 +42,7 @@ class WandbForeachFlow(FlowSpec):
     @wandb_log(datasets=True, models=True, others=True)
     @step
     def split_data(self):
-        X = self.raw_df.drop("Wine", axis=1)
+        X = self.raw_df.drop("Wine", axis=1)  # noqa: N806
         y = self.raw_df[["Wine"]]
         self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
             X, y, test_size=self.test_size, random_state=self.seed
