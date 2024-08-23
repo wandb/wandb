@@ -185,12 +185,7 @@ def run_yea(
         "WANDB_CORE_ERROR_REPORTING": "false",
     }
 
-    # is the version constraint needed?
-    install_timed(
-        session,
-        "yea-wandb==0.9.20",
-        "pip",  # used by yea to install per-test dependencies
-    )
+    install_timed(session, "yea-wandb==0.9.22")
 
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
     if circle_node_total > 0:
