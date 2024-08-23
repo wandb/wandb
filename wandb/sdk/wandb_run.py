@@ -3706,7 +3706,9 @@ class Run:
             printer.display(check_version.yank_message, level="warn")
 
         printer.display(
-            check_version.upgrade_message, off=not check_version.upgrade_message
+            check_version.upgrade_message,
+            off=not check_version.upgrade_message,
+            level="warn",
         )
 
     @staticmethod

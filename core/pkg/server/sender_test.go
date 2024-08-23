@@ -335,3 +335,103 @@ func TestSendArtifact(t *testing.T) {
 		),
 		requests[0])
 }
+
+func TestSendRequestCheckVersion(t *testing.T) {
+	tests := []struct {
+		name             string
+		currentVersion   string
+		mockResponse     string
+		mockError        error
+		expectedResponse *service.Response
+	}{
+		{
+			name:             "Empty current version",
+			currentVersion:   "",
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:             "Server info is nil",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": null}`,
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:           "Current version is less than max version",
+			currentVersion: "0.9.0",
+			mockResponse:   `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &service.Response{
+				ResponseType: &service.Response_CheckVersionResponse{
+					CheckVersionResponse: &service.CheckVersionResponse{
+						UpgradeMessage: "There is a new version of wandb available. Please upgrade to 0.10.0",
+					},
+				},
+			},
+		},
+		{
+			name:             "Current version is equal to max version",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:             "Current version is dev version and is more than max version",
+			currentVersion:   "0.11.0.dev1",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:             "Current version is greater than max version",
+			currentVersion:   "0.11.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:             "Server client version no max version",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {}}}`,
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:             "Server client version is not a map",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo":null}}`,
+			expectedResponse: &service.Response{},
+		},
+		{
+			name:             "Server client max version is not a string",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": 10}}}`,
+			expectedResponse: &service.Response{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGQL := gqlmock.NewMockClient()
+			outChan := make(chan *service.Result, 1)
+			sender := makeSender(mockGQL, make(chan *service.Record, 1), outChan)
+
+			record := &service.Record{
+				RecordType: &service.Record_Request{
+					Request: &service.Request{
+						RequestType: &service.Request_CheckVersion{
+							CheckVersion: &service.CheckVersionRequest{
+								CurrentVersion: tt.currentVersion,
+							},
+						},
+					},
+				},
+				Control: &service.Control{
+					MailboxSlot: "junk",
+				},
+			}
+
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("ServerInfo"),
+				tt.mockResponse,
+			)
+			sender.SendRecord(record)
+			result := <-outChan
+			assert.Equal(t, tt.expectedResponse, result.GetResponse())
+		})
+	}
+}

@@ -359,8 +359,7 @@ func (h *Handler) handleRequestLogin(record *service.Record) {
 }
 
 func (h *Handler) handleRequestCheckVersion(record *service.Record) {
-	// TODO: implement check version
-	h.respond(record, &service.Response{})
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestRunStatus(record *service.Record) {
