@@ -209,6 +209,9 @@ class Context:
     #     return telemetry
 
     # convenience data access methods
+    def get_run_config(self, run_id: str) -> Dict[str, Any]:
+        return self.config.get(run_id, {})
+
     def get_run_telemetry(self, run_id: str) -> Dict[str, Any]:
         return self.config.get(run_id, {}).get("_wandb", {}).get("value", {}).get("t")
 
@@ -267,6 +270,9 @@ class Context:
 
     def get_run(self, run_id: str) -> Dict[str, Any]:
         return self._entries.get(run_id, {})
+
+    def get_run_ids(self) -> List[str]:
+        return list(self._entries.keys())
 
     # todo: add getter (by run_id) utilities for other properties
 

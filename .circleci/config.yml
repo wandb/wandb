@@ -103,7 +103,7 @@ commands:
   run-nox-tests:
     description:
       Helper command for the nox-tests-* jobs. Runs a nox session and uploads
-      tests artifacts.
+      test artifacts.
     parameters:
       python: { type: string }
       session: { type: string }

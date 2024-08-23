@@ -132,6 +132,7 @@ message Imports {
   bool lightning_fabric = 103;      // lightning-fabric
   bool curated_transformers = 104;  // curated-transformers
   bool orjson = 105;
+  bool lightning = 106;  // lightning, formerly pytorch-lightning
 }
 
 message Feature {

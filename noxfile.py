@@ -116,7 +116,8 @@ def run_pytest(
     pytest_opts.append("--timeout=300")
 
     # (pytest-xdist) Run tests in parallel.
-    pytest_opts.append("-n=auto")
+    # pytest_opts.append("-n=auto")
+    pytest_opts.append("-n=0")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
@@ -127,6 +128,15 @@ def run_pytest(
     # (pytest-cov) Enable Python code coverage collection.
     # We set "--cov-report=" to suppress terminal output.
     pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
+
+    # (pytest) Enable verbose output and show setup/teardown details.
+    pytest_opts.extend(
+        [
+            "-v",
+            "-sss",
+            # "--setup-show",
+        ]
+    )
 
     pytest_env.update(python_coverage_env(session))
     pytest_env.update(go_coverage_env(session))
@@ -265,6 +275,7 @@ def system_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests",
                 "--ignore=tests/pytest_tests/system_tests/test_importers",
                 "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                "--ignore=tests/pytest_tests/system_tests/test_functional",
             ]
         ),
     )
@@ -301,6 +312,22 @@ def notebook_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests/test_notebooks",
             ]
         ),
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def functional_tests_pytest(session: nox.Session):
+    """Runs functional tests using pytest."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+    )
+
+    run_pytest(
+        session,
+        paths=(session.posargs or ["tests/pytest_tests/system_tests/test_functional"]),
     )
 
 
