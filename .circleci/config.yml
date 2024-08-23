@@ -57,7 +57,7 @@ executors:
     docker:
       - image: "python:<<parameters.python>>"
       # the src server
-      - image: "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.57.4"
+      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
@@ -65,7 +65,7 @@ executors:
           CI: 1
           WANDB_ENABLE_TEST_CONTAINER: true
       # the dst server
-      - image: "us-central1-docker.pkg.dev/wandb-client-cicd/images/local-testcontainer:0.57.4"
+      - image: <<pipeline.parameters.server_image>>:<<pipeline.parameters.server_image_tag>>
         auth:
           username: _json_key
           password: $GCP_SERVICE_ACCOUNT_JSON_DECODED
