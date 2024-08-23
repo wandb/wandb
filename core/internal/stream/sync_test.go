@@ -1,4 +1,4 @@
-package server_test
+package stream_test
 
 import (
 	"context"
@@ -6,8 +6,8 @@ import (
 	"io"
 	"testing"
 
+	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/server"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/service"
@@ -24,10 +24,10 @@ func (s *MockSender) Send(record *service.Record) {
 func TestSyncService(t *testing.T) {
 
 	// Helper function to create a SyncService with a mock sender
-	createSyncService := func() (*server.SyncService, *MockSender) {
+	createSyncService := func() (*stream.SyncService, *MockSender) {
 		mockSender := MockSender{}
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
 		)
 		syncService.Start()
 		return syncService, &mockSender
@@ -61,9 +61,9 @@ func TestSyncService(t *testing.T) {
 			RunId:   "testRunId",
 		}
 		mockSender := MockSender{}
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
-			server.WithSyncServiceOverwrite(overwrite),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
+			stream.WithSyncServiceOverwrite(overwrite),
 		)
 		syncService.Start()
 		syncService.SyncRecord(run, nil)
@@ -94,9 +94,9 @@ func TestSyncService(t *testing.T) {
 			OutputRaw: true,
 		}
 		mockSender := MockSender{}
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
-			server.WithSyncServiceSkip(skip),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
+			stream.WithSyncServiceSkip(skip),
 		)
 		syncService.Start()
 		record := &service.Record{
@@ -111,9 +111,9 @@ func TestSyncService(t *testing.T) {
 	t.Run("Flush without callback", func(t *testing.T) {
 		mockSender := MockSender{}
 		logger := observability.NewNoOpLogger()
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
-			server.WithSyncServiceLogger(logger),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
+			stream.WithSyncServiceLogger(logger),
 		)
 		syncService.Start()
 		syncService.Flush() // Should not panic, but won't send the flushCallback
@@ -127,9 +127,9 @@ func TestSyncService(t *testing.T) {
 			assert.NoError(t, err)
 		}
 		mockSender := MockSender{}
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
-			server.WithSyncServiceFlushCallback(flushCallback),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
+			stream.WithSyncServiceFlushCallback(flushCallback),
 		)
 		syncService.Start()
 		syncService.Flush()
@@ -144,9 +144,9 @@ func TestSyncService(t *testing.T) {
 			assert.Error(t, err)
 		}
 		mockSender := MockSender{}
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
-			server.WithSyncServiceFlushCallback(flushCallback),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
+			stream.WithSyncServiceFlushCallback(flushCallback),
 		)
 		syncService.Start()
 		syncService.SyncRecord(nil, errors.New("test error"))
@@ -162,9 +162,9 @@ func TestSyncService(t *testing.T) {
 			assert.NoError(t, err)
 		}
 		mockSender := MockSender{}
-		syncService := server.NewSyncService(context.Background(),
-			server.WithSyncServiceSenderFunc(mockSender.Send),
-			server.WithSyncServiceFlushCallback(flushCallback),
+		syncService := stream.NewSyncService(context.Background(),
+			stream.WithSyncServiceSenderFunc(mockSender.Send),
+			stream.WithSyncServiceFlushCallback(flushCallback),
 		)
 		syncService.Start()
 		syncService.SyncRecord(nil, io.EOF)

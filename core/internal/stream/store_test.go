@@ -1,4 +1,4 @@
-package server_test
+package stream_test
 
 import (
 	"fmt"
@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/pkg/server"
+	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
 func TestValidHeader(t *testing.T) {
-	header := server.NewHeader()
+	header := stream.NewHeader()
 
 	r, w := io.Pipe()
 
@@ -30,7 +30,7 @@ func TestValidHeader(t *testing.T) {
 
 // Test to check the Invalid scenario
 func TestInvalidHeader(t *testing.T) {
-	header := server.HeaderOptions{
+	header := stream.HeaderOptions{
 		IDENT:   [4]byte{'a', 'b', 'c', 'd'},
 		Magic:   0xABCD,
 		Version: 1,
@@ -56,7 +56,7 @@ func TestOpenCreateStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
@@ -70,14 +70,14 @@ func TestOpenReadStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(tmpFile.Name())
+	store2 := stream.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 
@@ -91,7 +91,7 @@ func TestReadWriteRecord(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
@@ -105,7 +105,7 @@ func TestReadWriteRecord(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(tmpFile.Name())
+	store2 := stream.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
@@ -144,7 +144,7 @@ func TestCorruptFile(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
@@ -159,7 +159,7 @@ func TestCorruptFile(t *testing.T) {
 	err = AppendToFile(tmpFile.Name(), []byte("bad record"))
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(tmpFile.Name())
+	store2 := stream.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
@@ -183,7 +183,7 @@ func TestStoreInvalidHeader(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 
 	// Intentionally writing bad header data
 	err = os.WriteFile(tmpFile.Name(), []byte("Invalid"), 0644)
@@ -195,7 +195,7 @@ func TestStoreInvalidHeader(t *testing.T) {
 
 // TestStoreHeader_Write_Error is intended to test the error scenario when writing the header
 func TestStoreHeader_Write_Error(t *testing.T) {
-	store := server.NewStore("non_existent_dir/file")
+	store := stream.NewStore("non_existent_dir/file")
 	err := store.Open(os.O_WRONLY)
 	assert.Error(t, err)
 }
@@ -207,7 +207,7 @@ func TestInvalidFlag(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(9999) // 9999 is an invalid flag
 	assert.Errorf(t, err, "invalid flag %d", 9999)
 }
@@ -219,7 +219,7 @@ func TestWriteToClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
@@ -238,7 +238,7 @@ func TestReadFromClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(tmpFile.Name())
+	store := stream.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 

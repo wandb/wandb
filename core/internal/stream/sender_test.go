@@ -1,4 +1,4 @@
-package server_test
+package stream_test
 
 import (
 	"testing"
@@ -11,9 +11,9 @@ import (
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/server"
 	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
@@ -44,21 +44,21 @@ const validCreateArtifactResponse = `{
 	}
 }`
 
-func makeSender(client graphql.Client, recordChan chan *service.Record, resultChan chan *service.Result) *server.Sender {
+func makeSender(client graphql.Client, _ chan *service.Record, resultChan chan *service.Result) *stream.Sender {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&service.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
-	backend := server.NewBackend(logger, settings)
-	fileStream := server.NewFileStream(
+	backend := stream.NewBackend(logger, settings)
+	fileStream := stream.NewFileStream(
 		backend, logger, observability.NewPrinter(), settings, nil)
-	fileTransferManager := server.NewFileTransferManager(
+	fileTransferManager := stream.NewFileTransferManager(
 		filetransfer.NewFileTransferStats(),
 		logger,
 		settings,
 	)
-	runfilesUploader := server.NewRunfilesUploader(
+	runfilesUploader := stream.NewRunfilesUploader(
 		runWork,
 		logger,
 		settings,
@@ -67,9 +67,9 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 		watchertest.NewFakeWatcher(),
 		client,
 	)
-	sender := server.NewSender(
+	sender := stream.NewSender(
 		runWork,
-		server.SenderParams{
+		stream.SenderParams{
 			Logger:              logger,
 			Settings:            settings,
 			Backend:             backend,

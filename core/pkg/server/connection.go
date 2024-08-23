@@ -13,6 +13,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/stream"
 	"github.com/wandb/wandb/core/pkg/observability"
 
 	"github.com/wandb/wandb/core/pkg/service"
@@ -52,13 +53,16 @@ type Connection struct {
 
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
-	stream *Stream
+	stream *stream.Stream
 
 	// closed indicates if the outChan is closed
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// defaultLoggerPath is the path to the default logger
+	defaultLoggerPath string
 }
 
 // NewConnection creates a new connection
@@ -68,18 +72,20 @@ func NewConnection(
 	conn net.Conn,
 	sentryClient *sentry_ext.Client,
 	commit string,
+	defaultLoggerPath string,
 ) *Connection {
 
 	nc := &Connection{
-		ctx:          ctx,
-		cancel:       cancel,
-		conn:         conn,
-		commit:       commit,
-		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:       make(chan *service.ServerRequest, BufferSize),
-		outChan:      make(chan *service.ServerResponse, BufferSize),
-		closed:       &atomic.Bool{},
-		sentryClient: sentryClient,
+		ctx:               ctx,
+		cancel:            cancel,
+		conn:              conn,
+		commit:            commit,
+		id:                conn.RemoteAddr().String(), // TODO: check if this is properly unique
+		inChan:            make(chan *service.ServerRequest, stream.BufferSize),
+		outChan:           make(chan *service.ServerResponse, stream.BufferSize),
+		closed:            &atomic.Bool{},
+		sentryClient:      sentryClient,
+		defaultLoggerPath: defaultLoggerPath,
 	}
 	return nc
 }
@@ -100,13 +106,13 @@ func (nc *Connection) HandleConnection() {
 
 	wg.Add(1)
 	go func() {
-		nc.handleServerRequest()
+		nc.handleIncomingMessages()
 		wg.Done()
 	}()
 
 	wg.Add(1)
 	go func() {
-		nc.handleServerResponse()
+		nc.handleOutgoingMessages()
 		wg.Done()
 	}()
 
@@ -195,7 +201,7 @@ func (nc *Connection) readConnection() {
 // handleServerRequest handles outgoing messages from the server
 // to the client, it writes the messages to the connection
 // the client is responsible for reading and parsing the messages
-func (nc *Connection) handleServerResponse() {
+func (nc *Connection) handleOutgoingMessages() {
 	slog.Debug("starting handleServerResponse", "id", nc.id)
 	for msg := range nc.outChan {
 		out, err := proto.Marshal(msg)
@@ -223,9 +229,9 @@ func (nc *Connection) handleServerResponse() {
 	slog.Debug("finished handleServerResponse", "id", nc.id)
 }
 
-// handleServerRequest handles incoming messages from the client
+// handleIncomingMessages handles incoming messages from the client
 // to the server, it passes the messages to the stream
-func (nc *Connection) handleServerRequest() {
+func (nc *Connection) handleIncomingMessages() {
 	slog.Debug("starting handleServerRequest", "id", nc.id)
 	for msg := range nc.inChan {
 		slog.Debug("handling server request", "msg", msg, "id", nc.id)
@@ -276,8 +282,8 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
-	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+	nc.stream = stream.NewStream(nc.commit, settings, nc.sentryClient, nc.defaultLoggerPath)
+	nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
@@ -294,15 +300,15 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
-	nc.stream.settings = settings.From(msg.GetSettings())
+	nc.stream.SetSettings(settings.From(msg.GetSettings()))
 
 	// update sentry tags
 	// add attrs from settings:
-	nc.stream.logger.SetTags(observability.Tags{
-		"run_url": nc.stream.settings.GetRunURL(),
+	nc.stream.Logger.SetTags(observability.Tags{
+		"run_url": nc.stream.GetSettings().GetRunURL(),
 	})
 	// TODO: remove this once we have a better observability setup
-	nc.stream.logger.CaptureInfo("wandb-core", nil)
+	nc.stream.Logger.CaptureInfo("wandb-core", nil)
 }
 
 // handleInformAttach is called when the client sends an InformAttach message
@@ -317,14 +323,14 @@ func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest)
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
-		nc.stream.AddResponders(ResponderEntry{nc, nc.id})
+		nc.stream.AddResponders(stream.ResponderEntry{Responder: nc, ID: nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
 		resp := &service.ServerResponse{
 			ServerResponseType: &service.ServerResponse_InformAttachResponse{
 				InformAttachResponse: &service.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
-					Settings: nc.stream.settings.Proto,
+					Settings: nc.stream.GetSettings().Proto,
 				},
 			},
 		}

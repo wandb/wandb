@@ -1,4 +1,4 @@
-package server
+package stream
 
 import (
 	"errors"
@@ -9,11 +9,13 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gitutil"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runfiles"
@@ -23,7 +25,6 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 )
 
@@ -706,7 +707,7 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	git := NewGit(h.settings.GetRootDir().GetValue(), h.logger)
+	git := gitutil.NewGit(h.settings.GetRootDir().GetValue(), h.logger)
 	if !git.IsAvailable() {
 		return
 	}

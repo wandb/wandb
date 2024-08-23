@@ -8,25 +8,26 @@ import (
 	"net"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
+	"github.com/wandb/wandb/core/internal/stream"
 )
 
 const (
-	BufferSize                         = 32
 	IntervalCheckParentPidMilliseconds = 100
 )
 
-var defaultLoggerPath atomic.Value
+// StreamMux is a global stream mux
+var streamMux = stream.NewStreamMux()
 
 type ServerParams struct {
-	ListenIPAddress string
-	PortFilename    string
-	ParentPid       int
-	SentryClient    *sentry_ext.Client
-	Commit          string
+	ListenIPAddress   string
+	PortFilename      string
+	ParentPid         int
+	SentryClient      *sentry_ext.Client
+	Commit            string
+	DefaultLoggerPath string
 }
 
 // Server is the core server
@@ -53,6 +54,9 @@ type Server struct {
 
 	// commit is the W&B Git commit hash
 	commit string
+
+	// defaultLoggerPath is the path to the default logger
+	defaultLoggerPath string
 }
 
 // NewServer creates a new server
@@ -72,13 +76,14 @@ func NewServer(
 	}
 
 	s := &Server{
-		ctx:          ctx,
-		cancel:       cancel,
-		listener:     listener,
-		wg:           sync.WaitGroup{},
-		parentPid:    params.ParentPid,
-		sentryClient: params.SentryClient,
-		commit:       params.Commit,
+		ctx:               ctx,
+		cancel:            cancel,
+		listener:          listener,
+		wg:                sync.WaitGroup{},
+		parentPid:         params.ParentPid,
+		sentryClient:      params.SentryClient,
+		commit:            params.Commit,
+		defaultLoggerPath: params.DefaultLoggerPath,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -103,13 +108,6 @@ func (s *Server) exitWhenParentIsGone() {
 	// The user process has exited, so there's no need to sync
 	// uncommitted data, and we can quit immediately.
 	os.Exit(1)
-}
-
-func (s *Server) SetDefaultLoggerPath(path string) {
-	if path == "" {
-		return
-	}
-	defaultLoggerPath.Store(path)
 }
 
 func (s *Server) Serve() {
@@ -160,6 +158,7 @@ func (s *Server) serve() {
 					conn,
 					s.sentryClient,
 					s.commit,
+					s.defaultLoggerPath,
 				).HandleConnection()
 
 				s.wg.Done()

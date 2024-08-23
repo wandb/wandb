@@ -1,4 +1,4 @@
-package server
+package stream
 
 // This file contains functions to construct the objects used by a Stream.
 
@@ -23,6 +23,10 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"golang.org/x/time/rate"
+)
+
+const (
+	BufferSize = 32
 )
 
 // NewBackend returns a Backend or nil if we're offline.

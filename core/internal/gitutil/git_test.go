@@ -1,4 +1,4 @@
-package server_test
+package gitutil_test
 
 import (
 	"fmt"
@@ -9,8 +9,8 @@ import (
 	"github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/object"
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/gitutil"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/server"
 )
 
 func setupTestRepo() (string, func(), error) {
@@ -63,7 +63,7 @@ func TestIsAvailable(t *testing.T) {
 	defer cleanup()
 
 	logger := observability.NewNoOpLogger()
-	git := server.NewGit(repoPath, logger)
+	git := gitutil.NewGit(repoPath, logger)
 	available := git.IsAvailable()
 	assert.True(t, available)
 }
@@ -76,7 +76,7 @@ func TestLatestCommit(t *testing.T) {
 	defer cleanup()
 
 	logger := observability.NewNoOpLogger()
-	git := server.NewGit(repoPath, logger)
+	git := gitutil.NewGit(repoPath, logger)
 	latest, err := git.LatestCommit("HEAD")
 	assert.NoError(t, err)
 	assert.Len(t, latest, 40)
@@ -104,7 +104,7 @@ func TestSavePatch(t *testing.T) {
 	outputPath := filepath.Join(tempDir, "diff.patch")
 
 	logger := observability.NewNoOpLogger()
-	git := server.NewGit(repoPath, logger)
+	git := gitutil.NewGit(repoPath, logger)
 	err = git.SavePatch("HEAD", outputPath)
 	assert.NoError(t, err)
 	assert.FileExists(t, outputPath)

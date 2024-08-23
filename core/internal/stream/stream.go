@@ -1,4 +1,4 @@
-package server
+package stream
 
 import (
 	"fmt"
@@ -38,8 +38,8 @@ type Stream struct {
 	// runWork is a channel of records to process.
 	runWork runwork.RunWork
 
-	// logger is the logger for the stream
-	logger *observability.CoreLogger
+	// Logger is the Logger for the stream
+	Logger *observability.CoreLogger
 
 	// wg is the WaitGroup for the stream
 	wg sync.WaitGroup
@@ -63,11 +63,10 @@ type Stream struct {
 	sentryClient *sentry_ext.Client
 }
 
-func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) *observability.CoreLogger {
+func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client, defaultLoggerPath string) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := defaultLoggerPath.Load(); path != nil {
-		path := path.(string)
+	if path := defaultLoggerPath; path != "" {
 		// check path exists
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			err := os.Symlink(path, targetPath)
@@ -133,13 +132,14 @@ func NewStream(
 	commit string,
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
+	defaultLoggerPath string,
 ) *Stream {
-	logger := streamLogger(settings, sentryClient)
+	logger := streamLogger(settings, sentryClient, defaultLoggerPath)
 	runWork := runwork.New(BufferSize, logger)
 
 	s := &Stream{
 		runWork:      runWork,
-		logger:       streamLogger(settings, sentryClient),
+		Logger:       streamLogger(settings, sentryClient, defaultLoggerPath),
 		settings:     settings,
 		sentryClient: sentryClient,
 	}
@@ -150,7 +150,7 @@ func NewStream(
 		// Better behavior would be to inform the user and turn off any
 		// components that rely on the hostname, but it's not easy to do
 		// with our current code structure.
-		s.logger.CaptureError(
+		s.Logger.CaptureError(
 			fmt.Errorf("stream: could not get hostname: %v", err))
 		hostname = ""
 	}
@@ -159,12 +159,12 @@ func NewStream(
 	peeker := &observability.Peeker{}
 	terminalPrinter := observability.NewPrinter()
 
-	backendOrNil := NewBackend(s.logger, settings)
+	backendOrNil := NewBackend(s.Logger, settings)
 	fileTransferStats := filetransfer.NewFileTransferStats()
-	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
+	fileWatcher := watcher.New(watcher.Params{Logger: s.Logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
 		ExtraWork: s.runWork,
-		Logger:    s.logger,
+		Logger:    s.Logger,
 		Settings:  s.settings,
 		Hostname:  hostname,
 	})
@@ -176,19 +176,19 @@ func NewStream(
 		graphqlClientOrNil = NewGraphQLClient(backendOrNil, settings, peeker)
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
-			s.logger,
+			s.Logger,
 			terminalPrinter,
 			settings,
 			peeker,
 		)
 		fileTransferManagerOrNil = NewFileTransferManager(
 			fileTransferStats,
-			s.logger,
+			s.Logger,
 			settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
-			s.logger,
+			s.Logger,
 			settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
@@ -201,11 +201,11 @@ func NewStream(
 
 	s.handler = NewHandler(commit,
 		HandlerParams{
-			Logger:            s.logger,
+			Logger:            s.Logger,
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan *service.Record, BufferSize),
 			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
+			SystemMonitor:     monitor.New(s.Logger, s.settings.Proto, s.runWork),
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
@@ -216,7 +216,7 @@ func NewStream(
 
 	s.writer = NewWriter(
 		WriterParams{
-			Logger:   s.logger,
+			Logger:   s.Logger,
 			Settings: s.settings.Proto,
 			FwdChan:  make(chan *service.Record, BufferSize),
 		},
@@ -239,7 +239,7 @@ func NewStream(
 	s.sender = NewSender(
 		s.runWork,
 		SenderParams{
-			Logger:              s.logger,
+			Logger:              s.Logger,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
@@ -256,9 +256,9 @@ func NewStream(
 		},
 	)
 
-	s.dispatcher = NewDispatcher(s.logger)
+	s.dispatcher = NewDispatcher(s.Logger)
 
-	s.logger.Info("created new stream", "id", s.settings.GetRunID())
+	s.Logger.Info("created new stream", "id", s.settings.GetRunID())
 	return s
 }
 
@@ -303,21 +303,21 @@ func (s *Stream) Start() {
 		}(ch)
 	}
 
-	s.logger.Info("stream: started", "id", s.settings.GetRunID())
+	s.Logger.Info("stream: started", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *service.Record) {
-	s.logger.Debug("handling record", "record", rec)
+	s.Logger.Debug("handling record", "record", rec)
 	s.runWork.AddRecord(rec)
 }
 
 // Close waits for all run messages to be fully processed.
 func (s *Stream) Close() {
-	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
+	s.Logger.Info("stream: closing", "id", s.settings.GetRunID())
 	s.runWork.Close()
 	s.wg.Wait()
-	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
+	s.Logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 
 // FinishAndClose emits an exit record, waits for all run messages
@@ -341,4 +341,12 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 		run := s.handler.GetRun()
 		utils.PrintFooterOnline(run, s.settings.Proto)
 	}
+}
+
+func (s *Stream) SetSettings(settings *settings.Settings) {
+	s.settings = settings
+}
+
+func (s *Stream) GetSettings() *settings.Settings {
+	return s.settings
 }

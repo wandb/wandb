@@ -103,20 +103,20 @@ func main() {
 	// 	defer trace.Stop()
 	// }
 
-	srv, err := server.NewServer(
+	service, err := server.NewServer(
 		ctx,
 		&server.ServerParams{
-			ListenIPAddress: "127.0.0.1:0",
-			PortFilename:    *portFilename,
-			ParentPid:       *pid,
-			SentryClient:    sentryClient,
-			Commit:          commit,
+			ListenIPAddress:   "127.0.0.1:0",
+			PortFilename:      *portFilename,
+			ParentPid:         *pid,
+			SentryClient:      sentryClient,
+			Commit:            commit,
+			DefaultLoggerPath: loggerPath,
 		},
 	)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
-	srv.SetDefaultLoggerPath(loggerPath)
-	srv.Serve()
+	service.Serve()
 }
