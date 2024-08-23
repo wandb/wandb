@@ -1514,7 +1514,7 @@ func (s *Sender) sendRequestCheckVersion(record *service.Record, request *servic
 						ResponseType: &service.Response_CheckVersionResponse{
 							CheckVersionResponse: &service.CheckVersionResponse{
 								UpgradeMessage: fmt.Sprintf(
-									"There is a new version of wandb available. Please upgrade to %s", maxVersion,
+									"There is a new version of wandb available. Please upgrade to wandb==%s", maxVersion,
 								),
 							},
 						},
