@@ -618,6 +618,54 @@ workflows:
               python: ["3.9"]
 
       #
+      # Functional tests of third-party integrations with yea on Linux
+      #
+      - nox-tests-linux:
+          name: "\
+            func-tests-linux-\
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
+          parallelism: 1
+
+          matrix:
+            parameters:
+              yea_shard: ["tf115", "tf21", "tf24", "tf25", "tf26", "xgboost"]
+              python: ["3.7"]
+
+      - nox-tests-linux:
+          name: "\
+            func-tests-linux-\
+            <<matrix.yea_shard>>-\
+            <<matrix.python>>"
+          session: functional_tests
+          codecov_flags: func
+          parallelism: 1
+
+          context: sdk-third-party-api
+
+          matrix:
+            parameters:
+              yea_shard:
+                - noml
+                - ray112
+                - ray2
+                - sklearn
+                - metaflow
+                - fastai
+                - catboost
+                - jax
+                - prefect
+                - prodigy
+                - torch
+                - sacred
+                - sb3
+                - tf
+                - lightning
+              python: ["3.12"]
+
+      #
       # Functional tests with yea on Windows
       #
       - nox-tests-win:
