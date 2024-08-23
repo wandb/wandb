@@ -6,7 +6,8 @@ from torch.utils.data import DataLoader
 
 
 @pytest.mark.wandb_core_only
-def test_strategy_ddp_spawn(user, relay_server):
+@pytest.mark.parametrize("strategy", ["ddp_spawn"])
+def test_strategy_ddp_spawn(user, relay_server, strategy):
     with relay_server() as relay:
         # Set up data
         num_samples = 100000
@@ -25,7 +26,7 @@ def test_strategy_ddp_spawn(user, relay_server):
             max_epochs=1,
             devices=2,
             accelerator="cpu",
-            strategy="ddp_spawn",
+            strategy=strategy,
             logger=wandb_logger,
         )
 

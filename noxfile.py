@@ -129,15 +129,6 @@ def run_pytest(
     # We set "--cov-report=" to suppress terminal output.
     pytest_opts.extend(["--cov-report=", "--cov", "--no-cov-on-fail"])
 
-    # (pytest) Enable verbose output and show setup/teardown details.
-    pytest_opts.extend(
-        [
-            "-v",
-            "-sss",
-            # "--setup-show",
-        ]
-    )
-
     pytest_env.update(python_coverage_env(session))
     pytest_env.update(go_coverage_env(session))
     session.notify("coverage")
