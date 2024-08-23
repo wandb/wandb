@@ -2,7 +2,7 @@ package runmetric
 
 import (
 	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunConfigMetrics tracks a run's defined metrics in the run's config.
@@ -18,7 +18,7 @@ func NewRunConfigMetrics() *RunConfigMetrics {
 }
 
 // ProcessRecord updates metric definitions.
-func (rcm *RunConfigMetrics) ProcessRecord(record *service.MetricRecord) error {
+func (rcm *RunConfigMetrics) ProcessRecord(record *spb.MetricRecord) error {
 	return rcm.handler.ProcessRecord(record)
 }
 

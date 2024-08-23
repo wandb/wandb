@@ -7,7 +7,7 @@ import (
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunSummary tracks summary statistics for all metrics in a run.
@@ -23,7 +23,7 @@ func New() *RunSummary {
 // SetFromRecord explicitly sets the summary value of a metric.
 //
 // Returns an error if the item is not valid.
-func (rs *RunSummary) SetFromRecord(record *service.SummaryItem) error {
+func (rs *RunSummary) SetFromRecord(record *spb.SummaryItem) error {
 	value, err := simplejsonext.UnmarshalString(record.ValueJson)
 	if err != nil {
 		return fmt.Errorf("runsummary: invalid summary JSON: %v", err)
@@ -34,7 +34,7 @@ func (rs *RunSummary) SetFromRecord(record *service.SummaryItem) error {
 	return nil
 }
 
-func (rs *RunSummary) RemoveFromRecord(record *service.SummaryItem) {
+func (rs *RunSummary) RemoveFromRecord(record *spb.SummaryItem) {
 	if len(record.NestedKey) > 0 {
 		rs.Remove(
 			pathtree.PathOf(
@@ -63,8 +63,8 @@ func (rs *RunSummary) Remove(path pathtree.TreePath) {
 // may leave the run summary partially updated.
 func (rs *RunSummary) UpdateSummaries(
 	history *runhistory.RunHistory,
-) ([]*service.SummaryItem, error) {
-	var updates []*service.SummaryItem
+) ([]*spb.SummaryItem, error) {
+	var updates []*spb.SummaryItem
 	var errs []error
 
 	history.ForEach(
@@ -118,7 +118,7 @@ func (rs *RunSummary) UpdateSummaries(
 func (rs *RunSummary) updateSummary(
 	path pathtree.TreePath,
 	update func(*metricSummary),
-) (*service.SummaryItem, error) {
+) (*spb.SummaryItem, error) {
 	summary := rs.getOrMakeSummary(path)
 
 	update(summary)
@@ -129,7 +129,7 @@ func (rs *RunSummary) updateSummary(
 		return nil, err
 
 	case json != "":
-		return &service.SummaryItem{
+		return &spb.SummaryItem{
 			NestedKey: path.Labels(),
 			ValueJson: json,
 		}, nil
@@ -154,8 +154,8 @@ func (rs *RunSummary) ConfigureMetric(
 //
 // It may return a non-empty list even on error, in which case some
 // values may be missing.
-func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
-	var records []*service.SummaryItem
+func (rs *RunSummary) ToRecords() ([]*spb.SummaryItem, error) {
+	var records []*spb.SummaryItem
 	var errs []error
 
 	rs.summaries.ForEachLeaf(
@@ -170,7 +170,7 @@ func (rs *RunSummary) ToRecords() ([]*service.SummaryItem, error) {
 				return true
 			}
 
-			item := &service.SummaryItem{ValueJson: encoded}
+			item := &spb.SummaryItem{ValueJson: encoded}
 			if path.Len() == 1 {
 				item.Key = path.End()
 			} else {

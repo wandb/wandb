@@ -7,7 +7,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -58,8 +58,8 @@ func (rb RewindBranch) ApplyChanges(
 			"rewind run id %s does not match run id %s",
 			rb.branch.RunID,
 			runpath.RunID)
-		info := &service.ErrorInfo{
-			Code:    service.ErrorInfo_USAGE,
+		info := &spb.ErrorInfo{
+			Code:    spb.ErrorInfo_USAGE,
 			Message: err.Error(),
 		}
 		return nil, &BranchError{Err: err, Response: info}
@@ -67,8 +67,8 @@ func (rb RewindBranch) ApplyChanges(
 
 	if rb.branch.MetricName != "_step" {
 		err := fmt.Errorf("rewind only supports `_step` metric name currently")
-		info := &service.ErrorInfo{
-			Code:    service.ErrorInfo_UNSUPPORTED,
+		info := &spb.ErrorInfo{
+			Code:    spb.ErrorInfo_UNSUPPORTED,
 			Message: err.Error(),
 		}
 		return nil, &BranchError{Err: err, Response: info}
@@ -87,8 +87,8 @@ func (rb RewindBranch) ApplyChanges(
 	if err != nil {
 		return nil, &BranchError{
 			Err: err,
-			Response: &service.ErrorInfo{
-				Code:    service.ErrorInfo_COMMUNICATION,
+			Response: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_COMMUNICATION,
 				Message: fmt.Sprintf("failed to rewind run: %s", err),
 			},
 		}
@@ -97,8 +97,8 @@ func (rb RewindBranch) ApplyChanges(
 	if response.GetRewindRun() == nil || response.GetRewindRun().GetRewoundRun() == nil {
 		return nil, &BranchError{
 			Err: fmt.Errorf("run not found"),
-			Response: &service.ErrorInfo{
-				Code:    service.ErrorInfo_COMMUNICATION,
+			Response: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_COMMUNICATION,
 				Message: "failed to rewind run: run not found",
 			},
 		}

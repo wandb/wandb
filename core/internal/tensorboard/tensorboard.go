@@ -27,7 +27,8 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // TBHandler saves TensorBoard data with the run.
@@ -101,7 +102,7 @@ func NewTBHandler(params Params) *TBHandler {
 }
 
 // Handle begins processing the events in a TensorBoard logs directory.
-func (tb *TBHandler) Handle(record *service.TBRecord) error {
+func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 	// Make log_dir absolute.
 	maybeLogDir, err := paths.Absolute(record.LogDir)
 	if err != nil {
@@ -320,12 +321,12 @@ func (tb *TBHandler) convertToRunHistory(
 	}
 }
 
-func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) {
+func (tb *TBHandler) sendHistoryRequest(request *spb.PartialHistoryRequest) {
 	tb.extraWork.AddRecord(
-		&service.Record{
-			RecordType: &service.Record_Request{
-				Request: &service.Request{
-					RequestType: &service.Request_PartialHistory{
+		&spb.Record{
+			RecordType: &spb.Record_Request{
+				Request: &spb.Request{
+					RequestType: &spb.Request_PartialHistory{
 						PartialHistory: request,
 					},
 				},
@@ -333,7 +334,7 @@ func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) 
 
 			// Don't persist the record to the transaction log---
 			// the data already exists in tfevents files.
-			Control: &service.Control{Local: true},
+			Control: &spb.Control{Local: true},
 		})
 }
 
@@ -401,11 +402,11 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 
 	// Write a record indicating that the file should be uploaded.
 	tb.extraWork.AddRecord(
-		&service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{
-						{Policy: service.FilesItem_END, Path: string(relPath)},
+		&spb.Record{
+			RecordType: &spb.Record_Files{
+				Files: &spb.FilesRecord{
+					Files: []*spb.FilesItem{
+						{Policy: spb.FilesItem_END, Path: string(relPath)},
 					},
 				},
 			},
