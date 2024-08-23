@@ -219,7 +219,14 @@ class TorchHistory:
             tensor = tensor.cpu().clone().detach()
             bins = torch.Tensor([tmin, tmax])
         else:
-            tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
+            try:
+                tensor = flat.histc(bins=self._num_bins, min=tmin, max=tmax)
+            except RuntimeError:
+                wandb.termwarn(
+                    "Failed to generate histogram for tensor. Skipping histogram logging.",
+                    repeat=False,
+                )
+                return
             tensor = tensor.cpu().detach().clone()
             bins = torch.linspace(tmin, tmax, steps=self._num_bins + 1)
 
