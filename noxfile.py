@@ -116,8 +116,7 @@ def run_pytest(
     pytest_opts.append("--timeout=300")
 
     # (pytest-xdist) Run tests in parallel.
-    # pytest_opts.append("-n=auto")
-    pytest_opts.append("-n=0")
+    pytest_opts.append("-n=auto")
 
     # (pytest-split) Run a subset of tests only (for external parallelism).
     (circle_node_index, circle_node_total) = get_circleci_splits(session)
