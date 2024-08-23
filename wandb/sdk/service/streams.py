@@ -348,7 +348,7 @@ class StreamMux:
                 check_version_handle = stream.interface.deliver_check_version(
                     wandb.__version__
                 )
-                result = check_version_handle.wait(timeout=30)
+                result = check_version_handle.wait(timeout=10)
                 assert result
                 check_version = result.response.check_version_response
             else:

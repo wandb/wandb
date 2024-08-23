@@ -660,6 +660,9 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_check_version(self, record: Record) -> None:
+        if self._settings._offline:
+            result = proto_util._result_from_record(record)
+            self._respond_result(result)
         self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:

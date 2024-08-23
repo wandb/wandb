@@ -2676,7 +2676,7 @@ class Run:
             version_handle = self._backend.interface.deliver_check_version(
                 current_version=wandb.__version__
             )
-            version_result = version_handle.wait(timeout=30)
+            version_result = version_handle.wait(timeout=10)
             if not version_result:
                 version_handle.abandon()
             else:
