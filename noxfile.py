@@ -1006,20 +1006,21 @@ def testo(session: nox.Session) -> None:
     print(session._runner.venv.__dict__)
 
 
+@nox.session(python=_SUPPORTED_PYTHONS)
 def create_base_venv(session: nox.Session) -> str:
     """Create a base virtual environment with common dependencies."""
     base_venv = ".nox/base_venv"
 
+    BASE_PYTHON = "3.12"
 
-    # if not os.path.exists(base_venv):
-    #     session.run(
-    #         "uv", "venv", "create", base_venv, "--python", BASE_PYTHON, external=True
-    #     )
-    #     session.run(
-    #         "uv", "pip", "install", "-U", "pip", "setuptools", "wheel", external=True
-    #     )
-    #     # session.run("uv", "pip", "install", *COMMON_DEPS, external=True)
-    # return base_venv
+    if not os.path.exists(base_venv):
+        session.run("uv", "venv", base_venv, "--python", BASE_PYTHON, external=True)
+        session.run(
+            "uv", "pip", "install", "-U", "pip", "setuptools", "wheel", external=True
+        )
+        install_wandb(session)
+        # session.run("uv", "pip", "install", *COMMON_DEPS, external=True)
+    return base_venv
 
 
 def run_funky_test(
@@ -1041,7 +1042,9 @@ def run_funky_test(
 
     try:
         # Switch to the new test environment
-        session._runner.venv = test_venv
+        session._runner.venv.location = test_venv
+        session._runner.venv.name = test_venv
+        # print(session._runner.venv)
 
         # Install test-specific dependencies
         if deps:
@@ -1067,8 +1070,6 @@ def create_base(session: nox.Session) -> None:
 def funky_tests(session: nox.Session) -> None:
     session.env["WANDB_BUILD_COVERAGE"] = "true"
     session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
-    install_wandb(session)
 
     class TestCollector:
         def __init__(self):
