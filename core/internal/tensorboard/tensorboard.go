@@ -314,27 +314,10 @@ func (tb *TBHandler) convertToRunHistory(
 			"namespace", namespace,
 		)
 
-		if request := converter.ConvertNext(event, tb.logger); request != nil {
-			tb.sendHistoryRequest(request)
-		}
+		emitter := NewTFEmitter(tb.settings)
+		converter.ConvertNext(emitter, event, tb.logger)
+		emitter.Emit(tb.extraWork)
 	}
-}
-
-func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) {
-	tb.extraWork.AddRecord(
-		&service.Record{
-			RecordType: &service.Record_Request{
-				Request: &service.Request{
-					RequestType: &service.Request_PartialHistory{
-						PartialHistory: request,
-					},
-				},
-			},
-
-			// Don't persist the record to the transaction log---
-			// the data already exists in tfevents files.
-			Control: &service.Control{Local: true},
-		})
 }
 
 func (tb *TBHandler) saveFiles(

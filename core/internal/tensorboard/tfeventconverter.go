@@ -1,15 +1,16 @@
 package tensorboard
 
 import (
+	"errors"
 	"fmt"
-	"strings"
 
+	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
+	"github.com/wandb/wandb/core/internal/wbvalue"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 )
 
-// TFEventConverter converts TF events into W&B history records.
+// TFEventConverter converts TF events into W&B requests.
 type TFEventConverter struct {
 	// Namespace is a prefix to add to all events.
 	Namespace string
@@ -23,146 +24,182 @@ type TFEventConverter struct {
 	pluginNameByTag map[string]string
 }
 
-// tagAndJSON is a tag and a JSON representation of a value.
-type tagAndJSON struct {
-	// tag is a '/'-separated key for the metric.
-	tag string
-
-	// json is a JSON-encoded value for the metric that's understood by W&B.
-	json string
-}
-
-// ConvertNext returns a W&B history record corresponding to a TF event.
+// ConvertNext returns zero or more W&B requests corresponding to a TF event.
 //
 // This should be called on events in the order they are read from
 // tfevents files.
 //
-// Returns nil if there's no relevant history data in the event.
+// Returns an empty slice if there's no relevant history data in the event.
 // Errors are logged via the logger and the corresponding data is ignored.
 func (h *TFEventConverter) ConvertNext(
+	emitter Emitter,
 	event *tbproto.TFEvent,
 	logger *observability.CoreLogger,
-) *service.PartialHistoryRequest {
-	// Maps slash-separated tags to JSON values.
-	jsonData := make([]tagAndJSON, 0, len(event.GetSummary().GetValue()))
+) {
+	stepKey, err := h.withNamespace("global_step")
+	if err != nil {
+		logger.CaptureError(fmt.Errorf("tensorboard: global_step: %v", err))
+	} else {
+		emitter.SetTFStep(pathtree.PathOf(stepKey), event.Step)
+		emitter.SetTFWallTime(event.WallTime)
+	}
 
 	for _, value := range event.GetSummary().GetValue() {
-		tag := h.withNamespace(value.GetTag())
+		tag, err := h.withNamespace(value.GetTag())
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("tensorboard: invalid tag: %v", err))
+			continue
+		}
 
-		if h.rememberPluginName(tag, value) == "scalars" {
-			jsonData = processScalars(jsonData, tag, value, logger)
+		switch h.rememberPluginName(tag, value) {
+		case "scalars":
+			processScalars(emitter, tag, value, logger)
+
+		case "pr_curves":
+			processPRCurves(emitter, tag, value, logger)
 		}
 	}
-
-	if len(jsonData) == 0 {
-		return nil
-	}
-
-	return h.toHistoryRequest(
-		jsonData,
-		event.Step,
-		event.WallTime,
-	)
 }
 
 // rememberPluginName returns the plugin name associated to the value.
 //
 // This returns the name stored in the value, or else the name stored most
 // recently for the tag.
-func (h *TFEventConverter) rememberPluginName(tag string, value *tbproto.Summary_Value) string {
+func (h *TFEventConverter) rememberPluginName(
+	namespacedTag string,
+	value *tbproto.Summary_Value,
+) string {
 	if h.pluginNameByTag == nil {
 		h.pluginNameByTag = make(map[string]string)
 	}
 
 	if name := value.GetMetadata().GetPluginData().GetPluginName(); name != "" {
-		h.pluginNameByTag[tag] = name
+		h.pluginNameByTag[namespacedTag] = name
 		return name
 	}
 
-	return h.pluginNameByTag[tag]
+	return h.pluginNameByTag[namespacedTag]
 }
 
 // processScalars processes a value associated to the "scalars" plugin.
 //
 // Takes ownership of the jsonData slice and returns the amended slice.
 func processScalars(
-	jsonData []tagAndJSON,
+	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Value,
 	logger *observability.CoreLogger,
-) []tagAndJSON {
+) {
 	switch value := value.GetValue().(type) {
 	case *tbproto.Summary_Value_SimpleValue:
-		return append(jsonData,
-			tagAndJSON{
-				tag:  tag,
-				json: fmt.Sprintf("%v", value.SimpleValue),
-			})
+		emitter.EmitHistory(
+			pathtree.PathOf(tag),
+			fmt.Sprintf("%v", value.SimpleValue))
 
 	case *tbproto.Summary_Value_Tensor:
 		tensor, err := tensorFromProto(value.Tensor)
 		if err != nil {
 			logger.CaptureError(
 				fmt.Errorf("tensorboard: error parsing tensor: %v", err))
-			return jsonData
+			return
 		}
 
 		str, err := tensor.ToHistogramJSON(32)
 		if err != nil {
 			logger.CaptureError(
 				fmt.Errorf("tensorboard: error serializing tensor: %v", err))
-			return jsonData
+			return
 		}
 
-		return append(jsonData, tagAndJSON{tag: tag, json: str})
+		emitter.EmitHistory(pathtree.PathOf(tag), str)
 
 	default:
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: unexpected scalars value type: %T",
 				value))
-		return jsonData
 	}
 }
 
-// toHistoryRequest creates a history update with the given data.
-func (h *TFEventConverter) toHistoryRequest(
-	jsonData []tagAndJSON,
-	step int64,
-	timestamp float64,
-) *service.PartialHistoryRequest {
-	items := []*service.HistoryItem{
-		// The "global_step" key is magic that W&B automatically uses
-		// as the X axis in charts.
-		{
-			NestedKey: strings.Split(h.withNamespace("global_step"), "/"),
-			ValueJson: fmt.Sprintf("%v", step),
-		},
-		{Key: "_timestamp", ValueJson: fmt.Sprintf("%v", timestamp)},
+func processPRCurves(
+	emitter Emitter,
+	tag string,
+	value *tbproto.Summary_Value,
+	logger *observability.CoreLogger,
+) {
+	tensorValue, ok := value.GetValue().(*tbproto.Summary_Value_Tensor)
+	if !ok {
+		logger.CaptureError(
+			fmt.Errorf(
+				"tensorboard: expected pr_curves value to be a Tensor"+
+					" but its type is %T",
+				value.GetValue()))
+		return
 	}
 
-	for _, tagAndJSON := range jsonData {
-		items = append(items, &service.HistoryItem{
-			NestedKey: strings.Split(tagAndJSON.tag, "/"),
-			ValueJson: tagAndJSON.json,
+	tensor, err := tensorFromProto(tensorValue.Tensor)
+	if err != nil {
+		logger.CaptureError(
+			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
+		return
+	}
+
+	precision, err1 := tensor.Row(-2)
+	recall, err2 := tensor.Row(-1)
+	if err1 != nil || err2 != nil {
+		logger.CaptureError(
+			fmt.Errorf(
+				"tensorboard: couldn't read pr_curves row: %v",
+				errors.Join(err1, err2)))
+		return
+	}
+
+	if len(precision) != len(recall) {
+		// Shouldn't happen since it's a 2D array.
+		logger.CaptureError(
+			errors.New("tensorboard: len(precision) != len(recall)"))
+		return
+	}
+
+	table := wbvalue.Table{
+		ColumnLabels: []string{"recall", "precision"},
+	}
+
+	for i := 0; i < len(precision); i++ {
+		table.Rows = append(table.Rows,
+			[]any{recall[i], precision[i]})
+	}
+
+	err = emitter.EmitTable(pathtree.PathOf(tag), table)
+	if err != nil {
+		logger.CaptureError(
+			fmt.Errorf("tensorboard: failed to emit pr_curves table: %v", err))
+	}
+
+	err = emitter.EmitChart(
+		tag,
+		wbvalue.Chart{
+			Title:    fmt.Sprintf("%s Precision v. Recall", tag),
+			X:        "recall",
+			Y:        "precision",
+			TableKey: tag,
 		})
-	}
-
-	return &service.PartialHistoryRequest{
-		Item: items,
-
-		// Setting "Flush" indicates that the event should be uploaded as
-		// its own history row, rather than combined with future events.
-		// Future events may contain new values for the same keys.
-		Action: &service.HistoryAction{Flush: true},
+	if err != nil {
+		logger.CaptureError(
+			fmt.Errorf("tensorboard: failed to emit pr_curves chart: %v", err))
 	}
 }
 
 // withNamespace prefixes the key with the namespace, if there is one.
-func (h *TFEventConverter) withNamespace(key string) string {
+func (h *TFEventConverter) withNamespace(key string) (string, error) {
+	if len(key) == 0 {
+		return "", errors.New("empty key")
+	}
+
 	if h.Namespace == "" {
-		return key
+		return key, nil
 	} else {
-		return fmt.Sprintf("%s/%s", h.Namespace, key)
+		return fmt.Sprintf("%s/%s", h.Namespace, key), nil
 	}
 }
