@@ -1507,6 +1507,7 @@ func (s *Sender) sendRequestCheckVersion(record *service.Record, request *servic
 	switch x := respone.GetServerInfo().GetCliVersionInfo().(type) {
 	case map[string]any:
 		if maxVersion, ok := x["max_cli_version"].(string); ok {
+			currVersion = strings.Replace(currVersion, ".dev", "-dev", 1)
 			if semver.Compare("v"+currVersion, "v"+maxVersion) == -1 {
 				s.respond(record,
 					&service.Response{

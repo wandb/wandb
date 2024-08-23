@@ -374,6 +374,12 @@ func TestSendRequestCheckVersion(t *testing.T) {
 			expectedResponse: &service.Response{},
 		},
 		{
+			name:             "Current version is dev version and is more than max version",
+			currentVersion:   "0.11.0.dev1",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &service.Response{},
+		},
+		{
 			name:             "Current version is greater than max version",
 			currentVersion:   "0.11.0",
 			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
