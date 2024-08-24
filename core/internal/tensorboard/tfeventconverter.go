@@ -6,7 +6,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // TFEventConverter converts TF events into W&B history records.
@@ -42,7 +42,7 @@ type tagAndJSON struct {
 func (h *TFEventConverter) ConvertNext(
 	event *tbproto.TFEvent,
 	logger *observability.CoreLogger,
-) *service.PartialHistoryRequest {
+) *spb.PartialHistoryRequest {
 	// Maps slash-separated tags to JSON values.
 	jsonData := make([]tagAndJSON, 0, len(event.GetSummary().GetValue()))
 
@@ -130,8 +130,8 @@ func (h *TFEventConverter) toHistoryRequest(
 	jsonData []tagAndJSON,
 	step int64,
 	timestamp float64,
-) *service.PartialHistoryRequest {
-	items := []*service.HistoryItem{
+) *spb.PartialHistoryRequest {
+	items := []*spb.HistoryItem{
 		// The "global_step" key is magic that W&B automatically uses
 		// as the X axis in charts.
 		{
@@ -142,19 +142,19 @@ func (h *TFEventConverter) toHistoryRequest(
 	}
 
 	for _, tagAndJSON := range jsonData {
-		items = append(items, &service.HistoryItem{
+		items = append(items, &spb.HistoryItem{
 			NestedKey: strings.Split(tagAndJSON.tag, "/"),
 			ValueJson: tagAndJSON.json,
 		})
 	}
 
-	return &service.PartialHistoryRequest{
+	return &spb.PartialHistoryRequest{
 		Item: items,
 
 		// Setting "Flush" indicates that the event should be uploaded as
 		// its own history row, rather than combined with future events.
 		// Future events may contain new values for the same keys.
-		Action: &service.HistoryAction{Flush: true},
+		Action: &spb.HistoryAction{Flush: true},
 	}
 }
 

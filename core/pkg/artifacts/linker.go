@@ -8,13 +8,13 @@ import (
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type ArtifactLinker struct {
 	Ctx           context.Context
 	Logger        *observability.CoreLogger
-	LinkArtifact  *service.LinkArtifactRequest
+	LinkArtifact  *spb.LinkArtifactRequest
 	GraphqlClient graphql.Client
 }
 

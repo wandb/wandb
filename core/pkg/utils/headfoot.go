@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -28,7 +28,7 @@ func format(str string, color string) string {
 }
 
 // This is used by the go wandb client to print the header and footer of the run
-func PrintHeadFoot(run *service.RunRecord, settings *service.Settings, footer bool) {
+func PrintHeadFoot(run *spb.RunRecord, settings *spb.Settings, footer bool) {
 	if run == nil {
 		return
 	}
@@ -59,7 +59,7 @@ func PrintHeadFoot(run *service.RunRecord, settings *service.Settings, footer bo
 	}
 }
 
-func PrintFooterOnline(run *service.RunRecord, settings *service.Settings) {
+func PrintFooterOnline(run *spb.RunRecord, settings *spb.Settings) {
 	if run == nil {
 		return
 	}
@@ -88,7 +88,7 @@ func PrintFooterOnline(run *service.RunRecord, settings *service.Settings) {
 	)
 }
 
-func PrintFooterOffline(settings *service.Settings) {
+func PrintFooterOffline(settings *spb.Settings) {
 	fmt.Printf("%v:\n", format("wandb", colorBrightBlue))
 	fmt.Printf("%v: You can sync this run to the cloud by running:\n",
 		format("wandb", colorBrightBlue),

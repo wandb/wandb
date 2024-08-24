@@ -5,11 +5,11 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type Responder interface {
-	Respond(response *service.ServerResponse)
+	Respond(response *spb.ServerResponse)
 }
 
 type ResponderEntry struct {
@@ -51,7 +51,7 @@ func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
 }
 
 // handleRespond sends the given result to the appropriate responder.
-func (d *Dispatcher) handleRespond(result *service.Result) {
+func (d *Dispatcher) handleRespond(result *spb.Result) {
 	d.logger.Debug("dispatch: got result", "result", result)
 
 	responderID := result.GetControl().GetConnectionId()
@@ -65,8 +65,8 @@ func (d *Dispatcher) handleRespond(result *service.Result) {
 	d.RUnlock()
 
 	if ok {
-		responder.Respond(&service.ServerResponse{
-			ServerResponseType: &service.ServerResponse_ResultCommunicate{
+		responder.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ResultCommunicate{
 				ResultCommunicate: result,
 			},
 		})

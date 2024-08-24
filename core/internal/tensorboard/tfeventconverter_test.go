@@ -10,7 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -104,16 +104,16 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 3)
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "global_step"},
 			ValueJson: "123",
 		},
 		result.Item[0])
 	assertProtoEqual(t,
-		&service.HistoryItem{Key: "_timestamp", ValueJson: "0.345"},
+		&spb.HistoryItem{Key: "_timestamp", ValueJson: "0.345"},
 		result.Item[1])
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "epoch_loss"},
 			ValueJson: "0.5",
 		},
@@ -131,7 +131,7 @@ func TestConvertScalar(t *testing.T) {
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 3)
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "epoch_loss"},
 			ValueJson: "0.5",
 		},
@@ -158,25 +158,25 @@ func TestConvertTensor(t *testing.T) {
 	require.NotNil(t, result)
 	require.Len(t, result.Item, 5)
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "point-five"},
 			ValueJson: "0.5",
 		},
 		result.Item[2])
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "point-five"},
 			ValueJson: "0.5",
 		},
 		result.Item[2])
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "one-two"},
 			ValueJson: "[1,2]",
 		},
 		result.Item[3])
 	assertProtoEqual(t,
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			NestedKey: []string{"train", "three-four"},
 			ValueJson: "[3,4]",
 		},

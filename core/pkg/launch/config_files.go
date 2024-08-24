@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 
 	"github.com/wandb/wandb/core/internal/data_types"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const LAUNCH_MANAGED_CONFIGS_DIR = "_wandb_configs"
@@ -23,9 +23,9 @@ type configFileParameter struct {
 
 // Converts proto messages representing a file input to a configFileParameter.
 func newFileInputFromProto(
-	file *service.JobInputSource_File,
-	includePathMsgs []*service.JobInputPath,
-	excludePathMsgs []*service.JobInputPath,
+	file *spb.JobInputSource_File,
+	includePathMsgs []*spb.JobInputPath,
+	excludePathMsgs []*spb.JobInputPath,
 	inputSchema *string,
 ) (*configFileParameter, error) {
 

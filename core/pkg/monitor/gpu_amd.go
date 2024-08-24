@@ -11,7 +11,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // TODO: this is a port of the python code
@@ -122,7 +122,7 @@ func (g *GPUAMD) getCards() map[int]Stats {
 }
 
 //gocyclo:ignore
-func (g *GPUAMD) Probe() *service.MetadataRequest {
+func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
@@ -152,8 +152,8 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 		}
 	}
 
-	info := service.MetadataRequest{
-		GpuAmd: []*service.GpuAmdInfo{},
+	info := spb.MetadataRequest{
+		GpuAmd: []*spb.GpuAmdInfo{},
 	}
 
 	info.GpuCount = uint32(len(cards))
@@ -175,7 +175,7 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 	}
 
 	for _, stats := range cards {
-		gpuInfo := service.GpuAmdInfo{}
+		gpuInfo := spb.GpuAmdInfo{}
 		for key, statKey := range keyMapping {
 			if value, ok := queryMapString(stats, statKey); ok {
 				switch key {
