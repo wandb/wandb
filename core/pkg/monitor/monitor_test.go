@@ -7,11 +7,11 @@ import (
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func newTestSystemMonitor() *monitor.SystemMonitor {
-	settings := &service.Settings{}
+	settings := &spb.Settings{}
 	return monitor.New(
 		observability.NewNoOpLogger(),
 		settings,

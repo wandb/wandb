@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func getExecPath() (string, error) {
@@ -177,7 +177,7 @@ func (g *GPUApple) IsAvailable() bool {
 	return g.isAvailable
 }
 
-func (g *GPUApple) Probe() *service.MetadataRequest {
+func (g *GPUApple) Probe() *spb.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
@@ -186,8 +186,8 @@ func (g *GPUApple) Probe() *service.MetadataRequest {
 		return nil
 	}
 
-	info := service.MetadataRequest{
-		GpuApple: &service.GpuAppleInfo{},
+	info := spb.MetadataRequest{
+		GpuApple: &spb.GpuAppleInfo{},
 	}
 
 	if gpuType, ok := queryMapString(stats, "name"); ok {

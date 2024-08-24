@@ -131,7 +131,7 @@ norecursedirs = [
 ]
 
 [tool.coverage.paths]
-source = ["wandb", ".tox/*/lib/python*/site-packages/wandb"]
+source = ["wandb"]
 
 [tool.coverage.run]
 # branch = true

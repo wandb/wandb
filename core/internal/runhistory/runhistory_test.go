@@ -10,13 +10,13 @@ import (
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestSetFromRecord_NestedKey(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(&service.HistoryItem{
+	err := rh.SetFromRecord(&spb.HistoryItem{
 		NestedKey: []string{"a", "b"},
 		ValueJson: "1",
 	})
@@ -30,7 +30,7 @@ func TestSetFromRecord_NestedKey(t *testing.T) {
 func TestSetRecord_NestedValue(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(&service.HistoryItem{
+	err := rh.SetFromRecord(&spb.HistoryItem{
 		Key:       "a",
 		ValueJson: `{"b": 1, "c": {"d": 2.5, "e": "e", "f": false}}`,
 	})
@@ -46,7 +46,7 @@ func TestSetRecord_NestedValue(t *testing.T) {
 func TestSetRecord_UnmarshalError(t *testing.T) {
 	rh := runhistory.New()
 
-	err := rh.SetFromRecord(&service.HistoryItem{
+	err := rh.SetFromRecord(&spb.HistoryItem{
 		Key:       "a",
 		ValueJson: "invalid",
 	})
@@ -57,9 +57,9 @@ func TestSetRecord_UnmarshalError(t *testing.T) {
 func TestNaN(t *testing.T) {
 	rh := runhistory.New()
 
-	_ = rh.SetFromRecord(&service.HistoryItem{Key: "+inf", ValueJson: "Infinity"})
-	_ = rh.SetFromRecord(&service.HistoryItem{Key: "-inf", ValueJson: "-Infinity"})
-	_ = rh.SetFromRecord(&service.HistoryItem{Key: "nan", ValueJson: "NaN"})
+	_ = rh.SetFromRecord(&spb.HistoryItem{Key: "+inf", ValueJson: "Infinity"})
+	_ = rh.SetFromRecord(&spb.HistoryItem{Key: "-inf", ValueJson: "-Infinity"})
+	_ = rh.SetFromRecord(&spb.HistoryItem{Key: "nan", ValueJson: "NaN"})
 
 	encoded, err := rh.ToExtendedJSON()
 	require.NoError(t, err)
@@ -74,7 +74,7 @@ func TestForEachNumber(t *testing.T) {
 	rh := runhistory.New()
 	rh.SetInt(pathtree.PathOf("the", "number", "five"), 5)
 	_ = rh.SetFromRecord(
-		&service.HistoryItem{
+		&spb.HistoryItem{
 			Key: "x",
 			ValueJson: `{
 				"a": 1,

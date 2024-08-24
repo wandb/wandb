@@ -6,13 +6,13 @@ import (
 	"unsafe"
 
 	"github.com/wandb/simplejsonext"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // StatsUpdate contains system metrics during the run, e.g. memory usage.
 type StatsUpdate struct {
 	StartTime time.Time
-	Record    *service.StatsRecord
+	Record    *spb.StatsRecord
 }
 
 func (u *StatsUpdate) Apply(ctx UpdateContext) error {

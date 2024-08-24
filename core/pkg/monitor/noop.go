@@ -4,7 +4,7 @@ package monitor
 
 import (
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type GPUNvidia struct {
@@ -37,7 +37,7 @@ func (g *GPUNvidia) ClearMetrics() {}
 
 func (g *GPUNvidia) IsAvailable() bool { return false }
 
-func (g *GPUNvidia) Probe() *service.MetadataRequest {
+func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	return nil
 }
 
@@ -65,6 +65,6 @@ func (g *GPUAMD) ClearMetrics() {}
 
 func (g *GPUAMD) IsAvailable() bool { return false }
 
-func (g *GPUAMD) Probe() *service.MetadataRequest {
+func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	return nil
 }

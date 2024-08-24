@@ -21,8 +21,9 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
-	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func stubCreateRunFilesOneFile(
@@ -115,9 +116,9 @@ func TestUploader(t *testing.T) {
 			FileTransfer: fakeFileTransfer,
 			FileWatcher:  fakeFileWatcher,
 			BatchDelay:   batchDelay,
-			Settings: settings.From(&service.Settings{
+			Settings: settings.From(&spb.Settings{
 				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
-				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
+				IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
 				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
 				XSync:       &wrapperspb.BoolValue{Value: isSync},
 			}),
@@ -126,9 +127,9 @@ func TestUploader(t *testing.T) {
 		t.Run(name, test)
 	}
 
-	policiesUploadImmediately := []service.FilesItem_PolicyType{
-		service.FilesItem_NOW,
-		service.FilesItem_LIVE,
+	policiesUploadImmediately := []spb.FilesItem_PolicyType{
+		spb.FilesItem_NOW,
+		spb.FilesItem_LIVE,
 	}
 	for _, policy := range policiesUploadImmediately {
 		runTest(fmt.Sprintf("Process with '%v' policy uploads immediately", policy),
@@ -137,8 +138,8 @@ func TestUploader(t *testing.T) {
 				stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 				writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-				uploader.Process(&service.FilesRecord{
-					Files: []*service.FilesItem{
+				uploader.Process(&spb.FilesRecord{
+					Files: []*spb.FilesItem{
 						{Path: "test.txt", Policy: policy},
 					},
 				})
@@ -153,9 +154,9 @@ func TestUploader(t *testing.T) {
 		func(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "test.txt", Policy: service.FilesItem_LIVE},
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: "test.txt", Policy: spb.FilesItem_LIVE},
 				},
 			})
 			uploader.Finish()
@@ -170,9 +171,9 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "test.txt", Policy: service.FilesItem_NOW},
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: "test.txt", Policy: spb.FilesItem_NOW},
 				},
 			})
 			uploader.Finish()
@@ -186,21 +187,23 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
 					{
 						Path:   "test.txt",
-						Policy: service.FilesItem_NOW,
-						Type:   service.FilesItem_ARTIFACT,
+						Policy: spb.FilesItem_NOW,
+						Type:   spb.FilesItem_ARTIFACT,
 					},
 				},
 			})
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
+			task, ok := fakeFileTransfer.Tasks()[0].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filetransfer.RunFileKindArtifact,
-				fakeFileTransfer.Tasks()[0].FileKind,
+				task.FileKind,
 			)
 		})
 
@@ -287,7 +290,7 @@ func TestUploader(t *testing.T) {
 
 			// Act 2: complete the first upload task.
 			firstUpload := fakeFileTransfer.Tasks()[0]
-			firstUpload.CompletionCallback(firstUpload)
+			firstUpload.Complete(nil)
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Assert 2: the second upload task should get scheduled.
@@ -382,22 +385,26 @@ func TestUploader(t *testing.T) {
 			uploadTasks := fakeFileTransfer.Tasks()
 			require.Len(t, uploadTasks, 2)
 
+			task, ok := uploadTasks[0].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filepath.Join(filesDir, "test-file1"),
-				uploadTasks[0].Path)
-			assert.Equal(t, "test-file1", uploadTasks[0].Name)
-			assert.Equal(t, "URL1", uploadTasks[0].Url)
+				task.Path)
+			assert.Equal(t, "test-file1", task.Name)
+			assert.Equal(t, "URL1", task.Url)
 			assert.Equal(t,
 				[]string{"Header1:Value1", "Header2:Value2"},
-				uploadTasks[0].Headers)
+				task.Headers)
 
+			task, ok = uploadTasks[1].(*filetransfer.DefaultUploadTask)
+			assert.Equal(t, ok, true)
 			assert.Equal(t,
 				filepath.Join(filesDir, "subdir", "test-file2"),
-				uploadTasks[1].Path)
-			assert.Equal(t, "subdir/test-file2", uploadTasks[1].Name)
-			assert.Equal(t, "URL2", uploadTasks[1].Url)
+				task.Path)
+			assert.Equal(t, "subdir/test-file2", task.Name)
+			assert.Equal(t, "URL2", task.Url)
 			assert.Equal(t,
 				[]string{"Header1:Value1", "Header2:Value2"},
-				uploadTasks[1].Headers)
+				task.Headers)
 		})
 }
