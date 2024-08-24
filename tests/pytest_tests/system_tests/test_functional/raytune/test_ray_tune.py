@@ -6,20 +6,18 @@ Based on:
 """
 
 import pathlib
-import runpy
-from unittest import mock
 
 import pytest
 
 
 @pytest.mark.wandb_core_only
-def test_tune_with_callback(user, relay_server):
+def test_tune_with_callback(user, relay_server, execute_script):
     """Example for using a WandbLoggerCallback with the function API."""
 
-    train_script_path = str(pathlib.Path(__file__).parent / "tune_with_callback.py")
+    train_script_path = pathlib.Path(__file__).parent / "tune_with_callback.py"
 
-    with mock.patch("sys.argv", [""]), relay_server() as relay:
-        runpy.run_path(train_script_path, run_name="__main__")
+    with relay_server() as relay:
+        execute_script(train_script_path)
 
     run_ids = relay.context.get_run_ids()
     # we are doing a grid search over 3 values of alpha
