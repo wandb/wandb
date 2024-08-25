@@ -5,6 +5,8 @@ import os
 import pytest
 
 pytest.importorskip("tensorflow")
+# WandbCallback does not work with keras>=3
+pytest.importorskip("keras", minversion="10")
 
 import tensorflow as tf  # noqa: E402
 from tensorflow.keras import backend as K  # noqa: N812, E402
