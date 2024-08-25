@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 import wandb
 
@@ -8,6 +6,10 @@ try:
 except ImportError:
     pytest.skip("skipping while tf is unavailable", allow_module_level=True)
 keras = tensorflow.keras
+
+if int(keras.__version__[0]) > 2:
+    pytest.skip("WandbCallback is not supported for keras>2", allow_module_level=True)
+
 from keras import backend as K  # noqa: N812, E402
 from keras.layers import (  # noqa: E402
     LSTM,
@@ -103,7 +105,6 @@ def test_keras_convert_sequential():
     }
 
 
-@pytest.mark.skip(reason="TODO: Does not work with keras>=3")
 def test_keras_convert_model_non_sequential():
     # necessary to keep the names of the layers consistent
     K.clear_session()
