@@ -15,6 +15,7 @@ from typing_extensions import override
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
+from nvidia_gpu_stats import hatch as hatch_nvidia_gpu_stats  # noqa: I001 E402
 
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
@@ -26,6 +27,7 @@ _WANDB_BUILD_GORACEDETECT = "WANDB_BUILD_GORACEDETECT"
 # Other build options.
 _WANDB_BUILD_UNIVERSAL = "WANDB_BUILD_UNIVERSAL"
 _WANDB_BUILD_SKIP_APPLE = "WANDB_BUILD_SKIP_APPLE"
+_WANDB_BUILD_SKIP_NVIDIA = "WANDB_BUILD_SKIP_NVIDIA"
 
 
 class CustomBuildHook(BuildHookInterface):
@@ -42,6 +44,9 @@ class CustomBuildHook(BuildHookInterface):
 
         if self._include_apple_stats():
             artifacts.extend(self._build_apple_stats())
+
+        if self._include_nvidia_gpu_stats():
+            artifacts.extend(self._build_nvidia_gpu_stats())
 
         if self._is_platform_wheel():
             build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
@@ -90,6 +95,14 @@ class CustomBuildHook(BuildHookInterface):
             and self._target_platform().goos == "darwin"
         )
 
+    def _include_nvidia_gpu_stats(self) -> bool:
+        """Returns whether we should produce a wheel with nvidia_gpu_stats."""
+        return (
+            not _get_env_bool(_WANDB_BUILD_SKIP_NVIDIA, default=False)
+            # TODO: Add support for Windows.
+            and self._target_platform().goos == "linux"
+        )
+
     def _is_platform_wheel(self) -> bool:
         """Returns whether we're producing a platform-specific wheel."""
         return self._include_wandb_core() or self._include_apple_stats()
@@ -99,6 +112,28 @@ class CustomBuildHook(BuildHookInterface):
 
         self.app.display_waiting("Building apple_gpu_stats...")
         hatch_apple_stats.build_applestats(output_path=output)
+
+        return [output.as_posix()]
+
+    def _get_and_require_cargo_binary(self) -> pathlib.Path:
+        cargo = shutil.which("cargo")
+
+        if not cargo:
+            self.app.abort(
+                "Did not find the 'cargo' binary. You need Rust to build wandb"
+                " from source. See https://www.rust-lang.org/tools/install.",
+            )
+
+        return pathlib.Path(cargo)
+
+    def _build_nvidia_gpu_stats(self) -> List[str]:
+        output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
+
+        self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
+        hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
+            cargo_binary=self._get_and_require_cargo_binary(),
+            output_path=output,
+        )
 
         return [output.as_posix()]
 

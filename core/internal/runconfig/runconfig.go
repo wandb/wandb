@@ -6,7 +6,7 @@ import (
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/corelib"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"gopkg.in/yaml.v3"
 )
 
@@ -26,12 +26,12 @@ const (
 //
 // The server process builds this up incrementally throughout a run's lifetime.
 type RunConfig struct {
-	pathTree *pathtree.PathTree
+	pathTree *pathtree.PathTree[any]
 }
 
 func New() *RunConfig {
 	return &RunConfig{
-		pathTree: pathtree.New(),
+		pathTree: pathtree.New[any](),
 	}
 }
 
@@ -41,7 +41,7 @@ func NewFrom(tree map[string]any) *RunConfig {
 	for key, value := range tree {
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(pathtree.PathOf(key), x)
+			pathtree.SetSubtree(rc.pathTree, pathtree.PathOf(key), x)
 		default:
 			rc.pathTree.Set(pathtree.PathOf(key), x)
 		}
@@ -73,7 +73,7 @@ func (rc *RunConfig) Serialize(format Format) ([]byte, error) {
 // Does a best-effort job to apply all changes. Errors are passed to `onError`
 // and skipped.
 func (rc *RunConfig) ApplyChangeRecord(
-	configRecord *service.ConfigRecord,
+	configRecord *spb.ConfigRecord,
 	onError func(error),
 ) {
 	for _, item := range configRecord.GetUpdate() {
@@ -85,7 +85,7 @@ func (rc *RunConfig) ApplyChangeRecord(
 
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(keyPath(item), x)
+			pathtree.SetSubtree(rc.pathTree, keyPath(item), x)
 		default:
 			rc.pathTree.Set(keyPath(item), x)
 		}
@@ -98,7 +98,7 @@ func (rc *RunConfig) ApplyChangeRecord(
 
 // Inserts W&B-internal values into the run's configuration.
 func (rc *RunConfig) AddTelemetryAndMetrics(
-	telemetry *service.TelemetryRecord,
+	telemetry *spb.TelemetryRecord,
 	metrics []map[string]interface{},
 ) {
 	if telemetry.GetCliVersion() != "" {
@@ -171,7 +171,7 @@ func (rc *RunConfig) addUnsetKeysFromSubtree(
 		path := pathtree.PathWithPrefix(prefix, key)
 		switch x := value.(type) {
 		case map[string]any:
-			rc.pathTree.SetSubtree(path, x)
+			pathtree.SetSubtree(rc.pathTree, path, x)
 		default:
 			rc.pathTree.Set(path, x)
 		}
@@ -185,7 +185,7 @@ func (rc *RunConfig) CloneTree() map[string]any {
 // keyPath returns the key path for the given config item.
 // If the item has a nested key, it returns the nested key.
 // Otherwise, it returns a slice with the key.
-func keyPath(item *service.ConfigItem) pathtree.TreePath {
+func keyPath(item *spb.ConfigItem) pathtree.TreePath {
 	if len(item.GetNestedKey()) > 0 {
 		key := item.GetNestedKey()
 		return pathtree.PathOf(key[0], key[1:]...)

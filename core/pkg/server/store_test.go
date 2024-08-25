@@ -1,14 +1,14 @@
 package server_test
 
 import (
-	"context"
+	"fmt"
 	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestValidHeader(t *testing.T) {
@@ -56,7 +56,7 @@ func TestOpenCreateStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
@@ -70,14 +70,14 @@ func TestOpenReadStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name())
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 
@@ -91,13 +91,13 @@ func TestReadWriteRecord(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 
 	err = store.Write(record)
 	assert.NoError(t, err)
@@ -105,7 +105,7 @@ func TestReadWriteRecord(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name())
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
@@ -120,33 +120,55 @@ func TestReadWriteRecord(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// AppendToFile appends the given data to the file specified by filename.
+func AppendToFile(filename string, data []byte) error {
+	// Open the file in append mode, create it if it doesn't exist
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Write the data to the file
+	_, err = file.Write(data)
+	if err != nil {
+		return fmt.Errorf("failed to write data to file: %w", err)
+	}
+
+	return nil
+}
+
 func TestCorruptFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
-
-	_, err = store.WriteDirectlyToDB([]byte("bad record"))
-	assert.NoError(t, err)
-
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name())
+	err = AppendToFile(tmpFile.Name(), []byte("bad record"))
+	assert.NoError(t, err)
+
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
 
+	// this record was fine (record num:1)
+	_, err = store2.Read()
+	assert.NoError(t, err)
+
+	// this record is bad.. we appended a string to the file "bad record"
 	_, err = store2.Read()
 	assert.Error(t, err)
 
@@ -161,7 +183,7 @@ func TestStoreInvalidHeader(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 
 	// Intentionally writing bad header data
 	err = os.WriteFile(tmpFile.Name(), []byte("Invalid"), 0644)
@@ -173,7 +195,7 @@ func TestStoreInvalidHeader(t *testing.T) {
 
 // TestStoreHeader_Write_Error is intended to test the error scenario when writing the header
 func TestStoreHeader_Write_Error(t *testing.T) {
-	store := server.NewStore(context.Background(), "non_existent_dir/file")
+	store := server.NewStore("non_existent_dir/file")
 	err := store.Open(os.O_WRONLY)
 	assert.Error(t, err)
 }
@@ -185,7 +207,7 @@ func TestInvalidFlag(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(9999) // 9999 is an invalid flag
 	assert.Errorf(t, err, "invalid flag %d", 9999)
 }
@@ -197,14 +219,14 @@ func TestWriteToClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
 	err = store.Close()
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.Error(t, err, "can't write header")
 }
@@ -216,11 +238,11 @@ func TestReadFromClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	store := server.NewStore(context.Background(), tmpFile.Name())
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
 

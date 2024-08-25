@@ -44,7 +44,7 @@ from .sdk.data_types.histogram import Histogram
 from .sdk.data_types.html import Html
 from .sdk.data_types.image import Image
 from .sdk.data_types.molecule import Molecule
-from .sdk.data_types.object_3d import Object3D
+from .sdk.data_types.object_3d import Object3D, box3d
 from .sdk.data_types.plotly import Plotly
 from .sdk.data_types.saved_model import _SavedModel
 from .sdk.data_types.trace_tree import WBTraceTree
@@ -65,6 +65,7 @@ __all__ = [
     "Html",
     "Image",
     "Molecule",
+    "box3d",
     "Object3D",
     "Plotly",
     "Video",
@@ -103,7 +104,7 @@ class _TableIndex(int, _TableLinkMixin):
 def _json_helper(val, artifact):
     if isinstance(val, WBValue):
         return val.to_json(artifact)
-    elif val.__class__ == dict:
+    elif val.__class__ is dict:
         res = {}
         for key in val:
             res[key] = _json_helper(val[key], artifact)
@@ -269,10 +270,10 @@ class Table(Media):
         if dtype is None:
             dtype = _dtypes.UnknownType()
 
-        if optional.__class__ != list:
+        if optional.__class__ is not list:
             optional = [optional for _ in range(len(self.columns))]
 
-        if dtype.__class__ != list:
+        if dtype.__class__ is not list:
             dtype = [dtype for _ in range(len(self.columns))]
 
         self._column_types = _dtypes.TypedDictType({})

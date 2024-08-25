@@ -148,7 +148,9 @@ class _SavedModel(WBValue, Generic[SavedModelObjType]):
         # bit of tech debt in the other data types which requires the input to `to_json`
         # to accept a Run or Artifact. However, Run additions should be deprecated in the future.
         # This check helps ensure we do not add to the debt.
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        from wandb.sdk.wandb_run import Run
+
+        if isinstance(run_or_artifact, Run):
             raise ValueError("SavedModel cannot be added to run - must use artifact")
         artifact = run_or_artifact
         json_obj = {

@@ -2,7 +2,6 @@
 package runconsolelogs
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"path/filepath"
@@ -10,11 +9,12 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/time/rate"
 )
 
@@ -37,8 +37,8 @@ type Sender struct {
 
 	writer *debouncedWriter
 
-	logger       *observability.CoreLogger
-	loopbackChan chan<- *service.Record
+	logger    *observability.CoreLogger
+	extraWork runwork.ExtraWork
 }
 
 type Params struct {
@@ -47,16 +47,7 @@ type Params struct {
 	Settings *settings.Settings
 	Logger   *observability.CoreLogger
 
-	// Ctx is a cancellation context that can be used to abruptly stop
-	// processing terminal output.
-	//
-	// `Finish` should still be invoked after cancellation to wait for
-	// all goroutines to complete. A file upload record for the logs
-	// file is emitted regardless of cancellation.
-	Ctx context.Context
-
-	// LoopbackChan is for emitting new records.
-	LoopbackChan chan<- *service.Record
+	ExtraWork runwork.ExtraWork
 
 	// FileStreamOrNil is the filestream API.
 	FileStreamOrNil filestream.FileStream
@@ -73,10 +64,8 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: Settings is nil")
 	case params.Logger == nil:
 		panic("runconsolelogs: Logger is nil")
-	case params.Ctx == nil:
-		panic("runconsolelogs: Ctx is nil")
-	case params.LoopbackChan == nil:
-		panic("runconsolelogs: LoopbackChan is nil")
+	case params.ExtraWork == nil:
+		panic("runconsolelogs: ExtraWork is nil")
 	}
 
 	if params.GetNow == nil {
@@ -106,7 +95,7 @@ func New(params Params) *Sender {
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		params.Ctx,
+		params.ExtraWork.BeforeEndCtx(),
 		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				fileWriter.WriteToFile(lines)
@@ -136,9 +125,9 @@ func New(params Params) *Sender {
 
 		consoleOutputFile: params.ConsoleOutputFile,
 
-		writer:       writer,
-		logger:       params.Logger,
-		loopbackChan: params.LoopbackChan,
+		writer:    writer,
+		logger:    params.Logger,
+		extraWork: params.ExtraWork,
 	}
 }
 
@@ -151,12 +140,12 @@ func (s *Sender) Finish() {
 }
 
 // StreamLogs saves captured console logs with the run.
-func (s *Sender) StreamLogs(record *service.OutputRawRecord) {
+func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 	switch record.OutputType {
-	case service.OutputRawRecord_STDOUT:
+	case spb.OutputRawRecord_STDOUT:
 		s.stdoutTerm.Write(record.Line)
 
-	case service.OutputRawRecord_STDERR:
+	case spb.OutputRawRecord_STDERR:
 		s.stderrTerm.Write(record.Line)
 
 	default:
@@ -169,18 +158,17 @@ func (s *Sender) StreamLogs(record *service.OutputRawRecord) {
 
 // uploadOutputFile uploads the console output file that we created.
 func (s *Sender) uploadOutputFile() {
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: string(s.consoleOutputFile),
-						Type: service.FilesItem_WANDB,
+	s.extraWork.AddRecord(
+		&spb.Record{
+			RecordType: &spb.Record_Files{
+				Files: &spb.FilesRecord{
+					Files: []*spb.FilesItem{
+						{
+							Path: string(s.consoleOutputFile),
+							Type: spb.FilesItem_WANDB,
+						},
 					},
 				},
 			},
-		},
-	}
-
-	s.loopbackChan <- record
+		})
 }

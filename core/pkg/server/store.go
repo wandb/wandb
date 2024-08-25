@@ -1,7 +1,7 @@
 package server
 
 import (
-	"context"
+	"bytes"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/wandb/wandb/core/pkg/leveldb"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -24,6 +24,8 @@ const (
 	headerMagic = 0xBEE1
 	// headerVersion is the version of the header.
 	headerVersion = 0
+	// headerLength is fixed to IDENT(4) + Magic(2) + Version(1) = 7
+	headerLength = 7
 )
 
 // headerIdent returns the header identifier.
@@ -64,9 +66,6 @@ func (o *HeaderOptions) Valid() bool {
 
 // Store is the persistent store for a stream
 type Store struct {
-	// ctx is the context for the store
-	ctx context.Context
-
 	// name is the name of the underlying file
 	name string
 
@@ -81,8 +80,8 @@ type Store struct {
 }
 
 // NewStore creates a new store
-func NewStore(ctx context.Context, fileName string) *Store {
-	return &Store{ctx: ctx, name: fileName}
+func NewStore(fileName string) *Store {
+	return &Store{name: fileName}
 }
 
 // Open opens the store
@@ -94,10 +93,16 @@ func (sr *Store) Open(flag int) error {
 			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
+		headerBuffer := make([]byte, headerLength)
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
-		header := NewHeader()
-		if err := header.UnmarshalBinary(sr.db); err != nil {
+		err = sr.reader.ReadHeader(headerBuffer)
+		if err != nil {
 			return fmt.Errorf("store: failed to read header: %v", err)
+		}
+		headerReader := bytes.NewReader(headerBuffer)
+		header := NewHeader()
+		if err = header.UnmarshalBinary(headerReader); err != nil {
+			return fmt.Errorf("store: failed to unmarshal header: %v", err)
 		}
 		if !header.Valid() {
 			return errors.New("store: invalid header")
@@ -109,11 +114,12 @@ func (sr *Store) Open(flag int) error {
 			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
-		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
+		var headerBuffer bytes.Buffer
 		header := NewHeader()
-		if err := header.MarshalBinary(sr.db); err != nil {
+		if err := header.MarshalBinary(&headerBuffer); err != nil {
 			return fmt.Errorf("store: failed to write header: %v", err)
 		}
+		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, headerBuffer.Bytes())
 		return nil
 	default:
 		// TODO: generalize this?
@@ -143,7 +149,7 @@ func (sr *Store) Close() error {
 	return errors.Join(errs...)
 }
 
-func (sr *Store) Write(msg *service.Record) error {
+func (sr *Store) Write(msg *spb.Record) error {
 	writer, err := sr.writer.Next()
 	if err != nil {
 		return fmt.Errorf("store: can't get next record: %v", err)
@@ -159,15 +165,10 @@ func (sr *Store) Write(msg *service.Record) error {
 	return nil
 }
 
-func (sr *Store) WriteDirectlyToDB(data []byte) (int, error) {
-	// this is for testing purposes only
-	return sr.db.Write(data)
-}
-
 // Reads the next record from the database.
 //
 // Returns nil and an error on failure. On EOF, error is [io.EOF].
-func (sr *Store) Read() (*service.Record, error) {
+func (sr *Store) Read() (*spb.Record, error) {
 	// check if db is closed
 	if sr.db == nil {
 		return nil, fmt.Errorf("store: db is closed")
@@ -187,7 +188,7 @@ func (sr *Store) Read() (*service.Record, error) {
 		sr.reader.Recover()
 		return nil, fmt.Errorf("store: error reading: %v", err)
 	}
-	msg := &service.Record{}
+	msg := &spb.Record{}
 	if err = proto.Unmarshal(buf, msg); err != nil {
 		return nil, fmt.Errorf("store: failed to unmarshal: %v", err)
 	}

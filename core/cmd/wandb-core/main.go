@@ -110,6 +110,7 @@ func main() {
 			PortFilename:    *portFilename,
 			ParentPid:       *pid,
 			SentryClient:    sentryClient,
+			Commit:          commit,
 		},
 	)
 	if err != nil {
@@ -117,7 +118,5 @@ func main() {
 		return
 	}
 	srv.SetDefaultLoggerPath(loggerPath)
-	srv.Start()
-	srv.Wait()
-	srv.Close()
+	srv.Serve()
 }

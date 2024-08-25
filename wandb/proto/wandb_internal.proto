@@ -1162,6 +1162,8 @@ message GpuAppleInfo {
 message GpuNvidiaInfo {
   string name = 1;
   uint64 memory_total = 2;
+  uint32 cuda_cores = 3;
+  string architecture = 4;
 }
 
 message GpuAmdInfo {
@@ -1210,6 +1212,7 @@ message MetadataRequest {
   repeated GpuNvidiaInfo gpu_nvidia = 27 [json_name = "gpu_nvidia"];
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
+  string cuda_version = 30;
 }
 
 message PythonPackagesRequest {

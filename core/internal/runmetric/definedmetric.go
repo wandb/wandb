@@ -2,7 +2,7 @@ package runmetric
 
 import (
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type metricGoal uint64
@@ -41,7 +41,7 @@ type definedMetric struct {
 // With returns this metric definition updated with the information
 // in the proto.
 func (m definedMetric) With(
-	record *service.MetricRecord,
+	record *spb.MetricRecord,
 ) definedMetric {
 	// record.Options is currently always non-nil because of the "defined"
 	// field, so we do not have a mechanism of updating SyncStep or
@@ -74,9 +74,9 @@ func (m definedMetric) With(
 	}
 
 	switch record.Goal {
-	case service.MetricRecord_GOAL_MAXIMIZE:
+	case spb.MetricRecord_GOAL_MAXIMIZE:
 		m.MetricGoal = metricGoalMaximize
-	case service.MetricRecord_GOAL_MINIMIZE:
+	case spb.MetricRecord_GOAL_MINIMIZE:
 		m.MetricGoal = metricGoalMinimize
 	}
 
@@ -88,11 +88,11 @@ func (m definedMetric) With(
 }
 
 // ToRecord returns a MetricRecord representing this metric.
-func (m definedMetric) ToRecord(name string) *service.MetricRecord {
-	rec := &service.MetricRecord{
+func (m definedMetric) ToRecord(name string) *spb.MetricRecord {
+	rec := &spb.MetricRecord{
 		Name:       name,
 		StepMetric: m.Step,
-		Options: &service.MetricOptions{
+		Options: &spb.MetricOptions{
 			StepSync: m.SyncStep,
 			Hidden:   m.IsHidden,
 			Defined:  m.IsExplicit,
@@ -100,10 +100,10 @@ func (m definedMetric) ToRecord(name string) *service.MetricRecord {
 
 		// definedMetric is always a complete definition rather than
 		// a partial update.
-		XControl: &service.MetricControl{Overwrite: true},
+		XControl: &spb.MetricControl{Overwrite: true},
 	}
 
-	rec.Summary = &service.MetricSummary{
+	rec.Summary = &spb.MetricSummary{
 		None: m.NoSummary,
 	}
 	if m.SummaryTypes.HasAny(runsummary.Min) {
@@ -121,9 +121,9 @@ func (m definedMetric) ToRecord(name string) *service.MetricRecord {
 
 	switch m.MetricGoal {
 	case metricGoalMaximize:
-		rec.Goal = service.MetricRecord_GOAL_MAXIMIZE
+		rec.Goal = spb.MetricRecord_GOAL_MAXIMIZE
 	case metricGoalMinimize:
-		rec.Goal = service.MetricRecord_GOAL_MINIMIZE
+		rec.Goal = spb.MetricRecord_GOAL_MINIMIZE
 	}
 
 	return rec

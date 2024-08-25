@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func getExecPath() (string, error) {
@@ -29,16 +29,14 @@ type GPUApple struct {
 	name        string
 	metrics     map[string][]float64
 	mutex       sync.RWMutex
-	settings    *service.Settings
 	isAvailable bool
 	exPath      string
 }
 
-func NewGPUApple(settings *service.Settings) *GPUApple {
+func NewGPUApple() *GPUApple {
 	gpu := &GPUApple{
-		name:     "gpu",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "gpu",
+		metrics: map[string][]float64{},
 	}
 
 	if exPath, err := getExecPath(); err == nil {
@@ -67,13 +65,13 @@ func (g *GPUApple) parseStats() (map[string]any, error) {
 func (g *GPUApple) Name() string { return g.name }
 
 //gocyclo:ignore
-func (g *GPUApple) SampleMetrics() {
+func (g *GPUApple) SampleMetrics() error {
 	g.mutex.Lock()
 	defer g.mutex.Unlock()
 
 	stats, err := g.parseStats()
 	if err != nil {
-		return
+		return err
 	}
 	// TODO: add more metrics to g.metrics,
 	//  such as render or tiler utilization
@@ -151,6 +149,8 @@ func (g *GPUApple) SampleMetrics() {
 			temperature/float64(nMeasurements),
 		)
 	}
+
+	return nil
 }
 
 func (g *GPUApple) AggregateMetrics() map[string]float64 {
@@ -177,7 +177,7 @@ func (g *GPUApple) IsAvailable() bool {
 	return g.isAvailable
 }
 
-func (g *GPUApple) Probe() *service.MetadataRequest {
+func (g *GPUApple) Probe() *spb.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
@@ -186,8 +186,8 @@ func (g *GPUApple) Probe() *service.MetadataRequest {
 		return nil
 	}
 
-	info := service.MetadataRequest{
-		GpuApple: &service.GpuAppleInfo{},
+	info := spb.MetadataRequest{
+		GpuApple: &spb.GpuAppleInfo{},
 	}
 
 	if gpuType, ok := queryMapString(stats, "name"); ok {

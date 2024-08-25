@@ -751,7 +751,7 @@ class Artifact:
     def save(
         self,
         project: Optional[str] = None,
-        settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
+        settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
     ) -> None:
         """Persist any changes made to the artifact.
 
@@ -1647,11 +1647,16 @@ class Artifact:
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+            RuntimeError: If the artifact is attempted to be downloaded in offline mode.
         """
         self._ensure_logged("download")
 
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
+
+        # TODO: we need a better way to check for offline mode across the app, as this is an anti-pattern
+        if env.is_offline() or util._is_offline():
+            raise RuntimeError("Cannot download artifacts in offline mode.")
 
         if is_require_core():
             return self._download_using_core(

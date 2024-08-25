@@ -17,7 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -29,7 +29,7 @@ type ArtifactSaver struct {
 	FileTransferManager filetransfer.FileTransferManager
 	FileCache           Cache
 	// Input.
-	Artifact         *service.ArtifactRecord
+	Artifact         *spb.ArtifactRecord
 	HistoryStep      int64
 	StagingDir       string
 	maxActiveBatches int
@@ -63,7 +63,7 @@ func NewArtifactSaver(
 	logger *observability.CoreLogger,
 	graphQLClient graphql.Client,
 	uploadManager filetransfer.FileTransferManager,
-	artifact *service.ArtifactRecord,
+	artifact *spb.ArtifactRecord,
 	historyStep int64,
 	stagingDir string,
 ) ArtifactSaver {
@@ -194,7 +194,9 @@ func (as *ArtifactSaver) upsertManifest(
 }
 
 func (as *ArtifactSaver) uploadFiles(
-	artifactID string, manifest *Manifest, manifestID string, _ chan<- *service.Record,
+	artifactID string,
+	manifest *Manifest,
+	manifestID string,
 ) error {
 	// Prepare GQL input for files that (might) need to be uploaded.
 	namedFileSpecs := map[string]gql.CreateArtifactFileSpecInput{}
@@ -288,9 +290,9 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
-				task.SetCompletionCallback(func(t *filetransfer.Task) {
-					doneChan <- uploadResult{name: fileInfo.name, err: t.Err}
-				})
+				task.OnComplete = func() {
+					doneChan <- uploadResult{name: fileInfo.name, err: task.Err}
+				}
 				as.FileTransferManager.AddTask(task)
 			}
 		// Listen for completed uploads, adding to the retry list if they failed.
@@ -365,10 +367,9 @@ func (as *ArtifactSaver) batchSize() int {
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
 
-func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.Task {
-	return &filetransfer.Task{
+func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.DefaultUploadTask {
+	return &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
 		Path:     localPath,
 		Name:     fileInfo.name,
 		Url:      *fileInfo.uploadUrl,
@@ -437,7 +438,7 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	type partResponse struct {
 		partNumber int64
-		task       *filetransfer.Task
+		task       *filetransfer.DefaultUploadTask
 	}
 
 	wg := sync.WaitGroup{}
@@ -465,10 +466,10 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Length:" + strconv.FormatInt(task.Size, 10),
 			"Content-Type:" + contentType,
 		}
-		task.SetCompletionCallback(func(t *filetransfer.Task) {
-			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: t}
+		task.OnComplete = func() {
+			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
 			wg.Done()
-		})
+		}
 		wg.Add(1)
 		as.FileTransferManager.AddTask(task)
 	}
@@ -585,20 +586,19 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(manifestFile string, uploadUrl *string, uploadHeaders []string, _ chan<- *service.Record) error {
-	resultChan := make(chan *filetransfer.Task)
-	task := &filetransfer.Task{
+func (as *ArtifactSaver) uploadManifest(
+	manifestFile string,
+	uploadUrl *string,
+	uploadHeaders []string,
+) error {
+	resultChan := make(chan *filetransfer.DefaultUploadTask)
+	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
 		Path:     manifestFile,
 		Url:      *uploadUrl,
 		Headers:  uploadHeaders,
 	}
-	task.SetCompletionCallback(
-		func(t *filetransfer.Task) {
-			resultChan <- t
-		},
-	)
+	task.OnComplete = func() { resultChan <- task }
 
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
@@ -624,7 +624,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rerr error) {
+func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
 		return "", err
@@ -671,7 +671,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.createManifest: %w", err)
 	}
 
-	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id, ch)
+	err = as.uploadFiles(artifactID, &manifest, manifestAttrs.Id)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadFiles: %w", err)
 	}
@@ -692,7 +692,7 @@ func (as *ArtifactSaver) Save(ch chan<- *service.Record) (artifactID string, rer
 		return "", fmt.Errorf("ArtifactSaver.upsertManifest: %w", err)
 	}
 
-	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders, ch)
+	err = as.uploadManifest(manifestFile, uploadUrl, uploadHeaders)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.uploadManifest: %w", err)
 	}

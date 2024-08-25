@@ -4,24 +4,21 @@ import (
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/net"
-
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type Network struct {
 	name     string
 	metrics  map[string][]float64
-	settings *service.Settings
 	mutex    sync.RWMutex
 	sentInit int
 	recvInit int
 }
 
-func NewNetwork(settings *service.Settings) *Network {
+func NewNetwork() *Network {
 	nw := &Network{
-		name:     "network",
-		metrics:  map[string][]float64{},
-		settings: settings,
+		name:    "network",
+		metrics: map[string][]float64{},
 	}
 
 	netIOCounters, err := net.IOCounters(false)
@@ -35,22 +32,24 @@ func NewNetwork(settings *service.Settings) *Network {
 
 func (n *Network) Name() string { return n.name }
 
-func (n *Network) SampleMetrics() {
+func (n *Network) SampleMetrics() error {
 	n.mutex.Lock()
 	defer n.mutex.Unlock()
 
 	netIOCounters, err := net.IOCounters(false)
-	if err == nil {
-		n.metrics["network.sent"] = append(
-			n.metrics["network.sent"],
-			float64(int(netIOCounters[0].BytesSent)-n.sentInit),
-		)
-		n.metrics["network.recv"] = append(
-			n.metrics["network.recv"],
-			float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
-		)
+	if err != nil {
+		return err
 	}
+	n.metrics["network.sent"] = append(
+		n.metrics["network.sent"],
+		float64(int(netIOCounters[0].BytesSent)-n.sentInit),
+	)
+	n.metrics["network.recv"] = append(
+		n.metrics["network.recv"],
+		float64(int(netIOCounters[0].BytesRecv)-n.recvInit),
+	)
 
+	return nil
 }
 
 func (n *Network) AggregateMetrics() map[string]float64 {
@@ -75,7 +74,7 @@ func (n *Network) ClearMetrics() {
 
 func (n *Network) IsAvailable() bool { return true }
 
-func (n *Network) Probe() *service.MetadataRequest {
+func (n *Network) Probe() *spb.MetadataRequest {
 	// todo: network info
 	return nil
 }

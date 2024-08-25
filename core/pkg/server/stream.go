@@ -1,14 +1,12 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"log/slog"
 	"os"
 	"path/filepath"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -18,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
@@ -25,26 +24,20 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-const (
-	internalConnectionId = "internal"
-)
-
-// Stream is a collection of components that work together to handle incoming
-// data for a W&B run, store it locally, and send it to a W&B server.
-// Stream.handler receives incoming data from the client and dispatches it to
-// Stream.writer, which writes it to a local file. Stream.writer then sends the
-// data to Stream.sender, which sends it to the W&B server. Stream.dispatcher
-// handles dispatching responses to the appropriate client responders.
+// Stream processes incoming records for a single run.
+//
+// wandb consists of a service process (this code) to which one or more
+// user processes connect (e.g. using the Python wandb library). The user
+// processes send "records" to the service process that log to and modify
+// the run, which the service process consumes asynchronously.
 type Stream struct {
-	// ctx is the context for the stream
-	ctx context.Context
-
-	// cancel is the cancel function for the stream
-	cancel context.CancelFunc
+	// runWork is a channel of records to process.
+	runWork runwork.RunWork
 
 	// logger is the logger for the stream
 	logger *observability.CoreLogger
@@ -64,20 +57,8 @@ type Stream struct {
 	// sender is the sender for the stream
 	sender *Sender
 
-	// inChan is the channel for incoming messages
-	inChan chan *service.Record
-
-	// loopBackChan is the channel for internal loopback messages
-	loopBackChan chan *service.Record
-
-	// internal responses from teardown path typically
-	outChan chan *service.ServerResponse
-
 	// dispatcher is the dispatcher for the stream
 	dispatcher *Dispatcher
-
-	// closed indicates if the inChan and loopBackChan are closed
-	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
@@ -149,26 +130,18 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 }
 
 // NewStream creates a new stream with the given settings and responders.
-func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentryClient *sentry_ext.Client) *Stream {
-	// we only need the passed context for the commit value
-	commit, ok := ctx.Value(observability.Commit).(string)
-	if !ok {
-		commit = ""
-	}
-
-	ctx, cancel := context.WithCancel(context.Background())
-	ctx = context.WithValue(ctx, observability.Commit, commit)
+func NewStream(
+	commit string,
+	settings *settings.Settings,
+	sentryClient *sentry_ext.Client,
+) *Stream {
+	logger := streamLogger(settings, sentryClient)
+	runWork := runwork.New(BufferSize, logger)
 
 	s := &Stream{
-		ctx:          ctx,
-		cancel:       cancel,
+		runWork:      runWork,
 		logger:       streamLogger(settings, sentryClient),
-		wg:           sync.WaitGroup{},
 		settings:     settings,
-		inChan:       make(chan *service.Record, BufferSize),
-		loopBackChan: make(chan *service.Record, BufferSize),
-		outChan:      make(chan *service.ServerResponse, BufferSize),
-		closed:       &atomic.Bool{},
 		sentryClient: sentryClient,
 	}
 
@@ -191,10 +164,10 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 	fileTransferStats := filetransfer.NewFileTransferStats()
 	fileWatcher := watcher.New(watcher.Params{Logger: s.logger})
 	tbHandler := tensorboard.NewTBHandler(tensorboard.Params{
-		OutputRecords: s.loopBackChan,
-		Logger:        s.logger,
-		Settings:      s.settings,
-		Hostname:      hostname,
+		ExtraWork: s.runWork,
+		Logger:    s.logger,
+		Settings:  s.settings,
+		Hostname:  hostname,
 	})
 	var graphqlClientOrNil graphql.Client
 	var fileStreamOrNil filestream.FileStream
@@ -215,7 +188,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 			settings,
 		)
 		runfilesUploaderOrNil = NewRunfilesUploader(
-			s.ctx,
+			s.runWork,
 			s.logger,
 			settings,
 			fileStreamOrNil,
@@ -225,15 +198,15 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 		)
 	}
 
-	mailbox := mailbox.NewMailbox()
+	mailbox := mailbox.New()
 
-	s.handler = NewHandler(s.ctx,
+	s.handler = NewHandler(commit,
 		HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
-			FwdChan:           make(chan *service.Record, BufferSize),
-			OutChan:           make(chan *service.Result, BufferSize),
-			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.loopBackChan),
+			FwdChan:           make(chan *spb.Record, BufferSize),
+			OutChan:           make(chan *spb.Result, BufferSize),
+			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
 			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
@@ -242,11 +215,11 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 		},
 	)
 
-	s.writer = NewWriter(s.ctx,
+	s.writer = NewWriter(
 		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
-			FwdChan:  make(chan *service.Record, BufferSize),
+			FwdChan:  make(chan *spb.Record, BufferSize),
 		},
 	)
 
@@ -265,8 +238,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 	}
 
 	s.sender = NewSender(
-		s.ctx,
-		s.cancel,
+		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
 			Settings:            s.settings,
@@ -279,8 +251,7 @@ func NewStream(ctx context.Context, settings *settings.Settings, _ string, sentr
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
-			FwdChan:             s.loopBackChan,
-			OutChan:             make(chan *service.Result, BufferSize),
+			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			OutputFileName:      outputFile,
 		},
@@ -301,29 +272,10 @@ func (s *Stream) AddResponders(entries ...ResponderEntry) {
 // We use Stream's wait group to ensure that all of these components are cleanly
 // finalized and closed when the stream is closed in Stream.Close().
 func (s *Stream) Start() {
-	// forward records from the inChan and loopBackChan to the handler
-	fwdChan := make(chan *service.Record, BufferSize)
-	s.wg.Add(1)
-	go func() {
-		wg := sync.WaitGroup{}
-		for _, ch := range []chan *service.Record{s.inChan, s.loopBackChan} {
-			wg.Add(1)
-			go func(ch chan *service.Record) {
-				for record := range ch {
-					fwdChan <- record
-				}
-				wg.Done()
-			}(ch)
-		}
-		wg.Wait()
-		close(fwdChan)
-		s.wg.Done()
-	}()
-
 	// handle the client requests with the handler
 	s.wg.Add(1)
 	go func() {
-		s.handler.Do(fwdChan)
+		s.handler.Do(s.runWork.Chan())
 		s.wg.Done()
 	}()
 
@@ -342,83 +294,52 @@ func (s *Stream) Start() {
 	}()
 
 	// handle dispatching between components
-	s.wg.Add(1)
-	go func() {
-		wg := sync.WaitGroup{}
-		for _, ch := range []chan *service.Result{s.handler.outChan, s.sender.outChan} {
-			wg.Add(1)
-			go func(ch chan *service.Result) {
-				for result := range ch {
-					s.dispatcher.handleRespond(result)
-				}
-				wg.Done()
-			}(ch)
-		}
-		wg.Wait()
-		close(s.outChan)
-		s.wg.Done()
-	}()
-	s.logger.Debug("starting stream", "id", s.settings.GetRunID())
+	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
+		s.wg.Add(1)
+		go func(ch chan *spb.Result) {
+			for result := range ch {
+				s.dispatcher.handleRespond(result)
+			}
+			s.wg.Done()
+		}(ch)
+	}
+
+	s.logger.Info("stream: started", "id", s.settings.GetRunID())
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(rec *service.Record) {
+func (s *Stream) HandleRecord(rec *spb.Record) {
 	s.logger.Debug("handling record", "record", rec)
-	if s.closed.Load() {
-		// this is to prevent trying to process messages after the stream is closed
-		s.logger.Error("context done, not handling record", "record", rec)
-		return
-	}
-	s.inChan <- rec
+	s.runWork.AddRecord(rec)
 }
 
-// Close Gracefully wait for handler, writer, sender, dispatcher to shut down cleanly
-// assumes an exit record has already been sent
+// Close waits for all run messages to be fully processed.
 func (s *Stream) Close() {
-	// wait for the context to be canceled in the defer state machine in the sender
-	<-s.ctx.Done()
-	if !s.closed.Swap(true) {
-		close(s.loopBackChan)
-		close(s.inChan)
-	}
+	s.logger.Info("stream: closing", "id", s.settings.GetRunID())
+	s.runWork.Close()
 	s.wg.Wait()
+	s.logger.Info("stream: closed", "id", s.settings.GetRunID())
 }
 
-// Respond Handle internal responses like from the finish and close path
-func (s *Stream) Respond(resp *service.ServerResponse) {
-	s.outChan <- resp
-}
-
-// FinishAndClose closes the stream and sends an exit record to the handler.
-// This will be called when we recieve a teardown signal from the client.
-// So it is used to close all active streams in the system.
+// FinishAndClose emits an exit record, waits for all run messages
+// to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
-	s.AddResponders(ResponderEntry{s, internalConnectionId})
-
 	if !s.settings.IsSync() {
-		// send exit record to handler
-		record := &service.Record{
-			RecordType: &service.Record_Exit{
-				Exit: &service.RunExitRecord{
+		s.HandleRecord(&spb.Record{
+			RecordType: &spb.Record_Exit{
+				Exit: &spb.RunExitRecord{
 					ExitCode: exitCode,
 				}},
-			Control: &service.Control{AlwaysSend: true, ConnectionId: internalConnectionId, ReqResp: true},
-		}
-
-		s.HandleRecord(record)
-		<-s.outChan
+			Control: &spb.Control{AlwaysSend: true},
+		})
 	}
 
 	s.Close()
 
-	// TODO: we are using service.Settings instead of settings.Settings
-	// because this package is used by the go wandb client package
 	if s.settings.IsOffline() {
 		utils.PrintFooterOffline(s.settings.Proto)
 	} else {
 		run := s.handler.GetRun()
 		utils.PrintFooterOnline(run, s.settings.Proto)
 	}
-
-	s.logger.Info("closed stream", "id", s.settings.GetRunID())
 }

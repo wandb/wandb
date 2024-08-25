@@ -1,24 +1,23 @@
 package server
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type WriterOption func(*Writer)
 
-func WithWriterFwdChannel(fwd chan *service.Record) WriterOption {
+func WithWriterFwdChannel(fwd chan *spb.Record) WriterOption {
 	return func(w *Writer) {
 		w.fwdChan = fwd
 	}
 }
 
-func WithWriterSettings(settings *service.Settings) WriterOption {
+func WithWriterSettings(settings *spb.Settings) WriterOption {
 	return func(w *Writer) {
 		w.settings = settings
 	}
@@ -26,8 +25,8 @@ func WithWriterSettings(settings *service.Settings) WriterOption {
 
 type WriterParams struct {
 	Logger   *observability.CoreLogger
-	Settings *service.Settings
-	FwdChan  chan *service.Record
+	Settings *spb.Settings
+	FwdChan  chan *spb.Record
 }
 
 // Writer is responsible for writing messages to the append-only log.
@@ -35,20 +34,17 @@ type WriterParams struct {
 // if the message is to be persisted it writes them to the log.
 // It also sends the messages to the sender.
 type Writer struct {
-	// ctx is the context for the writer
-	ctx context.Context
-
 	// settings is the settings for the writer
-	settings *service.Settings
+	settings *spb.Settings
 
 	// logger is the logger for the writer
 	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the sender
-	fwdChan chan *service.Record
+	fwdChan chan *spb.Record
 
 	// storeChan is the channel for messages to be stored
-	storeChan chan *service.Record
+	storeChan chan *spb.Record
 
 	// store is the store for the writer
 	store *Store
@@ -61,9 +57,8 @@ type Writer struct {
 }
 
 // NewWriter returns a new Writer
-func NewWriter(ctx context.Context, params WriterParams) *Writer {
+func NewWriter(params WriterParams) *Writer {
 	w := &Writer{
-		ctx:      ctx,
 		wg:       sync.WaitGroup{},
 		logger:   params.Logger,
 		settings: params.Settings,
@@ -78,10 +73,10 @@ func (w *Writer) startStore() {
 		return
 	}
 
-	w.storeChan = make(chan *service.Record, BufferSize*8)
+	w.storeChan = make(chan *spb.Record, BufferSize*8)
 
 	var err error
-	w.store = NewStore(w.ctx, w.settings.GetSyncFile().GetValue())
+	w.store = NewStore(w.settings.GetSyncFile().GetValue())
 	err = w.store.Open(os.O_WRONLY)
 	if err != nil {
 		w.logger.CaptureFatalAndPanic(
@@ -108,8 +103,8 @@ func (w *Writer) startStore() {
 	}()
 }
 
-// Do is the main loop of the writer to process incoming messages
-func (w *Writer) Do(inChan <-chan *service.Record) {
+// Do processes all records on the input channel.
+func (w *Writer) Do(inChan <-chan *spb.Record) {
 	defer w.logger.Reraise()
 	w.logger.Info("writer: Do: started", "stream_id", w.settings.RunId)
 
@@ -137,9 +132,9 @@ func (w *Writer) Close() {
 // and passing them to the sender.
 // Ensure that the messages are numbered and written to the transaction log
 // before network operations could block processing of the record.
-func (w *Writer) writeRecord(record *service.Record) {
+func (w *Writer) writeRecord(record *spb.Record) {
 	switch record.RecordType.(type) {
-	case *service.Record_Request:
+	case *spb.Record_Request:
 		w.fwdRecord(record)
 	case nil:
 		w.logger.Error("writer: writeRecord: nil record type")
@@ -152,7 +147,7 @@ func (w *Writer) writeRecord(record *service.Record) {
 }
 
 // applyRecordNumber labels the protobuf with an increasing number to be stored in transaction log
-func (w *Writer) applyRecordNumber(record *service.Record) {
+func (w *Writer) applyRecordNumber(record *spb.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
@@ -161,14 +156,14 @@ func (w *Writer) applyRecordNumber(record *service.Record) {
 }
 
 // storeRecord stores the record in the append-only log
-func (w *Writer) storeRecord(record *service.Record) {
+func (w *Writer) storeRecord(record *spb.Record) {
 	if record.GetControl().GetLocal() {
 		return
 	}
 	w.storeChan <- record
 }
 
-func (w *Writer) fwdRecord(record *service.Record) {
+func (w *Writer) fwdRecord(record *spb.Record) {
 	// TODO: redo it so it only uses control
 	if w.settings.GetXOffline().GetValue() && !record.GetControl().GetAlwaysSend() {
 		return
