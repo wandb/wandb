@@ -1,0 +1,42 @@
+id: 0.keras.const_lr
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: t4_keras_lr_schedule_tf.py
+depend:
+    requirements:
+        - "keras>=3.0.4"
+        - "tensorflow>=2.13.1"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][keras_backend]: "tensorflow"
+    - :wandb:runs[0][summary][batch/batch_step]: 2
+    - :op:>=:
+        - :wandb:runs[0][summary][batch/accuracy]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][batch/loss]
+        - 0
+    - :op:<=:
+        - :wandb:runs[0][summary][batch/learning_rate]
+        - 0.001
+    - :wandb:runs[0][summary][epoch/epoch]: 2
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/accuracy]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/loss]
+        - 0
+    - :op:<=:
+        - :wandb:runs[0][summary][epoch/learning_rate]
+        - 0.001
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/val_accuracy]
+        - 0
+    - :op:>=:
+        - :wandb:runs[0][summary][epoch/val_loss]
+        - 0
