@@ -423,7 +423,8 @@ class WandbCallback(tf.keras.callbacks.Callback):
             warning_message=(
                 "WandbCallback is deprecated and will be removed in a future release. "
                 "Please use the WandbMetricsLogger, WandbModelCheckpoint, and WandbEvalCallback "
-                "callbacks instead."
+                "callbacks instead. "
+                "See https://docs.wandb.ai/guides/integrations/keras for more information."
             ),
         )
 
