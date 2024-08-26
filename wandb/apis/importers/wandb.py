@@ -798,6 +798,7 @@ class WandbImporter:
         history: bool = True,
         summary: bool = True,
         terminal_output: bool = True,
+        start_date: Optional[str] = None
     ):
         logger.info("START: Import runs")
 
@@ -806,7 +807,7 @@ class WandbImporter:
         _clear_fname(RUN_ERRORS_FNAME)
 
         logger.info("Collecting runs")
-        runs = list(self._collect_runs(namespaces=namespaces, limit=limit))
+        runs = list(self._collect_runs(namespaces=namespaces, limit=limit, start_date=start_date))
 
         logger.info(f"Validating runs, {len(runs)=}")
         self._validate_runs(
@@ -945,6 +946,7 @@ class WandbImporter:
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
+        start_date: Optional[str] = None
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
         if runs:
@@ -952,6 +954,7 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
+                start_date=start_date
             )
 
         if reports:
