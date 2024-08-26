@@ -14,7 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/time/rate"
 )
 
@@ -140,12 +140,12 @@ func (s *Sender) Finish() {
 }
 
 // StreamLogs saves captured console logs with the run.
-func (s *Sender) StreamLogs(record *service.OutputRawRecord) {
+func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 	switch record.OutputType {
-	case service.OutputRawRecord_STDOUT:
+	case spb.OutputRawRecord_STDOUT:
 		s.stdoutTerm.Write(record.Line)
 
-	case service.OutputRawRecord_STDERR:
+	case spb.OutputRawRecord_STDERR:
 		s.stderrTerm.Write(record.Line)
 
 	default:
@@ -159,13 +159,13 @@ func (s *Sender) StreamLogs(record *service.OutputRawRecord) {
 // uploadOutputFile uploads the console output file that we created.
 func (s *Sender) uploadOutputFile() {
 	s.extraWork.AddRecord(
-		&service.Record{
-			RecordType: &service.Record_Files{
-				Files: &service.FilesRecord{
-					Files: []*service.FilesItem{
+		&spb.Record{
+			RecordType: &spb.Record_Files{
+				Files: &spb.FilesRecord{
+					Files: []*spb.FilesItem{
 						{
 							Path: string(s.consoleOutputFile),
-							Type: service.FilesItem_WANDB,
+							Type: spb.FilesItem_WANDB,
 						},
 					},
 				},

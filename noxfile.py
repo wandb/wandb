@@ -672,7 +672,7 @@ def proto_check_go(session: nox.Session) -> None:
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service/.",
+        in_directory="core/pkg/service_go_proto/.",
     )
 
 

@@ -1,8 +1,6 @@
 package runbranch
 
-import (
-	"github.com/wandb/wandb/core/pkg/service"
-)
+import spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
 // ForkBranch is a used to manage the state of the changes that need to be
 // applied to a run when a fork from a previous run is requested.
@@ -42,8 +40,8 @@ func (fb *ForkBranch) ApplyChanges(
 	if fb.metricName != "_step" {
 		return nil, &BranchError{
 			Err: nil,
-			Response: &service.ErrorInfo{
-				Code:    service.ErrorInfo_UNSUPPORTED,
+			Response: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_UNSUPPORTED,
 				Message: "fork_from only supports `_step` metric name currently",
 			},
 		}
@@ -52,8 +50,8 @@ func (fb *ForkBranch) ApplyChanges(
 	if fb.metricRunID == runpath.RunID {
 		return nil, &BranchError{
 			Err: nil,
-			Response: &service.ErrorInfo{
-				Code:    service.ErrorInfo_USAGE,
+			Response: &spb.ErrorInfo{
+				Code:    spb.ErrorInfo_USAGE,
 				Message: "fork_from run id must be different from current run id",
 			},
 		}

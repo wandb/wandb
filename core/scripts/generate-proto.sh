@@ -24,7 +24,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ./core/scripts/update-dev-env.sh protocolbuffers/protobuf
 ./core/scripts/update-dev-env.sh protoc-gen-go
 
-MOD=core/pkg/service/
+MOD=core/pkg/service_go_proto/
 
 protoc \
     --go_opt=Mwandb/proto/wandb_internal.proto=$MOD \
