@@ -1658,13 +1658,14 @@ class Artifact:
         if env.is_offline() or util._is_offline():
             raise RuntimeError("Cannot download artifacts in offline mode.")
 
-        if is_require_core():
-            return self._download_using_core(
-                root=root,
-                allow_missing_references=allow_missing_references,
-                skip_cache=bool(skip_cache),
-                path_prefix=path_prefix,
-            )
+        # TODO: re-enable this once artifact download with core is re-implemented
+        # if is_require_core():
+        #     return self._download_using_core(
+        #         root=root,
+        #         allow_missing_references=allow_missing_references,
+        #         skip_cache=bool(skip_cache),
+        #         path_prefix=path_prefix,
+        #     )
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
@@ -1693,6 +1694,7 @@ class Artifact:
             settings = wl.settings.to_proto()
             # TODO: remove this
             tmp_dir = pathlib.Path(tempfile.mkdtemp())
+
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
             settings.files_dir.value = str(tmp_dir / "files")
@@ -1737,11 +1739,6 @@ class Artifact:
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
 
-        if wandb.run is None:
-            backend.cleanup()
-            # TODO: remove this
-            shutil.rmtree(tmp_dir)
-
         return FilePathStr(root)
 
     def _download(
@@ -1751,8 +1748,8 @@ class Artifact:
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in core
-        require_core = is_require_core()
+        # TODO: remove once artifact reference downloads are supported in core
+        # require_core = is_require_core()
 
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1804,9 +1801,10 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_entry(edge["node"]["name"])
-                    if require_core and entry.ref is None:
-                        # Handled by core
-                        continue
+                    # TODO: uncomment once artifact downloads are supported in core
+                    # if require_core and entry.ref is None:
+                    #     # Handled by core
+                    #     continue
                     entry._download_url = edge["node"]["directUrl"]
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
