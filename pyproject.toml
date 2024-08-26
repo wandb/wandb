@@ -109,6 +109,13 @@ models = ["cloudpickle"]
 perf = ["orjson"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
+automations = [
+    "odmantic>=1.0,<2",
+    "pydantic>=2.0,<3",
+    "pydantic-settings",
+    "typing-extensions",
+    "rich",
+]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
