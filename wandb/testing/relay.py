@@ -192,7 +192,7 @@ class Context:
         if self._config is not None:
             return deepcopy(self._config)
 
-        self._config = {k: v["config"] for (k, v) in self._entries.items()}
+        self._config = {k: v["config"] for (k, v) in self._entries.items() if k}
         return deepcopy(self._config)
 
     # @property
@@ -272,7 +272,7 @@ class Context:
         return self._entries.get(run_id, {})
 
     def get_run_ids(self) -> List[str]:
-        return list(self._entries.keys())
+        return [k for k in self._entries.keys() if k]
 
     # todo: add getter (by run_id) utilities for other properties
 
