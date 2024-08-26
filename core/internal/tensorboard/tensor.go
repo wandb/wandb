@@ -3,6 +3,7 @@ package tensorboard
 import (
 	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 
 	"github.com/wandb/simplejsonext"
@@ -12,6 +13,65 @@ import (
 // Tensor is a multi-dimensional array of real numbers.
 type Tensor struct {
 	rowMajorData []float64
+
+	// Shape is the size of each dimension of the tensor.
+	//
+	// If the shape has no elements, the tensor is rank-0 and has exactly one
+	// element.
+	Shape []int
+}
+
+// Row returns a view of a row of the tensor if it is rank-2.
+//
+// If the index is negative, it is an offset from the total number of rows.
+//
+// It is an error if the tensor is not rank-2, or if the index is
+// out of bounds.
+func (t *Tensor) Row(i int) ([]float64, error) {
+	if rank := len(t.Shape); rank != 2 {
+		return nil, fmt.Errorf("expected rank-2 tensor, but rank is %d", rank)
+	}
+
+	if i < 0 {
+		i += t.Shape[0]
+	}
+
+	rowLen := t.Shape[1]
+	start := i * rowLen
+	end := (i + 1) * rowLen
+
+	if start < 0 || start >= len(t.rowMajorData) ||
+		end < start || end > len(t.rowMajorData) {
+		return nil, fmt.Errorf("row index out of bounds: %d", i)
+	}
+
+	return t.rowMajorData[start:end], nil
+}
+
+// Col returns a column of the tensor if it is rank-2.
+//
+// This is like Row, but it allocates a new slice since tensors are stored
+// in row-major order.
+func (t *Tensor) Col(i int) ([]float64, error) {
+	if rank := len(t.Shape); rank != 2 {
+		return nil, fmt.Errorf("expected rank-2 tensor, but rank is %d", rank)
+	}
+
+	if i < 0 {
+		i += t.Shape[1]
+	}
+
+	// Ensure slice accesses below cannot panic.
+	if i < 0 || t.Shape[1]*(t.Shape[0]-1)+i >= len(t.rowMajorData) {
+		return nil, fmt.Errorf("col index out of bounds: %d", i)
+	}
+
+	column := make([]float64, t.Shape[0])
+	for rowIdx := 0; rowIdx < t.Shape[0]; rowIdx++ {
+		column[rowIdx] = t.rowMajorData[rowIdx*t.Shape[1]+i]
+	}
+
+	return column, nil
 }
 
 // ToHistogramJSON returns a W&B histogram of the numbers in the tensor.
@@ -70,9 +130,19 @@ func tensorFieldToTensor[T numeric](
 	directField []T,
 	byteCount int,
 ) (*Tensor, error) {
+	dims := make([]int, len(proto.TensorShape.GetDim()))
+	for i, dim := range proto.TensorShape.GetDim() {
+		dims[i] = int(dim.Size)
+
+		if dim.Size == -1 {
+			return nil, errors.New("tensor has unknown shape")
+		}
+	}
+
 	if len(proto.TensorContent) == 0 {
 		return &Tensor{
 			rowMajorData: toFloat64Slice(directField),
+			Shape:        dims,
 		}, nil
 	}
 
@@ -102,7 +172,10 @@ func tensorFieldToTensor[T numeric](
 		return nil, err
 	}
 
-	return &Tensor{rowMajorData: toFloat64Slice(rawData)}, nil
+	return &Tensor{
+		rowMajorData: toFloat64Slice(rawData),
+		Shape:        dims,
+	}, nil
 }
 
 func toFloat64Slice[T numeric](data []T) []float64 {
