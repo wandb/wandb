@@ -8,21 +8,21 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestExplicitSummary(t *testing.T) {
 	rs := runsummary.New()
 
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "x",
 		ValueJson: "123",
 	})
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "y",
 		ValueJson: "10.5",
 	})
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "z",
 		ValueJson: `"abc"`,
 	})
@@ -78,7 +78,7 @@ func TestNestedKey(t *testing.T) {
 	)
 
 	_, _ = rs.UpdateSummaries(rh)
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		NestedKey: []string{"a", "b", "c"},
 		ValueJson: `{"value": 1}`,
 	})
@@ -96,11 +96,11 @@ func TestNestedKey(t *testing.T) {
 func TestRemove(t *testing.T) {
 	rs := runsummary.New()
 
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		NestedKey: []string{"x", "y"},
 		ValueJson: "1",
 	})
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		NestedKey: []string{"z", "w"},
 		ValueJson: "2",
 	})
@@ -117,7 +117,7 @@ func TestNoSummary(t *testing.T) {
 	rs := runsummary.New()
 
 	rs.ConfigureMetric(pathtree.PathOf("x"), true /*noSummary*/, 0)
-	_ = rs.SetFromRecord(&service.SummaryItem{Key: "x", ValueJson: "1"})
+	_ = rs.SetFromRecord(&spb.SummaryItem{Key: "x", ValueJson: "1"})
 
 	assert.Empty(t, rs.ToNestedMaps())
 	encoded, err := rs.Serialize()
@@ -128,16 +128,16 @@ func TestNoSummary(t *testing.T) {
 func TestToRecords(t *testing.T) {
 	rs := runsummary.New()
 
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "x",
 		ValueJson: "Infinity",
 	})
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		NestedKey: []string{"y", "z"},
 		ValueJson: "NaN",
 	})
 	rs.ConfigureMetric(pathtree.PathOf("none"), true, 0)
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "none",
 		ValueJson: "123",
 	})
@@ -159,20 +159,20 @@ func TestToRecords(t *testing.T) {
 func TestSerialize(t *testing.T) {
 	rs := runsummary.New()
 
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "x",
 		ValueJson: "1.5",
 	})
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		NestedKey: []string{"y", "z"},
 		ValueJson: "-5",
 	})
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		NestedKey: []string{"a", "b", "c"},
 		ValueJson: `"abc"`,
 	})
 	rs.ConfigureMetric(pathtree.PathOf("none"), true, 0)
-	_ = rs.SetFromRecord(&service.SummaryItem{
+	_ = rs.SetFromRecord(&spb.SummaryItem{
 		Key:       "none",
 		ValueJson: `"none"`,
 	})

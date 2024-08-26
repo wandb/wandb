@@ -11,7 +11,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -43,8 +43,8 @@ func (rb *ResumeBranch) GetUpdates(
 
 	// if we get an error we are in an unknown state and we should raise an error
 	if err != nil {
-		info := &service.ErrorInfo{
-			Code:    service.ErrorInfo_COMMUNICATION,
+		info := &spb.ErrorInfo{
+			Code:    spb.ErrorInfo_COMMUNICATION,
 			Message: fmt.Sprintf("Failed to get resume status for run %s: %s", runpath.RunID, err),
 		}
 		return nil, &BranchError{Err: err, Response: info}
@@ -64,8 +64,8 @@ func (rb *ResumeBranch) GetUpdates(
 	// if we are in the resume mode MUST and we don't have data (the run is not initialized),
 	// we need to return an error because we can't resume
 	if data == nil && rb.mode == "must" {
-		info := &service.ErrorInfo{
-			Code: service.ErrorInfo_USAGE,
+		info := &spb.ErrorInfo{
+			Code: spb.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
 				" The value 'must' is not a valid option for resuming the run (%s) that has not been initialized."+
 				" Please check your inputs and try again with a valid run ID."+
@@ -79,8 +79,8 @@ func (rb *ResumeBranch) GetUpdates(
 	// if we have data and we are in a never resume mode we need to return an
 	// error because we are not allowed to resume
 	if data != nil && rb.mode == "never" {
-		info := &service.ErrorInfo{
-			Code: service.ErrorInfo_USAGE,
+		info := &spb.ErrorInfo{
+			Code: spb.ErrorInfo_USAGE,
 			Message: fmt.Sprintf("You provided an invalid value for the `resume` argument."+
 				"  The value 'never' is not a valid option for resuming a run (%s) that already exists."+
 				"  Please check your inputs and try again with a valid value for the `resume` argument.",
@@ -94,8 +94,8 @@ func (rb *ResumeBranch) GetUpdates(
 	if data != nil && rb.mode != "never" {
 		update, err := processResponse(params, data)
 		if err != nil && rb.mode == "must" {
-			info := &service.ErrorInfo{
-				Code: service.ErrorInfo_USAGE,
+			info := &spb.ErrorInfo{
+				Code: spb.ErrorInfo_USAGE,
 				Message: fmt.Sprintf("The run (%s) failed to resume, and the `resume` argument is set to 'must'.",
 					runpath.RunID),
 			}

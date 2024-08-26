@@ -4,8 +4,7 @@ import (
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/net"
-
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type Network struct {
@@ -75,7 +74,7 @@ func (n *Network) ClearMetrics() {
 
 func (n *Network) IsAvailable() bool { return true }
 
-func (n *Network) Probe() *service.MetadataRequest {
+func (n *Network) Probe() *spb.MetadataRequest {
 	// todo: network info
 	return nil
 }

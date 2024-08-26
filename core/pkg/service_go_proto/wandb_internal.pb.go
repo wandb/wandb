@@ -4,7 +4,7 @@
 // 	protoc        v4.23.4
 // source: wandb/proto/wandb_internal.proto
 
-package service
+package service_go_proto
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"

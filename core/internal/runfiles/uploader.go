@@ -16,7 +16,8 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // uploader is the implementation of the Uploader interface.
@@ -74,7 +75,7 @@ func newUploader(params UploaderParams) *uploader {
 	return uploader
 }
 
-func (u *uploader) Process(record *service.FilesRecord) {
+func (u *uploader) Process(record *spb.FilesRecord) {
 	if err := u.lockForOperation("Process"); err != nil {
 		u.logger.CaptureError(err, "record", record)
 		return
@@ -104,10 +105,10 @@ func (u *uploader) Process(record *service.FilesRecord) {
 			SetCategory(filetransfer.RunFileKindFromProto(file.GetType()))
 
 		switch file.GetPolicy() {
-		case service.FilesItem_NOW:
+		case spb.FilesItem_NOW:
 			nowFiles = append(nowFiles, runPath)
 
-		case service.FilesItem_LIVE:
+		case spb.FilesItem_LIVE:
 			// Upload live files both immediately and at the end.
 			nowFiles = append(nowFiles, runPath)
 			u.uploadAtEnd[runPath] = struct{}{}
@@ -123,7 +124,7 @@ func (u *uploader) Process(record *service.FilesRecord) {
 					"path", file.GetPath())
 			}
 
-		case service.FilesItem_END:
+		case spb.FilesItem_END:
 			u.uploadAtEnd[runPath] = struct{}{}
 		}
 	}
