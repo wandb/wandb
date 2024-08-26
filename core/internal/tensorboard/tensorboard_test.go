@@ -13,7 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -46,7 +46,7 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 		return filepath.Join(tmpdir, filepath.FromSlash(slashPath))
 	}
 
-	settingsProto := &service.Settings{}
+	settingsProto := &spb.Settings{}
 	if opts.SlashFilesDir != "" {
 		settingsProto.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
 	}
@@ -77,7 +77,7 @@ func Test_SymlinksFile(t *testing.T) {
 	ctx.TouchFile("logs/train/events.out.tfevents.123.hostname")
 
 	require.NoError(t,
-		ctx.Handler.Handle(&service.TBRecord{
+		ctx.Handler.Handle(&spb.TBRecord{
 			LogDir:  ctx.Path("logs/train"),
 			RootDir: ctx.Path("logs"),
 			Save:    true,
