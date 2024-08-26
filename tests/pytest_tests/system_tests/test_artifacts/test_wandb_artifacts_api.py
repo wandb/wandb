@@ -85,26 +85,39 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
-@pytest.mark.xfail(reason="Still working on logging with artifact tags", strict=True)
-def test_save_tags_after_logging_artifact(user, wandb_init):
+def test_save_tags_after_logging_artifact(tmp_path, user, wandb_init, api):
     project = "test"
-    run = wandb_init(entity=user, project=project)
-    artifact = wandb.Artifact("test-artifact", "test-type")
-    with open("boom.txt", "w") as f:
-        f.write("testing")
-    artifact.add_file("boom.txt", "test-name")
-    run.log_artifact(artifact, tags=["sequence"])
-    artifact.wait()
-    artifact.tags.append("hello")
-    artifact.save()
-    run.finish()
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+    artifact_fullname = f"{user}/{project}/{artifact_name}:v0"
 
-    # fetch artifact and verify tag exists
-    artifact = Api().artifact(
-        name=f"{user}/{project}/test-artifact:v0", type="test-type"
-    )
-    tags = artifact.tags
-    assert "hello" in tags
+    artifact_filepath = tmp_path / "boom.txt"
+    artifact_filepath.write_text("testing")
+
+    logged_tags = ["logged-tag"]  # Tags to assign when first logging the artifact
+    added_tags = ["added-tag"]  # Tags to add after the fact
+
+    with wandb_init(entity=user, project=project) as run:
+        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+        artifact.add_file(str(artifact_filepath), "test-name")
+
+        # Assign tags when logging
+        run.log_artifact(artifact, tags=logged_tags)
+        artifact.wait()
+
+    # Add new tags later on
+    recovered_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+
+    recovered_artifact.tags.extend(added_tags)
+    recovered_artifact.save()
+
+    # fetch the final artifact and verify its tags
+    final_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+
+    assert set(final_artifact.tags) == {*logged_tags, *added_tags}
+
+    # Verify uniqueness, since tagCategories are currently unused/ignored
+    assert len(set(final_artifact.tags)) == len(final_artifact.tags)
 
 
 def test_update_aliases_on_artifact(user, wandb_init):

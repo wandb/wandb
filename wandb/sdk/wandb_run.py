@@ -69,7 +69,7 @@ from wandb.util import (
 from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._utils import validate_aliases
+from .artifacts._utils import validate_aliases, validate_tags
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
@@ -3246,9 +3246,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
-        tags: Optional[
-            List[str]
-        ] = None,  # TODO: Finish supporting logging artifacts with tags
+        tags: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         is_user_created: bool = False,
@@ -3263,6 +3261,8 @@ class Run:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
         if aliases is not None:
             aliases = validate_aliases(aliases)
+        if tags is not None:
+            tags = validate_tags(tags)
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
@@ -3274,6 +3274,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    tags or [],
                     self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
@@ -3285,6 +3286,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    tags or [],
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -3294,6 +3296,7 @@ class Run:
                 self,
                 artifact,
                 aliases,
+                tags or [],
                 finalize=finalize,
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
@@ -3367,6 +3370,7 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
+
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
