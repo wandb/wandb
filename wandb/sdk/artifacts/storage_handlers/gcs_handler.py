@@ -209,7 +209,9 @@ class GCSHandler(StorageHandler):
     def _is_dir(
         self,
         manifest_entry: ArtifactManifestEntry,
-    ):
+    ) -> bool:
+        assert self._client is not None
+        assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         bucket_obj = self._client.bucket(bucket)
         # A gcs bucket key should end with a forward slash on gcloud, but
