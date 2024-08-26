@@ -214,9 +214,9 @@ class Video(BatchableMedia):
         n_rows = 2 ** ((b.bit_length() - 1) // 2)
         n_cols = video.shape[0] // n_rows
 
-        video = np.reshape(video, newshape=(n_rows, n_cols, t, c, h, w))
+        video = video.reshape(n_rows, n_cols, t, c, h, w)
         video = np.transpose(video, axes=(2, 0, 4, 1, 5, 3))
-        video = np.reshape(video, newshape=(t, n_rows * h, n_cols * w, c))
+        video = video.reshape(t, n_rows * h, n_cols * w, c)
         return video
 
     @classmethod

@@ -5,17 +5,17 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/runmetric"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestMetricSelfStep(t *testing.T) {
 	rcm := runmetric.NewRunConfigMetrics()
 
-	_ = rcm.ProcessRecord(&service.MetricRecord{
+	_ = rcm.ProcessRecord(&spb.MetricRecord{
 		Name:       "x",
 		StepMetric: "y",
 	})
-	_ = rcm.ProcessRecord(&service.MetricRecord{
+	_ = rcm.ProcessRecord(&spb.MetricRecord{
 		Name:       "y",
 		StepMetric: "x",
 	})

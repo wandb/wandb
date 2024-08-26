@@ -7,21 +7,21 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type SyncService struct {
 	ctx        context.Context
 	wg         sync.WaitGroup
 	logger     *observability.CoreLogger
-	senderFunc func(*service.Record)
-	inChan     chan *service.Record
+	senderFunc func(*spb.Record)
+	inChan     chan *spb.Record
 	// Result of offline sync to pass to the client when syncing is done
 	flushCallback func(error)
 	exitSeen      bool
 	syncErr       error
-	overwrite     *service.SyncOverwrite
-	skip          *service.SyncSkip
+	overwrite     *spb.SyncOverwrite
+	skip          *spb.SyncSkip
 }
 
 type SyncServiceOption func(*SyncService)
@@ -30,7 +30,7 @@ func NewSyncService(ctx context.Context, opts ...SyncServiceOption) *SyncService
 	syncService := &SyncService{
 		ctx:    ctx,
 		wg:     sync.WaitGroup{},
-		inChan: make(chan *service.Record),
+		inChan: make(chan *spb.Record),
 	}
 	for _, opt := range opts {
 		opt(syncService)
@@ -38,13 +38,13 @@ func NewSyncService(ctx context.Context, opts ...SyncServiceOption) *SyncService
 	return syncService
 }
 
-func WithSyncServiceOverwrite(overwrite *service.SyncOverwrite) SyncServiceOption {
+func WithSyncServiceOverwrite(overwrite *spb.SyncOverwrite) SyncServiceOption {
 	return func(s *SyncService) {
 		s.overwrite = overwrite
 	}
 }
 
-func WithSyncServiceSkip(skip *service.SyncSkip) SyncServiceOption {
+func WithSyncServiceSkip(skip *spb.SyncSkip) SyncServiceOption {
 	return func(s *SyncService) {
 		s.skip = skip
 	}
@@ -56,7 +56,7 @@ func WithSyncServiceLogger(logger *observability.CoreLogger) SyncServiceOption {
 	}
 }
 
-func WithSyncServiceSenderFunc(senderFunc func(*service.Record)) SyncServiceOption {
+func WithSyncServiceSenderFunc(senderFunc func(*spb.Record)) SyncServiceOption {
 	return func(s *SyncService) {
 		s.senderFunc = senderFunc
 	}
@@ -68,15 +68,15 @@ func WithSyncServiceFlushCallback(syncResultCallback func(error)) SyncServiceOpt
 	}
 }
 
-func (s *SyncService) SyncRecord(record *service.Record, err error) {
+func (s *SyncService) SyncRecord(record *spb.Record, err error) {
 	if err != nil && err != io.EOF {
 		s.syncErr = err
 	}
 
 	if err != nil && !s.exitSeen {
-		record = &service.Record{
-			RecordType: &service.Record_Exit{
-				Exit: &service.RunExitRecord{
+		record = &spb.Record{
+			RecordType: &spb.Record_Exit{
+				Exit: &spb.RunExitRecord{
 					ExitCode: 1,
 				},
 			},
@@ -105,11 +105,11 @@ func (s *SyncService) sync() {
 		// remove the control from the record:
 		record.Control = nil
 		switch record.RecordType.(type) {
-		case *service.Record_Run:
+		case *spb.Record_Run:
 			s.syncRun(record)
-		case *service.Record_OutputRaw:
+		case *spb.Record_OutputRaw:
 			s.syncOutputRaw(record)
-		case *service.Record_Exit:
+		case *spb.Record_Exit:
 			s.syncExit(record)
 		default:
 			s.senderFunc(record)
@@ -118,7 +118,7 @@ func (s *SyncService) sync() {
 	s.wg.Done()
 }
 
-func (s *SyncService) syncRun(record *service.Record) {
+func (s *SyncService) syncRun(record *spb.Record) {
 	if s.overwrite != nil {
 		if s.overwrite.GetEntity() != "" {
 			record.GetRun().Entity = s.overwrite.GetEntity()
@@ -131,11 +131,11 @@ func (s *SyncService) syncRun(record *service.Record) {
 		}
 	}
 	s.senderFunc(record)
-	record = &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_RunStart{
-					RunStart: &service.RunStartRequest{},
+	record = &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_RunStart{
+					RunStart: &spb.RunStartRequest{},
 				},
 			},
 		},
@@ -143,12 +143,12 @@ func (s *SyncService) syncRun(record *service.Record) {
 	s.senderFunc(record)
 }
 
-func (s *SyncService) syncExit(record *service.Record) {
+func (s *SyncService) syncExit(record *spb.Record) {
 	s.exitSeen = true
 	s.senderFunc(record)
 }
 
-func (s *SyncService) syncOutputRaw(record *service.Record) {
+func (s *SyncService) syncOutputRaw(record *spb.Record) {
 	if s.skip != nil && s.skip.GetOutputRaw() {
 		return
 	}

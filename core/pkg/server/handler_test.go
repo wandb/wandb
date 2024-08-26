@@ -9,19 +9,19 @@ import (
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func makeHandler(
-	inChan, fwdChan chan *service.Record,
-	outChan chan *service.Result,
+	inChan, fwdChan chan *spb.Record,
+	outChan chan *spb.Result,
 	commit string,
 ) *server.Handler {
 	h := server.NewHandler(
 		commit,
 		server.HandlerParams{
 			Logger:          observability.NewNoOpLogger(),
-			Settings:        &service.Settings{},
+			Settings:        &spb.Settings{},
 			FwdChan:         fwdChan,
 			OutChan:         outChan,
 			TerminalPrinter: observability.NewPrinter(),
@@ -42,13 +42,13 @@ type data struct {
 	flushNil bool
 }
 
-func makeFlushRecord() *service.Record {
-	record := &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Defer{
-					Defer: &service.DeferRequest{
-						State: service.DeferRequest_FLUSH_PARTIAL_HISTORY,
+func makeFlushRecord() *spb.Record {
+	record := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_Defer{
+					Defer: &spb.DeferRequest{
+						State: spb.DeferRequest_FLUSH_PARTIAL_HISTORY,
 					},
 				},
 			},
@@ -57,64 +57,64 @@ func makeFlushRecord() *service.Record {
 	return record
 }
 
-func makePartialHistoryRecord(d data) *service.Record {
-	items := []*service.HistoryItem{}
+func makePartialHistoryRecord(d data) *spb.Record {
+	items := []*spb.HistoryItem{}
 	for k, v := range d.items {
-		items = append(items, &service.HistoryItem{
+		items = append(items, &spb.HistoryItem{
 			NestedKey: strings.Split(k, "."),
 			ValueJson: v,
 		})
 	}
-	partialHistoryRequest := &service.PartialHistoryRequest{
+	partialHistoryRequest := &spb.PartialHistoryRequest{
 		Item: items,
 	}
 	if !d.stepNil {
-		partialHistoryRequest.Step = &service.HistoryStep{Num: d.step}
+		partialHistoryRequest.Step = &spb.HistoryStep{Num: d.step}
 	}
 	if !d.flushNil {
-		partialHistoryRequest.Action = &service.HistoryAction{Flush: d.flush}
+		partialHistoryRequest.Action = &spb.HistoryAction{Flush: d.flush}
 	}
-	record := &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_PartialHistory{
+	record := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_PartialHistory{
 					PartialHistory: partialHistoryRequest,
 				},
 			},
 		},
-		Control: &service.Control{
+		Control: &spb.Control{
 			MailboxSlot: "junk",
 		},
 	}
 	return record
 }
 
-func makeHistoryRecord(d data) *service.Record {
-	items := []*service.HistoryItem{}
+func makeHistoryRecord(d data) *spb.Record {
+	items := []*spb.HistoryItem{}
 	for k, v := range d.items {
-		items = append(items, &service.HistoryItem{
+		items = append(items, &spb.HistoryItem{
 			NestedKey: strings.Split(k, "."),
 			ValueJson: v,
 		})
 	}
-	history := &service.HistoryRecord{
+	history := &spb.HistoryRecord{
 		Item: items,
-		Step: &service.HistoryStep{Num: d.step},
+		Step: &spb.HistoryStep{Num: d.step},
 	}
-	record := &service.Record{
-		RecordType: &service.Record_History{
+	record := &spb.Record{
+		RecordType: &spb.Record_History{
 			History: history,
 		},
-		Control: &service.Control{
+		Control: &spb.Control{
 			MailboxSlot: "junk",
 		},
 	}
 	return record
 }
 
-func makeOutput(record *service.Record) data {
+func makeOutput(record *spb.Record) data {
 	switch x := record.GetRecordType().(type) {
-	case *service.Record_History:
+	case *spb.Record_History:
 		history := x.History
 		if history == nil {
 			return data{}
@@ -130,9 +130,9 @@ func makeOutput(record *service.Record) data {
 			items: items,
 			step:  history.Step.Num,
 		}
-	case *service.Record_Request:
+	case *spb.Record_Request:
 		state := x.Request.GetDefer().GetState()
-		if state != service.DeferRequest_FLUSH_PARTIAL_HISTORY {
+		if state != spb.DeferRequest_FLUSH_PARTIAL_HISTORY {
 			return data{}
 		}
 		return data{
@@ -711,9 +711,9 @@ func TestHandlePartialHistory(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan *service.Record, server.BufferSize)
-			fwdChan := make(chan *service.Record, server.BufferSize)
-			outChan := make(chan *service.Result, server.BufferSize)
+			inChan := make(chan *spb.Record, server.BufferSize)
+			fwdChan := make(chan *spb.Record, server.BufferSize)
+			outChan := make(chan *spb.Result, server.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
@@ -810,9 +810,9 @@ func TestHandleHistory(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan *service.Record, server.BufferSize)
-			fwdChan := make(chan *service.Record, server.BufferSize)
-			outChan := make(chan *service.Result, server.BufferSize)
+			inChan := make(chan *spb.Record, server.BufferSize)
+			fwdChan := make(chan *spb.Record, server.BufferSize)
+			outChan := make(chan *spb.Result, server.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
@@ -844,17 +844,17 @@ func TestHandleHistory(t *testing.T) {
 }
 
 func TestHandleHeader(t *testing.T) {
-	inChan := make(chan *service.Record, 1)
-	fwdChan := make(chan *service.Record, 1)
-	outChan := make(chan *service.Result, 1)
+	inChan := make(chan *spb.Record, 1)
+	fwdChan := make(chan *spb.Record, 1)
+	outChan := make(chan *spb.Result, 1)
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
 
 	makeHandler(inChan, fwdChan, outChan, sha)
 
-	record := &service.Record{
-		RecordType: &service.Record_Header{
-			Header: &service.HeaderRecord{},
+	record := &spb.Record{
+		RecordType: &spb.Record_Header{
+			Header: &spb.HeaderRecord{},
 		},
 	}
 	inChan <- record

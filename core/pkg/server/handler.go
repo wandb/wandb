@@ -24,7 +24,8 @@ import (
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -37,9 +38,9 @@ const (
 )
 
 type HandlerParams struct {
-	Settings          *service.Settings
-	FwdChan           chan *service.Record
-	OutChan           chan *service.Result
+	Settings          *spb.Settings
+	FwdChan           chan *spb.Record
+	OutChan           chan *spb.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
 	FileTransferStats filetransfer.FileTransferStats
@@ -61,7 +62,7 @@ type Handler struct {
 	commit string
 
 	// settings is the settings for the handler
-	settings *service.Settings
+	settings *spb.Settings
 
 	// clientID is an ID for this process.
 	//
@@ -74,16 +75,16 @@ type Handler struct {
 	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the next component
-	fwdChan chan *service.Record
+	fwdChan chan *spb.Record
 
 	// outChan is the channel for sending results to the client
-	outChan chan *service.Result
+	outChan chan *spb.Result
 
 	// runTimer is used to track the run start and execution times
 	runTimer *timer.Timer
 
 	// runRecord is the runRecord record received from the server
-	runRecord *service.RunRecord
+	runRecord *spb.RunRecord
 
 	// partialHistory is a set of run metrics accumulated for the current step.
 	partialHistory *runhistory.RunHistory
@@ -117,7 +118,7 @@ type Handler struct {
 	systemMonitor *monitor.SystemMonitor
 
 	// metadata stores the run metadata including system stats
-	metadata *service.MetadataRequest
+	metadata *spb.MetadataRequest
 
 	// tbHandler is the tensorboard handler
 	tbHandler *tensorboard.TBHandler
@@ -164,7 +165,7 @@ func NewHandler(
 }
 
 // Do processes all records on the input channel.
-func (h *Handler) Do(inChan <-chan *service.Record) {
+func (h *Handler) Do(inChan <-chan *spb.Record) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 	for record := range inChan {
@@ -181,9 +182,9 @@ func (h *Handler) Close() {
 }
 
 // respond sends a response to the client
-func (h *Handler) respond(record *service.Record, response *service.Response) {
-	result := &service.Result{
-		ResultType: &service.Result_Response{Response: response},
+func (h *Handler) respond(record *spb.Record, response *spb.Response) {
+	result := &spb.Result{
+		ResultType: &spb.Result_Response{Response: response},
 		Control:    record.Control,
 		Uuid:       record.Uuid,
 	}
@@ -191,7 +192,7 @@ func (h *Handler) respond(record *service.Record, response *service.Response) {
 }
 
 // fwdRecord forwards a record to the next component
-func (h *Handler) fwdRecord(record *service.Record) {
+func (h *Handler) fwdRecord(record *spb.Record) {
 	if record == nil {
 		return
 	}
@@ -199,13 +200,13 @@ func (h *Handler) fwdRecord(record *service.Record) {
 }
 
 // fwdRecordWithControl forwards a record to the next component with control options
-func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ...func(*service.Control)) {
+func (h *Handler) fwdRecordWithControl(record *spb.Record, controlOptions ...func(*spb.Control)) {
 	if record == nil {
 		return
 	}
 
 	if record.GetControl() == nil {
-		record.Control = &service.Control{}
+		record.Control = &spb.Control{}
 	}
 
 	for _, opt := range controlOptions {
@@ -215,49 +216,49 @@ func (h *Handler) fwdRecordWithControl(record *service.Record, controlOptions ..
 }
 
 //gocyclo:ignore
-func (h *Handler) handleRecord(record *service.Record) {
+func (h *Handler) handleRecord(record *spb.Record) {
 	switch x := record.RecordType.(type) {
-	case *service.Record_Alert:
+	case *spb.Record_Alert:
 		h.handleAlert(record)
-	case *service.Record_Artifact:
+	case *spb.Record_Artifact:
 		h.handleArtifact(record)
-	case *service.Record_Config:
+	case *spb.Record_Config:
 		h.handleConfig(record)
-	case *service.Record_Exit:
+	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit)
-	case *service.Record_Files:
+	case *spb.Record_Files:
 		h.handleFiles(record)
-	case *service.Record_Final:
+	case *spb.Record_Final:
 		h.handleFinal()
-	case *service.Record_Footer:
+	case *spb.Record_Footer:
 		h.handleFooter()
-	case *service.Record_Header:
+	case *spb.Record_Header:
 		h.handleHeader(record)
-	case *service.Record_History:
+	case *spb.Record_History:
 		h.handleHistoryDirectly(x.History)
-	case *service.Record_NoopLinkArtifact:
+	case *spb.Record_NoopLinkArtifact:
 		// Removed but kept to avoid panics
-	case *service.Record_Metric:
+	case *spb.Record_Metric:
 		h.handleMetric(record)
-	case *service.Record_Output:
+	case *spb.Record_Output:
 		h.handleOutput(record)
-	case *service.Record_OutputRaw:
+	case *spb.Record_OutputRaw:
 		h.handleOutputRaw(record)
-	case *service.Record_Preempting:
+	case *spb.Record_Preempting:
 		h.handlePreempting(record)
-	case *service.Record_Request:
+	case *spb.Record_Request:
 		h.handleRequest(record)
-	case *service.Record_Run:
+	case *spb.Record_Run:
 		h.handleRun(record)
-	case *service.Record_Stats:
+	case *spb.Record_Stats:
 		h.handleSystemMetrics(record)
-	case *service.Record_Summary:
+	case *spb.Record_Summary:
 		h.handleSummary(record, x.Summary)
-	case *service.Record_Tbrecord:
+	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
-	case *service.Record_Telemetry:
+	case *spb.Record_Telemetry:
 		h.handleTelemetry(record)
-	case *service.Record_UseArtifact:
+	case *spb.Record_UseArtifact:
 		h.handleUseArtifact(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
@@ -269,78 +270,78 @@ func (h *Handler) handleRecord(record *service.Record) {
 }
 
 //gocyclo:ignore
-func (h *Handler) handleRequest(record *service.Record) {
+func (h *Handler) handleRequest(record *spb.Record) {
 	request := record.GetRequest()
 	switch x := request.RequestType.(type) {
-	case *service.Request_Login:
+	case *spb.Request_Login:
 		h.handleRequestLogin(record)
-	case *service.Request_CheckVersion:
+	case *spb.Request_CheckVersion:
 		h.handleRequestCheckVersion(record)
-	case *service.Request_RunStatus:
+	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
-	case *service.Request_Metadata:
+	case *spb.Request_Metadata:
 		h.handleMetadata(x.Metadata)
-	case *service.Request_SummaryRecord:
+	case *spb.Request_SummaryRecord:
 		// TODO: handles sending summary file
-	case *service.Request_TelemetryRecord:
+	case *spb.Request_TelemetryRecord:
 		// TODO: handles sending telemetry record
-	case *service.Request_TestInject:
+	case *spb.Request_TestInject:
 		// not implemented in the old handler
-	case *service.Request_JobInfo:
+	case *spb.Request_JobInfo:
 		// not implemented in the old handler
-	case *service.Request_Status:
+	case *spb.Request_Status:
 		h.handleRequestStatus(record)
-	case *service.Request_SenderMark:
+	case *spb.Request_SenderMark:
 		h.handleRequestSenderMark(record)
-	case *service.Request_StatusReport:
+	case *spb.Request_StatusReport:
 		h.handleRequestStatusReport(record)
-	case *service.Request_Keepalive:
+	case *spb.Request_Keepalive:
 		// keepalive is a no-op
-	case *service.Request_Shutdown:
+	case *spb.Request_Shutdown:
 		h.handleRequestShutdown(record)
-	case *service.Request_Defer:
+	case *spb.Request_Defer:
 		h.handleRequestDefer(record, x.Defer)
-	case *service.Request_GetSummary:
+	case *spb.Request_GetSummary:
 		h.handleRequestGetSummary(record)
-	case *service.Request_NetworkStatus:
+	case *spb.Request_NetworkStatus:
 		h.handleRequestNetworkStatus(record)
-	case *service.Request_PartialHistory:
+	case *spb.Request_PartialHistory:
 		h.handleRequestPartialHistory(record, x.PartialHistory)
-	case *service.Request_PollExit:
+	case *spb.Request_PollExit:
 		h.handleRequestPollExit(record)
-	case *service.Request_RunStart:
+	case *spb.Request_RunStart:
 		h.handleRequestRunStart(record, x.RunStart)
-	case *service.Request_SampledHistory:
+	case *spb.Request_SampledHistory:
 		h.handleRequestSampledHistory(record)
-	case *service.Request_ServerInfo:
+	case *spb.Request_ServerInfo:
 		h.handleRequestServerInfo(record)
-	case *service.Request_PythonPackages:
+	case *spb.Request_PythonPackages:
 		h.handleRequestPythonPackages(record, x.PythonPackages)
-	case *service.Request_StopStatus:
+	case *spb.Request_StopStatus:
 		h.handleRequestStopStatus(record)
-	case *service.Request_LogArtifact:
+	case *spb.Request_LogArtifact:
 		h.handleRequestLogArtifact(record)
-	case *service.Request_LinkArtifact:
+	case *spb.Request_LinkArtifact:
 		h.handleRequestLinkArtifact(record)
-	case *service.Request_DownloadArtifact:
+	case *spb.Request_DownloadArtifact:
 		h.handleRequestDownloadArtifact(record)
-	case *service.Request_Attach:
+	case *spb.Request_Attach:
 		h.handleRequestAttach(record)
-	case *service.Request_Pause:
+	case *spb.Request_Pause:
 		h.handleRequestPause()
-	case *service.Request_Resume:
+	case *spb.Request_Resume:
 		h.handleRequestResume()
-	case *service.Request_Cancel:
+	case *spb.Request_Cancel:
 		h.handleRequestCancel(x.Cancel)
-	case *service.Request_GetSystemMetrics:
+	case *spb.Request_GetSystemMetrics:
 		h.handleRequestGetSystemMetrics(record)
-	case *service.Request_InternalMessages:
+	case *spb.Request_InternalMessages:
 		h.handleRequestInternalMessages(record)
-	case *service.Request_Sync:
+	case *spb.Request_Sync:
 		h.handleRequestSync(record)
-	case *service.Request_SenderRead:
+	case *spb.Request_SenderRead:
 		h.handleRequestSenderRead(record)
-	case *service.Request_JobInput:
+	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
@@ -351,39 +352,39 @@ func (h *Handler) handleRequest(record *service.Record) {
 	}
 }
 
-func (h *Handler) handleRequestLogin(record *service.Record) {
+func (h *Handler) handleRequestLogin(record *spb.Record) {
 	// TODO: implement login if it is needed
 	if record.GetControl().GetReqResp() {
-		h.respond(record, &service.Response{})
+		h.respond(record, &spb.Response{})
 	}
 }
 
-func (h *Handler) handleRequestCheckVersion(record *service.Record) {
+func (h *Handler) handleRequestCheckVersion(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestRunStatus(record *service.Record) {
+func (h *Handler) handleRequestRunStatus(record *spb.Record) {
 	// TODO(flow-control): implement run status
-	h.respond(record, &service.Response{})
+	h.respond(record, &spb.Response{})
 }
 
-func (h *Handler) handleRequestStatus(record *service.Record) {
-	h.respond(record, &service.Response{})
+func (h *Handler) handleRequestStatus(record *spb.Record) {
+	h.respond(record, &spb.Response{})
 }
 
-func (h *Handler) handleRequestSenderMark(_ *service.Record) {
+func (h *Handler) handleRequestSenderMark(_ *spb.Record) {
 	// TODO(flow-control): implement sender mark
 }
 
-func (h *Handler) handleRequestStatusReport(_ *service.Record) {
+func (h *Handler) handleRequestStatusReport(_ *spb.Record) {
 	// TODO(flow-control): implement status report
 }
 
-func (h *Handler) handleRequestShutdown(record *service.Record) {
-	h.respond(record, &service.Response{})
+func (h *Handler) handleRequestShutdown(record *spb.Record) {
+	h.respond(record, &spb.Response{})
 }
 
-func (h *Handler) handleMetric(record *service.Record) {
+func (h *Handler) handleMetric(record *spb.Record) {
 	metric := record.GetMetric()
 	if metric == nil {
 		h.logger.CaptureError(
@@ -405,15 +406,15 @@ func (h *Handler) handleMetric(record *service.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestDefer(record *service.Record, request *service.DeferRequest) {
+func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
 	switch request.State {
-	case service.DeferRequest_BEGIN:
-	case service.DeferRequest_FLUSH_RUN:
-	case service.DeferRequest_FLUSH_STATS:
+	case spb.DeferRequest_BEGIN:
+	case spb.DeferRequest_FLUSH_RUN:
+	case spb.DeferRequest_FLUSH_STATS:
 		// stop the system monitor to ensure that we don't send any more system metrics
 		// after the run has exited
 		h.systemMonitor.Finish()
-	case service.DeferRequest_FLUSH_PARTIAL_HISTORY:
+	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
 		// This will force the content of h.runHistory to be flushed and sent
 		// over to the sender.
 		//
@@ -423,97 +424,97 @@ func (h *Handler) handleRequestDefer(record *service.Record, request *service.De
 		// Hence, we are guranteed that the content of h.runHistory is sent
 		h.handleRequestPartialHistory(
 			nil,
-			&service.PartialHistoryRequest{
-				Action: &service.HistoryAction{
+			&spb.PartialHistoryRequest{
+				Action: &spb.HistoryAction{
 					Flush: true,
 				},
 			},
 		)
-	case service.DeferRequest_FLUSH_TB:
-	case service.DeferRequest_FLUSH_SUM:
-	case service.DeferRequest_FLUSH_DEBOUNCER:
-	case service.DeferRequest_FLUSH_OUTPUT:
-	case service.DeferRequest_FLUSH_JOB:
-	case service.DeferRequest_FLUSH_DIR:
-	case service.DeferRequest_FLUSH_FP:
+	case spb.DeferRequest_FLUSH_TB:
+	case spb.DeferRequest_FLUSH_SUM:
+	case spb.DeferRequest_FLUSH_DEBOUNCER:
+	case spb.DeferRequest_FLUSH_OUTPUT:
+	case spb.DeferRequest_FLUSH_JOB:
+	case spb.DeferRequest_FLUSH_DIR:
+	case spb.DeferRequest_FLUSH_FP:
 		if h.runfilesUploaderOrNil != nil {
 			h.runfilesUploaderOrNil.UploadRemaining()
 		}
-	case service.DeferRequest_JOIN_FP:
-	case service.DeferRequest_FLUSH_FS:
-	case service.DeferRequest_FLUSH_FINAL:
+	case spb.DeferRequest_JOIN_FP:
+	case spb.DeferRequest_FLUSH_FS:
+	case spb.DeferRequest_FLUSH_FINAL:
 		h.handleFinal()
 		h.handleFooter()
-	case service.DeferRequest_END:
+	case spb.DeferRequest_END:
 		h.fileTransferStats.SetDone()
 	default:
 		h.logger.CaptureError(
 			fmt.Errorf("handleDefer: unknown defer state %v", request.State))
 	}
 	// Need to clone the record to avoid race condition with the writer
-	record = proto.Clone(record).(*service.Record)
+	record = proto.Clone(record).(*spb.Record)
 	h.fwdRecordWithControl(record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = true
 		},
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.Local = true
 		},
 	)
 }
 
-func (h *Handler) handleRequestStopStatus(record *service.Record) {
+func (h *Handler) handleRequestStopStatus(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleArtifact(record *service.Record) {
+func (h *Handler) handleArtifact(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestLogArtifact(record *service.Record) {
+func (h *Handler) handleRequestLogArtifact(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestDownloadArtifact(record *service.Record) {
+func (h *Handler) handleRequestDownloadArtifact(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestLinkArtifact(record *service.Record) {
+func (h *Handler) handleRequestLinkArtifact(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestPollExit(record *service.Record) {
-	var pollExitResponse *service.PollExitResponse
+func (h *Handler) handleRequestPollExit(record *spb.Record) {
+	var pollExitResponse *spb.PollExitResponse
 	if h.fileTransferStats != nil {
-		pollExitResponse = &service.PollExitResponse{
+		pollExitResponse = &spb.PollExitResponse{
 			PusherStats: h.fileTransferStats.GetFilesStats(),
 			FileCounts:  h.fileTransferStats.GetFileCounts(),
 			Done:        h.fileTransferStats.IsDone(),
 		}
 	} else {
-		pollExitResponse = &service.PollExitResponse{
+		pollExitResponse = &spb.PollExitResponse{
 			Done: true,
 		}
 	}
 
-	response := &service.Response{
-		ResponseType: &service.Response_PollExitResponse{
+	response := &spb.Response{
+		ResponseType: &spb.Response_PollExitResponse{
 			PollExitResponse: pollExitResponse,
 		},
 	}
 	h.respond(record, response)
 }
 
-func (h *Handler) handleHeader(record *service.Record) {
+func (h *Handler) handleHeader(record *spb.Record) {
 	// populate with version info
 	versionString := fmt.Sprintf("%s+%s", version.Version, h.commit)
-	record.GetHeader().VersionInfo = &service.VersionInfo{
+	record.GetHeader().VersionInfo = &spb.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
 	}
 	h.fwdRecordWithControl(
 		record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = false
 		},
 	)
@@ -524,14 +525,14 @@ func (h *Handler) handleFinal() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
-	record := &service.Record{
-		RecordType: &service.Record_Final{
-			Final: &service.FinalRecord{},
+	record := &spb.Record{
+		RecordType: &spb.Record_Final{
+			Final: &spb.FinalRecord{},
 		},
 	}
 	h.fwdRecordWithControl(
 		record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = false
 		},
 	)
@@ -542,28 +543,28 @@ func (h *Handler) handleFooter() {
 		// if sync is enabled, we don't need to do all this
 		return
 	}
-	record := &service.Record{
-		RecordType: &service.Record_Footer{
-			Footer: &service.FooterRecord{},
+	record := &spb.Record{
+		RecordType: &spb.Record_Footer{
+			Footer: &spb.FooterRecord{},
 		},
 	}
 	h.fwdRecordWithControl(
 		record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = false
 		},
 	)
 }
 
-func (h *Handler) handleRequestServerInfo(record *service.Record) {
+func (h *Handler) handleRequestServerInfo(record *spb.Record) {
 	h.fwdRecordWithControl(record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = true
 		},
 	)
 }
 
-func (h *Handler) handleRequestRunStart(record *service.Record, request *service.RunStartRequest) {
+func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
 	var ok bool
 	run := request.Run
 
@@ -572,7 +573,7 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	// start the run timer
 	h.runTimer.Start(&startTime)
 
-	if h.runRecord, ok = proto.Clone(run).(*service.RunRecord); !ok {
+	if h.runRecord, ok = proto.Clone(run).(*spb.RunRecord); !ok {
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handleRunStart: failed to clone run"))
 	}
@@ -581,15 +582,15 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 	// the latter will start its filestream and uploader
 
 	// initialize the run metadata from settings
-	var git *service.GitRepoRecord
+	var git *spb.GitRepoRecord
 	if run.GetGit().GetRemoteUrl() != "" || run.GetGit().GetCommit() != "" {
-		git = &service.GitRepoRecord{
+		git = &spb.GitRepoRecord{
 			RemoteUrl: run.GetGit().GetRemoteUrl(),
 			Commit:    run.GetGit().GetCommit(),
 		}
 	}
 
-	metadata := &service.MetadataRequest{
+	metadata := &spb.MetadataRequest{
 		Os:            h.settings.GetXOs().GetValue(),
 		Python:        h.settings.GetXPython().GetValue(),
 		Host:          h.settings.GetHost().GetValue(),
@@ -620,10 +621,10 @@ func (h *Handler) handleRequestRunStart(record *service.Record, request *service
 		h.handlePatchSave()
 	}
 
-	h.respond(record, &service.Response{})
+	h.respond(record, &spb.Response{})
 }
 
-func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *service.PythonPackagesRequest) {
+func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.PythonPackagesRequest) {
 	// write all requirements to a file
 	// send the file as a Files record
 	filename := filepath.Join(h.settings.GetFilesDir().GetValue(), RequirementsFileName)
@@ -647,13 +648,13 @@ func (h *Handler) handleRequestPythonPackages(_ *service.Record, request *servic
 			return
 		}
 	}
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
+	record := &spb.Record{
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
+				Files: []*spb.FilesItem{
 					{
 						Path: RequirementsFileName,
-						Type: service.FilesItem_WANDB,
+						Type: spb.FilesItem_WANDB,
 					},
 				},
 			},
@@ -685,13 +686,13 @@ func (h *Handler) handleCodeSave() {
 			return
 		}
 	}
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
+	record := &spb.Record{
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
+				Files: []*spb.FilesItem{
 					{
 						Path: filepath.Join("code", programRelative),
-						Type: service.FilesItem_WANDB,
+						Type: spb.FilesItem_WANDB,
 					},
 				},
 			},
@@ -711,14 +712,14 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	var files []*service.FilesItem
+	var files []*spb.FilesItem
 
 	filesDirPath := h.settings.GetFilesDir().GetValue()
 	file := filepath.Join(filesDirPath, DiffFileName)
 	if err := git.SavePatch("HEAD", file); err != nil {
 		h.logger.Error("error generating diff", "error", err)
 	} else {
-		files = append(files, &service.FilesItem{Path: DiffFileName, Type: service.FilesItem_WANDB})
+		files = append(files, &spb.FilesItem{Path: DiffFileName, Type: spb.FilesItem_WANDB})
 	}
 
 	if output, err := git.LatestCommit("@{u}"); err != nil {
@@ -729,7 +730,7 @@ func (h *Handler) handlePatchSave() {
 		if err := git.SavePatch("@{u}", file); err != nil {
 			h.logger.Error("error generating diff", "error", err)
 		} else {
-			files = append(files, &service.FilesItem{Path: diffFileName, Type: service.FilesItem_WANDB})
+			files = append(files, &spb.FilesItem{Path: diffFileName, Type: spb.FilesItem_WANDB})
 		}
 	}
 
@@ -737,9 +738,9 @@ func (h *Handler) handlePatchSave() {
 		return
 	}
 
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
+	record := &spb.Record{
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
 				Files: files,
 			},
 		},
@@ -747,7 +748,7 @@ func (h *Handler) handlePatchSave() {
 	h.handleFiles(record)
 }
 
-func (h *Handler) handleMetadata(request *service.MetadataRequest) {
+func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 	// TODO: Sending metadata as a request for now, eventually this should be turned into
 	//  a record and stored in the transaction log
 	if h.settings.GetXDisableMeta().GetValue() {
@@ -755,7 +756,7 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	}
 
 	if h.metadata == nil {
-		h.metadata = proto.Clone(request).(*service.MetadataRequest)
+		h.metadata = proto.Clone(request).(*spb.MetadataRequest)
 	} else {
 		proto.Merge(h.metadata, request)
 	}
@@ -777,13 +778,13 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 		return
 	}
 
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
+	record := &spb.Record{
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
+				Files: []*spb.FilesItem{
 					{
 						Path: MetaFileName,
-						Type: service.FilesItem_WANDB,
+						Type: spb.FilesItem_WANDB,
 					},
 				},
 			},
@@ -793,10 +794,10 @@ func (h *Handler) handleMetadata(request *service.MetadataRequest) {
 	h.handleFiles(record)
 }
 
-func (h *Handler) handleRequestAttach(record *service.Record) {
-	response := &service.Response{
-		ResponseType: &service.Response_AttachResponse{
-			AttachResponse: &service.AttachResponse{
+func (h *Handler) handleRequestAttach(record *spb.Record) {
+	response := &spb.Response{
+		ResponseType: &spb.Response_AttachResponse{
+			AttachResponse: &spb.AttachResponse{
 				Run: h.runRecord,
 			},
 		},
@@ -804,7 +805,7 @@ func (h *Handler) handleRequestAttach(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestCancel(request *service.CancelRequest) {
+func (h *Handler) handleRequestCancel(request *spb.CancelRequest) {
 	// TODO(flow-control): implement cancel
 	cancelSlot := request.GetCancelSlot()
 	if cancelSlot != "" {
@@ -822,39 +823,39 @@ func (h *Handler) handleRequestResume() {
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleSystemMetrics(record *service.Record) {
+func (h *Handler) handleSystemMetrics(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleOutput(record *service.Record) {
+func (h *Handler) handleOutput(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleOutputRaw(record *service.Record) {
+func (h *Handler) handleOutputRaw(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handlePreempting(record *service.Record) {
+func (h *Handler) handlePreempting(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRun(record *service.Record) {
+func (h *Handler) handleRun(record *spb.Record) {
 	h.fwdRecordWithControl(record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = true
 		},
 	)
 }
 
-func (h *Handler) handleConfig(record *service.Record) {
+func (h *Handler) handleConfig(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleAlert(record *service.Record) {
+func (h *Handler) handleAlert(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord) {
+func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 	// stop the run timer and set the runtime
 	h.runTimer.Pause()
 	exit.Runtime = int32(h.runTimer.Elapsed().Seconds())
@@ -865,7 +866,7 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 
 	// send the exit record
 	h.fwdRecordWithControl(record,
-		func(control *service.Control) {
+		func(control *spb.Control) {
 			control.AlwaysSend = true
 			// do not write to the transaction log when syncing an offline run
 			if h.settings.GetXSync().GetValue() {
@@ -875,15 +876,15 @@ func (h *Handler) handleExit(record *service.Record, exit *service.RunExitRecord
 	)
 }
 
-func (h *Handler) handleFiles(record *service.Record) {
+func (h *Handler) handleFiles(record *spb.Record) {
 	if record.GetFiles() == nil {
 		return
 	}
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestGetSummary(record *service.Record) {
-	response := &service.Response{}
+func (h *Handler) handleRequestGetSummary(record *spb.Record) {
+	response := &spb.Response{}
 
 	items, err := h.runSummary.ToRecords()
 
@@ -894,37 +895,37 @@ func (h *Handler) handleRequestGetSummary(record *service.Record) {
 			fmt.Errorf("handler: error flattening run summary: %v", err))
 	}
 
-	response.ResponseType = &service.Response_GetSummaryResponse{
-		GetSummaryResponse: &service.GetSummaryResponse{
+	response.ResponseType = &spb.Response_GetSummaryResponse{
+		GetSummaryResponse: &spb.GetSummaryResponse{
 			Item: items,
 		},
 	}
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
+func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 	sm := h.systemMonitor.GetBuffer()
 
-	response := &service.Response{}
+	response := &spb.Response{}
 
-	response.ResponseType = &service.Response_GetSystemMetricsResponse{
-		GetSystemMetricsResponse: &service.GetSystemMetricsResponse{
-			SystemMetrics: make(map[string]*service.SystemMetricsBuffer),
+	response.ResponseType = &spb.Response_GetSystemMetricsResponse{
+		GetSystemMetricsResponse: &spb.GetSystemMetricsResponse{
+			SystemMetrics: make(map[string]*spb.SystemMetricsBuffer),
 		},
 	}
 
 	for key, samples := range sm {
-		buffer := make([]*service.SystemMetricSample, 0, len(samples.GetElements()))
+		buffer := make([]*spb.SystemMetricSample, 0, len(samples.GetElements()))
 
 		// convert samples to buffer:
 		for _, sample := range samples.GetElements() {
-			buffer = append(buffer, &service.SystemMetricSample{
+			buffer = append(buffer, &spb.SystemMetricSample{
 				Timestamp: sample.Timestamp,
 				Value:     float32(sample.Value),
 			})
 		}
 		// add to response as map key: buffer
-		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &service.SystemMetricsBuffer{
+		response.GetGetSystemMetricsResponse().SystemMetrics[key] = &spb.SystemMetricsBuffer{
 			Record: buffer,
 		}
 	}
@@ -932,12 +933,12 @@ func (h *Handler) handleRequestGetSystemMetrics(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestInternalMessages(record *service.Record) {
+func (h *Handler) handleRequestInternalMessages(record *spb.Record) {
 	messages := h.terminalPrinter.Read()
-	response := &service.Response{
-		ResponseType: &service.Response_InternalMessagesResponse{
-			InternalMessagesResponse: &service.InternalMessagesResponse{
-				Messages: &service.InternalMessages{
+	response := &spb.Response{
+		ResponseType: &spb.Response_InternalMessagesResponse{
+			InternalMessagesResponse: &spb.InternalMessagesResponse{
+				Messages: &spb.InternalMessages{
 					Warning: messages,
 				},
 			},
@@ -946,23 +947,23 @@ func (h *Handler) handleRequestInternalMessages(record *service.Record) {
 	h.respond(record, response)
 }
 
-func (h *Handler) handleRequestSync(record *service.Record) {
+func (h *Handler) handleRequestSync(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestSenderRead(record *service.Record) {
+func (h *Handler) handleRequestSenderRead(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleTelemetry(record *service.Record) {
+func (h *Handler) handleTelemetry(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleUseArtifact(record *service.Record) {
+func (h *Handler) handleUseArtifact(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestJobInput(record *service.Record) {
+func (h *Handler) handleRequestJobInput(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
@@ -973,8 +974,8 @@ func (h *Handler) handleRequestJobInput(record *service.Record) {
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
 func (h *Handler) handleSummary(
-	record *service.Record,
-	summary *service.SummaryRecord,
+	record *spb.Record,
+	summary *spb.SummaryRecord,
 ) {
 	for _, update := range summary.Update {
 		err := h.runSummary.SetFromRecord(update)
@@ -997,10 +998,10 @@ func (h *Handler) handleSummary(
 // This emits a summary record that is written to the transaction log.
 func (h *Handler) updateRunTiming() {
 	runtime := int(h.runTimer.Elapsed().Seconds())
-	record := &service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
-				Update: []*service.SummaryItem{{
+	record := &spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
+				Update: []*spb.SummaryItem{{
 					NestedKey: []string{"_wandb", "runtime"},
 					ValueJson: strconv.Itoa(runtime),
 				}},
@@ -1011,7 +1012,7 @@ func (h *Handler) updateRunTiming() {
 	h.handleSummary(record, record.GetSummary())
 }
 
-func (h *Handler) handleTBrecord(record *service.TBRecord) {
+func (h *Handler) handleTBrecord(record *spb.TBRecord) {
 	if err := h.tbHandler.Handle(record); err != nil {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: failed to handle TB record: %v", err))
@@ -1019,28 +1020,28 @@ func (h *Handler) handleTBrecord(record *service.TBRecord) {
 }
 
 // handleHistoryDirectly forwards history records without modification.
-func (h *Handler) handleHistoryDirectly(history *service.HistoryRecord) {
+func (h *Handler) handleHistoryDirectly(history *spb.HistoryRecord) {
 	if len(history.GetItem()) == 0 {
 		return
 	}
 
-	record := &service.Record{
-		RecordType: &service.Record_History{
+	record := &spb.Record{
+		RecordType: &spb.Record_History{
 			History: history,
 		},
 	}
 	h.fwdRecord(record)
 }
 
-func (h *Handler) handleRequestNetworkStatus(record *service.Record) {
+func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
 // handleRequestPartialHistory updates the run history, flushing data for
 // completed steps.
 func (h *Handler) handleRequestPartialHistory(
-	_ *service.Record,
-	request *service.PartialHistoryRequest,
+	_ *spb.Record,
+	request *spb.PartialHistoryRequest,
 ) {
 	if h.settings.GetXShared().GetValue() {
 		h.handlePartialHistoryAsync(request)
@@ -1053,7 +1054,7 @@ func (h *Handler) handleRequestPartialHistory(
 //
 // In "shared" mode, multiple processes (possibly running on different
 // machines) write to the same run and the backend infers step numbers.
-func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryRequest) {
+func (h *Handler) handlePartialHistoryAsync(request *spb.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		// NOTE: We ignore the step in shared mode.
 		h.partialHistory = runhistory.New()
@@ -1083,7 +1084,7 @@ func (h *Handler) handlePartialHistoryAsync(request *service.PartialHistoryReque
 // In this mode, we are the only process writing to this run.
 // The main difference from shared mode is that we're responsible
 // for setting step numbers.
-func (h *Handler) handlePartialHistorySync(request *service.PartialHistoryRequest) {
+func (h *Handler) handlePartialHistorySync(request *spb.PartialHistoryRequest) {
 	if h.partialHistory == nil {
 		h.partialHistory = runhistory.New()
 		h.partialHistoryStep = h.runRecord.GetStartingStep()
@@ -1177,8 +1178,8 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	for _, newMetric := range newMetricDefs {
 		// We don't mark the record 'Local' because partial history updates
 		// are not already written to the transaction log.
-		h.handleMetric(&service.Record{
-			RecordType: &service.Record_Metric{Metric: newMetric},
+		h.handleMetric(&spb.Record{
+			RecordType: &spb.Record_Metric{Metric: newMetric},
 		})
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
@@ -1209,9 +1210,9 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 		)
 	}
 
-	historyRecord := &service.HistoryRecord{Item: items}
+	historyRecord := &spb.HistoryRecord{Item: items}
 	if useStep {
-		historyRecord.Step = &service.HistoryStep{Num: currentStep}
+		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
 	}
 	h.handleHistoryDirectly(historyRecord)
 }
@@ -1234,9 +1235,9 @@ func (h *Handler) updateSummary() {
 
 	// We must forward these changes to the Sender which uses them to build
 	// its own summary.
-	h.fwdRecord(&service.Record{
-		RecordType: &service.Record_Summary{
-			Summary: &service.SummaryRecord{
+	h.fwdRecord(&spb.Record{
+		RecordType: &spb.Record_Summary{
+			Summary: &spb.SummaryRecord{
 				Update: updates,
 			},
 		},
@@ -1248,16 +1249,16 @@ func (h *Handler) updateSummary() {
 // This function samples history items and updates the history record with the
 // sampled values. It is used to display a subset of the history items in the
 // terminal. The sampling is done using a reservoir sampling algorithm.
-func (h *Handler) handleRequestSampledHistory(record *service.Record) {
-	h.respond(record, &service.Response{
-		ResponseType: &service.Response_SampledHistoryResponse{
-			SampledHistoryResponse: &service.SampledHistoryResponse{
+func (h *Handler) handleRequestSampledHistory(record *spb.Record) {
+	h.respond(record, &spb.Response{
+		ResponseType: &spb.Response_SampledHistoryResponse{
+			SampledHistoryResponse: &spb.SampledHistoryResponse{
 				Item: h.runHistorySampler.Get(),
 			},
 		},
 	})
 }
 
-func (h *Handler) GetRun() *service.RunRecord {
+func (h *Handler) GetRun() *spb.RunRecord {
 	return h.runRecord
 }
