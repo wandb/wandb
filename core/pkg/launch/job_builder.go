@@ -17,7 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -169,7 +169,7 @@ type JobBuilder struct {
 	verbose bool
 
 	Disable               bool
-	settings              *service.Settings
+	settings              *spb.Settings
 	RunCodeArtifact       *ArtifactInfoForJob
 	aliases               []string
 	isNotebookRun         bool
@@ -195,7 +195,7 @@ func MakeArtifactNameSafe(name string) string {
 
 }
 
-func NewJobBuilder(settings *service.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
+func NewJobBuilder(settings *spb.Settings, logger *observability.CoreLogger, verbose bool) *JobBuilder {
 	jobBuilder := JobBuilder{
 		settings:            settings,
 		isNotebookRun:       settings.GetXJupyter().GetValue(),
@@ -511,7 +511,7 @@ func (j *JobBuilder) Build(
 	ctx context.Context,
 	client graphql.Client,
 	output map[string]interface{},
-) (artifact *service.ArtifactRecord, rerr error) {
+) (artifact *spb.ArtifactRecord, rerr error) {
 	j.logger.Debug("jobBuilder: building job artifact")
 	if j.Disable {
 		j.logger.Debug("jobBuilder: disabled")
@@ -616,7 +616,7 @@ func (j *JobBuilder) Build(
 		}
 	}
 
-	baseArtifact := &service.ArtifactRecord{
+	baseArtifact := &spb.ArtifactRecord{
 		Entity:           j.settings.GetEntity().GetValue(),
 		Project:          j.settings.Project.Value,
 		RunId:            j.settings.RunId.Value,
@@ -635,11 +635,11 @@ func (j *JobBuilder) Build(
 }
 
 func (j *JobBuilder) buildArtifact(
-	baseArtifact *service.ArtifactRecord,
+	baseArtifact *spb.ArtifactRecord,
 	sourceInfo JobSourceMetadata,
 	fileDir string,
 	sourceType SourceType,
-) (*service.ArtifactRecord, error) {
+) (*spb.ArtifactRecord, error) {
 	artifactBuilder := artifacts.NewArtifactBuilder(baseArtifact)
 
 	err := artifactBuilder.AddFile(filepath.Join(fileDir, REQUIREMENTS_FNAME), FROZEN_REQUIREMENTS_FNAME)
@@ -666,7 +666,7 @@ func (j *JobBuilder) buildArtifact(
 	return artifactBuilder.GetArtifact(), nil
 }
 
-func (j *JobBuilder) HandleUseArtifactRecord(record *service.Record) {
+func (j *JobBuilder) HandleUseArtifactRecord(record *spb.Record) {
 	j.logger.Debug("jobBuilder: handling use artifact record")
 	// configure job builder to either not build a job, because a full job has been used
 	// or to configure to build a complete job from a partial job
@@ -755,7 +755,7 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 	return string(metadataBytes), nil
 }
 
-func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactResponse, record *service.ArtifactRecord) {
+func (j *JobBuilder) HandleLogArtifactResult(response *spb.LogArtifactResponse, record *spb.ArtifactRecord) {
 	if j == nil {
 		return
 	}
@@ -777,7 +777,7 @@ func (j *JobBuilder) HandleLogArtifactResult(response *service.LogArtifactRespon
 // job. The request specifies the source of the input (a file or the run config)
 // and sets of keys in that config to include or exclude from the input. The
 // key sets are expressed as path prefixes in the config.
-func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
+func (j *JobBuilder) HandleJobInputRequest(request *spb.JobInputRequest) {
 	// If job builder is disabled. This happens if run is created from a job.
 	if j == nil {
 		return
@@ -790,7 +790,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 	}
 	source := request.GetInputSource()
 	switch source := source.GetSource().(type) {
-	case *service.JobInputSource_File:
+	case *spb.JobInputSource_File:
 		schema := utils.NilIfZero(request.GetInputSchema())
 		newInput, err := newFileInputFromProto(
 			source,
@@ -803,7 +803,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *service.JobInputRequest) {
 			return
 		}
 		j.configFiles = append(j.configFiles, newInput)
-	case *service.JobInputSource_RunConfig:
+	case *spb.JobInputSource_RunConfig:
 		if j.wandbConfigParameters == nil {
 			j.wandbConfigParameters = newWandbConfigParameters()
 		}

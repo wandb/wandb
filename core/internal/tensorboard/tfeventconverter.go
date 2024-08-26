@@ -24,13 +24,10 @@ type TFEventConverter struct {
 	pluginNameByTag map[string]string
 }
 
-// ConvertNext returns zero or more W&B requests corresponding to a TF event.
+// ConvertNext adds data from a TF event to the run.
 //
 // This should be called on events in the order they are read from
 // tfevents files.
-//
-// Returns an empty slice if there's no relevant history data in the event.
-// Errors are logged via the logger and the corresponding data is ignored.
 func (h *TFEventConverter) ConvertNext(
 	emitter Emitter,
 	event *tbproto.TFEvent,

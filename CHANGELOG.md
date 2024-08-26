@@ -19,6 +19,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Avoid leaving behind wandb-core process if user hits Ctrl+C twice (@timoffex in https://github.com/wandb/wandb/pull/8153)
+- Fix deprecation warnings arising from NumPy >= 2.1 by removing `newshape` argument from `numpy.reshape` by @phinate in https://github.com/wandb/wandb/pull/8167
 
 ## [0.17.7] - 2024-08-15
 

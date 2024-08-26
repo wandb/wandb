@@ -10,7 +10,7 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 var errRecordAfterClose = errors.New("runwork: ignoring record after close")
@@ -22,11 +22,11 @@ type ExtraWork interface {
 	// This may only be called before the end of the run---see the comment
 	// on BeforeEndCtx. If called after the end of the run, the record is
 	// ignored and an error is logged and captured.
-	AddRecord(record *service.Record)
+	AddRecord(record *spb.Record)
 
 	// AddRecordOrCancel is like AddRecord but exits early if the 'done'
 	// channel is closed.
-	AddRecordOrCancel(done <-chan struct{}, record *service.Record)
+	AddRecordOrCancel(done <-chan struct{}, record *spb.Record)
 
 	// BeforeEndCtx is a context that's cancelled when no additional work
 	// may be performed for the run.
@@ -47,7 +47,7 @@ type RunWork interface {
 	ExtraWork
 
 	// Chan returns the channel of records added via AddRecord.
-	Chan() <-chan *service.Record
+	Chan() <-chan *spb.Record
 
 	// SetDone indicates that the run is done, allowing the channel
 	// to become closed.
@@ -71,7 +71,7 @@ type runWork struct {
 	doneMu sync.Mutex    // locked for closing `done`
 	done   chan struct{} // closed on SetDone()
 
-	internalRecords chan *service.Record
+	internalRecords chan *spb.Record
 	endCtx          context.Context
 	endCtxCancel    func()
 
@@ -85,7 +85,7 @@ func New(bufferSize int, logger *observability.CoreLogger) RunWork {
 		addRecordCV:     sync.NewCond(&sync.Mutex{}),
 		closed:          make(chan struct{}),
 		done:            make(chan struct{}),
-		internalRecords: make(chan *service.Record, bufferSize),
+		internalRecords: make(chan *spb.Record, bufferSize),
 		endCtx:          endCtx,
 		endCtxCancel:    endCtxCancel,
 		logger:          logger,
@@ -109,13 +109,13 @@ func (rw *runWork) decAddRecord() {
 	}
 }
 
-func (rw *runWork) AddRecord(record *service.Record) {
+func (rw *runWork) AddRecord(record *spb.Record) {
 	rw.AddRecordOrCancel(nil, record)
 }
 
 func (rw *runWork) AddRecordOrCancel(
 	cancel <-chan struct{},
-	record *service.Record,
+	record *spb.Record,
 ) {
 	rw.incAddRecord()
 	defer rw.decAddRecord()
@@ -155,7 +155,7 @@ func (rw *runWork) BeforeEndCtx() context.Context {
 	return rw.endCtx
 }
 
-func (rw *runWork) Chan() <-chan *service.Record {
+func (rw *runWork) Chan() <-chan *spb.Record {
 	return rw.internalRecords
 }
 
