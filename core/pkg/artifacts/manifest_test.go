@@ -8,19 +8,19 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestNewManifestFromProto(t *testing.T) {
-	proto := &service.ArtifactManifest{
+	proto := &spb.ArtifactManifest{
 		Version:       1,
 		StoragePolicy: "policy",
-		Contents: []*service.ArtifactManifestEntry{
+		Contents: []*spb.ArtifactManifestEntry{
 			{
 				Path:   "path1",
 				Digest: "digest1",
 				Size:   123,
-				Extra: []*service.ExtraItem{
+				Extra: []*spb.ExtraItem{
 					{Key: "key1", ValueJson: `"value1"`},
 				},
 			},
@@ -35,7 +35,7 @@ func TestNewManifestFromProto(t *testing.T) {
 }
 
 func TestNewManifestFromProto_InvalidManifestFilePath(t *testing.T) {
-	proto := &service.ArtifactManifest{
+	proto := &spb.ArtifactManifest{
 		Version:          1,
 		StoragePolicy:    "policy",
 		ManifestFilePath: "invalid/path/to/manifest.gz",

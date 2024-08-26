@@ -17,7 +17,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -29,7 +29,7 @@ type ArtifactSaver struct {
 	FileTransferManager filetransfer.FileTransferManager
 	FileCache           Cache
 	// Input.
-	Artifact         *service.ArtifactRecord
+	Artifact         *spb.ArtifactRecord
 	HistoryStep      int64
 	StagingDir       string
 	maxActiveBatches int
@@ -63,7 +63,7 @@ func NewArtifactSaver(
 	logger *observability.CoreLogger,
 	graphQLClient graphql.Client,
 	uploadManager filetransfer.FileTransferManager,
-	artifact *service.ArtifactRecord,
+	artifact *spb.ArtifactRecord,
 	historyStep int64,
 	stagingDir string,
 ) ArtifactSaver {
