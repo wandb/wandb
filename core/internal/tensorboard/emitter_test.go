@@ -11,20 +11,20 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/wbvalue"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func localFlushPartialHistory(items []*service.HistoryItem) *service.Record {
-	return &service.Record{
-		Control: &service.Control{Local: true},
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_PartialHistory{
-					PartialHistory: &service.PartialHistoryRequest{
+func localFlushPartialHistory(items []*spb.HistoryItem) *spb.Record {
+	return &spb.Record{
+		Control: &spb.Control{Local: true},
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_PartialHistory{
+					PartialHistory: &spb.PartialHistoryRequest{
 						Item: items,
-						Action: &service.HistoryAction{
+						Action: &spb.HistoryAction{
 							Flush: true,
 						},
 					},
@@ -34,11 +34,11 @@ func localFlushPartialHistory(items []*service.HistoryItem) *service.Record {
 	}
 }
 
-func localConfigUpdate(items []*service.ConfigItem) *service.Record {
-	return &service.Record{
-		Control: &service.Control{Local: true},
-		RecordType: &service.Record_Config{
-			Config: &service.ConfigRecord{
+func localConfigUpdate(items []*spb.ConfigItem) *spb.Record {
+	return &spb.Record{
+		Control: &spb.Control{Local: true},
+		RecordType: &spb.Record_Config{
+			Config: &spb.ConfigRecord{
 				Update: items,
 			},
 		},
@@ -52,7 +52,7 @@ func assertProtoEqual(t *testing.T, expected proto.Message, actual proto.Message
 }
 
 func TestAccumulatesHistory(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&service.Settings{}))
+	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
 
 	emitter.EmitHistory(pathtree.PathOf("x", "y"), "0.5")
 	emitter.EmitHistory(pathtree.PathOf("z"), `"abc"`)
@@ -62,7 +62,7 @@ func TestAccumulatesHistory(t *testing.T) {
 	records := fakeRunWork.AllRecords()
 	assert.Len(t, records, 1)
 	assertProtoEqual(t,
-		localFlushPartialHistory([]*service.HistoryItem{
+		localFlushPartialHistory([]*spb.HistoryItem{
 			{NestedKey: []string{"x", "y"}, ValueJson: "0.5"},
 			{NestedKey: []string{"z"}, ValueJson: `"abc"`},
 		}),
@@ -70,7 +70,7 @@ func TestAccumulatesHistory(t *testing.T) {
 }
 
 func TestStepAndWallTime(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&service.Settings{}))
+	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
 
 	emitter.SetTFStep(pathtree.PathOf("train", "global_step"), 9)
 	emitter.SetTFWallTime(2.5)
@@ -81,7 +81,7 @@ func TestStepAndWallTime(t *testing.T) {
 	records := fakeRunWork.AllRecords()
 	assert.Len(t, records, 1)
 	assertProtoEqual(t,
-		localFlushPartialHistory([]*service.HistoryItem{
+		localFlushPartialHistory([]*spb.HistoryItem{
 			{NestedKey: []string{"x"}, ValueJson: "4"},
 			{NestedKey: []string{"train", "global_step"}, ValueJson: "9"},
 			{Key: "_timestamp", ValueJson: "2.5"},
@@ -90,7 +90,7 @@ func TestStepAndWallTime(t *testing.T) {
 }
 
 func TestChartModifiesConfig(t *testing.T) {
-	emitter := tensorboard.NewTFEmitter(settings.From(&service.Settings{}))
+	emitter := tensorboard.NewTFEmitter(settings.From(&spb.Settings{}))
 	chart := wbvalue.Chart{Title: "test-title"}
 	expectedConfigJSON, err := chart.ConfigValueJSON()
 	require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestChartModifiesConfig(t *testing.T) {
 	records := fakeRunWork.AllRecords()
 	assert.Len(t, records, 1)
 	assertProtoEqual(t,
-		localConfigUpdate([]*service.ConfigItem{
+		localConfigUpdate([]*spb.ConfigItem{
 			{
 				NestedKey: chart.ConfigKey("mychart").Labels(),
 				ValueJson: expectedConfigJSON},
@@ -114,7 +114,7 @@ func TestChartModifiesConfig(t *testing.T) {
 func TestTableWritesToFile(t *testing.T) {
 	tmpdir := t.TempDir()
 	emitter := tensorboard.NewTFEmitter(
-		settings.From(&service.Settings{
+		settings.From(&spb.Settings{
 			FilesDir: wrapperspb.String(tmpdir),
 		}),
 	)
@@ -141,7 +141,7 @@ func TestTableWritesToFile(t *testing.T) {
 
 func TestTableUpdatesHistory(t *testing.T) {
 	emitter := tensorboard.NewTFEmitter(
-		settings.From(&service.Settings{
+		settings.From(&spb.Settings{
 			FilesDir: wrapperspb.String(t.TempDir()),
 		}),
 	)

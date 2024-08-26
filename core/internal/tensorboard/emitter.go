@@ -10,7 +10,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wbvalue"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -77,64 +77,64 @@ func (e *tfEmitter) Emit(extraWork runwork.ExtraWork) {
 	}
 }
 
-func (e *tfEmitter) filesRecord() *service.Record {
+func (e *tfEmitter) filesRecord() *spb.Record {
 	if len(e.mediaFiles) == 0 {
 		return nil
 	}
 
-	var files []*service.FilesItem
+	var files []*spb.FilesItem
 	for _, relativePath := range e.mediaFiles {
 		files = append(files,
-			&service.FilesItem{
+			&spb.FilesItem{
 				Path:   relativePath,
-				Policy: service.FilesItem_NOW,
-				Type:   service.FilesItem_MEDIA,
+				Policy: spb.FilesItem_NOW,
+				Type:   spb.FilesItem_MEDIA,
 			})
 	}
 
-	return &service.Record{
-		Control: &service.Control{Local: true},
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
+	return &spb.Record{
+		Control: &spb.Control{Local: true},
+		RecordType: &spb.Record_Files{
+			Files: &spb.FilesRecord{
 				Files: files,
 			},
 		},
 	}
 }
 
-func (e *tfEmitter) configRecord() *service.Record {
+func (e *tfEmitter) configRecord() *spb.Record {
 	if len(e.configValues) == 0 {
 		return nil
 	}
 
-	var items []*service.ConfigItem
+	var items []*spb.ConfigItem
 	for _, value := range e.configValues {
 		items = append(items,
-			&service.ConfigItem{
+			&spb.ConfigItem{
 				NestedKey: value.KeyPath.Labels(),
 				ValueJson: value.JSON,
 			})
 	}
 
-	return &service.Record{
-		Control: &service.Control{Local: true},
-		RecordType: &service.Record_Config{
-			Config: &service.ConfigRecord{
+	return &spb.Record{
+		Control: &spb.Control{Local: true},
+		RecordType: &spb.Record_Config{
+			Config: &spb.ConfigRecord{
 				Update: items,
 			},
 		},
 	}
 }
 
-func (e *tfEmitter) historyRecord() *service.Record {
+func (e *tfEmitter) historyRecord() *spb.Record {
 	if len(e.historyStep) == 0 {
 		return nil
 	}
 
-	var items []*service.HistoryItem
+	var items []*spb.HistoryItem
 	for _, value := range e.historyStep {
 		items = append(items,
-			&service.HistoryItem{
+			&spb.HistoryItem{
 				NestedKey: value.KeyPath.Labels(),
 				ValueJson: value.JSON,
 			})
@@ -142,7 +142,7 @@ func (e *tfEmitter) historyRecord() *service.Record {
 
 	if e.hasTFStep {
 		items = append(items,
-			&service.HistoryItem{
+			&spb.HistoryItem{
 				NestedKey: e.tfStepKey,
 				ValueJson: fmt.Sprintf("%v", e.tfStep),
 			})
@@ -150,24 +150,24 @@ func (e *tfEmitter) historyRecord() *service.Record {
 
 	if e.hasWallTime {
 		items = append(items,
-			&service.HistoryItem{
+			&spb.HistoryItem{
 				Key:       "_timestamp",
 				ValueJson: fmt.Sprintf("%v", e.tfWallTime),
 			})
 	}
 
-	return &service.Record{
-		Control: &service.Control{Local: true},
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_PartialHistory{
-					PartialHistory: &service.PartialHistoryRequest{
+	return &spb.Record{
+		Control: &spb.Control{Local: true},
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_PartialHistory{
+					PartialHistory: &spb.PartialHistoryRequest{
 						Item: items,
 
 						// Setting "Flush" indicates that the event should be uploaded as
 						// its own history row, rather than combined with future events.
 						// Future events may contain new values for the same keys.
-						Action: &service.HistoryAction{Flush: true},
+						Action: &spb.HistoryAction{Flush: true},
 					},
 				},
 			},
