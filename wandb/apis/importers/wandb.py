@@ -17,10 +17,10 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v1 as wr
+import wandb.apis.reports.v2 as wr
 import yaml
 from wandb_gql import gql
-from wandb_workspaces.reports.v1 import Report
+from wandb.apis.reports.v2 import Report
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
