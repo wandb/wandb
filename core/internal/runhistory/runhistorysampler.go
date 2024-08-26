@@ -3,7 +3,7 @@ package runhistory
 import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/sampler"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunHistorySampler tracks a sample of each metric in the run's history.
@@ -43,12 +43,12 @@ func (s *RunHistorySampler) SampleNext(history *RunHistory) {
 }
 
 // Get returns all the samples.
-func (s *RunHistorySampler) Get() []*service.SampledHistoryItem {
-	items := make([]*service.SampledHistoryItem, 0, len(s.samples))
+func (s *RunHistorySampler) Get() []*spb.SampledHistoryItem {
+	items := make([]*spb.SampledHistoryItem, 0, len(s.samples))
 
 	for metricKey, sample := range s.samples {
 		items = append(items,
-			&service.SampledHistoryItem{
+			&spb.SampledHistoryItem{
 				Key:         metricKey,
 				ValuesFloat: sample.Sample(),
 			})

@@ -2,7 +2,7 @@ package launch
 
 import (
 	"github.com/wandb/wandb/core/internal/data_types"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // Selector for job inputs from the wandb.config.
@@ -20,7 +20,7 @@ func newWandbConfigParameters() *launchWandbConfigParameters {
 }
 
 func (p *launchWandbConfigParameters) appendIncludePaths(
-	includePaths []*service.JobInputPath,
+	includePaths []*spb.JobInputPath,
 ) {
 	for _, path := range includePaths {
 		p.includePaths = append(p.includePaths, path.Path)
@@ -28,7 +28,7 @@ func (p *launchWandbConfigParameters) appendIncludePaths(
 }
 
 func (p *launchWandbConfigParameters) appendExcludePaths(
-	excludePaths []*service.JobInputPath,
+	excludePaths []*spb.JobInputPath,
 ) {
 	for _, path := range excludePaths {
 		p.excludePaths = append(p.excludePaths, path.Path)
