@@ -3,7 +3,6 @@ from typing import Any, Dict, Optional, Union
 
 import tensorflow as tf  # type: ignore
 from tensorflow.keras import callbacks
-from zmq import has  # type: ignore
 
 import wandb
 from wandb.integration.keras.keras import patch_tf_keras
