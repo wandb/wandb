@@ -117,7 +117,10 @@ config.learning_rate = 0.01
 
 # Log metrics over time to visualize performance with wandb.log
 for i in range(10):
-    run.log({"loss": loss})
+    run.log({"loss": ...})
+
+# Mark a run as finished, and finish uploading all data
+run.finish()
 ```
 
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
