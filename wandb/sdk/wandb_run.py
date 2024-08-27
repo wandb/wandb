@@ -171,10 +171,12 @@ class RunStatusChecker:
         interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
+        internal_messages_polling_interval: int = 10,
     ) -> None:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
+        self._internal_messages_polling_interval = internal_messages_polling_interval
 
         self._join_event = threading.Event()
 
@@ -323,7 +325,7 @@ class RunStatusChecker:
             self._loop_check_status(
                 lock=self._internal_messages_lock,
                 set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                timeout=1,
+                timeout=self._internal_messages_polling_interval,
                 request=self._interface.deliver_internal_messages,
                 process=_process_internal_messages,
             )
