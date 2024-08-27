@@ -23,6 +23,9 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix deprecation warnings arising from NumPy >= 2.1 by removing `newshape` argument from `numpy.reshape` by @phinate in https://github.com/wandb/wandb/pull/8167
 - Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
+### Deprecated
+- Ability to disable the service process (`WANDB__DISABLE_SERVICE`) is deprecated and will be removed in the next minor release (@kptkin in https://github.com/wandb/wandb/pull/8193)
+
 ## [0.17.7] - 2024-08-15
 
 ### Fixed
