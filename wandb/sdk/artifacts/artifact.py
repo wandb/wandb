@@ -4,6 +4,7 @@ import atexit
 import concurrent.futures
 import contextlib
 import json
+import logging
 import multiprocessing.dummy
 import os
 import re
@@ -31,6 +32,8 @@ from typing import (
     Union,
     cast,
 )
+
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
@@ -83,6 +86,8 @@ reset_path = util.vendor_setup()
 from wandb_gql import gql  # noqa: E402
 
 reset_path()
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
@@ -1829,6 +1834,9 @@ class Artifact:
                     wandb.termwarn(str(e))
                     return
                 raise
+            except _GCSIsADirectoryError as e:
+                logger.debug(str(e))
+                return
             download_logger.notify_downloaded()
 
         download_entry = partial(

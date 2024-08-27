@@ -2,7 +2,7 @@ import sys
 from typing import Any, Dict, Optional, Union
 
 import tensorflow as tf  # type: ignore
-from tensorflow.keras import callbacks  # type: ignore
+from tensorflow.keras import callbacks
 
 import wandb
 from wandb.integration.keras.keras import patch_tf_keras
@@ -86,14 +86,20 @@ class WandbMetricsLogger(callbacks.Callback):
             wandb.define_metric("epoch/*", step_metric="epoch/epoch")
 
     def _get_lr(self) -> Union[float, None]:
-        if isinstance(self.model.optimizer.learning_rate, tf.Variable):
+        if isinstance(
+            self.model.optimizer.learning_rate,
+            (tf.Variable, tf.Tensor),
+        ) or (
+            hasattr(self.model.optimizer.learning_rate, "shape")
+            and self.model.optimizer.learning_rate.shape == ()
+        ):
             return float(self.model.optimizer.learning_rate.numpy().item())
         try:
             return float(
                 self.model.optimizer.learning_rate(step=self.global_step).numpy().item()
             )
-        except Exception:
-            wandb.termerror("Unable to log learning rate.", repeat=False)
+        except Exception as e:
+            wandb.termerror(f"Unable to log learning rate: {e}", repeat=False)
             return None
 
     def on_epoch_end(self, epoch: int, logs: Optional[Dict[str, Any]] = None) -> None:
