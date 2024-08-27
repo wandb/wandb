@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // getCmdPath returns the path to the nvidia_gpu_stats program.
@@ -217,7 +217,7 @@ func (g *GPUNvidia) Close() {
 	}
 }
 
-func (g *GPUNvidia) Probe() *service.MetadataRequest {
+func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
@@ -234,8 +234,8 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	info := service.MetadataRequest{
-		GpuNvidia: []*service.GpuNvidiaInfo{},
+	info := spb.MetadataRequest{
+		GpuNvidia: []*spb.GpuNvidiaInfo{},
 	}
 
 	if count, ok := g.sample["_gpu.count"].(float64); ok {
@@ -258,7 +258,7 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 
 	for di := 0; di < int(info.GpuCount); di++ {
 
-		gpuInfo := &service.GpuNvidiaInfo{}
+		gpuInfo := &spb.GpuNvidiaInfo{}
 		name := fmt.Sprintf("_gpu.%d.name", di)
 		if v, ok := g.sample[name]; ok {
 			if v, ok := v.(string); ok {
@@ -271,6 +271,20 @@ func (g *GPUNvidia) Probe() *service.MetadataRequest {
 		if v, ok := g.sample[memTotal]; ok {
 			if v, ok := v.(float64); ok {
 				gpuInfo.MemoryTotal = uint64(v)
+			}
+		}
+
+		cudaCores := fmt.Sprintf("_gpu.%d.cudaCores", di)
+		if v, ok := g.sample[cudaCores]; ok {
+			if v, ok := v.(float64); ok {
+				gpuInfo.CudaCores = uint32(v)
+			}
+		}
+
+		architechture := fmt.Sprintf("_gpu.%d.architecture", di)
+		if v, ok := g.sample[architechture]; ok {
+			if v, ok := v.(string); ok {
+				gpuInfo.Architecture = v
 			}
 		}
 

@@ -41,7 +41,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	)
 
 	// Mocking task
-	task := &filetransfer.Task{
+	task := &filetransfer.DefaultDownloadTask{
 		Path: "test-download-file.txt",
 		Url:  mockServer.URL,
 	}
@@ -107,8 +107,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer os.Remove(filename)
 
 	// Mocking task
-	task := &filetransfer.Task{
-		Type:    filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path:    filename,
 		Url:     mockServer.URL,
 		Headers: headers,
@@ -144,8 +143,7 @@ func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
 	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type:   filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
 		Url:    server.URL,
 		Offset: 5,
@@ -176,8 +174,7 @@ func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
 	tempFile.Close()
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type:   filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path:   tempFile.Name(),
 		Url:    server.URL,
 		Offset: 17,
@@ -232,8 +229,7 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	err = ft.Upload(&filetransfer.Task{
-		Type:    filetransfer.UploadTask,
+	err = ft.Upload(&filetransfer.DefaultUploadTask{
 		Path:    tempFile.Name(),
 		Url:     server.URL,
 		Context: ctx,
@@ -257,8 +253,7 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type: filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),
 		Url:  server.URL,
 	}
@@ -289,8 +284,7 @@ func uploadToServerWithHandler(
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type: filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),
 		Url:  server.URL,
 	}

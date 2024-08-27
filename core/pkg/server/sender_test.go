@@ -14,7 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -44,10 +44,10 @@ const validCreateArtifactResponse = `{
 	}
 }`
 
-func makeSender(client graphql.Client, recordChan chan *service.Record, resultChan chan *service.Result) *server.Sender {
+func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan chan *spb.Result) *server.Sender {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
-	settings := wbsettings.From(&service.Settings{
+	settings := wbsettings.From(&spb.Settings{
 		RunId: &wrapperspb.StringValue{Value: "run1"},
 	})
 	backend := server.NewBackend(logger, settings)
@@ -77,7 +77,7 @@ func makeSender(client graphql.Client, recordChan chan *service.Record, resultCh
 			FileTransferManager: fileTransferManager,
 			RunfilesUploader:    runfilesUploader,
 			OutChan:             resultChan,
-			Mailbox:             mailbox.NewMailbox(),
+			Mailbox:             mailbox.New(),
 			GraphqlClient:       client,
 		},
 	)
@@ -91,14 +91,14 @@ func TestSendRun(t *testing.T) {
 		gqlmock.WithOpName("UpsertBucket"),
 		validUpsertBucketResponse,
 	)
-	outChan := make(chan *service.Result, 1)
-	sender := makeSender(mockGQL, make(chan *service.Record, 1), outChan)
+	outChan := make(chan *spb.Result, 1)
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
 
-	run := &service.Record{
-		RecordType: &service.Record_Run{
-			Run: &service.RunRecord{
-				Config: &service.ConfigRecord{
-					Update: []*service.ConfigItem{
+	run := &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				Config: &spb.ConfigRecord{
+					Update: []*spb.ConfigItem{
 						{
 							Key:       "_wandb",
 							ValueJson: "{}",
@@ -108,7 +108,7 @@ func TestSendRun(t *testing.T) {
 				Project: "testProject",
 				Entity:  "testEntity",
 			}},
-		Control: &service.Control{
+		Control: &spb.Control{
 			MailboxSlot: "junk",
 		},
 	}
@@ -129,15 +129,15 @@ func TestSendRun(t *testing.T) {
 // Verify that arguments are properly passed through to graphql
 func TestSendLinkArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	outChan := make(chan *service.Result, 1)
-	sender := makeSender(mockGQL, make(chan *service.Record, 1), outChan)
+	outChan := make(chan *spb.Result, 1)
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
 
 	// 1. When both clientId and serverId are sent, serverId is used
-	linkArtifact := &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_LinkArtifact{
-					LinkArtifact: &service.LinkArtifactRequest{
+	linkArtifact := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_LinkArtifact{
+					LinkArtifact: &spb.LinkArtifactRequest{
 						ClientId:         "clientId",
 						ServerId:         "serverId",
 						PortfolioName:    "portfolioName",
@@ -147,7 +147,7 @@ func TestSendLinkArtifact(t *testing.T) {
 				},
 			},
 		},
-		Control: &service.Control{
+		Control: &spb.Control{
 			MailboxSlot: "junk",
 		},
 	}
@@ -172,11 +172,11 @@ func TestSendLinkArtifact(t *testing.T) {
 		requests[0])
 
 	// 2. When only clientId is sent, clientId is used
-	linkArtifact = &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_LinkArtifact{
-					LinkArtifact: &service.LinkArtifactRequest{
+	linkArtifact = &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_LinkArtifact{
+					LinkArtifact: &spb.LinkArtifactRequest{
 						ClientId:         "clientId",
 						ServerId:         "",
 						PortfolioName:    "portfolioName",
@@ -208,11 +208,11 @@ func TestSendLinkArtifact(t *testing.T) {
 		requests[1])
 
 	// 3. When only serverId is sent, serverId is used
-	linkArtifact = &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_LinkArtifact{
-					LinkArtifact: &service.LinkArtifactRequest{
+	linkArtifact = &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_LinkArtifact{
+					LinkArtifact: &spb.LinkArtifactRequest{
 						ClientId:         "",
 						ServerId:         "serverId",
 						PortfolioName:    "portfolioName",
@@ -246,11 +246,11 @@ func TestSendLinkArtifact(t *testing.T) {
 
 func TestSendUseArtifact(t *testing.T) {
 	mockGQL := gqlmock.NewMockClient()
-	sender := makeSender(mockGQL, make(chan *service.Record, 1), make(chan *service.Result, 1))
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
 
-	useArtifact := &service.Record{
-		RecordType: &service.Record_UseArtifact{
-			UseArtifact: &service.UseArtifactRecord{
+	useArtifact := &spb.Record{
+		RecordType: &spb.Record_UseArtifact{
+			UseArtifact: &spb.UseArtifactRecord{
 				Id:      "artifactId",
 				Type:    "job",
 				Name:    "artifactName",
@@ -262,19 +262,19 @@ func TestSendUseArtifact(t *testing.T) {
 	sender.SendRecord(useArtifact)
 
 	// verify doesn't panic if partial job is broken
-	useArtifact = &service.Record{
-		RecordType: &service.Record_UseArtifact{
-			UseArtifact: &service.UseArtifactRecord{
+	useArtifact = &spb.Record{
+		RecordType: &spb.Record_UseArtifact{
+			UseArtifact: &spb.UseArtifactRecord{
 				Id:   "artifactId",
 				Type: "job",
 				Name: "artifactName",
-				Partial: &service.PartialJobArtifact{
+				Partial: &spb.PartialJobArtifact{
 					JobName: "jobName",
-					SourceInfo: &service.JobSource{
+					SourceInfo: &spb.JobSource{
 						SourceType: "repo",
-						Source: &service.Source{
-							Git: &service.GitSource{
-								GitInfo: &service.GitInfo{
+						Source: &spb.Source{
+							Git: &spb.GitSource{
+								GitInfo: &spb.GitInfo{
 									Commit: "commit",
 									Remote: "remote",
 								},
@@ -295,12 +295,12 @@ func TestSendArtifact(t *testing.T) {
 		gqlmock.WithOpName("CreateArtifact"),
 		validCreateArtifactResponse,
 	)
-	sender := makeSender(mockGQL, make(chan *service.Record, 1), make(chan *service.Result, 1))
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
 
 	// 1. When both clientId and serverId are sent, serverId is used
-	artifact := &service.Record{
-		RecordType: &service.Record_Artifact{
-			Artifact: &service.ArtifactRecord{
+	artifact := &spb.Record{
+		RecordType: &spb.Record_Artifact{
+			Artifact: &spb.ArtifactRecord{
 				RunId:   "test-run-id",
 				Project: "test-project",
 				Entity:  "test-entity",
@@ -308,10 +308,10 @@ func TestSendArtifact(t *testing.T) {
 				Name:    "test-artifact",
 				Digest:  "test-digest",
 				Aliases: []string{"latest"},
-				Manifest: &service.ArtifactManifest{
+				Manifest: &spb.ArtifactManifest{
 					Version:       1,
 					StoragePolicy: "wandb-storage-policy-v1",
-					Contents: []*service.ArtifactManifestEntry{{
+					Contents: []*spb.ArtifactManifestEntry{{
 						Path:      "test1",
 						Digest:    "test1-digest",
 						Size:      1,
@@ -334,4 +334,104 @@ func TestSendArtifact(t *testing.T) {
 			gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
 		),
 		requests[0])
+}
+
+func TestSendRequestCheckVersion(t *testing.T) {
+	tests := []struct {
+		name             string
+		currentVersion   string
+		mockResponse     string
+		mockError        error
+		expectedResponse *spb.Response
+	}{
+		{
+			name:             "Empty current version",
+			currentVersion:   "",
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:             "Server info is nil",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": null}`,
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:           "Current version is less than max version",
+			currentVersion: "0.9.0",
+			mockResponse:   `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &spb.Response{
+				ResponseType: &spb.Response_CheckVersionResponse{
+					CheckVersionResponse: &spb.CheckVersionResponse{
+						UpgradeMessage: "There is a new version of wandb available. Please upgrade to wandb==0.10.0",
+					},
+				},
+			},
+		},
+		{
+			name:             "Current version is equal to max version",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:             "Current version is dev version and is more than max version",
+			currentVersion:   "0.11.0.dev1",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:             "Current version is greater than max version",
+			currentVersion:   "0.11.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:             "Server client version no max version",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {}}}`,
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:             "Server client version is not a map",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo":null}}`,
+			expectedResponse: &spb.Response{},
+		},
+		{
+			name:             "Server client max version is not a string",
+			currentVersion:   "0.10.0",
+			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": 10}}}`,
+			expectedResponse: &spb.Response{},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockGQL := gqlmock.NewMockClient()
+			outChan := make(chan *spb.Result, 1)
+			sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
+
+			record := &spb.Record{
+				RecordType: &spb.Record_Request{
+					Request: &spb.Request{
+						RequestType: &spb.Request_CheckVersion{
+							CheckVersion: &spb.CheckVersionRequest{
+								CurrentVersion: tt.currentVersion,
+							},
+						},
+					},
+				},
+				Control: &spb.Control{
+					MailboxSlot: "junk",
+				},
+			}
+
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("ServerInfo"),
+				tt.mockResponse,
+			)
+			sender.SendRecord(record)
+			result := <-outChan
+			assert.Equal(t, tt.expectedResponse, result.GetResponse())
+		})
+	}
 }

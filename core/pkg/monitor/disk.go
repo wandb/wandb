@@ -8,7 +8,7 @@ import (
 
 	"github.com/shirou/gopsutil/v4/disk"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type Disk struct {
@@ -109,16 +109,16 @@ func (d *Disk) ClearMetrics() {
 
 func (d *Disk) IsAvailable() bool { return true }
 
-func (d *Disk) Probe() *service.MetadataRequest {
-	info := &service.MetadataRequest{
-		Disk: make(map[string]*service.DiskInfo),
+func (d *Disk) Probe() *spb.MetadataRequest {
+	info := &spb.MetadataRequest{
+		Disk: make(map[string]*spb.DiskInfo),
 	}
 	for _, diskPath := range d.diskPaths {
 		usage, err := disk.Usage(diskPath)
 		if err != nil {
 			continue
 		}
-		info.Disk[diskPath] = &service.DiskInfo{
+		info.Disk[diskPath] = &spb.DiskInfo{
 			Total: usage.Total,
 			Used:  usage.Used,
 		}

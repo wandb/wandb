@@ -50,7 +50,7 @@ def get_service_token() -> "Optional[ServiceToken]":
         raise ValueError(f"Invalid token: {token}") from e
 
 
-def put_service_token(parent_pid: int, transport: str, host: str, port: int) -> None:
+def set_service_token(parent_pid: int, transport: str, host: str, port: int) -> None:
     """Stores a service token in an environment variable.
 
     Args:

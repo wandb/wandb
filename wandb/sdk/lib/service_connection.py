@@ -5,6 +5,7 @@ from typing import Callable, Optional
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
 from wandb.proto import wandb_settings_pb2
+from wandb.sdk import wandb_settings
 from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.interface.interface_sock import InterfaceSock
 from wandb.sdk.lib import service_token
@@ -18,8 +19,12 @@ class WandbServiceNotOwnedError(Exception):
     """Raised when the current process does not own the service process."""
 
 
+class WandbServiceConnectionError(Exception):
+    """Raised on failure to connect to the service process."""
+
+
 def connect_to_service(
-    settings: "wandb_settings_pb2.Settings",
+    settings: "wandb_settings.Settings",
 ) -> "ServiceConnection":
     """Connects to the service process, starting one up if necessary."""
     conn = _try_connect_to_existing_service()
@@ -39,14 +44,20 @@ def _try_connect_to_existing_service() -> "Optional[ServiceConnection]":
     assert token.host == "localhost"
     client = SockClient()
 
-    # TODO: This may block indefinitely if the service is unhealthy.
-    client.connect(token.port)
+    try:
+        # TODO: This may block indefinitely if the service is unhealthy.
+        client.connect(token.port)
+
+    except Exception as e:
+        raise WandbServiceConnectionError(
+            "Failed to connect to internal service."
+        ) from e
 
     return ServiceConnection(client=client, proc=None)
 
 
 def _start_and_connect_service(
-    settings: "wandb_settings_pb2.Settings",
+    settings: "wandb_settings.Settings",
 ) -> "ServiceConnection":
     """Starts a service process and returns a connection to it.
 
@@ -62,7 +73,7 @@ def _start_and_connect_service(
     client = SockClient()
     client.connect(port)
 
-    service_token.put_service_token(
+    service_token.set_service_token(
         parent_pid=os.getpid(),
         transport="tcp",
         host="localhost",
@@ -92,7 +103,7 @@ class ServiceConnection:
         self,
         client: "SockClient",
         proc: "Optional[service._Service]",
-        cleanup: "Optional[Callable[[], None]]",
+        cleanup: "Optional[Callable[[], None]]" = None,
     ):
         """Returns a new ServiceConnection.
 

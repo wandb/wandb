@@ -9,7 +9,7 @@ import (
 	"os"
 
 	"github.com/wandb/wandb/core/pkg/leveldb"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -149,7 +149,7 @@ func (sr *Store) Close() error {
 	return errors.Join(errs...)
 }
 
-func (sr *Store) Write(msg *service.Record) error {
+func (sr *Store) Write(msg *spb.Record) error {
 	writer, err := sr.writer.Next()
 	if err != nil {
 		return fmt.Errorf("store: can't get next record: %v", err)
@@ -168,7 +168,7 @@ func (sr *Store) Write(msg *service.Record) error {
 // Reads the next record from the database.
 //
 // Returns nil and an error on failure. On EOF, error is [io.EOF].
-func (sr *Store) Read() (*service.Record, error) {
+func (sr *Store) Read() (*spb.Record, error) {
 	// check if db is closed
 	if sr.db == nil {
 		return nil, fmt.Errorf("store: db is closed")
@@ -188,7 +188,7 @@ func (sr *Store) Read() (*service.Record, error) {
 		sr.reader.Recover()
 		return nil, fmt.Errorf("store: error reading: %v", err)
 	}
-	msg := &service.Record{}
+	msg := &spb.Record{}
 	if err = proto.Unmarshal(buf, msg); err != nil {
 		return nil, fmt.Errorf("store: failed to unmarshal: %v", err)
 	}

@@ -933,7 +933,7 @@ def _attach(
 
     service = _wl.service
     if not service:
-        raise UsageError(f"Unable to attach to run {attach_id}")
+        raise UsageError(f"Unable to attach to run {attach_id} (no service process)")
 
     attach_settings = service.inform_attach(attach_id=attach_id)
     if not attach_settings:

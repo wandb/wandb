@@ -650,7 +650,7 @@ class Settings(SettingsData):
             },
             _disable_service={
                 "value": False,
-                "preprocessor": _str_as_bool,
+                "preprocessor": self._process_disable_service,
                 "is_policy": True,
             },
             _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
@@ -1171,6 +1171,16 @@ class Settings(SettingsData):
             raise UsageError("hostname is invalid")
 
         return True
+
+    @staticmethod
+    def _process_disable_service(value: Union[str, bool]) -> bool:
+        value = _str_as_bool(value)
+        if value:
+            wandb.termwarn(
+                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in version 0.19.0.",
+                repeat=False,
+            )
+        return value
 
     @staticmethod
     def _validate__service_wait(value: float) -> bool:
@@ -1875,8 +1885,20 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_fork_logic()
         self._handle_rewind_logic()
         self._handle_resume_logic()
+
+    def _handle_fork_logic(self) -> None:
+        if self.fork_from is None:
+            return
+
+        if self.run_id is not None and (self.fork_from.run == self.run_id):
+            raise ValueError(
+                "Provided `run_id` is the same as the run to `fork_from`. "
+                "Please provide a different `run_id` or remove the `run_id` argument. "
+                "If you want to rewind the current run, please use `resume_from` instead."
+            )
 
     def _handle_rewind_logic(self) -> None:
         if self.resume_from is None:

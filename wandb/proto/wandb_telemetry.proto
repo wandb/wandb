@@ -132,6 +132,7 @@ message Imports {
   bool lightning_fabric = 103;      // lightning-fabric
   bool curated_transformers = 104;  // curated-transformers
   bool orjson = 105;
+  bool lightning = 106;  // lightning, formerly pytorch-lightning
 }
 
 message Feature {
@@ -230,7 +231,7 @@ message Labels {
 }
 
 message Deprecated {
-  bool keras_callback__data_type = 1;   // wandb.keras.WandbCallback(data_type=...) called
+  bool keras_callback__data_type = 1;   // wandb.integration.keras.WandbCallback(data_type=...) called
   bool run__mode = 2;                   // wandb.run.mode called
   bool run__save_no_args = 3;           // wandb.run.save() called without arguments
   bool run__join = 4;                   // wandb.run.join() called
@@ -238,7 +239,7 @@ message Deprecated {
   bool run__log_sync = 6;               // wandb.run.log(sync=...) called
   bool init__config_include_keys = 7;   // wandb.init(config_include_keys=...) called
   bool init__config_exclude_keys = 8;   // wandb.init(config_exclude_keys=...) called
-  bool keras_callback__save_model = 9;  // wandb.keras.WandbCallback(save_model=True) called
+  bool keras_callback__save_model = 9;  // wandb.integration.keras.WandbCallback(save_model=True) called
   bool langchain_tracer = 10;           // wandb.integration.langchain.WandbTracer called
   bool artifact__get_path = 11;         // wandb.sdk.artifacts.artifact.Artifact.get_path(...) called
   bool artifactmanifestentry__name =
@@ -252,6 +253,8 @@ message Deprecated {
   bool run__define_metric_copy = 15;
 
   bool run_disabled = 16;  // wandb.sdk.lib.disabled.RunDisabled used
+
+  bool keras_callback = 17;  // wandb.integration.keras.WandbCallback used
 }
 
 message Issues {

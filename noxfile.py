@@ -99,6 +99,9 @@ def run_pytest(
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
         "HOME": session.env.get("HOME"),
+        "CI": session.env.get("CI"),
+        # Required for the importers tests
+        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
     }
 
     # Print 20 slowest tests.
@@ -262,6 +265,7 @@ def system_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests",
                 "--ignore=tests/pytest_tests/system_tests/test_importers",
                 "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                "--ignore=tests/pytest_tests/system_tests/test_functional",
             ]
         ),
     )
@@ -298,6 +302,22 @@ def notebook_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests/test_notebooks",
             ]
         ),
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def functional_tests_pytest(session: nox.Session):
+    """Runs functional tests using pytest."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+    )
+
+    run_pytest(
+        session,
+        paths=(session.posargs or ["tests/pytest_tests/system_tests/test_functional"]),
     )
 
 
@@ -652,7 +672,7 @@ def proto_check_go(session: nox.Session) -> None:
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service/.",
+        in_directory="core/pkg/service_go_proto/.",
     )
 
 
@@ -864,4 +884,52 @@ def bump_go_version(session: nox.Session) -> None:
         "--no-commit",
         "--allow-dirty",
         external=True,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def launch_release_tests(session: nox.Session) -> None:
+    """Run launch-release tests.
+
+    See tests/release_tests/test_launch/README.md for more info.
+    """
+    install_wandb(session)
+    install_timed(
+        session,
+        "pytest",
+        "wandb[launch]",
+    )
+
+    session.run("wandb", "login")
+
+    run_pytest(
+        session,
+        paths=session.posargs or ["tests/release_tests/test_launch/"],
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("importer", ["wandb", "mlflow"])
+def importer_tests(session: nox.Session, importer: str):
+    """Run importer tests for wandb->wandb and mlflow->wandb."""
+    install_wandb(session)
+    session.install("-r", "requirements_dev.txt")
+    if importer == "wandb":
+        session.install(".[workspaces]", "pydantic>=2")
+    elif importer == "mlflow":
+        session.install("pydantic<2")
+    if session.python != "3.7":
+        session.install("polyfactory")
+    session.install(
+        "polars<=1.2.1",
+        "rich",
+        "filelock",
+    )
+
+    run_pytest(
+        session,
+        paths=(
+            session.posargs
+            or [f"tests/pytest_tests/system_tests/test_importers/test_{importer}"]
+        ),
     )
