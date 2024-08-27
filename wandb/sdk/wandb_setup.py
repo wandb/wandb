@@ -279,6 +279,9 @@ class _WandbSetup__WandbSetup:  # noqa: N801
 
     def _setup_manager(self) -> None:
         if self._settings._disable_service:
+            wandb.termwarn(
+                "WANDB_DISABLE_SERVICE will be deprecated in 0.18.0 and removed in 0.19.0"
+            )
             return
         self._manager = wandb_manager._Manager(settings=self._settings)
 
