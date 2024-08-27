@@ -35,6 +35,10 @@ type Emitter interface {
 	// EmitTable uploads a table as a file and records metadata
 	// in the run history.
 	EmitTable(key pathtree.TreePath, table wbvalue.Table) error
+
+	// EmitImage uploads an image as a file and records metadata
+	// in the run history.
+	EmitImage(key pathtree.TreePath, image wbvalue.Image) error
 }
 
 type nestedKeyAndJSON struct {
@@ -217,7 +221,10 @@ func (e *tfEmitter) EmitTable(
 		return fmt.Errorf("error serializing table data: %v", err)
 	}
 
-	maybeRunFilePath, err := tableRunRelativePath()
+	maybeRunFilePath, err := runRelativePath(
+		filepath.Join("media", "table"),
+		".table.json",
+	)
 	if err != nil {
 		return err
 	}
@@ -253,18 +260,59 @@ func (e *tfEmitter) EmitTable(
 	return nil
 }
 
-func tableRunRelativePath() (*paths.RelativePath, error) {
+func (e *tfEmitter) EmitImage(
+	key pathtree.TreePath,
+	img wbvalue.Image,
+) error {
+	maybeRunFilePath, err := runRelativePath(
+		filepath.Join("media", "images"),
+		".png",
+	)
+	if err != nil {
+		return err
+	}
+	runRelativePath := *maybeRunFilePath
+	fsPath := filepath.Join(e.settings.GetFilesDir(), string(runRelativePath))
+
+	if _, err := os.Stat(fsPath); !os.IsNotExist(err) {
+		return fmt.Errorf("image file exists: %v", err)
+	}
+
+	historyJSON, err := img.HistoryValueJSON(runRelativePath)
+	if err != nil {
+		return fmt.Errorf("error encoding image metadata: %v", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(fsPath), 0777); err != nil {
+		return fmt.Errorf("error creating directory: %v", err)
+	}
+	if err := os.WriteFile(fsPath, img.PNG, 0644); err != nil {
+		return fmt.Errorf("error writing image to file: %v", err)
+	}
+
+	e.mediaFiles = append(e.mediaFiles, string(runRelativePath))
+	e.historyStep = append(e.historyStep,
+		nestedKeyAndJSON{
+			KeyPath: key,
+			JSON:    historyJSON,
+		})
+	return nil
+}
+
+// runRelativePath returns a path in the run's files directory
+// with a randomized ID.
+func runRelativePath(
+	subdir string,
+	ext string,
+) (*paths.RelativePath, error) {
 	// NOTE: This could name an existing file by coincidence.
 	//
-	// We don't add the table key to avoid having to sanitize it
+	// We don't add a key to avoid having to sanitize it
 	// to be a valid filename.
 	maybeRunFilePath, err := paths.Relative(
 		filepath.Join(
-			"media", "table",
-			fmt.Sprintf(
-				"%s.table.json",
-				utils.ShortID(32),
-			)),
+			subdir,
+			fmt.Sprintf("%s%s", utils.ShortID(32), ext)),
 	)
 
 	if err != nil {

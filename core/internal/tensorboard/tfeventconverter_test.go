@@ -60,6 +60,31 @@ func tensorValue(tag string, plugin string, dims []int, values ...float32) *tbpr
 	}
 }
 
+func tensorValueStrings(
+	tag string,
+	plugin string,
+	data ...string,
+) *tbproto.Summary_Value {
+	stringVal := make([][]byte, 0, len(data))
+	for _, x := range data {
+		stringVal = append(stringVal, []byte(x))
+	}
+
+	return &tbproto.Summary_Value{
+		Tag: tag,
+		Value: &tbproto.Summary_Value_Tensor{
+			Tensor: &tbproto.TensorProto{
+				StringVal: stringVal,
+			},
+		},
+		Metadata: &tbproto.SummaryMetadata{
+			PluginData: &tbproto.SummaryMetadata_PluginData{
+				PluginName: plugin,
+			},
+		},
+	}
+}
+
 func tensorValueBytes(
 	tag string,
 	plugin string,
@@ -105,6 +130,7 @@ type mockEmitter struct {
 	EmitHistoryCalls   []mockEmitter_EmitHistory
 	EmitChartCalls     []mockEmitter_EmitChart
 	EmitTableCalls     []mockEmitter_EmitTable
+	EmitImageCalls     []mockEmitter_EmitImage
 }
 
 type mockEmitter_SetTFStep struct {
@@ -125,6 +151,11 @@ type mockEmitter_EmitChart struct {
 type mockEmitter_EmitTable struct {
 	Key   pathtree.TreePath
 	Table wbvalue.Table
+}
+
+type mockEmitter_EmitImage struct {
+	Key   pathtree.TreePath
+	Image wbvalue.Image
 }
 
 func (e *mockEmitter) SetTFStep(key pathtree.TreePath, step int64) {
@@ -150,6 +181,12 @@ func (e *mockEmitter) EmitChart(key string, chart wbvalue.Chart) error {
 func (e *mockEmitter) EmitTable(key pathtree.TreePath, table wbvalue.Table) error {
 	e.EmitTableCalls = append(e.EmitTableCalls,
 		mockEmitter_EmitTable{key, table})
+	return nil
+}
+
+func (e *mockEmitter) EmitImage(key pathtree.TreePath, img wbvalue.Image) error {
+	e.EmitImageCalls = append(e.EmitImageCalls,
+		mockEmitter_EmitImage{key, img})
 	return nil
 }
 
@@ -288,6 +325,32 @@ func TestConvertHistogramRebin(t *testing.T) {
 		sumOfWeights += x.(float64)
 	}
 	assert.EqualValues(t, 100, sumOfWeights)
+}
+
+func TestConvertImage(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2", "4", "PNG content")),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitImage{
+			{
+				Key: pathtree.PathOf("train/my_img"),
+				Image: wbvalue.Image{
+					Width:  2,
+					Height: 4,
+					PNG:    []byte("PNG content"),
+				},
+			},
+		},
+		emitter.EmitImageCalls)
 }
 
 func TestConvertPRCurve(t *testing.T) {
