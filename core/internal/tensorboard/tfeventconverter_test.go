@@ -3,6 +3,7 @@ package tensorboard_test
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -219,6 +220,74 @@ func TestConvertTensor(t *testing.T) {
 			{pathtree.PathOf("train/three-four"), "[3,4]"},
 		},
 		emitter.EmitHistoryCalls)
+}
+
+func TestConvertHistogram(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	expectedHistogramJSON, err := wbvalue.Histogram{
+		BinEdges:   []float64{0.0, 0.5, 1.0, 1.5, 2.0, 2.5},
+		BinWeights: []float64{7, 5, 10, 11, 4},
+	}.HistoryValueJSON()
+	require.NoError(t, err)
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValue("my_hist", "histograms",
+				[]int{5, 3},
+				// left edge, right edge, count
+				0.0, 0.5, 7,
+				0.5, 1.0, 5,
+				1.0, 1.5, 10,
+				1.5, 2.0, 11,
+				2.0, 2.5, 4)),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitHistory{
+			{
+				Key:       pathtree.PathOf("train/my_hist"),
+				ValueJSON: expectedHistogramJSON,
+			},
+		},
+		emitter.EmitHistoryCalls)
+}
+
+func TestConvertHistogramRebin(t *testing.T) {
+	// A histogram of 100 bins should be rebinned to 32 bins.
+	// Sum of weights should remain the same.
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	inputTensor := make([]float32, 100*3)
+	for i := 0; i < 100; i++ {
+		// Left edge, right edge, weight.
+		inputTensor[i*3+0] = float32(i)
+		inputTensor[i*3+1] = float32(i + 1)
+		inputTensor[i*3+2] = 1
+	}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValue("my_hist", "histograms",
+				[]int{100, 3}, inputTensor...)),
+		observability.NewNoOpLogger(),
+	)
+
+	var result map[string]any
+	require.NoError(t,
+		json.Unmarshal(
+			[]byte(emitter.EmitHistoryCalls[0].ValueJSON),
+			&result))
+	assert.Len(t, result["bins"], 33)
+	assert.Len(t, result["values"], 32)
+	sumOfWeights := float64(0)
+	for _, x := range result["values"].([]any) {
+		sumOfWeights += x.(float64)
+	}
+	assert.EqualValues(t, 100, sumOfWeights)
 }
 
 func TestConvertPRCurve(t *testing.T) {
