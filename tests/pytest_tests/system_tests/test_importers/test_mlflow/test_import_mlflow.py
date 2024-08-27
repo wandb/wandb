@@ -1,5 +1,3 @@
-import sys
-
 import pytest
 import wandb
 from wandb.apis.importers.internals.util import Namespace
