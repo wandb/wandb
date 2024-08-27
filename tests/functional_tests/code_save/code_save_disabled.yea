@@ -19,4 +19,4 @@ assert:
     - code_path
   - :op:not_contains:
     - :wandb:runs[0][files]
-    - code/functional_tests/t0_main/code_save/code_save.py
+    - code/functional_tests/code_save/code_save.py
