@@ -417,6 +417,17 @@ class WandbCallback(tf.keras.callbacks.Callback):
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
+
+        deprecate(
+            field_name=Deprecated.keras_callback,
+            warning_message=(
+                "WandbCallback is deprecated and will be removed in a future release. "
+                "Please use the WandbMetricsLogger, WandbModelCheckpoint, and WandbEvalCallback "
+                "callbacks instead. "
+                "See https://docs.wandb.ai/guides/integrations/keras for more information."
+            ),
+        )
+
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
         self.validation_data = None

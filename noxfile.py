@@ -265,6 +265,7 @@ def system_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests",
                 "--ignore=tests/pytest_tests/system_tests/test_importers",
                 "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                "--ignore=tests/pytest_tests/system_tests/test_functional",
             ]
         ),
     )
@@ -301,6 +302,22 @@ def notebook_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests/test_notebooks",
             ]
         ),
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def functional_tests_pytest(session: nox.Session):
+    """Runs functional tests using pytest."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+    )
+
+    run_pytest(
+        session,
+        paths=(session.posargs or ["tests/pytest_tests/system_tests/test_functional"]),
     )
 
 
