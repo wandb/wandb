@@ -10,6 +10,7 @@ Base64Id = Annotated[Base64Str, Field(repr=False)]
 JsonDict: TypeAlias = Json[dict[str, Any]]
 
 IntId: TypeAlias = int
+UserId: TypeAlias = int
 Base64Id: TypeAlias = Base64Str
 
 NameT = TypeVar("NameT", bound=str)
