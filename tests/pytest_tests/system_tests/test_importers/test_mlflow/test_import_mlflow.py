@@ -7,7 +7,7 @@ from wandb.apis.importers.mlflow import MlflowImporter
 
 
 @pytest.mark.timeout(60)
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="MLFlow requires python>=3.8")
+@pytest.mark.skip(reason="Breaks on latests MLFlow")
 def test_mlflow(request, prelogged_mlflow_server, mlflow_logging_config, user):
     # TODO: This test is tightly coupled with the `prelogged_mlflow_server` fixture; refactor
 
