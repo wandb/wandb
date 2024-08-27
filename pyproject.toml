@@ -303,6 +303,22 @@ strict_equality = true
 implicit_reexport = false
 
 # More wandb/ modules can be added in a similar manner as overrides
+#[[tool.mypy.overrides]]
+#module = "wandb.sdk.automations.*"
+#
+#follow_imports = "silent"
+#disallow_any_generics = true
+#disallow_subclassing_any = true
+#disallow_untyped_calls = true
+#disallow_untyped_defs = true
+#disallow_incomplete_defs = true
+#check_untyped_defs = true
+#disallow_untyped_decorators = true
+#warn_unused_ignores = true
+#warn_return_any = true
+#no_implicit_reexport = true
+#strict_equality = true
+#extra_checks = true
 
 # External libraries
 [[tool.mypy.overrides]]
@@ -316,5 +332,6 @@ module = [
     "wandb_graphql.*",
     "wandb.vendor.*",
     "wandb.vendor.pynvml.pynvml.*",
+    "wandb.sdk.automations.tests.*",
 ]
 ignore_missing_imports = true

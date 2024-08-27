@@ -5,9 +5,9 @@ from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
 from pydantic import Field, Json, TypeAdapter, field_validator, model_validator
-from typing_extensions import Self
+from typing_extensions import Self, assert_never
 
-from wandb.sdk.automations._typing import Base64Id, IntId
+from wandb.sdk.automations._typing import Base64Id, IntId, UserId
 from wandb.sdk.automations.base import Base
 
 
@@ -98,7 +98,7 @@ class LegacyAutomation(Base):
     id: IntId
 
     created_at: datetime
-    created_by: IntId
+    created_by: UserId
     updated_at: datetime | None = None
 
     name: str
@@ -122,6 +122,7 @@ class LegacyAutomation(Base):
     webhook_id: Base64Id | None = None
 
     @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
     def _validate_dt(cls, v: Any) -> Any:
         if isinstance(v, str):
             return datetime.strptime(v, "%Y-%m-%d %H:%M:%S %Z")
@@ -136,30 +137,30 @@ class LegacyAutomation(Base):
         scope_project_id = self.scope_project_id
         scope_entity_id = self.scope_entity_id
 
-        scope_type = self.scope_type
-        if scope_type is ScopeType.ARTIFACT_COLLECTION:
-            valid_ids = (
-                scope_artifact_collection_id == scope_id
-                and scope_project_id is None
-                and scope_entity_id is None
-            )
-        elif scope_type is ScopeType.PROJECT:
-            valid_ids = (
-                scope_artifact_collection_id is None
-                and scope_project_id == scope_id
-                and scope_entity_id is None
-            )
-        elif scope_type is ScopeType.ENTITY:
-            valid_ids = (
-                scope_artifact_collection_id is None
-                and scope_project_id is None
-                and scope_entity_id == scope_id
-            )
-        else:
-            raise ValueError(f"Unknown scope type: {scope_type !r}")
+        match self.scope_type:
+            case ScopeType.ARTIFACT_COLLECTION:
+                valid_ids = (
+                    scope_artifact_collection_id == scope_id
+                    and scope_project_id is None
+                    and scope_entity_id is None
+                )
+            case ScopeType.PROJECT:
+                valid_ids = (
+                    scope_artifact_collection_id is None
+                    and scope_project_id == scope_id
+                    and scope_entity_id is None
+                )
+            case ScopeType.ENTITY:
+                valid_ids = (
+                    scope_artifact_collection_id is None
+                    and scope_project_id is None
+                    and scope_entity_id == scope_id
+                )
+            case _ as unknown_scope:
+                assert_never(unknown_scope)
 
         if not valid_ids:
-            raise ValueError(f"Invalid IDs for scope {scope_type !r}")
+            raise ValueError(f"Invalid IDs for scope {self.scope_type !r}")
 
         return self
 

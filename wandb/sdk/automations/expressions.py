@@ -39,13 +39,13 @@ class LogicalOp(Expr):
     _key: ClassVar[str]
 
 
-class Or(RootModel[dict[Literal["$or"], list[Expr]]], Expr):
-    pass
+class Or(Expr):
+    root: dict[Literal["$or"], list[Expr]]
     # _key = "$or"
 
 
-class And(RootModel[dict[Literal["$and"], list[Expr]]], Expr):
-    pass
+class And(Expr):
+    root: dict[Literal["$and"], list[Expr]]
     # _key = "$and"
 
 
