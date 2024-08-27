@@ -15,7 +15,12 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
+from wandb.env import (
+    core_debug,
+    core_error_reporting_enabled,
+    is_require_core,
+    is_require_legacy_service,
+)
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
@@ -164,8 +169,7 @@ class _Service:
 
             service_args = []
 
-            # TODO: Change this to 'not is_require_legacy_service()'
-            if is_require_core():
+            if is_require_core() and not is_require_legacy_service():
                 try:
                     core_path = get_core_path()
                 except WandbCoreNotAvailableError as e:
