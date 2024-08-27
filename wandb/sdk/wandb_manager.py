@@ -163,8 +163,6 @@ class _Manager:
         This sends a teardown record to the process. An exception is raised if
         the process has already been shut down.
         """
-        unregister_all_post_import_hooks()
-
         if self._atexit_lambda:
             atexit.unregister(self._atexit_lambda)
             self._atexit_lambda = None
