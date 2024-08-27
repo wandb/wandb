@@ -20,7 +20,7 @@ Get started with W&B in four steps:
 
 2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
 
-```bash
+```shell
 pip install wandb
 ```
 
@@ -46,15 +46,15 @@ config.learning_rate = 0.01
 
 # Log metrics over time to visualize performance with wandb.log
 for i in range(10):
-    run.log({"loss": loss})
+    run.log({"loss": ...})
 
-# Mark a run as finished, and finish uploading all data    
+# Mark the run as finished, and finish uploading all data
 run.finish()
 ```
 
 For example, if the preceding code was stored in a script called train.py:
 
-```python
+```shell
 python train.py
 ```
 
