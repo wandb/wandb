@@ -9,7 +9,7 @@ from wandb import Api, util
 
 reset_path = util.vendor_setup()
 
-from wandb_gql import gql
+from wandb_gql import gql  # noqa: E402
 
 _FETCH_PROJECT_TRIGGERS = gql(
     """
