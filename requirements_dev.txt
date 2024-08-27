@@ -41,6 +41,7 @@ lightgbm
 mlflow
 urllib3
 docker
+catboost
 
 responses
 prometheus_client
