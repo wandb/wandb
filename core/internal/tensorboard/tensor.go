@@ -48,6 +48,32 @@ func (t *Tensor) Row(i int) ([]float64, error) {
 	return t.rowMajorData[start:end], nil
 }
 
+// Col returns a column of the tensor if it is rank-2.
+//
+// This is like Row, but it allocates a new slice since tensors are stored
+// in row-major order.
+func (t *Tensor) Col(i int) ([]float64, error) {
+	if rank := len(t.Shape); rank != 2 {
+		return nil, fmt.Errorf("expected rank-2 tensor, but rank is %d", rank)
+	}
+
+	if i < 0 {
+		i += t.Shape[1]
+	}
+
+	// Ensure slice accesses below cannot panic.
+	if i < 0 || t.Shape[1]*(t.Shape[0]-1)+i >= len(t.rowMajorData) {
+		return nil, fmt.Errorf("col index out of bounds: %d", i)
+	}
+
+	column := make([]float64, t.Shape[0])
+	for rowIdx := 0; rowIdx < t.Shape[0]; rowIdx++ {
+		column[rowIdx] = t.rowMajorData[rowIdx*t.Shape[1]+i]
+	}
+
+	return column, nil
+}
+
 // ToHistogramJSON returns a W&B histogram of the numbers in the tensor.
 func (t *Tensor) ToHistogramJSON(nbins int) (string, error) {
 	switch {
