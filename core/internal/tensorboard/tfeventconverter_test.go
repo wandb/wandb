@@ -216,45 +216,39 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 
 func TestConvertScalar(t *testing.T) {
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	doubleTenPointFiveBytes := bytes.NewBuffer([]byte{})
+	require.NoError(t,
+		binary.Write(doubleTenPointFiveBytes, binary.NativeEndian, 10.5))
 
 	emitter := &mockEmitter{}
 	converter.ConvertNext(
 		emitter,
-		summaryEvent(123, 0.345, scalarValue("epoch_loss", "scalars", 0.5)),
+		summaryEvent(123, 0.345,
+			scalarValue("epoch_loss", "scalars", 0.5)),
+		observability.NewNoOpLogger(),
+	)
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValue("epoch_loss", "scalars", []int{0}, 2.5)),
+		observability.NewNoOpLogger(),
+	)
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueBytes(
+				"epoch_loss",
+				"scalars",
+				tbproto.DataType_DT_DOUBLE,
+				doubleTenPointFiveBytes.Bytes())),
 		observability.NewNoOpLogger(),
 	)
 
 	assert.Equal(t,
 		[]mockEmitter_EmitHistory{
 			{pathtree.PathOf("train/epoch_loss"), "0.5"},
-		},
-		emitter.EmitHistoryCalls)
-}
-
-func TestConvertTensor(t *testing.T) {
-	converter := tensorboard.TFEventConverter{Namespace: "train"}
-	doubleOneTwoBytes := bytes.NewBuffer([]byte{})
-	require.NoError(t,
-		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(1)))
-	require.NoError(t,
-		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(2)))
-
-	emitter := &mockEmitter{}
-	converter.ConvertNext(
-		emitter,
-		summaryEvent(123, 0.345,
-			tensorValue("point-five", "scalars", nil, 0.5),
-			tensorValueBytes("one-two", "scalars",
-				tbproto.DataType_DT_DOUBLE, doubleOneTwoBytes.Bytes()),
-			tensorValue("three-four", "scalars", nil, 3, 4)),
-		observability.NewNoOpLogger(),
-	)
-
-	assert.Equal(t,
-		[]mockEmitter_EmitHistory{
-			{pathtree.PathOf("train/point-five"), "0.5"},
-			{pathtree.PathOf("train/one-two"), "[1,2]"},
-			{pathtree.PathOf("train/three-four"), "[3,4]"},
+			{pathtree.PathOf("train/epoch_loss"), "2.5"},
+			{pathtree.PathOf("train/epoch_loss"), "10.5"},
 		},
 		emitter.EmitHistoryCalls)
 }
