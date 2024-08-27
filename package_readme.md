@@ -47,6 +47,9 @@ config.learning_rate = 0.01
 # Log metrics over time to visualize performance with wandb.log
 for i in range(10):
     run.log({"loss": loss})
+
+# Mark a run as finished, and finish uploading all data    
+run.finish()
 ```
 
 For example, if the preceding code was stored in a script called train.py:
