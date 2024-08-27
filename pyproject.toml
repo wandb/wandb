@@ -106,6 +106,8 @@ importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 console_output_style = "count"
 addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"

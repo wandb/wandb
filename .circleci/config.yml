@@ -103,7 +103,7 @@ commands:
   run-nox-tests:
     description:
       Helper command for the nox-tests-* jobs. Runs a nox session and uploads
-      tests artifacts.
+      test artifacts.
     parameters:
       python: { type: string }
       session: { type: string }
@@ -582,6 +582,24 @@ workflows:
             parameters:
               python: ["3.8", "3.12"]
 
+      #
+      # Functional tests with pytest on Linux
+      #
+      - nox-tests-linux:
+          name: functional-tests-pytest-linux-<<matrix.python>>
+          session: functional_tests_pytest
+          codecov_flags: func
+          parallelism: 1
+          executor_name: local-testcontainer
+
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
+
+          matrix:
+            parameters:
+              python: ["3.12"]
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
       #
