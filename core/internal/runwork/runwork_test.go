@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestAddRecordConcurrent(t *testing.T) {
@@ -31,7 +31,7 @@ func TestAddRecordConcurrent(t *testing.T) {
 		go func() {
 			defer wgProducer.Done()
 			for range 100 {
-				rw.AddRecord(&service.Record{})
+				rw.AddRecord(&spb.Record{})
 			}
 		}()
 	}
@@ -50,7 +50,7 @@ func TestAddRecordAfterClose(t *testing.T) {
 
 	rw.SetDone()
 	rw.Close()
-	rw.AddRecord(&service.Record{})
+	rw.AddRecord(&spb.Record{})
 
 	assert.Contains(t, logs.String(), "runwork: ignoring record after close")
 }
@@ -67,7 +67,7 @@ func TestCloseDuringAddRecord(t *testing.T) {
 		rw.SetDone()
 		rw.Close()
 	}()
-	rw.AddRecord(&service.Record{})
+	rw.AddRecord(&spb.Record{})
 	<-rw.Chan()
 
 	assert.Contains(t, logs.String(), "runwork: ignoring record after close")
@@ -92,7 +92,7 @@ func TestRaceAddRecordClose(t *testing.T) {
 			rw.SetDone()
 			rw.Close()
 		}()
-		go rw.AddRecord(&service.Record{})
+		go rw.AddRecord(&spb.Record{})
 		<-rw.Chan()
 	}
 }
@@ -127,7 +127,7 @@ func TestCloseBlocksUntilDone(t *testing.T) {
 	go rw.Close()
 	for range 10 {
 		<-time.After(time.Millisecond)
-		rw.AddRecord(&service.Record{})
+		rw.AddRecord(&spb.Record{})
 	}
 	rw.SetDone()
 	wg.Wait()

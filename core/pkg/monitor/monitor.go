@@ -16,8 +16,9 @@ import (
 
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -36,36 +37,36 @@ func Average(nums []float64) float64 {
 	return total / float64(len(nums))
 }
 
-func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
-	statsItems := make([]*service.StatsItem, 0, len(stats))
+func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *spb.Record {
+	statsItems := make([]*spb.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := json.Marshal(v)
 		if err != nil {
 			continue
 		}
-		statsItems = append(statsItems, &service.StatsItem{
+		statsItems = append(statsItems, &spb.StatsItem{
 			Key:       k,
 			ValueJson: string(jsonData),
 		})
 	}
 
-	return &service.Record{
-		RecordType: &service.Record_Stats{
-			Stats: &service.StatsRecord{
-				StatsType: service.StatsRecord_SYSTEM,
+	return &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: &spb.StatsRecord{
+				StatsType: spb.StatsRecord_SYSTEM,
 				Timestamp: timeStamp,
 				Item:      statsItems,
 			},
 		},
-		Control: &service.Control{AlwaysSend: true},
+		Control: &spb.Control{AlwaysSend: true},
 	}
 }
 
-func makeMetadataRecord(metadata *service.MetadataRequest) *service.Record {
-	return &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_Metadata{
+func makeMetadataRecord(metadata *spb.MetadataRequest) *spb.Record {
+	return &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_Metadata{
 					Metadata: metadata,
 				},
 			},
@@ -94,7 +95,7 @@ type Asset interface {
 	AggregateMetrics() map[string]float64
 	ClearMetrics()
 	IsAvailable() bool
-	Probe() *service.MetadataRequest
+	Probe() *spb.MetadataRequest
 }
 
 type SystemMonitor struct {
@@ -118,7 +119,7 @@ type SystemMonitor struct {
 	buffer *Buffer
 
 	// settings is the settings for the system monitor
-	settings *service.Settings
+	settings *spb.Settings
 
 	// The interval at which metrics are sampled
 	samplingInterval time.Duration
@@ -132,7 +133,7 @@ type SystemMonitor struct {
 
 func New(
 	logger *observability.CoreLogger,
-	settings *service.Settings,
+	settings *spb.Settings,
 	extraWork runwork.ExtraWork,
 ) *SystemMonitor {
 	sbs := settings.XStatsBufferSize.GetValue()
@@ -209,8 +210,8 @@ func (sm *SystemMonitor) GetState() int32 {
 }
 
 // probe gathers system information from all assets.
-func (sm *SystemMonitor) probe() *service.MetadataRequest {
-	systemInfo := service.MetadataRequest{}
+func (sm *SystemMonitor) probe() *spb.MetadataRequest {
+	systemInfo := spb.MetadataRequest{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
 		if probeResponse != nil {

@@ -12,12 +12,12 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestFileStreamUpdates(t *testing.T) {
-	settings := settings.From(&service.Settings{
+	settings := settings.From(&spb.Settings{
 		FilesDir: wrapperspb.String(t.TempDir()),
 	})
 	fileStream := filestreamtest.NewFakeFileStream()
@@ -33,9 +33,9 @@ func TestFileStreamUpdates(t *testing.T) {
 		},
 	})
 
-	sender.StreamLogs(&service.OutputRawRecord{Line: "line1\n"})
-	sender.StreamLogs(&service.OutputRawRecord{Line: "line2\n"})
-	sender.StreamLogs(&service.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "line1\n"})
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "line2\n"})
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
 	sender.Finish()
 
 	request := fileStream.GetRequest(settings)

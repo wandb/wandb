@@ -1875,8 +1875,20 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_fork_logic()
         self._handle_rewind_logic()
         self._handle_resume_logic()
+
+    def _handle_fork_logic(self) -> None:
+        if self.fork_from is None:
+            return
+
+        if self.run_id is not None and (self.fork_from.run == self.run_id):
+            raise ValueError(
+                "Provided `run_id` is the same as the run to `fork_from`. "
+                "Please provide a different `run_id` or remove the `run_id` argument. "
+                "If you want to rewind the current run, please use `resume_from` instead."
+            )
 
     def _handle_rewind_logic(self) -> None:
         if self.resume_from is None:

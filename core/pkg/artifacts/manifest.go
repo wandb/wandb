@@ -10,9 +10,8 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-retryablehttp"
-
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -28,7 +27,7 @@ type StoragePolicyConfig struct {
 }
 
 type ManifestEntry struct {
-	// Fields from the service.ArtifactManifestEntry proto.
+	// Fields from the spb.ArtifactManifestEntry proto.
 	Digest          string         `json:"digest"`
 	Ref             *string        `json:"ref,omitempty"`
 	Size            int64          `json:"size"`
@@ -40,7 +39,7 @@ type ManifestEntry struct {
 	DownloadURL *string `json:"-"`
 }
 
-func NewManifestFromProto(proto *service.ArtifactManifest) (Manifest, error) {
+func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 	manifest := Manifest{
 		Version:             proto.Version,
 		StoragePolicy:       proto.StoragePolicy,

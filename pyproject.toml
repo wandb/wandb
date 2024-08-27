@@ -106,6 +106,8 @@ importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 
 [tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
 minversion = "6.0"
 console_output_style = "count"
 addopts = "-vvv --cov-config=pyproject.toml --dist=loadscope"
@@ -131,7 +133,7 @@ norecursedirs = [
 ]
 
 [tool.coverage.paths]
-source = ["wandb", ".tox/*/lib/python*/site-packages/wandb"]
+source = ["wandb"]
 
 [tool.coverage.run]
 # branch = true
@@ -211,8 +213,8 @@ ignore-decorators = [
 "tests/**" = ["D"]
 
 "tests/pytest_tests/unit_tests_old/**" = ["B", "C", "E", "F", "N", "UP026"]
-"tests/functional_tests/t0_main/fastai/t1_v1.py" = ["F405"]
-"tests/functional_tests/t0_main/metaflow/**" = ["N806"]
+"tests/functional_tests/fastai/t1_v1.py" = ["F405"]
+"tests/functional_tests/metaflow/**" = ["N806"]
 
 
 [tool.mypy]

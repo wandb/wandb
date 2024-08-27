@@ -27,6 +27,7 @@ DEPRECATED_FEATURES = Literal[
     "artifact_collection__change_type",
     "run__define_metric_copy",
     "run_disabled",
+    "keras_callback",
 ]
 
 
@@ -47,3 +48,4 @@ class Deprecated:
     artifact_collection__change_type: DEPRECATED_FEATURES = "artifact_collection__change_type"
     run__define_metric_copy: DEPRECATED_FEATURES = "run__define_metric_copy"
     run_disabled: DEPRECATED_FEATURES = "run_disabled"
+    keras_callback: DEPRECATED_FEATURES = "keras_callback"

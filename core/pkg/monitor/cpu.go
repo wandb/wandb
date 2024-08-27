@@ -7,10 +7,9 @@ import (
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/cpu"
-
-	"github.com/wandb/wandb/core/pkg/service"
-
 	"github.com/shirou/gopsutil/v4/process"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type CPU struct {
@@ -116,9 +115,9 @@ func (c *CPU) ClearMetrics() {
 
 func (c *CPU) IsAvailable() bool { return true }
 
-func (c *CPU) Probe() *service.MetadataRequest {
-	info := service.MetadataRequest{
-		Cpu: &service.CpuInfo{},
+func (c *CPU) Probe() *spb.MetadataRequest {
+	info := spb.MetadataRequest{
+		Cpu: &spb.CpuInfo{},
 	}
 
 	// todo: add more info from cpuInfo
