@@ -164,6 +164,7 @@ class _Service:
 
             service_args = []
 
+            # TODO: Change this to 'not is_require_legacy_service()'
             if is_require_core():
                 try:
                     core_path = get_core_path()
