@@ -3551,7 +3551,7 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    def server_artifact_introspection(self) -> List:
+    def server_artifact_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerArtifact {
                 ArtifactInfoType: __type(name:"Artifact") {
@@ -3572,7 +3572,7 @@ class Api:
 
         return self.server_artifact_fields_info
 
-    def server_create_artifact_introspection(self) -> List:
+    def server_create_artifact_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerCreateArtifactInput {
                 CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
