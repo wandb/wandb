@@ -19,6 +19,12 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 
+class _GCSIsADirectoryError(Exception):
+    """Raised when we try to download a GCS folder."""
+
+    pass
+
+
 class GCSHandler(StorageHandler):
     _client: Optional["gcs_module.client.Client"]
 
@@ -69,6 +75,11 @@ class GCSHandler(StorageHandler):
         assert manifest_entry.ref is not None
         bucket, key, _ = self._parse_uri(manifest_entry.ref)
         version = manifest_entry.extra.get("versionID")
+
+        if self._is_dir(manifest_entry):
+            raise _GCSIsADirectoryError(
+                f"Unable to download GCS folder {manifest_entry.ref!r}, skipping"
+            )
 
         obj = None
         # First attempt to get the generation specified, this will return None if versioning is not enabled
@@ -135,6 +146,7 @@ class GCSHandler(StorageHandler):
         entries = [
             self._entry_from_obj(obj, path, name, prefix=key, multi=multi)
             for obj in objects
+            if not obj.name.endswith("/")
         ]
         if start_time is not None:
             termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
@@ -192,4 +204,23 @@ class GCSHandler(StorageHandler):
             digest=obj.etag,
             size=obj.size,
             extra={"versionID": obj.generation},
+        )
+
+    def _is_dir(
+        self,
+        manifest_entry: ArtifactManifestEntry,
+    ) -> bool:
+        assert self._client is not None
+        assert manifest_entry.ref is not None
+        bucket, key, _ = self._parse_uri(manifest_entry.ref)
+        bucket_obj = self._client.bucket(bucket)
+        # A gcs bucket key should end with a forward slash on gcloud, but
+        # we save these refs without the forward slash in the manifest entry
+        # so we check the size and extension, make sure its not referring to
+        # an actual file with this reference, and that the ref with the slash
+        # exists on gcloud
+        return key.endswith("/") or (
+            not (manifest_entry.size or PurePosixPath(key).suffix)
+            and bucket_obj.get_blob(key) is None
+            and bucket_obj.get_blob(f"{key}/") is not None
         )
