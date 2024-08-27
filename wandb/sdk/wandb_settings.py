@@ -1177,7 +1177,7 @@ class Settings(SettingsData):
         value = _str_as_bool(value)
         if value:
             wandb.termwarn(
-                "disabling the wandb service is deprecated as of version 0.18.0 and will be removed in version 0.19.0.",
+                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in version 0.19.0.",
                 repeat=False,
             )
         return value
