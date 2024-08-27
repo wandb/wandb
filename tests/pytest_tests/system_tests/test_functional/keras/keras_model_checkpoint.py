@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import wandb
-from wandb.keras import WandbModelCheckpoint
+from wandb.integration.keras import WandbModelCheckpoint
 
 run = wandb.init(project="keras")
 
@@ -13,7 +13,8 @@ dataset = (x, y)
 
 def get_model():
     m = tf.keras.Sequential()
-    m.add(tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1)))
+    m.add(tf.keras.layers.InputLayer(shape=(28, 28, 1)))
+    m.add(tf.keras.layers.Conv2D(3, 3, activation="relu"))
     m.add(tf.keras.layers.Flatten())
     m.add(tf.keras.layers.Dense(10, activation="softmax"))
     return m
@@ -33,7 +34,7 @@ model.fit(
     validation_data=(x, y),
     callbacks=[
         WandbModelCheckpoint(
-            filepath="wandb/model/model_{epoch}",
+            filepath="wandb/model/model_{epoch}.keras",
             monitor="accuracy",
             save_best_only=False,
             save_weights_only=False,
@@ -41,3 +42,5 @@ model.fit(
         )
     ],
 )
+
+run.finish()

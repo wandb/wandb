@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import wandb
-from wandb.keras import WandbEvalCallback
+from wandb.integration.keras import WandbEvalCallback
 
 tf.keras.utils.set_random_seed(1234)
 
@@ -14,7 +14,8 @@ dataset = (x, y)
 
 def get_model():
     model = tf.keras.Sequential()
-    model.add(tf.keras.layers.Conv2D(3, 3, activation="relu", input_shape=(28, 28, 1)))
+    model.add(tf.keras.layers.InputLayer(shape=(28, 28, 1)))
+    model.add(tf.keras.layers.Conv2D(3, 3, activation="relu"))
     model.add(tf.keras.layers.Flatten())
     model.add(tf.keras.layers.Dense(10, activation="softmax"))
     return model

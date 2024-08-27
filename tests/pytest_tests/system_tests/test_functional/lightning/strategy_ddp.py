@@ -1,16 +1,10 @@
-#!/usr/bin/env python
-import os
-
 import lightning as pl
+from base import BoringModel, RandomDataset
 from lightning.pytorch.loggers import WandbLogger
-from pl_base import BoringModel, RandomDataset
 from torch.utils.data import DataLoader
 
 
 def main():
-    # Use concurrency experiment
-    print("PIDPID", os.getpid())
-
     # Set up data
     num_samples = 100000
     train = RandomDataset(32, num_samples)
@@ -39,6 +33,8 @@ def main():
     # Train the model
     trainer.fit(model, train, val)
     trainer.test(dataloaders=test)
+
+    wandb_logger.experiment.finish()
 
 
 if __name__ == "__main__":
