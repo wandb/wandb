@@ -4,7 +4,6 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
-from odmantic.query import QueryExpression
 from pydantic import Field, Json, TypeAdapter, field_validator, model_validator
 from typing_extensions import Self
 
@@ -35,8 +34,8 @@ class EventConfig(Base):
 
 
 class EventConfigPayload(Base):
-    # filter: Json  # TODO: Parse into MongoDB filters
-    filter: QueryExpression
+    filter: Json  # TODO: Parse into MongoDB filters
+    # filter: QueryExpression
 
 
 class ActionType(StrEnum):
