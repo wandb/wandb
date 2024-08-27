@@ -11,6 +11,7 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
@@ -173,7 +174,9 @@ func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEn
 }
 
 func loadManifestFromURL(url string) (Manifest, error) {
-	resp, err := retryablehttp.NewClient().Get(url)
+	client := retryablehttp.NewClient()
+	client.Logger = observability.NewNoOpLogger()
+	resp, err := client.Get(url)
 
 	if err != nil {
 		return Manifest{}, err
