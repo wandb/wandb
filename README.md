@@ -119,7 +119,7 @@ config.learning_rate = 0.01
 for i in range(10):
     run.log({"loss": ...})
 
-# Mark a run as finished, and finish uploading all data
+# Mark the run as finished, and finish uploading all data
 run.finish()
 ```
 
