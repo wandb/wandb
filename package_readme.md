@@ -20,7 +20,7 @@ Get started with W&B in four steps:
 
 2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
 
-```bash
+```shell
 pip install wandb
 ```
 
@@ -54,7 +54,7 @@ run.finish()
 
 For example, if the preceding code was stored in a script called train.py:
 
-```python
+```shell
 python train.py
 ```
 
