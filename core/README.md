@@ -118,7 +118,7 @@ Status legend:
 | Category    | Feature           | Status           |
 |-------------|-------------------|------------------|
 | Experiments |                   |                  |
-|             | `init`            | ✅[^E.1]         |
+|             | `init`            | ✅               |
 |             | `log`             | ✅               |
 |             | `log_artifact`    | ✅               |
 |             | `log_code`        | ✅               |
@@ -140,7 +140,7 @@ Status legend:
 |             | offline mode      | ✅               |
 |             | disabled mode     | ✅               |
 |             | multiprocessing   | ✅               |
-|             | TensorBoard sync  | 🚧[^E.1]         |
+|             | TensorBoard sync  | ✅               |
 |             | console logging   | ✅[^E.8]         |
 |             | system metrics    | ✅[^E.9]         |
 |             | system info       | ✅               |
@@ -153,7 +153,7 @@ Status legend:
 |             | team entity       | ✅               |
 |             | service account   | 🚧               |
 | CLI         |                   |                  |
-|             | `sync`            | ✅[^E.1][^CLI.1] |
+|             | `sync`            | ✅[^CLI.1]       |
 |             | `<other commands>`| 🚧[^CLI.2]       |
 | Artifacts   |                   | ✅               |
 |             | caching           | ✅               |
@@ -161,7 +161,6 @@ Status legend:
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
 
-[^E.1]: `sync_tensorboard` uploads `tfevent` files to W&B, so the TensorBoard tab works, but only some types of metrics appear in native W&B charts.
 [^E.5]: Missing full nested key summary support.
 [^E.8]: Only raw console logging is supported.
 [^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
