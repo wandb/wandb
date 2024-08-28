@@ -22,8 +22,8 @@ func NewCPU(pid int32) *CPU {
 
 func (c *CPU) Name() string { return c.name }
 
-func (c *CPU) Sample() (map[string]float64, error) {
-	metrics := make(map[string]float64)
+func (c *CPU) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
 	var errs []error
 
 	// process-related metrics

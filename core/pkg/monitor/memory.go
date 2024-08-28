@@ -20,8 +20,8 @@ func NewMemory(pid int32) *Memory {
 
 func (m *Memory) Name() string { return m.name }
 
-func (m *Memory) Sample() (map[string]float64, error) {
-	metrics := make(map[string]float64)
+func (m *Memory) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
 	var errs []error
 
 	virtualMem, err := mem.VirtualMemory()

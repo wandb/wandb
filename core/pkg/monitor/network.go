@@ -25,8 +25,8 @@ func NewNetwork() *Network {
 
 func (n *Network) Name() string { return n.name }
 
-func (n *Network) Sample() (map[string]float64, error) {
-	metrics := make(map[string]float64)
+func (n *Network) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
 	netIOCounters, err := net.IOCounters(false)
 	if err != nil {
 		return nil, err

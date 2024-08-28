@@ -77,7 +77,7 @@ func getSlurmEnvVars() map[string]string {
 
 type Asset interface {
 	Name() string
-	Sample() (map[string]float64, error)
+	Sample() (map[string]any, error)
 	IsAvailable() bool
 	Probe() *spb.MetadataRequest
 }

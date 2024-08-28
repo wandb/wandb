@@ -35,9 +35,9 @@ func NewDisk(diskPaths []string) *Disk {
 
 func (d *Disk) Name() string { return d.name }
 
-func (d *Disk) Sample() (map[string]float64, error) {
+func (d *Disk) Sample() (map[string]any, error) {
 
-	metrics := make(map[string]float64)
+	metrics := make(map[string]any)
 	var errs []error
 
 	for _, diskPath := range d.diskPaths {
