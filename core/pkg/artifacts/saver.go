@@ -157,49 +157,6 @@ func (as *ArtifactSaver) createArtifact(supportsTags bool) (
 	}
 }
 
-// func (as *ArtifactSaver) createArtifactWithoutTags() (
-// 	attrs gql.CreateArtifactPayloadFields,
-// 	rerr error,
-// ) {
-// 	var aliases []gql.ArtifactAliasInput
-// 	for _, alias := range as.Artifact.Aliases {
-// 		aliases = append(aliases,
-// 			gql.ArtifactAliasInput{
-// 				ArtifactCollectionName: as.Artifact.Name,
-// 				Alias:                  alias,
-// 			},
-// 		)
-// 	}
-//
-// 	var runId *string
-// 	if !as.Artifact.UserCreated {
-// 		runId = &as.Artifact.RunId
-// 	}
-//
-// 	response, err := gql.CreateArtifactWithoutTags(
-// 		as.Ctx,
-// 		as.GraphqlClient,
-// 		as.Artifact.Entity,
-// 		as.Artifact.Project,
-// 		as.Artifact.Type,
-// 		as.Artifact.Name,
-// 		runId,
-// 		as.Artifact.Digest,
-// 		utils.NilIfZero(as.Artifact.Description),
-// 		aliases,
-// 		utils.NilIfZero(as.Artifact.Metadata),
-// 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-// 		utils.NilIfZero(as.HistoryStep),
-// 		utils.NilIfZero(as.Artifact.DistributedId),
-// 		as.Artifact.ClientId,
-// 		as.Artifact.SequenceClientId,
-// 	)
-// 	if err != nil {
-// 		return gql.CreateArtifactPayloadFields{}, err
-// 	}
-// 	return response.GetCreateArtifact().GetArtifact().CreateArtifactPayloadFields, nil
-// }
-
 func (as *ArtifactSaver) createManifest(
 	artifactId string, baseArtifactId *string, manifestDigest string, includeUpload bool,
 ) (attrs gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest, rerr error) {
