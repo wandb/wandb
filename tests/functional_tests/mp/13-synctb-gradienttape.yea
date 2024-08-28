@@ -3,8 +3,6 @@ plugin:
   - wandb
 tag:
   skip: True # todo enable when fixed core (it used to exclude windows)
-  shards:
-    - wandb_core_failure
   
 depend:
   requirements:

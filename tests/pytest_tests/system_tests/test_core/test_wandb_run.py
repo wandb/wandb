@@ -210,57 +210,55 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
 
 
 @pytest.mark.parametrize(
-    "local_info, warn",
+    "server_info, warn",
     [
         (
             {
-                "outOfDate": True,
-                "latestVersionString": "12.0.0",
+                "serverInfo": {
+                    "latestLocalVersionInfo": {
+                        "outOfDate": True,
+                        "latestVersionString": "12.0.0",
+                    },
+                },
             },
             True,
         ),
         (
             {
-                "outOfDate": False,
-                "latestVersionString": "12.0.0",
+                "serverInfo": {
+                    "latestLocalVersionInfo": {
+                        "outOfDate": False,
+                        "latestVersionString": "12.0.0",
+                    },
+                },
             },
             False,
         ),
-        (None, False),
-        ({}, True),
+        ({}, False),
     ],
 )
-@pytest.mark.wandb_core_failure(
-    feature="version_check",
-    reason="need to implement versioning in wandb core",
+@pytest.mark.wandb_core_only(
+    "we are using a different query and the behavior is different"
 )
 def test_local_warning(
     relay_server,
     inject_graphql_response,
     wandb_init,
     capsys,
-    local_info,
+    server_info,
     warn,
 ):
-    body = {
-        "viewer": {},
-        "serverInfo": {"cliVersionInfo": {}},
-    }
-    if local_info != "":
-        body["serverInfo"]["latestLocalVersionInfo"] = local_info
-
     inject_response = inject_graphql_response(
-        body=json.dumps({"data": body}),
+        body=json.dumps({"data": server_info}),
         status=200,
-        query_match_fn=lambda query, _: "query Viewer" in query,
+        query_match_fn=lambda query, _: "query ServerInfo" in query,
         application_pattern="1",
     )
-    # we do not retry 409s on queries, so this should fail
     with relay_server(inject=[inject_response]):
         run = wandb_init()
         run.finish()
-    captured = capsys.readouterr().err
 
+    captured = capsys.readouterr().err
     msg = "version of W&B Server to get the latest features"
     if warn:
         assert msg in captured
