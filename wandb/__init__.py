@@ -199,14 +199,18 @@ if wandb_sdk.lib.ipython.in_notebook():
 from .analytics import Sentry as _Sentry
 
 if "dev" in __version__:
+    import wandb.env
     import os
 
     # disable error reporting in dev versions for the python client
-    os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
-        "WANDB_ERROR_REPORTING", "false"
+    os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
+        wandb.env.ERROR_REPORTING, "false"
     )
+
     # turn on wandb-core for dev versions
-    os.environ["WANDB__REQUIRE_CORE"] = os.environ.get("WANDB__REQUIRE_CORE", "true")
+    if not wandb.env.is_require_legacy_service():
+        os.environ[wandb.env._REQUIRE_CORE] = os.environ.get(
+            wandb.env._REQUIRE_CORE, "true")
 
 _sentry = _Sentry()
 _sentry.setup()
