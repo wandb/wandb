@@ -42,6 +42,7 @@ mlflow
 urllib3
 docker
 catboost
+openai
 
 responses
 prometheus_client
