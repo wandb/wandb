@@ -67,8 +67,9 @@ class SystemMonitor:
         )  # seconds
         # The number of samples to aggregate (e.g. average or compute max/min etc.)
         # before publishing; defaults to 15; valid range: [1:30]
-        _stats_samples_to_average = self.settings._stats_samples_to_average or 15
-        samples_to_aggregate: int = min(30, max(1, _stats_samples_to_average))
+        samples_to_aggregate: int = min(
+            30, max(1, self.settings._stats_samples_to_average)
+        )
         self.publishing_interval: float = sampling_interval * samples_to_aggregate
         self.join_assets: bool = self.settings._stats_join_assets
 

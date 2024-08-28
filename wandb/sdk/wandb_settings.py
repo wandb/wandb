@@ -292,16 +292,6 @@ ConsoleValue = {
 }
 
 
-# @dataclass
-# class SystemMonitor:
-#     """System monitor settings."""
-
-#     # Sampling interval in seconds
-#     sampling_interval: float
-
-#     # TODO: move all _stats* settings here
-
-
 @dataclass()
 class SettingsData:
     """Settings for the W&B SDK."""
@@ -753,6 +743,7 @@ class Settings(SettingsData):
                 "validator": self._validate__stats_sample_rate_seconds,
             },
             _stats_samples_to_average={
+                "value": 15,
                 "preprocessor": int,
                 "validator": self._validate__stats_samples_to_average,
             },
@@ -1217,12 +1208,8 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate__stats_samples_to_average(value: int) -> bool:
-        if value:
-            wandb.termwarn(
-                "The setting `_stats_samples_to_average` is deprecated and will be removed in a future release. "
-                "It is a no-op, system stats are not averaged.",
-                repeat=False,
-            )
+        if value < 1 or value > 30:
+            raise UsageError("_stats_samples_to_average must be between 1 and 30")
         return True
 
     @staticmethod
