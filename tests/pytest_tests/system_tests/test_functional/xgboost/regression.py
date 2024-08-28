@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-"""Test xgboost integration for regression task."""
-
 import numpy as np
 import pandas as pd
 import wandb
@@ -21,6 +18,8 @@ X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=123
 )
 
+run = wandb.init(project="xgboost-housing")
+
 # Define regressor
 bst_params = dict(
     objective="reg:squarederror",
@@ -29,20 +28,17 @@ bst_params = dict(
     max_depth=5,
     alpha=10,
     n_estimators=100,
+    early_stopping_rounds=20,
     tree_method="hist",
+    callbacks=[WandbCallback()],
 )
 
 xg_reg = xgb.XGBRegressor(**bst_params)
-
-# Initialize run
-wandb.init(project="xgboost-housing")
 
 xg_reg.fit(
     X_train,
     y_train,
     eval_set=[(X_train, y_train), (X_test, y_test)],
-    early_stopping_rounds=20,
-    callbacks=[WandbCallback()],
     verbose=False,
 )
 
@@ -50,3 +46,5 @@ xg_reg.fit(
 preds = xg_reg.predict(X_test)
 rmse = np.sqrt(mean_squared_error(y_test, preds))
 wandb.log({"RMSE": rmse})
+
+run.finish()
