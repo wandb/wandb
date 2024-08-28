@@ -102,7 +102,6 @@ func (as *ArtifactSaver) createArtifact(supportsTags bool) (
 	}
 
 	if supportsTags {
-
 		var tags []gql.TagInput
 		for _, tag := range as.Artifact.Tags {
 			tags = append(tags, gql.TagInput{TagName: tag})
@@ -658,8 +657,6 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-const minArtifactTagsServerVersion = "0.58"
-
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
@@ -765,6 +762,8 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	return artifactID, nil
 }
 
+const minArtifactTagsServerVersion = "0.58"
+
 // canCreateArtifactWithTags returns true if the server version appears to allow CreateArtifact with tags.
 func canCreateArtifactWithTags(serverInfoResponse *gql.ServerInfoResponse) bool {
 	if serverInfoResponse == nil {
@@ -774,11 +773,13 @@ func canCreateArtifactWithTags(serverInfoResponse *gql.ServerInfoResponse) bool 
 	if serverInfo == nil {
 		return true
 	}
-	if localVersionInfo := serverInfo.GetLatestLocalVersionInfo(); localVersionInfo != nil {
-		serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
-		if semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) < 0 {
-			return false
-		}
+	localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
+	if localVersionInfo == nil {
+		return true
 	}
-	return true
+	serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
+	if serverVersion == "" {
+		return true
+	}
+	return semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
 }

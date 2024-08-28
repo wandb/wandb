@@ -290,51 +290,91 @@ func TestSendUseArtifact(t *testing.T) {
 
 // Verify that arguments are properly passed through to graphql
 func TestSendArtifact(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("CreateArtifact"),
-		validCreateArtifactResponse,
-	)
-	sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
-
-	// 1. When both clientId and serverId are sent, serverId is used
-	artifact := &spb.Record{
-		RecordType: &spb.Record_Artifact{
-			Artifact: &spb.ArtifactRecord{
-				RunId:   "test-run-id",
-				Project: "test-project",
-				Entity:  "test-entity",
-				Type:    "test-type",
-				Name:    "test-artifact",
-				Digest:  "test-digest",
-				Aliases: []string{"latest"},
-				Tags:    []string{"test-tag1", "test-tag2"},
-				Manifest: &spb.ArtifactManifest{
-					Version:       1,
-					StoragePolicy: "wandb-storage-policy-v1",
-					Contents: []*spb.ArtifactManifestEntry{{
-						Path:      "test1",
-						Digest:    "test1-digest",
-						Size:      1,
-						LocalPath: "/test/local/path",
-					},
-					},
-				},
-				Finalize:         true,
-				ClientId:         "client-id",
-				SequenceClientId: "sequence-client-id",
-			}},
+	tests := []struct {
+		name                   string
+		mockServerInfoResponse string
+		shouldSupportTags      bool
+	}{
+		{
+			name:                   "Server supports artifact tags",
+			mockServerInfoResponse: `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.58.0"}}}`,
+			shouldSupportTags:      true,
+		},
+		{
+			name:                   "Server doesn't support artifact tags",
+			mockServerInfoResponse: `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.57.2"}}}`,
+			shouldSupportTags:      false,
+		},
+		{
+			name:                   "Null latestLocalVersionInfo",
+			mockServerInfoResponse: `{"serverInfo": {"latestLocalVersionInfo": null}}`,
+			shouldSupportTags:      true,
+		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 
-	sender.SendRecord(artifact)
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("ServerInfo"),
+				tt.mockServerInfoResponse,
+			)
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("CreateArtifact"),
+				validCreateArtifactResponse,
+			)
+			sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
 
-	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
-		),
-		requests[0])
+			// 1. When both clientId and serverId are sent, serverId is used
+			artifact := &spb.Record{
+				RecordType: &spb.Record_Artifact{
+					Artifact: &spb.ArtifactRecord{
+						RunId:   "test-run-id",
+						Project: "test-project",
+						Entity:  "test-entity",
+						Type:    "test-type",
+						Name:    "test-artifact",
+						Digest:  "test-digest",
+						Aliases: []string{"latest"},
+						Tags:    []string{"test-tag1", "test-tag2"},
+						Manifest: &spb.ArtifactManifest{
+							Version:       1,
+							StoragePolicy: "wandb-storage-policy-v1",
+							Contents: []*spb.ArtifactManifestEntry{{
+								Path:      "test1",
+								Digest:    "test1-digest",
+								Size:      1,
+								LocalPath: "/test/local/path",
+							},
+							},
+						},
+						Finalize:         true,
+						ClientId:         "client-id",
+						SequenceClientId: "sequence-client-id",
+					}},
+			}
+
+			sender.SendRecord(artifact)
+
+			requests := mockGQL.AllRequests()
+			assert.Len(t, requests, 2)
+
+			createArtifactRequest := requests[1]
+
+			// Tags should have been excluded from the request if the server version is too old
+			expectedTagsValue := gomock.Nil()
+			if tt.shouldSupportTags {
+				expectedTagsValue = gomock.Len(2)
+			}
+
+			gqlmock.AssertRequest(t,
+				gqlmock.WithVariables(
+					gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
+					gqlmock.GQLVar("tags", expectedTagsValue),
+				),
+				createArtifactRequest)
+		})
+	}
 }
 
 func TestSendRequestCheckVersion(t *testing.T) {
