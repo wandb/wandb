@@ -82,7 +82,7 @@ func NewArtifactSaver(
 	}
 }
 
-func (as *ArtifactSaver) createArtifact(supportsTags bool) (
+func (as *ArtifactSaver) createArtifact() (
 	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
@@ -99,6 +99,12 @@ func (as *ArtifactSaver) createArtifact(supportsTags bool) (
 	var runId *string
 	if !as.Artifact.UserCreated {
 		runId = &as.Artifact.RunId
+	}
+
+	// Older server versions won't support tags, so check the server version to be sure
+	supportsTags, err := as.canSupportArtifactTags()
+	if err != nil {
+		return gql.CreatedArtifactArtifact{}, err
 	}
 
 	if supportsTags {
@@ -665,14 +671,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 
 	defer as.deleteStagingFiles(&manifest)
 
-	// Older server versions won't support tags, so check the server version to be sure
-	serverInfo, err := gql.ServerInfo(as.Ctx, as.GraphqlClient)
-	if err != nil {
-		return "", fmt.Errorf("gql.ServerInfo: %w", err)
-	}
-	supportsArtifactTags := canCreateArtifactWithTags(serverInfo)
-
-	artifactAttrs, err := as.createArtifact(supportsArtifactTags)
+	artifactAttrs, err := as.createArtifact()
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
@@ -764,22 +763,27 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 
 const minArtifactTagsServerVersion = "0.58"
 
-// canCreateArtifactWithTags returns true if the server version appears to allow CreateArtifact with tags.
-func canCreateArtifactWithTags(serverInfoResponse *gql.ServerInfoResponse) bool {
-	if serverInfoResponse == nil {
-		return true
+// canSupportArtifactTags returns true if the server version supports artifact tags.
+func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
+	response, err := gql.ServerInfo(as.Ctx, as.GraphqlClient)
+	if err != nil {
+		return false, fmt.Errorf("gql.ServerInfo: %w", err)
 	}
-	serverInfo := serverInfoResponse.GetServerInfo()
+	// If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
+	// expect artifact tags support in more recent deployments
+	serverInfo := response.GetServerInfo()
 	if serverInfo == nil {
-		return true
+		return true, nil
 	}
 	localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
 	if localVersionInfo == nil {
-		return true
+		return true, nil
 	}
 	serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
-	if serverVersion == "" {
-		return true
+	if !semver.IsValid("v" + serverVersion) {
+		return true, nil
 	}
-	return semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
+	supportsArtifactTags := semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
+
+	return supportsArtifactTags, nil
 }

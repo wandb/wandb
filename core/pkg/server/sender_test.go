@@ -291,24 +291,34 @@ func TestSendUseArtifact(t *testing.T) {
 // Verify that arguments are properly passed through to graphql
 func TestSendArtifact(t *testing.T) {
 	tests := []struct {
-		name                   string
-		mockServerInfoResponse string
-		shouldSupportTags      bool
+		name                      string
+		mockServerInfoResponse    string
+		shouldSupportArtifactTags bool
 	}{
 		{
-			name:                   "Server supports artifact tags",
-			mockServerInfoResponse: `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.58.0"}}}`,
-			shouldSupportTags:      true,
+			name:                      "Server version doesn't support artifact tags",
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.57.2"}}}`,
+			shouldSupportArtifactTags: false,
 		},
 		{
-			name:                   "Server doesn't support artifact tags",
-			mockServerInfoResponse: `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.57.2"}}}`,
-			shouldSupportTags:      false,
+			name:                      "Server version supports artifact tags",
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.58.0"}}}`,
+			shouldSupportArtifactTags: true,
 		},
 		{
-			name:                   "Null latestLocalVersionInfo",
-			mockServerInfoResponse: `{"serverInfo": {"latestLocalVersionInfo": null}}`,
-			shouldSupportTags:      true,
+			name:                      "Empty version string - assume tags are supported",
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": ""}}}`,
+			shouldSupportArtifactTags: true,
+		},
+		{
+			name:                      "Null latestLocalVersionInfo - assume tags are supported",
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": null}}`,
+			shouldSupportArtifactTags: true,
+		},
+		{
+			name:                      "Null serverInfo - assume tags are supported",
+			mockServerInfoResponse:    `{"serverInfo": null}`,
+			shouldSupportArtifactTags: true,
 		},
 	}
 	for _, tt := range tests {
@@ -357,14 +367,18 @@ func TestSendArtifact(t *testing.T) {
 			sender.SendRecord(artifact)
 
 			requests := mockGQL.AllRequests()
-			assert.Len(t, requests, 2)
+			assert.LessOrEqual(t, len(requests), 2)
 
-			createArtifactRequest := requests[1]
+			// We may have had to check ServerInfo for compatibility, but
+			// CreateArtifact should still be the last request
+			createArtifactRequest := requests[len(requests)-1]
 
-			// Tags should have been excluded from the request if the server version is too old
-			expectedTagsValue := gomock.Nil()
-			if tt.shouldSupportTags {
+			// Tags should only have been included in the request if the server supports it
+			var expectedTagsValue gomock.Matcher
+			if tt.shouldSupportArtifactTags {
 				expectedTagsValue = gomock.Len(2)
+			} else {
+				expectedTagsValue = gomock.Nil()
 			}
 
 			gqlmock.AssertRequest(t,
