@@ -20,15 +20,6 @@ def test_fetching_artifact_files(user, wandb_init):
         artifact.add_file("boom.txt", "test-name")
         run.log_artifact(artifact, aliases=["sequence"])
 
-    # run = wandb_init(entity=user, project=project)
-    # artifact = wandb.Artifact("test-artifact", "test-type")
-    # with open("boom.txt", "w") as f:
-    #     f.write("testing")
-    # artifact.add_file("boom.txt", "test-name")
-    # run.log_artifact(artifact, aliases=["sequence"])
-    # artifact.wait()
-    # run.finish()
-
     # fetch artifact and its file successfully
     artifact = Api().artifact(
         name=f"{user}/{project}/test-artifact:v0", type="test-type"
@@ -84,6 +75,14 @@ def test_save_aliases_after_logging_artifact(user, wandb_init):
     assert "hello" in aliases
 
 
+@pytest.fixture
+def server_supports_artifact_tags() -> bool:
+    """Identifies if we're testing against an older server version that doesn't support artifact tags (e.g. in CI)."""
+    from wandb.sdk.internal import internal_api
+
+    return "tags" in internal_api.Api().server_artifact_introspection()
+
+
 @pytest.mark.parametrize(
     "orig_tags",
     (
@@ -100,6 +99,7 @@ def test_save_tags_after_logging_artifact(
     api,
     orig_tags,
     edit_tags_inplace,
+    server_supports_artifact_tags,
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -123,8 +123,11 @@ def test_save_tags_after_logging_artifact(
     # Add new tags after and outside the run
     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+    if server_supports_artifact_tags:
+        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+        assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+    else:
+        assert not fetched_artifact.tags
 
     if edit_tags_inplace:
         # Partial check that expected behavior is (reasonably) resilient to in-place mutations
@@ -151,8 +154,13 @@ def test_save_tags_after_logging_artifact(
     # fetch the final artifact and verify its tags
     final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
 
-    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-    assert sorted(final_tags) == sorted({*orig_tags, *tags_to_add} - {*tags_to_delete})
+    if server_supports_artifact_tags:
+        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+        assert sorted(final_tags) == sorted(
+            {*orig_tags, *tags_to_add} - {*tags_to_delete}
+        )
+    else:
+        assert not final_tags
 
 
 INVALID_TAGS = (
@@ -175,7 +183,7 @@ INVALID_TAG_LISTS = (
 
 @pytest.mark.parametrize("tags_to_add", INVALID_TAG_LISTS)
 def test_save_invalid_tags_after_logging_artifact(
-    tmp_path, user, wandb_init, api, tags_to_add
+    tmp_path, user, wandb_init, api, tags_to_add, server_supports_artifact_tags
 ):
     project = "test"
     artifact_name = "test-artifact"
@@ -198,8 +206,11 @@ def test_save_invalid_tags_after_logging_artifact(
     # Add new tags after and outside the run
     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
 
-    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-    assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+    if server_supports_artifact_tags:
+        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+        assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
+    else:
+        assert not fetched_artifact.tags
 
     with pytest.raises(
         (ValueError, CommError),
@@ -211,66 +222,69 @@ def test_save_invalid_tags_after_logging_artifact(
     # tags should remain unchanged
     final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
 
-    # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
-    assert sorted(final_tags) == sorted(set(orig_tags))
+    if server_supports_artifact_tags:
+        # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
+        assert sorted(final_tags) == sorted(set(orig_tags))
+    else:
+        assert not final_tags
 
 
-@pytest.fixture
-def mock_old_server_artifact_introspection(monkeypatch) -> None:
-    # Partially mocks an older server that doesn't recognize
-    # newer Artifact fields, e.g. `Artifact.tags` at least via introspection
-    from wandb.sdk.internal import internal_api
-
-    current_fields = internal_api.Api().server_artifact_introspection()
-    excluded_fields = {"tags", "ttlIsInherited", "ttlDurationSeconds"}
-
-    def fake_server_artifact_introspection(self) -> list[str]:
-        return [name for name in current_fields if name not in excluded_fields]
-
-    monkeypatch.setattr(
-        internal_api.Api,
-        "server_artifact_introspection",
-        fake_server_artifact_introspection,
-    )
-
-    yield
-
-
-def test_save_tags_without_server_support(
-    tmp_path,
-    user,
-    wandb_init,
-    api,
-    mock_old_server_artifact_introspection,
-):
-    project = "test"
-    artifact_name = "test-artifact"
-    artifact_type = "test-type"
-    artifact_fullname = f"{user}/{project}/{artifact_name}:v0"
-
-    artifact_filepath = tmp_path / "boom.txt"
-    artifact_filepath.write_text("testing")
-
-    # We've mocked an older server that doesn't recognize `Artifact.tags` on introspection
-    tags_to_add = ["new-tag", "other tag"]
-
-    with wandb_init(entity=user, project=project) as run:
-        artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
-        artifact.add_file(str(artifact_filepath), "test-name")
-        run.log_artifact(artifact, tags=tags_to_add)
-        artifact.wait()
-
-    fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
-
-    assert fetched_artifact.tags == []
-
-    # Try adding new tags
-    fetched_artifact.tags = tags_to_add
-    fetched_artifact.save()
-
-    # tags should remain unchanged, since server doesn't support tags
-    final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
-    assert final_tags == []
+# @pytest.fixture
+# def mock_old_server_artifact_introspection(monkeypatch) -> None:
+#     # Partially mocks an older server that doesn't recognize
+#     # newer Artifact fields, e.g. `Artifact.tags` at least via introspection
+#     from wandb.sdk.internal import internal_api
+#
+#     current_fields = internal_api.Api().server_artifact_introspection()
+#     excluded_fields = {"tags", "ttlIsInherited", "ttlDurationSeconds"}
+#
+#     def fake_server_artifact_introspection(self) -> list[str]:
+#         return [name for name in current_fields if name not in excluded_fields]
+#
+#     monkeypatch.setattr(
+#         internal_api.Api,
+#         "server_artifact_introspection",
+#         fake_server_artifact_introspection,
+#     )
+#
+#     yield
+#
+#
+# def test_save_tags_without_server_support(
+#     tmp_path,
+#     user,
+#     wandb_init,
+#     api,
+#     mock_old_server_artifact_introspection,
+# ):
+#     project = "test"
+#     artifact_name = "test-artifact"
+#     artifact_type = "test-type"
+#     artifact_fullname = f"{user}/{project}/{artifact_name}:v0"
+#
+#     artifact_filepath = tmp_path / "boom.txt"
+#     artifact_filepath.write_text("testing")
+#
+#     # We've mocked an older server that doesn't recognize `Artifact.tags` on introspection
+#     tags_to_add = ["new-tag", "other tag"]
+#
+#     with wandb_init(entity=user, project=project) as run:
+#         artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+#         artifact.add_file(str(artifact_filepath), "test-name")
+#         run.log_artifact(artifact, tags=tags_to_add)
+#         artifact.wait()
+#
+#     fetched_artifact = api.artifact(name=artifact_fullname, type=artifact_type)
+#
+#     assert fetched_artifact.tags == []
+#
+#     # Try adding new tags
+#     fetched_artifact.tags = tags_to_add
+#     fetched_artifact.save()
+#
+#     # tags should remain unchanged, since server doesn't support tags
+#     final_tags = api.artifact(name=artifact_fullname, type=artifact_type).tags
+#     assert final_tags == []
 
 
 @pytest.mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
