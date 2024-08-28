@@ -280,8 +280,8 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func (g *GPUAMD) Sample() (map[string]float64, error) {
-	metrics := make(map[string]float64)
+func (g *GPUAMD) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
 	cards := g.getCards()
 
 	for gpu_id, stats := range cards {
