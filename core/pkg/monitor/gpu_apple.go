@@ -59,14 +59,14 @@ func (g *GPUApple) parseStats() (map[string]any, error) {
 func (g *GPUApple) Name() string { return g.name }
 
 //gocyclo:ignore
-func (g *GPUApple) Sample() (map[string]float64, error) {
+func (g *GPUApple) Sample() (map[string]any, error) {
 	stats, err := g.parseStats()
 	if err != nil {
 		return nil, err
 	}
 	// TODO: add more metrics, such as render or tiler utilization
 
-	metrics := make(map[string]float64)
+	metrics := make(map[string]any)
 
 	// GPU + Neural Engine Total Power (W)
 	if powerUsage, ok := queryMapNumber(stats, "gpuPower"); ok {

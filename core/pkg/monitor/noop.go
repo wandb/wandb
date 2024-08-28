@@ -27,7 +27,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) Sample() (map[string]float64, error) { return nil, nil }
+func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
 
 func (g *GPUNvidia) IsAvailable() bool { return false }
 
@@ -47,7 +47,7 @@ func NewGPUAMD() *GPUAMD {
 
 func (g *GPUAMD) Name() string { return g.name }
 
-func (g *GPUAMD) Sample() (map[string]float64, error) { return nil, nil }
+func (g *GPUAMD) Sample() (map[string]any, error) { return nil, nil }
 
 func (g *GPUAMD) IsAvailable() bool { return false }
 

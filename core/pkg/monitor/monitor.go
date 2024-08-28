@@ -23,7 +23,7 @@ const (
 	defaultSamplingInterval = 10.0 * time.Second
 )
 
-func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *spb.Record {
+func makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
 	statsItems := make([]*spb.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := json.Marshal(v)
