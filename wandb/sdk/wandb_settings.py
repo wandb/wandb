@@ -1213,11 +1213,6 @@ class Settings(SettingsData):
 
     @staticmethod
     def _validate__stats_sample_rate_seconds(value: float) -> bool:
-        if value:
-            wandb.termwarn(
-                "The setting `_stats_sample_rate_seconds` is deprecated in favor of _stats_sampling_interval.",
-                repeat=False,
-            )
         if value < 0.1:
             raise UsageError("_stats_sample_rate_seconds must be >= 0.1")
         return True
