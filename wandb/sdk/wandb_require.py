@@ -13,7 +13,12 @@ import os
 from typing import Optional, Sequence, Union
 
 import wandb
-from wandb.env import _REQUIRE_CORE
+from wandb.env import (
+    _REQUIRE_CORE,
+    _REQUIRE_LEGACY_SERVICE,
+    is_require_core,
+    is_require_legacy_service,
+)
 from wandb.errors import UnsupportedError
 from wandb.sdk import wandb_run
 from wandb.sdk.lib.wburls import wburls
@@ -41,7 +46,23 @@ class _Requires:
         self._require_service()
 
     def require_core(self) -> None:
+        if is_require_legacy_service():
+            raise UnsupportedError(
+                'Cannot use wandb.require("core") because legacy-service'
+                " is already required--did you use"
+                ' wandb.require("legacy-service") or set the'
+                " WANDB__REQUIRE_LEGACY_SERVICE environment variable?"
+            )
         os.environ[_REQUIRE_CORE] = "true"
+
+    def require_legacy_service(self) -> None:
+        if is_require_core():
+            raise UnsupportedError(
+                'Cannot use wandb.require("legacy-service") because core'
+                ' is already required--did you use wandb.require("core")'
+                " or set the WANDB__REQUIRE_CORE environment variable?"
+            )
+        os.environ[_REQUIRE_LEGACY_SERVICE] = "true"
 
     def apply(self) -> None:
         """Call require_* method for supported features."""

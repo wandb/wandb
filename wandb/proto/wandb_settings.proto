@@ -89,8 +89,11 @@ message Settings {
   // Disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue _disable_update_check = 165;
 
-  // Indicate whether wandb-core is to be used.
+  // Explicitly require wandb-core to be used.
   google.protobuf.BoolValue _require_core = 36;
+
+  // Explicitly require wandb-core to not be used.
+  google.protobuf.BoolValue _require_legacy_service = 173;
 
   // Path to file containing an identity token for authentication.
   google.protobuf.StringValue identity_token_file = 170;
