@@ -35,7 +35,6 @@ def test_run_with_console_redirect(wandb_init, capfd, console):
 
 
 @pytest.mark.parametrize("console", console_modes)
-@pytest.mark.wandb_core_failure(feature="console")
 def test_offline_compression(wandb_init, capfd, console):
     # map to old style wrap implementation until test is refactored
     if console == "wrap":
@@ -84,7 +83,6 @@ def test_offline_compression(wandb_init, capfd, console):
 @pytest.mark.parametrize("console", console_modes)
 @pytest.mark.parametrize("numpy", [True, False])
 @pytest.mark.timeout(300)
-@pytest.mark.wandb_core_failure(feature="console")
 def test_very_long_output(wandb_init, capfd, console, numpy):
     # https://wandb.atlassian.net/browse/WB-5437
     with capfd.disabled():

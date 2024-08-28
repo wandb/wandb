@@ -108,8 +108,6 @@ def test_footer_summary_image(wandb_init, check_output_fn):
     check_output_fn(exp_summary=["a", "b", "d", "🚀", "⭐️"], exp_history=[])
 
 
-# todo(core): implement sparklines / run history
-@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_footer_history(wandb_init, check_output_fn):
     run = wandb_init()
     run.define_metric("*", summary="none")
