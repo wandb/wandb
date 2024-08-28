@@ -141,19 +141,19 @@ Status legend:
 |             | disabled mode     | ✅               |
 |             | multiprocessing   | ✅               |
 |             | TensorBoard sync  | ✅               |
-|             | console logging   | ✅[^E.2]        |
+|             | console logging   | ✅[^E.2]         |
 |             | system metrics    | ✅[^E.3]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
 |             | Forking           | ✅               |
 |             | Rewind            | ✅               |
-|             | Settings          | ✅        |
+|             | Settings          | ✅               |
 | Login       |                   |                  |
 |             | default entity    | ✅               |
 |             | team entity       | ✅               |
 |             | service account   | ✅               |
 | CLI         |                   |                  |
-|             | `sync`            | ✅[^CLI.1]       |
+|             | `sync`            | ✅               |
 | Artifacts   |                   | ✅               |
 |             | caching           | ✅               |
 |             | partial downloads | ❌               |

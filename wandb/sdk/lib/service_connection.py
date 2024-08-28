@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import atexit
 import os
-from typing import Callable, Optional
+from typing import Callable
 
 from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_server_pb2 as spb
@@ -24,8 +26,8 @@ class WandbServiceConnectionError(Exception):
 
 
 def connect_to_service(
-    settings: "wandb_settings.Settings",
-) -> "ServiceConnection":
+    settings: wandb_settings.Settings,
+) -> ServiceConnection:
     """Connects to the service process, starting one up if necessary."""
     conn = _try_connect_to_existing_service()
     if conn:
@@ -34,7 +36,7 @@ def connect_to_service(
     return _start_and_connect_service(settings)
 
 
-def _try_connect_to_existing_service() -> "Optional[ServiceConnection]":
+def _try_connect_to_existing_service() -> ServiceConnection | None:
     """Attemps to connect to an existing service process."""
     token = service_token.get_service_token()
     if not token:
@@ -57,8 +59,8 @@ def _try_connect_to_existing_service() -> "Optional[ServiceConnection]":
 
 
 def _start_and_connect_service(
-    settings: "wandb_settings.Settings",
-) -> "ServiceConnection":
+    settings: wandb_settings.Settings,
+) -> ServiceConnection:
     """Starts a service process and returns a connection to it.
 
     An atexit hook is registered to tear down the service process and wait for
@@ -101,9 +103,9 @@ class ServiceConnection:
 
     def __init__(
         self,
-        client: "SockClient",
-        proc: "Optional[service._Service]",
-        cleanup: "Optional[Callable[[], None]]" = None,
+        client: SockClient,
+        proc: service._Service | None,
+        cleanup: Callable[[], None] | None = None,
     ):
         """Returns a new ServiceConnection.
 
@@ -116,17 +118,17 @@ class ServiceConnection:
         self._proc = proc
         self._cleanup = cleanup
 
-    def make_interface(self, mailbox: "Mailbox") -> "InterfaceBase":
+    def make_interface(self, mailbox: Mailbox) -> InterfaceBase:
         """Returns an interface for communicating with the service."""
         return InterfaceSock(self._client, mailbox)
 
-    def send_record(self, record: "pb.Record") -> None:
+    def send_record(self, record: pb.Record) -> None:
         """Sends data to the service."""
         self._client.send_record_publish(record)
 
     def inform_init(
         self,
-        settings: "wandb_settings_pb2.Settings",
+        settings: wandb_settings_pb2.Settings,
         run_id: str,
     ) -> None:
         """Sends an init request to the service."""
@@ -144,7 +146,7 @@ class ServiceConnection:
     def inform_attach(
         self,
         attach_id: str,
-    ) -> "wandb_settings_pb2.Settings":
+    ) -> wandb_settings_pb2.Settings:
         """Sends an attach request to the service."""
         request = spb.ServerInformAttachRequest()
         request._info.stream_id = attach_id
@@ -153,7 +155,7 @@ class ServiceConnection:
 
     def inform_start(
         self,
-        settings: "wandb_settings_pb2.Settings",
+        settings: wandb_settings_pb2.Settings,
         run_id: str,
     ) -> None:
         """Sends a start request to the service."""
