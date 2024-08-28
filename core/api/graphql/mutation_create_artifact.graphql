@@ -1,3 +1,13 @@
+fragment CreateArtifactPayloadFields on Artifact {
+    id
+    state
+    artifactSequence {
+        latestArtifact {
+            id
+        }
+    }
+}
+
 mutation CreateArtifact(
     $entityName: String!,
     $projectName: String!,
@@ -36,67 +46,50 @@ mutation CreateArtifact(
         }
     ) {
         artifact {
-            id
-            state
-            artifactSequence {
-                latestArtifact {
-                    id
-                }
-            }
+            ...CreateArtifactPayloadFields
         }
     }
 }
 
-## TODO: When safe to do so, absorb this near-duplicate mutation back into `CreateArtifact` above.
-##   At the time of implementation, this was a temporary workaround, as:
-##   - older server versions might not accept `tags` as a new CreateArtifactInput field
-##   - options were limited for testing client SDK code against historical server releases
-##   - timeline constraints were an important factor
-#mutation CreateArtifactWithTags(
-#    $entityName: String!,
-#    $projectName: String!,
-#    $artifactTypeName: String!,
-#    $artifactCollectionName: String!,
-#    $runName: String,
-#    $digest: String!,
-#    $description: String,
-#    $aliases: [ArtifactAliasInput!],
-#    $tags: [TagInput!],
-#    $metadata: JSONString,
-#    $ttlDurationSeconds: Int64,
-#    $historyStep: Int64,
-#    $distributedID: String,
-#    $clientID: ID!,
-#    $sequenceClientID: ID!,
-#) {
-#    createArtifact(input: {
-#        entityName: $entityName,
-#        projectName: $projectName,
-#        artifactTypeName: $artifactTypeName,
-#        artifactCollectionName: $artifactCollectionName,
-#        runName: $runName,
-#        digest: $digest,
-#        digestAlgorithm: MANIFEST_MD5,
-#        description: $description,
-#        aliases: $aliases,
-#        tags: $tags,
-#        metadata: $metadata,
-#        ttlDurationSeconds: $ttlDurationSeconds,
-#        historyStep: $historyStep,
-#        enableDigestDeduplication: true,
-#        distributedID: $distributedID,
-#        clientID: $clientID,
-#        sequenceClientID: $sequenceClientID,
-#    }
-#    ) {
-#        artifact {
-#            id
-#            state
-#            artifactSequence {
-#                latestArtifact {
-#                    id
-#                }
-#            }
-#        }
-#    }
-#}
+# CreateArtifactWithoutTags implements the CreateArtifact mutation
+# for older server versions that do not support artifact tags.
+mutation CreateArtifactWithoutTags(
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!,
+    $artifactCollectionName: String!,
+    $runName: String,
+    $digest: String!,
+    $description: String,
+    $aliases: [ArtifactAliasInput!],
+    $metadata: JSONString,
+    $ttlDurationSeconds: Int64,
+    $historyStep: Int64,
+    $distributedID: String,
+    $clientID: ID!,
+    $sequenceClientID: ID!,
+) {
+    createArtifact(input: {
+        entityName: $entityName,
+        projectName: $projectName,
+        artifactTypeName: $artifactTypeName,
+        artifactCollectionName: $artifactCollectionName,
+        runName: $runName,
+        digest: $digest,
+        digestAlgorithm: MANIFEST_MD5,
+        description: $description,
+        aliases: $aliases,
+        metadata: $metadata,
+        ttlDurationSeconds: $ttlDurationSeconds,
+        historyStep: $historyStep,
+        enableDigestDeduplication: true,
+        distributedID: $distributedID,
+        clientID: $clientID,
+        sequenceClientID: $sequenceClientID,
+    }
+    ) {
+        artifact {
+            ...CreateArtifactPayloadFields
+        }
+    }
+}

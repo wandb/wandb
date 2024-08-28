@@ -3,6 +3,7 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"golang.org/x/mod/semver"
 	"io"
 	"math"
 	"net/url"
@@ -80,6 +81,11 @@ func NewArtifactSaver(
 	}
 }
 
+// CreateArtifactPayloadArtifact is what's returned by CreateArtifact, regardless of server version.
+type CreateArtifactPayloadArtifact interface {
+	gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact | gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact
+}
+
 func (as *ArtifactSaver) createArtifact() (
 	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
 	rerr error,
@@ -125,6 +131,49 @@ func (as *ArtifactSaver) createArtifact() (
 	)
 	if err != nil {
 		return gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact{}, err
+	}
+	return response.GetCreateArtifact().GetArtifact(), nil
+}
+
+func (as *ArtifactSaver) createArtifactWithoutTags() (
+	attrs gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact,
+	rerr error,
+) {
+	var aliases []gql.ArtifactAliasInput
+	for _, alias := range as.Artifact.Aliases {
+		aliases = append(aliases,
+			gql.ArtifactAliasInput{
+				ArtifactCollectionName: as.Artifact.Name,
+				Alias:                  alias,
+			},
+		)
+	}
+
+	var runId *string
+	if !as.Artifact.UserCreated {
+		runId = &as.Artifact.RunId
+	}
+
+	response, err := gql.CreateArtifactWithoutTags(
+		as.Ctx,
+		as.GraphqlClient,
+		as.Artifact.Entity,
+		as.Artifact.Project,
+		as.Artifact.Type,
+		as.Artifact.Name,
+		runId,
+		as.Artifact.Digest,
+		utils.NilIfZero(as.Artifact.Description),
+		aliases,
+		utils.NilIfZero(as.Artifact.Metadata),
+		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+		utils.NilIfZero(as.HistoryStep),
+		utils.NilIfZero(as.Artifact.DistributedId),
+		as.Artifact.ClientId,
+		as.Artifact.SequenceClientId,
+	)
+	if err != nil {
+		return gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
 }
@@ -630,6 +679,8 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
+const minArtifactTagsServerVersion = "0.58"
+
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.Artifact.Manifest)
 	if err != nil {
@@ -638,10 +689,38 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 
 	defer as.deleteStagingFiles(&manifest)
 
-	artifactAttrs, err := as.createArtifact()
+	// Older server versions won't support tags, so check the server version to be sure
+
+	serverInfo, err := gql.ServerInfo(as.Ctx, as.GraphqlClient)
 	if err != nil {
-		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
+		return "", fmt.Errorf("gql.ServerInfo: %w", err)
 	}
+
+	var serverSupportsArtifactTags bool
+	if serverInfo != nil && serverInfo.GetServerInfo() != nil && serverInfo.GetServerInfo().GetLatestLocalVersionInfo() != nil {
+		serverVersion := serverInfo.GetServerInfo().GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
+		if semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) < 0 {
+			serverSupportsArtifactTags = false
+		}
+	} else {
+		serverSupportsArtifactTags = true
+	}
+
+	var artifactAttrs gql.CreateArtifactPayloadFields
+	if serverSupportsArtifactTags {
+		result, err := as.createArtifact()
+		if err != nil {
+			return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
+		}
+		artifactAttrs = result.CreateArtifactPayloadFields
+	} else {
+		result, err := as.createArtifactWithoutTags()
+		if err != nil {
+			return "", fmt.Errorf("ArtifactSaver.createArtifactWithoutTags: %w", err)
+		}
+		artifactAttrs = result.CreateArtifactPayloadFields
+	}
+
 	artifactID = artifactAttrs.Id
 	var baseArtifactId *string
 	if as.Artifact.BaseId != "" {
