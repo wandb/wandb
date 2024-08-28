@@ -140,6 +140,9 @@ func (s *Server) Serve() {
 
 func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
+
+	streamMux := NewStreamMux()
+
 	// Run a separate goroutine to handle incoming connections
 	for {
 		conn, err := s.listener.Accept()
@@ -155,6 +158,7 @@ func (s *Server) serve() {
 			s.wg.Add(1)
 			go func() {
 				NewConnection(
+					streamMux,
 					s.ctx,
 					s.cancel,
 					conn,
