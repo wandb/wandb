@@ -254,7 +254,6 @@ def test_local_warning(
         query_match_fn=lambda query, _: "query ServerInfo" in query,
         application_pattern="1",
     )
-    # we do not retry 409s on queries, so this should fail
     with relay_server(inject=[inject_response]):
         run = wandb_init()
         run.finish()
