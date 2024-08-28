@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 )
 
@@ -74,25 +73,17 @@ func (t *Tensor) Col(i int) ([]float64, error) {
 	return column, nil
 }
 
-// ToHistogramJSON returns a W&B histogram of the numbers in the tensor.
-func (t *Tensor) ToHistogramJSON(nbins int) (string, error) {
-	switch {
-	case len(t.rowMajorData) == 1:
-		return fmt.Sprintf("%v", t.rowMajorData[0]), nil
-	case len(t.rowMajorData) <= nbins:
-		// simplejsonext allows NaN and +-Infinity which we must support.
-		result, err := simplejsonext.Marshal(t.rowMajorData)
-
-		// Impossible: we should always be able to marshal a slice of numbers.
-		if err != nil {
-			return "", err
-		}
-
-		return string(result), nil
-	default:
-		// TODO: implement numbersToHistogramJSON for >nbins entries
-		return "", fmt.Errorf("numbersToHistogramJSON for >nbins entries unimplemented")
+// Scalar returns the single numeric value stored in the tensor.
+//
+// Returns an error if the tensor does not have exactly one value.
+func (t *Tensor) Scalar() (float64, error) {
+	if len(t.rowMajorData) != 1 {
+		return 0, fmt.Errorf(
+			"tensor has %d elements, not 1",
+			len(t.rowMajorData))
 	}
+
+	return t.rowMajorData[0], nil
 }
 
 // tensorFromProto converts a TensorProto into a Tensor.

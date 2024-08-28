@@ -55,6 +55,9 @@ func (h *TFEventConverter) ConvertNext(
 		case "histograms":
 			processHistograms(emitter, tag, value, logger)
 
+		case "images":
+			processImages(emitter, tag, value, logger)
+
 		case "pr_curves":
 			processPRCurves(emitter, tag, value, logger)
 		}
