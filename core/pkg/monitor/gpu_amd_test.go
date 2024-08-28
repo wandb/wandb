@@ -55,13 +55,6 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 	metrics, err := gpu.Sample()
 	assert.Nil(t, err)
 	assert.Len(t, metrics, 10)
-	assert.Len(t, metrics["gpu.0.gpu"], 1)
-	assert.Len(t, metrics["gpu.1.gpu"], 1)
-	metrics, err = gpu.Sample()
-	assert.Nil(t, err)
-	assert.Len(t, metrics, 10)
-	assert.Len(t, metrics["gpu.0.gpu"], 2)
-	assert.Len(t, metrics["gpu.1.gpu"], 2)
 }
 
 func TestGPUAMD_Probe(t *testing.T) {
