@@ -697,18 +697,8 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 		return "", fmt.Errorf("gql.ServerInfo: %w", err)
 	}
 
-	var serverSupportsArtifactTags bool
-	if serverInfo != nil && serverInfo.GetServerInfo() != nil && serverInfo.GetServerInfo().GetLatestLocalVersionInfo() != nil {
-		serverVersion := serverInfo.GetServerInfo().GetLatestLocalVersionInfo().GetVersionOnThisInstanceString()
-		if semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) < 0 {
-			serverSupportsArtifactTags = false
-		}
-	} else {
-		serverSupportsArtifactTags = true
-	}
-
 	var artifactAttrs gql.CreateArtifactPayloadFields
-	if serverSupportsArtifactTags {
+	if canCreateArtifactWithTags(serverInfo) {
 		result, err := as.createArtifact()
 		if err != nil {
 			return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
@@ -805,4 +795,24 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	}
 
 	return artifactID, nil
+}
+
+// canCreateArtifactWithTags returns true if the server version appears to allow CreateArtifact with tags.
+func canCreateArtifactWithTags(serverInfoResponse *gql.ServerInfoResponse) bool {
+	if serverInfoResponse == nil {
+		return true
+	}
+
+	serverInfo := serverInfoResponse.GetServerInfo()
+	if serverInfo == nil {
+		return true
+	}
+
+	if localVersionInfo := serverInfo.GetLatestLocalVersionInfo(); localVersionInfo != nil {
+		serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
+		if semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) < 0 {
+			return false
+		}
+	}
+	return true
 }
