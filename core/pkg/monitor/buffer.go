@@ -10,7 +10,7 @@ type Measurement struct {
 	// timestamp of the measurement
 	Timestamp *timestamppb.Timestamp
 	// value of the measurement
-	Value any
+	Value float64
 }
 
 type List struct {
@@ -44,7 +44,7 @@ func NewBuffer(maxSize int32) *Buffer {
 	}
 }
 
-func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue any) {
+func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
 	mb.mutex.Lock()
 	defer mb.mutex.Unlock()
 	buf, ok := mb.elements[metricName]

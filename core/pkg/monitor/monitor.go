@@ -312,7 +312,9 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			// Also store aggregated metrics in the buffer if we have one
 			if sm.buffer != nil {
 				for k, v := range metrics {
-					sm.buffer.push(k, ts, v)
+					if v, ok := v.(float64); ok {
+						sm.buffer.push(k, ts, v)
+					}
 				}
 			}
 
