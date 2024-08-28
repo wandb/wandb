@@ -78,7 +78,6 @@ from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
@@ -1663,7 +1662,7 @@ class Artifact:
         if env.is_offline() or util._is_offline():
             raise RuntimeError("Cannot download artifacts in offline mode.")
 
-        # TODO: re-enable this once artifact download with core is re-implemented
+        # TODO: download artifacts using core when implemented
         # if is_require_core():
         #     return self._download_using_core(
         #         root=root,
@@ -1753,9 +1752,6 @@ class Artifact:
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
-        # TODO: remove once artifact reference downloads are supported in core
-        # require_core = is_require_core()
-
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
         log = False
@@ -2354,12 +2350,6 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
-
-
-def is_require_core() -> bool:
-    if env.is_require_core():
-        return bool(get_core_path())
-    return False
 
 
 class _ArtifactVersionType(WBType):
