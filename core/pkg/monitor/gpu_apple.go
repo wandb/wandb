@@ -2,7 +2,6 @@ package monitor
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -70,7 +69,7 @@ func (g *GPUApple) Sample() (map[string]any, error) {
 
 	// GPU + Neural Engine Total Power (W)
 	if powerUsage, ok := queryMapNumber(stats, "gpuPower"); ok {
-		metrics[fmt.Sprintf("gpu.%d.powerWatts", 0)] = powerUsage
+		metrics["gpu.0.powerWatts"] = powerUsage
 	}
 
 	// System Power (W)
@@ -129,7 +128,7 @@ func (g *GPUApple) Sample() (map[string]any, error) {
 	}
 
 	if nMeasurements > 0 {
-		metrics["gpu.%d.temp"] = temperature / float64(nMeasurements)
+		metrics["gpu.0.temp"] = temperature / float64(nMeasurements)
 	}
 
 	return metrics, nil
