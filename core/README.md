@@ -154,7 +154,7 @@ Status legend:
 |             | service account   | ✅               |
 | CLI         |                   |                  |
 |             | `sync`            | ✅               |
-| Artifacts   |                   | ✅               |
+| Artifacts   |                   |                  |
 |             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
