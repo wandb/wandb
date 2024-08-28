@@ -1,9 +1,11 @@
-fragment CreateArtifactPayloadFields on Artifact {
-    id
-    state
-    artifactSequence {
-        latestArtifact {
-            id
+fragment CreatedArtifact on CreateArtifactPayload {
+    artifact {
+        id
+        state
+        artifactSequence {
+            latestArtifact {
+                id
+            }
         }
     }
 }
@@ -45,9 +47,7 @@ mutation CreateArtifact(
         sequenceClientID: $sequenceClientID,
         }
     ) {
-        artifact {
-            ...CreateArtifactPayloadFields
-        }
+        ...CreatedArtifact
     }
 }
 
@@ -88,8 +88,6 @@ mutation CreateArtifactWithoutTags(
         sequenceClientID: $sequenceClientID,
     }
     ) {
-        artifact {
-            ...CreateArtifactPayloadFields
-        }
+        ...CreatedArtifact
     }
 }

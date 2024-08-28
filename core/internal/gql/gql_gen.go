@@ -245,45 +245,25 @@ func (v *CompleteMultipartUploadArtifactResponse) GetCompleteMultipartUploadArti
 
 // CreateArtifactCreateArtifactCreateArtifactPayload includes the requested fields of the GraphQL type CreateArtifactPayload.
 type CreateArtifactCreateArtifactCreateArtifactPayload struct {
-	Artifact CreateArtifactCreateArtifactCreateArtifactPayloadArtifact `json:"artifact"`
+	CreatedArtifact `json:"-"`
 }
 
 // GetArtifact returns CreateArtifactCreateArtifactCreateArtifactPayload.Artifact, and is useful for accessing the field via an interface.
-func (v *CreateArtifactCreateArtifactCreateArtifactPayload) GetArtifact() CreateArtifactCreateArtifactCreateArtifactPayloadArtifact {
-	return v.Artifact
+func (v *CreateArtifactCreateArtifactCreateArtifactPayload) GetArtifact() CreatedArtifactArtifact {
+	return v.CreatedArtifact.Artifact
 }
 
-// CreateArtifactCreateArtifactCreateArtifactPayloadArtifact includes the requested fields of the GraphQL type Artifact.
-type CreateArtifactCreateArtifactCreateArtifactPayloadArtifact struct {
-	CreateArtifactPayloadFields `json:"-"`
-}
-
-// GetId returns CreateArtifactCreateArtifactCreateArtifactPayloadArtifact.Id, and is useful for accessing the field via an interface.
-func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) GetId() string {
-	return v.CreateArtifactPayloadFields.Id
-}
-
-// GetState returns CreateArtifactCreateArtifactCreateArtifactPayloadArtifact.State, and is useful for accessing the field via an interface.
-func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) GetState() ArtifactState {
-	return v.CreateArtifactPayloadFields.State
-}
-
-// GetArtifactSequence returns CreateArtifactCreateArtifactCreateArtifactPayloadArtifact.ArtifactSequence, and is useful for accessing the field via an interface.
-func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) GetArtifactSequence() CreateArtifactPayloadFieldsArtifactSequence {
-	return v.CreateArtifactPayloadFields.ArtifactSequence
-}
-
-func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) UnmarshalJSON(b []byte) error {
+func (v *CreateArtifactCreateArtifactCreateArtifactPayload) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
 		return nil
 	}
 
 	var firstPass struct {
-		*CreateArtifactCreateArtifactCreateArtifactPayloadArtifact
+		*CreateArtifactCreateArtifactCreateArtifactPayload
 		graphql.NoUnmarshalJSON
 	}
-	firstPass.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact = v
+	firstPass.CreateArtifactCreateArtifactCreateArtifactPayload = v
 
 	err := json.Unmarshal(b, &firstPass)
 	if err != nil {
@@ -291,22 +271,18 @@ func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) UnmarshalJSO
 	}
 
 	err = json.Unmarshal(
-		b, &v.CreateArtifactPayloadFields)
+		b, &v.CreatedArtifact)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-type __premarshalCreateArtifactCreateArtifactCreateArtifactPayloadArtifact struct {
-	Id string `json:"id"`
-
-	State ArtifactState `json:"state"`
-
-	ArtifactSequence CreateArtifactPayloadFieldsArtifactSequence `json:"artifactSequence"`
+type __premarshalCreateArtifactCreateArtifactCreateArtifactPayload struct {
+	Artifact CreatedArtifactArtifact `json:"artifact"`
 }
 
-func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) MarshalJSON() ([]byte, error) {
+func (v *CreateArtifactCreateArtifactCreateArtifactPayload) MarshalJSON() ([]byte, error) {
 	premarshaled, err := v.__premarshalJSON()
 	if err != nil {
 		return nil, err
@@ -314,12 +290,10 @@ func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) MarshalJSON(
 	return json.Marshal(premarshaled)
 }
 
-func (v *CreateArtifactCreateArtifactCreateArtifactPayloadArtifact) __premarshalJSON() (*__premarshalCreateArtifactCreateArtifactCreateArtifactPayloadArtifact, error) {
-	var retval __premarshalCreateArtifactCreateArtifactCreateArtifactPayloadArtifact
+func (v *CreateArtifactCreateArtifactCreateArtifactPayload) __premarshalJSON() (*__premarshalCreateArtifactCreateArtifactCreateArtifactPayload, error) {
+	var retval __premarshalCreateArtifactCreateArtifactCreateArtifactPayload
 
-	retval.Id = v.CreateArtifactPayloadFields.Id
-	retval.State = v.CreateArtifactPayloadFields.State
-	retval.ArtifactSequence = v.CreateArtifactPayloadFields.ArtifactSequence
+	retval.Artifact = v.CreatedArtifact.Artifact
 	return &retval, nil
 }
 
@@ -526,42 +500,6 @@ func (v *CreateArtifactManifestResponse) GetCreateArtifactManifest() *CreateArti
 	return v.CreateArtifactManifest
 }
 
-// CreateArtifactPayloadFields includes the GraphQL fields of Artifact requested by the fragment CreateArtifactPayloadFields.
-type CreateArtifactPayloadFields struct {
-	Id               string                                      `json:"id"`
-	State            ArtifactState                               `json:"state"`
-	ArtifactSequence CreateArtifactPayloadFieldsArtifactSequence `json:"artifactSequence"`
-}
-
-// GetId returns CreateArtifactPayloadFields.Id, and is useful for accessing the field via an interface.
-func (v *CreateArtifactPayloadFields) GetId() string { return v.Id }
-
-// GetState returns CreateArtifactPayloadFields.State, and is useful for accessing the field via an interface.
-func (v *CreateArtifactPayloadFields) GetState() ArtifactState { return v.State }
-
-// GetArtifactSequence returns CreateArtifactPayloadFields.ArtifactSequence, and is useful for accessing the field via an interface.
-func (v *CreateArtifactPayloadFields) GetArtifactSequence() CreateArtifactPayloadFieldsArtifactSequence {
-	return v.ArtifactSequence
-}
-
-// CreateArtifactPayloadFieldsArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
-type CreateArtifactPayloadFieldsArtifactSequence struct {
-	LatestArtifact *CreateArtifactPayloadFieldsArtifactSequenceLatestArtifact `json:"latestArtifact"`
-}
-
-// GetLatestArtifact returns CreateArtifactPayloadFieldsArtifactSequence.LatestArtifact, and is useful for accessing the field via an interface.
-func (v *CreateArtifactPayloadFieldsArtifactSequence) GetLatestArtifact() *CreateArtifactPayloadFieldsArtifactSequenceLatestArtifact {
-	return v.LatestArtifact
-}
-
-// CreateArtifactPayloadFieldsArtifactSequenceLatestArtifact includes the requested fields of the GraphQL type Artifact.
-type CreateArtifactPayloadFieldsArtifactSequenceLatestArtifact struct {
-	Id string `json:"id"`
-}
-
-// GetId returns CreateArtifactPayloadFieldsArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
-func (v *CreateArtifactPayloadFieldsArtifactSequenceLatestArtifact) GetId() string { return v.Id }
-
 // CreateArtifactResponse is returned by CreateArtifact on success.
 type CreateArtifactResponse struct {
 	CreateArtifact *CreateArtifactCreateArtifactCreateArtifactPayload `json:"createArtifact"`
@@ -574,45 +512,25 @@ func (v *CreateArtifactResponse) GetCreateArtifact() *CreateArtifactCreateArtifa
 
 // CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload includes the requested fields of the GraphQL type CreateArtifactPayload.
 type CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload struct {
-	Artifact CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact `json:"artifact"`
+	CreatedArtifact `json:"-"`
 }
 
 // GetArtifact returns CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload.Artifact, and is useful for accessing the field via an interface.
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload) GetArtifact() CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact {
-	return v.Artifact
+func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload) GetArtifact() CreatedArtifactArtifact {
+	return v.CreatedArtifact.Artifact
 }
 
-// CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact includes the requested fields of the GraphQL type Artifact.
-type CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact struct {
-	CreateArtifactPayloadFields `json:"-"`
-}
-
-// GetId returns CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact.Id, and is useful for accessing the field via an interface.
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) GetId() string {
-	return v.CreateArtifactPayloadFields.Id
-}
-
-// GetState returns CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact.State, and is useful for accessing the field via an interface.
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) GetState() ArtifactState {
-	return v.CreateArtifactPayloadFields.State
-}
-
-// GetArtifactSequence returns CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact.ArtifactSequence, and is useful for accessing the field via an interface.
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) GetArtifactSequence() CreateArtifactPayloadFieldsArtifactSequence {
-	return v.CreateArtifactPayloadFields.ArtifactSequence
-}
-
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) UnmarshalJSON(b []byte) error {
+func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload) UnmarshalJSON(b []byte) error {
 
 	if string(b) == "null" {
 		return nil
 	}
 
 	var firstPass struct {
-		*CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact
+		*CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload
 		graphql.NoUnmarshalJSON
 	}
-	firstPass.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact = v
+	firstPass.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload = v
 
 	err := json.Unmarshal(b, &firstPass)
 	if err != nil {
@@ -620,22 +538,18 @@ func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) U
 	}
 
 	err = json.Unmarshal(
-		b, &v.CreateArtifactPayloadFields)
+		b, &v.CreatedArtifact)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-type __premarshalCreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact struct {
-	Id string `json:"id"`
-
-	State ArtifactState `json:"state"`
-
-	ArtifactSequence CreateArtifactPayloadFieldsArtifactSequence `json:"artifactSequence"`
+type __premarshalCreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload struct {
+	Artifact CreatedArtifactArtifact `json:"artifact"`
 }
 
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) MarshalJSON() ([]byte, error) {
+func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload) MarshalJSON() ([]byte, error) {
 	premarshaled, err := v.__premarshalJSON()
 	if err != nil {
 		return nil, err
@@ -643,12 +557,10 @@ func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) M
 	return json.Marshal(premarshaled)
 }
 
-func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact) __premarshalJSON() (*__premarshalCreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact, error) {
-	var retval __premarshalCreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact
+func (v *CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload) __premarshalJSON() (*__premarshalCreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload, error) {
+	var retval __premarshalCreateArtifactWithoutTagsCreateArtifactCreateArtifactPayload
 
-	retval.Id = v.CreateArtifactPayloadFields.Id
-	retval.State = v.CreateArtifactPayloadFields.State
-	retval.ArtifactSequence = v.CreateArtifactPayloadFields.ArtifactSequence
+	retval.Artifact = v.CreatedArtifact.Artifact
 	return &retval, nil
 }
 
@@ -705,6 +617,50 @@ type CreateRunFilesResponse struct {
 func (v *CreateRunFilesResponse) GetCreateRunFiles() *CreateRunFilesCreateRunFilesCreateRunFilesPayload {
 	return v.CreateRunFiles
 }
+
+// CreatedArtifact includes the GraphQL fields of CreateArtifactPayload requested by the fragment CreatedArtifact.
+type CreatedArtifact struct {
+	Artifact CreatedArtifactArtifact `json:"artifact"`
+}
+
+// GetArtifact returns CreatedArtifact.Artifact, and is useful for accessing the field via an interface.
+func (v *CreatedArtifact) GetArtifact() CreatedArtifactArtifact { return v.Artifact }
+
+// CreatedArtifactArtifact includes the requested fields of the GraphQL type Artifact.
+type CreatedArtifactArtifact struct {
+	Id               string                                  `json:"id"`
+	State            ArtifactState                           `json:"state"`
+	ArtifactSequence CreatedArtifactArtifactArtifactSequence `json:"artifactSequence"`
+}
+
+// GetId returns CreatedArtifactArtifact.Id, and is useful for accessing the field via an interface.
+func (v *CreatedArtifactArtifact) GetId() string { return v.Id }
+
+// GetState returns CreatedArtifactArtifact.State, and is useful for accessing the field via an interface.
+func (v *CreatedArtifactArtifact) GetState() ArtifactState { return v.State }
+
+// GetArtifactSequence returns CreatedArtifactArtifact.ArtifactSequence, and is useful for accessing the field via an interface.
+func (v *CreatedArtifactArtifact) GetArtifactSequence() CreatedArtifactArtifactArtifactSequence {
+	return v.ArtifactSequence
+}
+
+// CreatedArtifactArtifactArtifactSequence includes the requested fields of the GraphQL type ArtifactSequence.
+type CreatedArtifactArtifactArtifactSequence struct {
+	LatestArtifact *CreatedArtifactArtifactArtifactSequenceLatestArtifact `json:"latestArtifact"`
+}
+
+// GetLatestArtifact returns CreatedArtifactArtifactArtifactSequence.LatestArtifact, and is useful for accessing the field via an interface.
+func (v *CreatedArtifactArtifactArtifactSequence) GetLatestArtifact() *CreatedArtifactArtifactArtifactSequenceLatestArtifact {
+	return v.LatestArtifact
+}
+
+// CreatedArtifactArtifactArtifactSequenceLatestArtifact includes the requested fields of the GraphQL type Artifact.
+type CreatedArtifactArtifactArtifactSequenceLatestArtifact struct {
+	Id string `json:"id"`
+}
+
+// GetId returns CreatedArtifactArtifactArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
+func (v *CreatedArtifactArtifactArtifactSequenceLatestArtifact) GetId() string { return v.Id }
 
 // LinkArtifactLinkArtifactLinkArtifactPayload includes the requested fields of the GraphQL type LinkArtifactPayload.
 type LinkArtifactLinkArtifactLinkArtifactPayload struct {
@@ -2021,17 +1977,17 @@ func CompleteMultipartUploadArtifact(
 const CreateArtifact_Operation = `
 mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $tags: [TagInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
 	createArtifact(input: {entityName:$entityName,projectName:$projectName,artifactTypeName:$artifactTypeName,artifactCollectionName:$artifactCollectionName,runName:$runName,digest:$digest,digestAlgorithm:MANIFEST_MD5,description:$description,aliases:$aliases,tags:$tags,metadata:$metadata,ttlDurationSeconds:$ttlDurationSeconds,historyStep:$historyStep,enableDigestDeduplication:true,distributedID:$distributedID,clientID:$clientID,sequenceClientID:$sequenceClientID}) {
-		artifact {
-			... CreateArtifactPayloadFields
-		}
+		... CreatedArtifact
 	}
 }
-fragment CreateArtifactPayloadFields on Artifact {
-	id
-	state
-	artifactSequence {
-		latestArtifact {
-			id
+fragment CreatedArtifact on CreateArtifactPayload {
+	artifact {
+		id
+		state
+		artifactSequence {
+			latestArtifact {
+				id
+			}
 		}
 	}
 }
@@ -2208,17 +2164,17 @@ func CreateArtifactManifest(
 const CreateArtifactWithoutTags_Operation = `
 mutation CreateArtifactWithoutTags ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
 	createArtifact(input: {entityName:$entityName,projectName:$projectName,artifactTypeName:$artifactTypeName,artifactCollectionName:$artifactCollectionName,runName:$runName,digest:$digest,digestAlgorithm:MANIFEST_MD5,description:$description,aliases:$aliases,metadata:$metadata,ttlDurationSeconds:$ttlDurationSeconds,historyStep:$historyStep,enableDigestDeduplication:true,distributedID:$distributedID,clientID:$clientID,sequenceClientID:$sequenceClientID}) {
-		artifact {
-			... CreateArtifactPayloadFields
-		}
+		... CreatedArtifact
 	}
 }
-fragment CreateArtifactPayloadFields on Artifact {
-	id
-	state
-	artifactSequence {
-		latestArtifact {
-			id
+fragment CreatedArtifact on CreateArtifactPayload {
+	artifact {
+		id
+		state
+		artifactSequence {
+			latestArtifact {
+				id
+			}
 		}
 	}
 }

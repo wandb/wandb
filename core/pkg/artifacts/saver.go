@@ -82,13 +82,8 @@ func NewArtifactSaver(
 	}
 }
 
-// CreateArtifactPayloadArtifact is what's returned by CreateArtifact, regardless of server version.
-type CreateArtifactPayloadArtifact interface {
-	gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact | gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact
-}
-
 func (as *ArtifactSaver) createArtifact(supportsTags bool) (
-	attrs gql.CreateArtifactPayloadFields,
+	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
 	var aliases []gql.ArtifactAliasInput
@@ -133,9 +128,9 @@ func (as *ArtifactSaver) createArtifact(supportsTags bool) (
 			as.Artifact.SequenceClientId,
 		)
 		if err != nil {
-			return gql.CreateArtifactPayloadFields{}, err
+			return gql.CreatedArtifactArtifact{}, err
 		}
-		return response.GetCreateArtifact().GetArtifact().CreateArtifactPayloadFields, nil
+		return response.GetCreateArtifact().GetArtifact(), nil
 	} else {
 		response, err := gql.CreateArtifactWithoutTags(
 			as.Ctx,
@@ -156,9 +151,9 @@ func (as *ArtifactSaver) createArtifact(supportsTags bool) (
 			as.Artifact.SequenceClientId,
 		)
 		if err != nil {
-			return gql.CreateArtifactPayloadFields{}, err
+			return gql.CreatedArtifactArtifact{}, err
 		}
-		return response.GetCreateArtifact().GetArtifact().CreateArtifactPayloadFields, nil
+		return response.GetCreateArtifact().GetArtifact(), nil
 	}
 }
 
@@ -717,28 +712,16 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	defer as.deleteStagingFiles(&manifest)
 
 	// Older server versions won't support tags, so check the server version to be sure
-
 	serverInfo, err := gql.ServerInfo(as.Ctx, as.GraphqlClient)
 	if err != nil {
 		return "", fmt.Errorf("gql.ServerInfo: %w", err)
 	}
+	supportsArtifactTags := canCreateArtifactWithTags(serverInfo)
 
-	var artifactAttrs gql.CreateArtifactPayloadFields
-	artifactAttrs, err = as.createArtifact(canCreateArtifactWithTags(serverInfo))
+	artifactAttrs, err := as.createArtifact(supportsArtifactTags)
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
-	// if canCreateArtifactWithTags(serverInfo) {
-	// 	artifactAttrs, err = as.createArtifact()
-	// 	if err != nil {
-	// 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
-	// 	}
-	// } else {
-	// 	artifactAttrs, err = as.createArtifactWithoutTags()
-	// 	if err != nil {
-	// 		return "", fmt.Errorf("ArtifactSaver.createArtifactWithoutTags: %w", err)
-	// 	}
-	// }
 
 	artifactID = artifactAttrs.Id
 	var baseArtifactId *string
