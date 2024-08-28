@@ -120,9 +120,6 @@ type Sender struct {
 	// Keep track of config which is being updated incrementally
 	runConfig *runconfig.RunConfig
 
-	// Info about the (local) server we are talking to
-	serverInfo *gql.ServerInfoServerInfo
-
 	// Keep track of exit record to pass to file stream when the time comes
 	exitRecord *spb.Record
 
@@ -1482,7 +1479,7 @@ func (s *Sender) sendRequestCheckVersion(record *spb.Record, request *spb.CheckV
 		return
 	}
 
-	respone, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
+	response, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
 	// if the request failed, we can't check for the server provided version this
 	// check is best effort
 	if err != nil {
@@ -1495,7 +1492,7 @@ func (s *Sender) sendRequestCheckVersion(record *spb.Record, request *spb.CheckV
 
 	// if the response is nil or the server info is nil, we can't check for the
 	// server provided version this check is best effort
-	if respone == nil || respone.GetServerInfo() == nil {
+	if response == nil || response.GetServerInfo() == nil {
 		s.logger.Error("sender: sendRequestCheckVersion: server info is nil")
 		s.respond(record,
 			&spb.Response{},
@@ -1505,7 +1502,7 @@ func (s *Sender) sendRequestCheckVersion(record *spb.Record, request *spb.CheckV
 
 	// For now, the server should be compatible with all client versions
 	// so we only check if the current version is less than the max version
-	switch x := respone.GetServerInfo().GetCliVersionInfo().(type) {
+	switch x := response.GetServerInfo().GetCliVersionInfo().(type) {
 	case map[string]any:
 		if maxVersion, ok := x["max_cli_version"].(string); ok {
 			currVersion = strings.Replace(currVersion, ".dev", "-dev", 1)
@@ -1650,32 +1647,38 @@ func (s *Sender) sendRequestServerInfo(record *spb.Record, _ *spb.ServerInfoRequ
 		return
 	}
 
-	// if we don't have server info, get it from the server
-	if s.serverInfo == nil {
-		data, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
-		// if there is an error, we don't know the server info
-		// respond with an empty server info response
-		// this is a best effort to get the server info
-		if err != nil {
-			s.logger.Error(
-				"sender: getServerInfo: failed to get server info", "error", err,
-			)
-			s.respond(record,
-				&spb.Response{
-					ResponseType: &spb.Response_ServerInfoResponse{
-						ServerInfoResponse: &spb.ServerInfoResponse{},
-					},
+	response, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
+	// if there is an error, we don't know the server info
+	// respond with an empty server info response
+	// this is a best effort to get the server info
+	if err != nil {
+		s.logger.Error(
+			"sender: getServerInfo: failed to get server info", "error", err,
+		)
+		s.respond(record,
+			&spb.Response{
+				ResponseType: &spb.Response_ServerInfoResponse{
+					ServerInfoResponse: &spb.ServerInfoResponse{},
 				},
-			)
-			return
-		}
-		s.serverInfo = data.GetServerInfo()
-		s.logger.Info("sender: getServerInfo: got server info", "serverInfo", s.serverInfo)
+			},
+		)
+		return
+	}
+	if response == nil || response.GetServerInfo() == nil {
+		s.logger.Error("sender: getServerInfo: server info is nil")
+		s.respond(record,
+			&spb.Response{
+				ResponseType: &spb.Response_ServerInfoResponse{
+					ServerInfoResponse: &spb.ServerInfoResponse{},
+				},
+			},
+		)
+		return
 	}
 
 	// if we have server info, respond with the server info
 	// this is a best effort to get the server info
-	latestVersion := s.serverInfo.GetLatestLocalVersionInfo()
+	latestVersion := response.GetServerInfo().GetLatestLocalVersionInfo()
 	if latestVersion != nil {
 		s.respond(record,
 			&spb.Response{
