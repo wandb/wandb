@@ -102,6 +102,7 @@ def run_pytest(
         "CI": session.env.get("CI"),
         # Required for the importers tests
         "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
+        "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
