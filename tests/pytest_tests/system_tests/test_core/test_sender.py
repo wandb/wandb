@@ -13,10 +13,6 @@ from wandb.sdk.interface.interface import InterfaceBase
 from wandb.sdk.lib import filesystem
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_live_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     file_name = "wandb.rules"
@@ -32,10 +28,6 @@ def test_save_live_existing_file(relay_server, user, mock_run, backend_interface
     assert uploaded_files.count(file_name) == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_live_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     file_name = "wandb.rules"
@@ -49,10 +41,6 @@ def test_save_live_write_after_policy(relay_server, user, mock_run, backend_inte
     assert uploaded_files.count(file_name) == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_preempting_sent_to_server(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -61,10 +49,6 @@ def test_preempting_sent_to_server(relay_server, user, mock_run, backend_interfa
     assert relay.context.entries[run.id].get("preempting") is not None
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     file_name = "wandb.rules"
@@ -86,10 +70,6 @@ def test_save_live_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="TODO: fix this test")
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_live_glob_multi_write(
     relay_server, user, mock_run, backend_interface, mocker
 ):
@@ -129,10 +109,6 @@ def test_save_live_glob_multi_write(
     assert uploaded_files.count("checkpoints/test_2.txt") == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_rename_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -150,10 +126,6 @@ def test_save_rename_file(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test-copy.txt") == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_end_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -165,10 +137,6 @@ def test_save_end_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_end_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -180,10 +148,6 @@ def test_save_end_existing_file(relay_server, user, mock_run, backend_interface)
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -201,10 +165,6 @@ def test_save_end_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="This test is flakey")
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_now_write_after_policy(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -217,10 +177,6 @@ def test_save_now_write_after_policy(relay_server, user, mock_run, backend_inter
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_now_existing_file(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -233,10 +189,6 @@ def test_save_now_existing_file(relay_server, user, mock_run, backend_interface)
 
 
 @pytest.mark.xfail(reason="This test is flakey")
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -253,10 +205,6 @@ def test_save_now_multi_write(relay_server, user, mock_run, backend_interface):
     assert uploaded_files.count("test.txt") == 1
 
 
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -281,10 +229,6 @@ def test_save_glob_multi_write(relay_server, user, mock_run, backend_interface):
 
 
 @pytest.mark.xfail(reason="This test is flakey")
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_now_relative_path(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -300,10 +244,6 @@ def test_save_now_relative_path(relay_server, user, mock_run, backend_interface)
 
 
 @pytest.mark.xfail(reason="TODO: This test is flakey")
-@pytest.mark.wandb_core_failure(
-    feature="file_uploader",
-    reason="test relies on internal python implementation",
-)
 def test_save_now_twice(relay_server, user, mock_run, backend_interface):
     run = mock_run(use_magic_mock=True)
     with relay_server() as relay, backend_interface(run) as interface:
@@ -321,167 +261,6 @@ def test_save_now_twice(relay_server, user, mock_run, backend_interface):
 
     uploaded_files = relay.context.get_run_uploaded_files(run.id)
     assert uploaded_files.count("foo/test.txt") == 2
-
-
-@pytest.mark.wandb_core_failure(
-    feature="version_check",
-    reason="test relies on internal python implementation",
-)
-def test_upgrade_upgraded(
-    mock_run,
-    backend_interface,
-    user,
-):
-    run = mock_run(use_magic_mock=True)
-    with backend_interface(run, initial_run=False) as interface:
-        with unittest.mock.patch.object(
-            wandb,
-            "__version__",
-            "0.0.6",
-        ), unittest.mock.patch.object(
-            wandb.sdk.internal.sender.update,
-            "_find_available",
-            lambda current_version: ("0.0.8", False, False, False, ""),
-        ):
-            handle = interface.deliver_check_version()
-            result = handle.wait(timeout=10)
-            assert result
-            version = result.response.check_version_response
-            assert (
-                version.upgrade_message
-                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-            )
-            assert not version.delete_message
-            assert not version.yank_message
-
-        # We need a run to cleanly shutdown backend
-        handle = interface.deliver_run(run)
-        result = handle.wait(timeout=5)
-        run_result = result.run_result
-        assert run_result.HasField("error") is False
-
-
-@pytest.mark.wandb_core_failure(
-    feature="version_check",
-    reason="test relies on internal python implementation",
-)
-def test_upgrade_yanked(
-    mock_run,
-    backend_interface,
-    user,
-):
-    run = mock_run(use_magic_mock=True)
-    with backend_interface(run, initial_run=False) as interface:
-        with unittest.mock.patch.object(
-            wandb,
-            "__version__",
-            "0.0.2",
-        ), unittest.mock.patch.object(
-            wandb.sdk.internal.sender.update,
-            "_find_available",
-            lambda current_version: ("0.0.8", False, False, True, ""),
-        ):
-            handle = interface.deliver_check_version()
-            result = handle.wait(timeout=10)
-            assert result
-            version = result.response.check_version_response
-            assert (
-                version.upgrade_message
-                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-            )
-            assert not version.delete_message
-            assert (
-                version.yank_message
-                == "wandb version 0.0.2 has been recalled!  Please upgrade."
-            )
-
-        # We need a run to cleanly shutdown backend
-        handle = interface.deliver_run(run)
-        result = handle.wait(timeout=5)
-        run_result = result.run_result
-        assert run_result.HasField("error") is False
-
-
-@pytest.mark.wandb_core_failure(
-    feature="version_check",
-    reason="test relies on internal python implementation",
-)
-def test_upgrade_yanked_message(
-    mock_run,
-    backend_interface,
-    user,
-):
-    run = mock_run(use_magic_mock=True)
-    with backend_interface(run, initial_run=False) as interface:
-        with unittest.mock.patch.object(
-            wandb,
-            "__version__",
-            "0.0.3",
-        ), unittest.mock.patch.object(
-            wandb.sdk.internal.sender.update,
-            "_find_available",
-            lambda current_version: ("0.0.8", False, False, True, "just cuz"),
-        ):
-            handle = interface.deliver_check_version()
-            result = handle.wait(timeout=10)
-            assert result
-            version = result.response.check_version_response
-            assert (
-                version.upgrade_message
-                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-            )
-            assert not version.delete_message
-            assert (
-                version.yank_message
-                == "wandb version 0.0.3 has been recalled!  (just cuz)  Please upgrade."
-            )
-
-        # We need a run to cleanly shutdown backend
-        handle = interface.deliver_run(run)
-        result = handle.wait(timeout=5)
-        run_result = result.run_result
-        assert run_result.HasField("error") is False
-
-
-@pytest.mark.wandb_core_failure(
-    feature="version_check",
-    reason="test relies on internal python implementation",
-)
-def test_upgrade_removed(
-    mock_run,
-    backend_interface,
-    user,
-):
-    run = mock_run(use_magic_mock=True)
-    with backend_interface(run, initial_run=False) as interface:
-        with unittest.mock.patch.object(
-            wandb,
-            "__version__",
-            "0.0.4",
-        ), unittest.mock.patch.object(
-            wandb.sdk.internal.sender.update,
-            "_find_available",
-            lambda current_version: ("0.0.8", False, True, False, ""),
-        ):
-            handle = interface.deliver_check_version()
-            result = handle.wait(timeout=10)
-            assert result
-            version = result.response.check_version_response
-            assert (
-                version.upgrade_message
-                == "wandb version 0.0.8 is available!  To upgrade, please run:\n $ pip install wandb --upgrade"
-            )
-            assert (
-                version.delete_message
-                == "wandb version 0.0.4 has been retired!  Please upgrade."
-            )
-            assert not version.yank_message
-
-        # We need a run to cleanly shutdown backend
-        handle = interface.deliver_run(run)
-        result = handle.wait(timeout=5)
-        run_result = result.run_result
-        assert run_result.HasField("error") is False
 
 
 def test_sender_upsert_run(internal_sm, test_settings, mock_run):
