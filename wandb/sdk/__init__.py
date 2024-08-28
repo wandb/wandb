@@ -19,7 +19,6 @@ __all__ = (
     "sweep",
     "controller",
     "helper",
-    "SystemMonitor",
 )
 
 from . import wandb_helper as helper
