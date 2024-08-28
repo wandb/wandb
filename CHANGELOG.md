@@ -15,12 +15,17 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Capture SM (Streaming Multiprocessor), memory, and graphics clock speed (MHz), (un)corrected error counts, fan speed (%), and encoder utilization for Nvidia GPU devices when using core (@dmitryduev in https://github.com/wandb/wandb/pull/8144)
 - Allow iterating over `wandb.Config` like a dictionary (@fsherry in https://github.com/wandb/wandb/pull/8129)
+- PR curves, images and histograms are supported when using TensorBoard with core enabled (@timoffex in https://github.com/wandb/wandb/pull/8181, https://github.com/wandb/wandb/pull/8188, https://github.com/wandb/wandb/pull/8189)
+- Added `wandb.require("legacy-service")` as the opt-out analog of `wandb.require("core")` (@timoffex in https://github.com/wandb/wandb/pull/8201)
 
 ### Fixed
 
 - Avoid leaving behind wandb-core process if user hits Ctrl+C twice (@timoffex in https://github.com/wandb/wandb/pull/8153)
 - Fix deprecation warnings arising from NumPy >= 2.1 by removing `newshape` argument from `numpy.reshape` by @phinate in https://github.com/wandb/wandb/pull/8167
 - Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
+
+### Deprecated
+- Ability to disable the service process (`WANDB__DISABLE_SERVICE`) is deprecated and will be removed in the next minor release (@kptkin in https://github.com/wandb/wandb/pull/8193)
 
 ## [0.17.7] - 2024-08-15
 

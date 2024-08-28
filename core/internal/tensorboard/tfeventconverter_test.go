@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -60,6 +61,31 @@ func tensorValue(tag string, plugin string, dims []int, values ...float32) *tbpr
 	}
 }
 
+func tensorValueStrings(
+	tag string,
+	plugin string,
+	data ...string,
+) *tbproto.Summary_Value {
+	stringVal := make([][]byte, 0, len(data))
+	for _, x := range data {
+		stringVal = append(stringVal, []byte(x))
+	}
+
+	return &tbproto.Summary_Value{
+		Tag: tag,
+		Value: &tbproto.Summary_Value_Tensor{
+			Tensor: &tbproto.TensorProto{
+				StringVal: stringVal,
+			},
+		},
+		Metadata: &tbproto.SummaryMetadata{
+			PluginData: &tbproto.SummaryMetadata_PluginData{
+				PluginName: plugin,
+			},
+		},
+	}
+}
+
 func tensorValueBytes(
 	tag string,
 	plugin string,
@@ -105,6 +131,7 @@ type mockEmitter struct {
 	EmitHistoryCalls   []mockEmitter_EmitHistory
 	EmitChartCalls     []mockEmitter_EmitChart
 	EmitTableCalls     []mockEmitter_EmitTable
+	EmitImageCalls     []mockEmitter_EmitImage
 }
 
 type mockEmitter_SetTFStep struct {
@@ -125,6 +152,11 @@ type mockEmitter_EmitChart struct {
 type mockEmitter_EmitTable struct {
 	Key   pathtree.TreePath
 	Table wbvalue.Table
+}
+
+type mockEmitter_EmitImage struct {
+	Key   pathtree.TreePath
+	Image wbvalue.Image
 }
 
 func (e *mockEmitter) SetTFStep(key pathtree.TreePath, step int64) {
@@ -150,6 +182,12 @@ func (e *mockEmitter) EmitChart(key string, chart wbvalue.Chart) error {
 func (e *mockEmitter) EmitTable(key pathtree.TreePath, table wbvalue.Table) error {
 	e.EmitTableCalls = append(e.EmitTableCalls,
 		mockEmitter_EmitTable{key, table})
+	return nil
+}
+
+func (e *mockEmitter) EmitImage(key pathtree.TreePath, img wbvalue.Image) error {
+	e.EmitImageCalls = append(e.EmitImageCalls,
+		mockEmitter_EmitImage{key, img})
 	return nil
 }
 
@@ -179,45 +217,39 @@ func TestConvertStepAndTimestamp(t *testing.T) {
 
 func TestConvertScalar(t *testing.T) {
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	doubleTenPointFiveBytes := bytes.NewBuffer([]byte{})
+	require.NoError(t,
+		binary.Write(doubleTenPointFiveBytes, binary.NativeEndian, 10.5))
 
 	emitter := &mockEmitter{}
 	converter.ConvertNext(
 		emitter,
-		summaryEvent(123, 0.345, scalarValue("epoch_loss", "scalars", 0.5)),
+		summaryEvent(123, 0.345,
+			scalarValue("epoch_loss", "scalars", 0.5)),
+		observability.NewNoOpLogger(),
+	)
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValue("epoch_loss", "scalars", []int{0}, 2.5)),
+		observability.NewNoOpLogger(),
+	)
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueBytes(
+				"epoch_loss",
+				"scalars",
+				tbproto.DataType_DT_DOUBLE,
+				doubleTenPointFiveBytes.Bytes())),
 		observability.NewNoOpLogger(),
 	)
 
 	assert.Equal(t,
 		[]mockEmitter_EmitHistory{
 			{pathtree.PathOf("train/epoch_loss"), "0.5"},
-		},
-		emitter.EmitHistoryCalls)
-}
-
-func TestConvertTensor(t *testing.T) {
-	converter := tensorboard.TFEventConverter{Namespace: "train"}
-	doubleOneTwoBytes := bytes.NewBuffer([]byte{})
-	require.NoError(t,
-		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(1)))
-	require.NoError(t,
-		binary.Write(doubleOneTwoBytes, binary.NativeEndian, float64(2)))
-
-	emitter := &mockEmitter{}
-	converter.ConvertNext(
-		emitter,
-		summaryEvent(123, 0.345,
-			tensorValue("point-five", "scalars", nil, 0.5),
-			tensorValueBytes("one-two", "scalars",
-				tbproto.DataType_DT_DOUBLE, doubleOneTwoBytes.Bytes()),
-			tensorValue("three-four", "scalars", nil, 3, 4)),
-		observability.NewNoOpLogger(),
-	)
-
-	assert.Equal(t,
-		[]mockEmitter_EmitHistory{
-			{pathtree.PathOf("train/point-five"), "0.5"},
-			{pathtree.PathOf("train/one-two"), "[1,2]"},
-			{pathtree.PathOf("train/three-four"), "[3,4]"},
+			{pathtree.PathOf("train/epoch_loss"), "2.5"},
+			{pathtree.PathOf("train/epoch_loss"), "10.5"},
 		},
 		emitter.EmitHistoryCalls)
 }
@@ -288,6 +320,85 @@ func TestConvertHistogramRebin(t *testing.T) {
 		sumOfWeights += x.(float64)
 	}
 	assert.EqualValues(t, 100, sumOfWeights)
+}
+
+func TestConvertImage(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2", "4", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitImage{
+			{
+				Key: pathtree.PathOf("train/my_img"),
+				Image: wbvalue.Image{
+					Width:  2,
+					Height: 4,
+					PNG:    []byte("\x89PNG\x0D\x0A\x1A\x0Acontent"),
+				},
+			},
+		},
+		emitter.EmitImageCalls)
+}
+
+func TestConvertImage_NotPNG(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	var logs bytes.Buffer
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2", "4", "not a PNG")),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+	)
+
+	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Contains(t, logs.String(), "image is not PNG-encoded")
+}
+
+func TestConvertImage_BadDims(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	var logs bytes.Buffer
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2a", "4x", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+	)
+
+	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Contains(t, logs.String(), "couldn't parse image dimensions")
+	assert.Contains(t, logs.String(), "2a")
+	assert.Contains(t, logs.String(), "4x")
+}
+
+func TestConvertImage_UnknownTBFormat(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	var logs bytes.Buffer
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images", "not enough strings")),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+	)
+
+	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Contains(t, logs.String(),
+		"expected images tensor string_val to have 3 values, but it has 1")
 }
 
 func TestConvertPRCurve(t *testing.T) {

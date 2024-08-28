@@ -2,6 +2,7 @@ package tensorboard
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
@@ -19,7 +20,8 @@ func processScalars(
 	case *tbproto.Summary_Value_SimpleValue:
 		emitter.EmitHistory(
 			pathtree.PathOf(tag),
-			fmt.Sprintf("%v", value.SimpleValue))
+			strconv.FormatFloat(float64(value.SimpleValue), 'f', -1, 64),
+		)
 
 	case *tbproto.Summary_Value_Tensor:
 		tensor, err := tensorFromProto(value.Tensor)
@@ -29,14 +31,17 @@ func processScalars(
 			return
 		}
 
-		str, err := tensor.ToHistogramJSON(32)
+		scalar, err := tensor.Scalar()
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error serializing tensor: %v", err))
+				fmt.Errorf("tensorboard: error getting scalar: %v", err))
 			return
 		}
 
-		emitter.EmitHistory(pathtree.PathOf(tag), str)
+		emitter.EmitHistory(
+			pathtree.PathOf(tag),
+			strconv.FormatFloat(scalar, 'f', -1, 64),
+		)
 
 	default:
 		logger.CaptureError(
