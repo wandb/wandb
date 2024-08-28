@@ -972,8 +972,6 @@ class Settings(SettingsData):
                 "value": "latest-run",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
-            system_sample={"value": 15},
-            system_sample_seconds={"value": 2},
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
