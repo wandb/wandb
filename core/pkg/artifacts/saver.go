@@ -87,57 +87,8 @@ type CreateArtifactPayloadArtifact interface {
 	gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact | gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact
 }
 
-func (as *ArtifactSaver) createArtifact() (
-	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
-	rerr error,
-) {
-	var aliases []gql.ArtifactAliasInput
-	for _, alias := range as.Artifact.Aliases {
-		aliases = append(aliases,
-			gql.ArtifactAliasInput{
-				ArtifactCollectionName: as.Artifact.Name,
-				Alias:                  alias,
-			},
-		)
-	}
-
-	var tags []gql.TagInput
-	for _, tag := range as.Artifact.Tags {
-		tags = append(tags, gql.TagInput{TagName: tag})
-	}
-
-	var runId *string
-	if !as.Artifact.UserCreated {
-		runId = &as.Artifact.RunId
-	}
-
-	response, err := gql.CreateArtifact(
-		as.Ctx,
-		as.GraphqlClient,
-		as.Artifact.Entity,
-		as.Artifact.Project,
-		as.Artifact.Type,
-		as.Artifact.Name,
-		runId,
-		as.Artifact.Digest,
-		utils.NilIfZero(as.Artifact.Description),
-		aliases,
-		tags,
-		utils.NilIfZero(as.Artifact.Metadata),
-		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-		utils.NilIfZero(as.HistoryStep),
-		utils.NilIfZero(as.Artifact.DistributedId),
-		as.Artifact.ClientId,
-		as.Artifact.SequenceClientId,
-	)
-	if err != nil {
-		return gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact{}, err
-	}
-	return response.GetCreateArtifact().GetArtifact(), nil
-}
-
-func (as *ArtifactSaver) createArtifactWithoutTags() (
-	attrs gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact,
+func (as *ArtifactSaver) createArtifact(supportsTags bool) (
+	attrs gql.CreateArtifactPayloadFields,
 	rerr error,
 ) {
 	var aliases []gql.ArtifactAliasInput
@@ -155,29 +106,104 @@ func (as *ArtifactSaver) createArtifactWithoutTags() (
 		runId = &as.Artifact.RunId
 	}
 
-	response, err := gql.CreateArtifactWithoutTags(
-		as.Ctx,
-		as.GraphqlClient,
-		as.Artifact.Entity,
-		as.Artifact.Project,
-		as.Artifact.Type,
-		as.Artifact.Name,
-		runId,
-		as.Artifact.Digest,
-		utils.NilIfZero(as.Artifact.Description),
-		aliases,
-		utils.NilIfZero(as.Artifact.Metadata),
-		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-		utils.NilIfZero(as.HistoryStep),
-		utils.NilIfZero(as.Artifact.DistributedId),
-		as.Artifact.ClientId,
-		as.Artifact.SequenceClientId,
-	)
-	if err != nil {
-		return gql.CreateArtifactWithoutTagsCreateArtifactCreateArtifactPayloadArtifact{}, err
+	if supportsTags {
+
+		var tags []gql.TagInput
+		for _, tag := range as.Artifact.Tags {
+			tags = append(tags, gql.TagInput{TagName: tag})
+		}
+
+		response, err := gql.CreateArtifact(
+			as.Ctx,
+			as.GraphqlClient,
+			as.Artifact.Entity,
+			as.Artifact.Project,
+			as.Artifact.Type,
+			as.Artifact.Name,
+			runId,
+			as.Artifact.Digest,
+			utils.NilIfZero(as.Artifact.Description),
+			aliases,
+			tags,
+			utils.NilIfZero(as.Artifact.Metadata),
+			utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+			utils.NilIfZero(as.HistoryStep),
+			utils.NilIfZero(as.Artifact.DistributedId),
+			as.Artifact.ClientId,
+			as.Artifact.SequenceClientId,
+		)
+		if err != nil {
+			return gql.CreateArtifactPayloadFields{}, err
+		}
+		return response.GetCreateArtifact().GetArtifact().CreateArtifactPayloadFields, nil
+	} else {
+		response, err := gql.CreateArtifactWithoutTags(
+			as.Ctx,
+			as.GraphqlClient,
+			as.Artifact.Entity,
+			as.Artifact.Project,
+			as.Artifact.Type,
+			as.Artifact.Name,
+			runId,
+			as.Artifact.Digest,
+			utils.NilIfZero(as.Artifact.Description),
+			aliases,
+			utils.NilIfZero(as.Artifact.Metadata),
+			utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+			utils.NilIfZero(as.HistoryStep),
+			utils.NilIfZero(as.Artifact.DistributedId),
+			as.Artifact.ClientId,
+			as.Artifact.SequenceClientId,
+		)
+		if err != nil {
+			return gql.CreateArtifactPayloadFields{}, err
+		}
+		return response.GetCreateArtifact().GetArtifact().CreateArtifactPayloadFields, nil
 	}
-	return response.GetCreateArtifact().GetArtifact(), nil
 }
+
+// func (as *ArtifactSaver) createArtifactWithoutTags() (
+// 	attrs gql.CreateArtifactPayloadFields,
+// 	rerr error,
+// ) {
+// 	var aliases []gql.ArtifactAliasInput
+// 	for _, alias := range as.Artifact.Aliases {
+// 		aliases = append(aliases,
+// 			gql.ArtifactAliasInput{
+// 				ArtifactCollectionName: as.Artifact.Name,
+// 				Alias:                  alias,
+// 			},
+// 		)
+// 	}
+//
+// 	var runId *string
+// 	if !as.Artifact.UserCreated {
+// 		runId = &as.Artifact.RunId
+// 	}
+//
+// 	response, err := gql.CreateArtifactWithoutTags(
+// 		as.Ctx,
+// 		as.GraphqlClient,
+// 		as.Artifact.Entity,
+// 		as.Artifact.Project,
+// 		as.Artifact.Type,
+// 		as.Artifact.Name,
+// 		runId,
+// 		as.Artifact.Digest,
+// 		utils.NilIfZero(as.Artifact.Description),
+// 		aliases,
+// 		utils.NilIfZero(as.Artifact.Metadata),
+// 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+// 		utils.NilIfZero(as.HistoryStep),
+// 		utils.NilIfZero(as.Artifact.DistributedId),
+// 		as.Artifact.ClientId,
+// 		as.Artifact.SequenceClientId,
+// 	)
+// 	if err != nil {
+// 		return gql.CreateArtifactPayloadFields{}, err
+// 	}
+// 	return response.GetCreateArtifact().GetArtifact().CreateArtifactPayloadFields, nil
+// }
 
 func (as *ArtifactSaver) createManifest(
 	artifactId string, baseArtifactId *string, manifestDigest string, includeUpload bool,
@@ -698,19 +724,21 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	}
 
 	var artifactAttrs gql.CreateArtifactPayloadFields
-	if canCreateArtifactWithTags(serverInfo) {
-		result, err := as.createArtifact()
-		if err != nil {
-			return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
-		}
-		artifactAttrs = result.CreateArtifactPayloadFields
-	} else {
-		result, err := as.createArtifactWithoutTags()
-		if err != nil {
-			return "", fmt.Errorf("ArtifactSaver.createArtifactWithoutTags: %w", err)
-		}
-		artifactAttrs = result.CreateArtifactPayloadFields
+	artifactAttrs, err = as.createArtifact(canCreateArtifactWithTags(serverInfo))
+	if err != nil {
+		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
+	// if canCreateArtifactWithTags(serverInfo) {
+	// 	artifactAttrs, err = as.createArtifact()
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
+	// 	}
+	// } else {
+	// 	artifactAttrs, err = as.createArtifactWithoutTags()
+	// 	if err != nil {
+	// 		return "", fmt.Errorf("ArtifactSaver.createArtifactWithoutTags: %w", err)
+	// 	}
+	// }
 
 	artifactID = artifactAttrs.Id
 	var baseArtifactId *string
@@ -802,12 +830,10 @@ func canCreateArtifactWithTags(serverInfoResponse *gql.ServerInfoResponse) bool 
 	if serverInfoResponse == nil {
 		return true
 	}
-
 	serverInfo := serverInfoResponse.GetServerInfo()
 	if serverInfo == nil {
 		return true
 	}
-
 	if localVersionInfo := serverInfo.GetLatestLocalVersionInfo(); localVersionInfo != nil {
 		serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
 		if semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) < 0 {
