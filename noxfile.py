@@ -395,50 +395,6 @@ def develop(session: nox.Session) -> None:
         )
 
 
-@nox.session(python=False, name="list-failing-tests-wandb-core")
-def list_failing_tests_wandb_core(session: nox.Session) -> None:
-    """Lists the core failing tests grouped by feature."""
-    import pandas as pd
-    import pytest
-
-    class MyPlugin:
-        def __init__(self):
-            self.collected = []
-            self.features = []
-
-        def pytest_collection_modifyitems(self, items):
-            for item in items:
-                marks = item.own_markers
-                for mark in marks:
-                    if mark.name == "wandb_core_failure":
-                        self.collected.append(item.nodeid)
-                        self.features.append(
-                            {
-                                "name": item.nodeid,
-                                "feature": mark.kwargs.get("feature", "unspecified"),
-                            }
-                        )
-
-        def pytest_collection_finish(self):
-            session.log("\n\nFailing tests grouped by feature:")
-            df = pd.DataFrame(self.features)
-            for feature, group in df.groupby("feature"):
-                session.log(f"\n{feature}:")
-                for name in group["name"]:
-                    session.log(f"  {name}")
-
-    my_plugin = MyPlugin()
-    pytest.main(
-        [
-            "-m",
-            "wandb_core_failure",
-            "tests/pytest_tests/system_tests/test_core",
-            "--collect-only",
-        ],
-        plugins=[my_plugin],
-    )
-
-
 @nox.session(python=False, name="graphql-codegen-schema-change")
 def graphql_codegen_schema_change(session: nox.Session) -> None:
     """Runs the GraphQL codegen script and saves the previous api version.
