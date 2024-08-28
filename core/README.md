@@ -124,7 +124,7 @@ Status legend:
 |             | `log_code`        | ✅               |
 |             | `config`          | ✅               |
 |             | `summary`         | ✅               |
-|             | `define_metric`   | ✅[^E.1]         |
+|             | `define_metric`   | ✅               |
 |             | `tags`            | ✅               |
 |             | `notes`           | ✅               |
 |             | `name`            | ✅               |
@@ -141,8 +141,8 @@ Status legend:
 |             | disabled mode     | ✅               |
 |             | multiprocessing   | ✅               |
 |             | TensorBoard sync  | ✅               |
-|             | console logging   | ✅[^E.2]         |
-|             | system metrics    | ✅[^E.3]         |
+|             | console logging   | ✅[^E.1]         |
+|             | system metrics    | ✅[^E.2]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
 |             | Forking           | ✅               |
@@ -155,12 +155,10 @@ Status legend:
 | CLI         |                   |                  |
 |             | `sync`            | ✅               |
 | Artifacts   |                   | ✅               |
-|             | caching           | ✅               |
 |             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
 
-[^E.1]: Missing full nested key summary support.
-[^E.2]: Only raw console logging is supported.
-[^E.3]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
+[^E.1]: Only raw console logging is supported.
+[^E.2]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
 <details>
