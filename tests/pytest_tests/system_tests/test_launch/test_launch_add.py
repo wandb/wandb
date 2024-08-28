@@ -115,7 +115,6 @@ def test_launch_add_delete_queued_run(
     strict=False,
     reason="Non-deterministic, 1-2 can fail but all 4 would suggest regression.",
 )
-@pytest.mark.wandb_core_failure(feature="launch")
 @pytest.mark.timeout(200)
 @pytest.mark.parametrize(
     "launch_config,override_config",
