@@ -75,6 +75,3 @@ func (sm *StreamMux) FinishAndCloseAllStreams(exitCode int32) {
 	wg.Wait()
 	slog.Debug("all streams were closed")
 }
-
-// StreamMux is a global stream mux
-var streamMux = NewStreamMux()
