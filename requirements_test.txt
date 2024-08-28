@@ -6,6 +6,7 @@ pytest-split
 pytest-mock
 pytest-timeout
 pytest-flakefinder
+pytest-flask
 pyfakefs
 parameterized
 
