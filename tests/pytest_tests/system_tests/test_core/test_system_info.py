@@ -60,7 +60,6 @@ def send_manager(
     yield send_manager_helper
 
 
-@pytest.mark.wandb_core_failure(feature="file_uploader")
 def test_meta_probe(
     relay_server, meta, mock_run, send_manager, record_q, user, monkeypatch
 ):
