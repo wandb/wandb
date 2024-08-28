@@ -6,7 +6,6 @@ tag:
     - platform: win
   shards:
     - default
-    - wandb_core_failure
 parametrize:
   permute:
     - :yea:start_method:

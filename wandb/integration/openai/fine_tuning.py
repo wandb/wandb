@@ -37,23 +37,23 @@ from openai.types.fine_tuning.fine_tuning_job import (  # noqa: E402
 np = util.get_module(
     name="numpy",
     required="`numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
-    lazy="False",
+    lazy=False,
 )
 
 pd = util.get_module(
     name="pandas",
     required="`pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
-    lazy="False",
+    lazy=False,
 )
 
 
 class WandbLogger:
     """Log OpenAI fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
 
-    _wandb_api: wandb.Api = None
+    _wandb_api: Optional[wandb.Api] = None
     _logged_in: bool = False
-    openai_client: OpenAI = None
-    _run: Run = None
+    openai_client: Optional[OpenAI] = None
+    _run: Optional[Run] = None
 
     @classmethod
     def sync(

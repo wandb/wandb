@@ -68,7 +68,6 @@ def test_metric_copy(relay_server, wandb_init):
     assert len(summary) == 3
 
 
-@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_glob_none(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
@@ -120,7 +119,6 @@ def test_metric_nosummary(relay_server, wandb_init):
     assert len(summary) == 1
 
 
-@pytest.mark.wandb_core_failure(feature="define_metric")
 def test_metric_none(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
