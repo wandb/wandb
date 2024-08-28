@@ -152,8 +152,7 @@ Status legend:
 |             | default entity    | ✅               |
 |             | team entity       | ✅               |
 |             | service account   | ✅               |
-| CLI         |                   |                  |
-|             | `sync`            | ✅               |
+| CLI         |                   | ✅               |                 |
 | Artifacts   |                   | ✅               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
