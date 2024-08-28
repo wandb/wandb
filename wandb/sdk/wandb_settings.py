@@ -292,6 +292,16 @@ ConsoleValue = {
 }
 
 
+# @dataclass
+# class SystemMonitor:
+#     """System monitor settings."""
+
+#     # Sampling interval in seconds
+#     sampling_interval: float
+
+#     # TODO: move all _stats* settings here
+
+
 @dataclass()
 class SettingsData:
     """Settings for the W&B SDK."""
@@ -363,8 +373,11 @@ class SettingsData:
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
-    _stats_sample_rate_seconds: float
-    _stats_samples_to_average: int
+    _stats_sampling_interval: float  # sampling interval for system stats
+    _stats_sample_rate_seconds: float  # badly-named sampling interval, deprecated
+    _stats_samples_to_average: (
+        int  # number of samples to average before reporting, deprecated
+    )
     _stats_join_assets: (
         bool  # join metrics from different assets before sending to backend
     )
@@ -404,8 +417,8 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
-    fork_from: Optional[RunMoment]
-    resume_from: Optional[RunMoment]
+    fork_from: RunMoment
+    resume_from: RunMoment
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -475,8 +488,6 @@ class SettingsData:
     sync_dir: str
     sync_file: str
     sync_symlink_latest: str
-    system_sample: int
-    system_sample_seconds: int
     table_raise_on_max_row_limit_exceeded: bool
     timespec: str
     tmp_dir: str
@@ -618,7 +629,7 @@ class Property:
 
 
 class Settings(SettingsData):
-    """A class to represent modifiable settings."""
+    """Settings for the W&B SDK."""
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -729,13 +740,17 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _start_datetime={"preprocessor": _datetime_as_str},
+            _stats_sampling_interval={
+                "value": 10.0,
+                "preprocessor": float,
+                "validator": self._validate__stats_sampling_interval,
+            },
             _stats_sample_rate_seconds={
                 "value": 2.0,
                 "preprocessor": float,
                 "validator": self._validate__stats_sample_rate_seconds,
             },
             _stats_samples_to_average={
-                "value": 15,
                 "preprocessor": int,
                 "validator": self._validate__stats_samples_to_average,
             },
@@ -1189,15 +1204,30 @@ class Settings(SettingsData):
         return True
 
     @staticmethod
+    def _validate__stats_sampling_interval(value: float) -> bool:
+        if value < 0.1:
+            raise UsageError("sampling interval must be >= 0.1 seconds")
+        return True
+
+    @staticmethod
     def _validate__stats_sample_rate_seconds(value: float) -> bool:
+        if value:
+            wandb.termwarn(
+                "The setting `_stats_sample_rate_seconds` is deprecated in favor of _stats_sampling_interval.",
+                repeat=False,
+            )
         if value < 0.1:
             raise UsageError("_stats_sample_rate_seconds must be >= 0.1")
         return True
 
     @staticmethod
     def _validate__stats_samples_to_average(value: int) -> bool:
-        if value < 1 or value > 30:
-            raise UsageError("_stats_samples_to_average must be between 1 and 30")
+        if value:
+            wandb.termwarn(
+                "The setting `_stats_samples_to_average` is deprecated and will be removed in a future release. "
+                "It is a no-op, system stats are not averaged.",
+                repeat=False,
+            )
         return True
 
     @staticmethod

@@ -10,8 +10,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"golang.org/x/time/rate"
-
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -22,20 +20,8 @@ import (
 )
 
 const (
-	defaultSamplingInterval = 2.0 * time.Second
-	defaultSamplesToAverage = 15
+	defaultSamplingInterval = 10.0 * time.Second
 )
-
-func Average(nums []float64) float64 {
-	if len(nums) == 0 {
-		return 0.0
-	}
-	total := 0.0
-	for _, num := range nums {
-		total += num
-	}
-	return total / float64(len(nums))
-}
 
 func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *spb.Record {
 	statsItems := make([]*spb.StatsItem, 0, len(stats))
@@ -91,9 +77,7 @@ func getSlurmEnvVars() map[string]string {
 
 type Asset interface {
 	Name() string
-	SampleMetrics() error
-	AggregateMetrics() map[string]float64
-	ClearMetrics()
+	Sample() (map[string]float64, error)
 	IsAvailable() bool
 	Probe() *spb.MetadataRequest
 }
@@ -124,9 +108,6 @@ type SystemMonitor struct {
 	// The interval at which metrics are sampled
 	samplingInterval time.Duration
 
-	// The number of samples to average before sending the metrics
-	samplesToAverage int
-
 	// A logger for internal debug logging.
 	logger *observability.CoreLogger
 }
@@ -155,22 +136,17 @@ func New(
 		extraWork:        extraWork,
 		buffer:           buffer,
 		samplingInterval: defaultSamplingInterval,
-		samplesToAverage: defaultSamplesToAverage,
 	}
 
 	// TODO: rename the setting...should be SamplingIntervalSeconds
-	if si := settings.XStatsSampleRateSeconds; si != nil {
+	if si := settings.XStatsSamplingInterval; si != nil {
 		systemMonitor.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
-	}
-	if sta := settings.XStatsSamplesToAverage; sta != nil {
-		systemMonitor.samplesToAverage = int(sta.GetValue())
 	}
 
 	systemMonitor.logger.Debug(
 		fmt.Sprintf(
-			"samplingInterval: %v, samplesToAverage: %v",
+			"monitor: sampling interval: %v",
 			systemMonitor.samplingInterval,
-			systemMonitor.samplesToAverage,
 		),
 	)
 
@@ -311,8 +287,6 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 	ticker := time.NewTicker(sm.samplingInterval)
 	defer ticker.Stop()
 
-	sometimes := rate.Sometimes{Every: sm.samplesToAverage}
-
 	for {
 		select {
 		case <-sm.ctx.Done():
@@ -322,36 +296,31 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 				continue // Skip work when not running
 			}
 
-			// NOTE: the pattern in SampleMetric is to capture whatever metrics are available,
+			// NOTE: the pattern in Sample is to capture whatever metrics are available,
 			// accumulate errors along the way, and log them here.
-			err := asset.SampleMetrics()
+			metrics, err := asset.Sample()
 			if err != nil {
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
 				)
 			}
 
-			sometimes.Do(func() {
-				aggregatedMetrics := asset.AggregateMetrics()
-				asset.ClearMetrics()
-
-				if len(aggregatedMetrics) == 0 {
-					return // nothing to do
+			if len(metrics) == 0 {
+				continue // nothing to do
+			}
+			ts := timestamppb.Now()
+			// Also store aggregated metrics in the buffer if we have one
+			if sm.buffer != nil {
+				for k, v := range metrics {
+					sm.buffer.push(k, ts, v)
 				}
-				ts := timestamppb.Now()
-				// Also store aggregated metrics in the buffer if we have one
-				if sm.buffer != nil {
-					for k, v := range aggregatedMetrics {
-						sm.buffer.push(k, ts, v)
-					}
-				}
+			}
 
-				// publish metrics
-				sm.extraWork.AddRecordOrCancel(
-					sm.ctx.Done(),
-					makeStatsRecord(aggregatedMetrics, ts),
-				)
-			})
+			// publish metrics
+			sm.extraWork.AddRecordOrCancel(
+				sm.ctx.Done(),
+				makeStatsRecord(metrics, ts),
+			)
 		}
 	}
 

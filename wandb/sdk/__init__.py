@@ -1,4 +1,4 @@
-"""module sdk."""
+"""W&B SDK module."""
 
 __all__ = (
     "Config",
@@ -19,6 +19,7 @@ __all__ = (
     "sweep",
     "controller",
     "helper",
+    "SystemMonitor",
 )
 
 from . import wandb_helper as helper
