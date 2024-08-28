@@ -124,7 +124,7 @@ Status legend:
 |             | `log_code`        | ✅               |
 |             | `config`          | ✅               |
 |             | `summary`         | ✅               |
-|             | `define_metric`   | ✅[^E.5]         |
+|             | `define_metric`   | ✅[^E.1]         |
 |             | `tags`            | ✅               |
 |             | `notes`           | ✅               |
 |             | `name`            | ✅               |
@@ -141,31 +141,26 @@ Status legend:
 |             | disabled mode     | ✅               |
 |             | multiprocessing   | ✅               |
 |             | TensorBoard sync  | ✅               |
-|             | console logging   | ✅[^E.8]         |
-|             | system metrics    | ✅[^E.9]         |
+|             | console logging   | ✅[^E.2]         |
+|             | system metrics    | ✅[^E.3]         |
 |             | system info       | ✅               |
 |             | auto code saving  | ✅               |
-|             | Forking           | ❌               |
-|             | Rewind            | ❌               |
-|             | Settings          | 🚧[^E.12]        |
+|             | Forking           | ✅               |
+|             | Rewind            | ✅               |
+|             | Settings          | ✅               |
 | Login       |                   |                  |
 |             | default entity    | ✅               |
 |             | team entity       | ✅               |
-|             | service account   | 🚧               |
+|             | service account   | ✅               |
 | CLI         |                   |                  |
-|             | `sync`            | ✅[^CLI.1]       |
-|             | `<other commands>`| 🚧[^CLI.2]       |
+|             | `sync`            | ✅               |
 | Artifacts   |                   | ✅               |
 |             | caching           | ✅               |
 |             | partial downloads | ❌               |
 | Sweeps      |                   | ✅               |
 | Launch      |                   | ✅               |
 
-[^E.5]: Missing full nested key summary support.
-[^E.8]: Only raw console logging is supported.
-[^E.9]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
-[^E.12]: Unsupported settings:
-    (`anonymous`, `_flow_control*`, `_stats_open_metrics_endpoints`, ...)
-[^CLI.1]: The command is namespaced under `wandb beta` group.
-[^CLI.2]: The rest of the CLI works, but uses the old backend under the hood for some commands.
+[^E.1]: Missing full nested key summary support.
+[^E.2]: Only raw console logging is supported.
+[^E.3]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
 <details>

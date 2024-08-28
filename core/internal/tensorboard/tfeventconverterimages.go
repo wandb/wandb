@@ -3,6 +3,7 @@ package tensorboard
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strconv"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -46,6 +47,16 @@ func processImages(
 			fmt.Errorf(
 				"tensorboard: couldn't parse image dimensions: %v",
 				errors.Join(err1, err2)))
+		return
+	}
+
+	// Verify that the first 8 bytes are the PNG signature.
+	if len(png) < 8 || !slices.Equal(
+		png[:8],
+		[]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
+	) {
+		logger.CaptureError(errors.New("tensorboard: image is not PNG-encoded"))
+		return
 	}
 
 	err := emitter.EmitImage(

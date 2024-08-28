@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"encoding/json"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -329,7 +330,7 @@ func TestConvertImage(t *testing.T) {
 		emitter,
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
-				"2", "4", "PNG content")),
+				"2", "4", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
 		observability.NewNoOpLogger(),
 	)
 
@@ -340,11 +341,64 @@ func TestConvertImage(t *testing.T) {
 				Image: wbvalue.Image{
 					Width:  2,
 					Height: 4,
-					PNG:    []byte("PNG content"),
+					PNG:    []byte("\x89PNG\x0D\x0A\x1A\x0Acontent"),
 				},
 			},
 		},
 		emitter.EmitImageCalls)
+}
+
+func TestConvertImage_NotPNG(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	var logs bytes.Buffer
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2", "4", "not a PNG")),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+	)
+
+	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Contains(t, logs.String(), "image is not PNG-encoded")
+}
+
+func TestConvertImage_BadDims(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	var logs bytes.Buffer
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images",
+				"2a", "4x", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+	)
+
+	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Contains(t, logs.String(), "couldn't parse image dimensions")
+	assert.Contains(t, logs.String(), "2a")
+	assert.Contains(t, logs.String(), "4x")
+}
+
+func TestConvertImage_UnknownTBFormat(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	var logs bytes.Buffer
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("my_img", "images", "not enough strings")),
+		observability.NewCoreLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+	)
+
+	assert.Empty(t, emitter.EmitImageCalls)
+	assert.Contains(t, logs.String(),
+		"expected images tensor string_val to have 3 values, but it has 1")
 }
 
 func TestConvertPRCurve(t *testing.T) {
