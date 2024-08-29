@@ -49,7 +49,7 @@ __all__ = (
 )
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union, Literal
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
