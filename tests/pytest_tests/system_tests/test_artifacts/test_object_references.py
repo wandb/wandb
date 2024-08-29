@@ -3,6 +3,7 @@ import binascii
 import os
 import shutil
 import time
+from functools import lru_cache
 from math import cos, pi, sin
 
 import boto3
@@ -10,8 +11,9 @@ import botocore
 import google.cloud.storage
 import numpy as np
 import pytest
-import wandb
 from bokeh.plotting import figure
+
+import wandb
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 
@@ -32,7 +34,7 @@ columns = [
 ]
 
 
-def _make_wandb_image(suffix=""):
+def _make_wandb_image(suffix="") -> wandb.Image:
     class_labels = {1: "tree", 2: "car", 3: "road"}
     assets_path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
@@ -142,10 +144,30 @@ def _make_point_cloud():
 
 
 # static assets for comparisons
-pc1 = _make_point_cloud()
-pc2 = _make_point_cloud()
-pc3 = _make_point_cloud()
-pc4 = _make_point_cloud()
+@lru_cache
+def static_point_cloud1():
+    return _make_point_cloud()
+
+
+@lru_cache
+def static_point_cloud2():
+    return _make_point_cloud()
+
+
+@lru_cache
+def static_point_cloud3():
+    return _make_point_cloud()
+
+
+@lru_cache
+def static_point_cloud4():
+    return _make_point_cloud()
+
+
+# pc1 = _make_point_cloud()
+# pc2 = _make_point_cloud()
+# pc3 = _make_point_cloud()
+# pc4 = _make_point_cloud()
 
 
 def _make_bokeh():
@@ -174,10 +196,30 @@ def _make_video():
     )
 
 
-vid1 = _make_video()
-vid2 = _make_video()
-vid3 = _make_video()
-vid4 = _make_video()
+@lru_cache
+def static_video1() -> wandb.Video:
+    return _make_video()
+
+
+@lru_cache
+def static_video2() -> wandb.Video:
+    return _make_video()
+
+
+@lru_cache
+def static_video3() -> wandb.Video:
+    return _make_video()
+
+
+@lru_cache
+def static_video4() -> wandb.Video:
+    return _make_video()
+
+
+# vid1 = _make_video()
+# vid2 = _make_video()
+# vid3 = _make_video()
+# vid4 = _make_video()
 
 
 def _make_wandb_audio(frequency, caption):
@@ -192,16 +234,28 @@ def _make_wandb_audio(frequency, caption):
 
 aud1 = _make_wandb_audio(440, "four forty")
 
-aud_ref_https = wandb.Audio(
-    "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
-    caption="star wars https",
-)
-aud_ref_s3 = wandb.Audio(
-    "s3://wandb-artifacts-refs-public-test/StarWars3.wav", caption="star wars s3"
-)
-aud_ref_gs = wandb.Audio(
-    "gs://wandb-artifact-refs-public-test/StarWars3.wav", caption="star wars gs"
-)
+
+@lru_cache
+def aud_ref_https() -> wandb.Audio:
+    return wandb.Audio(
+        "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
+        caption="star wars https",
+    )
+
+
+@lru_cache
+def aud_ref_s3() -> wandb.Audio:
+    return wandb.Audio(
+        "s3://wandb-artifacts-refs-public-test/StarWars3.wav", caption="star wars s3"
+    )
+
+
+@lru_cache
+def aud_ref_gs() -> wandb.Audio:
+    return wandb.Audio(
+        "gs://wandb-artifact-refs-public-test/StarWars3.wav", caption="star wars gs"
+    )
+
 
 np_data = np.random.randint(255, size=(4, 16, 16, 3))
 
@@ -225,9 +279,9 @@ def _make_wandb_table():
                 1,
                 1.1,
                 _make_wandb_image(),
-                pc1,
+                static_point_cloud1(),
                 _make_html(),
-                vid1,
+                static_video1(),
                 b1,
                 aud1,
             ],
@@ -239,11 +293,11 @@ def _make_wandb_table():
                 1,
                 1.2,
                 _make_wandb_image(),
-                pc2,
+                static_point_cloud2(),
                 _make_html(),
-                vid2,
+                static_video2(),
                 b2,
-                aud_ref_https,
+                aud_ref_https(),
             ],
             [
                 3,
@@ -253,11 +307,11 @@ def _make_wandb_table():
                 -0,
                 -1.3,
                 _make_wandb_image("2"),
-                pc3,
+                static_point_cloud3(),
                 _make_html(),
-                vid3,
+                static_video3(),
                 b3,
-                aud_ref_s3,
+                aud_ref_s3(),
             ],
             [
                 4,
@@ -267,11 +321,11 @@ def _make_wandb_table():
                 -0,
                 -1.4,
                 _make_wandb_image("2"),
-                pc4,
+                static_point_cloud4(),
                 _make_html(),
-                vid4,
+                static_video4(),
                 b4,
-                aud_ref_gs,
+                aud_ref_gs(),
             ],
         ],
     )
@@ -280,8 +334,18 @@ def _make_wandb_table():
     return table
 
 
+@pytest.fixture
+def wandb_table() -> wandb.Table:
+    return _make_wandb_table()
+
+
 def _make_wandb_joinedtable():
     return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
+
+
+@pytest.fixture
+def wandb_joinedtable() -> wandb.JoinedTable:
+    return _make_wandb_joinedtable()
 
 
 def _b64_to_hex_id(id_string):
@@ -599,14 +663,14 @@ def test_table_slice_reference_artifact(
 #       Validate that the intermediate object is not downloaded - there are no "leftover" assets (eg. classes.json)
 #       Validate that the symbolic links are proper
 def assert_media_obj_referential_equality(obj):
-    with wandb.init() as run:
+    with wandb.init() as run1:
         orig_artifact = wandb.Artifact("orig_artifact", "database")
         orig_artifact.add(obj, "obj")
-        run.log_artifact(orig_artifact)
+        run1.log_artifact(orig_artifact)
 
     _cleanup()
-    with wandb.init() as run:
-        orig_artifact_ref = run.use_artifact("orig_artifact:latest")
+    with wandb.init() as run2:
+        orig_artifact_ref = run2.use_artifact("orig_artifact:latest")
         orig_dir = orig_artifact_ref._default_root()
         obj1 = orig_artifact_ref.get("obj")
 
@@ -615,19 +679,19 @@ def assert_media_obj_referential_equality(obj):
 
     assert obj1 == obj
 
-    target_path = os.path.join(orig_dir, "obj." + type(obj)._log_type + ".json")
+    target_path = os.path.join(orig_dir, f"obj.{type(obj)._log_type}.json")
     assert os.path.isfile(target_path)
 
-    with wandb.init() as run:
-        orig_artifact_ref = run.use_artifact("orig_artifact:latest")
+    with wandb.init() as run3:
+        orig_artifact_ref = run3.use_artifact("orig_artifact:latest")
         mid_artifact = wandb.Artifact("mid_artifact", "database")
         mid_obj = orig_artifact_ref.get("obj")
         mid_artifact.add(mid_obj, "obj2")
-        run.log_artifact(mid_artifact)
+        run3.log_artifact(mid_artifact)
 
     _cleanup()
-    with wandb.init() as run:
-        mid_artifact_ref = run.use_artifact("mid_artifact:latest")
+    with wandb.init() as run4:
+        mid_artifact_ref = run4.use_artifact("mid_artifact:latest")
         mid_dir = mid_artifact_ref._default_root()
         obj2 = mid_artifact_ref.get("obj2")
 
@@ -641,16 +705,16 @@ def assert_media_obj_referential_equality(obj):
     # assert os.path.islink(start_path)
     # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
-    with wandb.init() as run:
-        mid_artifact_ref = run.use_artifact("mid_artifact:latest")
+    with wandb.init() as run5:
+        mid_artifact_ref = run5.use_artifact("mid_artifact:latest")
         down_artifact = wandb.Artifact("down_artifact", "database")
         down_obj = mid_artifact_ref.get("obj2")
         down_artifact.add(down_obj, "obj3")
-        run.log_artifact(down_artifact)
+        run5.log_artifact(down_artifact)
 
     _cleanup()
-    with wandb.init() as run:
-        down_artifact_ref = run.use_artifact("down_artifact:latest")
+    with wandb.init() as run6:
+        down_artifact_ref = run6.use_artifact("down_artifact:latest")
         down_dir = down_artifact_ref._default_root()  # noqa: F841
         obj3 = down_artifact_ref.get("obj3")
 
@@ -690,16 +754,33 @@ def test_video_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_video())
 
 
-def test_joined_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(_make_wandb_joinedtable())
+def test_joined_table_refs(
+    user, cleanup, anon_s3_handler, anon_gcs_handler, wandb_joinedtable
+):
+    assert_media_obj_referential_equality(wandb_joinedtable)
+
+
+# @pytest.mark.timeout(3 * 60)
+# def test_audio_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
+#     # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
+#     assert_media_obj_referential_equality(aud_ref_https())
+#     assert_media_obj_referential_equality(aud_ref_s3())
+#     assert_media_obj_referential_equality(aud_ref_gs())
 
 
 @pytest.mark.timeout(3 * 60)
-def test_audio_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
-    assert_media_obj_referential_equality(aud_ref_https)
-    assert_media_obj_referential_equality(aud_ref_s3)
-    assert_media_obj_referential_equality(aud_ref_gs)
+def test_audio_ref_https(user, cleanup, anon_s3_handler, anon_gcs_handler):
+    assert_media_obj_referential_equality(aud_ref_https())
+
+
+@pytest.mark.timeout(3 * 60)
+def test_audio_ref_s3(user, cleanup, anon_s3_handler, anon_gcs_handler):
+    assert_media_obj_referential_equality(aud_ref_s3())
+
+
+@pytest.mark.timeout(3 * 60)
+def test_audio_ref_gs(user, cleanup, anon_s3_handler, anon_gcs_handler):
+    assert_media_obj_referential_equality(aud_ref_gs())
 
 
 def test_joined_table_referential(user, cleanup):
@@ -752,12 +833,9 @@ def test_joined_table_add_by_path(user, cleanup):
         jt_bad = wandb.JoinedTable(
             "bad_table_name.table.json", "bad_table_name.table.json", "id"
         )
-        got_err = False
-        try:
+
+        with pytest.raises(ValueError):
             tables.add(jt_bad, "jt_bad")
-        except ValueError:
-            got_err = True
-        assert got_err
 
         run.log_artifact(tables)
 
