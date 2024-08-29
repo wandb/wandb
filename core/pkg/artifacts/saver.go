@@ -3,6 +3,7 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"golang.org/x/mod/semver"
 	"io"
 	"math"
 	"net/url"
@@ -759,7 +760,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	return artifactID, nil
 }
 
-// const minArtifactTagsServerVersion = "0.58"
+const minArtifactTagsServerVersion = "0.58"
 
 // canSupportArtifactTags returns true if the server version supports artifact tags.
 func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
@@ -767,23 +768,22 @@ func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("gql.ServerInfo: %w", err)
 	}
-	return false, fmt.Errorf("LatestLocalVersionInfo: %#v", response.GetServerInfo().GetLatestLocalVersionInfo()) // TODO: delete, adhoc testing only
 
-	// // If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
-	// // expect artifact tags support in more recent deployments
-	// serverInfo := response.GetServerInfo()
-	// if serverInfo == nil {
-	// 	return true, nil
-	// }
-	// localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
-	// if localVersionInfo == nil {
-	// 	return true, nil
-	// }
-	// serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
-	// if !semver.IsValid("v" + serverVersion) {
-	// 	return true, nil
-	// }
-	// supportsArtifactTags := semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
-	//
-	// return supportsArtifactTags, nil
+	// If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
+	// expect artifact tags support in more recent deployments
+	serverInfo := response.GetServerInfo()
+	if serverInfo == nil {
+		return true, nil
+	}
+	localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
+	if localVersionInfo == nil {
+		return true, nil
+	}
+	serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
+	if !semver.IsValid("v" + serverVersion) {
+		return true, nil
+	}
+	supportsArtifactTags := semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
+
+	return supportsArtifactTags, nil
 }
