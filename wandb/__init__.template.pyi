@@ -13,6 +13,7 @@ __all__ = (
     "__version__",
     "init",
     "setup",
+    "login",
     "save",
     "sweep",
     "controller",
@@ -48,7 +49,7 @@ __all__ = (
 )
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
@@ -126,6 +127,18 @@ def init(
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
+    ...
+
+def login(
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
+    verify: bool = False,
+) -> bool:
+    """<sdk/wandb_login.py::login>"""
     ...
 
 def log(
