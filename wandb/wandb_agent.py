@@ -369,6 +369,7 @@ class Agent:
 
         run_id = command.get("run_id")
         sweep_id = os.environ.get(wandb.env.SWEEP_ID)
+        run_queue_item_id = command.get("runqueue_item_id")
         # TODO(jhr): move into settings
         config_file = os.path.join(
             "wandb", "sweep-" + sweep_id, "config-" + run_id + ".yaml"
@@ -425,6 +426,8 @@ class Agent:
             proc = AgentProcess(command=command_list, env=env)
         self._run_processes[run_id] = proc
 
+        if run_queue_item_id:
+            sweep_utils.safe_ack_run_queue_item(self._api, run_queue_item_id, run_id, logger)
         # we keep track of when we sent the sigterm to give processes a chance
         # to handle the signal before sending sigkill every heartbeat
         self._run_processes[run_id].last_sigterm_time = None

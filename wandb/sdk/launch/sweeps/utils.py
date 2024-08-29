@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Tuple, Union
@@ -11,6 +12,7 @@ from wandb.sdk.launch.errors import LaunchError
 
 if TYPE_CHECKING:
     from wandb.apis.public import Api as PublicApi
+    from wandb.apis.internal import Api as InternalApi
 
 DEFAULT_SWEEP_COMMAND: List[str] = [
     "${env}",
@@ -314,3 +316,19 @@ def get_previous_args(
     settings = run_spec.get("overrides", {}).get("run_config", {}).get("settings", {})
 
     return scheduler_args, settings
+
+def safe_ack_run_queue_item(api: "InternalApi", run_queue_item_id: str, run_id: str, logger: logging.Logger) -> None:
+    try:
+        api.ack_run_queue_item(run_queue_item_id, run_id, False)
+    except wandb.CommError as e:
+        logger.error("Failed to ack run queue item: %s", e)
+        _already_acked_msg = (
+            "item already claimed or not eligible to be claimed"
+        )
+        if _already_acked_msg in e.message:
+            logger.info("Run queue item already acked, moving on.")
+        else:
+            raise e
+    except Exception as e:
+        logger.error("Failed to ack run queue item: %s", e)
+        raise e
