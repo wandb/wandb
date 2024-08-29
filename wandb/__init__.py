@@ -207,11 +207,6 @@ if "dev" in __version__:
         wandb.env.ERROR_REPORTING, "false"
     )
 
-    # turn on wandb-core for dev versions
-    if not wandb.env.is_require_legacy_service():
-        os.environ[wandb.env._REQUIRE_CORE] = os.environ.get(
-            wandb.env._REQUIRE_CORE, "true")
-
 _sentry = _Sentry()
 _sentry.setup()
 

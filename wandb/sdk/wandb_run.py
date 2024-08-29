@@ -3850,11 +3850,6 @@ class Run:
             settings=settings,
             printer=printer,
         )
-        Run._footer_notify_wandb_core(
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
-        )
         Run._footer_local_warn(
             server_info_response=server_info_response,
             quiet=quiet,
@@ -4225,24 +4220,6 @@ class Run:
                 check_version.upgrade_message,
                 level="warn",
             )
-
-    @staticmethod
-    def _footer_notify_wandb_core(
-        *,
-        quiet: Optional[bool] = None,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        """Prints a message advertising the upcoming core release."""
-        if quiet or settings._require_core:
-            return
-
-        printer.display(
-            "The new W&B backend becomes opt-out in version 0.18.0;"
-            ' try it out with `wandb.require("core")`!'
-            " See https://wandb.me/wandb-core for more information.",
-            level="warn",
-        )
 
     @staticmethod
     def _footer_reporter_warn_err(

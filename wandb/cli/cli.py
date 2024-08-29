@@ -434,7 +434,6 @@ def beta():
     """Beta versions of wandb CLI commands. Requires wandb-core."""
     # this is the future that requires wandb-core!
     wandb._sentry.configure_scope(process_context="wandb_beta")
-    wandb.require("core")
 
     try:
         get_core_path()
