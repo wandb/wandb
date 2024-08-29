@@ -4,9 +4,11 @@ import pathlib
 import platform
 import subprocess
 import sys
+import re
 from unittest import mock
 
 import pytest
+import regex
 import wandb
 import wandb.jupyter
 import wandb.sdk.lib.apikey
@@ -258,22 +260,30 @@ def test_code_saving(notebook):
         nb.execute_all()
         assert "WANDB_NOTEBOOK_NAME should be a path" in nb.all_output_text()
 
-
-@pytest.mark.skip_wandb_core(feature="launch")
 def test_notebook_creates_artifact_job(notebook):
     with notebook("one_cell_disable_git.ipynb") as nb:
         nb.execute_all()
         output = nb.cell_output_html(2)
-        # 3 artifact files if code, 5 if also job
-        # TODO: test contents of artifact, requires relay server context for artifacts
-        assert "5 artifact file(s)" in output
+    regex_string = r'http:\/\/localhost:8080\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
+    run_id = re.search(regex_string, str(output)).group(1)
 
+    api = wandb.Api()
+    user = os.environ["WANDB_USERNAME"]
+    run = api.run(f"{user}/uncategorized/{run_id}")
+    used_artifacts = run.used_artifacts()
+    assert len(used_artifacts) == 1
+    assert used_artifacts[0].name == "job-source-uncategorized-one_cell_disable_git.ipynb:v0"
 
-@pytest.mark.skip_wandb_core(feature="launch")
 def test_notebook_creates_repo_job(notebook):
     with notebook("one_cell_set_git.ipynb") as nb:
         nb.execute_all()
         output = nb.cell_output_html(2)
-        # 3 artifact files if code, 5 if also job
-        # TODO: test contents of artifact, requires relay server context for artifacts
-        assert "5 artifact file(s)" in output
+    regex_string = r'http:\/\/localhost:8080\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
+    run_id = re.search(regex_string, str(output)).group(1)
+
+    api = wandb.Api()
+    user = os.environ["WANDB_USERNAME"]
+    run = api.run(f"{user}/uncategorized/{run_id}")
+    used_artifacts = run.used_artifacts()
+    assert len(used_artifacts) == 1
+    assert used_artifacts[0].name == "job-test-test_one_cell_set_git.ipynb:v0"
