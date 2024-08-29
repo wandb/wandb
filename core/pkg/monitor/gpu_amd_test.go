@@ -14,7 +14,6 @@ func TestNewGPUAMD(t *testing.T) {
 	gpu := monitor.NewGPUAMD()
 	assert.NotNil(t, gpu)
 	assert.Equal(t, "gpu", gpu.Name())
-	assert.Len(t, gpu.Samples(), 0)
 }
 
 func TestGPUAMD_ParseStats(t *testing.T) {
@@ -53,23 +52,9 @@ func getROCMSMIStatsMock() (monitor.InfoDict, error) {
 func TestGPUAMD_SampleStats(t *testing.T) {
 	gpu := monitor.NewGPUAMD()
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
-	assert.Len(t, gpu.Samples(), 0)
-	err := gpu.SampleMetrics()
+	metrics, err := gpu.Sample()
 	assert.Nil(t, err)
-	assert.Len(t, gpu.Samples(), 10)
-	assert.Len(t, gpu.Samples()["gpu.0.gpu"], 1)
-	assert.Len(t, gpu.Samples()["gpu.1.gpu"], 1)
-	err = gpu.SampleMetrics()
-	assert.Nil(t, err)
-	assert.Len(t, gpu.Samples(), 10)
-	assert.Len(t, gpu.Samples()["gpu.0.gpu"], 2)
-	assert.Len(t, gpu.Samples()["gpu.1.gpu"], 2)
-	aggregateMetrics := gpu.AggregateMetrics()
-	assert.Len(t, aggregateMetrics, 10)
-	assert.Equal(t, 10.0, aggregateMetrics["gpu.0.gpu"])
-	assert.Equal(t, 20.0, aggregateMetrics["gpu.1.gpu"])
-	gpu.ClearMetrics()
-	assert.Len(t, gpu.Samples(), 0)
+	assert.Len(t, metrics, 10)
 }
 
 func TestGPUAMD_Probe(t *testing.T) {

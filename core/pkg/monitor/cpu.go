@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync"
 
 	"github.com/shirou/gopsutil/v4/cpu"
 	"github.com/shirou/gopsutil/v4/process"
@@ -13,26 +12,18 @@ import (
 )
 
 type CPU struct {
-	name    string
-	metrics map[string][]float64
-	pid     int32
-	mutex   sync.RWMutex
+	name string
+	pid  int32
 }
 
 func NewCPU(pid int32) *CPU {
-	return &CPU{
-		name:    "cpu",
-		metrics: map[string][]float64{},
-		pid:     pid,
-	}
+	return &CPU{name: "cpu", pid: pid}
 }
 
 func (c *CPU) Name() string { return c.name }
 
-func (c *CPU) SampleMetrics() error {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
+func (c *CPU) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
 	var errs []error
 
 	// process-related metrics
@@ -47,15 +38,9 @@ func (c *CPU) SampleMetrics() error {
 		if err != nil {
 			errs = append(errs, err)
 			// if we can't get the cpu count, we'll just use the raw value
-			c.metrics["cpu"] = append(
-				c.metrics["cpu"],
-				procCPU,
-			)
+			metrics["cpu"] = procCPU
 		} else {
-			c.metrics["cpu"] = append(
-				c.metrics["cpu"],
-				procCPU/float64(cpuCount),
-			)
+			metrics["cpu"] = procCPU / float64(cpuCount)
 		}
 	}
 	// number of threads used by process
@@ -63,10 +48,7 @@ func (c *CPU) SampleMetrics() error {
 	if err != nil {
 		errs = append(errs, err)
 	} else {
-		c.metrics["proc.cpu.threads"] = append(
-			c.metrics["proc.cpu.threads"],
-			float64(procThreads),
-		)
+		metrics["proc.cpu.threads"] = float64(procThreads)
 	}
 
 	// total system CPU usage in percent
@@ -78,41 +60,12 @@ func (c *CPU) SampleMetrics() error {
 		}
 	} else {
 		for i, u := range utilization {
-			metricName := fmt.Sprintf("cpu.%d.cpu_percent", i)
-			c.metrics[metricName] = append(
-				c.metrics[metricName],
-				u,
-			)
+			metrics[fmt.Sprintf("cpu.%d.cpu_percent", i)] = u
 		}
 	}
 
-	return errors.Join(errs...)
+	return metrics, errors.Join(errs...)
 }
-
-func (c *CPU) AggregateMetrics() map[string]float64 {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	aggregates := make(map[string]float64)
-	for metric, samples := range c.metrics {
-		if len(samples) > 0 {
-			if metric == "proc.cpu.threads" {
-				aggregates[metric] = samples[len(samples)-1]
-				continue
-			}
-			aggregates[metric] = Average(samples)
-		}
-	}
-	return aggregates
-}
-
-func (c *CPU) ClearMetrics() {
-	c.mutex.Lock()
-	defer c.mutex.Unlock()
-
-	c.metrics = map[string][]float64{}
-}
-
 func (c *CPU) IsAvailable() bool { return true }
 
 func (c *CPU) Probe() *spb.MetadataRequest {
