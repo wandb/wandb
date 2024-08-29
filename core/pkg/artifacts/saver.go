@@ -3,7 +3,6 @@ package artifacts
 import (
 	"context"
 	"fmt"
-	"golang.org/x/mod/semver"
 	"io"
 	"math"
 	"net/url"
@@ -12,6 +11,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"golang.org/x/mod/semver"
 
 	"github.com/Khan/genqlient/graphql"
 
