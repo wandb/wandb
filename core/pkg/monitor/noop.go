@@ -27,13 +27,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) SampleMetrics() error { return nil }
-
-func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
-	return map[string]float64{}
-}
-
-func (g *GPUNvidia) ClearMetrics() {}
+func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
 
 func (g *GPUNvidia) IsAvailable() bool { return false }
 
@@ -46,22 +40,14 @@ type GPUAMD struct {
 }
 
 func NewGPUAMD() *GPUAMD {
-	gpu := &GPUAMD{
-		name: "gpu",
-	}
+	gpu := &GPUAMD{name: "gpu"}
 
 	return gpu
 }
 
 func (g *GPUAMD) Name() string { return g.name }
 
-func (g *GPUAMD) SampleMetrics() error { return nil }
-
-func (g *GPUAMD) AggregateMetrics() map[string]float64 {
-	return map[string]float64{}
-}
-
-func (g *GPUAMD) ClearMetrics() {}
+func (g *GPUAMD) Sample() (map[string]any, error) { return nil, nil }
 
 func (g *GPUAMD) IsAvailable() bool { return false }
 

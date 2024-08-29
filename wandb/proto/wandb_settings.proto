@@ -41,9 +41,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 174
+// Next ID: 175
 message Settings {
-  reserved 12, 94;
+  reserved 12, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -174,6 +174,7 @@ message Settings {
   google.protobuf.DoubleValue _service_wait = 39;
   google.protobuf.StringValue _start_datetime = 40;
   google.protobuf.Int32Value _stats_pid = 42;
+  google.protobuf.DoubleValue _stats_sampling_interval = 174;
   google.protobuf.DoubleValue _stats_sample_rate_seconds = 43;
   google.protobuf.Int32Value _stats_samples_to_average = 44;
   google.protobuf.BoolValue _stats_join_assets = 45;
@@ -258,8 +259,6 @@ message Settings {
   google.protobuf.StringValue sync_dir = 133;
   google.protobuf.StringValue sync_file = 134;
   google.protobuf.StringValue sync_symlink_latest = 135;
-  google.protobuf.Int32Value system_sample = 136;
-  google.protobuf.Int32Value system_sample_seconds = 137;
   google.protobuf.BoolValue table_raise_on_max_row_limit_exceeded = 138;
   google.protobuf.StringValue timespec = 139;
   google.protobuf.StringValue tmp_dir = 140;

@@ -64,7 +64,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         skip_wandb_core = False
         wandb_core_only = False
         for mark in metafunc.definition.iter_markers():
-            if mark.name == "wandb_core_failure":
+            if mark.name == "skip_wandb_core":
                 skip_wandb_core = True
             elif mark.name == "wandb_core_only":
                 wandb_core_only = True
@@ -73,7 +73,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             # Don't merge tests like this. Implement the feature first.
             assert (
                 not skip_wandb_core
-            ), "Cannot mark test both wandb_core_failure and wandb_core_only"
+            ), "Cannot mark test both skip_wandb_core and wandb_core_only"
 
             values = [True]
             ids = ["wandb_core"]

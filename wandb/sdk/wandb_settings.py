@@ -364,8 +364,11 @@ class SettingsData:
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
-    _stats_sample_rate_seconds: float
-    _stats_samples_to_average: int
+    _stats_sampling_interval: float  # sampling interval for system stats
+    _stats_sample_rate_seconds: float  # badly-named sampling interval, deprecated
+    _stats_samples_to_average: (
+        int  # number of samples to average before reporting, deprecated
+    )
     _stats_join_assets: (
         bool  # join metrics from different assets before sending to backend
     )
@@ -405,8 +408,8 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
-    fork_from: Optional[RunMoment]
-    resume_from: Optional[RunMoment]
+    fork_from: RunMoment
+    resume_from: RunMoment
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -476,8 +479,6 @@ class SettingsData:
     sync_dir: str
     sync_file: str
     sync_symlink_latest: str
-    system_sample: int
-    system_sample_seconds: int
     table_raise_on_max_row_limit_exceeded: bool
     timespec: str
     tmp_dir: str
@@ -619,7 +620,7 @@ class Property:
 
 
 class Settings(SettingsData):
-    """A class to represent modifiable settings."""
+    """Settings for the W&B SDK."""
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -731,6 +732,11 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _start_datetime={"preprocessor": _datetime_as_str},
+            _stats_sampling_interval={
+                "value": 10.0,
+                "preprocessor": float,
+                "validator": self._validate__stats_sampling_interval,
+            },
             _stats_sample_rate_seconds={
                 "value": 2.0,
                 "preprocessor": float,
@@ -957,8 +963,6 @@ class Settings(SettingsData):
                 "value": "latest-run",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
-            system_sample={"value": 15},
-            system_sample_seconds={"value": 2},
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
@@ -1188,6 +1192,12 @@ class Settings(SettingsData):
     def _validate__service_wait(value: float) -> bool:
         if value <= 0:
             raise UsageError("_service_wait must be a positive number")
+        return True
+
+    @staticmethod
+    def _validate__stats_sampling_interval(value: float) -> bool:
+        if value < 0.1:
+            raise UsageError("sampling interval must be >= 0.1 seconds")
         return True
 
     @staticmethod

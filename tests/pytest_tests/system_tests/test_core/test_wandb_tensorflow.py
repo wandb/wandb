@@ -48,7 +48,7 @@ PR_CURVE_PANEL_CONFIG = {
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
 )
-@pytest.mark.wandb_core_failure(feature="tensorboard")
+@pytest.mark.skip_wandb_core(feature="tensorboard")
 def test_compat_tensorboard(relay_server, wandb_init):
     # TODO(jhr): does not work with --flake-finder
     # TODO: we currently don't unpatch tensorflow so this is the only test that can do it...
@@ -95,7 +95,7 @@ def test_compat_tensorboard(relay_server, wandb_init):
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
 )
-@pytest.mark.wandb_core_failure(feature="tensorboard")
+@pytest.mark.skip_wandb_core(feature="tensorboard")
 def test_tensorboard_log_with_wandb_log(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(sync_tensorboard=True)
@@ -151,7 +151,7 @@ def test_tensorboard_log_with_wandb_log(relay_server, wandb_init):
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
 )
-@pytest.mark.wandb_core_failure(feature="tensorboard")
+@pytest.mark.skip_wandb_core(feature="tensorboard")
 def test_add_pr_curve(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(sync_tensorboard=True)
@@ -188,7 +188,7 @@ def test_add_pr_curve(relay_server, wandb_init):
     platform.system() == "Windows",
     reason="TODO: Windows is legitimately busted",
 )
-@pytest.mark.wandb_core_failure(feature="tensorboard")
+@pytest.mark.skip_wandb_core(feature="tensorboard")
 def test_add_pr_curve_plugin(relay_server, wandb_init):
     tf.compat.v1.disable_v2_behavior()
     with relay_server() as relay:
