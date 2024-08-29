@@ -15,6 +15,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Changed the default system metrics sampling interval to 10 seconds without averaging, while allowing custom intervals via `wandb.init(settings=wandb.Settings(_stats_sampling_interval=...))` (@dmitryduev in https://github.com/wandb/wandb/pull/8208)
 
+- Enabled the new Go based core backend by default, that is more performant, versatile, and robust (@kptkin in https://github.com/wandb/wandb/pull/8206)
+
 ## [0.17.8] - 2024-08-28
 
 ### Added
@@ -31,6 +33,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ### Deprecated
+
 - Ability to disable the service process (`WANDB__DISABLE_SERVICE`) is deprecated and will be removed in the next minor release (@kptkin in https://github.com/wandb/wandb/pull/8193)
 
 ## [0.17.7] - 2024-08-15
