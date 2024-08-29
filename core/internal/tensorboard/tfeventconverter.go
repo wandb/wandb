@@ -53,8 +53,7 @@ func (h *TFEventConverter) ConvertNext(
 			// This is an older style for TB summaries. The interpretation
 			// depends on the value field that is set.
 
-			switch value := value.GetValue().(type) {
-			case *tbproto.Summary_Value_SimpleValue:
+			if value, ok := value.GetValue().(*tbproto.Summary_Value_SimpleValue); ok {
 				processScalarsSimpleValue(emitter, tag, value.SimpleValue)
 			}
 
