@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/mod/semver"
-
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -769,22 +767,23 @@ func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("gql.ServerInfo: %w", err)
 	}
-	as.Logger.Info(fmt.Sprintf("ServerInfo response: %#v", response))
-	// If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
-	// expect artifact tags support in more recent deployments
-	serverInfo := response.GetServerInfo()
-	if serverInfo == nil {
-		return true, nil
-	}
-	localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
-	if localVersionInfo == nil {
-		return true, nil
-	}
-	serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
-	if !semver.IsValid("v" + serverVersion) {
-		return true, nil
-	}
-	supportsArtifactTags := semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
+	return false, fmt.Errorf("ServerInfo response: %#v", response) // TODO: delete, adhoc testing only
 
-	return supportsArtifactTags, nil
+	// // If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
+	// // expect artifact tags support in more recent deployments
+	// serverInfo := response.GetServerInfo()
+	// if serverInfo == nil {
+	// 	return true, nil
+	// }
+	// localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
+	// if localVersionInfo == nil {
+	// 	return true, nil
+	// }
+	// serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
+	// if !semver.IsValid("v" + serverVersion) {
+	// 	return true, nil
+	// }
+	// supportsArtifactTags := semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
+	//
+	// return supportsArtifactTags, nil
 }
