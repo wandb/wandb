@@ -1,5 +1,3 @@
-//go: build linux && !libwandb_core
-
 package monitor
 
 import (
@@ -8,268 +6,380 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"strings"
+	"path/filepath"
+	"strconv"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// getCmdPath returns the path to the nvidia_gpu_stats program.
+type NeuronMonitorConfig struct {
+	Period         string                `json:"period"`
+	NeuronRuntimes []NeuronRuntimeConfig `json:"neuron_runtimes"`
+	SystemMetrics  []SystemMetricConfig  `json:"system_metrics"`
+}
+
+type NeuronRuntimeConfig struct {
+	TagFilter string         `json:"tag_filter"`
+	Metrics   []MetricConfig `json:"metrics"`
+}
+
+type SystemMetricConfig struct {
+	Type string `json:"type"`
+}
+
+type MetricConfig struct {
+	Type string `json:"type"`
+}
+
+type NeuronCoreMemoryUsage struct {
+	Constants             int `json:"constants"`
+	ModelCode             int `json:"model_code"`
+	ModelSharedScratchpad int `json:"model_shared_scratchpad"`
+	RuntimeMemory         int `json:"runtime_memory"`
+	Tensors               int `json:"tensors"`
+}
+
+type HostMemoryUsage struct {
+	ApplicationMemory int `json:"application_memory"`
+	Constants         int `json:"constants"`
+	DmaBuffers        int `json:"dma_buffers"`
+	Tensors           int `json:"tensors"`
+}
+
+type Stats struct {
+	NeuroncoreUtilization        map[int]float64               `json:"neuroncore_utilization"`
+	HostTotalMemoryUsage         int                           `json:"host_total_memory_usage"`
+	NeuronDeviceTotalMemoryUsage int                           `json:"neuron_device_total_memory_usage"`
+	HostMemoryUsage              HostMemoryUsage               `json:"host_memory_usage"`
+	NeuroncoreMemoryUsage        map[int]NeuronCoreMemoryUsage `json:"neuroncore_memory_usage"`
+}
+
+type Trainium struct {
+	name                    string
+	pid                     int32
+	samplingInterval        float64
+	neuronMonitorConfigPath string
+	lastTimestamp           float64
+	mutex                   sync.RWMutex
+	cmd                     *exec.Cmd
+	logger                  *observability.CoreLogger
+	rawSamples              [][]byte
+	shutdownEvent           chan struct{}
+	isRunning               bool
+}
+
 func getCmdPath() (string, error) {
-	// ex, err := os.Executable()
-	// if err != nil {
-	// 	return "", err
-	// }
-	// exDirPath := filepath.Dir(ex)
-	// exPath := filepath.Join(exDirPath, "nvidia_gpu_stats")
-
+	// exPath := "/opt/aws/neuron/bin/neuron-monitor"
 	exPath := "/Users/dimaduev/dev/sdk/trn.py"
-
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err
 	}
 	return exPath, nil
 }
 
-// isRunning checks if the command is running by sending a signal to the process
-func isRunning(cmd *exec.Cmd) bool {
-	if cmd.Process == nil {
-		return false
+func NewTrainium(
+	logger *observability.CoreLogger,
+	pid int32,
+	samplingInterval float64,
+	neuronMonitorConfigPath string,
+) *Trainium {
+	t := &Trainium{
+		name:                    "trainium",
+		pid:                     pid,
+		samplingInterval:        samplingInterval,
+		neuronMonitorConfigPath: neuronMonitorConfigPath,
+		logger:                  logger,
+		rawSamples:              make([][]byte, 0, 10),
+		shutdownEvent:           make(chan struct{}),
 	}
 
-	process, err := os.FindProcess(cmd.Process.Pid)
+	if t.samplingInterval == 0 {
+		t.samplingInterval = 1.0
+	}
+
+	if t.neuronMonitorConfigPath == "" {
+		t.neuronMonitorConfigPath = filepath.Join(os.TempDir(), "neuron_monitor_config.json")
+		// write the config file to disk
+		err := t.writeNeuronMonitorConfig(t.neuronMonitorConfigPath)
+		fmt.Println(t.neuronMonitorConfigPath)
+		if err != nil {
+			return nil
+		}
+	}
+
+	err := t.Start()
+	fmt.Println("Start: ", err)
 	if err != nil {
-		return false
+		return nil
 	}
 
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	return t
 }
 
-type Trainium struct {
-	name             string
-	sample           map[string]any // latest reading from nvidia_gpu_stats command
-	pid              int32          // pid of the process to monitor
-	samplingInterval float64        // sampling interval in seconds
-	lastTimestamp    float64        // last reported timestamp
-	mutex            sync.RWMutex
-	cmd              *exec.Cmd
-	logger           *observability.CoreLogger
+func (t *Trainium) writeNeuronMonitorConfig(neuronMonitorConfigPath string) error {
+	config := NeuronMonitorConfig{
+		Period: fmt.Sprintf("%ds", int(t.samplingInterval)),
+		NeuronRuntimes: []NeuronRuntimeConfig{
+			{
+				TagFilter: ".*",
+				Metrics: []MetricConfig{
+					{Type: "neuroncore_counters"},
+					{Type: "memory_used"},
+					{Type: "neuron_runtime_vcpu_usage"},
+				},
+			},
+		},
+		SystemMetrics: []SystemMetricConfig{
+			{Type: "vcpu_usage"},
+			{Type: "memory_info"},
+			{Type: "neuron_hw_counters"},
+		},
+	}
+
+	jsonData, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %v", err)
+	}
+
+	err = os.WriteFile(neuronMonitorConfigPath, jsonData, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write config file: %v", err)
+	}
+
+	return nil
 }
 
-func NewTrainium(logger *observability.CoreLogger, pid int32, samplingInterval float64) *Trainium {
-	g := &Trainium{
-		name:             "trainium",
-		sample:           map[string]any{},
-		pid:              pid,
-		samplingInterval: samplingInterval,
-		logger:           logger,
+func (t *Trainium) Start() error {
+	if t.isRunning {
+		return fmt.Errorf("Trainium monitor is already running")
 	}
 
 	exPath, err := getCmdPath()
+	fmt.Println(exPath)
 	if err != nil {
-		return g
+		return fmt.Errorf("failed to get command path: %v", err)
 	}
+	fmt.Println("exPath", exPath)
 
-	if samplingInterval == 0 {
-		samplingInterval = defaultSamplingInterval.Seconds()
-	}
+	t.cmd = exec.Command(exPath, "-c", t.neuronMonitorConfigPath)
+	fmt.Println("t.cmd", t.cmd)
 
-	// we will use nvidia_gpu_stats to get GPU stats
-	g.cmd = exec.Command(
-		exPath,
-		// monitor for GPU usage for this pid and its children
-		fmt.Sprintf("--pid=%d", pid),
-		// pid of the current process. nvidia_gpu_stats will exit when this process exits
-		fmt.Sprintf("--ppid=%d", os.Getpid()),
-		// sampling interval in seconds
-		fmt.Sprintf("--interval=%f", samplingInterval),
-	)
-
-	// get a pipe to read from the command's stdout
-	stdout, err := g.cmd.StdoutPipe()
+	stdout, err := t.cmd.StdoutPipe()
 	if err != nil {
-		g.logger.CaptureError(
-			fmt.Errorf("monitor: %v: error getting stdout pipe: %v for command: %v", g.name, err, g.cmd),
-		)
-		return g
+		return fmt.Errorf("failed to get stdout pipe: %v", err)
 	}
 
-	if err := g.cmd.Start(); err != nil {
-		// this is a relevant error, so we will report it to sentry
-		g.logger.CaptureError(
-			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
-		)
-		return g
+	if err := t.cmd.Start(); err != nil {
+		return fmt.Errorf("failed to start command: %v", err)
 	}
 
-	// read and process nvidia_gpu_stats output in a separate goroutine.
-	// nvidia_gpu_stats outputs JSON data for each GPU every sampling interval.
+	t.isRunning = true
+
 	go func() {
 		scanner := bufio.NewScanner(stdout)
-		for scanner.Scan() {
-			line := scanner.Text()
-
-			// Try to parse the line as JSON
-			var data map[string]any
-			if err := json.Unmarshal([]byte(line), &data); err != nil {
-				g.logger.CaptureError(
-					fmt.Errorf("monitor: %v: error parsing JSON %v: %v", g.name, line, err),
-				)
-				continue
+		for {
+			select {
+			case <-t.shutdownEvent:
+				return
+			default:
+				if scanner.Scan() {
+					fmt.Println("OLOLO")
+					t.mutex.Lock()
+					t.rawSamples = append(t.rawSamples, scanner.Bytes())
+					t.mutex.Unlock()
+				}
 			}
-
-			// Process the JSON data
-			g.mutex.Lock()
-			for key, value := range data {
-				g.sample[key] = value
-			}
-			g.mutex.Unlock()
-		}
-
-		if err := scanner.Err(); err != nil {
-			return
 		}
 	}()
 
-	return g
+	return nil
 }
 
-func (g *Trainium) Name() string { return g.name }
+func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
+	entryPid, ok := entry["pid"].(float64)
+	if !ok {
+		return false
+	}
+	return int32(entryPid) == t.pid || os.Getenv("LOCAL_RANK") != ""
+}
 
-func (g *Trainium) Sample() (map[string]any, error) {
-	if !isRunning(g.cmd) {
-		// do not log error if the command is not running
+func (t *Trainium) Sample() (map[string]any, error) {
+	if !t.isRunning {
 		return nil, nil
 	}
 
-	// do not sample if the last timestamp is the same
-	currentTimestamp, ok := g.sample["_timestamp"]
+	var rawStats map[string]any
+	err := json.Unmarshal(t.rawSamples[len(t.rawSamples)-1], &rawStats)
+	if err != nil {
+		return nil, fmt.Errorf("error parsing JSON: %v", err)
+	}
+
+	neuronRuntimeData, ok := rawStats["neuron_runtime_data"].([]any)
+	if !ok || len(neuronRuntimeData) == 0 {
+		return nil, nil
+	}
+
+	var matchingEntry map[string]any
+	for _, entry := range neuronRuntimeData {
+		if entryMap, ok := entry.(map[string]any); ok {
+			if t.isMatchingEntry(entryMap) {
+				matchingEntry = entryMap
+				break
+			}
+		}
+	}
+
+	if matchingEntry == nil {
+		return nil, nil
+	}
+
+	report, ok := matchingEntry["report"].(map[string]any)
 	if !ok {
 		return nil, nil
 	}
 
-	if g.lastTimestamp == currentTimestamp {
+	neuroncoreCounters, ok := report["neuroncore_counters"].(map[string]any)
+	if !ok {
 		return nil, nil
 	}
 
-	if _, ok := currentTimestamp.(float64); !ok {
-		return nil, fmt.Errorf("invalid timestamp: %v", currentTimestamp)
+	neuronCoresInUse, ok := neuroncoreCounters["neuroncores_in_use"].(map[string]any)
+	if !ok {
+		return nil, nil
 	}
-	g.lastTimestamp = currentTimestamp.(float64)
 
-	metrics := make(map[string]any)
-
-	for metric, value := range g.sample {
-		// skip metrics that start with "_", some of which are internal metrics
-		// TODO: other metrics lack aggregation on the frontend; could be added in the future.
-		if strings.HasPrefix(metric, "_") {
-			continue
-		}
-		if value, ok := value.(float64); ok {
-			metrics[metric] = value
+	neuroncoreUtilization := make(map[int]float64)
+	for k, v := range neuronCoresInUse {
+		coreID, _ := strconv.Atoi(k)
+		if coreData, ok := v.(map[string]any); ok {
+			if utilization, ok := coreData["neuroncore_utilization"].(float64); ok {
+				neuroncoreUtilization[coreID] = utilization
+			}
 		}
 	}
 
-	return g.sample, nil
-}
-
-func (g *Trainium) IsAvailable() bool {
-	exPath, err := getCmdPath()
-	if err != nil || exPath == "" {
-		return false
+	memoryUsed, ok := report["memory_used"].(map[string]any)
+	if !ok {
+		return nil, nil
 	}
-	return isRunning(g.cmd)
-}
 
-func (g *Trainium) Close() {
-	// send signal to close
-	if g.IsAvailable() {
-		if err := g.cmd.Process.Signal(os.Kill); err != nil {
-			return
+	neuronRuntimeUsedBytes, ok := memoryUsed["neuron_runtime_used_bytes"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+
+	hostTotalMemoryUsage, _ := neuronRuntimeUsedBytes["host"].(float64)
+	neuronDeviceTotalMemoryUsage, _ := neuronRuntimeUsedBytes["neuron_device"].(float64)
+
+	usageBreakdown, ok := neuronRuntimeUsedBytes["usage_breakdown"].(map[string]any)
+	if !ok {
+		return nil, nil
+	}
+
+	var hostMemoryUsage HostMemoryUsage
+	if hostUsage, ok := usageBreakdown["host"].(map[string]any); ok {
+		json.Unmarshal([]byte(fmt.Sprintf("%v", hostUsage)), &hostMemoryUsage)
+	}
+
+	neuroncoreMemoryUsage := make(map[int]NeuronCoreMemoryUsage)
+	if ncMemUsage, ok := usageBreakdown["neuroncore_memory_usage"].(map[string]any); ok {
+		for k, v := range ncMemUsage {
+			coreID, _ := strconv.Atoi(k)
+			var coreUsage NeuronCoreMemoryUsage
+			json.Unmarshal([]byte(fmt.Sprintf("%v", v)), &coreUsage)
+			neuroncoreMemoryUsage[coreID] = coreUsage
 		}
 	}
+
+	stats := Stats{
+		NeuroncoreUtilization:        neuroncoreUtilization,
+		HostTotalMemoryUsage:         int(hostTotalMemoryUsage),
+		NeuronDeviceTotalMemoryUsage: int(neuronDeviceTotalMemoryUsage),
+		HostMemoryUsage:              hostMemoryUsage,
+		NeuroncoreMemoryUsage:        neuroncoreMemoryUsage,
+	}
+
+	return t.flattenStats(stats), nil
 }
 
-func (g *Trainium) Probe() *spb.MetadataRequest {
-	if !g.IsAvailable() {
+func (t *Trainium) flattenStats(sample Stats) map[string]any {
+	flattened := make(map[string]any)
+
+	var flatten func(string, interface{})
+	flatten = func(key string, value interface{}) {
+		switch v := value.(type) {
+		case int:
+			flattened[key] = float64(v)
+		case float64:
+			flattened[key] = v
+		case map[int]float64:
+			for k, vv := range v {
+				flatten(fmt.Sprintf("%d.%s", k, key), vv)
+			}
+		case map[int]NeuronCoreMemoryUsage:
+			for k, vv := range v {
+				flatten(fmt.Sprintf("%d.%s", k, key), vv)
+			}
+		case HostMemoryUsage, NeuronCoreMemoryUsage:
+			jsonBytes, _ := json.Marshal(v)
+			var subMap map[string]any
+			json.Unmarshal(jsonBytes, &subMap)
+			for subKey, subValue := range subMap {
+				flatten(fmt.Sprintf("%s.%s", key, subKey), subValue)
+			}
+		}
+	}
+
+	flatten("neuroncore_utilization", sample.NeuroncoreUtilization)
+	flatten("host_total_memory_usage", sample.HostTotalMemoryUsage)
+	flatten("neuron_device_total_memory_usage", sample.NeuronDeviceTotalMemoryUsage)
+	flatten("host_memory_usage", sample.HostMemoryUsage)
+	flatten("neuroncore_memory_usage", sample.NeuroncoreMemoryUsage)
+
+	return flattened
+}
+
+func (t *Trainium) Name() string {
+	return t.name
+}
+
+func (t *Trainium) IsAvailable() bool {
+	_, err := getCmdPath()
+	fmt.Println("IsAvailable", err)
+	return err == nil
+}
+
+func (t *Trainium) Close() {
+	if t == nil || !t.isRunning {
+		return
+	}
+
+	close(t.shutdownEvent)
+	if t.cmd != nil && t.cmd.Process != nil {
+		t.cmd.Process.Kill()
+	}
+	t.isRunning = false
+}
+
+func (t *Trainium) Probe() *spb.MetadataRequest {
+	if t == nil || !t.IsAvailable() {
 		return nil
 	}
 
-	// wait for the first sample
-	for {
-		g.mutex.RLock()
-		_, ok := g.sample["_gpu.count"]
-		g.mutex.RUnlock()
-		if ok {
+	info := &spb.MetadataRequest{
+		// GpuNvidia: []*spb.GpuNvidiaInfo{},
+	}
+
+	// Wait for the first sample
+	for start := time.Now(); time.Since(start) < 5*time.Second; {
+		if len(t.rawSamples) > 0 {
 			break
 		}
-		// sleep for a while
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	info := spb.MetadataRequest{
-		GpuNvidia: []*spb.GpuNvidiaInfo{},
-	}
-
-	if count, ok := g.sample["_gpu.count"].(float64); ok {
-		info.GpuCount = uint32(count)
-	} else {
-		return nil
-	}
-
-	// no GPU found, so close the GPU monitor
-	if info.GpuCount == 0 {
-		g.Close()
-		return nil
-	}
-
-	if v, ok := g.sample["cuda_version"]; ok {
-		info.CudaVersion = v.(string)
-	}
-
-	names := make([]string, info.GpuCount)
-
-	for di := 0; di < int(info.GpuCount); di++ {
-
-		gpuInfo := &spb.GpuNvidiaInfo{}
-		name := fmt.Sprintf("_gpu.%d.name", di)
-		if v, ok := g.sample[name]; ok {
-			if v, ok := v.(string); ok {
-				gpuInfo.Name = v
-				names[di] = gpuInfo.Name
-			}
-		}
-
-		memTotal := fmt.Sprintf("_gpu.%d.memoryTotal", di)
-		if v, ok := g.sample[memTotal]; ok {
-			if v, ok := v.(float64); ok {
-				gpuInfo.MemoryTotal = uint64(v)
-			}
-		}
-
-		cudaCores := fmt.Sprintf("_gpu.%d.cudaCores", di)
-		if v, ok := g.sample[cudaCores]; ok {
-			if v, ok := v.(float64); ok {
-				gpuInfo.CudaCores = uint32(v)
-			}
-		}
-
-		architechture := fmt.Sprintf("_gpu.%d.architecture", di)
-		if v, ok := g.sample[architechture]; ok {
-			if v, ok := v.(string); ok {
-				gpuInfo.Architecture = v
-			}
-		}
-
-		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
-
-	}
-
-	info.GpuType = "[" + strings.Join(names, ", ") + "]"
-
-	return &info
+	return info
 }

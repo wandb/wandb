@@ -94,7 +94,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error getting stdout pipe: %v for command: %v", g.name, err, g.cmd),
 		)
-		return g
+		return nil
 	}
 
 	if err := g.cmd.Start(); err != nil {
@@ -102,7 +102,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
 		)
-		return g
+		return nil
 	}
 
 	// read and process nvidia_gpu_stats output in a separate goroutine.

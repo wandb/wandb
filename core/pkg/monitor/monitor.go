@@ -140,28 +140,39 @@ func New(
 
 	pid := settings.XStatsPid.GetValue()
 	diskPaths := settings.XStatsDiskPaths.GetValue()
-	samplingInterval := settings.XStatsSampleRateSeconds.GetValue()
+	samplingInterval := settings.XStatsSamplingInterval.GetValue()
+	neuronMonitorConfigPath := settings.XStatsNeuronMonitorConfigPath.GetValue()
 
-	systemMonitor.SetAssets([]Asset{
-		NewCPU(pid),
-		NewDisk(diskPaths),
-		NewMemory(pid),
-		NewNetwork(),
-		// NOTE: we pass the logger for more detailed error reporting
-		// during the initial rollout of the GPU monitoring with nvidia_gpu_stats
-		// TODO: remove the logger once we are confident that it is stable
-		NewGPUNvidia(logger, pid, samplingInterval),
-		NewGPUAMD(),
-		NewGPUApple(),
-		NewSLURM(),
-	})
+	// assets to be monitored.
+	if cpu := NewCPU(pid); cpu != nil {
+		systemMonitor.assets = append(systemMonitor.assets, cpu)
+	}
+	if disk := NewDisk(diskPaths); disk != nil {
+		systemMonitor.assets = append(systemMonitor.assets, disk)
+	}
+	if memory := NewMemory(pid); memory != nil {
+		systemMonitor.assets = append(systemMonitor.assets, memory)
+	}
+	if network := NewNetwork(); network != nil {
+		systemMonitor.assets = append(systemMonitor.assets, network)
+	}
+	if gpu := NewGPUNvidia(logger, pid, samplingInterval); gpu != nil {
+		systemMonitor.assets = append(systemMonitor.assets, gpu)
+	}
+	if gpu := NewGPUAMD(); gpu != nil {
+		systemMonitor.assets = append(systemMonitor.assets, gpu)
+	}
+	if gpu := NewGPUApple(); gpu != nil {
+		systemMonitor.assets = append(systemMonitor.assets, gpu)
+	}
+	if slurm := NewSLURM(); slurm != nil {
+		systemMonitor.assets = append(systemMonitor.assets, slurm)
+	}
+	if trainium := NewTrainium(logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
+		systemMonitor.assets = append(systemMonitor.assets, trainium)
+	}
 
 	return systemMonitor
-}
-
-// SetAssets sets the list of assets to be monitored.
-func (sm *SystemMonitor) SetAssets(assets []Asset) {
-	sm.assets = assets
 }
 
 // GetState returns the current state of the SystemMonitor.
@@ -243,18 +254,23 @@ func (sm *SystemMonitor) Resume() {
 // It handles sampling, aggregation, and reporting of metrics
 // and is meant to run in its own goroutine.
 func (sm *SystemMonitor) Monitor(asset Asset) {
-	if !asset.IsAvailable() {
+	fmt.Println("Monitor", asset)
+	if asset == nil || !asset.IsAvailable() {
+		fmt.Println("Monitor", asset == nil, !asset.IsAvailable())
 		sm.wg.Done()
 		return
 	}
+	fmt.Println("Monitor", asset)
 
 	// recover from panic and log the error
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			sm.logger.CaptureError(
-				fmt.Errorf("monitor: panic: %v", err),
-				"asset_name", asset.Name())
+			if asset != nil {
+				sm.logger.CaptureError(
+					fmt.Errorf("monitor: panic: %v", err),
+					"asset_name", asset.Name())
+			}
 		}
 	}()
 
