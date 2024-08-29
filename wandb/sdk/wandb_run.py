@@ -2786,6 +2786,14 @@ class Run:
                 self,
             )
 
+        if (summary and "best" in summary) or goal is not None:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_best_goal,
+                "define_metric(summary='best', goal=...) is deprecated and will be removed. "
+                "Use define_metric(summary='min') or define_metric(summary='max') instead.",
+                self,
+            )
+
         return self._define_metric(
             name,
             step_metric,
