@@ -259,7 +259,7 @@ def test_code_saving(notebook):
         assert "WANDB_NOTEBOOK_NAME should be a path" in nb.all_output_text()
 
 
-@pytest.mark.wandb_core_failure(feature="launch")
+@pytest.mark.skip_wandb_core(feature="launch")
 def test_notebook_creates_artifact_job(notebook):
     with notebook("one_cell_disable_git.ipynb") as nb:
         nb.execute_all()
@@ -269,7 +269,7 @@ def test_notebook_creates_artifact_job(notebook):
         assert "5 artifact file(s)" in output
 
 
-@pytest.mark.wandb_core_failure(feature="launch")
+@pytest.mark.skip_wandb_core(feature="launch")
 def test_notebook_creates_repo_job(notebook):
     with notebook("one_cell_set_git.ipynb") as nb:
         nb.execute_all()
