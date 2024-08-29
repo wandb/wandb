@@ -767,7 +767,7 @@ func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("gql.ServerInfo: %w", err)
 	}
-	return false, fmt.Errorf("ServerInfo response: %#v", response) // TODO: delete, adhoc testing only
+	return false, fmt.Errorf("ServerInfo: %#v", response.GetServerInfo()) // TODO: delete, adhoc testing only
 
 	// // If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
 	// // expect artifact tags support in more recent deployments
