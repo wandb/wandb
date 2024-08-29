@@ -779,7 +779,7 @@ func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
 	if localVersionInfo == nil {
 		return true, nil
 	}
-	serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
+	serverVersion := localVersionInfo.GetLatestVersionString()
 	if !semver.IsValid("v" + serverVersion) {
 		return true, nil
 	}

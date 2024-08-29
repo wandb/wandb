@@ -297,17 +297,17 @@ func TestSendArtifact(t *testing.T) {
 	}{
 		{
 			name:                      "Server version doesn't support artifact tags",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.57.2"}}}`,
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"latestVersionString": "0.57.2"}}}`,
 			shouldSupportArtifactTags: false,
 		},
 		{
 			name:                      "Server version supports artifact tags",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.58.0"}}}`,
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"latestVersionString": "0.58.0"}}}`,
 			shouldSupportArtifactTags: true,
 		},
 		{
 			name:                      "Empty version string - assume tags are supported",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": ""}}}`,
+			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"latestVersionString": ""}}}`,
 			shouldSupportArtifactTags: true,
 		},
 		{
