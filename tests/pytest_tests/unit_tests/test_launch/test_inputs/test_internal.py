@@ -1,5 +1,6 @@
 """Test internal methods of the job input management sdk."""
 
+import platform
 import sys
 from enum import Enum
 from unittest.mock import MagicMock
@@ -201,6 +202,10 @@ def test_handle_config_file_input(mocker):
 @pytest.mark.skipif(
     sys.version_info < (3, 9),
     reason="Pydantic versions <2.4 doesn't support json schema",
+)
+@pytest.mark.skipif(
+    platform.system().lower() == "windows",
+    reason="Doesn't work on Windows",
 )
 def test_handle_config_file_input_pydantic(
     mocker,
