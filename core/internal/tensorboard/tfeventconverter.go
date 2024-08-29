@@ -49,6 +49,15 @@ func (h *TFEventConverter) ConvertNext(
 		}
 
 		switch h.rememberPluginName(tag, value) {
+		case "":
+			// This is an older style for TB summaries. The interpretation
+			// depends on the value field that is set.
+
+			switch value := value.GetValue().(type) {
+			case *tbproto.Summary_Value_SimpleValue:
+				processScalarsSimpleValue(emitter, tag, value.SimpleValue)
+			}
+
 		case "scalars":
 			processScalars(emitter, tag, value, logger)
 
