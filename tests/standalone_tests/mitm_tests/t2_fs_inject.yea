@@ -3,7 +3,6 @@ plugin:
 tag:
   shards:
     - mitm
-    - wandb_core_failure
 option:
   - :wandb:mitm
 command:
