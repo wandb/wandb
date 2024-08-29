@@ -1,3 +1,5 @@
+import math
+
 import pytest
 import wandb
 
@@ -303,9 +305,8 @@ def test_metric_goal(relay_server, wandb_init):
     assert metrics and len(metrics) == 3
 
 
-@pytest.mark.wandb_core_failure(
-    feature="define_metric",
-    reason="don't think it's a good idea to ignore nan values",
+@pytest.mark.wandb_core_only(
+    reason="deviates from legacy behavior as nan value should be respected"
 )
 def test_metric_nan_mean(relay_server, wandb_init):
     with relay_server() as relay:
@@ -319,12 +320,11 @@ def test_metric_nan_mean(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"] == {"mean": 3}
+    assert math.isnan(summary["val"]["mean"])
 
 
-@pytest.mark.wandb_core_failure(
-    feature="define_metric",
-    reason="don't think it's a good idea to ignore nan values",
+@pytest.mark.wandb_core_only(
+    reason="deviates from legacy behavior as nan value should be respected"
 )
 def test_metric_nan_min_norm(relay_server, wandb_init):
     with relay_server() as relay:
@@ -336,12 +336,11 @@ def test_metric_nan_min_norm(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert "val" not in summary
+    assert math.isnan(summary["val"]["min"])
 
 
-@pytest.mark.wandb_core_failure(
-    feature="define_metric",
-    reason="don't think it's a good idea to ignore nan values",
+@pytest.mark.wandb_core_only(
+    reason="deviates from legacy behavior as nan value should be respected"
 )
 def test_metric_nan_min_more(relay_server, wandb_init):
     with relay_server() as relay:
@@ -354,7 +353,7 @@ def test_metric_nan_min_more(relay_server, wandb_init):
 
     summary = relay.context.get_run_summary(run_id)
 
-    assert summary["val"] == {"min": 4}
+    assert math.isnan(summary["val"]["min"])
 
 
 def test_metric_nested_default(relay_server, wandb_init):
