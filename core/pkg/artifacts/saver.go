@@ -759,7 +759,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	return artifactID, nil
 }
 
-const minArtifactTagsServerVersion = "0.58"
+// const minArtifactTagsServerVersion = "0.58"
 
 // canSupportArtifactTags returns true if the server version supports artifact tags.
 func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
