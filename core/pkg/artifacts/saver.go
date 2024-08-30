@@ -107,59 +107,93 @@ func (as *ArtifactSaver) createArtifact() (
 		return gql.CreatedArtifactArtifact{}, err
 	}
 
+	var tags []gql.TagInput
 	if supportsTags {
-		var tags []gql.TagInput
 		for _, tag := range as.Artifact.Tags {
 			tags = append(tags, gql.TagInput{TagName: tag})
 		}
-
-		response, err := gql.CreateArtifact(
-			as.Ctx,
-			as.GraphqlClient,
-			as.Artifact.Entity,
-			as.Artifact.Project,
-			as.Artifact.Type,
-			as.Artifact.Name,
-			runId,
-			as.Artifact.Digest,
-			utils.NilIfZero(as.Artifact.Description),
-			aliases,
-			tags,
-			utils.NilIfZero(as.Artifact.Metadata),
-			utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-			utils.NilIfZero(as.HistoryStep),
-			utils.NilIfZero(as.Artifact.DistributedId),
-			as.Artifact.ClientId,
-			as.Artifact.SequenceClientId,
-		)
-		if err != nil {
-			return gql.CreatedArtifactArtifact{}, err
-		}
-		return response.GetCreateArtifact().GetArtifact(), nil
-	} else {
-		response, err := gql.CreateArtifactWithoutTags(
-			as.Ctx,
-			as.GraphqlClient,
-			as.Artifact.Entity,
-			as.Artifact.Project,
-			as.Artifact.Type,
-			as.Artifact.Name,
-			runId,
-			as.Artifact.Digest,
-			utils.NilIfZero(as.Artifact.Description),
-			aliases,
-			utils.NilIfZero(as.Artifact.Metadata),
-			utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-			utils.NilIfZero(as.HistoryStep),
-			utils.NilIfZero(as.Artifact.DistributedId),
-			as.Artifact.ClientId,
-			as.Artifact.SequenceClientId,
-		)
-		if err != nil {
-			return gql.CreatedArtifactArtifact{}, err
-		}
-		return response.GetCreateArtifact().GetArtifact(), nil
 	}
+
+	enableDigestDeduplication := true
+	input := gql.CreateArtifactInput{
+		EntityName:                as.Artifact.Entity,
+		ProjectName:               as.Artifact.Project,
+		ArtifactTypeName:          as.Artifact.Type,
+		ArtifactCollectionName:    &as.Artifact.Name,
+		RunName:                   runId,
+		Digest:                    as.Artifact.Digest,
+		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
+		Description:               utils.NilIfZero(as.Artifact.Description),
+		Aliases:                   aliases,
+		Tags:                      tags,
+		Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
+		TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+		HistoryStep:               utils.NilIfZero(as.HistoryStep),
+		EnableDigestDeduplication: &enableDigestDeduplication,
+		DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
+		ClientID:                  &as.Artifact.ClientId,
+		SequenceClientID:          &as.Artifact.SequenceClientId,
+	}
+
+	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
+	if err != nil {
+		return gql.CreatedArtifactArtifact{}, err
+	}
+	return response.GetCreateArtifact().GetArtifact(), nil
+
+	// if supportsTags {
+	// 	var tags []gql.TagInput
+	// 	for _, tag := range as.Artifact.Tags {
+	// 		tags = append(tags, gql.TagInput{TagName: tag})
+	// 	}
+	//
+	// 	response, err := gql.CreateArtifact(
+	// 		as.Ctx,
+	// 		as.GraphqlClient,
+	// 		as.Artifact.Entity,
+	// 		as.Artifact.Project,
+	// 		as.Artifact.Type,
+	// 		as.Artifact.Name,
+	// 		runId,
+	// 		as.Artifact.Digest,
+	// 		utils.NilIfZero(as.Artifact.Description),
+	// 		aliases,
+	// 		tags,
+	// 		utils.NilIfZero(as.Artifact.Metadata),
+	// 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+	// 		utils.NilIfZero(as.HistoryStep),
+	// 		utils.NilIfZero(as.Artifact.DistributedId),
+	// 		as.Artifact.ClientId,
+	// 		as.Artifact.SequenceClientId,
+	// 	)
+	// 	if err != nil {
+	// 		return gql.CreatedArtifactArtifact{}, err
+	// 	}
+	// 	return response.GetCreateArtifact().GetArtifact(), nil
+	// } else {
+	// 	response, err := gql.CreateArtifactWithoutTags(
+	// 		as.Ctx,
+	// 		as.GraphqlClient,
+	// 		as.Artifact.Entity,
+	// 		as.Artifact.Project,
+	// 		as.Artifact.Type,
+	// 		as.Artifact.Name,
+	// 		runId,
+	// 		as.Artifact.Digest,
+	// 		utils.NilIfZero(as.Artifact.Description),
+	// 		aliases,
+	// 		utils.NilIfZero(as.Artifact.Metadata),
+	// 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+	// 		utils.NilIfZero(as.HistoryStep),
+	// 		utils.NilIfZero(as.Artifact.DistributedId),
+	// 		as.Artifact.ClientId,
+	// 		as.Artifact.SequenceClientId,
+	// 	)
+	// 	if err != nil {
+	// 		return gql.CreatedArtifactArtifact{}, err
+	// 	}
+	// 	return response.GetCreateArtifact().GetArtifact(), nil
+	// }
 }
 
 func (as *ArtifactSaver) createManifest(
@@ -761,7 +795,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	return artifactID, nil
 }
 
-const minArtifactTagsServerVersion = "0.58"
+const minArtifactTagsServerVersion = "v0.58"
 
 // canSupportArtifactTags returns true if the server version supports artifact tags.
 func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
@@ -780,11 +814,12 @@ func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
 	if localVersionInfo == nil {
 		return true, nil
 	}
-	serverVersion := localVersionInfo.GetVersionOnThisInstanceString()
-	if !semver.IsValid("v" + serverVersion) {
+	// semver requires a leading "v" when comparing semantic versions
+	serverVersion := "v" + localVersionInfo.GetVersionOnThisInstanceString()
+	if !semver.IsValid(serverVersion) {
 		return true, nil
 	}
-	supportsArtifactTags := semver.Compare("v"+serverVersion, "v"+minArtifactTagsServerVersion) >= 0
+	supportsArtifactTags := semver.Compare(serverVersion, minArtifactTagsServerVersion) >= 0
 
 	return supportsArtifactTags, nil
 }

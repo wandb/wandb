@@ -10,84 +10,93 @@ fragment CreatedArtifact on CreateArtifactPayload {
     }
 }
 
+# @genqlient(for: "CreateArtifactInput.tags", omitempty: true)
 mutation CreateArtifact(
-    $entityName: String!,
-    $projectName: String!,
-    $artifactTypeName: String!,
-    $artifactCollectionName: String!,
-    $runName: String,
-    $digest: String!,
-    $description: String,
-    $aliases: [ArtifactAliasInput!],
-    $tags: [TagInput!],
-    $metadata: JSONString,
-    $ttlDurationSeconds: Int64,
-    $historyStep: Int64,
-    $distributedID: String,
-    $clientID: ID!,
-    $sequenceClientID: ID!,
+    $input: CreateArtifactInput!
 ) {
-    createArtifact(input: {
-        entityName: $entityName,
-        projectName: $projectName,
-        artifactTypeName: $artifactTypeName,
-        artifactCollectionName: $artifactCollectionName,
-        runName: $runName,
-        digest: $digest,
-        digestAlgorithm: MANIFEST_MD5,
-        description: $description,
-        aliases: $aliases,
-        tags: $tags,
-        metadata: $metadata,
-        ttlDurationSeconds: $ttlDurationSeconds,
-        historyStep: $historyStep,
-        enableDigestDeduplication: true,
-        distributedID: $distributedID,
-        clientID: $clientID,
-        sequenceClientID: $sequenceClientID,
-        }
-    ) {
+    createArtifact(input: $input) {
         ...CreatedArtifact
     }
 }
 
-# CreateArtifactWithoutTags implements the CreateArtifact mutation
-# for older server versions that do not support artifact tags.
-mutation CreateArtifactWithoutTags(
-    $entityName: String!,
-    $projectName: String!,
-    $artifactTypeName: String!,
-    $artifactCollectionName: String!,
-    $runName: String,
-    $digest: String!,
-    $description: String,
-    $aliases: [ArtifactAliasInput!],
-    $metadata: JSONString,
-    $ttlDurationSeconds: Int64,
-    $historyStep: Int64,
-    $distributedID: String,
-    $clientID: ID!,
-    $sequenceClientID: ID!,
-) {
-    createArtifact(input: {
-        entityName: $entityName,
-        projectName: $projectName,
-        artifactTypeName: $artifactTypeName,
-        artifactCollectionName: $artifactCollectionName,
-        runName: $runName,
-        digest: $digest,
-        digestAlgorithm: MANIFEST_MD5,
-        description: $description,
-        aliases: $aliases,
-        metadata: $metadata,
-        ttlDurationSeconds: $ttlDurationSeconds,
-        historyStep: $historyStep,
-        enableDigestDeduplication: true,
-        distributedID: $distributedID,
-        clientID: $clientID,
-        sequenceClientID: $sequenceClientID,
-    }
-    ) {
-        ...CreatedArtifact
-    }
-}
+#mutation CreateArtifact(
+#    $entityName: String!,
+#    $projectName: String!,
+#    $artifactTypeName: String!,
+#    $artifactCollectionName: String!,
+#    $runName: String,
+#    $digest: String!,
+#    $description: String,
+#    $aliases: [ArtifactAliasInput!],
+#    $tags: [TagInput!],
+#    $metadata: JSONString,
+#    $ttlDurationSeconds: Int64,
+#    $historyStep: Int64,
+#    $distributedID: String,
+#    $clientID: ID!,
+#    $sequenceClientID: ID!,
+#) {
+#    createArtifact(input: {
+#        entityName: $entityName,
+#        projectName: $projectName,
+#        artifactTypeName: $artifactTypeName,
+#        artifactCollectionName: $artifactCollectionName,
+#        runName: $runName,
+#        digest: $digest,
+#        digestAlgorithm: MANIFEST_MD5,
+#        description: $description,
+#        aliases: $aliases,
+#        tags: $tags,
+#        metadata: $metadata,
+#        ttlDurationSeconds: $ttlDurationSeconds,
+#        historyStep: $historyStep,
+#        enableDigestDeduplication: true,
+#        distributedID: $distributedID,
+#        clientID: $clientID,
+#        sequenceClientID: $sequenceClientID,
+#        }
+#    ) {
+#        ...CreatedArtifact
+#    }
+#}
+#
+## CreateArtifactWithoutTags implements the CreateArtifact mutation
+## for older server versions that do not support artifact tags.
+#mutation CreateArtifactWithoutTags(
+#    $entityName: String!,
+#    $projectName: String!,
+#    $artifactTypeName: String!,
+#    $artifactCollectionName: String!,
+#    $runName: String,
+#    $digest: String!,
+#    $description: String,
+#    $aliases: [ArtifactAliasInput!],
+#    $metadata: JSONString,
+#    $ttlDurationSeconds: Int64,
+#    $historyStep: Int64,
+#    $distributedID: String,
+#    $clientID: ID!,
+#    $sequenceClientID: ID!,
+#) {
+#    createArtifact(input: {
+#        entityName: $entityName,
+#        projectName: $projectName,
+#        artifactTypeName: $artifactTypeName,
+#        artifactCollectionName: $artifactCollectionName,
+#        runName: $runName,
+#        digest: $digest,
+#        digestAlgorithm: MANIFEST_MD5,
+#        description: $description,
+#        aliases: $aliases,
+#        metadata: $metadata,
+#        ttlDurationSeconds: $ttlDurationSeconds,
+#        historyStep: $historyStep,
+#        enableDigestDeduplication: true,
+#        distributedID: $distributedID,
+#        clientID: $clientID,
+#        sequenceClientID: $sequenceClientID,
+#    }
+#    ) {
+#        ...CreatedArtifact
+#    }
+#}
