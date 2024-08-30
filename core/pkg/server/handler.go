@@ -209,6 +209,12 @@ func (h *Handler) fwdRecordWithControl(record *spb.Record, controlOptions ...fun
 //gocyclo:ignore
 func (h *Handler) handleRecord(record *spb.Record) {
 	switch x := record.RecordType.(type) {
+	case *spb.Record_Final:
+	case *spb.Record_Footer:
+	case *spb.Record_NoopLinkArtifact:
+		// The above have been deleted but are kept here to avoid
+		// the panic in the default case.
+
 	case *spb.Record_Alert:
 		h.handleAlert(record)
 	case *spb.Record_Artifact:
@@ -219,16 +225,10 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleExit(record, x.Exit)
 	case *spb.Record_Files:
 		h.handleFiles(record)
-	case *spb.Record_Final:
-		h.handleFinal()
-	case *spb.Record_Footer:
-		h.handleFooter()
 	case *spb.Record_Header:
 		h.handleHeader(record)
 	case *spb.Record_History:
 		h.handleHistoryDirectly(x.History)
-	case *spb.Record_NoopLinkArtifact:
-		// Removed but kept to avoid panics
 	case *spb.Record_Metric:
 		h.handleMetric(record)
 	case *spb.Record_Output:
@@ -424,8 +424,6 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 	case spb.DeferRequest_JOIN_FP:
 	case spb.DeferRequest_FLUSH_FS:
 	case spb.DeferRequest_FLUSH_FINAL:
-		h.handleFinal()
-		h.handleFooter()
 	case spb.DeferRequest_END:
 		h.fileTransferStats.SetDone()
 	default:
@@ -492,42 +490,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 	record.GetHeader().VersionInfo = &spb.VersionInfo{
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
-	}
-	h.fwdRecordWithControl(
-		record,
-		func(control *spb.Control) {
-			control.AlwaysSend = false
-		},
-	)
-}
-
-func (h *Handler) handleFinal() {
-	if h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		return
-	}
-	record := &spb.Record{
-		RecordType: &spb.Record_Final{
-			Final: &spb.FinalRecord{},
-		},
-	}
-	h.fwdRecordWithControl(
-		record,
-		func(control *spb.Control) {
-			control.AlwaysSend = false
-		},
-	)
-}
-
-func (h *Handler) handleFooter() {
-	if h.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
-		return
-	}
-	record := &spb.Record{
-		RecordType: &spb.Record_Footer{
-			Footer: &spb.FooterRecord{},
-		},
 	}
 	h.fwdRecordWithControl(
 		record,
