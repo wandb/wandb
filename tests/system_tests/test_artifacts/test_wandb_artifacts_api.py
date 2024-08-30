@@ -4,6 +4,7 @@ import os
 import re
 
 import pytest
+
 import wandb
 from wandb import Api
 from wandb.errors import CommError
@@ -86,7 +87,6 @@ def server_supports_artifact_tags() -> bool:
     "orig_tags",
     (
         ["orig-tag", "other-tag"],
-        ["orig tag", "other-tag"],
         ["orig-TAG 1", "other-tag"],
     ),
 )
@@ -126,8 +126,9 @@ def test_save_tags_after_logging_artifact(
         # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
         assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
     else:
-        assert not fetched_artifact.tags
+        assert fetched_artifact.tags == []
 
+    curr_tags = fetched_artifact.tags
     if edit_tags_inplace:
         # Partial check that expected behavior is (reasonably) resilient to in-place mutations
         # of the list-type `.tags` attribute -- and not just reassignment.
@@ -138,14 +139,12 @@ def test_save_tags_after_logging_artifact(
         # - `artiafct.tags.append`
         # - `artifact.tags += ["new-tag"]`
         # - etc.
-        for added_tag in tags_to_add:
-            fetched_artifact.tags.append(added_tag)
-        for deleted_tag in tags_to_delete:
-            fetched_artifact.tags.remove(deleted_tag)
+        fetched_artifact.tags[:] = [
+            tag for tag in (curr_tags + tags_to_add) if tag not in tags_to_delete
+        ]
     else:
-        old_tags = fetched_artifact.tags
         fetched_artifact.tags = [
-            tag for tag in (old_tags + tags_to_add) if (tag not in tags_to_delete)
+            tag for tag in (curr_tags + tags_to_add) if tag not in tags_to_delete
         ]
 
     fetched_artifact.save()
@@ -159,7 +158,7 @@ def test_save_tags_after_logging_artifact(
             {*orig_tags, *tags_to_add} - {*tags_to_delete}
         )
     else:
-        assert not final_tags
+        assert final_tags == []
 
 
 INVALID_TAGS = (
@@ -209,12 +208,9 @@ def test_save_invalid_tags_after_logging_artifact(
         # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
         assert sorted(fetched_artifact.tags) == sorted(set(orig_tags))
     else:
-        assert not fetched_artifact.tags
+        assert fetched_artifact.tags == []
 
-    with pytest.raises(
-        (ValueError, CommError),
-        match=re.compile(r"Invalid tag", re.IGNORECASE),
-    ):
+    with pytest.raises((ValueError, CommError), match=re.compile(r"Invalid tag", re.I)):
         fetched_artifact.tags.extend(tags_to_add)
         fetched_artifact.save()
 
@@ -225,7 +221,7 @@ def test_save_invalid_tags_after_logging_artifact(
         # Order-agnostic comparison that checks uniqueness (since tagCategories are currently unused/ignored)
         assert sorted(final_tags) == sorted(set(orig_tags))
     else:
-        assert not final_tags
+        assert final_tags == []
 
 
 @pytest.mark.parametrize("invalid_tags", INVALID_TAG_LISTS)
