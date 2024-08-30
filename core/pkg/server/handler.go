@@ -491,12 +491,7 @@ func (h *Handler) handleHeader(record *spb.Record) {
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
 	}
-	h.fwdRecordWithControl(
-		record,
-		func(control *spb.Control) {
-			control.AlwaysSend = false
-		},
-	)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestServerInfo(record *spb.Record) {
