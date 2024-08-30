@@ -1,3 +1,5 @@
+//go:build linux && !libwandb_core
+
 package monitor
 
 import (
@@ -52,14 +54,14 @@ type HostMemoryUsage struct {
 	Tensors           int `json:"tensors"`
 }
 
-// Stats represents the stats returned by the neuron-monitor command
+// TrainiumStats represents the stats returned by the neuron-monitor command
 //
 // NeuroncoreUtilization: per neuron core utilization
 // HostTotalMemoryUsage: total memory usage in bytes
 // NeuronDeviceTotalMemoryUsage: total memory usage on neuron device in bytes
 // HostMemoryUsage: host memory usage breakdown
 // NeuroncoreMemoryUsage: per neuron core memory usage breakdown
-type Stats struct {
+type TrainiumStats struct {
 	NeuroncoreUtilization        map[int]float64               `json:"neuroncore_utilization"`
 	HostTotalMemoryUsage         int                           `json:"host_total_memory_usage"`
 	NeuronDeviceTotalMemoryUsage int                           `json:"neuron_device_total_memory_usage"`
@@ -82,7 +84,7 @@ type Trainium struct {
 }
 
 // getCmdPath returns the path to the neuron-monitor command
-func getCmdPath() (string, error) {
+func getNeuronMonitorCmdPath() (string, error) {
 	// try to find the command in the PATH
 	exPath, err := exec.LookPath("neuron-monitor")
 	if err == nil {
@@ -176,7 +178,7 @@ func (t *Trainium) Start() error {
 		return fmt.Errorf("Trainium monitor is already running")
 	}
 
-	exPath, err := getCmdPath()
+	exPath, err := getNeuronMonitorCmdPath()
 	if err != nil {
 		return fmt.Errorf("failed to get command path: %v", err)
 	}
@@ -233,7 +235,7 @@ func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 
 // Sample returns the latest stats from the neuron-monitor command.
 //
-// The stats are parsed into a Stats struct, flattened and returned as a map.
+// The stats are parsed into a TrainiumStats struct, flattened and returned as a map.
 //
 //gocyclo:ignore
 func (t *Trainium) Sample() (map[string]any, error) {
@@ -337,7 +339,7 @@ func (t *Trainium) Sample() (map[string]any, error) {
 		neuroncoreMemoryUsage = map[int]NeuronCoreMemoryUsage{localRankInt: neuroncoreMemoryUsage[localRankInt]}
 	}
 
-	stats := Stats{
+	stats := TrainiumStats{
 		NeuroncoreUtilization:        neuroncoreUtilization,
 		HostTotalMemoryUsage:         int(hostTotalMemoryUsage),
 		NeuronDeviceTotalMemoryUsage: int(neuronDeviceTotalMemoryUsage),
@@ -351,7 +353,7 @@ func (t *Trainium) Sample() (map[string]any, error) {
 // flattenStats recursively flattens the stats into a map.
 //
 // Keys are prepended with "trn." to be recognized by the frontend.
-func (t *Trainium) flattenStats(sample Stats) map[string]any {
+func (t *Trainium) flattenStats(sample TrainiumStats) map[string]any {
 	flattened := make(map[string]any)
 
 	var flatten func(string, any)
@@ -404,7 +406,7 @@ func (t *Trainium) Name() string {
 }
 
 func (t *Trainium) IsAvailable() bool {
-	_, err := getCmdPath()
+	_, err := getNeuronMonitorCmdPath()
 	return err == nil
 }
 

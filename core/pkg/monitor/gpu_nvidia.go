@@ -201,9 +201,9 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	// Wait for the first sample, but no more than 5 seconds
 	startTime := time.Now()
 	for {
-		t.mutex.RLock()
+		g.mutex.RLock()
 		_, ok := g.sample["_gpu.count"]
-		t.mutex.RUnlock()
+		g.mutex.RUnlock()
 		if ok {
 			break // Successfully got a sample
 		}
