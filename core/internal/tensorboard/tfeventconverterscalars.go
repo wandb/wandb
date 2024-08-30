@@ -18,10 +18,7 @@ func processScalars(
 ) {
 	switch value := value.GetValue().(type) {
 	case *tbproto.Summary_Value_SimpleValue:
-		emitter.EmitHistory(
-			pathtree.PathOf(tag),
-			strconv.FormatFloat(float64(value.SimpleValue), 'f', -1, 64),
-		)
+		processScalarsSimpleValue(emitter, tag, value.SimpleValue)
 
 	case *tbproto.Summary_Value_Tensor:
 		tensor, err := tensorFromProto(value.Tensor)
@@ -49,4 +46,16 @@ func processScalars(
 				"tensorboard: unexpected scalars value type: %T",
 				value))
 	}
+}
+
+// processScalarsSimpleValue handles a simple_value summary as a scalar.
+func processScalarsSimpleValue(
+	emitter Emitter,
+	tag string,
+	value float32,
+) {
+	emitter.EmitHistory(
+		pathtree.PathOf(tag),
+		strconv.FormatFloat(float64(value), 'f', -1, 64),
+	)
 }
