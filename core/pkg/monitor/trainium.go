@@ -17,7 +17,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// NeuronMonitorConfig represents the configuration for the neuron-monitor command
+// NeuronMonitorConfig represents the configuration for the neuron-monitor command.
 type NeuronMonitorConfig struct {
 	Period         string                `json:"period"`
 	NeuronRuntimes []NeuronRuntimeConfig `json:"neuron_runtimes"`
@@ -37,7 +37,7 @@ type MetricConfig struct {
 	Type string `json:"type"`
 }
 
-// NeuronCoreMemoryUsage represents the memory usage breakdown for a neuron core
+// NeuronCoreMemoryUsage represents the memory usage breakdown for a neuron core.
 type NeuronCoreMemoryUsage struct {
 	Constants             int `json:"constants"`
 	ModelCode             int `json:"model_code"`
@@ -46,7 +46,7 @@ type NeuronCoreMemoryUsage struct {
 	Tensors               int `json:"tensors"`
 }
 
-// HostMemoryUsage represents the memory usage breakdown on the host
+// HostMemoryUsage represents the memory usage breakdown on the host.
 type HostMemoryUsage struct {
 	ApplicationMemory int `json:"application_memory"`
 	Constants         int `json:"constants"`
@@ -54,7 +54,7 @@ type HostMemoryUsage struct {
 	Tensors           int `json:"tensors"`
 }
 
-// TrainiumStats represents the stats returned by the neuron-monitor command
+// TrainiumStats represents the stats returned by the neuron-monitor command.
 //
 // NeuroncoreUtilization: per neuron core utilization
 // HostTotalMemoryUsage: total memory usage in bytes
@@ -69,7 +69,9 @@ type TrainiumStats struct {
 	NeuroncoreMemoryUsage        map[int]NeuronCoreMemoryUsage `json:"neuroncore_memory_usage"`
 }
 
-// Trainium is a monitor for AWS Trainium devices
+// Trainium is a monitor for AWS Trainium devices.
+//
+// Uses the neuron-monitor command to get stats.
 type Trainium struct {
 	name                    string
 	pid                     int32
@@ -83,7 +85,7 @@ type Trainium struct {
 	isRunning               bool
 }
 
-// getCmdPath returns the path to the neuron-monitor command
+// getCmdPath returns the path to the neuron-monitor command.
 func getNeuronMonitorCmdPath() (string, error) {
 	// try to find the command in the PATH
 	exPath, err := exec.LookPath("neuron-monitor")
@@ -136,7 +138,7 @@ func NewTrainium(
 	return t
 }
 
-// writeNeuronMonitorConfig writes the neuron-monitor config to a file
+// writeNeuronMonitorConfig writes the neuron-monitor config to a file.
 func (t *Trainium) writeNeuronMonitorConfig(neuronMonitorConfigPath string) error {
 	config := NeuronMonitorConfig{
 		Period: fmt.Sprintf("%ds", int(t.samplingInterval)),
@@ -456,7 +458,7 @@ func (t *Trainium) Probe() *spb.MetadataRequest {
 		},
 	}
 
-	// Wait for the first sample, but no more than 5 seconds
+	// Wait for the first sample, but no more than 5 seconds.
 	startTime := time.Now()
 	for {
 		t.mutex.RLock()
