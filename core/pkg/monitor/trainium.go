@@ -170,8 +170,18 @@ func (t *Trainium) writeNeuronMonitorConfig(neuronMonitorConfigPath string) erro
 	return nil
 }
 
-// Start executes the neuron-monitor command and reads its output in a separate goroutine.
+func (t *Trainium) SetRawStats(rawStats map[string]any) {
+	t.mutex.Lock()
+	t.rawStats = rawStats
+	t.mutex.Unlock()
+}
 
+func (t *Trainium) SetRunningState(running bool) {
+	t.isRunning = running
+}
+
+// Start executes the neuron-monitor command and reads its output in a separate goroutine.
+//
 // The output is expected to be JSON. It is parsed and stored in the rawStats field.
 func (t *Trainium) Start() error {
 	if t.isRunning {
@@ -194,7 +204,7 @@ func (t *Trainium) Start() error {
 		return fmt.Errorf("failed to start command: %v", err)
 	}
 
-	t.isRunning = true
+	t.SetRunningState(true)
 
 	go func() {
 		scanner := bufio.NewScanner(stdout)
@@ -204,12 +214,12 @@ func (t *Trainium) Start() error {
 				return
 			default:
 				if scanner.Scan() {
-					t.mutex.Lock()
-					if err := json.Unmarshal(scanner.Bytes(), &t.rawStats); err != nil {
+					rawStats := make(map[string]any)
+					if err := json.Unmarshal(scanner.Bytes(), &rawStats); err != nil {
 						t.logger.CaptureError(fmt.Errorf("trainium: failed to parse JSON: %v", err))
 						continue
 					}
-					t.mutex.Unlock()
+					t.SetRawStats(rawStats)
 				}
 			}
 		}
@@ -311,7 +321,10 @@ func (t *Trainium) Sample() (map[string]any, error) {
 
 	var hostMemoryUsage HostMemoryUsage
 	if hostUsage, ok := usageBreakdown["host"].(map[string]any); ok {
-		err := json.Unmarshal([]byte(fmt.Sprintf("%v", hostUsage)), &hostMemoryUsage)
+		jsonBytes, err := json.Marshal(hostUsage)
+		if err == nil {
+			err = json.Unmarshal(jsonBytes, &hostMemoryUsage)
+		}
 		if err != nil {
 			t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal host memory usage: %v", err))
 		}
@@ -321,17 +334,22 @@ func (t *Trainium) Sample() (map[string]any, error) {
 	if ncMemUsage, ok := usageBreakdown["neuroncore_memory_usage"].(map[string]any); ok {
 		for k, v := range ncMemUsage {
 			coreID, _ := strconv.Atoi(k)
-			var coreUsage NeuronCoreMemoryUsage
-			err := json.Unmarshal([]byte(fmt.Sprintf("%v", v)), &coreUsage)
+			jsonBytes, err := json.Marshal(v)
+			if err == nil {
+				var coreUsage NeuronCoreMemoryUsage
+				err = json.Unmarshal(jsonBytes, &coreUsage)
+				if err == nil {
+					neuroncoreMemoryUsage[coreID] = coreUsage
+				}
+			}
 			if err != nil {
 				t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal neuroncore memory usage: %v", err))
 			}
-			neuroncoreMemoryUsage[coreID] = coreUsage
 		}
 	}
 
 	// When the training script is executed with torchrun,
-	// we only want keep the relevant LOCAL_RANK stats
+	// we only want to keep the relevant LOCAL_RANK stats
 	localRank := os.Getenv("LOCAL_RANK")
 	if localRank != "" {
 		localRankInt, _ := strconv.Atoi(localRank)
@@ -423,7 +441,7 @@ func (t *Trainium) Close() {
 			t.logger.CaptureError(fmt.Errorf("trainium: failed to kill process: %v", err))
 		}
 	}
-	t.isRunning = false
+	t.SetRunningState(false)
 }
 
 func (t *Trainium) Probe() *spb.MetadataRequest {
