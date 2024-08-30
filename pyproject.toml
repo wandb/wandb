@@ -212,9 +212,7 @@ ignore-decorators = [
 # Don't require docstrings on test functions.
 "tests/**" = ["D"]
 
-"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "E", "F", "N", "UP026"]
-"tests/functional_tests/fastai/t1_v1.py" = ["F405"]
-"tests/functional_tests/metaflow/**" = ["N806"]
+"landfill/**" = ["F405", "N806", "D415"]
 
 
 [tool.mypy]
