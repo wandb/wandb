@@ -16,7 +16,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -44,7 +43,6 @@ type HandlerParams struct {
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
 	FileTransferStats filetransfer.FileTransferStats
-	RunfilesUploader  runfiles.Uploader
 	TBHandler         *tensorboard.TBHandler
 	SystemMonitor     *monitor.SystemMonitor
 	TerminalPrinter   *observability.Printer
@@ -123,12 +121,6 @@ type Handler struct {
 	// tbHandler is the tensorboard handler
 	tbHandler *tensorboard.TBHandler
 
-	// runfilesUploaderOrNil manages uploading a run's files
-	//
-	// It may be nil when offline.
-	// TODO: should this be moved to the sender?
-	runfilesUploaderOrNil runfiles.Uploader
-
 	// fileTransferStats reports file upload/download statistics
 	fileTransferStats filetransfer.FileTransferStats
 
@@ -144,23 +136,22 @@ func NewHandler(
 	params HandlerParams,
 ) *Handler {
 	return &Handler{
-		commit:                commit,
-		runTimer:              timer.New(),
-		terminalPrinter:       params.TerminalPrinter,
-		logger:                params.Logger,
-		settings:              params.Settings,
-		clientID:              utils.ShortID(32),
-		fwdChan:               params.FwdChan,
-		outChan:               params.OutChan,
-		mailbox:               params.Mailbox,
-		runSummary:            runsummary.New(),
-		skipSummary:           params.SkipSummary,
-		runHistorySampler:     runhistory.NewRunHistorySampler(),
-		metricHandler:         runmetric.New(),
-		fileTransferStats:     params.FileTransferStats,
-		runfilesUploaderOrNil: params.RunfilesUploader,
-		tbHandler:             params.TBHandler,
-		systemMonitor:         params.SystemMonitor,
+		commit:            commit,
+		runTimer:          timer.New(),
+		terminalPrinter:   params.TerminalPrinter,
+		logger:            params.Logger,
+		settings:          params.Settings,
+		clientID:          utils.ShortID(32),
+		fwdChan:           params.FwdChan,
+		outChan:           params.OutChan,
+		mailbox:           params.Mailbox,
+		runSummary:        runsummary.New(),
+		skipSummary:       params.SkipSummary,
+		runHistorySampler: runhistory.NewRunHistorySampler(),
+		metricHandler:     runmetric.New(),
+		fileTransferStats: params.FileTransferStats,
+		tbHandler:         params.TBHandler,
+		systemMonitor:     params.SystemMonitor,
 	}
 }
 
@@ -410,26 +401,19 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 	switch request.State {
 	case spb.DeferRequest_BEGIN:
 	case spb.DeferRequest_FLUSH_RUN:
+
 	case spb.DeferRequest_FLUSH_STATS:
 		// stop the system monitor to ensure that we don't send any more system metrics
 		// after the run has exited
 		h.systemMonitor.Finish()
+
 	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		// This will force the content of h.runHistory to be flushed and sent
-		// over to the sender.
-		//
-		// Since the data of the PartialHistoryRequest is empty it will not
-		// change the content of h.runHistory, but it will trigger flushing
-		// of h.runHistory content, because the flush action is set to true.
-		// Hence, we are guranteed that the content of h.runHistory is sent
-		h.handleRequestPartialHistory(
-			nil,
-			&spb.PartialHistoryRequest{
-				Action: &spb.HistoryAction{
-					Flush: true,
-				},
-			},
-		)
+		if h.settings.GetXShared().GetValue() {
+			h.flushPartialHistory(false, 0)
+		} else {
+			h.flushPartialHistory(true, h.partialHistoryStep+1)
+		}
+
 	case spb.DeferRequest_FLUSH_TB:
 	case spb.DeferRequest_FLUSH_SUM:
 	case spb.DeferRequest_FLUSH_DEBOUNCER:
@@ -437,9 +421,6 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 	case spb.DeferRequest_FLUSH_JOB:
 	case spb.DeferRequest_FLUSH_DIR:
 	case spb.DeferRequest_FLUSH_FP:
-		if h.runfilesUploaderOrNil != nil {
-			h.runfilesUploaderOrNil.UploadRemaining()
-		}
 	case spb.DeferRequest_JOIN_FP:
 	case spb.DeferRequest_FLUSH_FS:
 	case spb.DeferRequest_FLUSH_FINAL:
