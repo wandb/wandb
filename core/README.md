@@ -158,5 +158,5 @@ Status legend:
 | Launch      |                   | ✅               |
 
 [^E.1]: Only raw console logging is supported.
-[^E.2]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU.
+[^E.2]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU, AWS Trainium.
 <details>

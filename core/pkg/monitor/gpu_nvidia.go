@@ -94,7 +94,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error getting stdout pipe: %v for command: %v", g.name, err, g.cmd),
 		)
-		return g
+		return nil
 	}
 
 	if err := g.cmd.Start(); err != nil {
@@ -102,7 +102,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
 		)
-		return g
+		return nil
 	}
 
 	// read and process nvidia_gpu_stats output in a separate goroutine.
@@ -198,15 +198,19 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 		return nil
 	}
 
-	// wait for the first sample
+	// Wait for the first sample, but no more than 5 seconds
+	startTime := time.Now()
 	for {
 		g.mutex.RLock()
 		_, ok := g.sample["_gpu.count"]
 		g.mutex.RUnlock()
 		if ok {
-			break
+			break // Successfully got a sample
 		}
-		// sleep for a while
+		if time.Since(startTime) > 5*time.Second {
+			// just give up if we don't get a sample in 5 seconds
+			return nil
+		}
 		time.Sleep(100 * time.Millisecond)
 	}
 

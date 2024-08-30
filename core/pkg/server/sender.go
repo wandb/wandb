@@ -544,6 +544,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		// manager.
 		s.fileWatcher.Finish()
 		if s.fileTransferManager != nil {
+			s.runfilesUploader.UploadRemaining()
 			s.runfilesUploader.Finish()
 			s.fileTransferManager.Close()
 		}
