@@ -11,6 +11,7 @@ fragment CreatedArtifact on CreateArtifactPayload {
 }
 
 # @genqlient(for: "CreateArtifactInput.tags", omitempty: true)
+#   CreateArtifactInput.tags was added in server version: 0.58
 mutation CreateArtifact(
     $input: CreateArtifactInput!
 ) {
@@ -19,6 +20,7 @@ mutation CreateArtifact(
     }
 }
 
+# TODO: Delete before merging, if current implementation approved
 #mutation CreateArtifact(
 #    $entityName: String!,
 #    $projectName: String!,

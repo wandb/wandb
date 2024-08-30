@@ -141,6 +141,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
 
+	// TODO: Delete before merging, if current implementation approved
 	// if supportsTags {
 	// 	var tags []gql.TagInput
 	// 	for _, tag := range as.Artifact.Tags {
