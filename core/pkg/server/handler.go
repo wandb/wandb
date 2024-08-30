@@ -165,12 +165,6 @@ func (h *Handler) Do(inChan <-chan *spb.Record) {
 		h.handleRecord(record)
 
 		switch record.RecordType.(type) {
-		case *spb.Record_Final:
-		case *spb.Record_Footer:
-		case *spb.Record_NoopLinkArtifact:
-		default:
-			// No-op.
-
 		case *spb.Record_Alert:
 			h.fwdRecord(record)
 		case *spb.Record_Artifact:
@@ -191,6 +185,12 @@ func (h *Handler) Do(inChan <-chan *spb.Record) {
 			h.fwdRecord(record)
 		case *spb.Record_UseArtifact:
 			h.fwdRecord(record)
+
+		case *spb.Record_Final:
+		case *spb.Record_Footer:
+		case *spb.Record_NoopLinkArtifact:
+		default:
+			// No-op.
 		}
 	}
 	h.Close()
