@@ -157,6 +157,8 @@ impl Run {
 
         self.settings.proto.sync_file = Some(format!("{}/run-{}.wandb", sync_dir, run_id));
         self.settings.proto.files_dir = Some(format!("{}/files", sync_dir));
+        self.settings.proto.log_dir = Some(format!("{}/logs", sync_dir));
+        std::fs::create_dir_all(&format!("{}/logs", sync_dir)).unwrap();
 
         let server_inform_init_request = wandb_internal::ServerRequest {
             server_request_type: Some(

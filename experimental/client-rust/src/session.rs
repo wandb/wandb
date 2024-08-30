@@ -13,6 +13,7 @@ use crate::connection::{Connection, Interface};
 use crate::launcher::Launcher;
 use crate::run::Run;
 use crate::settings::Settings;
+use crate::wandb_internal;
 
 #[pyclass]
 pub struct Session {
@@ -24,17 +25,18 @@ pub fn get_core_address() -> String {
     // TODO: get and set WANDB_CORE env variable to handle multiprocessing
     let current_dir =
         env::var("_WANDB_CORE_PATH").expect("Environment variable _WANDB_CORE_PATH is not set");
-    // Create a Path from the current_dir
     let core_cmd = Path::new(&current_dir)
         .join("wandb-core")
         .into_os_string()
         .into_string()
         .expect("Failed to convert path to string");
-    println!("Core command: {}", core_cmd);
-    let launcher = Launcher { command: core_cmd };
+
+    let mut launcher = Launcher {
+        command: core_cmd,
+        child_process: None,
+    };
     let port = launcher.start();
-    // let port = "1";
-    // format!("127.0.0.1:{:?}", port)
+
     if let Ok(port) = port {
         format!("127.0.0.1:{}", port)
     } else {
@@ -90,5 +92,32 @@ impl Session {
             tracing::error!("Couldn't connect to server...");
             panic!();
         }
+    }
+}
+
+impl Drop for Session {
+    fn drop(&mut self) {
+        // Send a teardown request to the wandb-core
+        let conn = Connection::new(self.connect());
+        let interface = Interface::new(conn);
+
+        let inform_teardown_request = wandb_internal::ServerRequest {
+            server_request_type: Some(
+                wandb_internal::server_request::ServerRequestType::InformTeardown(
+                    wandb_internal::ServerInformTeardownRequest {
+                        exit_code: 0,
+                        info: None,
+                    },
+                ),
+            ),
+        };
+        tracing::debug!(
+            "Sending inform teardown request {:?}",
+            inform_teardown_request
+        );
+        interface
+            .conn
+            .send_message(&inform_teardown_request)
+            .unwrap();
     }
 }

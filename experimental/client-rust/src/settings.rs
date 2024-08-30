@@ -13,6 +13,7 @@ impl Settings {
     #[new]
     pub fn new(
         base_url: Option<String>,
+        log_dir: Option<String>,
         log_internal: Option<String>,
         mode: Option<String>,
         project: Option<String>,
@@ -25,6 +26,7 @@ impl Settings {
         let mut proto = Settings::default().proto.clone();
 
         proto.base_url = base_url.or(proto.base_url);
+        proto.log_dir = log_dir.or(proto.log_dir);
         proto.log_internal = log_internal.or(proto.log_internal);
         proto.mode = mode.or(proto.mode);
         proto.project = project.or(proto.project);
@@ -74,6 +76,11 @@ impl Settings {
     pub fn offline(&self) -> bool {
         self.proto.offline.clone().unwrap()
     }
+
+    #[getter]
+    pub fn log_dir(&self) -> String {
+        self.proto.log_dir.clone().unwrap()
+    }
 }
 
 impl Settings {
@@ -88,6 +95,7 @@ impl Default for Settings {
         Settings {
             proto: SettingsProto {
                 base_url: Some("https://api.wandb.ai".to_string()),
+                log_dir: Some(".wandb/None-None-None/logs".to_string()),
                 log_internal: Some("wandb-internal.log".to_string()),
                 mode: Some("online".to_string()),
                 offline: Some(false),
