@@ -50,6 +50,7 @@ type HostMemoryUsage struct {
 }
 
 type Stats struct {
+	Timestamp                    float64                       `json:"timestamp"`
 	NeuroncoreUtilization        map[int]float64               `json:"neuroncore_utilization"`
 	HostTotalMemoryUsage         int                           `json:"host_total_memory_usage"`
 	NeuronDeviceTotalMemoryUsage int                           `json:"neuron_device_total_memory_usage"`
@@ -62,11 +63,10 @@ type Trainium struct {
 	pid                     int32
 	samplingInterval        float64
 	neuronMonitorConfigPath string
-	lastTimestamp           float64
 	mutex                   sync.RWMutex
 	cmd                     *exec.Cmd
 	logger                  *observability.CoreLogger
-	rawSamples              [][]byte
+	rawStats                map[string]any
 	shutdownEvent           chan struct{}
 	isRunning               bool
 }
@@ -92,7 +92,6 @@ func NewTrainium(
 		samplingInterval:        samplingInterval,
 		neuronMonitorConfigPath: neuronMonitorConfigPath,
 		logger:                  logger,
-		rawSamples:              make([][]byte, 0, 10),
 		shutdownEvent:           make(chan struct{}),
 	}
 
@@ -102,16 +101,14 @@ func NewTrainium(
 
 	if t.neuronMonitorConfigPath == "" {
 		t.neuronMonitorConfigPath = filepath.Join(os.TempDir(), "neuron_monitor_config.json")
-		// write the config file to disk
+		// write the config file to disk if not provided
 		err := t.writeNeuronMonitorConfig(t.neuronMonitorConfigPath)
-		fmt.Println(t.neuronMonitorConfigPath)
 		if err != nil {
 			return nil
 		}
 	}
 
 	err := t.Start()
-	fmt.Println("Start: ", err)
 	if err != nil {
 		return nil
 	}
@@ -158,14 +155,11 @@ func (t *Trainium) Start() error {
 	}
 
 	exPath, err := getCmdPath()
-	fmt.Println(exPath)
 	if err != nil {
 		return fmt.Errorf("failed to get command path: %v", err)
 	}
-	fmt.Println("exPath", exPath)
 
 	t.cmd = exec.Command(exPath, "-c", t.neuronMonitorConfigPath)
-	fmt.Println("t.cmd", t.cmd)
 
 	stdout, err := t.cmd.StdoutPipe()
 	if err != nil {
@@ -186,9 +180,11 @@ func (t *Trainium) Start() error {
 				return
 			default:
 				if scanner.Scan() {
-					fmt.Println("OLOLO")
 					t.mutex.Lock()
-					t.rawSamples = append(t.rawSamples, scanner.Bytes())
+					if err := json.Unmarshal(scanner.Bytes(), &t.rawStats); err != nil {
+						t.logger.CaptureError(fmt.Errorf("failed to parse JSON: %v", err))
+						continue
+					}
 					t.mutex.Unlock()
 				}
 			}
@@ -198,6 +194,13 @@ func (t *Trainium) Start() error {
 	return nil
 }
 
+// isMatchingEntry checks if the entry should be saved.
+
+// Checks if the pid in the entry matches the pid of the process.
+// If not (as in the case of multi-process training with torchrun),
+// checks if the LOCAL_RANK environment variable is set.
+
+// TODO: add matching by neuron_runtime_tag
 func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 	entryPid, ok := entry["pid"].(float64)
 	if !ok {
@@ -211,11 +214,9 @@ func (t *Trainium) Sample() (map[string]any, error) {
 		return nil, nil
 	}
 
-	var rawStats map[string]any
-	err := json.Unmarshal(t.rawSamples[len(t.rawSamples)-1], &rawStats)
-	if err != nil {
-		return nil, fmt.Errorf("error parsing JSON: %v", err)
-	}
+	t.mutex.RLock()
+	rawStats := t.rawStats
+	t.mutex.RUnlock()
 
 	neuronRuntimeData, ok := rawStats["neuron_runtime_data"].([]any)
 	if !ok || len(neuronRuntimeData) == 0 {
@@ -294,6 +295,15 @@ func (t *Trainium) Sample() (map[string]any, error) {
 		}
 	}
 
+	// When the training script is executed with torchrun,
+	// we only want keep the relevant LOCAL_RANK stats
+	localRank := os.Getenv("LOCAL_RANK")
+	if localRank != "" {
+		localRankInt, _ := strconv.Atoi(localRank)
+		neuroncoreUtilization = map[int]float64{localRankInt: neuroncoreUtilization[localRankInt]}
+		neuroncoreMemoryUsage = map[int]NeuronCoreMemoryUsage{localRankInt: neuroncoreMemoryUsage[localRankInt]}
+	}
+
 	stats := Stats{
 		NeuroncoreUtilization:        neuroncoreUtilization,
 		HostTotalMemoryUsage:         int(hostTotalMemoryUsage),
@@ -308,8 +318,8 @@ func (t *Trainium) Sample() (map[string]any, error) {
 func (t *Trainium) flattenStats(sample Stats) map[string]any {
 	flattened := make(map[string]any)
 
-	var flatten func(string, interface{})
-	flatten = func(key string, value interface{}) {
+	var flatten func(string, any)
+	flatten = func(key string, value any) {
 		switch v := value.(type) {
 		case int:
 			flattened[key] = float64(v)
@@ -339,7 +349,15 @@ func (t *Trainium) flattenStats(sample Stats) map[string]any {
 	flatten("host_memory_usage", sample.HostMemoryUsage)
 	flatten("neuroncore_memory_usage", sample.NeuroncoreMemoryUsage)
 
-	return flattened
+	// Prepend "trn." to each key
+	// This is necessary for the frontend to recognize the keys
+	result := make(map[string]any, len(flattened))
+	for k, v := range flattened {
+		newKey := "trn." + k
+		result[newKey] = v
+	}
+
+	return result
 }
 
 func (t *Trainium) Name() string {
@@ -348,12 +366,11 @@ func (t *Trainium) Name() string {
 
 func (t *Trainium) IsAvailable() bool {
 	_, err := getCmdPath()
-	fmt.Println("IsAvailable", err)
 	return err == nil
 }
 
 func (t *Trainium) Close() {
-	if t == nil || !t.isRunning {
+	if !t.isRunning {
 		return
 	}
 
@@ -365,20 +382,45 @@ func (t *Trainium) Close() {
 }
 
 func (t *Trainium) Probe() *spb.MetadataRequest {
-	if t == nil || !t.IsAvailable() {
+	if !t.IsAvailable() {
 		return nil
 	}
 
 	info := &spb.MetadataRequest{
-		// GpuNvidia: []*spb.GpuNvidiaInfo{},
+		Trainium: &spb.TrainiumInfo{
+			Name:   t.name,
+			Vendor: "AWS",
+		},
 	}
 
-	// Wait for the first sample
-	for start := time.Now(); time.Since(start) < 5*time.Second; {
-		if len(t.rawSamples) > 0 {
-			break
+	// Wait for the first sample, but no more than 5 seconds
+	startTime := time.Now()
+	for {
+		t.mutex.RLock()
+		_, ok := t.rawStats["neuron_hardware_info"]
+		t.mutex.RUnlock()
+		if ok {
+			break // Successfully got a sample
+		}
+		if time.Since(startTime) > 5*time.Second {
+			// just give up if we don't get a sample in 5 seconds
+			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
+	}
+
+	neuronHardwareInfo, ok := t.rawStats["neuron_hardware_info"].(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	neuronDeviceCount, ok := neuronHardwareInfo["neuron_device_count"].(uint32)
+	if ok {
+		info.Trainium.NeuronDeviceCount = neuronDeviceCount
+	}
+	neuroncorePerDeviceCount, ok := neuronHardwareInfo["neuroncore_per_device_count"].(uint32)
+	if ok {
+		info.Trainium.NeuroncorePerDeviceCount = neuroncorePerDeviceCount
 	}
 
 	return info

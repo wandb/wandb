@@ -254,13 +254,10 @@ func (sm *SystemMonitor) Resume() {
 // It handles sampling, aggregation, and reporting of metrics
 // and is meant to run in its own goroutine.
 func (sm *SystemMonitor) Monitor(asset Asset) {
-	fmt.Println("Monitor", asset)
 	if asset == nil || !asset.IsAvailable() {
-		fmt.Println("Monitor", asset == nil, !asset.IsAvailable())
 		sm.wg.Done()
 		return
 	}
-	fmt.Println("Monitor", asset)
 
 	// recover from panic and log the error
 	defer func() {
@@ -291,6 +288,7 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			// accumulate errors along the way, and log them here.
 			metrics, err := asset.Sample()
 			if err != nil {
+				fmt.Println("Monitor", asset.Name(), err)
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
 				)

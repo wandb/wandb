@@ -224,7 +224,7 @@ class NeuronCoreStats:
                 for k, v in usage_breakdown["neuroncore_memory_usage"].items()
             }
 
-            # executed with torchrun? only keep the local_rank stats
+            # 
             local_rank = int(os.environ.get("LOCAL_RANK", -1337))
             if local_rank >= 0:
                 neuroncore_utilization = {

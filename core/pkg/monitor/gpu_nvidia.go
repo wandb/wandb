@@ -198,15 +198,19 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 		return nil
 	}
 
-	// wait for the first sample
+	// Wait for the first sample, but no more than 5 seconds
+	startTime := time.Now()
 	for {
-		g.mutex.RLock()
+		t.mutex.RLock()
 		_, ok := g.sample["_gpu.count"]
-		g.mutex.RUnlock()
+		t.mutex.RUnlock()
 		if ok {
-			break
+			break // Successfully got a sample
 		}
-		// sleep for a while
+		if time.Since(startTime) > 5*time.Second {
+			// just give up if we don't get a sample in 5 seconds
+			return nil
+		}
 		time.Sleep(100 * time.Millisecond)
 	}
 
