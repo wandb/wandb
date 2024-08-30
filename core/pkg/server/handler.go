@@ -410,26 +410,19 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 	switch request.State {
 	case spb.DeferRequest_BEGIN:
 	case spb.DeferRequest_FLUSH_RUN:
+
 	case spb.DeferRequest_FLUSH_STATS:
 		// stop the system monitor to ensure that we don't send any more system metrics
 		// after the run has exited
 		h.systemMonitor.Finish()
+
 	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		// This will force the content of h.runHistory to be flushed and sent
-		// over to the sender.
-		//
-		// Since the data of the PartialHistoryRequest is empty it will not
-		// change the content of h.runHistory, but it will trigger flushing
-		// of h.runHistory content, because the flush action is set to true.
-		// Hence, we are guranteed that the content of h.runHistory is sent
-		h.handleRequestPartialHistory(
-			nil,
-			&spb.PartialHistoryRequest{
-				Action: &spb.HistoryAction{
-					Flush: true,
-				},
-			},
-		)
+		if h.settings.GetXShared().GetValue() {
+			h.flushPartialHistory(false, 0)
+		} else {
+			h.flushPartialHistory(true, h.partialHistoryStep+1)
+		}
+
 	case spb.DeferRequest_FLUSH_TB:
 	case spb.DeferRequest_FLUSH_SUM:
 	case spb.DeferRequest_FLUSH_DEBOUNCER:
