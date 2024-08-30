@@ -172,14 +172,23 @@ func (h *Handler) Do(inChan <-chan *spb.Record) {
 			// No-op.
 
 		case *spb.Record_Alert:
+			h.fwdRecord(record)
 		case *spb.Record_Artifact:
+			h.fwdRecord(record)
 		case *spb.Record_Config:
+			h.fwdRecord(record)
 		case *spb.Record_Files:
+			h.fwdRecord(record)
 		case *spb.Record_Output:
+			h.fwdRecord(record)
 		case *spb.Record_OutputRaw:
+			h.fwdRecord(record)
 		case *spb.Record_Preempting:
+			h.fwdRecord(record)
 		case *spb.Record_Stats:
+			h.fwdRecord(record)
 		case *spb.Record_Telemetry:
+			h.fwdRecord(record)
 		case *spb.Record_UseArtifact:
 			h.fwdRecord(record)
 		}
