@@ -2,9 +2,9 @@ import json
 import os
 import pathlib
 import platform
+import re
 import subprocess
 import sys
-import re
 from unittest import mock
 
 import pytest
@@ -259,6 +259,7 @@ def test_code_saving(notebook):
         nb.execute_all()
         assert "WANDB_NOTEBOOK_NAME should be a path" in nb.all_output_text()
 
+
 def test_notebook_creates_artifact_job(notebook):
     with notebook("one_cell_disable_git.ipynb") as nb:
         nb.execute_all()
@@ -271,7 +272,11 @@ def test_notebook_creates_artifact_job(notebook):
     run = api.run(f"{user}/uncategorized/{run_id}")
     used_artifacts = run.used_artifacts()
     assert len(used_artifacts) == 1
-    assert used_artifacts[0].name == "job-source-uncategorized-one_cell_disable_git.ipynb:v0"
+    assert (
+        used_artifacts[0].name
+        == "job-source-uncategorized-one_cell_disable_git.ipynb:v0"
+    )
+
 
 def test_notebook_creates_repo_job(notebook):
     with notebook("one_cell_set_git.ipynb") as nb:
