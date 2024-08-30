@@ -99,6 +99,11 @@ def run_pytest(
         # Tool settings are often set here. We invoke Docker in system tests,
         # which uses auth information from the home directory.
         "HOME": session.env.get("HOME"),
+        "CI": session.env.get("CI"),
+        # Required for the importers tests
+        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
+        # Required for functional tests with openai
+        "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
@@ -262,6 +267,7 @@ def system_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests",
                 "--ignore=tests/pytest_tests/system_tests/test_importers",
                 "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                "--ignore=tests/pytest_tests/system_tests/test_functional",
             ]
         ),
     )
@@ -298,6 +304,22 @@ def notebook_tests(session: nox.Session) -> None:
                 "tests/pytest_tests/system_tests/test_notebooks",
             ]
         ),
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def functional_tests_pytest(session: nox.Session):
+    """Runs functional tests using pytest."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_dev.txt",
+    )
+
+    run_pytest(
+        session,
+        paths=(session.posargs or ["tests/pytest_tests/system_tests/test_functional"]),
     )
 
 
@@ -371,50 +393,6 @@ def develop(session: nox.Session) -> None:
             "--strip",
             external=True,
         )
-
-
-@nox.session(python=False, name="list-failing-tests-wandb-core")
-def list_failing_tests_wandb_core(session: nox.Session) -> None:
-    """Lists the core failing tests grouped by feature."""
-    import pandas as pd
-    import pytest
-
-    class MyPlugin:
-        def __init__(self):
-            self.collected = []
-            self.features = []
-
-        def pytest_collection_modifyitems(self, items):
-            for item in items:
-                marks = item.own_markers
-                for mark in marks:
-                    if mark.name == "wandb_core_failure":
-                        self.collected.append(item.nodeid)
-                        self.features.append(
-                            {
-                                "name": item.nodeid,
-                                "feature": mark.kwargs.get("feature", "unspecified"),
-                            }
-                        )
-
-        def pytest_collection_finish(self):
-            session.log("\n\nFailing tests grouped by feature:")
-            df = pd.DataFrame(self.features)
-            for feature, group in df.groupby("feature"):
-                session.log(f"\n{feature}:")
-                for name in group["name"]:
-                    session.log(f"  {name}")
-
-    my_plugin = MyPlugin()
-    pytest.main(
-        [
-            "-m",
-            "wandb_core_failure",
-            "tests/pytest_tests/system_tests/test_core",
-            "--collect-only",
-        ],
-        plugins=[my_plugin],
-    )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
@@ -652,7 +630,7 @@ def proto_check_go(session: nox.Session) -> None:
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service/.",
+        in_directory="core/pkg/service_go_proto/.",
     )
 
 
@@ -864,4 +842,52 @@ def bump_go_version(session: nox.Session) -> None:
         "--no-commit",
         "--allow-dirty",
         external=True,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def launch_release_tests(session: nox.Session) -> None:
+    """Run launch-release tests.
+
+    See tests/release_tests/test_launch/README.md for more info.
+    """
+    install_wandb(session)
+    install_timed(
+        session,
+        "pytest",
+        "wandb[launch]",
+    )
+
+    session.run("wandb", "login")
+
+    run_pytest(
+        session,
+        paths=session.posargs or ["tests/release_tests/test_launch/"],
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("importer", ["wandb", "mlflow"])
+def importer_tests(session: nox.Session, importer: str):
+    """Run importer tests for wandb->wandb and mlflow->wandb."""
+    install_wandb(session)
+    session.install("-r", "requirements_dev.txt")
+    if importer == "wandb":
+        session.install(".[workspaces]", "pydantic>=2")
+    elif importer == "mlflow":
+        session.install("pydantic<2")
+    if session.python != "3.7":
+        session.install("polyfactory")
+    session.install(
+        "polars<=1.2.1",
+        "rich",
+        "filelock",
+    )
+
+    run_pytest(
+        session,
+        paths=(
+            session.posargs
+            or [f"tests/pytest_tests/system_tests/test_importers/test_{importer}"]
+        ),
     )

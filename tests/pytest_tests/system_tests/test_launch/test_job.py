@@ -118,7 +118,6 @@ def test_create_job_artifact(runner, user, wandb_init, test_settings):
     assert "output_types" in job._job_artifact.metadata
 
 
-@pytest.mark.wandb_core_failure(feature="launch")
 def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
     """This tests that a git job is created correctly, and that the job is upgraded correctly.
 
@@ -211,7 +210,6 @@ def test_create_git_job(runner, user, wandb_init, test_settings, monkeypatch):
         "port:5000:1000/1000/test/docker-image-path:alias1",
     ],
 )
-@pytest.mark.wandb_core_failure(feature="launch")
 def test_create_job_image(user, wandb_init, test_settings, image_name):
     proj = "test-p1"
 

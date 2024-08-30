@@ -26,30 +26,3 @@ def test_status_deliver(mock_run, parse_records, mocked_interface):
 
     assert status_obj.sync_items_total == 100
     assert status_obj.sync_items_pending == 10
-
-
-def test_check_version_good(mock_run, parse_records, mocked_interface):
-    mailbox = Mailbox()
-    handle1 = mailbox.get_handle()
-
-    check_version_resp = pb.CheckVersionResponse(upgrade_message="junk")
-    response = pb.Response(check_version_response=check_version_resp)
-    result = pb.Result(response=response)
-    result.control.mailbox_slot = handle1.address
-
-    mailbox.deliver(result)
-    mocked_interface.deliver_check_version = lambda current_version: handle1
-    run = mock_run()
-    run._on_init()
-    assert run._check_version.upgrade_message == "junk"
-
-
-def test_check_version_timeout(mock_run, parse_records, mocked_interface):
-    mailbox = Mailbox()
-    handle1 = mailbox.get_handle()
-
-    handle1.wait = lambda timeout: None
-    mocked_interface.deliver_check_version = lambda current_version: handle1
-    run = mock_run()
-    run._on_init()
-    assert run._check_version is None

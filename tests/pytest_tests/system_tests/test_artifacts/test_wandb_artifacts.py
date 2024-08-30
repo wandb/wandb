@@ -21,7 +21,10 @@ from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
     ArtifactNotLoggedError,
 )
-from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import (
+    GCSHandler,
+    _GCSIsADirectoryError,
+)
 from wandb.sdk.artifacts.storage_handlers.http_handler import HTTPHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
 from wandb.sdk.artifacts.storage_handlers.tracking_handler import TrackingHandler
@@ -104,9 +107,9 @@ def mock_boto(artifact, path=False, content_type=None, version_id="1"):
     return mock
 
 
-def mock_gcs(artifact, path=False, hash=True):
+def mock_gcs(artifact, override_blob_name="my_object.pb", path=False, hash=True):
     class Blob:
-        def __init__(self, name="my_object.pb", metadata=None, generation=None):
+        def __init__(self, name=override_blob_name, metadata=None, generation=None):
             self.md5_hash = "1234567890abcde" if hash else None
             self.etag = "1234567890abcde"
             self.generation = generation or "1"
@@ -120,8 +123,12 @@ def mock_gcs(artifact, path=False, hash=True):
         def reload(self, *args, **kwargs):
             return
 
-        def get_blob(self, *args, **kwargs):
-            return None if path else Blob(generation=kwargs.get("generation"))
+        def get_blob(self, key=override_blob_name, *args, **kwargs):
+            return (
+                None
+                if path or key != override_blob_name
+                else Blob(generation=kwargs.get("generation"))
+            )
 
         def list_blobs(self, *args, **kwargs):
             return [Blob(), Blob(name="my_other_object.pb")]
@@ -778,6 +785,45 @@ def test_add_gs_reference_object_no_md5():
         "extra": {"versionID": "1"},
         "size": 10,
     }
+
+
+def test_add_gs_reference_with_dir_paths():
+    artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
+    mock_gcs(artifact, override_blob_name="my_folder/")
+    artifact.add_reference("gs://my-bucket/my_folder/")
+
+    assert len(artifact.manifest.entries) == 0
+
+
+def test_load_gs_reference_with_dir_paths():
+    artifact = wandb.Artifact(type="dataset", name="my-folder-arty")
+    mock = mock_gcs(artifact, override_blob_name="my_folder/")
+    artifact.add_reference("gs://my-bucket/my_folder/")
+
+    gcs_handler = GCSHandler()
+    gcs_handler._client = mock
+
+    # simple case where ref ends with "/"
+    simple_entry = ArtifactManifestEntry(
+        path="my-bucket/my_folder",
+        ref="gs://my-bucket/my_folder/",
+        digest="1234567890abcde",
+        size=0,
+        extra={"versionID": 1},
+    )
+    with pytest.raises(_GCSIsADirectoryError):
+        gcs_handler.load_path(simple_entry, local=True)
+
+    # case where we didn't store "/" and have to use get_blob
+    entry = ArtifactManifestEntry(
+        path="my-bucket/my_folder",
+        ref="gs://my-bucket/my_folder",
+        digest="1234567890abcde",
+        size=0,
+        extra={"versionID": 1},
+    )
+    with pytest.raises(_GCSIsADirectoryError):
+        gcs_handler.load_path(entry, local=True)
 
 
 def test_add_azure_reference_no_checksum(mock_azure_handler):

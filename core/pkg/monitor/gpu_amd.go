@@ -9,12 +9,11 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// TODO: this is a port of the python code
+// TODO: this is a port of the python code.
 // should eventually switch to https://github.com/amd/go_amd_smi
 
 const rocmSMICmd string = "/usr/bin/rocm-smi"
@@ -35,16 +34,13 @@ type InfoDict map[string]interface{}
 
 type GPUAMD struct {
 	name                string
-	metrics             map[string][]float64
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	IsAvailableFunc     func() bool
-	mutex               sync.RWMutex
 }
 
 func NewGPUAMD() *GPUAMD {
 	g := &GPUAMD{
-		name:    "gpu",
-		metrics: make(map[string][]float64),
+		name: "gpu",
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
 	}
@@ -122,7 +118,7 @@ func (g *GPUAMD) getCards() map[int]Stats {
 }
 
 //gocyclo:ignore
-func (g *GPUAMD) Probe() *service.MetadataRequest {
+func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
@@ -152,8 +148,8 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 		}
 	}
 
-	info := service.MetadataRequest{
-		GpuAmd: []*service.GpuAmdInfo{},
+	info := spb.MetadataRequest{
+		GpuAmd: []*spb.GpuAmdInfo{},
 	}
 
 	info.GpuCount = uint32(len(cards))
@@ -175,7 +171,7 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 	}
 
 	for _, stats := range cards {
-		gpuInfo := service.GpuAmdInfo{}
+		gpuInfo := spb.GpuAmdInfo{}
 		for key, statKey := range keyMapping {
 			if value, ok := queryMapString(stats, statKey); ok {
 				switch key {
@@ -212,13 +208,6 @@ func (g *GPUAMD) Probe() *service.MetadataRequest {
 	}
 
 	return &info
-}
-
-func (g *GPUAMD) Samples() map[string][]float64 {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	return g.metrics
 }
 
 func getROCMSMIStats() (InfoDict, error) {
@@ -291,44 +280,21 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func (g *GPUAMD) SampleMetrics() error {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
+func (g *GPUAMD) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
 	cards := g.getCards()
 
 	for gpu_id, stats := range cards {
 		for statKey, value := range stats {
-			formattedKey := fmt.Sprintf("%s.%d.%s", g.name, gpu_id, statKey)
-			g.metrics[formattedKey] = append(g.metrics[formattedKey], value)
+			metrics[fmt.Sprintf("%s.%d.%s", g.name, gpu_id, statKey)] = value
 		}
 	}
 
-	return nil
+	return metrics, nil
 }
 
 func parseFloat(s string) (float64, error) {
 	var f float64
 	_, err := fmt.Sscanf(s, "%f", &f)
 	return f, err
-}
-
-func (g *GPUAMD) ClearMetrics() {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	g.metrics = make(map[string][]float64)
-}
-
-func (g *GPUAMD) AggregateMetrics() map[string]float64 {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	aggregates := make(map[string]float64)
-	for metric, samples := range g.metrics {
-		if len(samples) > 0 {
-			aggregates[metric] = Average(samples)
-		}
-	}
-	return aggregates
 }

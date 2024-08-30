@@ -6,12 +6,12 @@ import (
 	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // SummaryUpdate contains a run's most recent summary.
 type SummaryUpdate struct {
-	Record *service.SummaryRecord
+	Record *spb.SummaryRecord
 }
 
 func (u *SummaryUpdate) Apply(ctx UpdateContext) error {
