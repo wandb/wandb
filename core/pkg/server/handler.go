@@ -351,7 +351,12 @@ func (h *Handler) handleRequestLogin(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestCheckVersion(record *spb.Record) {
-	h.fwdRecord(record)
+	if h.settings.GetXOffline().GetValue() {
+		// Send an empty response if we're offline.
+		h.respond(record, &spb.Response{})
+	} else {
+		h.fwdRecord(record)
+	}
 }
 
 func (h *Handler) handleRequestRunStatus(record *spb.Record) {
@@ -443,7 +448,12 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 }
 
 func (h *Handler) handleRequestStopStatus(record *spb.Record) {
-	h.fwdRecord(record)
+	if h.settings.GetXOffline().GetValue() {
+		// Send an empty response if we're offline.
+		h.respond(record, &spb.Response{})
+	} else {
+		h.fwdRecord(record)
+	}
 }
 
 func (h *Handler) handleArtifact(record *spb.Record) {
@@ -495,11 +505,16 @@ func (h *Handler) handleHeader(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestServerInfo(record *spb.Record) {
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-	)
+	if h.settings.GetXOffline().GetValue() {
+		// Send an empty response if we're offline.
+		h.respond(record, &spb.Response{
+			ResponseType: &spb.Response_ServerInfoResponse{
+				ServerInfoResponse: &spb.ServerInfoResponse{},
+			},
+		})
+	} else {
+		h.fwdRecord(record)
+	}
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
