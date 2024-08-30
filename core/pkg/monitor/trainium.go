@@ -182,7 +182,7 @@ func (t *Trainium) Start() error {
 				if scanner.Scan() {
 					t.mutex.Lock()
 					if err := json.Unmarshal(scanner.Bytes(), &t.rawStats); err != nil {
-						t.logger.CaptureError(fmt.Errorf("failed to parse JSON: %v", err))
+						t.logger.CaptureError(fmt.Errorf("trainium: failed to parse JSON: %v", err))
 						continue
 					}
 					t.mutex.Unlock()
@@ -284,7 +284,7 @@ func (t *Trainium) Sample() (map[string]any, error) {
 	if hostUsage, ok := usageBreakdown["host"].(map[string]any); ok {
 		err := json.Unmarshal([]byte(fmt.Sprintf("%v", hostUsage)), &hostMemoryUsage)
 		if err != nil {
-			t.logger.CaptureError(fmt.Errorf("failed to unmarshal host memory usage: %v", err))
+			t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal host memory usage: %v", err))
 		}
 	}
 
@@ -295,7 +295,7 @@ func (t *Trainium) Sample() (map[string]any, error) {
 			var coreUsage NeuronCoreMemoryUsage
 			err := json.Unmarshal([]byte(fmt.Sprintf("%v", v)), &coreUsage)
 			if err != nil {
-				t.logger.CaptureError(fmt.Errorf("failed to unmarshal neuroncore memory usage: %v", err))
+				t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal neuroncore memory usage: %v", err))
 			}
 			neuroncoreMemoryUsage[coreID] = coreUsage
 		}
@@ -342,7 +342,11 @@ func (t *Trainium) flattenStats(sample Stats) map[string]any {
 		case HostMemoryUsage, NeuronCoreMemoryUsage:
 			jsonBytes, _ := json.Marshal(v)
 			var subMap map[string]any
-			json.Unmarshal(jsonBytes, &subMap)
+			err := json.Unmarshal(jsonBytes, &subMap)
+			if err != nil {
+				t.logger.CaptureError(fmt.Errorf("trainium: failed to unmarshal submap: %v", err))
+				return
+			}
 			for subKey, subValue := range subMap {
 				flatten(fmt.Sprintf("%s.%s", key, subKey), subValue)
 			}
@@ -382,7 +386,10 @@ func (t *Trainium) Close() {
 
 	close(t.shutdownEvent)
 	if t.cmd != nil && t.cmd.Process != nil {
-		t.cmd.Process.Kill()
+		err := t.cmd.Process.Kill()
+		if err != nil {
+			t.logger.CaptureError(fmt.Errorf("trainium: failed to kill process: %v", err))
+		}
 	}
 	t.isRunning = false
 }
