@@ -282,7 +282,10 @@ func (t *Trainium) Sample() (map[string]any, error) {
 
 	var hostMemoryUsage HostMemoryUsage
 	if hostUsage, ok := usageBreakdown["host"].(map[string]any); ok {
-		json.Unmarshal([]byte(fmt.Sprintf("%v", hostUsage)), &hostMemoryUsage)
+		err := json.Unmarshal([]byte(fmt.Sprintf("%v", hostUsage)), &hostMemoryUsage)
+		if err != nil {
+			t.logger.CaptureError(fmt.Errorf("failed to unmarshal host memory usage: %v", err))
+		}
 	}
 
 	neuroncoreMemoryUsage := make(map[int]NeuronCoreMemoryUsage)
@@ -290,7 +293,10 @@ func (t *Trainium) Sample() (map[string]any, error) {
 		for k, v := range ncMemUsage {
 			coreID, _ := strconv.Atoi(k)
 			var coreUsage NeuronCoreMemoryUsage
-			json.Unmarshal([]byte(fmt.Sprintf("%v", v)), &coreUsage)
+			err := json.Unmarshal([]byte(fmt.Sprintf("%v", v)), &coreUsage)
+			if err != nil {
+				t.logger.CaptureError(fmt.Errorf("failed to unmarshal neuroncore memory usage: %v", err))
+			}
 			neuroncoreMemoryUsage[coreID] = coreUsage
 		}
 	}
