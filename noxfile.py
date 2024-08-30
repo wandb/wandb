@@ -143,88 +143,6 @@ def run_pytest(
     )
 
 
-def run_yea(
-    session: nox.Session,
-    shard: str,
-    require_core: bool,
-    yeadoc: bool,
-    paths: List[str],
-) -> None:
-    """Runs tests using yea-wandb.
-
-    yea is a custom test runner that allows running scripts and asserting on
-    their outputs and side effects.
-
-    Args:
-        session: The current nox session.
-        shard: The "--shard" argument to pass to yea. Only tests that declare
-            a matching shard run.
-        require_core: Whether to require("core") for the test.
-        yeadoc: Whether to pass the "--yeadoc" argument to yea to make it scan
-            for docstring tests.
-        paths: The test paths to run or ["--all"].
-    """
-    yea_opts = [
-        "--strict",
-        *["--shard", shard],
-        "--mitm",
-    ]
-
-    if yeadoc:
-        yea_opts.append("--yeadoc")
-
-    yea_env = {
-        "YEACOV_SOURCE": str(site_packages_dir(session) / "wandb"),
-        "USERNAME": session.env.get("USERNAME"),
-        "PATH": session.env.get("PATH"),
-        "WANDB_API_KEY": session.env.get("WANDB_API_KEY"),
-        "WANDB__REQUIRE_CORE": str(require_core),
-        # Set the _network_buffer setting to 1000 to increase the likelihood
-        # of triggering flow control logic.
-        "WANDB__NETWORK_BUFFER": "1000",
-        # Disable writing to Sentry.
-        "WANDB_ERROR_REPORTING": "false",
-        "WANDB_CORE_ERROR_REPORTING": "false",
-    }
-
-    # is the version constraint needed?
-    install_timed(
-        session,
-        "yea-wandb==0.9.20",
-        "pip",  # used by yea to install per-test dependencies
-    )
-
-    (circle_node_index, circle_node_total) = get_circleci_splits(session)
-    if circle_node_total > 0:
-        yea_opts.append(f"--splits={circle_node_total}")
-        yea_opts.append(f"--group={int(circle_node_index) + 1}")
-
-    # yea invokes Python 'coverage'
-    yea_env.update(python_coverage_env(session))
-    yea_env.update(go_coverage_env(session))
-    session.notify("coverage")
-
-    session.run(
-        "yea",
-        *yea_opts,
-        "run",
-        *paths,
-        env=yea_env,
-        include_outer_env=False,
-    )
-
-    # yea always puts test results into test-results/junit-yea.xml, so we
-    # give the file a unique name after to avoid conflicts when other sessions
-    # also invoke yea.
-    os.rename(
-        pathlib.Path("test-results", "junit-yea.xml"),
-        pathlib.Path(
-            "test-results",
-            f"junit-yea-{get_session_file_name(session)}.xml",
-        ),
-    )
-
-
 @nox.session(python=_SUPPORTED_PYTHONS)
 def unit_tests(session: nox.Session) -> None:
     """Runs Python unit tests.
@@ -308,7 +226,7 @@ def notebook_tests(session: nox.Session) -> None:
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-def functional_tests_pytest(session: nox.Session):
+def functional_tests(session: nox.Session):
     """Runs functional tests using pytest."""
     install_wandb(session)
     install_timed(
@@ -320,36 +238,6 @@ def functional_tests_pytest(session: nox.Session):
     run_pytest(
         session,
         paths=(session.posargs or ["tests/pytest_tests/system_tests/test_functional"]),
-    )
-
-
-@nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("core", [False, True], ["no_wandb_core", "wandb_core"])
-def functional_tests(session: nox.Session, core: bool) -> None:
-    """Runs functional tests using yea.
-
-    The yea shard must be specified using the YEA_SHARD environment variable.
-    The test paths to run may be specified via positional arguments.
-    """
-    shard = session.env.get("YEA_SHARD")
-    if not shard:
-        session.error("No YEA_SHARD environment variable specified")
-
-    session.log(f"Using YEA_SHARD={shard}")
-
-    install_wandb(session)
-    run_yea(
-        session,
-        shard=shard,
-        require_core=core,
-        yeadoc=True,
-        paths=(
-            session.posargs
-            or [
-                "tests/functional_tests",
-                "tests/standalone_tests",
-            ]
-        ),
     )
 
 
@@ -711,8 +599,7 @@ def python_coverage_env(session: nox.Session) -> Dict[str, str]:
     Configures the 'coverage' tool https://coverage.readthedocs.io/en/latest/
     to be usable with the "coverage" session.
 
-    Both yea and pytest invoke coverage; for pytest it is via the pytest-cov
-    package.
+    pytest invoke coverage; for pytest it is via the pytest-cov package.
     """
     # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
     _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)

@@ -107,7 +107,6 @@ commands:
     parameters:
       python: { type: string }
       session: { type: string }
-      yea_shard: { type: string }
       codecov_flags: { type: string }
     steps:
       - run:
@@ -120,8 +119,6 @@ commands:
           no_output_timeout: 10m
           command: >
             nox -s "<<parameters.session>>" --python <<parameters.python>>
-          environment:
-            YEA_SHARD: <<parameters.yea_shard>>
 
       - upload_codecov: { flags: <<parameters.codecov_flags>> }
       - save-test-results
@@ -237,9 +234,6 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard: # if running tests with yea, like functional_tests
-        default: ""
-        type: string
       server_image:
         default: << pipeline.parameters.server_image >>
         type: string
@@ -265,7 +259,6 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
-          yea_shard: <<parameters.yea_shard>>
 
   nox-tests-macos:
     parameters:
@@ -273,9 +266,6 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard: # if running tests with yea, like functional_tests
-        default: ""
-        type: string
 
     parallelism: <<parameters.parallelism>>
     executor: macos
@@ -290,7 +280,6 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
-          yea_shard: <<parameters.yea_shard>>
 
   nox-tests-win:
     parameters:
@@ -298,9 +287,6 @@ jobs:
       codecov_flags: { type: string }
       python: { type: string }
       session: { type: string }
-      yea_shard: # if running tests with yea, like functional_tests
-        default: ""
-        type: string
 
     parallelism: <<parameters.parallelism>>
     executor:
@@ -334,7 +320,6 @@ jobs:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
           session: <<parameters.session>>
-          yea_shard: <<parameters.yea_shard>>
 
   code-check:
     docker:
@@ -588,8 +573,8 @@ workflows:
       # Functional tests with pytest on Linux
       #
       - nox-tests-linux:
-          name: functional-tests-pytest-linux-<<matrix.python>>
-          session: functional_tests_pytest
+          name: functional-tests-linux-<<matrix.python>>
+          session: functional_tests
           codecov_flags: func
           parallelism: 1
           executor_name: local-testcontainer
@@ -619,41 +604,3 @@ workflows:
           executor:
             name: local-testcontainer-importers
             python: << matrix.python >>
-
-      #
-      # Functional tests with yea on Linux
-      #
-      - nox-tests-linux:
-          name: "\
-            func-tests-linux-\
-            <<matrix.yea_shard>>-\
-            <<matrix.python>>"
-          session: functional_tests
-          codecov_flags: func
-          parallelism: 4
-
-          matrix:
-            parameters:
-              yea_shard: [default, artifacts, launch, mitm, docs]
-              python: ["3.9"]
-
-      #
-      # Functional tests with yea on Windows
-      #
-      - nox-tests-win:
-          name: func-tests-win-default-<<matrix.python>>
-          session: functional_tests
-          yea_shard: default
-          codecov_flags: func
-          parallelism: 4
-
-          filters:
-            branches:
-              only:
-                - main
-                - /^release-.*/
-                - /^.*-ci-win$/
-
-          matrix:
-            parameters:
-              python: ["3.9"]
