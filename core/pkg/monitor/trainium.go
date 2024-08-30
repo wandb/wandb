@@ -15,6 +15,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// NeuronMonitorConfig represents the configuration for the neuron-monitor command
 type NeuronMonitorConfig struct {
 	Period         string                `json:"period"`
 	NeuronRuntimes []NeuronRuntimeConfig `json:"neuron_runtimes"`
@@ -34,6 +35,7 @@ type MetricConfig struct {
 	Type string `json:"type"`
 }
 
+// NeuronCoreMemoryUsage represents the memory usage breakdown for a neuron core
 type NeuronCoreMemoryUsage struct {
 	Constants             int `json:"constants"`
 	ModelCode             int `json:"model_code"`
@@ -42,6 +44,7 @@ type NeuronCoreMemoryUsage struct {
 	Tensors               int `json:"tensors"`
 }
 
+// HostMemoryUsage represents the memory usage breakdown on the host
 type HostMemoryUsage struct {
 	ApplicationMemory int `json:"application_memory"`
 	Constants         int `json:"constants"`
@@ -49,8 +52,14 @@ type HostMemoryUsage struct {
 	Tensors           int `json:"tensors"`
 }
 
+// Stats represents the stats returned by the neuron-monitor command
+//
+// NeuroncoreUtilization: per neuron core utilization
+// HostTotalMemoryUsage: total memory usage in bytes
+// NeuronDeviceTotalMemoryUsage: total memory usage on neuron device in bytes
+// HostMemoryUsage: host memory usage breakdown
+// NeuroncoreMemoryUsage: per neuron core memory usage breakdown
 type Stats struct {
-	Timestamp                    float64                       `json:"timestamp"`
 	NeuroncoreUtilization        map[int]float64               `json:"neuroncore_utilization"`
 	HostTotalMemoryUsage         int                           `json:"host_total_memory_usage"`
 	NeuronDeviceTotalMemoryUsage int                           `json:"neuron_device_total_memory_usage"`
@@ -58,6 +67,7 @@ type Stats struct {
 	NeuroncoreMemoryUsage        map[int]NeuronCoreMemoryUsage `json:"neuroncore_memory_usage"`
 }
 
+// Trainium is a monitor for AWS Trainium devices
 type Trainium struct {
 	name                    string
 	pid                     int32
@@ -71,9 +81,15 @@ type Trainium struct {
 	isRunning               bool
 }
 
+// getCmdPath returns the path to the neuron-monitor command
 func getCmdPath() (string, error) {
-	// exPath := "/opt/aws/neuron/bin/neuron-monitor"
-	exPath := "/Users/dimaduev/dev/sdk/trn.py"
+	// try to find the command in the PATH
+	exPath, err := exec.LookPath("neuron-monitor")
+	if err == nil {
+		return exPath, nil
+	}
+	// try the default path
+	exPath = "/opt/aws/neuron/bin/neuron-monitor"
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err
 	}
@@ -99,9 +115,11 @@ func NewTrainium(
 		t.samplingInterval = 1.0
 	}
 
+	// neuron-monitor requires a JSON config file.
+	// we provide an option to supply a custom config file path
+	// in case the default temp file path is not writable.
 	if t.neuronMonitorConfigPath == "" {
 		t.neuronMonitorConfigPath = filepath.Join(os.TempDir(), "neuron_monitor_config.json")
-		// write the config file to disk if not provided
 		err := t.writeNeuronMonitorConfig(t.neuronMonitorConfigPath)
 		if err != nil {
 			return nil
@@ -116,6 +134,7 @@ func NewTrainium(
 	return t
 }
 
+// writeNeuronMonitorConfig writes the neuron-monitor config to a file
 func (t *Trainium) writeNeuronMonitorConfig(neuronMonitorConfigPath string) error {
 	config := NeuronMonitorConfig{
 		Period: fmt.Sprintf("%ds", int(t.samplingInterval)),
@@ -149,6 +168,9 @@ func (t *Trainium) writeNeuronMonitorConfig(neuronMonitorConfigPath string) erro
 	return nil
 }
 
+// Start executes the neuron-monitor command and reads its output in a separate goroutine.
+
+// The output is expected to be JSON. It is parsed and stored in the rawStats field.
 func (t *Trainium) Start() error {
 	if t.isRunning {
 		return fmt.Errorf("Trainium monitor is already running")
@@ -194,12 +216,12 @@ func (t *Trainium) Start() error {
 	return nil
 }
 
-// isMatchingEntry checks if the entry should be saved.
-
+// isMatchingEntry checks if an entry in neuronRuntimeData should be saved.
+//
 // Checks if the pid in the entry matches the pid of the process.
 // If not (as in the case of multi-process training with torchrun),
 // checks if the LOCAL_RANK environment variable is set.
-
+//
 // TODO: add matching by neuron_runtime_tag
 func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 	entryPid, ok := entry["pid"].(float64)
@@ -209,6 +231,10 @@ func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 	return int32(entryPid) == t.pid || os.Getenv("LOCAL_RANK") != ""
 }
 
+// Sample returns the latest stats from the neuron-monitor command.
+//
+// The stats are parsed into a Stats struct, flattened and returned as a map.
+//
 //gocyclo:ignore
 func (t *Trainium) Sample() (map[string]any, error) {
 	if !t.isRunning {
@@ -322,6 +348,9 @@ func (t *Trainium) Sample() (map[string]any, error) {
 	return t.flattenStats(stats), nil
 }
 
+// flattenStats recursively flattens the stats into a map.
+//
+// Keys are prepended with "trn." to be recognized by the frontend.
 func (t *Trainium) flattenStats(sample Stats) map[string]any {
 	flattened := make(map[string]any)
 
@@ -360,8 +389,7 @@ func (t *Trainium) flattenStats(sample Stats) map[string]any {
 	flatten("host_memory_usage", sample.HostMemoryUsage)
 	flatten("neuroncore_memory_usage", sample.NeuroncoreMemoryUsage)
 
-	// Prepend "trn." to each key
-	// This is necessary for the frontend to recognize the keys
+	// Prepend "trn." to each key. This is necessary for the frontend to recognize the keys.
 	result := make(map[string]any, len(flattened))
 	for k, v := range flattened {
 		newKey := "trn." + k
@@ -380,6 +408,7 @@ func (t *Trainium) IsAvailable() bool {
 	return err == nil
 }
 
+// Close stops the neuron-monitor command and sets isRunning to false.
 func (t *Trainium) Close() {
 	if !t.isRunning {
 		return
