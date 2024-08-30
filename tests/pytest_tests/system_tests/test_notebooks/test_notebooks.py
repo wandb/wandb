@@ -8,7 +8,6 @@ import re
 from unittest import mock
 
 import pytest
-import regex
 import wandb
 import wandb.jupyter
 import wandb.sdk.lib.apikey
