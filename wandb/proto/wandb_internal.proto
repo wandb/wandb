@@ -1183,6 +1183,13 @@ message GpuAmdInfo {
   string mclk_range = 13;
 }
 
+message TrainiumInfo {
+  string name = 1;
+  string vendor = 2;
+  uint32 neuron_device_count = 3;
+  uint32 neuroncore_per_device_count = 4;
+}
+
 message MetadataRequest {
   string os = 1;
   string python = 2;
@@ -1214,6 +1221,7 @@ message MetadataRequest {
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
   string cuda_version = 30;
+  TrainiumInfo trainium = 31;
 }
 
 message PythonPackagesRequest {
