@@ -3269,12 +3269,25 @@ class Run:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
+
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
+
         if aliases is not None:
             aliases = validate_aliases(aliases)
+
+        # Check if artifact tags are supported
         if tags is not None:
-            tags = validate_tags(tags)
+            supported_artifact_fields = api.api.server_artifact_introspection()
+            if "tags" not in supported_artifact_fields:
+                wandb.termwarn(
+                    "Server does not support Artifact tags, "
+                    "please upgrade the server to use Artifact tags."
+                )
+                tags = None
+            else:
+                tags = validate_tags(tags)
+
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
