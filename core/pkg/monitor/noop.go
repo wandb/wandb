@@ -15,14 +15,12 @@ type GPUNvidia struct {
 }
 
 func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
-	gpu := &GPUNvidia{
+	return &GPUNvidia{
 		name:             "gpu",
 		pid:              pid,
 		samplingInterval: samplingInterval,
 		logger:           logger,
 	}
-
-	return gpu
 }
 
 func (g *GPUNvidia) Name() string { return g.name }
@@ -39,11 +37,7 @@ type GPUAMD struct {
 	name string
 }
 
-func NewGPUAMD() *GPUAMD {
-	gpu := &GPUAMD{name: "gpu"}
-
-	return gpu
-}
+func NewGPUAMD() *GPUAMD { return &GPUAMD{name: "gpu"} }
 
 func (g *GPUAMD) Name() string { return g.name }
 
@@ -52,5 +46,38 @@ func (g *GPUAMD) Sample() (map[string]any, error) { return nil, nil }
 func (g *GPUAMD) IsAvailable() bool { return false }
 
 func (g *GPUAMD) Probe() *spb.MetadataRequest {
+	return nil
+}
+
+type Trainium struct {
+	name                    string
+	pid                     int32
+	samplingInterval        float64
+	logger                  *observability.CoreLogger
+	neuronMonitorConfigPath string
+}
+
+func NewTrainium(
+	logger *observability.CoreLogger,
+	pid int32,
+	samplingInterval float64,
+	neuronMonitorConfigPath string,
+) *Trainium {
+	return &Trainium{
+		name:                    "trainium",
+		pid:                     pid,
+		samplingInterval:        samplingInterval,
+		logger:                  logger,
+		neuronMonitorConfigPath: neuronMonitorConfigPath,
+	}
+}
+
+func (t *Trainium) Name() string { return t.name }
+
+func (t *Trainium) Sample() (map[string]any, error) { return nil, nil }
+
+func (t *Trainium) IsAvailable() bool { return false }
+
+func (t *Trainium) Probe() *spb.MetadataRequest {
 	return nil
 }
