@@ -264,6 +264,7 @@ def test_notebook_creates_artifact_job(notebook):
     with notebook("one_cell_disable_git.ipynb") as nb:
         nb.execute_all()
         output = nb.cell_output_html(2)
+    # get the run id from the url in the output
     regex_string = r'http:\/\/localhost:8080\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
     run_id = re.search(regex_string, str(output)).group(1)
 
@@ -282,6 +283,7 @@ def test_notebook_creates_repo_job(notebook):
     with notebook("one_cell_set_git.ipynb") as nb:
         nb.execute_all()
         output = nb.cell_output_html(2)
+    # get the run id from the url in the output
     regex_string = r'http:\/\/localhost:8080\/[^\/]+\/[^\/]+\/runs\/([^\'"]+)'
     run_id = re.search(regex_string, str(output)).group(1)
 
