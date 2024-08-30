@@ -375,7 +375,7 @@ jobs:
           command: |
             nox -s "importer_tests-<< parameters.python >>(importer='<< parameters.tests >>')" \
               -- $(if [ "<< parameters.tests >>" = "wandb" ]; then echo "--wandb-second-server=true"; fi) \
-              tests/pytest_tests/system_tests/test_importers/test_<< parameters.tests >>
+              tests/system_tests/test_importers/test_<< parameters.tests >>
       - upload_codecov: { flags: system }
       - save-test-results
 
