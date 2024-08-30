@@ -288,7 +288,6 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			// accumulate errors along the way, and log them here.
 			metrics, err := asset.Sample()
 			if err != nil {
-				fmt.Println("Monitor", asset.Name(), err)
 				sm.logger.CaptureError(
 					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
 				)
