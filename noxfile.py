@@ -163,7 +163,7 @@ def unit_tests(session: nox.Session) -> None:
 
     run_pytest(
         session,
-        paths=session.posargs or ["tests/pytest_tests/unit_tests"],
+        paths=session.posargs or ["tests/unit_tests"],
     )
 
 
@@ -182,10 +182,10 @@ def system_tests(session: nox.Session) -> None:
         paths=(
             session.posargs
             or [
-                "tests/pytest_tests/system_tests",
-                "--ignore=tests/pytest_tests/system_tests/test_importers",
-                "--ignore=tests/pytest_tests/system_tests/test_notebooks",
-                "--ignore=tests/pytest_tests/system_tests/test_functional",
+                "tests/system_tests",
+                "--ignore=tests/system_tests/test_importers",
+                "--ignore=tests/system_tests/test_notebooks",
+                "--ignore=tests/system_tests/test_functional",
             ]
         ),
     )
@@ -219,7 +219,7 @@ def notebook_tests(session: nox.Session) -> None:
         paths=(
             session.posargs
             or [
-                "tests/pytest_tests/system_tests/test_notebooks",
+                "tests/system_tests/test_notebooks",
             ]
         ),
     )
@@ -237,7 +237,7 @@ def functional_tests(session: nox.Session):
 
     run_pytest(
         session,
-        paths=(session.posargs or ["tests/pytest_tests/system_tests/test_functional"]),
+        paths=(session.posargs or ["tests/system_tests/test_functional"]),
     )
 
 
@@ -774,7 +774,6 @@ def importer_tests(session: nox.Session, importer: str):
     run_pytest(
         session,
         paths=(
-            session.posargs
-            or [f"tests/pytest_tests/system_tests/test_importers/test_{importer}"]
+            session.posargs or [f"tests/system_tests/test_importers/test_{importer}"]
         ),
     )
