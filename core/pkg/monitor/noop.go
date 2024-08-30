@@ -4,7 +4,7 @@ package monitor
 
 import (
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type GPUNvidia struct {
@@ -15,29 +15,21 @@ type GPUNvidia struct {
 }
 
 func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
-	gpu := &GPUNvidia{
+	return &GPUNvidia{
 		name:             "gpu",
 		pid:              pid,
 		samplingInterval: samplingInterval,
 		logger:           logger,
 	}
-
-	return gpu
 }
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) SampleMetrics() error { return nil }
-
-func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
-	return map[string]float64{}
-}
-
-func (g *GPUNvidia) ClearMetrics() {}
+func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
 
 func (g *GPUNvidia) IsAvailable() bool { return false }
 
-func (g *GPUNvidia) Probe() *service.MetadataRequest {
+func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	return nil
 }
 
@@ -45,26 +37,47 @@ type GPUAMD struct {
 	name string
 }
 
-func NewGPUAMD() *GPUAMD {
-	gpu := &GPUAMD{
-		name: "gpu",
-	}
-
-	return gpu
-}
+func NewGPUAMD() *GPUAMD { return &GPUAMD{name: "gpu"} }
 
 func (g *GPUAMD) Name() string { return g.name }
 
-func (g *GPUAMD) SampleMetrics() error { return nil }
-
-func (g *GPUAMD) AggregateMetrics() map[string]float64 {
-	return map[string]float64{}
-}
-
-func (g *GPUAMD) ClearMetrics() {}
+func (g *GPUAMD) Sample() (map[string]any, error) { return nil, nil }
 
 func (g *GPUAMD) IsAvailable() bool { return false }
 
-func (g *GPUAMD) Probe() *service.MetadataRequest {
+func (g *GPUAMD) Probe() *spb.MetadataRequest {
+	return nil
+}
+
+type Trainium struct {
+	name                    string
+	pid                     int32
+	samplingInterval        float64
+	logger                  *observability.CoreLogger
+	neuronMonitorConfigPath string
+}
+
+func NewTrainium(
+	logger *observability.CoreLogger,
+	pid int32,
+	samplingInterval float64,
+	neuronMonitorConfigPath string,
+) *Trainium {
+	return &Trainium{
+		name:                    "trainium",
+		pid:                     pid,
+		samplingInterval:        samplingInterval,
+		logger:                  logger,
+		neuronMonitorConfigPath: neuronMonitorConfigPath,
+	}
+}
+
+func (t *Trainium) Name() string { return t.name }
+
+func (t *Trainium) Sample() (map[string]any, error) { return nil, nil }
+
+func (t *Trainium) IsAvailable() bool { return false }
+
+func (t *Trainium) Probe() *spb.MetadataRequest {
 	return nil
 }

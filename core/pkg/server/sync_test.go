@@ -10,14 +10,14 @@ import (
 	"github.com/wandb/wandb/core/pkg/server"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type MockSender struct {
-	Records []*service.Record
+	Records []*spb.Record
 }
 
-func (s *MockSender) Send(record *service.Record) {
+func (s *MockSender) Send(record *spb.Record) {
 	s.Records = append(s.Records, record)
 }
 
@@ -36,26 +36,26 @@ func TestSyncService(t *testing.T) {
 	// Test syncRun
 	t.Run("syncRun", func(t *testing.T) {
 		syncService, mockSender := createSyncService()
-		run := &service.Record{
-			RecordType: &service.Record_Run{
-				Run: &service.RunRecord{},
+		run := &spb.Record{
+			RecordType: &spb.Record_Run{
+				Run: &spb.RunRecord{},
 			},
 		}
 		syncService.SyncRecord(run, nil)
 		syncService.Close()
 		assert.Equal(t, 2, len(mockSender.Records))
 		assert.Equal(t, run, mockSender.Records[0])
-		assert.IsType(t, &service.Record_Request{}, mockSender.Records[1].RecordType)
+		assert.IsType(t, &spb.Record_Request{}, mockSender.Records[1].RecordType)
 	})
 
 	// Test syncRun with overwrite
 	t.Run("syncRun with overwrite", func(t *testing.T) {
-		run := &service.Record{
-			RecordType: &service.Record_Run{
-				Run: &service.RunRecord{},
+		run := &spb.Record{
+			RecordType: &spb.Record_Run{
+				Run: &spb.RunRecord{},
 			},
 		}
-		overwrite := &service.SyncOverwrite{
+		overwrite := &spb.SyncOverwrite{
 			Entity:  "testEntity",
 			Project: "testProject",
 			RunId:   "testRunId",
@@ -73,14 +73,14 @@ func TestSyncService(t *testing.T) {
 		assert.Equal(t, overwrite.GetEntity(), modifiedRun.GetRun().Entity)
 		assert.Equal(t, overwrite.GetProject(), modifiedRun.GetRun().Project)
 		assert.Equal(t, overwrite.GetRunId(), modifiedRun.GetRun().RunId)
-		assert.IsType(t, &service.Record_Request{}, mockSender.Records[1].RecordType)
+		assert.IsType(t, &spb.Record_Request{}, mockSender.Records[1].RecordType)
 	})
 
 	// Test syncOutputRaw
 	t.Run("syncOutputRaw", func(t *testing.T) {
 		syncService, mockSender := createSyncService()
-		record := &service.Record{
-			RecordType: &service.Record_OutputRaw{},
+		record := &spb.Record{
+			RecordType: &spb.Record_OutputRaw{},
 		}
 		syncService.SyncRecord(record, nil)
 		syncService.Close()
@@ -90,7 +90,7 @@ func TestSyncService(t *testing.T) {
 
 	// Test syncOutputRaw with skip
 	t.Run("syncOutputRaw with skip", func(t *testing.T) {
-		skip := &service.SyncSkip{
+		skip := &spb.SyncSkip{
 			OutputRaw: true,
 		}
 		mockSender := MockSender{}
@@ -99,8 +99,8 @@ func TestSyncService(t *testing.T) {
 			server.WithSyncServiceSkip(skip),
 		)
 		syncService.Start()
-		record := &service.Record{
-			RecordType: &service.Record_OutputRaw{},
+		record := &spb.Record{
+			RecordType: &spb.Record_OutputRaw{},
 		}
 		syncService.SyncRecord(record, nil)
 		syncService.Close()

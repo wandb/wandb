@@ -2,7 +2,7 @@
 
 These tests are intended to be run before any release of Launch, to ensure common use cases haven't regressed. The tests shouldn't mock anything related to the wandb server, and should make actual API calls the same way a user would.
 
-To run the test suite, call `tox -e launch-release`
+To run the test suite, call `nox -s launch_release_tests`
 
 Prerequisites:
 - You must be logged into a Weights & Biases account that has access to the entity `launch-release-testing`

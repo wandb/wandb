@@ -13,6 +13,7 @@ __all__ = (
     "__version__",
     "init",
     "setup",
+    "login",
     "save",
     "sweep",
     "controller",
@@ -48,7 +49,7 @@ __all__ = (
 )
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
@@ -75,7 +76,7 @@ from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
-__version__: str = "0.17.8.dev1"
+__version__: str = "0.17.9.dev1"
 
 run: Optional[Run] = None
 config = wandb_config.Config
@@ -390,6 +391,42 @@ def init(
 
     Returns:
     A `Run` object.
+    """
+    ...
+
+def login(
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
+    verify: bool = False,
+) -> bool:
+    """Set up W&B login credentials.
+
+    By default, this will only store credentials locally without
+    verifying them with the W&B server. To verify credentials, pass
+    `verify=True`.
+
+    Arguments:
+        anonymous: (string, optional) Can be "must", "allow", or "never".
+            If set to "must", always log a user in anonymously. If set to
+            "allow", only create an anonymous user if the user
+            isn't already logged in. If set to "never", never log a
+            user anonymously. Default set to "never".
+        relogin: (bool, optional) If true, will re-prompt for API key.
+        host: (string, optional) The host to connect to.
+        force: (bool, optional) If true, will force a relogin.
+        timeout: (int, optional) Number of seconds to wait for user input.
+        verify: (bool) Verify the credentials with the W&B server.
+
+    Returns:
+        bool: if key is configured
+
+    Raises:
+        AuthenticationError - if api_key fails verification with the server
+    UsageError - if api_key cannot be configured and no tty
     """
     ...
 

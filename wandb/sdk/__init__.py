@@ -1,4 +1,4 @@
-"""module sdk."""
+"""W&B SDK module."""
 
 __all__ = (
     "Config",

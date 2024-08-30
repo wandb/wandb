@@ -6,12 +6,12 @@ import (
 	"unsafe"
 
 	"github.com/wandb/wandb/core/internal/runhistory"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // HistoryUpdate contains run metrics from `run.log()`.
 type HistoryUpdate struct {
-	Record *service.HistoryRecord
+	Record *spb.HistoryRecord
 }
 
 func (u *HistoryUpdate) Apply(ctx UpdateContext) error {

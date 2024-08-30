@@ -171,10 +171,12 @@ class RunStatusChecker:
         interface: InterfaceBase,
         stop_polling_interval: int = 15,
         retry_polling_interval: int = 5,
+        internal_messages_polling_interval: int = 10,
     ) -> None:
         self._interface = interface
         self._stop_polling_interval = stop_polling_interval
         self._retry_polling_interval = retry_polling_interval
+        self._internal_messages_polling_interval = internal_messages_polling_interval
 
         self._join_event = threading.Event()
 
@@ -323,7 +325,7 @@ class RunStatusChecker:
             self._loop_check_status(
                 lock=self._internal_messages_lock,
                 set_handle=lambda x: setattr(self, "_internal_messages_handle", x),
-                timeout=1,
+                timeout=self._internal_messages_polling_interval,
                 request=self._interface.deliver_internal_messages,
                 process=_process_internal_messages,
             )
@@ -796,11 +798,15 @@ class Run:
                     self._unique_launch_artifact_sequence_names[sequence_name] = item
 
     def _telemetry_callback(self, telem_obj: telemetry.TelemetryRecord) -> None:
+        if not hasattr(self, "_telemetry_obj"):
+            return
         self._telemetry_obj.MergeFrom(telem_obj)
         self._telemetry_obj_dirty = True
         self._telemetry_flush()
 
     def _telemetry_flush(self) -> None:
+        if not hasattr(self, "_telemetry_obj"):
+            return
         if not self._telemetry_obj_active:
             return
         if not self._telemetry_obj_dirty:
@@ -2474,18 +2480,6 @@ class Run:
     def _on_init(self) -> None:
         if self._settings._offline:
             return
-        if self._backend and self._backend.interface:
-            if not self._settings._disable_update_check:
-                logger.info("communicating current version")
-                version_handle = self._backend.interface.deliver_check_version(
-                    current_version=wandb.__version__
-                )
-                version_result = version_handle.wait(timeout=30)
-                if not version_result:
-                    version_handle.abandon()
-                else:
-                    self._check_version = version_result.response.check_version_response
-                    logger.info("got version response %s", self._check_version)
 
     def _on_start(self) -> None:
         # would like to move _set_global to _on_ready to unify _on_start and _on_attach
@@ -2494,9 +2488,7 @@ class Run:
         # TODO(jupyter) However _header calls _header_run_info that uses wandb.jupyter that uses
         #               `wandb.run` and hence breaks
         self._set_globals()
-        self._header(
-            self._check_version, settings=self._settings, printer=self._printer
-        )
+        self._header(settings=self._settings, printer=self._printer)
 
         if self._settings.save_code and self._settings.code_dir is not None:
             self.log_code(self._settings.code_dir)
@@ -2681,6 +2673,18 @@ class Run:
 
         assert self._backend and self._backend.interface
 
+        if not self._settings._disable_update_check:
+            logger.info("communicating current version")
+            version_handle = self._backend.interface.deliver_check_version(
+                current_version=wandb.__version__
+            )
+            version_result = version_handle.wait(timeout=10)
+            if not version_result:
+                version_handle.abandon()
+            else:
+                self._check_version = version_result.response.check_version_response
+                logger.info("got version response %s", self._check_version)
+
         # get the server info before starting the defer state machine as
         # it will stop communication with the server
         server_info_handle = self._backend.interface.deliver_request_server_info()
@@ -2778,6 +2782,14 @@ class Run:
             deprecate.deprecate(
                 deprecate.Deprecated.run__define_metric_copy,
                 "define_metric(summary='copy') is deprecated and will be removed.",
+                self,
+            )
+
+        if (summary and "best" in summary) or goal is not None:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_best_goal,
+                "define_metric(summary='best', goal=...) is deprecated and will be removed. "
+                "Use define_metric(summary='min') or define_metric(summary='max') instead.",
                 self,
             )
 
@@ -3674,14 +3686,10 @@ class Run:
     # with the service execution path that doesn't have access to the run instance
     @staticmethod
     def _header(
-        check_version: Optional["CheckVersionResponse"] = None,
         *,
         settings: "Settings",
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
-        Run._header_version_check_info(
-            check_version, settings=settings, printer=printer
-        )
         Run._header_wandb_version_info(settings=settings, printer=printer)
         Run._header_sync_info(settings=settings, printer=printer)
         Run._header_run_info(settings=settings, printer=printer)
@@ -3702,7 +3710,9 @@ class Run:
             printer.display(check_version.yank_message, level="warn")
 
         printer.display(
-            check_version.upgrade_message, off=not check_version.upgrade_message
+            check_version.upgrade_message,
+            off=not check_version.upgrade_message,
+            level="warn",
         )
 
     @staticmethod
@@ -4218,9 +4228,11 @@ class Run:
             printer.display(check_version.yank_message, level="warn")
 
         # only display upgrade message if packages are bad
-        package_problem = check_version.delete_message or check_version.yank_message
-        if package_problem and check_version.upgrade_message:
-            printer.display(check_version.upgrade_message)
+        if check_version.upgrade_message:
+            printer.display(
+                check_version.upgrade_message,
+                level="warn",
+            )
 
     @staticmethod
     def _footer_notify_wandb_core(
