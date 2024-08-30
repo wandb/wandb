@@ -115,6 +115,11 @@ func NewTrainium(
 		shutdownEvent:           make(chan struct{}),
 	}
 
+	// check if the neuron-monitor command is available
+	if _, err := getNeuronMonitorCmdPath(); err != nil {
+		return nil
+	}
+
 	if t.samplingInterval == 0 {
 		t.samplingInterval = 1.0
 	}
