@@ -811,6 +811,7 @@ class Deprecated(google.protobuf.message.Message):
     RUN__DEFINE_METRIC_COPY_FIELD_NUMBER: builtins.int
     RUN_DISABLED_FIELD_NUMBER: builtins.int
     KERAS_CALLBACK_FIELD_NUMBER: builtins.int
+    RUN__DEFINE_METRIC_BEST_GOAL_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
     """wandb.integration.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
@@ -845,6 +846,8 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.sdk.lib.disabled.RunDisabled used"""
     keras_callback: builtins.bool
     """wandb.integration.keras.WandbCallback used"""
+    run__define_metric_best_goal: builtins.bool
+    """wandb.run.define_metric() called with summary="best" and goal="maximize/minimize" """
     def __init__(
         self,
         *,
@@ -865,8 +868,9 @@ class Deprecated(google.protobuf.message.Message):
         run__define_metric_copy: builtins.bool = ...,
         run_disabled: builtins.bool = ...,
         keras_callback: builtins.bool = ...,
+        run__define_metric_best_goal: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_copy", b"run__define_metric_copy", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 
