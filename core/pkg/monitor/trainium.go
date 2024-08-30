@@ -209,6 +209,7 @@ func (t *Trainium) isMatchingEntry(entry map[string]any) bool {
 	return int32(entryPid) == t.pid || os.Getenv("LOCAL_RANK") != ""
 }
 
+//gocyclo:ignore
 func (t *Trainium) Sample() (map[string]any, error) {
 	if !t.isRunning {
 		return nil, nil
