@@ -149,7 +149,7 @@ func (rw *runWork) AddRecordOrCancel(
 		rw.logger.CaptureError(errRecordAfterClose, "record", record)
 
 	case <-cancel:
-	case rw.internalWork <- &WorkRecord{record}:
+	case rw.internalWork <- WorkRecord{record}:
 	}
 }
 
