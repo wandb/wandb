@@ -156,6 +156,8 @@ func NewHandler(
 }
 
 // Do processes all records on the input channel.
+//
+//gocyclo:ignore
 func (h *Handler) Do(inChan <-chan *spb.Record) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
@@ -165,32 +167,27 @@ func (h *Handler) Do(inChan <-chan *spb.Record) {
 		h.handleRecord(record)
 
 		switch record.RecordType.(type) {
-		case *spb.Record_Alert:
-			h.fwdRecord(record)
-		case *spb.Record_Artifact:
-			h.fwdRecord(record)
-		case *spb.Record_Config:
-			h.fwdRecord(record)
-		case *spb.Record_Files:
-			h.fwdRecord(record)
-		case *spb.Record_Output:
-			h.fwdRecord(record)
-		case *spb.Record_OutputRaw:
-			h.fwdRecord(record)
-		case *spb.Record_Preempting:
-			h.fwdRecord(record)
-		case *spb.Record_Stats:
-			h.fwdRecord(record)
-		case *spb.Record_Telemetry:
-			h.fwdRecord(record)
-		case *spb.Record_UseArtifact:
+		default:
 			h.fwdRecord(record)
 
+		// Exceptions to the default of forwarding:
+		case *spb.Record_Exit:
+			// The Runtime field is updated on the record before forwarding,
+			// and it is forwarded with AlwaysSend and if syncing Local.
 		case *spb.Record_Final:
+			// Deprecated.
 		case *spb.Record_Footer:
+			// Deprecated.
+		case *spb.Record_Header:
+			// The record's VersionInfo gets modified before forwarding.
 		case *spb.Record_NoopLinkArtifact:
-		default:
-			// No-op.
+			// Deprecated.
+		case *spb.Record_Tbrecord:
+			// Never forwarded.
+		case *spb.Record_Request:
+			// Getting refactored; forwarded by handleRequest for now.
+		case *spb.Record_Run:
+			// Forwarded with AlwaysSend.
 		}
 	}
 	h.Close()
@@ -249,6 +246,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Artifact:
 	case *spb.Record_Config:
 	case *spb.Record_Files:
+	case *spb.Record_History:
 	case *spb.Record_Output:
 	case *spb.Record_OutputRaw:
 	case *spb.Record_Preempting:
@@ -261,8 +259,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleExit(record, x.Exit)
 	case *spb.Record_Header:
 		h.handleHeader(record)
-	case *spb.Record_History:
-		h.handleHistoryDirectly(x.History)
 	case *spb.Record_Metric:
 		h.handleMetric(record)
 	case *spb.Record_Request:
@@ -270,7 +266,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Run:
 		h.handleRun(record)
 	case *spb.Record_Summary:
-		h.handleSummary(record, x.Summary)
+		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
 	case nil:
@@ -420,8 +416,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	if len(metric.Name) > 0 {
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
-
-	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
@@ -904,10 +898,7 @@ func (h *Handler) handleRequestJobInput(record *spb.Record) {
 //   - Explicit updates made by using `run.summary[...] = ...`
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
-func (h *Handler) handleSummary(
-	record *spb.Record,
-	summary *spb.SummaryRecord,
-) {
+func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 	for _, update := range summary.Update {
 		err := h.runSummary.SetFromRecord(update)
 		if err != nil {
@@ -919,8 +910,6 @@ func (h *Handler) handleSummary(
 	for _, remove := range summary.Remove {
 		h.runSummary.RemoveFromRecord(remove)
 	}
-
-	h.fwdRecord(record)
 }
 
 // updateRunTiming updates the `_wandb.runtime` summary metric which
@@ -940,7 +929,8 @@ func (h *Handler) updateRunTiming() {
 		},
 	}
 
-	h.handleSummary(record, record.GetSummary())
+	h.handleSummary(record.GetSummary())
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleTBrecord(record *spb.TBRecord) {
@@ -948,20 +938,6 @@ func (h *Handler) handleTBrecord(record *spb.TBRecord) {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: failed to handle TB record: %v", err))
 	}
-}
-
-// handleHistoryDirectly forwards history records without modification.
-func (h *Handler) handleHistoryDirectly(history *spb.HistoryRecord) {
-	if len(history.GetItem()) == 0 {
-		return
-	}
-
-	record := &spb.Record{
-		RecordType: &spb.Record_History{
-			History: history,
-		},
-	}
-	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
@@ -1145,7 +1121,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	if useStep {
 		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
 	}
-	h.handleHistoryDirectly(historyRecord)
+	h.fwdRecord(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: historyRecord,
+		},
+	})
 }
 
 // updateSummary updates the summary based on the current history step.
