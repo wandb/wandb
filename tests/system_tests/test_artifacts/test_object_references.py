@@ -12,12 +12,14 @@ import google.cloud.storage
 import numpy as np
 import pytest
 from bokeh.plotting import figure
+from typing_extensions import Final
 
 import wandb
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
+from wandb.sdk.data_types.base_types.wb_value import WBValue
 
-columns = [
+COLUMNS: Final[list[str]] = [
     "id",
     "class_id",
     "string",
@@ -33,22 +35,29 @@ columns = [
     "np_data",
 ]
 
+CLASS_LABELS: Final[dict[int, str]] = {
+    1: "tree",
+    2: "car",
+    3: "road",
+}
 
-def _make_wandb_image(suffix="") -> wandb.Image:
-    class_labels = {1: "tree", 2: "car", 3: "road"}
+WANDB_CLASSES: Final[wandb.Classes] = wandb.Classes(
+    [
+        {"id": 1, "name": "tree"},
+        {"id": 2, "name": "car"},
+        {"id": 3, "name": "road"},
+    ]
+)
+
+
+def _make_wandb_image(suffix: str = "") -> wandb.Image:
     assets_path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
     )
     im_path = os.path.join(assets_path, f"test{suffix}.png")
     return wandb.Image(
         im_path,
-        classes=wandb.Classes(
-            [
-                {"id": 1, "name": "tree"},
-                {"id": 2, "name": "car"},
-                {"id": 3, "name": "road"},
-            ]
-        ),
+        classes=WANDB_CLASSES,
         boxes={
             "predictions": {
                 "box_data": [
@@ -75,7 +84,7 @@ def _make_wandb_image(suffix="") -> wandb.Image:
                         "scores": {"acc": 0.1, "loss": 1.2},
                     },
                 ],
-                "class_labels": class_labels,
+                "class_labels": CLASS_LABELS,
             },
             "ground_truth": {
                 "box_data": [
@@ -102,27 +111,30 @@ def _make_wandb_image(suffix="") -> wandb.Image:
                         "scores": {"acc": 0.1, "loss": 1.2},
                     },
                 ],
-                "class_labels": class_labels,
+                "class_labels": CLASS_LABELS,
             },
         },
         masks={
             "predictions": {
                 "mask_data": np.random.randint(0, 4, size=(30, 30)),
-                "class_labels": class_labels,
+                "class_labels": CLASS_LABELS,
             },
-            "ground_truth": {"path": im_path, "class_labels": class_labels},
+            "ground_truth": {
+                "path": im_path,
+                "class_labels": CLASS_LABELS,
+            },
         },
     )
 
 
-def _make_point_cloud():
+def _make_point_cloud() -> wandb.Object3D:
     # Generate a symmetric pattern
     point_count = 20000
 
     # Choose a random sample
     theta_chi = pi * np.random.rand(point_count, 2)
 
-    def gen_point(theta, chi, i):
+    def gen_point(theta: float, chi: float, i: int):
         p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + cos(chi) * 7 * sin(
             (2 * i - 4) / 2 * (i + 2)
         )
@@ -137,7 +149,7 @@ def _make_point_cloud():
 
         return [x, y, z, r, g, b]
 
-    def wave_pattern(i):
+    def wave_pattern(i: int):
         return np.array([gen_point(theta, chi, i) for [theta, chi] in theta_chi])
 
     return wandb.Object3D(wave_pattern(0))
@@ -261,15 +273,8 @@ np_data = np.random.randint(255, size=(4, 16, 16, 3))
 
 
 def _make_wandb_table():
-    classes = wandb.Classes(
-        [
-            {"id": 1, "name": "tree"},
-            {"id": 2, "name": "car"},
-            {"id": 3, "name": "road"},
-        ]
-    )
     table = wandb.Table(
-        columns=[c for c in columns[:-1]],
+        columns=[c for c in COLUMNS[:-1]],
         data=[
             [
                 1,
@@ -329,8 +334,8 @@ def _make_wandb_table():
             ],
         ],
     )
-    table.cast("class_id", classes.get_type())
-    table.add_column(columns[-1], np_data)
+    table.cast("class_id", WANDB_CLASSES.get_type())
+    table.add_column(COLUMNS[-1], np_data)
     return table
 
 
@@ -521,9 +526,9 @@ def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handl
         assert actual_image == image
 
         actual_table = artifact.get("T1")
-        assert actual_table.columns == columns
-        assert actual_table.data[0][columns.index("Image")] == image
-        assert actual_table.data[1][columns.index("Image")] == _make_wandb_image("2")
+        assert actual_table.columns == COLUMNS
+        assert actual_table.data[0][COLUMNS.index("Image")] == image
+        assert actual_table.data[1][COLUMNS.index("Image")] == _make_wandb_image("2")
         actual_table._eq_debug(_make_wandb_table(), True)
         assert actual_table == _make_wandb_table()
 
@@ -662,7 +667,7 @@ def test_table_slice_reference_artifact(
 #       Validate that "getting" this new reference asset returns an object that is equal to the first
 #       Validate that the intermediate object is not downloaded - there are no "leftover" assets (eg. classes.json)
 #       Validate that the symbolic links are proper
-def assert_media_obj_referential_equality(obj):
+def assert_media_obj_referential_equality(obj: WBValue):
     with wandb.init() as run1:
         orig_artifact = wandb.Artifact("orig_artifact", "database")
         orig_artifact.add(obj, "obj")
@@ -699,11 +704,6 @@ def assert_media_obj_referential_equality(obj):
         obj._eq_debug(obj2, True)
 
     assert obj2 == obj
-    # name = "obj2." + type(obj)._log_type + ".json"
-    # start_path = os.path.join(mid_dir, name)
-    # mid_artifact_ref.get_entry(name).download()
-    # assert os.path.islink(start_path)
-    # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
     with wandb.init() as run5:
         mid_artifact_ref = run5.use_artifact("mid_artifact:latest")
@@ -723,11 +723,6 @@ def assert_media_obj_referential_equality(obj):
 
     assert obj3 == obj
     assert not os.path.isdir(os.path.join(mid_dir))
-    # name = "obj3." + type(obj)._log_type + ".json"
-    # start_path = os.path.join(down_dir, name)
-    # down_artifact_ref.get_entry(name).download()
-    # assert os.path.islink(start_path)
-    # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
 
 def test_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
@@ -760,25 +755,17 @@ def test_joined_table_refs(
     assert_media_obj_referential_equality(wandb_joinedtable)
 
 
-# @pytest.mark.timeout(3 * 60)
-# def test_audio_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-#     # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
-#     assert_media_obj_referential_equality(aud_ref_https())
-#     assert_media_obj_referential_equality(aud_ref_s3())
-#     assert_media_obj_referential_equality(aud_ref_gs())
-
-
-@pytest.mark.timeout(3 * 60)
+@pytest.mark.timeout(60)
 def test_audio_ref_https(user, cleanup, anon_s3_handler, anon_gcs_handler):
     assert_media_obj_referential_equality(aud_ref_https())
 
 
-@pytest.mark.timeout(3 * 60)
+@pytest.mark.timeout(60)
 def test_audio_ref_s3(user, cleanup, anon_s3_handler, anon_gcs_handler):
     assert_media_obj_referential_equality(aud_ref_s3())
 
 
-@pytest.mark.timeout(3 * 60)
+@pytest.mark.timeout(60)
 def test_audio_ref_gs(user, cleanup, anon_s3_handler, anon_gcs_handler):
     assert_media_obj_referential_equality(aud_ref_gs())
 
