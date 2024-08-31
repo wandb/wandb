@@ -161,7 +161,37 @@ func (h *Handler) Do(inChan <-chan *spb.Record) {
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
 	for record := range inChan {
 		h.logger.Debug("handle: got a message", "record_type", record.RecordType, "stream_id", h.settings.RunId)
+
 		h.handleRecord(record)
+
+		switch record.RecordType.(type) {
+		case *spb.Record_Alert:
+			h.fwdRecord(record)
+		case *spb.Record_Artifact:
+			h.fwdRecord(record)
+		case *spb.Record_Config:
+			h.fwdRecord(record)
+		case *spb.Record_Files:
+			h.fwdRecord(record)
+		case *spb.Record_Output:
+			h.fwdRecord(record)
+		case *spb.Record_OutputRaw:
+			h.fwdRecord(record)
+		case *spb.Record_Preempting:
+			h.fwdRecord(record)
+		case *spb.Record_Stats:
+			h.fwdRecord(record)
+		case *spb.Record_Telemetry:
+			h.fwdRecord(record)
+		case *spb.Record_UseArtifact:
+			h.fwdRecord(record)
+
+		case *spb.Record_Final:
+		case *spb.Record_Footer:
+		case *spb.Record_NoopLinkArtifact:
+		default:
+			// No-op.
+		}
 	}
 	h.Close()
 }
@@ -216,41 +246,33 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		// the panic in the default case.
 
 	case *spb.Record_Alert:
-		h.handleAlert(record)
 	case *spb.Record_Artifact:
-		h.handleArtifact(record)
 	case *spb.Record_Config:
-		h.handleConfig(record)
+	case *spb.Record_Files:
+	case *spb.Record_Output:
+	case *spb.Record_OutputRaw:
+	case *spb.Record_Preempting:
+	case *spb.Record_Stats:
+	case *spb.Record_Telemetry:
+	case *spb.Record_UseArtifact:
+		// The above are no-ops in the handler.
+
 	case *spb.Record_Exit:
 		h.handleExit(record, x.Exit)
-	case *spb.Record_Files:
-		h.handleFiles(record)
 	case *spb.Record_Header:
 		h.handleHeader(record)
 	case *spb.Record_History:
 		h.handleHistoryDirectly(x.History)
 	case *spb.Record_Metric:
 		h.handleMetric(record)
-	case *spb.Record_Output:
-		h.handleOutput(record)
-	case *spb.Record_OutputRaw:
-		h.handleOutputRaw(record)
-	case *spb.Record_Preempting:
-		h.handlePreempting(record)
 	case *spb.Record_Request:
 		h.handleRequest(record)
 	case *spb.Record_Run:
 		h.handleRun(record)
-	case *spb.Record_Stats:
-		h.handleSystemMetrics(record)
 	case *spb.Record_Summary:
 		h.handleSummary(record, x.Summary)
 	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
-	case *spb.Record_Telemetry:
-		h.handleTelemetry(record)
-	case *spb.Record_UseArtifact:
-		h.handleUseArtifact(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRecord: record type is nil"))
@@ -351,7 +373,12 @@ func (h *Handler) handleRequestLogin(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestCheckVersion(record *spb.Record) {
-	h.fwdRecord(record)
+	if h.settings.GetXOffline().GetValue() {
+		// Send an empty response if we're offline.
+		h.respond(record, &spb.Response{})
+	} else {
+		h.fwdRecord(record)
+	}
 }
 
 func (h *Handler) handleRequestRunStatus(record *spb.Record) {
@@ -443,11 +470,12 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 }
 
 func (h *Handler) handleRequestStopStatus(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleArtifact(record *spb.Record) {
-	h.fwdRecord(record)
+	if h.settings.GetXOffline().GetValue() {
+		// Send an empty response if we're offline.
+		h.respond(record, &spb.Response{})
+	} else {
+		h.fwdRecord(record)
+	}
 }
 
 func (h *Handler) handleRequestLogArtifact(record *spb.Record) {
@@ -491,20 +519,20 @@ func (h *Handler) handleHeader(record *spb.Record) {
 		Producer:    versionString,
 		MinConsumer: version.MinServerVersion,
 	}
-	h.fwdRecordWithControl(
-		record,
-		func(control *spb.Control) {
-			control.AlwaysSend = false
-		},
-	)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestServerInfo(record *spb.Record) {
-	h.fwdRecordWithControl(record,
-		func(control *spb.Control) {
-			control.AlwaysSend = true
-		},
-	)
+	if h.settings.GetXOffline().GetValue() {
+		// Send an empty response if we're offline.
+		h.respond(record, &spb.Response{
+			ResponseType: &spb.Response_ServerInfoResponse{
+				ServerInfoResponse: &spb.ServerInfoResponse{},
+			},
+		})
+	} else {
+		h.fwdRecord(record)
+	}
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
@@ -603,7 +631,7 @@ func (h *Handler) handleRequestPythonPackages(_ *spb.Record, request *spb.Python
 			},
 		},
 	}
-	h.handleFiles(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleCodeSave() {
@@ -641,7 +669,7 @@ func (h *Handler) handleCodeSave() {
 			},
 		},
 	}
-	h.handleFiles(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handlePatchSave() {
@@ -688,7 +716,7 @@ func (h *Handler) handlePatchSave() {
 			},
 		},
 	}
-	h.handleFiles(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
@@ -733,8 +761,7 @@ func (h *Handler) handleMetadata(request *spb.MetadataRequest) {
 			},
 		},
 	}
-
-	h.handleFiles(record)
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestAttach(record *spb.Record) {
@@ -766,36 +793,12 @@ func (h *Handler) handleRequestResume() {
 	h.systemMonitor.Resume()
 }
 
-func (h *Handler) handleSystemMetrics(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleOutput(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleOutputRaw(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handlePreempting(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
 func (h *Handler) handleRun(record *spb.Record) {
 	h.fwdRecordWithControl(record,
 		func(control *spb.Control) {
 			control.AlwaysSend = true
 		},
 	)
-}
-
-func (h *Handler) handleConfig(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleAlert(record *spb.Record) {
-	h.fwdRecord(record)
 }
 
 func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
@@ -817,13 +820,6 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 			}
 		},
 	)
-}
-
-func (h *Handler) handleFiles(record *spb.Record) {
-	if record.GetFiles() == nil {
-		return
-	}
-	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestGetSummary(record *spb.Record) {
@@ -895,14 +891,6 @@ func (h *Handler) handleRequestSync(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestSenderRead(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleTelemetry(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleUseArtifact(record *spb.Record) {
 	h.fwdRecord(record)
 }
 
