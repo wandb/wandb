@@ -7,6 +7,7 @@ use std::net::TcpStream;
 use sentry;
 use std::env;
 use std::path::Path;
+use std::sync::Arc;
 use tracing;
 
 use crate::connection::{Connection, Interface};
@@ -15,8 +16,18 @@ use crate::run::Run;
 use crate::settings::Settings;
 use crate::wandb_internal;
 
+// #[pyclass]
+// pub struct Session {
+//     settings: Settings,
+//     addr: String,
+// }
+
 #[pyclass]
 pub struct Session {
+    inner: Arc<SessionInner>,
+}
+
+pub struct SessionInner {
     settings: Settings,
     addr: String,
 }
@@ -51,32 +62,54 @@ pub fn get_core_address() -> String {
 
 #[pymethods]
 impl Session {
-    #[new]
-    pub fn new(settings: Settings) -> Session {
-        let addr = get_core_address();
-        let session = Session { settings, addr };
-        tracing::debug!("Session created");
+    // #[new]
+    // pub fn new(settings: Settings) -> Session {
+    //     let addr = get_core_address();
+    //     let session = Session { settings, addr };
+    //     tracing::debug!("Session created");
 
-        session
+    //     session
+    // }
+
+    // pub fn init_run(&self, run_id: Option<String>) -> Run {
+    //     let conn = Connection::new(self.connect());
+    //     let interface = Interface::new(conn);
+
+    //     let mut run = Run {
+    //         settings: self.settings.clone(),
+    //         interface,
+    //         _session: Arc::new(self.clone()),
+    //     };
+
+    //     run.init(run_id);
+
+    //     return run;
+    // }
+    #[new]
+    pub fn new(settings: Settings) -> PyResult<Self> {
+        let addr = get_core_address();
+        let inner = Arc::new(SessionInner { settings, addr });
+        Ok(Session { inner })
     }
 
-    pub fn init_run(&self, run_id: Option<String>) -> Run {
-        let conn = Connection::new(self.connect());
+    pub fn init_run(&self, run_id: Option<String>) -> PyResult<Run> {
+        let conn = Connection::new(self.inner.connect());
         let interface = Interface::new(conn);
 
         let mut run = Run {
-            settings: self.settings.clone(),
+            settings: self.inner.settings.clone(),
             interface,
+            _session: Arc::clone(&self.inner),
         };
 
         run.init(run_id);
 
-        return run;
+        Ok(run)
     }
 }
 
-impl Session {
-    fn connect(&self) -> TcpStream {
+impl SessionInner {
+    pub fn connect(&self) -> TcpStream {
         tracing::debug!("Connecting to {}", self.addr);
 
         if let Ok(stream) = TcpStream::connect(&self.addr) {
@@ -95,8 +128,9 @@ impl Session {
     }
 }
 
-impl Drop for Session {
+impl Drop for SessionInner {
     fn drop(&mut self) {
+        println!("Dropping session");
         // Send a teardown request to the wandb-core
         let conn = Connection::new(self.connect());
         let interface = Interface::new(conn);

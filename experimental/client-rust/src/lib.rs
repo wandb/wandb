@@ -1,7 +1,6 @@
 use pyo3::prelude::*;
-use std::sync::OnceLock;
-
 use sentry;
+use std::sync::OnceLock;
 use tracing;
 use tracing_subscriber;
 
@@ -34,10 +33,17 @@ pub fn get_core_version() -> &'static str {
     })
 }
 
+// #[pyfunction]
+// pub fn init(settings: Option<settings::Settings>) -> run::Run {
+//     let actual_settings = settings.unwrap_or_default();
+//     let sess = session::Session::new(actual_settings);
+//     sess.init_run(None)
+// }
+
 #[pyfunction]
-pub fn init(settings: Option<settings::Settings>) -> run::Run {
+pub fn init(settings: Option<settings::Settings>) -> PyResult<run::Run> {
     let actual_settings = settings.unwrap_or_default();
-    let sess = session::Session::new(actual_settings);
+    let sess = session::Session::new(actual_settings)?;
     sess.init_run(None)
 }
 

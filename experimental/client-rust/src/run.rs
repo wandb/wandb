@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
 use crate::connection::Interface;
+use crate::session;
 use crate::wandb_internal;
 use chrono;
 use image;
@@ -10,6 +11,7 @@ use rand::thread_rng;
 use serde::{Serialize, Serializer};
 use sha2::Digest;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tracing;
 
 use crate::printer;
@@ -106,6 +108,7 @@ fn ndarray_to_image(arr: PyReadonlyArrayDyn<'_, f64>, path: &String) -> HashMap<
 pub struct Run {
     pub settings: Settings,
     pub interface: Interface,
+    pub _session: Arc<session::SessionInner>,
 }
 
 impl Run {
