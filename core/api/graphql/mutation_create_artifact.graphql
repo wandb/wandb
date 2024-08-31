@@ -10,58 +10,62 @@ fragment CreatedArtifact on CreateArtifactPayload {
     }
 }
 
-# CreateArtifactInput.tags was added in server version: 0.58
-# @genqlient(for: "CreateArtifactInput.tags", omitempty: true)
+## TODO: Delete before merging, if current implementation approved
+## CreateArtifactInput.tags was added in server version: 0.58
+## @genqlient(for: "CreateArtifactInput.tags", omitempty: true)
+#mutation CreateArtifact(
+#    $input: CreateArtifactInput!
+#) {
+#    createArtifact(input: $input) {
+#        ...CreatedArtifact
+#    }
+#}
+
+# TODO: Delete before merging, if current implementation approved
 mutation CreateArtifact(
-    $input: CreateArtifactInput!
+    $entityName: String!,
+    $projectName: String!,
+    $artifactTypeName: String!,
+    $artifactCollectionName: String!,
+    $runName: String,
+    $digest: String!,
+    $description: String,
+    $aliases: [ArtifactAliasInput!],
+    # CreateArtifactInput.tags was added in server version: 0.58
+    # @genqlient(omitempty: true)
+    $tags: [TagInput!],
+    $metadata: JSONString,
+    $ttlDurationSeconds: Int64,
+    $historyStep: Int64,
+    $distributedID: String,
+    $clientID: ID!,
+    $sequenceClientID: ID!,
 ) {
-    createArtifact(input: $input) {
+    createArtifact(input: {
+        entityName: $entityName,
+        projectName: $projectName,
+        artifactTypeName: $artifactTypeName,
+        artifactCollectionName: $artifactCollectionName,
+        runName: $runName,
+        digest: $digest,
+        digestAlgorithm: MANIFEST_MD5,
+        description: $description,
+        aliases: $aliases,
+        tags: $tags,
+        metadata: $metadata,
+        ttlDurationSeconds: $ttlDurationSeconds,
+        historyStep: $historyStep,
+        enableDigestDeduplication: true,
+        distributedID: $distributedID,
+        clientID: $clientID,
+        sequenceClientID: $sequenceClientID,
+        }
+    ) {
         ...CreatedArtifact
     }
 }
 
 # TODO: Delete before merging, if current implementation approved
-#mutation CreateArtifact(
-#    $entityName: String!,
-#    $projectName: String!,
-#    $artifactTypeName: String!,
-#    $artifactCollectionName: String!,
-#    $runName: String,
-#    $digest: String!,
-#    $description: String,
-#    $aliases: [ArtifactAliasInput!],
-#    $tags: [TagInput!],
-#    $metadata: JSONString,
-#    $ttlDurationSeconds: Int64,
-#    $historyStep: Int64,
-#    $distributedID: String,
-#    $clientID: ID!,
-#    $sequenceClientID: ID!,
-#) {
-#    createArtifact(input: {
-#        entityName: $entityName,
-#        projectName: $projectName,
-#        artifactTypeName: $artifactTypeName,
-#        artifactCollectionName: $artifactCollectionName,
-#        runName: $runName,
-#        digest: $digest,
-#        digestAlgorithm: MANIFEST_MD5,
-#        description: $description,
-#        aliases: $aliases,
-#        tags: $tags,
-#        metadata: $metadata,
-#        ttlDurationSeconds: $ttlDurationSeconds,
-#        historyStep: $historyStep,
-#        enableDigestDeduplication: true,
-#        distributedID: $distributedID,
-#        clientID: $clientID,
-#        sequenceClientID: $sequenceClientID,
-#        }
-#    ) {
-#        ...CreatedArtifact
-#    }
-#}
-#
 ## CreateArtifactWithoutTags implements the CreateArtifact mutation
 ## for older server versions that do not support artifact tags.
 #mutation CreateArtifactWithoutTags(

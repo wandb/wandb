@@ -114,28 +114,46 @@ func (as *ArtifactSaver) createArtifact() (
 		}
 	}
 
-	enableDigestDeduplication := true
-	input := gql.CreateArtifactInput{
-		EntityName:                as.Artifact.Entity,
-		ProjectName:               as.Artifact.Project,
-		ArtifactTypeName:          as.Artifact.Type,
-		ArtifactCollectionName:    &as.Artifact.Name,
-		RunName:                   runId,
-		Digest:                    as.Artifact.Digest,
-		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
-		Description:               utils.NilIfZero(as.Artifact.Description),
-		Aliases:                   aliases,
-		Tags:                      tags,
-		Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
-		TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-		HistoryStep:               utils.NilIfZero(as.HistoryStep),
-		EnableDigestDeduplication: &enableDigestDeduplication,
-		DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
-		ClientID:                  &as.Artifact.ClientId,
-		SequenceClientID:          &as.Artifact.SequenceClientId,
-	}
+	// TODO: Delete before merging, if current implementation approved
+	// enableDigestDeduplication := true
+	// input := gql.CreateArtifactInput{
+	// 	EntityName:                as.Artifact.Entity,
+	// 	ProjectName:               as.Artifact.Project,
+	// 	ArtifactTypeName:          as.Artifact.Type,
+	// 	ArtifactCollectionName:    &as.Artifact.Name,
+	// 	RunName:                   runId,
+	// 	Digest:                    as.Artifact.Digest,
+	// 	DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
+	// 	Description:               utils.NilIfZero(as.Artifact.Description),
+	// 	Aliases:                   aliases,
+	// 	Tags:                      tags,
+	// 	Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
+	// 	TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+	// 	HistoryStep:               utils.NilIfZero(as.HistoryStep),
+	// 	EnableDigestDeduplication: &enableDigestDeduplication,
+	// 	DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
+	// 	ClientID:                  &as.Artifact.ClientId,
+	// 	SequenceClientID:          &as.Artifact.SequenceClientId,
+	// }
 
-	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
+	response, err := gql.CreateArtifact(
+		as.Ctx, as.GraphqlClient,
+		as.Artifact.Entity,
+		as.Artifact.Project,
+		as.Artifact.Type,
+		as.Artifact.Name,
+		runId,
+		as.Artifact.Digest,
+		utils.NilIfZero(as.Artifact.Description),
+		aliases,
+		tags,
+		utils.NilIfZero(as.Artifact.Metadata),
+		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+		utils.NilIfZero(as.HistoryStep),
+		utils.NilIfZero(as.Artifact.DistributedId),
+		as.Artifact.ClientId,
+		as.Artifact.SequenceClientId,
+	)
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
