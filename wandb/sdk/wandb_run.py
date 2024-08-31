@@ -3278,15 +3278,15 @@ class Run:
 
         # Check if artifact tags are supported
         if tags is not None:
-            supported_artifact_fields = api.api.server_artifact_introspection()
-            if "tags" not in supported_artifact_fields:
-                wandb.termwarn(
-                    "Server does not support Artifact tags, "
-                    "please upgrade the server to use Artifact tags."
-                )
-                tags = None
-            else:
-                tags = validate_tags(tags)
+            tags = validate_tags(tags)
+
+        supported_artifact_fields = api.api.server_artifact_introspection()
+        if tags and ("tags" not in supported_artifact_fields):
+            wandb.termwarn(
+                "Server does not support Artifact tags, "
+                "please upgrade the server to use Artifact tags."
+            )
+            tags = None
 
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
