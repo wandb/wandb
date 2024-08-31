@@ -114,105 +114,31 @@ func (as *ArtifactSaver) createArtifact() (
 		}
 	}
 
-	// TODO: Delete before merging, if current implementation approved
-	// enableDigestDeduplication := true
-	// input := gql.CreateArtifactInput{
-	// 	EntityName:                as.Artifact.Entity,
-	// 	ProjectName:               as.Artifact.Project,
-	// 	ArtifactTypeName:          as.Artifact.Type,
-	// 	ArtifactCollectionName:    &as.Artifact.Name,
-	// 	RunName:                   runId,
-	// 	Digest:                    as.Artifact.Digest,
-	// 	DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
-	// 	Description:               utils.NilIfZero(as.Artifact.Description),
-	// 	Aliases:                   aliases,
-	// 	Tags:                      tags,
-	// 	Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
-	// 	TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-	// 	HistoryStep:               utils.NilIfZero(as.HistoryStep),
-	// 	EnableDigestDeduplication: &enableDigestDeduplication,
-	// 	DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
-	// 	ClientID:                  &as.Artifact.ClientId,
-	// 	SequenceClientID:          &as.Artifact.SequenceClientId,
-	// }
+	input := gql.CreateArtifactInput{
+		EntityName:                as.Artifact.Entity,
+		ProjectName:               as.Artifact.Project,
+		ArtifactTypeName:          as.Artifact.Type,
+		ArtifactCollectionName:    as.Artifact.Name,
+		RunName:                   runId,
+		Digest:                    as.Artifact.Digest,
+		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
+		Description:               utils.NilIfZero(as.Artifact.Description),
+		Aliases:                   aliases,
+		Tags:                      tags,
+		Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
+		TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+		HistoryStep:               utils.NilIfZero(as.HistoryStep),
+		EnableDigestDeduplication: true,
+		DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
+		ClientID:                  as.Artifact.ClientId,
+		SequenceClientID:          as.Artifact.SequenceClientId,
+	}
 
-	response, err := gql.CreateArtifact(
-		as.Ctx, as.GraphqlClient,
-		as.Artifact.Entity,
-		as.Artifact.Project,
-		as.Artifact.Type,
-		as.Artifact.Name,
-		runId,
-		as.Artifact.Digest,
-		utils.NilIfZero(as.Artifact.Description),
-		aliases,
-		tags,
-		utils.NilIfZero(as.Artifact.Metadata),
-		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-		utils.NilIfZero(as.HistoryStep),
-		utils.NilIfZero(as.Artifact.DistributedId),
-		as.Artifact.ClientId,
-		as.Artifact.SequenceClientId,
-	)
+	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
-
-	// TODO: Delete before merging, if current implementation approved
-	// if supportsTags {
-	// 	var tags []gql.TagInput
-	// 	for _, tag := range as.Artifact.Tags {
-	// 		tags = append(tags, gql.TagInput{TagName: tag})
-	// 	}
-	//
-	// 	response, err := gql.CreateArtifact(
-	// 		as.Ctx,
-	// 		as.GraphqlClient,
-	// 		as.Artifact.Entity,
-	// 		as.Artifact.Project,
-	// 		as.Artifact.Type,
-	// 		as.Artifact.Name,
-	// 		runId,
-	// 		as.Artifact.Digest,
-	// 		utils.NilIfZero(as.Artifact.Description),
-	// 		aliases,
-	// 		tags,
-	// 		utils.NilIfZero(as.Artifact.Metadata),
-	// 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-	// 		utils.NilIfZero(as.HistoryStep),
-	// 		utils.NilIfZero(as.Artifact.DistributedId),
-	// 		as.Artifact.ClientId,
-	// 		as.Artifact.SequenceClientId,
-	// 	)
-	// 	if err != nil {
-	// 		return gql.CreatedArtifactArtifact{}, err
-	// 	}
-	// 	return response.GetCreateArtifact().GetArtifact(), nil
-	// } else {
-	// 	response, err := gql.CreateArtifactWithoutTags(
-	// 		as.Ctx,
-	// 		as.GraphqlClient,
-	// 		as.Artifact.Entity,
-	// 		as.Artifact.Project,
-	// 		as.Artifact.Type,
-	// 		as.Artifact.Name,
-	// 		runId,
-	// 		as.Artifact.Digest,
-	// 		utils.NilIfZero(as.Artifact.Description),
-	// 		aliases,
-	// 		utils.NilIfZero(as.Artifact.Metadata),
-	// 		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-	// 		utils.NilIfZero(as.HistoryStep),
-	// 		utils.NilIfZero(as.Artifact.DistributedId),
-	// 		as.Artifact.ClientId,
-	// 		as.Artifact.SequenceClientId,
-	// 	)
-	// 	if err != nil {
-	// 		return gql.CreatedArtifactArtifact{}, err
-	// 	}
-	// 	return response.GetCreateArtifact().GetArtifact(), nil
-	// }
 }
 
 func (as *ArtifactSaver) createManifest(

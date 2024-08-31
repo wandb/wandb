@@ -28,6 +28,12 @@ func (v *ArtifactAliasInput) GetArtifactCollectionName() string { return v.Artif
 // GetAlias returns ArtifactAliasInput.Alias, and is useful for accessing the field via an interface.
 func (v *ArtifactAliasInput) GetAlias() string { return v.Alias }
 
+type ArtifactDigestAlgorithm string
+
+const (
+	ArtifactDigestAlgorithmManifestMd5 ArtifactDigestAlgorithm = "MANIFEST_MD5"
+)
+
 // ArtifactFileURLsArtifact includes the requested fields of the GraphQL type Artifact.
 type ArtifactFileURLsArtifact struct {
 	Files ArtifactFileURLsArtifactFilesFileConnection `json:"files"`
@@ -441,6 +447,89 @@ type CreateArtifactFilesResponse struct {
 func (v *CreateArtifactFilesResponse) GetCreateArtifactFiles() *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayload {
 	return v.CreateArtifactFiles
 }
+
+type CreateArtifactInput struct {
+	EntityName                string                  `json:"entityName"`
+	ProjectName               string                  `json:"projectName"`
+	ArtifactTypeName          string                  `json:"artifactTypeName"`
+	ArtifactCollectionName    string                  `json:"artifactCollectionName"`
+	ArtifactCollectionNames   []string                `json:"artifactCollectionNames"`
+	RunName                   *string                 `json:"runName"`
+	Digest                    string                  `json:"digest"`
+	DigestAlgorithm           ArtifactDigestAlgorithm `json:"digestAlgorithm"`
+	Description               *string                 `json:"description"`
+	Labels                    *string                 `json:"labels"`
+	Aliases                   []ArtifactAliasInput    `json:"aliases"`
+	Tags                      []TagInput              `json:"tags,omitempty"`
+	Metadata                  *string                 `json:"metadata"`
+	TtlDurationSeconds        *int64                  `json:"ttlDurationSeconds"`
+	HistoryStep               *int64                  `json:"historyStep"`
+	EnableDigestDeduplication bool                    `json:"enableDigestDeduplication"`
+	DistributedID             *string                 `json:"distributedID"`
+	ClientID                  string                  `json:"clientID"`
+	SequenceClientID          string                  `json:"sequenceClientID"`
+	ClientMutationId          *string                 `json:"clientMutationId"`
+}
+
+// GetEntityName returns CreateArtifactInput.EntityName, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetEntityName() string { return v.EntityName }
+
+// GetProjectName returns CreateArtifactInput.ProjectName, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetProjectName() string { return v.ProjectName }
+
+// GetArtifactTypeName returns CreateArtifactInput.ArtifactTypeName, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetArtifactTypeName() string { return v.ArtifactTypeName }
+
+// GetArtifactCollectionName returns CreateArtifactInput.ArtifactCollectionName, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetArtifactCollectionName() string { return v.ArtifactCollectionName }
+
+// GetArtifactCollectionNames returns CreateArtifactInput.ArtifactCollectionNames, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetArtifactCollectionNames() []string { return v.ArtifactCollectionNames }
+
+// GetRunName returns CreateArtifactInput.RunName, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetRunName() *string { return v.RunName }
+
+// GetDigest returns CreateArtifactInput.Digest, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetDigest() string { return v.Digest }
+
+// GetDigestAlgorithm returns CreateArtifactInput.DigestAlgorithm, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetDigestAlgorithm() ArtifactDigestAlgorithm { return v.DigestAlgorithm }
+
+// GetDescription returns CreateArtifactInput.Description, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetDescription() *string { return v.Description }
+
+// GetLabels returns CreateArtifactInput.Labels, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetLabels() *string { return v.Labels }
+
+// GetAliases returns CreateArtifactInput.Aliases, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetAliases() []ArtifactAliasInput { return v.Aliases }
+
+// GetTags returns CreateArtifactInput.Tags, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetTags() []TagInput { return v.Tags }
+
+// GetMetadata returns CreateArtifactInput.Metadata, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetMetadata() *string { return v.Metadata }
+
+// GetTtlDurationSeconds returns CreateArtifactInput.TtlDurationSeconds, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetTtlDurationSeconds() *int64 { return v.TtlDurationSeconds }
+
+// GetHistoryStep returns CreateArtifactInput.HistoryStep, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetHistoryStep() *int64 { return v.HistoryStep }
+
+// GetEnableDigestDeduplication returns CreateArtifactInput.EnableDigestDeduplication, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetEnableDigestDeduplication() bool { return v.EnableDigestDeduplication }
+
+// GetDistributedID returns CreateArtifactInput.DistributedID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetDistributedID() *string { return v.DistributedID }
+
+// GetClientID returns CreateArtifactInput.ClientID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetClientID() string { return v.ClientID }
+
+// GetSequenceClientID returns CreateArtifactInput.SequenceClientID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetSequenceClientID() string { return v.SequenceClientID }
+
+// GetClientMutationId returns CreateArtifactInput.ClientMutationId, and is useful for accessing the field via an interface.
+func (v *CreateArtifactInput) GetClientMutationId() *string { return v.ClientMutationId }
 
 // CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayload includes the requested fields of the GraphQL type CreateArtifactManifestPayload.
 type CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayload struct {
@@ -1270,67 +1359,11 @@ func (v *__CreateArtifactFilesInput) GetStorageLayout() ArtifactStorageLayout { 
 
 // __CreateArtifactInput is used internally by genqlient
 type __CreateArtifactInput struct {
-	EntityName             string               `json:"entityName"`
-	ProjectName            string               `json:"projectName"`
-	ArtifactTypeName       string               `json:"artifactTypeName"`
-	ArtifactCollectionName string               `json:"artifactCollectionName"`
-	RunName                *string              `json:"runName"`
-	Digest                 string               `json:"digest"`
-	Description            *string              `json:"description"`
-	Aliases                []ArtifactAliasInput `json:"aliases"`
-	Tags                   []TagInput           `json:"tags,omitempty"`
-	Metadata               *string              `json:"metadata"`
-	TtlDurationSeconds     *int64               `json:"ttlDurationSeconds"`
-	HistoryStep            *int64               `json:"historyStep"`
-	DistributedID          *string              `json:"distributedID"`
-	ClientID               string               `json:"clientID"`
-	SequenceClientID       string               `json:"sequenceClientID"`
+	Input CreateArtifactInput `json:"input"`
 }
 
-// GetEntityName returns __CreateArtifactInput.EntityName, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetEntityName() string { return v.EntityName }
-
-// GetProjectName returns __CreateArtifactInput.ProjectName, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetProjectName() string { return v.ProjectName }
-
-// GetArtifactTypeName returns __CreateArtifactInput.ArtifactTypeName, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetArtifactTypeName() string { return v.ArtifactTypeName }
-
-// GetArtifactCollectionName returns __CreateArtifactInput.ArtifactCollectionName, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetArtifactCollectionName() string { return v.ArtifactCollectionName }
-
-// GetRunName returns __CreateArtifactInput.RunName, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetRunName() *string { return v.RunName }
-
-// GetDigest returns __CreateArtifactInput.Digest, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetDigest() string { return v.Digest }
-
-// GetDescription returns __CreateArtifactInput.Description, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetDescription() *string { return v.Description }
-
-// GetAliases returns __CreateArtifactInput.Aliases, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetAliases() []ArtifactAliasInput { return v.Aliases }
-
-// GetTags returns __CreateArtifactInput.Tags, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetTags() []TagInput { return v.Tags }
-
-// GetMetadata returns __CreateArtifactInput.Metadata, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetMetadata() *string { return v.Metadata }
-
-// GetTtlDurationSeconds returns __CreateArtifactInput.TtlDurationSeconds, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetTtlDurationSeconds() *int64 { return v.TtlDurationSeconds }
-
-// GetHistoryStep returns __CreateArtifactInput.HistoryStep, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetHistoryStep() *int64 { return v.HistoryStep }
-
-// GetDistributedID returns __CreateArtifactInput.DistributedID, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetDistributedID() *string { return v.DistributedID }
-
-// GetClientID returns __CreateArtifactInput.ClientID, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetClientID() string { return v.ClientID }
-
-// GetSequenceClientID returns __CreateArtifactInput.SequenceClientID, and is useful for accessing the field via an interface.
-func (v *__CreateArtifactInput) GetSequenceClientID() string { return v.SequenceClientID }
+// GetInput returns __CreateArtifactInput.Input, and is useful for accessing the field via an interface.
+func (v *__CreateArtifactInput) GetInput() CreateArtifactInput { return v.Input }
 
 // __CreateArtifactManifestInput is used internally by genqlient
 type __CreateArtifactManifestInput struct {
@@ -1847,8 +1880,8 @@ func CompleteMultipartUploadArtifact(
 
 // The query or mutation executed by CreateArtifact.
 const CreateArtifact_Operation = `
-mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $tags: [TagInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
-	createArtifact(input: {entityName:$entityName,projectName:$projectName,artifactTypeName:$artifactTypeName,artifactCollectionName:$artifactCollectionName,runName:$runName,digest:$digest,digestAlgorithm:MANIFEST_MD5,description:$description,aliases:$aliases,tags:$tags,metadata:$metadata,ttlDurationSeconds:$ttlDurationSeconds,historyStep:$historyStep,enableDigestDeduplication:true,distributedID:$distributedID,clientID:$clientID,sequenceClientID:$sequenceClientID}) {
+mutation CreateArtifact ($input: CreateArtifactInput!) {
+	createArtifact(input: $input) {
 		... CreatedArtifact
 	}
 }
@@ -1865,45 +1898,19 @@ fragment CreatedArtifact on CreateArtifactPayload {
 }
 `
 
-// TODO: Delete before merging, if current implementation approved
+// These are "required" fields in practice, even if they're formally optional in the input schema
+//
+// CreateArtifactInput.tags added in server version: 0.58
 func CreateArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,
-	entityName string,
-	projectName string,
-	artifactTypeName string,
-	artifactCollectionName string,
-	runName *string,
-	digest string,
-	description *string,
-	aliases []ArtifactAliasInput,
-	tags []TagInput,
-	metadata *string,
-	ttlDurationSeconds *int64,
-	historyStep *int64,
-	distributedID *string,
-	clientID string,
-	sequenceClientID string,
+	input CreateArtifactInput,
 ) (*CreateArtifactResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "CreateArtifact",
 		Query:  CreateArtifact_Operation,
 		Variables: &__CreateArtifactInput{
-			EntityName:             entityName,
-			ProjectName:            projectName,
-			ArtifactTypeName:       artifactTypeName,
-			ArtifactCollectionName: artifactCollectionName,
-			RunName:                runName,
-			Digest:                 digest,
-			Description:            description,
-			Aliases:                aliases,
-			Tags:                   tags,
-			Metadata:               metadata,
-			TtlDurationSeconds:     ttlDurationSeconds,
-			HistoryStep:            historyStep,
-			DistributedID:          distributedID,
-			ClientID:               clientID,
-			SequenceClientID:       sequenceClientID,
+			Input: input,
 		},
 	}
 	var err_ error
