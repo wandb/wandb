@@ -167,43 +167,27 @@ func (h *Handler) Do(inChan <-chan *spb.Record) {
 		h.handleRecord(record)
 
 		switch record.RecordType.(type) {
-		case *spb.Record_Alert:
-			h.fwdRecord(record)
-		case *spb.Record_Artifact:
-			h.fwdRecord(record)
-		case *spb.Record_Config:
-			h.fwdRecord(record)
-		case *spb.Record_Files:
-			h.fwdRecord(record)
-		case *spb.Record_History:
-			h.fwdRecord(record)
-		case *spb.Record_Metric:
-			h.fwdRecord(record)
-		case *spb.Record_Output:
-			h.fwdRecord(record)
-		case *spb.Record_OutputRaw:
-			h.fwdRecord(record)
-		case *spb.Record_Preempting:
-			h.fwdRecord(record)
-		case *spb.Record_Stats:
-			h.fwdRecord(record)
-		case *spb.Record_Summary:
-			h.fwdRecord(record)
-		case *spb.Record_Telemetry:
-			h.fwdRecord(record)
-		case *spb.Record_UseArtifact:
+		default:
 			h.fwdRecord(record)
 
+		// Exceptions to the default of forwarding:
 		case *spb.Record_Exit:
+			// The Runtime field is updated on the record before forwarding,
+			// and it is forwarded with AlwaysSend and if syncing Local.
 		case *spb.Record_Final:
+			// Deprecated.
 		case *spb.Record_Footer:
+			// Deprecated.
 		case *spb.Record_Header:
+			// The record's VersionInfo gets modified before forwarding.
 		case *spb.Record_NoopLinkArtifact:
+			// Deprecated.
 		case *spb.Record_Tbrecord:
+			// Never forwarded.
 		case *spb.Record_Request:
+			// Getting refactored; forwarded by handleRequest for now.
 		case *spb.Record_Run:
-		default:
-			// No-op.
+			// Forwarded with AlwaysSend.
 		}
 	}
 	h.Close()
