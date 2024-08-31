@@ -1900,6 +1900,7 @@ fragment CreatedArtifact on CreateArtifactPayload {
 }
 `
 
+// CreateArtifactInput.tags was added in server version: 0.58
 func CreateArtifact(
 	ctx_ context.Context,
 	client_ graphql.Client,

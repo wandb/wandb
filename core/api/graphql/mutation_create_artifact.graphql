@@ -10,8 +10,8 @@ fragment CreatedArtifact on CreateArtifactPayload {
     }
 }
 
+# CreateArtifactInput.tags was added in server version: 0.58
 # @genqlient(for: "CreateArtifactInput.tags", omitempty: true)
-#   CreateArtifactInput.tags was added in server version: 0.58
 mutation CreateArtifact(
     $input: CreateArtifactInput!
 ) {
