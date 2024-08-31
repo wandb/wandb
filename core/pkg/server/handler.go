@@ -1101,9 +1101,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	for _, newMetric := range newMetricDefs {
 		// We don't mark the record 'Local' because partial history updates
 		// are not already written to the transaction log.
-		h.handleMetric(&spb.Record{
+		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
-		})
+		}
+		h.handleMetric(rec)
+		h.fwdRecord(rec)
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
