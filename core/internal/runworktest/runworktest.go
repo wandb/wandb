@@ -27,7 +27,7 @@ func New() *FakeRunWork {
 
 	go func() {
 		for x := range fake.rw.Chan() {
-			if rec, ok := x.(*runwork.WorkRecord); ok {
+			if rec, ok := x.(runwork.WorkRecord); ok {
 				fake.mu.Lock()
 				fake.allRecords = append(fake.allRecords, rec.Record)
 				fake.mu.Unlock()
