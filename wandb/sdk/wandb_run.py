@@ -1654,7 +1654,8 @@ class Run:
             if os.getpid() != self._init_pid or self._is_attached:
                 wandb.termwarn(
                     "Note that setting step in multiprocessing can result in data loss. "
-                    "Please log your step values as a metric such as 'global_step'",
+                    "Please use `run.define_metric(...)` to define a custom metric "
+                    "to log your step values.",
                     repeat=False,
                 )
             # if step is passed in when tensorboard_sync is used we honor the step passed
@@ -1662,8 +1663,9 @@ class Run:
             # this history later on in publish_history()
             if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. "
-                    "Please log your step values as a metric such as 'global_step'",
+                    "Step cannot be set when using tensorboard syncing. "
+                    "Please use `run.define_metric(...)` to define a custom metric "
+                    "to log your step values.",
                     repeat=False,
                 )
             if step > self._step:
