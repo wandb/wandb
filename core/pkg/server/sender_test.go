@@ -383,8 +383,8 @@ func TestSendArtifact(t *testing.T) {
 
 			gqlmock.AssertRequest(t,
 				gqlmock.WithVariables(
-					gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
-					gqlmock.GQLVar("tags", expectedTagsValue),
+					gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")),
+					gqlmock.GQLVar("input.tags", expectedTagsValue),
 				),
 				createArtifactRequest)
 		})
