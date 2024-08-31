@@ -369,26 +369,24 @@ func TestSendArtifact(t *testing.T) {
 			requests := mockGQL.AllRequests()
 			assert.LessOrEqual(t, len(requests), 2)
 
-			// // We may have had to check ServerInfo for compatibility, but
-			// // CreateArtifact should still be the last request
-			// createArtifactRequest := requests[len(requests)-1]
-			//
-			// // Tags should only have been included in the request if the server supports it
-			// // var expectedTagsValue gomock.Matcher
-			// // if tt.shouldSupportArtifactTags {
-			// // 	expectedTagsValue = gomock.Len(2)
-			// // } else {
-			// // 	expectedTagsValue = gomock.Nil()
-			// // }
-			//
-			// gqlmock.AssertRequest(t,
-			// 	gqlmock.WithVariables(
-			// 		gqlmock.GQLVar("input", gomock.Len(1)),
-			// 		// TODO: Handle newly-nested variables in this test
-			// 		// gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
-			// 		// gqlmock.GQLVar("tags", expectedTagsValue),
-			// 	),
-			// 	createArtifactRequest)
+			// We may have had to check ServerInfo for compatibility, but
+			// CreateArtifact should still be the last request
+			createArtifactRequest := requests[len(requests)-1]
+
+			// Tags should only have been included in the request if the server supports it
+			var expectedTagsValue gomock.Matcher
+			if tt.shouldSupportArtifactTags {
+				expectedTagsValue = gomock.Len(2)
+			} else {
+				expectedTagsValue = gomock.Nil()
+			}
+
+			gqlmock.AssertRequest(t,
+				gqlmock.WithVariables(
+					gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
+					gqlmock.GQLVar("tags", expectedTagsValue),
+				),
+				createArtifactRequest)
 		})
 	}
 }
