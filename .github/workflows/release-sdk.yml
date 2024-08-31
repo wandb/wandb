@@ -109,7 +109,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v2.20.0
         with:
            package-dir: .
            output-dir: dist
@@ -156,7 +156,7 @@ jobs:
           CIBW_ENVIRONMENT_LINUX:
             PATH=$PATH:/usr/local/go/bin:/root/.cargo/bin
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
@@ -185,7 +185,7 @@ jobs:
           mkdir dist/
           cp wheelhouse/wandb-*-py3-none-any.whl dist/
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
@@ -210,7 +210,7 @@ jobs:
       - name: Create sdist
         run: hatch build -t sdist
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: ./dist
@@ -232,7 +232,7 @@ jobs:
           python-version: "3.10"
 
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.8
         with:
           name: wandb-sdk-distributions
           path: dist/
@@ -289,14 +289,16 @@ jobs:
         shell: bash
         run: |
           WANDB__REQUIRE_CORE=${{ matrix.use_core }} \
-          WANDB_MODE=offline \
-          python -c "import wandb; run = wandb.init(); run.finish()"
+          python -c "import wandb; run = wandb.init(mode='offline'); run.finish()"
 
   verify-test-pypi-sdist:
     needs: test-pypi-publish
     name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      matrix:
+        require_core: [false, true]
 
     steps:
       - name: Set up Python
@@ -306,6 +308,8 @@ jobs:
 
       - name: Set up latest Go
         uses: actions/setup-go@v5
+        with:
+          go-version: core/go.mod
 
       - name: Install wandb from TestPyPI with --no-binary
         run: |
@@ -314,19 +318,10 @@ jobs:
             --extra-index-url https://test.pypi.org/simple/ \
             wandb==${{ github.event.inputs.version }}
 
-      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
+      - name: Smoke-test wandb ${{ matrix.require_core && 'with wandb-core' || 'without wandb-core' }}
         shell: bash
         run: |
-          WANDB__REQUIRE_CORE=false \
-          WANDB_MODE=offline \
-          python -c "import wandb; run = wandb.init(); run.finish()"
-
-      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=true)
-        shell: bash
-        run: |
-          WANDB__REQUIRE_CORE=true \
-          WANDB_MODE=offline \
-          python -c "import wandb; run = wandb.init(); run.finish()"
+          python -c "import wandb; wandb.require(${{ matrix.require_core && 'core' || 'legacy-service' }}); run = wandb.init(mode='offline'); run.finish()"
 
 
   pypi-publish:
@@ -339,7 +334,7 @@ jobs:
       url: https://pypi.org/p/wandb
     steps:
       - name: Download distribution
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: wandb-sdk-distributions
           path: dist/
@@ -396,7 +391,7 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.27.0
         with:
           # Slack channel id, channel name, or user id to post message.
           # See also: https://api.slack.com/methods/chat.postMessage#channels
