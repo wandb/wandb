@@ -81,6 +81,16 @@ impl Settings {
     pub fn log_dir(&self) -> String {
         self.proto.log_dir.clone().unwrap()
     }
+
+    #[getter]
+    pub fn project(&self) -> String {
+        self.proto.project.clone().unwrap()
+    }
+
+    #[setter]
+    pub fn set_project(&mut self, project: String) {
+        self.proto.project = Some(project);
+    }
 }
 
 impl Settings {

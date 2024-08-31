@@ -41,9 +41,14 @@ pub fn get_core_version() -> &'static str {
 // }
 
 #[pyfunction]
-pub fn init(settings: Option<settings::Settings>) -> PyResult<run::Run> {
-    let actual_settings = settings.unwrap_or_default();
-    let sess = session::Session::new(actual_settings)?;
+pub fn init(project: Option<String>, settings: Option<settings::Settings>) -> PyResult<run::Run> {
+    let mut settings = settings.unwrap_or_default();
+
+    if let Some(project) = project {
+        settings.set_project(project);
+    }
+
+    let sess = session::Session::new(settings)?;
     sess.init_run(None)
 }
 
