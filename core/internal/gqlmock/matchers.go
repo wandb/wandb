@@ -2,6 +2,7 @@ package gqlmock
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
@@ -63,8 +64,14 @@ func (m *queryVariablesMatcher) Matches(x any) bool {
 		return false
 	}
 
+	// Match values at nested paths, if needed
 	for _, variable := range m.varMatchers {
-		if !variable.Value.Matches(varmap[variable.Name]) {
+		var curr interface{}
+		curr = varmap
+		for _, key := range strings.Split(variable.Name, ".") {
+			curr = curr.(map[string]any)[key]
+		}
+		if !variable.Value.Matches(curr) {
 			return false
 		}
 	}
