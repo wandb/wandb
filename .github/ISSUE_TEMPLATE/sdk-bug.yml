@@ -1,7 +1,7 @@
 ---
-name: 🐞 Bug Report (wandb web app)
-description: Use this template to report a bug in the wandb web app.
-title: "[Bug-App]: "
+name: 🐛 Bug Report (wandb python package)
+description: Use this template to report a bug in the wandb python package.
+title: "[Bug]: "
 
 body:
   - type: markdown
@@ -17,13 +17,13 @@ body:
       label: Describe the bug
       description: |
         A clear and concise description of the issue you're experiencing.
-        If relevant, add screenshots or videos to help explain the bug,
-        or any steps to reproduce the bug.
-        If relevant describe the expected behavior.
-
+        If relevant, add minimal code to reproduce the bug, and any error messages you're seeing.
         Please include the following information:
-        - The version of the browser you are using.
+        - The version of the wandb package you are using.
+        - The version of Python you are using.
         - The version of the operating system you are using.
         - The version of the wandb server you are using (if applicable).
+      value: |
+        <!--- Describe your issue here --->
     validations:
       required: true
