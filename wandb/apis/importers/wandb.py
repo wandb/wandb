@@ -1468,8 +1468,9 @@ class _DummyRun:
 def _read_ndjson(fname: str) -> Optional[pl.DataFrame]:
     try:
         if os.stat(fname).st_size == 0:
-            df = pl.read_ndjson(fname)
             return None  # or handle the empty file case appropriately
+        else:
+            df = pl.read_ndjson(fname)
     except FileNotFoundError:
         return None
     except RuntimeError as e:
