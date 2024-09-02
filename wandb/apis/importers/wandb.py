@@ -17,10 +17,9 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb.apis.reports.v2 as wr
+import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
-from wandb.apis.reports.v2 import Report
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
@@ -712,7 +711,7 @@ class WandbImporter:
                 run.delete(delete_artifacts=False)
 
     def _import_report(
-        self, report: Report, *, namespace: Optional[Namespace] = None
+        self, report: wr.Report, *, namespace: Optional[Namespace] = None
     ) -> None:
         """Import one wandb.Report.
 
@@ -739,7 +738,7 @@ class WandbImporter:
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
-            wr.report.UPSERT_VIEW,
+            wr.Report.UPSERT_VIEW,
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
