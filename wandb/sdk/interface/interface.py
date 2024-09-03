@@ -390,6 +390,7 @@ class InterfaceBase:
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        organization: Optional[str] = None,
     ) -> MailboxHandle:
         link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
@@ -400,6 +401,7 @@ class InterfaceBase:
         link_artifact.portfolio_entity = entity or run.entity
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
+        link_artifact.portfolio_organization = organization
 
         return self._deliver_link_artifact(link_artifact)
 

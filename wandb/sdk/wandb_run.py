@@ -51,6 +51,7 @@ from wandb.proto.wandb_internal_pb2 import (
     ServerInfoResponse,
 )
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -2951,8 +2952,9 @@ class Run:
 
         Arguments:
             artifact: the (public or local) artifact which will be linked
+            // TODO: Have better doc strings for this
             target_path: `str` - takes the following forms: {portfolio}, {project}/{portfolio},
-                or {entity}/{project}/{portfolio}
+                or {entity}/{project}/{portfolio}.
             aliases: `List[str]` - optional alias(es) that will only be applied on this linked artifact
                                    inside the portfolio.
             The alias "latest" will always be applied to the latest version of an artifact that is linked.
@@ -2964,18 +2966,19 @@ class Run:
         portfolio, project, entity = wandb.util._parse_entity_project_item(target_path)
         if aliases is None:
             aliases = []
+        organization = None
+        if is_artifact_registry_project(project):
+            organization = entity
+            # reset entity since user didn't put in a traditional team entity name
+            # but a org entity or an org name instead
+            entity = ""
 
         if self._backend and self._backend.interface:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
                 handle = self._backend.interface.deliver_link_artifact(
-                    self,
-                    artifact,
-                    portfolio,
-                    aliases,
-                    entity,
-                    project,
+                    self, artifact, portfolio, aliases, entity, project, organization
                 )
                 if artifact._ttl_duration_seconds is not None:
                     wandb.termwarn(

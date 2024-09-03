@@ -19,12 +19,14 @@ type ArtifactLinker struct {
 }
 
 func (al *ArtifactLinker) Link() error {
+	// TODO: add in backend server introspection check
 	clientId := al.LinkArtifact.ClientId
 	serverId := al.LinkArtifact.ServerId
 	portfolioName := al.LinkArtifact.PortfolioName
 	portfolioEntity := al.LinkArtifact.PortfolioEntity
 	portfolioProject := al.LinkArtifact.PortfolioProject
 	var portfolioAliases []gql.ArtifactAliasInput
+	portfolioOrganization := al.LinkArtifact.PortfolioOrganization
 
 	for _, alias := range al.LinkArtifact.PortfolioAliases {
 		portfolioAliases = append(portfolioAliases,
@@ -46,6 +48,7 @@ func (al *ArtifactLinker) Link() error {
 			portfolioAliases,
 			nil,
 			&serverId,
+			&portfolioOrganization,
 		)
 	case clientId != "":
 		_, err = gql.LinkArtifact(
@@ -57,6 +60,7 @@ func (al *ArtifactLinker) Link() error {
 			portfolioAliases,
 			&clientId,
 			nil,
+			&portfolioOrganization,
 		)
 	default:
 		err = fmt.Errorf("artifact must have either server id or client id")

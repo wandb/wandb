@@ -492,6 +492,7 @@ message LinkArtifactRequest {
   string portfolio_entity = 4;
   string portfolio_project = 5;
   repeated string portfolio_aliases = 6;
+  string portfolio_organization = 7;
   _RecordInfo _info = 200;
 }
 

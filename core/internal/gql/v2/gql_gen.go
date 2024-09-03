@@ -1332,7 +1332,6 @@ type __LinkArtifactInput struct {
 	Aliases               []ArtifactAliasInput `json:"aliases"`
 	ClientId              *string              `json:"clientId"`
 	ArtifactId            *string              `json:"artifactId"`
-	OrganizationName      *string              `json:"organizationName"`
 }
 
 // GetArtifactPortfolioName returns __LinkArtifactInput.ArtifactPortfolioName, and is useful for accessing the field via an interface.
@@ -1352,9 +1351,6 @@ func (v *__LinkArtifactInput) GetClientId() *string { return v.ClientId }
 
 // GetArtifactId returns __LinkArtifactInput.ArtifactId, and is useful for accessing the field via an interface.
 func (v *__LinkArtifactInput) GetArtifactId() *string { return v.ArtifactId }
-
-// GetOrganizationName returns __LinkArtifactInput.OrganizationName, and is useful for accessing the field via an interface.
-func (v *__LinkArtifactInput) GetOrganizationName() *string { return v.OrganizationName }
 
 // __NotifyScriptableRunAlertInput is used internally by genqlient
 type __NotifyScriptableRunAlertInput struct {
@@ -2011,8 +2007,8 @@ func CreateRunFiles(
 
 // The query or mutation executed by LinkArtifact.
 const LinkArtifact_Operation = `
-mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID, $organizationName: String) {
-	linkArtifact(input: {artifactPortfolioName:$artifactPortfolioName,entityName:$entityName,projectName:$projectName,aliases:$aliases,artifactID:$artifactId,clientID:$clientId,organizationName:$organizationName}) {
+mutation LinkArtifact ($artifactPortfolioName: String!, $entityName: String!, $projectName: String!, $aliases: [ArtifactAliasInput!], $clientId: ID, $artifactId: ID) {
+	linkArtifact(input: {artifactPortfolioName:$artifactPortfolioName,entityName:$entityName,projectName:$projectName,aliases:$aliases,artifactID:$artifactId,clientID:$clientId}) {
 		versionIndex
 	}
 }
@@ -2027,7 +2023,6 @@ func LinkArtifact(
 	aliases []ArtifactAliasInput,
 	clientId *string,
 	artifactId *string,
-	organizationName *string,
 ) (*LinkArtifactResponse, error) {
 	req_ := &graphql.Request{
 		OpName: "LinkArtifact",
@@ -2039,7 +2034,6 @@ func LinkArtifact(
 			Aliases:               aliases,
 			ClientId:              clientId,
 			ArtifactId:            artifactId,
-			OrganizationName:      organizationName,
 		},
 	}
 	var err_ error

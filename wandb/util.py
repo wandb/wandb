@@ -1601,7 +1601,7 @@ def load_json_yaml_dict(config: str) -> Any:
 
 
 def _parse_entity_project_item(path: str) -> tuple:
-    """Parse paths with the following formats: {item}, {project}/{item}, & {entity}/{project}/{item}.
+    """Parse paths with the following formats: {item}, {project}/{item}, & {entity || organization}/{project}/{item}.
 
     Args:
         path: `str`, input path; must be between 0 and 3 in length.

@@ -5,6 +5,7 @@ mutation LinkArtifact(
             $aliases: [ArtifactAliasInput!],
             $clientId: ID,
             $artifactId: ID,
+            $organizationName: String,
         ) {
             linkArtifact(input: {
                 artifactPortfolioName: $artifactPortfolioName,
@@ -12,7 +13,8 @@ mutation LinkArtifact(
                 projectName: $projectName,
                 aliases: $aliases,
                 artifactID: $artifactId,
-                clientID: $clientId
+                clientID: $clientId,
+                organizationName: $organizationName,
             }) {
                 versionIndex
             }
