@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC
-from enum import StrEnum
-from typing import Any, Literal, TypeVar
+from typing import TypeVar, Union
 
-from pydantic import RootModel, model_serializer
+from pydantic import Field, RootModel, model_validator
+from pydantic._internal import _repr
+from typing_extensions import Self
 
 from wandb.sdk.automations.base import Base
 
@@ -12,111 +13,143 @@ from wandb.sdk.automations.base import Base
 class Expr(Base, ABC):
     """Base class for expressions."""
 
-    def __or__(self, other: ExprT) -> Or:
-        raise NotImplementedError
+    pass
 
-    def __and__(self, other: ExprT) -> And:
-        raise NotImplementedError
+    # def __or__(self, other: ExprT) -> Or:
+    #     return Or(
+    #         or_=[
+    #             *(self.or_ if isinstance(self, Or) else [self]),
+    #             *(other.or_ if isinstance(other, Or) else [other]),
+    #         ]
+    #     )
+    #
+    # def __and__(self, other: ExprT) -> And:
+    #     return And(
+    #         and_=[
+    #             *(self.and_ if isinstance(self, And) else [self]),
+    #             *(other.and_ if isinstance(other, And) else [other]),
+    #         ]
+    #     )
+    #
+    # def __invert__(self) -> Expr:
+    #     if isinstance(self, Not):
+    #         return self.not_
+    #     if isinstance(self, In):
+    #         return Nin(nin_=self.in_)
+    #     return Not(not_=self)
 
-    def __invert__(self) -> Not:
-        raise NotImplementedError
-
-    def __lt__(self, other: ExprT) -> Lt:
-        raise NotImplementedError
-
-    def __gt__(self, other: ExprT) -> Gt:
-        raise NotImplementedError
-
-    def __le__(self, other: ExprT) -> Lte:
-        raise NotImplementedError
-
-    def __ge__(self, other: ExprT) -> Gte:
-        raise NotImplementedError
-
-    def __eq__(self, other: ExprT) -> Eq:
-        raise NotImplementedError
-
-    def __ne__(self, other: ExprT) -> Ne:
-        raise NotImplementedError
+    # # ------------------------------------------------------------------------------
+    # def __lt__(self, other: NumT) -> Lt:
+    #     raise NotImplementedError
+    #
+    # def __gt__(self, other: NumT) -> Gt:
+    #     raise NotImplementedError
+    #
+    # def __le__(self, other: NumT) -> Lte:
+    #     raise NotImplementedError
+    #
+    # def __ge__(self, other: NumT) -> Gte:
+    #     raise NotImplementedError
+    #
+    # # ------------------------------------------------------------------------------
+    # def __eq__(self, other: ValueT) -> Eq:
+    #     raise NotImplementedError
+    #
+    # def __ne__(self, other: ValueT) -> Ne:
+    #     raise NotImplementedError
 
 
 ExprT = TypeVar("ExprT", bound=Expr)
 
-
-# ------------------------------------------------------------------------------
-class FieldPredicate(RootModel[dict[str, Expr]]):
-    pass
-
-
-# ------------------------------------------------------------------------------
-class Op(StrEnum):
-    OR = "$or"
-    AND = "$and"
-    NOT = "$not"
+#: Placeholder - TODO: make these variadic depending on compared field/expression
+NumT = Union[int, float]
+ValueT = TypeVar("ValueT")
 
 
 # ------------------------------------------------------------------------------
-class LogicalOp(Expr):
-    """Base type for logical operator expressions.
-
-    MongoDB specs: https://www.mongodb.com/docs/manual/reference/operator/query-logical/
-    """
-
-    key: str
-    expressions: list[ExprT]
-
-
+# MongoDB specs: https://www.mongodb.com/docs/manual/reference/operator/query-logical/
 class Or(Expr):
-    key: Literal["$or"] = "$or"
-    expressions: list[ExprT]
-
-    @model_serializer(when_used="always")
-    def to_mongo(self) -> dict[str, Any]:
-        return {self.key: [expr.model_dump() for expr in self.expressions]}
+    or_: list[AnyExpr] = Field(alias="$or")
 
 
 class And(Expr):
-    key: Literal["$and"] = "$and"
-    expressions: list[ExprT]
-
-    @model_serializer(when_used="always")
-    def to_mongo(self) -> dict[str, Any]:
-        return {self.key: [expr.model_dump() for expr in self.expressions]}
+    and_: list[AnyExpr] = Field(alias="$and")
 
 
 class Not(Expr):
-    key: Literal["$not"] = "$not"
-    expression: ExprT
+    not_: AnyExpr = Field(alias="$not")
 
-    @model_serializer(when_used="always")
-    def to_mongo(self) -> dict[str, Any]:
-        return {self.key: self.expression.model_dump()}
+
+# ------------------------------------------------------------------------------
+class Regex(Expr):
+    regex: str = Field(alias="$regex")
+    options: str | None = Field(None, alias="$options")
 
 
 # ------------------------------------------------------------------------------
 class Lt(Expr):
-    pass  # TODO
+    lt_: NumT = Field(alias="$lt")
 
 
 class Gt(Expr):
-    pass  # TODO
+    gt_: NumT = Field(alias="$gt")
 
 
 class Lte(Expr):
-    pass  # TODO
+    lte_: NumT = Field(alias="$lte")
 
 
 class Gte(Expr):
-    pass  # TODO
+    gte_: NumT = Field(alias="$gte")
 
 
+# ------------------------------------------------------------------------------
 class Eq(Expr):
-    pass  # TODO
+    eq_: ValueT = Field(alias="$eq")
 
 
 class Ne(Expr):
-    pass  # TODO
+    ne_: ValueT = Field(alias="$ne")
 
 
+# ------------------------------------------------------------------------------
 class In(Expr):
-    pass  # TODO
+    in_: list[ValueT] = Field(alias="$in")
+
+
+class Nin(Expr):
+    nin_: list[ValueT] = Field(alias="$nin")
+
+
+# ------------------------------------------------------------------------------
+# FieldPredicate: TypeAlias = dict[str, Expr]
+class FieldPredicate(RootModel):
+    root: dict[str, AnyExpr]
+
+    @model_validator(mode="after")
+    def _check_single_field(self) -> Self:
+        if len(self.root) > 1:
+            raise ValueError(
+                f"Got multiple ({len(self.root)}) fields in predicate: {list(self.root)}"
+            )
+        return self
+
+    def __repr_args__(self) -> _repr.ReprArgs:
+        yield from self.root.items()
+
+
+AnyExpr = Union[
+    Or,
+    And,
+    Not,
+    Regex,
+    Lt,
+    Gt,
+    Lte,
+    Gte,
+    Eq,
+    Ne,
+    In,
+    Nin,
+    FieldPredicate,
+]
