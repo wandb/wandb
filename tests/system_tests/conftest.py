@@ -17,7 +17,8 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
-from wandb.testing.relay import (
+
+from .relay import (
     DeliberateHTTPError,
     InjectedResponse,
     RelayServer,
