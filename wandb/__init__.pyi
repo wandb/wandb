@@ -12,6 +12,7 @@ For reference documentation, see https://docs.wandb.com/ref/python.
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
     "login",
     "save",
@@ -34,6 +35,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",
@@ -391,6 +394,18 @@ def init(
 
     Returns:
     A `Run` object.
+    """
+    ...
+
+def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+    """Mark a run as finished, and finish uploading all data.
+
+    This is used when creating multiple runs in the same process.
+    We automatically call this method when your script exits.
+
+    Arguments:
+        exit_code: Set to something other than 0 to mark a run as failed
+    quiet: Set to true to minimize log output
     """
     ...
 
@@ -839,6 +854,64 @@ def define_metric(
 
     Returns:
     An object that represents this call but can otherwise be discarded.
+    """
+    ...
+
+def log_artifact(
+    artifact_or_path: Union[Artifact, StrPath],
+    name: Optional[str] = None,
+    type: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+) -> Artifact:
+    """Declare an artifact as an output of a run.
+
+    Arguments:
+        artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+            You can also pass an Artifact object created by calling
+            `wandb.Artifact`.
+        name: (str, optional) An artifact name. Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+            This will default to the basename of the path prepended with the current
+            run id  if not specified.
+        type: (str) The type of artifact to log, examples include `dataset`, `model`
+        aliases: (list, optional) Aliases to apply to this artifact,
+            defaults to `["latest"]`
+
+    Returns:
+    An `Artifact` object.
+    """
+    ...
+
+def use_artifact(
+    artifact_or_name: Union[str, Artifact],
+    type: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+    use_as: Optional[str] = None,
+) -> Artifact:
+    """Declare an artifact as an input to a run.
+
+    Call `download` or `file` on the returned object to get the contents locally.
+
+    Arguments:
+        artifact_or_name: (str or Artifact) An artifact name.
+            May be prefixed with entity/project/. Valid names
+            can be in the following forms:
+                - name:version
+                - name:alias
+            You can also pass an Artifact object created by calling `wandb.Artifact`
+        type: (str, optional) The type of artifact to use.
+        aliases: (list, optional) Aliases to apply to this artifact
+        use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
+                                   Will be shown in UI.
+
+    Returns:
+    An `Artifact` object.
     """
     ...
 

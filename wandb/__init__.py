@@ -219,6 +219,7 @@ _sentry.setup()
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
     "save",
     "sweep",
@@ -241,6 +242,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",
