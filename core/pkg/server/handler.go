@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
@@ -38,7 +39,7 @@ const (
 
 type HandlerParams struct {
 	Settings          *spb.Settings
-	FwdChan           chan *spb.Record
+	FwdChan           chan runwork.Work
 	OutChan           chan *spb.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
@@ -73,7 +74,7 @@ type Handler struct {
 	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the next component
-	fwdChan chan *spb.Record
+	fwdChan chan runwork.Work
 
 	// outChan is the channel for sending results to the client
 	outChan chan *spb.Result
@@ -155,39 +156,21 @@ func NewHandler(
 	}
 }
 
-// Do processes all records on the input channel.
+// Do processes all work on the input channel.
 //
 //gocyclo:ignore
-func (h *Handler) Do(inChan <-chan *spb.Record) {
+func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan {
-		h.logger.Debug("handle: got a message", "record_type", record.RecordType, "stream_id", h.settings.RunId)
+	for work := range allWork {
+		h.logger.Debug(
+			"handler: got work",
+			"work", work,
+			"stream_id", h.settings.RunId,
+		)
 
-		h.handleRecord(record)
-
-		switch record.RecordType.(type) {
-		default:
-			h.fwdRecord(record)
-
-		// Exceptions to the default of forwarding:
-		case *spb.Record_Exit:
-			// The Runtime field is updated on the record before forwarding,
-			// and it is forwarded with AlwaysSend and if syncing Local.
-		case *spb.Record_Final:
-			// Deprecated.
-		case *spb.Record_Footer:
-			// Deprecated.
-		case *spb.Record_Header:
-			// The record's VersionInfo gets modified before forwarding.
-		case *spb.Record_NoopLinkArtifact:
-			// Deprecated.
-		case *spb.Record_Tbrecord:
-			// Never forwarded.
-		case *spb.Record_Request:
-			// Getting refactored; forwarded by handleRequest for now.
-		case *spb.Record_Run:
-			// Forwarded with AlwaysSend.
+		if work.Accept(h.handleRecord) {
+			h.fwdWork(work)
 		}
 	}
 	h.Close()
@@ -209,12 +192,18 @@ func (h *Handler) respond(record *spb.Record, response *spb.Response) {
 	h.outChan <- result
 }
 
+// fwdWork passes work to the Writer and Sender.
+func (h *Handler) fwdWork(work runwork.Work) {
+	h.fwdChan <- work
+}
+
 // fwdRecord forwards a record to the next component
 func (h *Handler) fwdRecord(record *spb.Record) {
 	if record == nil {
 		return
 	}
-	h.fwdChan <- record
+
+	h.fwdWork(runwork.WorkRecord{Record: record})
 }
 
 // fwdRecordWithControl forwards a record to the next component with control options

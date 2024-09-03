@@ -204,18 +204,20 @@ func NewSender(
 	return s
 }
 
-// Do processes all records on the input channel.
-func (s *Sender) Do(inChan <-chan *spb.Record) {
+// Do processes all work on the input channel.
+func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
-	for record := range inChan {
+	for work := range allWork {
 		s.logger.Debug(
-			"sender: processing record",
-			"record", record.RecordType,
+			"sender: got work",
+			"work", work,
 			"stream_id", s.settings.RunId,
 		)
-		s.sendRecord(record)
+
+		work.Process(s.sendRecord)
+
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
