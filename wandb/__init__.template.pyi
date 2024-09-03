@@ -214,7 +214,6 @@ def log_artifact(
     ...
 
 def use_artifact(
-    self,
     artifact_or_name: Union[str, Artifact],
     type: Optional[str] = None,
     aliases: Optional[List[str]] = None,
