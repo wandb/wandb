@@ -33,7 +33,7 @@ DCGM_FI_DEV_GPU_TEMP{{gpu="1",UUID="GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",de
 # HELP DCGM_FI_DEV_POWER_USAGE Power draw (in W).
 # TYPE DCGM_FI_DEV_POWER_USAGE gauge
 DCGM_FI_DEV_POWER_USAGE{{gpu="0",UUID="GPU-c601d117-58ff-cd30-ae20-529ab192ba51",device="nvidia0",modelName="Tesla T4",Hostname="gke-gke-dcgm-default-pool-eb7746d2-6vkd",container="",namespace="",pod=""}} {gpu_0_power_draw_w}
-DCGM_FI_DEV_POWER_USAGE{{gpu="1",UUID="GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e",device="nvidia1",modelName="Tesla T4",Hostname="gke-gke-dcgm-default-pool-eb7746d2-6vkd",container="dcgm-loadtest",namespace="default",pod="dcgm-loadtest"}} {gpu_1_power_draw_w}
+DCGM_FI_DEV_POWER_USAGE{{gpu="1",UUID="GPU-a7c8aa83-d112b585-8456-5fc2f3e6d18e",device="nvidia1",modelName="Tesla T4",Hostname="gke-gke-dcgm-default-pool-eb7746d2-6vkd",container="dcgm-loadtest",namespace="default",pod="dcgm-loadtest"}} {gpu_1_power_draw_w}
 """
 
 

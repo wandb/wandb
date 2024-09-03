@@ -172,6 +172,15 @@ func New(
 		systemMonitor.assets = append(systemMonitor.assets, trainium)
 	}
 
+	// OpenMetrics endpoints to monitor.
+	if endpoints := settings.XStatsOpenMetricsEndpoints; endpoints != nil {
+		for name, url := range endpoints.GetValue() {
+			if om := NewOpenMetrics(logger, name, url); om != nil {
+				systemMonitor.assets = append(systemMonitor.assets, om)
+			}
+		}
+	}
+
 	return systemMonitor
 }
 
