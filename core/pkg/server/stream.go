@@ -204,7 +204,7 @@ func NewStream(
 		HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
-			FwdChan:           make(chan *spb.Record, BufferSize),
+			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
 			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
 			TBHandler:         tbHandler,
@@ -218,7 +218,7 @@ func NewStream(
 		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
-			FwdChan:  make(chan *spb.Record, BufferSize),
+			FwdChan:  make(chan runwork.Work, BufferSize),
 		},
 	)
 

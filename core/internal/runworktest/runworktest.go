@@ -27,9 +27,11 @@ func New() *FakeRunWork {
 
 	go func() {
 		for x := range fake.rw.Chan() {
-			fake.mu.Lock()
-			fake.allRecords = append(fake.allRecords, x)
-			fake.mu.Unlock()
+			if rec, ok := x.(runwork.WorkRecord); ok {
+				fake.mu.Lock()
+				fake.allRecords = append(fake.allRecords, rec.Record)
+				fake.mu.Unlock()
+			}
 			fake.wg.Done()
 		}
 	}()
@@ -63,7 +65,7 @@ func (w *FakeRunWork) BeforeEndCtx() context.Context {
 	return w.rw.BeforeEndCtx()
 }
 
-func (w *FakeRunWork) Chan() <-chan *spb.Record {
+func (w *FakeRunWork) Chan() <-chan runwork.Work {
 	panic("FakeRunWork.Chan() is not implemented")
 }
 
