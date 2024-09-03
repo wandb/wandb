@@ -2,27 +2,25 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from datetime import datetime
-from enum import StrEnum
 from itertools import product
 from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
 from more_itertools import always_iterable
-from pydantic import Field, Json, TypeAdapter
+from pydantic import Field, TypeAdapter
 from tqdm.auto import tqdm
 
 from wandb import util
 from wandb.sdk.automations._typing import Base64Id
 from wandb.sdk.automations._utils import (
-    ProjectInfo,
     _get_api,
     get_orgs_info,
     iter_entity_project_pairs,
 )
 from wandb.sdk.automations.actions import AnyAction
 from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.expressions import AnyExpr
+from wandb.sdk.automations.events import AnyEvent
 
 reset_path = util.vendor_setup()
 
@@ -54,20 +52,10 @@ _FETCH_PROJECT_TRIGGERS = gql(
                     ... on ArtifactSequence {
                         id
                         name
-                        project {
-                            __typename
-                            id
-                            name
-                        }
                     }
                     ... on ArtifactPortfolio {
                         id
                         name
-                        project {
-                            __typename
-                            id
-                            name
-                        }
                     }
                 }
                 triggeringCondition {
@@ -126,56 +114,55 @@ class User(Base):
     username: str
 
 
-# ------------------------------------------------------------------------------
 # Scopes
 class ArtifactCollectionScope(Base):
     typename__: Literal["ArtifactPortfolio"] = Field(repr=False, alias="__typename")
     id: Base64Id
     name: str
-    project: ProjectInfo
 
 
-class ProjectScope(ProjectInfo):
-    pass
-
-
-# ------------------------------------------------------------------------------
-# Events
-class EventType(StrEnum):
-    ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
-    CREATE_ARTIFACT = "CREATE_ARTIFACT"
-    LINK_ARTIFACT = "LINK_MODEL"
-    UPDATE_ARTIFACT_ALIAS = "UPDATE_ARTIFACT_ALIAS"
-
-
-class EventFilter(Base):
-    filter: Json[AnyExpr]
-
-
-class FilterEvent(Base):
-    typename__: Literal["FilterEventTriggeringCondition"] = Field(
-        repr=False, alias="__typename"
-    )
-    event_type: EventType
-    filter: Json[EventFilter]
-
-
-# ------------------------------------------------------------------------------
-class Automation(Base):
+class ProjectScope(Base):
+    typename__: Literal["Project"] = Field(repr=False, alias="__typename")
     id: Base64Id
     name: str
-    enabled: bool
-    created_at: datetime
-    created_by: User
+
+
+class EntityScope(Base):
+    typename__: Literal["Entity"] = Field(repr=False, alias="__typename")
+    id: Base64Id
+    name: str
+
+
+class Automation(Base):
+    """A defined W&B automation."""
+
+    id: Base64Id
+    name: str
     description: str | None
 
-    scope: ArtifactCollectionScope | ProjectScope  # TODO: entity, project scope
+    created_at: datetime
+    created_by: User
 
-    event: FilterEvent = Field(alias="triggeringCondition")
+    scope: ArtifactCollectionScope | ProjectScope | EntityScope
+
+    event: AnyEvent
     action: AnyAction
-    # action: QueueJobAction | NotificationAction | WebhookAction = Field(
-    #     alias="triggeredAction"
-    # )
+
+    enabled: bool
+
+
+class NewAutomation(Base):
+    """A newly defined automation, to be prepared and sent by the client to the server."""
+
+    name: str
+    description: str | None
+
+    scope: ArtifactCollectionScope | ProjectScope | EntityScope
+
+    event: AnyEvent
+    action: AnyAction
+
+    enabled: bool = True
 
 
 AutomationsAdapter = TypeAdapter(list[Automation])
@@ -208,3 +195,26 @@ def get_automations(
         params = {"entityName": entity, "projectName": project}
         data = api.client.execute(_FETCH_PROJECT_TRIGGERS, variable_values=params)
         yield from AutomationsAdapter.validate_python(data["project"]["triggers"])
+
+
+# TODO: WIP
+def new_automation(
+    event_and_action: tuple[AnyEvent, AnyAction] | None = None,
+    /,
+    *,
+    name: str,
+    description: str | None = None,
+    event: AnyEvent | None = None,
+    action: AnyAction | None = None,
+    enabled: bool = True,
+) -> NewAutomation:
+    if event_and_action is not None:
+        event, action = event_and_action
+
+    return NewAutomation(
+        name=name,
+        description=description,
+        event=event,
+        action=action,
+        enabled=enabled,
+    )
