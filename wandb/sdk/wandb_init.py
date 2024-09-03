@@ -566,6 +566,7 @@ class _WandbInit:
             "watch",
             "unwatch",
             "upsert_artifact",
+            "_finish",
         ):
             setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
         # attributes
