@@ -9,7 +9,7 @@ from wandb.sklearn import utils
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def outlier_candidates(regressor, X, y):
+def outlier_candidates(regressor, X, y):  # noqa: N803
     # Fit a linear model to X and y to compute MSE
     regressor.fit(X, y)
 

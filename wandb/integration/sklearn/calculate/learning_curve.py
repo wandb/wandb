@@ -12,7 +12,7 @@ simplefilter(action="ignore", category=FutureWarning)
 
 def learning_curve(
     model,
-    X,
+    X,  # noqa: N803
     y,
     cv=None,
     shuffle=False,

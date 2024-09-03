@@ -11,7 +11,7 @@ from wandb.sklearn import utils
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def silhouette(clusterer, X, cluster_labels, labels, metric, kmeans):
+def silhouette(clusterer, X, cluster_labels, labels, metric, kmeans):  # noqa: N803
     # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
     # TODO - keep/delete once we decide if we should train clusterers
     # or ask for trained models

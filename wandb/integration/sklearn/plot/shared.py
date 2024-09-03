@@ -11,7 +11,7 @@ from wandb.sklearn import calculate, utils
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
+def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):  # noqa: N803
     """Logs a chart depicting summary metrics for a model.
 
     Should only be called with a fitted model (otherwise an error is thrown).
@@ -47,7 +47,7 @@ def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
 
 def learning_curve(
     model=None,
-    X=None,
+    X=None,  # noqa: N803
     y=None,
     cv=None,
     shuffle=False,

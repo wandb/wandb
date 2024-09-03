@@ -12,7 +12,7 @@ from wandb.sklearn import calculate, utils
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer"):
+def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer"):  # noqa: N803
     """Generates all sklearn clusterer plots supported by W&B.
 
     The following plots are generated:
@@ -40,7 +40,7 @@ def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer
     wandb.sklearn.plot_clusterer(kmeans, X, cluster_labels, labels, "KMeans")
     ```
     """
-    wandb.termlog("\nPlotting %s." % model_name)
+    wandb.termlog(f"\nPlotting {model_name}.")
     if isinstance(model, sklearn.cluster.KMeans):
         elbow_curve(model, X_train)
         wandb.termlog("Logged elbow curve.")
@@ -54,7 +54,11 @@ def clusterer(model, X_train, cluster_labels, labels=None, model_name="Clusterer
 
 
 def elbow_curve(
-    clusterer=None, X=None, cluster_ranges=None, n_jobs=1, show_cluster_time=True
+    clusterer=None,
+    X=None,  # noqa: N803
+    cluster_ranges=None,
+    n_jobs=1,
+    show_cluster_time=True,
 ):
     """Measures and plots variance explained as a function of the number of clusters.
 
@@ -97,7 +101,7 @@ def elbow_curve(
 
 def silhouette(
     clusterer=None,
-    X=None,
+    X=None,  # noqa: N803
     cluster_labels=None,
     labels=None,
     metric="euclidean",
@@ -135,7 +139,7 @@ def silhouette(
 
     if not_missing and correct_types and is_fitted:
         if isinstance(X, (pd.DataFrame)):
-            X = X.values
+            X = X.values  # noqa: N806
         silhouette_chart = calculate.silhouette(
             clusterer, X, cluster_labels, labels, metric, kmeans
         )

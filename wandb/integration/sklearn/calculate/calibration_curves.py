@@ -13,12 +13,12 @@ from wandb.sklearn import utils
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def calibration_curves(clf, X, y, clf_name):
+def calibration_curves(clf, X, y, clf_name):  # noqa: N803
     # ComplementNB (introduced in 0.20.0) requires non-negative features
     if int(sklearn.__version__.split(".")[1]) >= 20 and isinstance(
         clf, naive_bayes.ComplementNB
     ):
-        X = X - X.min()
+        X = X - X.min()  # noqa:N806
 
     # Calibrated with isotonic calibration
     isotonic = CalibratedClassifierCV(clf, cv=2, method="isotonic")
@@ -48,7 +48,7 @@ def calibration_curves(clf, X, y, clf_name):
     frac_positives_column.append(1)
     mean_pred_value_column.append(1)
 
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+    x_train, x_test, y_train, y_test = model_selection.train_test_split(
         X, y, test_size=0.9, random_state=42
     )
 
@@ -58,11 +58,11 @@ def calibration_curves(clf, X, y, clf_name):
     names = ["Logistic", f"{clf_name} Isotonic", f"{clf_name} Sigmoid"]
 
     for model, name in zip(models, names):
-        model.fit(X_train, y_train)
+        model.fit(x_train, y_train)
         if hasattr(model, "predict_proba"):
-            prob_pos = model.predict_proba(X_test)[:, 1]
+            prob_pos = model.predict_proba(x_test)[:, 1]
         else:  # use decision function
-            prob_pos = model.decision_function(X_test)
+            prob_pos = model.decision_function(x_test)
             prob_pos = (prob_pos - prob_pos.min()) / (prob_pos.max() - prob_pos.min())
 
         hist, edges = np.histogram(prob_pos, bins=10, density=False)
