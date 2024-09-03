@@ -2,7 +2,12 @@
 name: ❓ Question
 description: Use this template to ask a question about W&B or its features.
 title: "[Q]: "
-value: |
-  <!--- Ask your question here --->
 labels:
   - "ty:question"
+
+body:
+  - type: textarea
+    attributes:
+      label: Ask your question
+      value: |
+        <!--- Ask your question here --->
