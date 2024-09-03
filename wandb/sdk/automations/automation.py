@@ -5,6 +5,8 @@ from wandb.sdk.automations.base import Base
 
 
 class UpdateInfo:
+    """Info about an action taken to modify to a defined Automation."""
+
     user_id: IntId
     at: datetime
 

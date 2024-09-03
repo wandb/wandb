@@ -7,7 +7,7 @@ from typing import Annotated, Any, Literal, Union
 from pydantic import Field, Json, TypeAdapter, field_validator, model_validator
 from typing_extensions import Self, assert_never
 
-from wandb.sdk.automations._typing import Base64Id, IntId, UserId
+from wandb.sdk.automations._typing import Base64Id, IntId
 from wandb.sdk.automations.base import Base
 
 
@@ -42,16 +42,6 @@ class ActionType(StrEnum):
     GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
     QUEUE_JOB = "QUEUE_JOB"
     NOTIFICATION = "NOTIFICATION"
-
-
-# # ActionTypeT = TypeVar("ActionTypeT", bound=ActionType)
-# ActionTypeT: TypeAlias = ActionType
-# PayloadT = TypeVar("PayloadT", bound=Base)
-#
-#
-# class _Action(Base, Generic[ActionTypeT, PayloadT]):
-#     triggered_action_type: ActionTypeT
-#     payload: PayloadT
 
 
 class WebhookAction(Base):
@@ -98,7 +88,7 @@ class LegacyAutomation(Base):
     id: IntId
 
     created_at: datetime
-    created_by: UserId
+    created_by: IntId
     updated_at: datetime | None = None
 
     name: str
