@@ -14,6 +14,7 @@ class Base(BaseModel, ABC):
         extra="forbid",
         alias_generator=to_camel,
         populate_by_name=True,
+        use_enum_values=True,
     )
 
     def model_dump(

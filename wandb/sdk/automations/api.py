@@ -2,17 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator
 from datetime import datetime
-from itertools import product
-from pathlib import Path
-from typing import Literal
+from itertools import chain, product
+from typing import Literal, Union
 
-from dotenv import load_dotenv
 from more_itertools import always_iterable
 from pydantic import Field, TypeAdapter
 from tqdm.auto import tqdm
+from typing_extensions import Annotated
 
 from wandb import util
-from wandb.sdk.automations._typing import Base64Id
+from wandb.sdk.automations._typing import Base64Id, TypenameField
 from wandb.sdk.automations._utils import (
     _get_api,
     get_orgs_info,
@@ -25,6 +24,210 @@ from wandb.sdk.automations.events import AnyEvent
 reset_path = util.vendor_setup()
 
 from wandb_gql import gql  # noqa: E402
+
+_FETCH_ORG_TRIGGERS = gql(
+    """
+    query TriggersInViewerOrgs ($entityName: String) {
+        viewer(entityName: $entityName) {
+            # __typename
+            # id
+            # username
+            organizations {
+                # __typename
+                # id
+                # name
+                # orgType
+                orgEntity {
+                    # __typename
+                    # name
+                    # id
+                    projects {
+                        edges {
+                            node {
+                                # __typename
+                                # id
+                                # name
+                                triggers {
+                                    id
+                                    createdAt
+                                    createdBy {id username}
+                                    updatedAt
+                                    name
+                                    description
+                                    enabled
+                                    triggeringCondition {
+                                        __typename
+                                        ... on FilterEventTriggeringCondition {
+                                            eventType
+                                            filter
+                                        }
+                                    }
+                                    triggeredAction {
+                                        __typename
+                                        ... on QueueJobTriggeredAction {
+                                            template
+                                            queue {
+                                                __typename
+                                                id
+                                                name
+                                            }
+                                        }
+                                        ... on NotificationTriggeredAction {
+                                            title
+                                            message
+                                            severity
+                                            integration {
+                                                __typename
+                                                ... on GenericWebhookIntegration {
+                                                    id
+                                                    name
+                                                    urlEndpoint
+                                                    secretRef
+                                                    accessTokenRef
+                                                    createdAt
+                                                }
+                                                ... on GitHubOAuthIntegration {
+                                                    id
+                                                }
+                                                ... on SlackIntegration {
+                                                    id
+                                                    teamName
+                                                    channelName
+                                                }
+                                            }
+                                        }
+                                        ... on GenericWebhookTriggeredAction {
+                                            requestPayload
+                                            integration {
+                                                __typename
+                                                ... on GenericWebhookIntegration {
+                                                    id
+                                                    name
+                                                    urlEndpoint
+                                                    secretRef
+                                                    accessTokenRef
+                                                    createdAt
+                                                }
+                                                ... on GitHubOAuthIntegration {
+                                                    id
+                                                }
+                                                ... on SlackIntegration {
+                                                    id
+                                                    teamName
+                                                    channelName
+                                                }
+                                            }
+                                        }
+                                    }
+                                    scope {
+                                        __typename
+                                        ... on ArtifactPortfolio {id name}
+                                        ... on ArtifactSequence {id name}
+                                        ... on Project {id name}
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                teams {
+                    # __typename
+                    # id
+                    # name
+                    projects {
+                        edges {
+                            node {
+                                # __typename
+                                # id
+                                # name
+                                triggers {
+                                    id
+                                    createdAt
+                                    createdBy {id username}
+                                    updatedAt
+                                    name
+                                    description
+                                    enabled
+                                    scope {
+                                        __typename
+                                        ... on ArtifactPortfolio {id name}
+                                        ... on ArtifactSequence {id name}
+                                        ... on Project {id name}
+                                    }
+                                    triggeringCondition {
+                                        __typename
+                                        ... on FilterEventTriggeringCondition {
+                                            eventType
+                                            filter
+                                        }
+                                    }
+                                    triggeredAction {
+                                        __typename
+                                        ... on QueueJobTriggeredAction {
+                                            template
+                                            queue {
+                                                __typename
+                                                id
+                                                name
+                                            }
+                                        }
+                                        ... on NotificationTriggeredAction {
+                                            title
+                                            message
+                                            severity
+                                            integration {
+                                                __typename
+                                                ... on GenericWebhookIntegration {
+                                                    id
+                                                    urlEndpoint
+                                                    name
+                                                    secretRef
+                                                    accessTokenRef
+                                                    createdAt
+                                                }
+                                                ... on GitHubOAuthIntegration {
+                                                    id
+                                                }
+                                                ... on SlackIntegration {
+                                                    id
+                                                    teamName
+                                                    channelName
+                                                }
+                                            }
+                                        }
+                                        ... on GenericWebhookTriggeredAction {
+                                            requestPayload
+                                            integration {
+                                                __typename
+                                                ... on GenericWebhookIntegration {
+                                                    id
+                                                    urlEndpoint
+                                                    name
+                                                    secretRef
+                                                    accessTokenRef
+                                                    createdAt
+                                                }
+                                                ... on GitHubOAuthIntegration {
+                                                    id
+                                                }
+                                                ... on SlackIntegration {
+                                                    id
+                                                    teamName
+                                                    channelName
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+)
 
 _FETCH_PROJECT_TRIGGERS = gql(
     """
@@ -76,13 +279,29 @@ _FETCH_PROJECT_TRIGGERS = gql(
                         template
                     }
                     ... on NotificationTriggeredAction {
-                        integration {
-                            __typename
-                            id
-                        }
                         title
                         message
                         severity
+                        integration {
+                            __typename
+                            id
+                            ... on GenericWebhookIntegration {
+                                id
+                                urlEndpoint
+                                name
+                                secretRef
+                                accessTokenRef
+                                createdAt
+                            }
+                            ... on GitHubOAuthIntegration {
+                                id
+                            }
+                            ... on SlackIntegration {
+                                id
+                                teamName
+                                channelName
+                            }
+                        }
                     }
                     ... on GenericWebhookTriggeredAction {
                         integration {
@@ -105,7 +324,7 @@ _FETCH_PROJECT_TRIGGERS = gql(
     """
 )
 
-load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
+# load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
 
 
 # ------------------------------------------------------------------------------
@@ -115,35 +334,49 @@ class User(Base):
 
 
 # Scopes
-class ArtifactCollectionScope(Base):
-    typename__: Literal["ArtifactPortfolio"] = Field(repr=False, alias="__typename")
+class ArtifactPortfolioScope(Base):
+    typename__: TypenameField[Literal["ArtifactPortfolio"]]
+    id: Base64Id
+    name: str
+
+
+class ArtifactSequenceScope(Base):
+    typename__: TypenameField[Literal["ArtifactSequence"]]
     id: Base64Id
     name: str
 
 
 class ProjectScope(Base):
-    typename__: Literal["Project"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["Project"]]
     id: Base64Id
     name: str
 
 
 class EntityScope(Base):
-    typename__: Literal["Entity"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["Entity"]]
     id: Base64Id
     name: str
+
+
+AnyScope = Annotated[
+    Union[ArtifactPortfolioScope, ArtifactSequenceScope, ProjectScope, EntityScope],
+    Field(discriminator="typename__"),
+]
 
 
 class Automation(Base):
     """A defined W&B automation."""
 
     id: Base64Id
+
     name: str
     description: str | None
 
-    created_at: datetime
     created_by: User
+    created_at: datetime
+    updated_at: datetime | None
 
-    scope: ArtifactCollectionScope | ProjectScope | EntityScope
+    scope: AnyScope
 
     event: AnyEvent
     action: AnyAction
@@ -157,15 +390,31 @@ class NewAutomation(Base):
     name: str
     description: str | None
 
-    scope: ArtifactCollectionScope | ProjectScope | EntityScope
+    scope: AnyScope
 
     event: AnyEvent
     action: AnyAction
 
-    enabled: bool = True
+    enabled: bool
 
 
 AutomationsAdapter = TypeAdapter(list[Automation])
+
+
+def fetch_automations() -> Iterator[Automation]:
+    api = _get_api()
+    data = api.client.execute(_FETCH_ORG_TRIGGERS, variable_values={"entityName": None})
+    organizations = data["viewer"]["organizations"]
+    entities = chain.from_iterable(
+        [org["orgEntity"], *org["teams"]] for org in organizations
+    )
+    edges = chain.from_iterable(entity["projects"]["edges"] for entity in entities)
+    projects = (edge["node"] for edge in edges)
+    for proj in projects:
+        yield from AutomationsAdapter.validate_python(proj["triggers"])
+    # triggers = chain.from_iterable(proj["triggers"] for proj in projects)
+    # return list(islice(triggers, 5))
+    # # return projects
 
 
 def get_automations(

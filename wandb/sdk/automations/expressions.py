@@ -38,16 +38,16 @@ class Expr(Base, ABC):
     #     return Not(not_=self)
 
     # # ------------------------------------------------------------------------------
-    # def __lt__(self, other: NumT) -> Lt:
+    # def __lt__(self, other: ValueT) -> Lt:
     #     raise NotImplementedError
     #
-    # def __gt__(self, other: NumT) -> Gt:
+    # def __gt__(self, other: ValueT) -> Gt:
     #     raise NotImplementedError
     #
-    # def __le__(self, other: NumT) -> Lte:
+    # def __le__(self, other: ValueT) -> Lte:
     #     raise NotImplementedError
     #
-    # def __ge__(self, other: NumT) -> Gte:
+    # def __ge__(self, other: ValueT) -> Gte:
     #     raise NotImplementedError
     #
     # # ------------------------------------------------------------------------------
@@ -61,13 +61,14 @@ class Expr(Base, ABC):
 ExprT = TypeVar("ExprT", bound=Expr)
 
 #: Placeholder - TODO: make these variadic depending on compared field/expression
-NumT = Union[int, float]
 ValueT = TypeVar("ValueT")
 
 
 # ------------------------------------------------------------------------------
 # MongoDB specs: https://www.mongodb.com/docs/manual/reference/operator/query-logical/
 class Or(Expr):
+    """Type for the `$or` operator -- also effectively an `any` operator."""
+
     or_: list[AnyExpr] = Field(alias="$or")
 
 
@@ -87,19 +88,19 @@ class Regex(Expr):
 
 # ------------------------------------------------------------------------------
 class Lt(Expr):
-    lt_: NumT = Field(alias="$lt")
+    lt_: ValueT = Field(alias="$lt")
 
 
 class Gt(Expr):
-    gt_: NumT = Field(alias="$gt")
+    gt_: ValueT = Field(alias="$gt")
 
 
 class Lte(Expr):
-    lte_: NumT = Field(alias="$lte")
+    lte_: ValueT = Field(alias="$lte")
 
 
 class Gte(Expr):
-    gte_: NumT = Field(alias="$gte")
+    gte_: ValueT = Field(alias="$gte")
 
 
 # ------------------------------------------------------------------------------

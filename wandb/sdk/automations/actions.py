@@ -7,7 +7,7 @@ from typing import Union
 from pydantic import AnyUrl, Field, SecretStr
 from typing_extensions import Annotated, Literal
 
-from wandb.sdk.automations._typing import Base64Id, JsonDict
+from wandb.sdk.automations._typing import Base64Id, JsonDict, TypenameField
 from wandb.sdk.automations.base import Base
 
 
@@ -18,28 +18,30 @@ class SeverityLevel(StrEnum):
 
 
 class RunQueue(Base):
-    typename__: Literal["RunQueue"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["RunQueue"]]
+
     id: Base64Id
     name: str
 
 
 class QueueJobAction(Base):
-    typename__: Literal["QueueJobTriggeredAction"] = Field(
-        repr=False, alias="__typename"
-    )
-    queue: RunQueue
+    typename__: TypenameField[Literal["QueueJobTriggeredAction"]]
+
+    queue: RunQueue | None
     template: JsonDict  # TODO: parse
 
 
 class SlackIntegration(Base):
-    typename__: Literal["SlackIntegration"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["SlackIntegration"]]
+
     id: Base64Id
+    team_name: str
+    channel_name: str
 
 
 class NotificationAction(Base):
-    typename__: Literal["NotificationTriggeredAction"] = Field(
-        repr=False, alias="__typename"
-    )
+    typename__: TypenameField[Literal["NotificationTriggeredAction"]]
+
     integration: SlackIntegration
     title: str
     message: str
@@ -47,9 +49,8 @@ class NotificationAction(Base):
 
 
 class WebhookIntegration(Base):
-    typename__: Literal["GenericWebhookIntegration"] = Field(
-        repr=False, alias="__typename"
-    )
+    typename__: TypenameField[Literal["GenericWebhookIntegration"]]
+
     id: Base64Id
     name: str
     url_endpoint: AnyUrl
@@ -61,9 +62,8 @@ class WebhookIntegration(Base):
 
 
 class WebhookAction(Base):
-    typename__: Literal["GenericWebhookTriggeredAction"] = Field(
-        repr=False, alias="__typename"
-    )
+    typename__: TypenameField[Literal["GenericWebhookTriggeredAction"]]
+
     integration: WebhookIntegration
     request_payload: JsonDict = Field(alias="requestPayload")
 
@@ -74,5 +74,5 @@ AnyAction = Annotated[
         NotificationAction,
         WebhookAction,
     ],
-    Field(alias="triggeredAction"),
+    Field(discriminator="typename__", alias="triggeredAction"),
 ]

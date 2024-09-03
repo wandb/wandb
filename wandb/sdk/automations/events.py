@@ -6,6 +6,7 @@ from typing import Literal, Union
 from pydantic import Field, Json
 from typing_extensions import Annotated
 
+from wandb.sdk.automations._typing import TypenameField
 from wandb.sdk.automations.base import Base
 from wandb.sdk.automations.expressions import AnyExpr, MetricPredicate
 
@@ -23,18 +24,14 @@ class Filter(Base):
 
 
 class FilterEvent(Base):
-    typename__: Literal["FilterEventTriggeringCondition"] = Field(
-        repr=False, alias="__typename"
-    )
+    typename__: TypenameField[Literal["FilterEventTriggeringCondition"]]
     event_type: FilterEventType
     filter: Json[Filter]
 
 
-# Triggers on run metrics
+# TODO: This is a WIP Triggers on run metrics
 class RunMetricEvent(Base):
-    typename__: Literal["RunMetricTriggeringCondition"] = Field(
-        repr=False, alias="__typename"
-    )
+    typename__: TypenameField[Literal["RunMetricTriggeringCondition"]]
     event_type: str  # TODO: TBD
 
     run_filter: Json[Filter]
