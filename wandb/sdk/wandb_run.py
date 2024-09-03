@@ -2160,6 +2160,9 @@ class Run:
         quiet: Optional[bool] = None,
     ) -> None:
         logger.info(f"finishing run {self._get_path()}")
+        if self.disabled:
+            return
+
         with telemetry.context(run=self) as tel:
             tel.feature.finish = True
 
