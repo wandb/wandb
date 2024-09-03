@@ -3,9 +3,8 @@ from __future__ import annotations
 from abc import ABC
 from typing import TypeVar, Union
 
-from pydantic import Field, RootModel, model_validator
+from pydantic import Field, RootModel
 from pydantic._internal import _repr
-from typing_extensions import Self
 
 from wandb.sdk.automations.base import Base
 
@@ -122,20 +121,15 @@ class Nin(Expr):
 
 
 # ------------------------------------------------------------------------------
-# FieldPredicate: TypeAlias = dict[str, Expr]
 class FieldPredicate(RootModel):
     root: dict[str, AnyExpr]
 
-    @model_validator(mode="after")
-    def _check_single_field(self) -> Self:
-        if len(self.root) > 1:
-            raise ValueError(
-                f"Got multiple ({len(self.root)}) fields in predicate: {list(self.root)}"
-            )
-        return self
-
     def __repr_args__(self) -> _repr.ReprArgs:
         yield from self.root.items()
+
+
+class MetricPredicate(FieldPredicate):
+    pass
 
 
 AnyExpr = Union[
