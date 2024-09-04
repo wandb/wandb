@@ -408,27 +408,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
-	switch request.State {
-	case spb.DeferRequest_BEGIN:
-	case spb.DeferRequest_FLUSH_RUN:
-	case spb.DeferRequest_FLUSH_STATS:
-	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-	case spb.DeferRequest_FLUSH_TB:
-	case spb.DeferRequest_FLUSH_SUM:
-	case spb.DeferRequest_FLUSH_DEBOUNCER:
-	case spb.DeferRequest_FLUSH_OUTPUT:
-	case spb.DeferRequest_FLUSH_JOB:
-	case spb.DeferRequest_FLUSH_DIR:
-	case spb.DeferRequest_FLUSH_FP:
-	case spb.DeferRequest_JOIN_FP:
-	case spb.DeferRequest_FLUSH_FS:
-	case spb.DeferRequest_FLUSH_FINAL:
-	case spb.DeferRequest_END:
-		h.fileTransferStats.SetDone()
-	default:
-		h.logger.CaptureError(
-			fmt.Errorf("handleDefer: unknown defer state %v", request.State))
-	}
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*spb.Record)
 	h.fwdRecordWithControl(record,

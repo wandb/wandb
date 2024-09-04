@@ -54,6 +54,7 @@ type SenderParams struct {
 	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
+	FileTransferStats   filetransfer.FileTransferStats
 	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
 	TBHandler           *tensorboard.TBHandler
@@ -88,6 +89,9 @@ type Sender struct {
 
 	// fileTransferManager is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
+
+	// fileTransferStats tracks file upload progress
+	fileTransferStats filetransfer.FileTransferStats
 
 	// fileWatcher notifies when files in the file system are changed
 	fileWatcher watcher.Watcher
@@ -167,6 +171,7 @@ func NewSender(
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
+		fileTransferStats:   params.FileTransferStats,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
 		tbHandler:           params.TBHandler,
@@ -572,6 +577,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_END:
 		request.State++
+		s.fileTransferStats.SetDone()
 		s.syncService.Flush()
 		if !s.settings.GetXSync().GetValue() {
 			// if sync is enabled, we don't need to do this

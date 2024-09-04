@@ -244,6 +244,7 @@ func NewStream(
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,
 			FileTransferManager: fileTransferManagerOrNil,
+			FileTransferStats:   fileTransferStats,
 			FileWatcher:         fileWatcher,
 			RunfilesUploader:    runfilesUploaderOrNil,
 			TBHandler:           tbHandler,
