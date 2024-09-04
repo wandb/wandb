@@ -3697,16 +3697,16 @@ class Api:
     ) -> Tuple[Dict, Dict]:
         fields = self.server_create_artifact_introspection()
         artifact_fields = self.server_artifact_introspection()
-        if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
+        if ("ttlIsInherited" not in artifact_fields) and ttl_duration_seconds:
             wandb.termwarn(
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
             ttl_duration_seconds = None
-        if "tags" not in artifact_fields and tags:
+        if ("tags" not in artifact_fields) and tags:
             wandb.termwarn(
-                "Server not compatible with setting Artifact tags, "
-                "please upgrade the server to use Artifact tags."
+                "Server not compatible with Artifact tags. "
+                "To use Artifact tags, please upgrade the server to v0.85 or higher."
             )
 
         query_template = self._get_create_artifact_mutation(

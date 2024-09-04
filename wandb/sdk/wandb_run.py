@@ -3285,8 +3285,8 @@ class Run:
         supported_artifact_fields = api.api.server_artifact_introspection()
         if tags and ("tags" not in supported_artifact_fields):
             wandb.termwarn(
-                "Server does not support Artifact tags, "
-                "please upgrade the server to use Artifact tags."
+                "Server does not support Artifact tags. "
+                "To use Artifact tags, please upgrade the server to v0.85 or higher."
             )
             tags = None
 

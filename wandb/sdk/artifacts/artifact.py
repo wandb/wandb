@@ -1095,8 +1095,8 @@ class Artifact:
         else:
             if tags_to_add or tags_to_delete:
                 termwarn(
-                    "Server not compatible with updating Artifact tags, "
-                    "please upgrade the server to use Artifact tags."
+                    "Server not compatible with Artifact tags. "
+                    "To use Artifact tags, please upgrade the server to v0.85 or higher."
                 )
             mutation_template = (
                 mutation_template.replace("_TAGS_TO_ADD_TYPE_", "")
