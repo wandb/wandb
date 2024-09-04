@@ -231,7 +231,6 @@ ignore_errors = false
 
 [[tool.mypy.overrides]]
 module = [
-    "wandb.testing.*",
     "wandb.integration.*",
     "wandb.apis.*",
     "wandb.proto.*",
