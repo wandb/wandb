@@ -16,9 +16,12 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-type FilterValue interface {
-	isOpenMetricsFilters_Value()
+type Filter struct {
+	MetricNameRegex string
+	LabelFilters    [][2]string
 }
+
+// TODO: params
 
 // OpenMetrics is a monitor that collects metrics from an OpenMetrics endpoint.
 //
@@ -26,33 +29,35 @@ type FilterValue interface {
 type OpenMetrics struct {
 	name        string
 	url         string
-	filters     [][]string
+	filters     []Filter
 	client      *retryablehttp.Client
 	logger      *observability.CoreLogger
 	labelMap    map[string]map[string]int
 	labelHashes map[string]map[string]string
 }
 
-func processSequenceFilters(sequence *spb.ListStringValue) [][]string {
+func processSequenceFilters(sequence *spb.ListStringValue) []Filter {
 	if sequence == nil {
 		return nil
 	}
-	result := make([][]string, len(sequence.GetValue()))
+	result := make([]Filter, len(sequence.GetValue()))
 	for i, filter := range sequence.GetValue() {
-		result[i] = []string{filter}
+		result[i] = Filter{MetricNameRegex: filter}
 	}
 	return result
 }
 
-func processMappingFilters(mapping *spb.MapStringKeyMapStringKeyStringValue) [][]string {
+func processMappingFilters(mapping *spb.MapStringKeyMapStringKeyStringValue) []Filter {
 	if mapping == nil {
 		return nil
 	}
-	result := [][]string{}
+	result := []Filter{}
 	for metricRegex, labelFilters := range mapping.GetValue() {
+		filter := Filter{MetricNameRegex: metricRegex}
 		for labelName, labelRegex := range labelFilters.GetValue() {
-			result = append(result, []string{metricRegex, labelName, labelRegex})
+			filter.LabelFilters = append(filter.LabelFilters, [2]string{labelName, labelRegex})
 		}
+		result = append(result, filter)
 	}
 	return result
 }
@@ -78,7 +83,7 @@ func NewOpenMetrics(
 	retryClient.RetryWaitMax = 10 * time.Second
 	retryClient.HTTPClient.Timeout = 5 * time.Second
 
-	var processedFilters [][]string
+	var processedFilters []Filter
 
 	if filters != nil {
 		switch v := filters.GetValue().(type) {
@@ -90,6 +95,8 @@ func NewOpenMetrics(
 			logger.Warn("Unknown filter type, using empty filter")
 		}
 	}
+
+	fmt.Println(processedFilters)
 
 	om := &OpenMetrics{
 		name:        name,
@@ -135,10 +142,10 @@ type FilterMap map[string]map[string]string
 // }
 
 // shouldCaptureMetric checks if a metric should be captured based on the filters
-func shouldCaptureMetric(
+func ShouldCaptureMetric(
 	endpointName, metricName string,
 	metricLabels map[string]string,
-	filters [][]string,
+	filters []Filter,
 ) bool {
 	if len(filters) == 0 {
 		return true // If no filters, capture all metrics
@@ -147,20 +154,30 @@ func shouldCaptureMetric(
 	fullMetricName := fmt.Sprintf("%s.%s", endpointName, metricName)
 
 	for _, filter := range filters {
-		metricNameRegex := filter[0]
-		if match, _ := regexp.MatchString(metricNameRegex, fullMetricName); !match {
+		if match, _ := regexp.MatchString(filter.MetricNameRegex, fullMetricName); !match {
 			continue
 		}
 
-		if len(filter) == 1 {
+		if len(filter.LabelFilters) == 0 {
 			return true // If only metric name regex is provided, capture the metric
 		}
 
-		labelName, labelRegex := filter[1], filter[2]
-		if labelValue, ok := metricLabels[labelName]; ok {
-			if match, _ := regexp.MatchString(labelRegex, labelValue); match {
-				return true
+		shouldCapture := true
+		for _, labelFilter := range filter.LabelFilters {
+			labelName, labelRegex := labelFilter[0], labelFilter[1]
+			if labelValue, ok := metricLabels[labelName]; !ok {
+				shouldCapture = false
+				break
+			} else {
+				if match, _ := regexp.MatchString(labelRegex, labelValue); !match {
+					shouldCapture = false
+					break
+				}
 			}
+		}
+
+		if shouldCapture {
+			return true
 		}
 	}
 
@@ -198,7 +215,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 					labels[label.GetName()] = label.GetValue()
 				}
 
-				if !shouldCaptureMetric(o.name, name, labels, o.filters) {
+				if !ShouldCaptureMetric(o.name, name, labels, o.filters) {
 					continue
 				}
 
