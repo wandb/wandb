@@ -291,44 +291,22 @@ func TestSendUseArtifact(t *testing.T) {
 // Verify that arguments are properly passed through to graphql
 func TestSendArtifact(t *testing.T) {
 	tests := []struct {
-		name                      string
-		mockServerInfoResponse    string
-		shouldSupportArtifactTags bool
+		name string
+		tags []string
 	}{
 		{
-			name:                      "Server version doesn't support artifact tags",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.57.2"}}}`,
-			shouldSupportArtifactTags: false,
+			name: "Received non-empty tags",
+			tags: []string{"test-tag1", "test-tag2"},
 		},
 		{
-			name:                      "Server version supports artifact tags",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": "0.58.0"}}}`,
-			shouldSupportArtifactTags: true,
-		},
-		{
-			name:                      "Empty version string - assume tags are supported",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": {"versionOnThisInstanceString": ""}}}`,
-			shouldSupportArtifactTags: true,
-		},
-		{
-			name:                      "Null latestLocalVersionInfo - assume tags are supported",
-			mockServerInfoResponse:    `{"serverInfo": {"latestLocalVersionInfo": null}}`,
-			shouldSupportArtifactTags: true,
-		},
-		{
-			name:                      "Null serverInfo - assume tags are supported",
-			mockServerInfoResponse:    `{"serverInfo": null}`,
-			shouldSupportArtifactTags: true,
+			name: "Received empty tags",
+			tags: []string{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 
 			mockGQL := gqlmock.NewMockClient()
-			mockGQL.StubMatchOnce(
-				gqlmock.WithOpName("ServerInfo"),
-				tt.mockServerInfoResponse,
-			)
 			mockGQL.StubMatchOnce(
 				gqlmock.WithOpName("CreateArtifact"),
 				validCreateArtifactResponse,
@@ -346,7 +324,7 @@ func TestSendArtifact(t *testing.T) {
 						Name:    "test-artifact",
 						Digest:  "test-digest",
 						Aliases: []string{"latest"},
-						Tags:    []string{"test-tag1", "test-tag2"},
+						Tags:    tt.tags,
 						Manifest: &spb.ArtifactManifest{
 							Version:       1,
 							StoragePolicy: "wandb-storage-policy-v1",
@@ -367,16 +345,16 @@ func TestSendArtifact(t *testing.T) {
 			sender.SendRecord(artifact)
 
 			requests := mockGQL.AllRequests()
-			assert.LessOrEqual(t, len(requests), 2)
+			assert.Equal(t, len(requests), 1)
 
 			// We may have had to check ServerInfo for compatibility, but
 			// CreateArtifact should still be the last request
-			createArtifactRequest := requests[len(requests)-1]
+			createArtifactRequest := requests[0]
 
 			// Tags should only have been included in the request if the server supports it
 			var expectedTagsValue gomock.Matcher
-			if tt.shouldSupportArtifactTags {
-				expectedTagsValue = gomock.Len(2)
+			if len(tt.tags) > 0 {
+				expectedTagsValue = gomock.Len(len(tt.tags))
 			} else {
 				expectedTagsValue = gomock.Nil()
 			}

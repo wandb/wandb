@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/mod/semver"
-
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
@@ -101,17 +99,11 @@ func (as *ArtifactSaver) createArtifact() (
 		runId = &as.Artifact.RunId
 	}
 
-	// Older server versions won't support tags, so check the server version to be sure
-	supportsTags, err := as.canSupportArtifactTags()
-	if err != nil {
-		return gql.CreatedArtifactArtifact{}, err
-	}
-
+	// Note: if tags are empty, `omitempty` ensures they're nulled out
+	// (effectively omitted) in the prepare GraphQL request
 	var tags []gql.TagInput
-	if supportsTags {
-		for _, tag := range as.Artifact.Tags {
-			tags = append(tags, gql.TagInput{TagName: tag})
-		}
+	for _, tag := range as.Artifact.Tags {
+		tags = append(tags, gql.TagInput{TagName: tag})
 	}
 
 	input := gql.CreateArtifactInput{
@@ -738,33 +730,4 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	}
 
 	return artifactID, nil
-}
-
-const minArtifactTagsServerVersion = "v0.58"
-
-// canSupportArtifactTags returns true if the server version supports artifact tags.
-func (as *ArtifactSaver) canSupportArtifactTags() (bool, error) {
-	response, err := gql.ServerInfo(as.Ctx, as.GraphqlClient)
-	if err != nil {
-		return false, fmt.Errorf("gql.ServerInfo: %w", err)
-	}
-
-	// If isn't a versioned server deployment (as opposed to e.g. prod SaaS), err on the side of leniency, and
-	// expect artifact tags support in more recent deployments
-	serverInfo := response.GetServerInfo()
-	if serverInfo == nil {
-		return true, nil
-	}
-	localVersionInfo := serverInfo.GetLatestLocalVersionInfo()
-	if localVersionInfo == nil {
-		return true, nil
-	}
-	// semver requires a leading "v" when comparing semantic versions
-	serverVersion := "v" + localVersionInfo.GetVersionOnThisInstanceString()
-	if !semver.IsValid(serverVersion) {
-		return true, nil
-	}
-	supportsArtifactTags := semver.Compare(serverVersion, minArtifactTagsServerVersion) >= 0
-
-	return supportsArtifactTags, nil
 }
