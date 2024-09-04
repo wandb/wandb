@@ -8,6 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
+
 __version__ = "0.17.9.dev1"
 
 from typing import Optional
@@ -121,26 +122,33 @@ log = _preinit.PreInitCallable("wandb.log", wandb_sdk.wandb_run.Run.log)  # type
 save = _preinit.PreInitCallable("wandb.save", wandb_sdk.wandb_run.Run.save)  # type: ignore
 restore = wandb_sdk.wandb_run.restore
 use_artifact = _preinit.PreInitCallable(
-    "wandb.use_artifact", wandb_sdk.wandb_run.Run.use_artifact  # type: ignore
+    "wandb.use_artifact",
+    wandb_sdk.wandb_run.Run.use_artifact,  # type: ignore
 )
 log_artifact = _preinit.PreInitCallable(
-    "wandb.log_artifact", wandb_sdk.wandb_run.Run.log_artifact  # type: ignore
+    "wandb.log_artifact",
+    wandb_sdk.wandb_run.Run.log_artifact,  # type: ignore
 )
 log_model = _preinit.PreInitCallable(
-    "wandb.log_model", wandb_sdk.wandb_run.Run.log_model  # type: ignore
+    "wandb.log_model",
+    wandb_sdk.wandb_run.Run.log_model,  # type: ignore
 )
 use_model = _preinit.PreInitCallable(
-    "wandb.use_model", wandb_sdk.wandb_run.Run.use_model  # type: ignore
+    "wandb.use_model",
+    wandb_sdk.wandb_run.Run.use_model,  # type: ignore
 )
 link_model = _preinit.PreInitCallable(
-    "wandb.link_model", wandb_sdk.wandb_run.Run.link_model  # type: ignore
+    "wandb.link_model",
+    wandb_sdk.wandb_run.Run.link_model,  # type: ignore
 )
 define_metric = _preinit.PreInitCallable(
-    "wandb.define_metric", wandb_sdk.wandb_run.Run.define_metric  # type: ignore
+    "wandb.define_metric",
+    wandb_sdk.wandb_run.Run.define_metric,  # type: ignore
 )
 
 mark_preempting = _preinit.PreInitCallable(
-    "wandb.mark_preempting", wandb_sdk.wandb_run.Run.mark_preempting  # type: ignore
+    "wandb.mark_preempting",
+    wandb_sdk.wandb_run.Run.mark_preempting,  # type: ignore
 )
 
 plot_table = _preinit.PreInitCallable(
@@ -210,7 +218,8 @@ if "dev" in __version__:
     # turn on wandb-core for dev versions
     if not wandb.env.is_require_legacy_service():
         os.environ[wandb.env._REQUIRE_CORE] = os.environ.get(
-            wandb.env._REQUIRE_CORE, "true")
+            wandb.env._REQUIRE_CORE, "true"
+        )
 
 _sentry = _Sentry()
 _sentry.setup()
@@ -241,6 +250,8 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
+    "Classes",
+    "JoinedTable",
     "ArtifactTTL",
     "log_artifact",
     "use_artifact",

@@ -34,6 +34,8 @@ __all__ = (
     "Object3D",
     "Molecule",
     "Histogram",
+    "Classes",
+    "JoinedTable",
     "ArtifactTTL",
     "log_artifact",
     "use_artifact",
@@ -58,10 +60,12 @@ from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
     Audio,
+    Classes,
     Graph,
     Histogram,
     Html,
     Image,
+    JoinedTable,
     Molecule,
     Object3D,
     Plotly,
