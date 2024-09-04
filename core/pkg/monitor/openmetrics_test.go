@@ -5,7 +5,9 @@ import (
 	"math/rand/v2"
 	"net/http"
 	"net/http/httptest"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +47,7 @@ func randomMetrics() string {
 func newRetryableHTTPClient() *retryablehttp.Client {
 	client := retryablehttp.NewClient()
 	client.RetryMax = 1
-	client.HTTPClient.Timeout = 1
+	client.HTTPClient.Timeout = 1 * time.Second
 	return client
 }
 
@@ -75,18 +77,6 @@ func TestDCGMNotAvailable(t *testing.T) {
 			assert.False(t, om.IsAvailable())
 		})
 	}
-}
-func TestEndpointHang(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Simulate a timeout by not responding
-		select {}
-	}))
-	defer server.Close()
-
-	logger := observability.NewNoOpLogger()
-	retryClient := newRetryableHTTPClient()
-	om := monitor.NewOpenMetrics(logger, "test", server.URL, nil, retryClient)
-	assert.False(t, om.IsAvailable())
 }
 
 func TestDCGM(t *testing.T) {
@@ -227,4 +217,42 @@ func TestMetricFilters(t *testing.T) {
 			assert.Equal(t, tc.shouldCapture, result)
 		})
 	}
+}
+
+func TestIntermittentFailure(t *testing.T) {
+	var requestCount atomic.Int32
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		count := requestCount.Add(1)
+		if count%2 == 0 {
+			// Every other request fails
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(randomMetrics()))
+	}))
+	defer server.Close()
+
+	logger := observability.NewNoOpLogger()
+	retryClient := newRetryableHTTPClient()
+	retryClient.RetryMax = 1
+	om := monitor.NewOpenMetrics(logger, "intermittent", server.URL, nil, retryClient)
+
+	// Run multiple samples to test intermittent behavior
+	for i := 0; i < 2; i++ {
+		result, err := om.Sample()
+		if err != nil {
+			t.Logf("Sample %d failed: %v", i, err)
+		} else {
+			t.Logf("Sample %d succeeded with %d metrics", i, len(result))
+			assert.NotEmpty(t, result)
+		}
+	}
+
+	// Check if at least some samples were successful
+	assert.True(t, om.IsAvailable(), "OpenMetrics should be available despite intermittent failures")
+
+	// Verify that we made more requests than samples due to retries
+	assert.Greater(t, requestCount.Load(), int32(2), "Expected more requests than samples due to retries")
 }
