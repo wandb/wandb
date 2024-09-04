@@ -3,8 +3,6 @@ import re
 import pytest
 import wandb
 
-# from ..relay import TokenizedCircularPattern
-
 
 def log_line_match_http_error(user, project, run_id, status_code):
     pattern = (
