@@ -209,6 +209,7 @@ def log_artifact(
     name: Optional[str] = None,
     type: Optional[str] = None,
     aliases: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
 ) -> Artifact:
     """<sdk/wandb_run.py::Run::log_artifact>"""
     ...
