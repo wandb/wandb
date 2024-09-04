@@ -1,4 +1,4 @@
-"""Internal helper functions for artifacts."""
+"""Internal validation helper functions that are specific to artifacts."""
 
 from __future__ import annotations
 

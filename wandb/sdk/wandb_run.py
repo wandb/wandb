@@ -69,7 +69,7 @@ from wandb.util import (
 from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._utils import validate_aliases, validate_tags
+from .artifacts._validators import validate_aliases, validate_tags
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
