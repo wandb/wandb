@@ -13,7 +13,7 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func TestAddRecordConcurrent(t *testing.T) {
+func TestAddWorkConcurrent(t *testing.T) {
 	count := 0
 	rw := runwork.New(0, observability.NewNoOpLogger())
 	wgConsumer := &sync.WaitGroup{}
@@ -31,7 +31,7 @@ func TestAddRecordConcurrent(t *testing.T) {
 		go func() {
 			defer wgProducer.Done()
 			for range 100 {
-				rw.AddRecord(&spb.Record{})
+				rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
 			}
 		}()
 	}
@@ -43,31 +43,31 @@ func TestAddRecordConcurrent(t *testing.T) {
 	assert.Equal(t, 5*100, count)
 }
 
-func TestAddRecordAfterClose(t *testing.T) {
+func TestAddWorkAfterClose(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
 	rw := runwork.New(0, observability.NewCoreLogger(logger))
 
 	rw.SetDone()
 	rw.Close()
-	rw.AddRecord(&spb.Record{})
+	rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
 
 	assert.Contains(t, logs.String(), "runwork: ignoring record after close")
 }
 
-func TestCloseDuringAddRecord(t *testing.T) {
+func TestCloseDuringAddWork(t *testing.T) {
 	logs := bytes.Buffer{}
 	logger := slog.New(slog.NewTextHandler(&logs, &slog.HandlerOptions{}))
 	rw := runwork.New(0, observability.NewCoreLogger(logger))
 
 	go func() {
-		// Increase odds that Close() happens while AddRecord() is
+		// Increase odds that Close() happens while AddWork() is
 		// blocked on a channel write.
 		<-time.After(5 * time.Millisecond)
 		rw.SetDone()
 		rw.Close()
 	}()
-	rw.AddRecord(&spb.Record{})
+	rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
 	<-rw.Chan()
 
 	assert.Contains(t, logs.String(), "runwork: ignoring record after close")
@@ -84,7 +84,7 @@ func TestCloseAfterClose(t *testing.T) {
 	// Should reach here with no issues.
 }
 
-func TestRaceAddRecordClose(t *testing.T) {
+func TestRaceAddWorkClose(t *testing.T) {
 	for range 50 {
 		rw := runwork.New(0, observability.NewNoOpLogger())
 
@@ -92,7 +92,7 @@ func TestRaceAddRecordClose(t *testing.T) {
 			rw.SetDone()
 			rw.Close()
 		}()
-		go rw.AddRecord(&spb.Record{})
+		go rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
 		<-rw.Chan()
 	}
 }
@@ -122,12 +122,12 @@ func TestCloseBlocksUntilDone(t *testing.T) {
 		}
 	}()
 
-	// All AddRecord() calls should go despite racing with Close()
+	// All AddWork() calls should go despite racing with Close()
 	// because SetDone() is only called at the end.
 	go rw.Close()
 	for range 10 {
 		<-time.After(time.Millisecond)
-		rw.AddRecord(&spb.Record{})
+		rw.AddWork(runwork.WorkFromRecord(&spb.Record{}))
 	}
 	rw.SetDone()
 	wg.Wait()

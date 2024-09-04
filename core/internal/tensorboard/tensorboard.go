@@ -384,16 +384,17 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	}
 
 	// Write a record indicating that the file should be uploaded.
-	tb.extraWork.AddRecord(
-		&spb.Record{
-			RecordType: &spb.Record_Files{
-				Files: &spb.FilesRecord{
-					Files: []*spb.FilesItem{
-						{Policy: spb.FilesItem_END, Path: string(relPath)},
+	tb.extraWork.AddWork(
+		runwork.WorkFromRecord(
+			&spb.Record{
+				RecordType: &spb.Record_Files{
+					Files: &spb.FilesRecord{
+						Files: []*spb.FilesItem{
+							{Policy: spb.FilesItem_END, Path: string(relPath)},
+						},
 					},
 				},
-			},
-		})
+			}))
 }
 
 // getNamespace computes the namespace corresponding to a log directory.
