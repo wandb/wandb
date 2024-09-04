@@ -292,7 +292,7 @@ func (s *Sender) fwdRecord(record *spb.Record) {
 		return
 	}
 
-	s.runWork.AddRecord(record)
+	s.runWork.AddWork(runwork.WorkFromRecord(record))
 }
 
 func (s *Sender) SendRecord(record *spb.Record) {

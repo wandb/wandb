@@ -411,19 +411,8 @@ func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferReque
 	switch request.State {
 	case spb.DeferRequest_BEGIN:
 	case spb.DeferRequest_FLUSH_RUN:
-
 	case spb.DeferRequest_FLUSH_STATS:
-		// stop the system monitor to ensure that we don't send any more system metrics
-		// after the run has exited
-		h.systemMonitor.Finish()
-
 	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		if h.settings.GetXShared().GetValue() {
-			h.flushPartialHistory(false, 0)
-		} else {
-			h.flushPartialHistory(true, h.partialHistoryStep+1)
-		}
-
 	case spb.DeferRequest_FLUSH_TB:
 	case spb.DeferRequest_FLUSH_SUM:
 	case spb.DeferRequest_FLUSH_DEBOUNCER:
@@ -791,6 +780,17 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 
 	if !h.settings.GetXSync().GetValue() {
 		h.updateRunTiming()
+	}
+
+	// Stop generating system statistics events.
+	h.systemMonitor.Finish()
+
+	// Flush any history data---any further history records must
+	// be configured to flush.
+	if h.settings.GetXShared().GetValue() {
+		h.flushPartialHistory(false, 0)
+	} else {
+		h.flushPartialHistory(true, h.partialHistoryStep+1)
 	}
 
 	// send the exit record

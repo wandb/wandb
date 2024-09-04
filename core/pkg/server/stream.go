@@ -309,7 +309,7 @@ func (s *Stream) Start() {
 // HandleRecord handles the given record by sending it to the stream's handler.
 func (s *Stream) HandleRecord(rec *spb.Record) {
 	s.logger.Debug("handling record", "record", rec)
-	s.runWork.AddRecord(rec)
+	s.runWork.AddWork(runwork.WorkFromRecord(rec))
 }
 
 // Close waits for all run messages to be fully processed.
