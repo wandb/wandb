@@ -42,6 +42,10 @@ type WorkRecord struct {
 	Record *spb.Record
 }
 
+func WorkFromRecord(record *spb.Record) Work {
+	return WorkRecord{Record: record}
+}
+
 func (wr WorkRecord) Accept(fn func(*spb.Record)) bool {
 	fn(wr.Record)
 

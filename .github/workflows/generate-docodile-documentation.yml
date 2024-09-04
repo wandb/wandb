@@ -30,9 +30,30 @@ jobs: # update the docs.
           fi
 
       - uses: wandb/docugen@v0.4.4
+        id: docugen
         with:
           docodile-branch: main
           wandb-branch: $WANDB_BRANCH
           generate-sdk-docs: true
           generate-weave-docs: false
           access-token: ${{ secrets.DOCUGEN_ACCESS_TOKEN }}
+
+      - name: Extract PR URL
+        id: extract_url
+        run: |
+          PR_URL=$(echo "${{ steps.docugen.outputs.stdout }}" | grep -oP 'https://github\.com/wandb/docodile/pull/\d+')
+          echo "PR_URL=$PR_URL" >> $GITHUB_OUTPUT
+
+  notify-slack:
+    needs: update-docs
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Slack
+        uses: slackapi/slack-github-action@v1.27.0
+        with:
+          channel-id: ${{ secrets.SLACK_DOCS_CHANNEL_ID }}
+          slack-message: |
+            W&B SDK ${{ github.event.release.tag_name || github.event.inputs.ref }} documentation update:
+            PR: ${{ needs.update-docs.outputs.PR_URL }}
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}

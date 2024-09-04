@@ -1,0 +1,14 @@
+version: 2
+updates:
+  - package-ecosystem: gomod
+    directory: /core
+    schedule:
+      interval: daily
+    reviewers:
+      - wandb/sdk-team
+  - package-ecosystem: github-actions
+    directory: /.github/workflows
+    schedule:
+      interval: daily
+    reviewers:
+      - wandb/sdk-team

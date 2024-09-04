@@ -231,9 +231,11 @@ func (sm *SystemMonitor) Start() {
 	go func() {
 		systemInfo := sm.probe()
 		if systemInfo != nil {
-			sm.extraWork.AddRecordOrCancel(
+			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				makeMetadataRecord(systemInfo),
+				runwork.WorkFromRecord(
+					makeMetadataRecord(systemInfo),
+				),
 			)
 		}
 	}()
@@ -317,9 +319,11 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			}
 
 			// publish metrics
-			sm.extraWork.AddRecordOrCancel(
+			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				makeStatsRecord(metrics, ts),
+				runwork.WorkFromRecord(
+					makeStatsRecord(metrics, ts),
+				),
 			)
 		}
 	}
