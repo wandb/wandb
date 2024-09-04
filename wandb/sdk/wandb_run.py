@@ -57,6 +57,7 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.viz import CustomChart, Visualize, custom_chart
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -66,7 +67,6 @@ from wandb.util import (
     add_import_hook,
     parse_artifact_string,
 )
-from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .artifacts._validators import validate_aliases, validate_tags
