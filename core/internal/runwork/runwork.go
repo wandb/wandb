@@ -12,23 +12,22 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 var errRecordAfterClose = errors.New("runwork: ignoring record after close")
 
 // ExtraWork allows injecting tasks into the Handler->Sender pipeline.
 type ExtraWork interface {
-	// AddRecord emits a record to process for the run.
+	// AddWork adds a task for the run.
 	//
 	// This may only be called before the end of the run---see the comment
-	// on BeforeEndCtx. If called after the end of the run, the record is
+	// on BeforeEndCtx. If called after the end of the run, the work is
 	// ignored and an error is logged and captured.
-	AddRecord(record *spb.Record)
+	AddWork(work Work)
 
-	// AddRecordOrCancel is like AddRecord but exits early if the 'done'
+	// AddWorkOrCancel is like AddWork but exits early if the 'done'
 	// channel is closed.
-	AddRecordOrCancel(done <-chan struct{}, record *spb.Record)
+	AddWorkOrCancel(done <-chan struct{}, work Work)
 
 	// BeforeEndCtx is a context that's cancelled when no additional work
 	// may be performed for the run.
@@ -64,8 +63,8 @@ type RunWork interface {
 }
 
 type runWork struct {
-	addRecordCount int        // num. goroutines in AddRecord()
-	addRecordCV    *sync.Cond // signalled when addRecordCount==0
+	addWorkCount int        // num. goroutines in AddWork()
+	addWorkCV    *sync.Cond // signalled when addWorkCount==0
 
 	closedMu sync.Mutex    // locked for closing `closed`
 	closed   chan struct{} // closed on Close()
@@ -84,7 +83,7 @@ func New(bufferSize int, logger *observability.CoreLogger) RunWork {
 	endCtx, endCtxCancel := context.WithCancel(context.Background())
 
 	return &runWork{
-		addRecordCV:  sync.NewCond(&sync.Mutex{}),
+		addWorkCV:    sync.NewCond(&sync.Mutex{}),
 		closed:       make(chan struct{}),
 		done:         make(chan struct{}),
 		internalWork: make(chan Work, bufferSize),
@@ -94,62 +93,62 @@ func New(bufferSize int, logger *observability.CoreLogger) RunWork {
 	}
 }
 
-func (rw *runWork) incAddRecord() {
-	rw.addRecordCV.L.Lock()
-	defer rw.addRecordCV.L.Unlock()
+func (rw *runWork) incAddWork() {
+	rw.addWorkCV.L.Lock()
+	defer rw.addWorkCV.L.Unlock()
 
-	rw.addRecordCount++
+	rw.addWorkCount++
 }
 
-func (rw *runWork) decAddRecord() {
-	rw.addRecordCV.L.Lock()
-	defer rw.addRecordCV.L.Unlock()
+func (rw *runWork) decAddWork() {
+	rw.addWorkCV.L.Lock()
+	defer rw.addWorkCV.L.Unlock()
 
-	rw.addRecordCount--
-	if rw.addRecordCount == 0 {
-		rw.addRecordCV.Broadcast()
+	rw.addWorkCount--
+	if rw.addWorkCount == 0 {
+		rw.addWorkCV.Broadcast()
 	}
 }
 
-func (rw *runWork) AddRecord(record *spb.Record) {
-	rw.AddRecordOrCancel(nil, record)
+func (rw *runWork) AddWork(work Work) {
+	rw.AddWorkOrCancel(nil, work)
 }
 
-func (rw *runWork) AddRecordOrCancel(
+func (rw *runWork) AddWorkOrCancel(
 	cancel <-chan struct{},
-	record *spb.Record,
+	work Work,
 ) {
-	rw.incAddRecord()
-	defer rw.decAddRecord()
+	rw.incAddWork()
+	defer rw.decAddWork()
 
-	// AddRecord.A
+	// AddWork.A
 
 	select {
 	case <-cancel:
 		return
 
 	case <-rw.closed:
-		// Here, internalRecords is closed or about to be closed,
+		// Here, internalWork is closed or about to be closed,
 		// so we should drop the record.
-		rw.logger.CaptureError(errRecordAfterClose, "record", record)
+		rw.logger.CaptureError(errRecordAfterClose, "work", work)
 		return
 
 	default:
 	}
 
-	// Here, AddRecord.A happened before Close.A.
+	// Here, AddWork.A happened before Close.A.
 	//
 	// If we're racing with Close(), then it will block on line Close.B
-	// until we exit and decrement addRecordCount---so internalRecords
+	// until we exit and decrement addWorkCount---so internalWork
 	// is guaranteed to not be closed until this method returns.
 
 	select {
 	case <-rw.closed:
 		// Here, Close() must have been called, so we should drop the record.
-		rw.logger.CaptureError(errRecordAfterClose, "record", record)
+		rw.logger.CaptureError(errRecordAfterClose, "work", work)
 
 	case <-cancel:
-	case rw.internalWork <- WorkRecord{record}:
+	case rw.internalWork <- work:
 	}
 }
 
@@ -188,11 +187,11 @@ func (rw *runWork) Close() {
 		close(rw.closed) // Close.A
 		rw.closedMu.Unlock()
 
-		rw.addRecordCV.L.Lock()
-		for rw.addRecordCount > 0 {
-			rw.addRecordCV.Wait() // Close.B
+		rw.addWorkCV.L.Lock()
+		for rw.addWorkCount > 0 {
+			rw.addWorkCV.Wait() // Close.B
 		}
 		close(rw.internalWork)
-		rw.addRecordCV.L.Unlock()
+		rw.addWorkCV.L.Unlock()
 	}
 }
