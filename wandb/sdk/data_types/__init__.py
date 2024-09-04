@@ -1,4 +1,12 @@
-from .data_types import Audio, Graph, JoinedTable, Table
+from .data_types import (
+    Audio,
+    Bokeh,
+    Graph,
+    JoinedTable,
+    PartitionedTable,
+    Table,
+    WBValue,
+)
 from .helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .helper_types.classes import Classes
 from .helper_types.image_mask import ImageMask
@@ -13,25 +21,24 @@ from .trace_tree import WBTraceTree
 from .video import Video
 
 __all__ = (
-    # Untyped Exports
+    "_SavedModel",
     "Audio",
-    "Table",
     "Bokeh",
-    # Typed Exports
+    "BoundingBoxes2D",
+    "box3d",
+    "Classes",
+    "Graph",
     "Histogram",
     "Html",
     "Image",
+    "ImageMask",
+    "JoinedTable",
     "Molecule",
-    "box3d",
     "Object3D",
+    "PartitionedTable",
     "Plotly",
+    "Table",
     "Video",
     "WBTraceTree",
-    "_SavedModel",
-    # Typed Legacy Exports (I'd like to remove these)
-    "ImageMask",
-    "BoundingBoxes2D",
-    "Classes",
-    "Graph",
-    "JoinedTable",
+    "WBValue",
 )

@@ -45,10 +45,9 @@ from urllib.parse import urlparse
 import requests
 
 import wandb
-from wandb import data_types, env, util
+from wandb import env, util
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
-from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
@@ -68,6 +67,23 @@ from wandb.sdk.artifacts.staging import get_staging_dir
 from wandb.sdk.artifacts.storage_layout import StorageLayout
 from wandb.sdk.artifacts.storage_policies import WANDB_STORAGE_POLICY
 from wandb.sdk.artifacts.storage_policy import StoragePolicy
+from wandb.sdk.data_types import (
+    Audio,
+    Bokeh,
+    BoundingBoxes2D,
+    Classes,
+    Html,
+    Image,
+    ImageMask,
+    JoinedTable,
+    Molecule,
+    Object3D,
+    PartitionedTable,
+    Table,
+    Video,
+    WBValue,
+    _SavedModel,
+)
 from wandb.sdk.data_types._dtypes import Type as WBType
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api as InternalApi
@@ -155,9 +171,7 @@ class Artifact:
         self._storage_policy = storage_policy_cls.from_config(config=policy_config)
 
         self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
-        self._added_objs: Dict[
-            int, Tuple[data_types.WBValue, ArtifactManifestEntry]
-        ] = {}
+        self._added_objs: Dict[int, Tuple[WBValue, ArtifactManifestEntry]] = {}
         self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
         self._save_future: Optional[MessageFuture] = None
         self._download_roots: Set[str] = set()
@@ -1086,7 +1100,7 @@ class Artifact:
 
     # Adding, removing, getting entries.
 
-    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
+    def __getitem__(self, name: str) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -1100,7 +1114,7 @@ class Artifact:
         """
         return self.get(name)
 
-    def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactManifestEntry:
+    def __setitem__(self, name: str, item: WBValue) -> ArtifactManifestEntry:
         """Add `item` to the artifact at path `name`.
 
         Arguments:
@@ -1346,7 +1360,7 @@ class Artifact:
 
         return manifest_entries
 
-    def add(self, obj: data_types.WBValue, name: StrPath) -> ArtifactManifestEntry:
+    def add(self, obj: WBValue, name: StrPath) -> ArtifactManifestEntry:
         """Add wandb.WBValue `obj` to the artifact.
 
         Arguments:
@@ -1374,20 +1388,20 @@ class Artifact:
         # TODO: move this to checking subclass of wandb.Media once all are
         # generally supported
         allowed_types = [
-            data_types.Bokeh,
-            data_types.JoinedTable,
-            data_types.PartitionedTable,
-            data_types.Table,
-            data_types.Classes,
-            data_types.ImageMask,
-            data_types.BoundingBoxes2D,
-            data_types.Audio,
-            data_types.Image,
-            data_types.Video,
-            data_types.Html,
-            data_types.Object3D,
-            data_types.Molecule,
-            data_types._SavedModel,
+            Bokeh,
+            JoinedTable,
+            PartitionedTable,
+            Table,
+            Classes,
+            ImageMask,
+            BoundingBoxes2D,
+            Audio,
+            Image,
+            Video,
+            Html,
+            Object3D,
+            Molecule,
+            _SavedModel,
         ]
 
         if not any(isinstance(obj, t) for t in allowed_types):
@@ -1539,7 +1553,7 @@ class Artifact:
         entry._parent_artifact = self
         return entry
 
-    def get(self, name: str) -> Optional[data_types.WBValue]:
+    def get(self, name: str) -> Optional[WBValue]:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
