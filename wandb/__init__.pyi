@@ -882,6 +882,7 @@ def log_artifact(
         type: (str) The type of artifact to log, examples include `dataset`, `model`
         aliases: (list, optional) Aliases to apply to this artifact,
             defaults to `["latest"]`
+        tags: (list, optional) Tags to apply to this artifact, if any.
 
     Returns:
     An `Artifact` object.
