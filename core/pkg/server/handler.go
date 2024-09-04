@@ -19,6 +19,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
@@ -38,7 +39,7 @@ const (
 
 type HandlerParams struct {
 	Settings          *spb.Settings
-	FwdChan           chan *spb.Record
+	FwdChan           chan runwork.Work
 	OutChan           chan *spb.Result
 	Logger            *observability.CoreLogger
 	Mailbox           *mailbox.Mailbox
@@ -73,7 +74,7 @@ type Handler struct {
 	logger *observability.CoreLogger
 
 	// fwdChan is the channel for forwarding messages to the next component
-	fwdChan chan *spb.Record
+	fwdChan chan runwork.Work
 
 	// outChan is the channel for sending results to the client
 	outChan chan *spb.Result
@@ -155,42 +156,21 @@ func NewHandler(
 	}
 }
 
-// Do processes all records on the input channel.
-func (h *Handler) Do(inChan <-chan *spb.Record) {
+// Do processes all work on the input channel.
+//
+//gocyclo:ignore
+func (h *Handler) Do(allWork <-chan runwork.Work) {
 	defer h.logger.Reraise()
 	h.logger.Info("handler: started", "stream_id", h.settings.RunId)
-	for record := range inChan {
-		h.logger.Debug("handle: got a message", "record_type", record.RecordType, "stream_id", h.settings.RunId)
+	for work := range allWork {
+		h.logger.Debug(
+			"handler: got work",
+			"work", work,
+			"stream_id", h.settings.RunId,
+		)
 
-		h.handleRecord(record)
-
-		switch record.RecordType.(type) {
-		case *spb.Record_Alert:
-			h.fwdRecord(record)
-		case *spb.Record_Artifact:
-			h.fwdRecord(record)
-		case *spb.Record_Config:
-			h.fwdRecord(record)
-		case *spb.Record_Files:
-			h.fwdRecord(record)
-		case *spb.Record_Output:
-			h.fwdRecord(record)
-		case *spb.Record_OutputRaw:
-			h.fwdRecord(record)
-		case *spb.Record_Preempting:
-			h.fwdRecord(record)
-		case *spb.Record_Stats:
-			h.fwdRecord(record)
-		case *spb.Record_Telemetry:
-			h.fwdRecord(record)
-		case *spb.Record_UseArtifact:
-			h.fwdRecord(record)
-
-		case *spb.Record_Final:
-		case *spb.Record_Footer:
-		case *spb.Record_NoopLinkArtifact:
-		default:
-			// No-op.
+		if work.Accept(h.handleRecord) {
+			h.fwdWork(work)
 		}
 	}
 	h.Close()
@@ -212,12 +192,18 @@ func (h *Handler) respond(record *spb.Record, response *spb.Response) {
 	h.outChan <- result
 }
 
+// fwdWork passes work to the Writer and Sender.
+func (h *Handler) fwdWork(work runwork.Work) {
+	h.fwdChan <- work
+}
+
 // fwdRecord forwards a record to the next component
 func (h *Handler) fwdRecord(record *spb.Record) {
 	if record == nil {
 		return
 	}
-	h.fwdChan <- record
+
+	h.fwdWork(runwork.WorkRecord{Record: record})
 }
 
 // fwdRecordWithControl forwards a record to the next component with control options
@@ -249,6 +235,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Artifact:
 	case *spb.Record_Config:
 	case *spb.Record_Files:
+	case *spb.Record_History:
 	case *spb.Record_Output:
 	case *spb.Record_OutputRaw:
 	case *spb.Record_Preempting:
@@ -261,8 +248,6 @@ func (h *Handler) handleRecord(record *spb.Record) {
 		h.handleExit(record, x.Exit)
 	case *spb.Record_Header:
 		h.handleHeader(record)
-	case *spb.Record_History:
-		h.handleHistoryDirectly(x.History)
 	case *spb.Record_Metric:
 		h.handleMetric(record)
 	case *spb.Record_Request:
@@ -270,7 +255,7 @@ func (h *Handler) handleRecord(record *spb.Record) {
 	case *spb.Record_Run:
 		h.handleRun(record)
 	case *spb.Record_Summary:
-		h.handleSummary(record, x.Summary)
+		h.handleSummary(x.Summary)
 	case *spb.Record_Tbrecord:
 		h.handleTBrecord(x.Tbrecord)
 	case nil:
@@ -420,8 +405,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 	if len(metric.Name) > 0 {
 		h.metricHandler.UpdateSummary(metric.Name, h.runSummary)
 	}
-
-	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
@@ -904,10 +887,7 @@ func (h *Handler) handleRequestJobInput(record *spb.Record) {
 //   - Explicit updates made by using `run.summary[...] = ...`
 //   - Records from the transaction log when syncing
 //   - `updateRunTiming`
-func (h *Handler) handleSummary(
-	record *spb.Record,
-	summary *spb.SummaryRecord,
-) {
+func (h *Handler) handleSummary(summary *spb.SummaryRecord) {
 	for _, update := range summary.Update {
 		err := h.runSummary.SetFromRecord(update)
 		if err != nil {
@@ -919,8 +899,6 @@ func (h *Handler) handleSummary(
 	for _, remove := range summary.Remove {
 		h.runSummary.RemoveFromRecord(remove)
 	}
-
-	h.fwdRecord(record)
 }
 
 // updateRunTiming updates the `_wandb.runtime` summary metric which
@@ -940,7 +918,8 @@ func (h *Handler) updateRunTiming() {
 		},
 	}
 
-	h.handleSummary(record, record.GetSummary())
+	h.handleSummary(record.GetSummary())
+	h.fwdRecord(record)
 }
 
 func (h *Handler) handleTBrecord(record *spb.TBRecord) {
@@ -948,20 +927,6 @@ func (h *Handler) handleTBrecord(record *spb.TBRecord) {
 		h.logger.CaptureError(
 			fmt.Errorf("handler: failed to handle TB record: %v", err))
 	}
-}
-
-// handleHistoryDirectly forwards history records without modification.
-func (h *Handler) handleHistoryDirectly(history *spb.HistoryRecord) {
-	if len(history.GetItem()) == 0 {
-		return
-	}
-
-	record := &spb.Record{
-		RecordType: &spb.Record_History{
-			History: history,
-		},
-	}
-	h.fwdRecord(record)
 }
 
 func (h *Handler) handleRequestNetworkStatus(record *spb.Record) {
@@ -1109,9 +1074,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	for _, newMetric := range newMetricDefs {
 		// We don't mark the record 'Local' because partial history updates
 		// are not already written to the transaction log.
-		h.handleMetric(&spb.Record{
+		rec := &spb.Record{
 			RecordType: &spb.Record_Metric{Metric: newMetric},
-		})
+		}
+		h.handleMetric(rec)
+		h.fwdRecord(rec)
 	}
 	h.metricHandler.InsertStepMetrics(h.partialHistory)
 
@@ -1145,7 +1112,11 @@ func (h *Handler) flushPartialHistory(useStep bool, nextStep int64) {
 	if useStep {
 		historyRecord.Step = &spb.HistoryStep{Num: currentStep}
 	}
-	h.handleHistoryDirectly(historyRecord)
+	h.fwdRecord(&spb.Record{
+		RecordType: &spb.Record_History{
+			History: historyRecord,
+		},
+	})
 }
 
 // updateSummary updates the summary based on the current history step.

@@ -1,6 +1,7 @@
 import pathlib
 
 import pytest
+from wandb.errors import term
 
 # TODO: these tests do not test much beyond the callback initialization.
 # We should add tests that check that the callbacks actually log the expected data.
@@ -11,8 +12,7 @@ def test_eval_tables_builder(user, relay_server, execute_script):
     with relay_server() as relay:
         script_path = pathlib.Path(__file__).parent / "keras_eval_tables_builder.py"
         execute_script(script_path)
-    print(relay.context._entries)
-    runs = run_id = relay.context.get_run_ids()
+    runs = relay.context.get_run_ids()
     assert len(runs) == 1
     run_id = runs[0]
 
@@ -28,7 +28,7 @@ def test_metrics_logger_epochwise(user, relay_server, execute_script):
         )
         execute_script(script_path)
 
-    runs = run_id = relay.context.get_run_ids()
+    runs = relay.context.get_run_ids()
     assert len(runs) == 1
     run_id = runs[0]
 
@@ -50,7 +50,7 @@ def test_metrics_logger(user, relay_server, execute_script):
         script_path = pathlib.Path(__file__).parent / "keras_metrics_logger.py"
         execute_script(script_path)
 
-    runs = run_id = relay.context.get_run_ids()
+    runs = relay.context.get_run_ids()
     assert len(runs) == 1
     run_id = runs[0]
 
@@ -74,10 +74,38 @@ def test_model_checkpoint(user, relay_server, execute_script):
     with relay_server() as relay:
         script_path = pathlib.Path(__file__).parent / "keras_model_checkpoint.py"
         execute_script(script_path)
-    print(relay.context._entries)
-    runs = run_id = relay.context.get_run_ids()
+    runs = relay.context.get_run_ids()
     assert len(runs) == 1
     run_id = runs[0]
 
     telemetry = relay.context.get_run_telemetry(run_id)
     assert 39 in telemetry["3"]  # feature=keras_wandb_model_checkpoint
+
+
+@pytest.mark.wandb_core_only
+def test_deprecated_keras_callback(user, relay_server, execute_script):
+    with relay_server() as relay:
+        script_path = pathlib.Path(__file__).parent / "keras_deprecated.py"
+        execute_script(script_path)
+
+    runs = relay.context.get_run_ids()
+    assert len(runs) == 1
+    run_id = runs[0]
+
+    summary = relay.context.get_run_summary(run_id)
+    assert len(summary) == 7
+    assert summary["accuracy"] == 1
+    assert summary["val_accuracy"] == 1
+    assert summary["val_loss"] > 0
+    assert summary["best_val_loss"] > 0
+    assert summary["epoch"] == 6
+    assert summary["best_epoch"] == 6
+    assert summary["loss"] > 0
+
+    telemetry = relay.context.get_run_telemetry(run_id)
+    assert 8 in telemetry["3"]  # feature=keras
+
+    assert (
+        "WandbCallback is deprecated and will be removed in a future release."
+        in "".join(term.PRINTED_MESSAGES)
+    )
