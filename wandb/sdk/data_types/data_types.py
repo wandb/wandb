@@ -27,55 +27,13 @@ from typing import Optional
 
 import wandb
 from wandb import util
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import filesystem, runid
 
-from .sdk.data_types import _dtypes
-from .sdk.data_types._private import MEDIA_TMP
-from .sdk.data_types.base_types.media import (
-    BatchableMedia,
-    Media,
-    _numpy_arrays_to_lists,
-)
-from .sdk.data_types.base_types.wb_value import WBValue
-from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
-from .sdk.data_types.helper_types.classes import Classes
-from .sdk.data_types.helper_types.image_mask import ImageMask
-from .sdk.data_types.histogram import Histogram
-from .sdk.data_types.html import Html
-from .sdk.data_types.image import Image
-from .sdk.data_types.molecule import Molecule
-from .sdk.data_types.object_3d import Object3D, box3d
-from .sdk.data_types.plotly import Plotly
-from .sdk.data_types.saved_model import _SavedModel
-from .sdk.data_types.trace_tree import WBTraceTree
-from .sdk.data_types.video import Video
-from .sdk.lib import runid
-
-# Note: we are importing everything from the sdk/data_types to maintain a namespace for now.
-# Once we fully type this file and move it all into sdk, then we will need to clean up the
-# other internal imports
-
-__all__ = [
-    # Untyped Exports
-    "Audio",
-    "Table",
-    "Bokeh",
-    # Typed Exports
-    "Histogram",
-    "Html",
-    "Image",
-    "Molecule",
-    "box3d",
-    "Object3D",
-    "Plotly",
-    "Video",
-    "WBTraceTree",
-    "_SavedModel",
-    # Typed Legacy Exports (I'd like to remove these)
-    "ImageMask",
-    "BoundingBoxes2D",
-    "Classes",
-]
+from . import _dtypes
+from ._private import MEDIA_TMP
+from .base_types.media import BatchableMedia, Media, _numpy_arrays_to_lists
+from .base_types.wb_value import WBValue
+from .image import Image
 
 
 class _TableLinkMixin:

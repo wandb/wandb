@@ -58,21 +58,21 @@ from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
 
 _cleanup_media_tmp_dir()
 
-from wandb.data_types import Graph
-from wandb.data_types import Image
-from wandb.data_types import Plotly
+from wandb.sdk.data_types import Graph
+from wandb.sdk.data_types import Image
+from wandb.sdk.data_types import Plotly
 
 # from wandb.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
-from wandb.data_types import Video
-from wandb.data_types import Audio
-from wandb.data_types import Table
-from wandb.data_types import Html
-from wandb.data_types import box3d
-from wandb.data_types import Object3D
-from wandb.data_types import Molecule
-from wandb.data_types import Histogram
-from wandb.data_types import Classes
-from wandb.data_types import JoinedTable
+from wandb.sdk.data_types import Video
+from wandb.sdk.data_types import Audio
+from wandb.sdk.data_types import Table
+from wandb.sdk.data_types import Html
+from wandb.sdk.data_types import box3d
+from wandb.sdk.data_types import Object3D
+from wandb.sdk.data_types import Molecule
+from wandb.sdk.data_types import Histogram
+from wandb.sdk.data_types import Classes
+from wandb.sdk.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
