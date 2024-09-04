@@ -1,22 +1,16 @@
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator
+from collections.abc import Iterator
 from datetime import datetime
-from itertools import chain, product
-from typing import Literal, Union
+from itertools import chain
+from typing import Literal
 
-from more_itertools import always_iterable
 from pydantic import Field, TypeAdapter
-from tqdm.auto import tqdm
 from typing_extensions import Annotated
 
 from wandb import util
 from wandb.sdk.automations._typing import Base64Id, TypenameField
-from wandb.sdk.automations._utils import (
-    _get_api,
-    get_orgs_info,
-    iter_entity_project_pairs,
-)
+from wandb.sdk.automations._utils import _get_api
 from wandb.sdk.automations.actions import AnyAction
 from wandb.sdk.automations.base import Base
 from wandb.sdk.automations.events import AnyEvent
@@ -118,101 +112,6 @@ _ORG_AUTOMATIONS_QUERY = gql(
     """
 )
 
-_FETCH_PROJECT_TRIGGERS = gql(
-    """
-    query FetchProjectTriggers(
-        $projectName: String!,
-        $entityName: String!,
-    ) {
-        project(
-            name: $projectName,
-            entityName: $entityName,
-        ) {
-            triggers {
-                id
-                name
-                enabled
-                createdAt
-                createdBy {id username}
-                description
-                scope {
-                    __typename
-                    ... on Project {
-                        id
-                        name
-                    }
-                    ... on ArtifactSequence {
-                        id
-                        name
-                    }
-                    ... on ArtifactPortfolio {
-                        id
-                        name
-                    }
-                }
-                triggeringCondition {
-                    __typename
-                    ... on FilterEventTriggeringCondition {
-                        eventType
-                        filter
-                    }
-                }
-                triggeredAction {
-                    __typename
-                    ... on QueueJobTriggeredAction {
-                        queue {
-                            __typename
-                            id
-                            name
-                        }
-                        template
-                    }
-                    ... on NotificationTriggeredAction {
-                        title
-                        message
-                        severity
-                        integration {
-                            __typename
-                            id
-                            ... on GenericWebhookIntegration {
-                                id
-                                urlEndpoint
-                                name
-                                secretRef
-                                accessTokenRef
-                                createdAt
-                            }
-                            ... on GitHubOAuthIntegration {
-                                id
-                            }
-                            ... on SlackIntegration {
-                                id
-                                teamName
-                                channelName
-                            }
-                        }
-                    }
-                    ... on GenericWebhookTriggeredAction {
-                        integration {
-                            __typename
-                            ... on GenericWebhookIntegration {
-                                id
-                                name
-                                urlEndpoint
-                                accessTokenRef
-                                secretRef
-                                createdAt
-                            }
-                        }
-                        requestPayload
-                    }
-                }
-            }
-        }
-    }
-    """
-)
-
 
 # ------------------------------------------------------------------------------
 class User(Base):
@@ -240,12 +139,12 @@ class ProjectScope(Base):
 
 
 AnyScope = Annotated[
-    Union[ArtifactPortfolioScope, ArtifactSequenceScope, ProjectScope],
+    ArtifactPortfolioScope | ArtifactSequenceScope | ProjectScope,
     Field(discriminator="typename__"),
 ]
 
 
-class Automation(Base):
+class ReadAutomation(Base):
     """A defined W&B automation."""
 
     id: Base64Id
@@ -258,31 +157,29 @@ class Automation(Base):
     updated_at: datetime | None
 
     scope: AnyScope
+    enabled: bool
 
     event: AnyEvent
     action: AnyAction
 
-    enabled: bool
 
-
-class NewAutomation(Base):
+class CreateAutomation(Base):
     """A newly defined automation, to be prepared and sent by the client to the server."""
 
     name: str
     description: str | None
 
     scope: AnyScope
+    enabled: bool
 
     event: AnyEvent
     action: AnyAction
 
-    enabled: bool
+
+ReadAutomationsAdapter = TypeAdapter(list[ReadAutomation])
 
 
-AutomationsAdapter = TypeAdapter(list[Automation])
-
-
-def get_automations() -> Iterator[Automation]:
+def get_automations() -> Iterator[ReadAutomation]:
     api = _get_api()
 
     params = {"entityName": None}
@@ -295,36 +192,36 @@ def get_automations() -> Iterator[Automation]:
     edges = chain.from_iterable(entity["projects"]["edges"] for entity in entities)
     projects = (edge["node"] for edge in edges)
     for proj in projects:
-        yield from AutomationsAdapter.validate_python(proj["triggers"])
+        yield from ReadAutomationsAdapter.validate_python(proj["triggers"])
 
 
-def get_automations_old(
-    entities: Iterable[str] | str | None = "wandb_Y72QKAKNEFI3G",
-    projects: Iterable[str] | str | None = "wandb-registry-model",
-    # entities: Iterable[str] | str | None = None,
-    # projects: Iterable[str] | str | None = None,
-) -> Iterator[Automation]:
-    api = _get_api()
-
-    if (entities is None) and (projects is None):
-        all_orgs = get_orgs_info()
-        entity_project_pairs = iter_entity_project_pairs(all_orgs)
-    elif (entities is not None) and (projects is not None):
-        entity_project_pairs = product(
-            always_iterable(entities), always_iterable(projects)
-        )
-    else:
-        raise NotImplementedError(
-            "Filtering on specific entity or project names not yet implemented"
-        )
-
-    for entity, project in tqdm(
-        entity_project_pairs,
-        desc="Fetching automations from entity-project pairs",
-    ):
-        params = {"entityName": entity, "projectName": project}
-        data = api.client.execute(_FETCH_PROJECT_TRIGGERS, variable_values=params)
-        yield from AutomationsAdapter.validate_python(data["project"]["triggers"])
+# def get_automations_old(
+#     entities: Iterable[str] | str | None = "wandb_Y72QKAKNEFI3G",
+#     projects: Iterable[str] | str | None = "wandb-registry-model",
+#     # entities: Iterable[str] | str | None = None,
+#     # projects: Iterable[str] | str | None = None,
+# ) -> Iterator[ReadAutomation]:
+#     api = _get_api()
+#
+#     if (entities is None) and (projects is None):
+#         all_orgs = get_orgs_info()
+#         entity_project_pairs = iter_entity_project_pairs(all_orgs)
+#     elif (entities is not None) and (projects is not None):
+#         entity_project_pairs = product(
+#             always_iterable(entities), always_iterable(projects)
+#         )
+#     else:
+#         raise NotImplementedError(
+#             "Filtering on specific entity or project names not yet implemented"
+#         )
+#
+#     for entity, project in tqdm(
+#         entity_project_pairs,
+#         desc="Fetching automations from entity-project pairs",
+#     ):
+#         params = {"entityName": entity, "projectName": project}
+#         data = api.client.execute(_FETCH_PROJECT_TRIGGERS, variable_values=params)
+#         yield from ReadAutomationsAdapter.validate_python(data["project"]["triggers"])
 
 
 # TODO: WIP
@@ -337,11 +234,11 @@ def new_automation(
     event: AnyEvent | None = None,
     action: AnyAction | None = None,
     enabled: bool = True,
-) -> NewAutomation:
+) -> CreateAutomation:
     if event_and_action is not None:
         event, action = event_and_action
 
-    return NewAutomation(
+    return CreateAutomation(
         name=name,
         description=description,
         event=event,

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Union
 
 from pydantic import AnyUrl, Field, SecretStr
 from typing_extensions import Annotated, Literal
@@ -69,10 +68,6 @@ class WebhookAction(Base):
 
 
 AnyAction = Annotated[
-    Union[
-        QueueJobAction,
-        NotificationAction,
-        WebhookAction,
-    ],
+    QueueJobAction | NotificationAction | WebhookAction,
     Field(discriminator="typename__", alias="triggeredAction"),
 ]

@@ -7,11 +7,11 @@ from textwrap import dedent
 from typing import Any, Iterable, Iterator, Literal, Mapping
 
 from dotenv import load_dotenv
-from pydantic import Field, TypeAdapter, field_validator
+from pydantic import TypeAdapter, field_validator
 from wandb_gql import gql
 
 from wandb import Api
-from wandb.sdk.automations._typing import Base64Id
+from wandb.sdk.automations._typing import Base64Id, TypenameField
 from wandb.sdk.automations.base import Base
 
 load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
@@ -22,13 +22,13 @@ class OrgType(StrEnum):
 
 
 class ProjectInfo(Base):
-    typename__: Literal["Project"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["Project"]]
     id: Base64Id
     name: str
 
 
 class EntityInfo(Base):
-    typename__: Literal["Entity"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["Entity"]]
     id: Base64Id
     name: str
     projects: list[ProjectInfo]
@@ -42,7 +42,7 @@ class EntityInfo(Base):
 
 
 class OrgInfo(Base):
-    typename__: Literal["Organization"] = Field(repr=False, alias="__typename")
+    typename__: TypenameField[Literal["Organization"]]
     id: Base64Id
     name: str
     org_type: OrgType
