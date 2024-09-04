@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
@@ -13,7 +14,7 @@ import (
 )
 
 func makeHandler(
-	inChan, fwdChan chan *spb.Record,
+	inChan, fwdChan chan runwork.Work,
 	outChan chan *spb.Result,
 	commit string,
 ) *server.Handler {
@@ -711,21 +712,21 @@ func TestHandlePartialHistory(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan *spb.Record, server.BufferSize)
-			fwdChan := make(chan *spb.Record, server.BufferSize)
+			inChan := make(chan runwork.Work, server.BufferSize)
+			fwdChan := make(chan runwork.Work, server.BufferSize)
 			outChan := make(chan *spb.Result, server.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
-				inChan <- record
+				inChan <- runwork.WorkRecord{Record: record}
 			}
 
-			inChan <- makeFlushRecord()
+			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
 
 			for i, d := range tc.expected {
-				record := <-fwdChan
+				record := (<-fwdChan).(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				for k, v := range d.items {
@@ -810,21 +811,21 @@ func TestHandleHistory(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan *spb.Record, server.BufferSize)
-			fwdChan := make(chan *spb.Record, server.BufferSize)
+			inChan := make(chan runwork.Work, server.BufferSize)
+			fwdChan := make(chan runwork.Work, server.BufferSize)
 			outChan := make(chan *spb.Result, server.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
-				inChan <- record
+				inChan <- runwork.WorkRecord{Record: record}
 			}
 
-			inChan <- makeFlushRecord()
+			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
 
 			for _, d := range tc.expected {
-				record := <-fwdChan
+				record := (<-fwdChan).(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				if actual.step != d.step {
 					t.Errorf("expected step %v, got %v", d.step, actual.step)
@@ -844,8 +845,8 @@ func TestHandleHistory(t *testing.T) {
 }
 
 func TestHandleHeader(t *testing.T) {
-	inChan := make(chan *spb.Record, 1)
-	fwdChan := make(chan *spb.Record, 1)
+	inChan := make(chan runwork.Work, 1)
+	fwdChan := make(chan runwork.Work, 1)
 	outChan := make(chan *spb.Result, 1)
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
@@ -857,9 +858,9 @@ func TestHandleHeader(t *testing.T) {
 			Header: &spb.HeaderRecord{},
 		},
 	}
-	inChan <- record
+	inChan <- runwork.WorkRecord{Record: record}
 
-	record = <-fwdChan
+	record = (<-fwdChan).(runwork.WorkRecord).Record
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
