@@ -64,7 +64,8 @@ func TestDCGMNotAvailable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(tc.statusCode)
-				w.Write([]byte(tc.body))
+				_, err := w.Write([]byte(tc.body))
+				assert.NoError(t, err)
 			}))
 			defer server.Close()
 
@@ -91,7 +92,8 @@ func TestEndpointHang(t *testing.T) {
 func TestDCGM(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(randomMetrics()))
+		_, err := w.Write([]byte(randomMetrics()))
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
