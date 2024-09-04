@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -41,6 +42,13 @@ func randomMetrics() string {
 	)
 }
 
+func newRetryableHTTPClient() *retryablehttp.Client {
+	client := retryablehttp.NewClient()
+	client.RetryMax = 1
+	client.HTTPClient.Timeout = 1
+	return client
+}
+
 func TestDCGMNotAvailable(t *testing.T) {
 	testCases := []struct {
 		name       string
@@ -61,12 +69,12 @@ func TestDCGMNotAvailable(t *testing.T) {
 			defer server.Close()
 
 			logger := observability.NewNoOpLogger()
-			om := monitor.NewOpenMetrics(logger, "test", server.URL, nil)
+			retryClient := newRetryableHTTPClient()
+			om := monitor.NewOpenMetrics(logger, "test", server.URL, nil, retryClient)
 			assert.False(t, om.IsAvailable())
 		})
 	}
 }
-
 func TestEndpointHang(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Simulate a timeout by not responding
@@ -75,7 +83,8 @@ func TestEndpointHang(t *testing.T) {
 	defer server.Close()
 
 	logger := observability.NewNoOpLogger()
-	om := monitor.NewOpenMetrics(logger, "test", server.URL, nil)
+	retryClient := newRetryableHTTPClient()
+	om := monitor.NewOpenMetrics(logger, "test", server.URL, nil, retryClient)
 	assert.False(t, om.IsAvailable())
 }
 
@@ -87,7 +96,7 @@ func TestDCGM(t *testing.T) {
 	defer server.Close()
 
 	logger := observability.NewNoOpLogger()
-	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil)
+	om := monitor.NewOpenMetrics(logger, "dcgm", server.URL, nil, nil)
 
 	assert.True(t, om.IsAvailable())
 
@@ -213,7 +222,7 @@ func TestMetricFilters(t *testing.T) {
 				tc.metricLabels,
 				tc.filters,
 			)
- 			assert.Equal(t, tc.shouldCapture, result)
+			assert.Equal(t, tc.shouldCapture, result)
 		})
 	}
 }

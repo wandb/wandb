@@ -9,7 +9,6 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/wandb/wandb/core/internal/clients"
-	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
@@ -21,7 +20,13 @@ type Filter struct {
 	LabelFilters    [][2]string
 }
 
-// TODO: params
+// metrics are collected on a best-effort basis, but we do allow for some retries
+const (
+	DefaultOpenMetricsRetryMax     = 3
+	DefaultOpenMetricsRetryWaitMin = 1 * time.Second
+	DefaultOpenMetricsRetryWaitMax = 10 * time.Second
+	DefaultOpenMetricsTimeout      = 5 * time.Second
+)
 
 // OpenMetrics is a monitor that collects metrics from an OpenMetrics endpoint.
 //
@@ -67,21 +72,18 @@ func NewOpenMetrics(
 	name string,
 	url string,
 	filters *spb.OpenMetricsFilters,
+	retryClient *retryablehttp.Client,
 ) *OpenMetrics {
-	retryClient := retryablehttp.NewClient()
-	retryClient.Logger = logger
-	retryClient.CheckRetry = filetransfer.FileTransferRetryPolicy
-	retryClient.RetryMax = filetransfer.DefaultRetryMax
-	retryClient.RetryWaitMin = filetransfer.DefaultRetryWaitMin
-	retryClient.RetryWaitMax = filetransfer.DefaultRetryWaitMax
-	retryClient.HTTPClient.Timeout = filetransfer.DefaultNonRetryTimeout
-	retryClient.Backoff = clients.ExponentialBackoffWithJitter
-
-	// metrics are collected on a best-effort basis, but we do allow for some retries
-	retryClient.RetryMax = 3
-	retryClient.RetryWaitMin = 1 * time.Second
-	retryClient.RetryWaitMax = 10 * time.Second
-	retryClient.HTTPClient.Timeout = 5 * time.Second
+	if retryClient == nil {
+		retryClient := retryablehttp.NewClient()
+		retryClient.Logger = logger
+		retryClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
+		retryClient.RetryMax = DefaultOpenMetricsRetryMax
+		retryClient.RetryWaitMin = DefaultOpenMetricsRetryWaitMin
+		retryClient.RetryWaitMax = DefaultOpenMetricsRetryWaitMax
+		retryClient.HTTPClient.Timeout = DefaultOpenMetricsTimeout
+		retryClient.Backoff = clients.ExponentialBackoffWithJitter
+	}
 
 	var processedFilters []Filter
 
@@ -95,8 +97,6 @@ func NewOpenMetrics(
 			logger.Warn("Unknown filter type, using empty filter")
 		}
 	}
-
-	fmt.Println(processedFilters)
 
 	om := &OpenMetrics{
 		name:        name,

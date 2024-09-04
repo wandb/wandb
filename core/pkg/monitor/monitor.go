@@ -176,7 +176,7 @@ func New(
 	if endpoints := settings.XStatsOpenMetricsEndpoints.GetValue(); endpoints != nil {
 		for name, url := range endpoints {
 			filters := settings.XStatsOpenMetricsFilters
-			if om := NewOpenMetrics(logger, name, url, filters); om != nil {
+			if om := NewOpenMetrics(logger, name, url, filters, nil); om != nil {
 				systemMonitor.assets = append(systemMonitor.assets, om)
 			}
 		}
