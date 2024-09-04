@@ -25,200 +25,89 @@ reset_path = util.vendor_setup()
 
 from wandb_gql import gql  # noqa: E402
 
-_FETCH_ORG_TRIGGERS = gql(
+_ORG_AUTOMATIONS_QUERY = gql(
     """
+    fragment IntegrationFields on Integration {
+        __typename
+        ... on GenericWebhookIntegration {
+            id
+            name
+            urlEndpoint
+            secretRef
+            accessTokenRef
+            createdAt
+        }
+        ... on GitHubOAuthIntegration {
+            id
+        }
+        ... on SlackIntegration {
+            id
+            teamName
+            channelName
+        }
+    }
+
+    fragment AutomationFields on Trigger {
+        id
+        createdAt
+        createdBy {id username}
+        updatedAt
+        name
+        description
+        enabled
+        scope {
+            __typename
+            ... on ArtifactPortfolio {id name}
+            ... on ArtifactSequence {id name}
+            ... on Project {id name}
+        }
+        triggeringCondition {
+            __typename
+            ... on FilterEventTriggeringCondition {
+                eventType
+                filter
+            }
+        }
+        triggeredAction {
+            __typename
+            ... on QueueJobTriggeredAction {
+                template
+                queue {
+                    __typename
+                    id
+                    name
+                }
+            }
+            ... on NotificationTriggeredAction {
+                title
+                message
+                severity
+                integration {... IntegrationFields}
+            }
+            ... on GenericWebhookTriggeredAction {
+                requestPayload
+                integration {... IntegrationFields}
+            }
+        }
+    }
+
     query TriggersInViewerOrgs ($entityName: String) {
         viewer(entityName: $entityName) {
-            # __typename
-            # id
-            # username
             organizations {
-                # __typename
-                # id
-                # name
-                # orgType
                 orgEntity {
-                    # __typename
-                    # name
-                    # id
                     projects {
                         edges {
                             node {
-                                # __typename
-                                # id
-                                # name
-                                triggers {
-                                    id
-                                    createdAt
-                                    createdBy {id username}
-                                    updatedAt
-                                    name
-                                    description
-                                    enabled
-                                    triggeringCondition {
-                                        __typename
-                                        ... on FilterEventTriggeringCondition {
-                                            eventType
-                                            filter
-                                        }
-                                    }
-                                    triggeredAction {
-                                        __typename
-                                        ... on QueueJobTriggeredAction {
-                                            template
-                                            queue {
-                                                __typename
-                                                id
-                                                name
-                                            }
-                                        }
-                                        ... on NotificationTriggeredAction {
-                                            title
-                                            message
-                                            severity
-                                            integration {
-                                                __typename
-                                                ... on GenericWebhookIntegration {
-                                                    id
-                                                    name
-                                                    urlEndpoint
-                                                    secretRef
-                                                    accessTokenRef
-                                                    createdAt
-                                                }
-                                                ... on GitHubOAuthIntegration {
-                                                    id
-                                                }
-                                                ... on SlackIntegration {
-                                                    id
-                                                    teamName
-                                                    channelName
-                                                }
-                                            }
-                                        }
-                                        ... on GenericWebhookTriggeredAction {
-                                            requestPayload
-                                            integration {
-                                                __typename
-                                                ... on GenericWebhookIntegration {
-                                                    id
-                                                    name
-                                                    urlEndpoint
-                                                    secretRef
-                                                    accessTokenRef
-                                                    createdAt
-                                                }
-                                                ... on GitHubOAuthIntegration {
-                                                    id
-                                                }
-                                                ... on SlackIntegration {
-                                                    id
-                                                    teamName
-                                                    channelName
-                                                }
-                                            }
-                                        }
-                                    }
-                                    scope {
-                                        __typename
-                                        ... on ArtifactPortfolio {id name}
-                                        ... on ArtifactSequence {id name}
-                                        ... on Project {id name}
-                                    }
-                                }
+                                triggers {... AutomationFields}
                             }
                         }
                     }
                 }
                 teams {
-                    # __typename
-                    # id
-                    # name
                     projects {
                         edges {
                             node {
-                                # __typename
-                                # id
-                                # name
-                                triggers {
-                                    id
-                                    createdAt
-                                    createdBy {id username}
-                                    updatedAt
-                                    name
-                                    description
-                                    enabled
-                                    scope {
-                                        __typename
-                                        ... on ArtifactPortfolio {id name}
-                                        ... on ArtifactSequence {id name}
-                                        ... on Project {id name}
-                                    }
-                                    triggeringCondition {
-                                        __typename
-                                        ... on FilterEventTriggeringCondition {
-                                            eventType
-                                            filter
-                                        }
-                                    }
-                                    triggeredAction {
-                                        __typename
-                                        ... on QueueJobTriggeredAction {
-                                            template
-                                            queue {
-                                                __typename
-                                                id
-                                                name
-                                            }
-                                        }
-                                        ... on NotificationTriggeredAction {
-                                            title
-                                            message
-                                            severity
-                                            integration {
-                                                __typename
-                                                ... on GenericWebhookIntegration {
-                                                    id
-                                                    urlEndpoint
-                                                    name
-                                                    secretRef
-                                                    accessTokenRef
-                                                    createdAt
-                                                }
-                                                ... on GitHubOAuthIntegration {
-                                                    id
-                                                }
-                                                ... on SlackIntegration {
-                                                    id
-                                                    teamName
-                                                    channelName
-                                                }
-                                            }
-                                        }
-                                        ... on GenericWebhookTriggeredAction {
-                                            requestPayload
-                                            integration {
-                                                __typename
-                                                ... on GenericWebhookIntegration {
-                                                    id
-                                                    urlEndpoint
-                                                    name
-                                                    secretRef
-                                                    accessTokenRef
-                                                    createdAt
-                                                }
-                                                ... on GitHubOAuthIntegration {
-                                                    id
-                                                }
-                                                ... on SlackIntegration {
-                                                    id
-                                                    teamName
-                                                    channelName
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
+                                triggers {... AutomationFields}
                             }
                         }
                     }
@@ -324,8 +213,6 @@ _FETCH_PROJECT_TRIGGERS = gql(
     """
 )
 
-# load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
-
 
 # ------------------------------------------------------------------------------
 class User(Base):
@@ -352,14 +239,8 @@ class ProjectScope(Base):
     name: str
 
 
-class EntityScope(Base):
-    typename__: TypenameField[Literal["Entity"]]
-    id: Base64Id
-    name: str
-
-
 AnyScope = Annotated[
-    Union[ArtifactPortfolioScope, ArtifactSequenceScope, ProjectScope, EntityScope],
+    Union[ArtifactPortfolioScope, ArtifactSequenceScope, ProjectScope],
     Field(discriminator="typename__"),
 ]
 
@@ -401,9 +282,12 @@ class NewAutomation(Base):
 AutomationsAdapter = TypeAdapter(list[Automation])
 
 
-def fetch_automations() -> Iterator[Automation]:
+def get_automations() -> Iterator[Automation]:
     api = _get_api()
-    data = api.client.execute(_FETCH_ORG_TRIGGERS, variable_values={"entityName": None})
+
+    params = {"entityName": None}
+    data = api.client.execute(_ORG_AUTOMATIONS_QUERY, variable_values=params)
+
     organizations = data["viewer"]["organizations"]
     entities = chain.from_iterable(
         [org["orgEntity"], *org["teams"]] for org in organizations
@@ -412,12 +296,9 @@ def fetch_automations() -> Iterator[Automation]:
     projects = (edge["node"] for edge in edges)
     for proj in projects:
         yield from AutomationsAdapter.validate_python(proj["triggers"])
-    # triggers = chain.from_iterable(proj["triggers"] for proj in projects)
-    # return list(islice(triggers, 5))
-    # # return projects
 
 
-def get_automations(
+def get_automations_old(
     entities: Iterable[str] | str | None = "wandb_Y72QKAKNEFI3G",
     projects: Iterable[str] | str | None = "wandb-registry-model",
     # entities: Iterable[str] | str | None = None,
