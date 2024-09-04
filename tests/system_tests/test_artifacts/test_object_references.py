@@ -14,7 +14,7 @@ import wandb
 from bokeh.plotting import figure
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
-from wandb.sdk.data_types import Bokeh
+from wandb.sdk.data_types import Bokeh, PartitionedTable
 
 columns = [
     "id",
@@ -848,7 +848,7 @@ def test_simple_partition_table(user, cleanup):
         data.append(row)
         table = wandb.Table(columns=columns, data=[row])
         artifact.add(table, f"{table_parts_dir}/{i}")
-    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    partition_table = PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     run.log_artifact(artifact)
     run.finish()

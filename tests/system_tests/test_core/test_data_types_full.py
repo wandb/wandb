@@ -4,6 +4,7 @@ from unittest import mock
 import numpy as np
 import pytest
 import wandb
+from wandb.sdk.data_types import PartitionedTable
 
 
 def test_big_table_throws_error_that_can_be_overridden(wandb_init):
@@ -65,7 +66,7 @@ def test_object3d_logging(relay_server, wandb_init, assets_path):
 
 def test_partitioned_table_logging(wandb_init):
     run = wandb_init()
-    run.log({"logged_table": wandb.data_types.PartitionedTable("parts")})
+    run.log({"logged_table": PartitionedTable("parts")})
     run.finish()
 
 
