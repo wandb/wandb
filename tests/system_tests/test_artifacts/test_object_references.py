@@ -14,6 +14,7 @@ import wandb
 from bokeh.plotting import figure
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
 from wandb.sdk.artifacts.storage_handlers.s3_handler import S3Handler
+from wandb.sdk.data_types import Bokeh
 
 columns = [
     "id",
@@ -154,7 +155,7 @@ def _make_bokeh():
     p = figure(title="simple line example", x_axis_label="x", y_axis_label="y")
     p.line(x, y, legend_label="Temp.", line_width=2)
 
-    return wandb.data_types.Bokeh(p)
+    return Bokeh(p)
 
 
 b1 = _make_bokeh()

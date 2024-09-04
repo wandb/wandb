@@ -4,7 +4,7 @@ import matplotlib
 import numpy as np
 import pytest
 import wandb
-from wandb import data_types
+from wandb.sdk.data_types import WBValue, data_types
 
 matplotlib.use("Agg")
 
@@ -22,35 +22,31 @@ def test_wb_value(user, sample_data, test_settings):
     local_art = wandb.Artifact("N", "T")
     public_art = run.use_artifact("N:latest")
 
-    wbvalue = data_types.WBValue()
+    wbvalue = WBValue()
     with pytest.raises(NotImplementedError):
         wbvalue.to_json(local_art)
 
     with pytest.raises(NotImplementedError):
-        data_types.WBValue.from_json({}, public_art)
+        WBValue.from_json({}, public_art)
 
-    assert data_types.WBValue.with_suffix("item") == "item.json"
+    assert WBValue.with_suffix("item") == "item.json"
 
-    table = data_types.WBValue.init_from_json(
+    table = WBValue.init_from_json(
         {
             "_type": "table",
             "data": [[]],
             "columns": [],
-            "column_types": wandb.data_types._dtypes.TypedDictType({}).to_json(),
+            "column_types": data_types._dtypes.TypedDictType({}).to_json(),
         },
         public_art,
     )
-    assert isinstance(table, data_types.WBValue) and isinstance(
-        table, wandb.data_types.Table
-    )
+    assert isinstance(table, WBValue) and isinstance(table, wandb.Table)
 
-    type_mapping = data_types.WBValue.type_mapping()
-    assert all(
-        [issubclass(type_mapping[key], data_types.WBValue) for key in type_mapping]
-    )
+    type_mapping = WBValue.type_mapping()
+    assert all([issubclass(type_mapping[key], WBValue) for key in type_mapping])
 
     assert wbvalue == wbvalue
-    assert wbvalue != data_types.WBValue()
+    assert wbvalue != WBValue()
     run.finish()
 
 

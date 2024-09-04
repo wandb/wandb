@@ -11,8 +11,8 @@ import pytest
 import requests
 import responses
 import wandb
-import wandb.data_types as data_types
 import wandb.sdk.artifacts.artifact_file_cache as artifact_file_cache
+import wandb.sdk.data_types as data_types
 from wandb import util
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 from wandb.sdk.artifacts.artifact_state import ArtifactState
@@ -1426,7 +1426,7 @@ def test_add_partition_folder():
     artifact_type = "dataset"
 
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    partition_table = wandb.data_types.PartitionedTable(parts_path=table_parts_dir)
+    partition_table = data_types.PartitionedTable(parts_path=table_parts_dir)
     artifact.add(partition_table, table_name)
     manifest = artifact.manifest.to_manifest_json()
     print(manifest)

@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 import wandb
-import wandb.data_types
+from wandb.sdk.data_types import data_types
 from wandb.sdk.integration_utils.data_logging import (
     CAN_INFER_IMAGE_AND_VIDEO,
     ValidationDataLogger,
@@ -215,10 +215,8 @@ def test_data_logger_val_inferred_proc(wandb_init):
     assert isinstance(row[tcols.index("input:node")], list)
     assert isinstance(row[tcols.index("input:argmax")].tolist(), int)
     assert isinstance(row[tcols.index("input:argmin")].tolist(), int)
-    assert isinstance(row[tcols.index("wrapped:class")], wandb.data_types._TableIndex)
-    assert isinstance(
-        row[tcols.index("logits:max_class")], wandb.data_types._TableIndex
-    )
+    assert isinstance(row[tcols.index("wrapped:class")], data_types._TableIndex)
+    assert isinstance(row[tcols.index("logits:max_class")], data_types._TableIndex)
     assert isinstance(row[tcols.index("logits:score")], dict)
     # assert isinstance(row[tcols.index("nodes:node")], dict)
     assert isinstance(row[tcols.index("nodes:node")], list)
@@ -226,9 +224,9 @@ def test_data_logger_val_inferred_proc(wandb_init):
     assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
 
     if CAN_INFER_IMAGE_AND_VIDEO:
-        assert isinstance(row[tcols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("3dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        assert isinstance(row[tcols.index("2dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("3dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("video:video")], wandb.Video)
     run.finish()
 
 
@@ -307,9 +305,9 @@ def test_data_logger_val_inferred_proc_no_class(wandb_init):
     assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
 
     if CAN_INFER_IMAGE_AND_VIDEO:
-        assert isinstance(row[tcols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("3dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        assert isinstance(row[tcols.index("2dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("3dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("video:video")], wandb.Video)
     run.finish()
 
 
@@ -408,7 +406,7 @@ def test_data_logger_pred_inferred_proc(wandb_init):
     row = t.data[0]
 
     assert set(tcols) == set(cols)
-    assert isinstance(row[tcols.index("val_row")], wandb.data_types._TableIndex)
+    assert isinstance(row[tcols.index("val_row")], data_types._TableIndex)
     assert isinstance(row[tcols.index("simple")].tolist(), int)
     assert len(row[tcols.index("wrapped")]) == 1
     assert len(row[tcols.index("logits")]) == 5
@@ -416,10 +414,8 @@ def test_data_logger_pred_inferred_proc(wandb_init):
     assert row[tcols.index("2dimages")].shape == (5, 5)
     assert row[tcols.index("3dimages")].shape == (5, 5, 3)
     assert row[tcols.index("video")].shape == (5, 5, 3, 10)
-    assert isinstance(row[tcols.index("wrapped:class")], wandb.data_types._TableIndex)
-    assert isinstance(
-        row[tcols.index("logits:max_class")], wandb.data_types._TableIndex
-    )
+    assert isinstance(row[tcols.index("wrapped:class")], data_types._TableIndex)
+    assert isinstance(row[tcols.index("logits:max_class")], data_types._TableIndex)
     assert isinstance(row[tcols.index("logits:score")], dict)
     # assert isinstance(row[tcols.index("nodes:node")], dict)
     assert isinstance(row[tcols.index("nodes:node")], list)
@@ -427,9 +423,9 @@ def test_data_logger_pred_inferred_proc(wandb_init):
     assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
 
     if CAN_INFER_IMAGE_AND_VIDEO:
-        assert isinstance(row[tcols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("3dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        assert isinstance(row[tcols.index("2dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("3dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("video:video")], wandb.Video)
     run.finish()
 
 
@@ -488,7 +484,7 @@ def test_data_logger_pred_inferred_proc_no_classes(wandb_init):
     row = t.data[0]
 
     assert set(tcols) == set(cols)
-    assert isinstance(row[tcols.index("val_row")], wandb.data_types._TableIndex)
+    assert isinstance(row[tcols.index("val_row")], data_types._TableIndex)
     assert isinstance(row[tcols.index("simple")].tolist(), int)
     assert len(row[tcols.index("wrapped")]) == 1
     assert len(row[tcols.index("logits")]) == 5
@@ -507,7 +503,7 @@ def test_data_logger_pred_inferred_proc_no_classes(wandb_init):
     assert isinstance(row[tcols.index("nodes:argmin")].tolist(), int)
 
     if CAN_INFER_IMAGE_AND_VIDEO:
-        assert isinstance(row[tcols.index("2dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("3dimages:image")], wandb.data_types.Image)
-        assert isinstance(row[tcols.index("video:video")], wandb.data_types.Video)
+        assert isinstance(row[tcols.index("2dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("3dimages:image")], wandb.Image)
+        assert isinstance(row[tcols.index("video:video")], wandb.Video)
     run.finish()
