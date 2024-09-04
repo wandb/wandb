@@ -1,7 +1,7 @@
 from typing import Any, Dict, Optional, Tuple
 
-from wandb.data_types import Table
 from wandb.errors import Error
+from wandb.sdk.data_types import Table
 
 
 class Visualize:

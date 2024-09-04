@@ -9,7 +9,7 @@ from typing import List
 
 import wandb
 from wandb import util
-from wandb.data_types import Node
+from wandb.sdk.data_types import Graph, Node
 
 torch = None
 
@@ -298,7 +298,7 @@ class TorchHistory:
         return tensor
 
 
-class TorchGraph(wandb.data_types.Graph):
+class TorchGraph(Graph):
     def __init__(self):
         super().__init__("torch")
         self._graph_hooks = set()

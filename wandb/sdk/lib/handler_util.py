@@ -1,4 +1,4 @@
-import wandb.data_types as data_types
+import wandb.sdk.data_types as data_types
 
 
 def get_types():
