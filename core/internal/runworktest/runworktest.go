@@ -39,7 +39,7 @@ func New() *FakeRunWork {
 	return fake
 }
 
-// AllRecords returns all records added via AddRecord.
+// AllRecords returns all records added via AddWork.
 func (w *FakeRunWork) AllRecords() []*spb.Record {
 	w.wg.Wait()
 
@@ -48,17 +48,17 @@ func (w *FakeRunWork) AllRecords() []*spb.Record {
 	return w.allRecords
 }
 
-func (w *FakeRunWork) AddRecord(record *spb.Record) {
+func (w *FakeRunWork) AddWork(work runwork.Work) {
 	w.wg.Add(1)
-	w.rw.AddRecord(record)
+	w.rw.AddWork(work)
 }
 
-func (w *FakeRunWork) AddRecordOrCancel(
+func (w *FakeRunWork) AddWorkOrCancel(
 	done <-chan struct{},
-	record *spb.Record,
+	work runwork.Work,
 ) {
 	w.wg.Add(1)
-	w.rw.AddRecordOrCancel(done, record)
+	w.rw.AddWorkOrCancel(done, work)
 }
 
 func (w *FakeRunWork) BeforeEndCtx() context.Context {
