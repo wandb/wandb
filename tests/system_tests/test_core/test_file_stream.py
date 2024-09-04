@@ -2,7 +2,8 @@ import re
 
 import pytest
 import wandb
-from wandb.testing.relay import TokenizedCircularPattern
+
+from ..relay import TokenizedCircularPattern
 
 
 def log_line_match_http_error(user, project, run_id, status_code):
