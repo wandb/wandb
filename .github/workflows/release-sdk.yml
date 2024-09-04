@@ -158,7 +158,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4.4.0
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distributions-${{ matrix.os }}
           path: ./dist
 
   build-universal-wheel:
@@ -187,7 +187,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4.4.0
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distributions-universal
           path: ./dist
 
   build-sdist:
@@ -212,7 +212,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4.4.0
         with:
-          name: wandb-sdk-distributions
+          name: wandb-sdk-distributions-sdist
           path: ./dist
 
   test-pypi-publish:
@@ -234,8 +234,9 @@ jobs:
       - name: Download distribution
         uses: actions/download-artifact@v4.1.8
         with:
-          name: wandb-sdk-distributions
+          pattern: wandb-sdk-distributions-*
           path: dist/
+          merge-multiple: true
 
       - name: List distribution
         run: ls dist/
@@ -341,8 +342,9 @@ jobs:
       - name: Download distribution
         uses: actions/download-artifact@v4.1.8
         with:
-          name: wandb-sdk-distributions
+          pattern: wandb-sdk-distributions-*
           path: dist/
+          merge-multiple: true
       - name: List distribution
         run: ls dist/
       - name: Publish distribution to PyPI
