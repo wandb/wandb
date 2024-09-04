@@ -1,10 +1,13 @@
+from __future__ import annotations
+
 import base64
 import binascii
-import os
 import shutil
 import time
-from functools import lru_cache
+from collections.abc import Callable
+from contextlib import suppress
 from math import cos, pi, sin
+from pathlib import Path
 
 import boto3
 import botocore
@@ -42,199 +45,197 @@ CLASS_LABELS: Final[dict[int, str]] = {
 }
 
 WANDB_CLASSES: Final[wandb.Classes] = wandb.Classes(
-    [
-        {"id": 1, "name": "tree"},
-        {"id": 2, "name": "car"},
-        {"id": 3, "name": "road"},
-    ]
+    [{"id": idx, "name": lbl} for idx, lbl in CLASS_LABELS.items()]
 )
 
 
-def _make_wandb_image(suffix: str = "") -> wandb.Image:
-    assets_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
-    )
-    im_path = os.path.join(assets_path, f"test{suffix}.png")
-    return wandb.Image(
-        im_path,
-        classes=WANDB_CLASSES,
-        boxes={
-            "predictions": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 2,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                ],
-                "class_labels": CLASS_LABELS,
-            },
-            "ground_truth": {
-                "box_data": [
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 1,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                    {
-                        "position": {
-                            "minX": 0.1,
-                            "maxX": 0.2,
-                            "minY": 0.3,
-                            "maxY": 0.4,
-                        },
-                        "class_id": 2,
-                        "box_caption": "minMax(pixel)",
-                        "scores": {"acc": 0.1, "loss": 1.2},
-                    },
-                ],
-                "class_labels": CLASS_LABELS,
-            },
-        },
-        masks={
-            "predictions": {
-                "mask_data": np.random.randint(0, 4, size=(30, 30)),
-                "class_labels": CLASS_LABELS,
-            },
-            "ground_truth": {
-                "path": im_path,
-                "class_labels": CLASS_LABELS,
-            },
-        },
-    )
+@pytest.fixture
+def make_wandb_image() -> Callable[[str], wandb.Image] | Callable[[], wandb.Image]:
+    """Factory fixture for generating test `wandb.Image` objects."""
 
+    def _make_wandb_image(suffix: str = "") -> wandb.Image:
+        assets_path = Path(__file__).resolve().parent.parent.parent / "assets"
 
-def _make_point_cloud() -> wandb.Object3D:
-    # Generate a symmetric pattern
-    point_count = 20000
+        img_path = assets_path / f"test{suffix}.png"
 
-    # Choose a random sample
-    theta_chi = pi * np.random.rand(point_count, 2)
+        position = {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4}
+        box_caption = "minMax(pixel)"
+        scores = {"acc": 0.1, "loss": 1.2}
 
-    def gen_point(theta: float, chi: float, i: int):
-        p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + cos(chi) * 7 * sin(
-            (2 * i - 4) / 2 * (i + 2)
+        box1 = {
+            "position": position,
+            "class_id": 1,
+            "box_caption": box_caption,
+            "scores": scores,
+        }
+        box2 = {
+            "position": position,
+            "class_id": 2,
+            "box_caption": box_caption,
+            "scores": scores,
+        }
+        return wandb.Image(
+            img_path,
+            classes=WANDB_CLASSES,
+            boxes={
+                "predictions": {
+                    "box_data": [box1, box2],
+                    "class_labels": CLASS_LABELS,
+                },
+                "ground_truth": {
+                    "box_data": [box1, box2],
+                    "class_labels": CLASS_LABELS,
+                },
+            },
+            masks={
+                "predictions": {
+                    "mask_data": np.random.randint(0, 4, size=(30, 30)),
+                    "class_labels": CLASS_LABELS,
+                },
+                "ground_truth": {
+                    "path": img_path,
+                    "class_labels": CLASS_LABELS,
+                },
+            },
         )
 
-        x = p * sin(chi) * cos(theta)
-        y = p * sin(chi) * sin(theta)
-        z = p * cos(chi)
+    return _make_wandb_image
 
-        r = sin(theta) * 120 + 120
-        g = sin(x) * 120 + 120
-        b = cos(y) * 120 + 120
 
-        return [x, y, z, r, g, b]
+@pytest.fixture
+def make_point_cloud() -> Callable[[], wandb.Object3D]:
+    def _make_point_cloud() -> wandb.Object3D:
+        # Generate a symmetric pattern
+        point_count = 20000
 
-    def wave_pattern(i: int):
-        return np.array([gen_point(theta, chi, i) for [theta, chi] in theta_chi])
+        # Choose a random sample
+        theta_chi = pi * np.random.rand(point_count, 2)
 
-    return wandb.Object3D(wave_pattern(0))
+        def gen_point(theta: float, chi: float, i: int):
+            p = sin(theta) * 4.5 * sin(i + 1 / 2 * (i * i + 2)) + cos(chi) * 7 * sin(
+                (2 * i - 4) / 2 * (i + 2)
+            )
+
+            x = p * sin(chi) * cos(theta)
+            y = p * sin(chi) * sin(theta)
+            z = p * cos(chi)
+
+            r = sin(theta) * 120 + 120
+            g = sin(x) * 120 + 120
+            b = cos(y) * 120 + 120
+
+            return [x, y, z, r, g, b]
+
+        def wave_pattern(i: int):
+            return np.array([gen_point(theta, chi, i) for [theta, chi] in theta_chi])
+
+        return wandb.Object3D(wave_pattern(0))
+
+    return _make_point_cloud
 
 
 # static assets for comparisons
-@lru_cache
-def static_point_cloud1():
-    return _make_point_cloud()
+@pytest.fixture
+def pc1(make_point_cloud) -> wandb.Object3D:
+    return make_point_cloud()
 
 
-@lru_cache
-def static_point_cloud2():
-    return _make_point_cloud()
+@pytest.fixture
+def pc2(make_point_cloud) -> wandb.Object3D:
+    return make_point_cloud()
 
 
-@lru_cache
-def static_point_cloud3():
-    return _make_point_cloud()
+@pytest.fixture
+def pc3(make_point_cloud) -> wandb.Object3D:
+    return make_point_cloud()
 
 
-@lru_cache
-def static_point_cloud4():
-    return _make_point_cloud()
+@pytest.fixture
+def pc4(make_point_cloud) -> wandb.Object3D:
+    return make_point_cloud()
 
 
-# pc1 = _make_point_cloud()
-# pc2 = _make_point_cloud()
-# pc3 = _make_point_cloud()
-# pc4 = _make_point_cloud()
+@pytest.fixture
+def make_bokeh() -> Callable[[], wandb.data_types.Bokeh]:
+    def _make_bokeh():
+        x = [1, 2, 3, 4, 5]
+        y = [6, 7, 2, 4, 5]
+        p = figure(title="simple line example", x_axis_label="x", y_axis_label="y")
+        p.line(x, y, legend_label="Temp.", line_width=2)
+
+        return wandb.data_types.Bokeh(p)
+
+    return _make_bokeh
 
 
-def _make_bokeh():
-    x = [1, 2, 3, 4, 5]
-    y = [6, 7, 2, 4, 5]
-    p = figure(title="simple line example", x_axis_label="x", y_axis_label="y")
-    p.line(x, y, legend_label="Temp.", line_width=2)
-
-    return wandb.data_types.Bokeh(p)
+@pytest.fixture
+def b1(make_bokeh) -> wandb.data_types.Bokeh:
+    return make_bokeh()
 
 
-b1 = _make_bokeh()
-b2 = _make_bokeh()
-b3 = _make_bokeh()
-b4 = _make_bokeh()
+@pytest.fixture
+def b2(make_bokeh) -> wandb.data_types.Bokeh:
+    return make_bokeh()
 
 
-def _make_html():
-    return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
+@pytest.fixture
+def b3(make_bokeh) -> wandb.data_types.Bokeh:
+    return make_bokeh()
 
 
-def _make_video():
-    # time, channel, height, width
-    return wandb.Video(
-        np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8)
-    )
+@pytest.fixture
+def b4(make_bokeh) -> wandb.data_types.Bokeh:
+    return make_bokeh()
 
 
-@lru_cache
-def static_video1() -> wandb.Video:
-    return _make_video()
+@pytest.fixture
+def make_html() -> Callable[[], wandb.Html]:
+    """Factory fixture for generating test `wandb.Html` objects."""
+
+    def _make_html() -> wandb.Html:
+        return wandb.Html("<p>Embedded</p><iframe src='https://wandb.ai'></iframe>")
+
+    return _make_html
 
 
-@lru_cache
-def static_video2() -> wandb.Video:
-    return _make_video()
+@pytest.fixture
+def make_video() -> Callable[[], wandb.Video]:
+    """Factory fixture for generating test `wandb.Video` objects."""
+
+    def _make_video() -> wandb.Video:
+        # time, channel, height, width
+        return wandb.Video(
+            np.random.randint(0, high=255, size=(4, 3, 10, 10), dtype=np.uint8)
+        )
+
+    return _make_video
 
 
-@lru_cache
-def static_video3() -> wandb.Video:
-    return _make_video()
+@pytest.fixture
+def vid1(make_video) -> wandb.Video:
+    return make_video()
 
 
-@lru_cache
-def static_video4() -> wandb.Video:
-    return _make_video()
+@pytest.fixture
+def vid2(make_video) -> wandb.Video:
+    return make_video()
 
 
-# vid1 = _make_video()
-# vid2 = _make_video()
-# vid3 = _make_video()
-# vid4 = _make_video()
+@pytest.fixture
+def vid3(make_video) -> wandb.Video:
+    return make_video()
 
 
-def _make_wandb_audio(frequency, caption):
+@pytest.fixture
+def vid4(make_video) -> wandb.Video:
+    return make_video()
+
+
+@pytest.fixture
+def aud1() -> wandb.Audio:
+    frequency = 440
+    caption = "four forty"
+
     sample_rate = 44100
     duration_seconds = 1
 
@@ -244,10 +245,7 @@ def _make_wandb_audio(frequency, caption):
     return wandb.Audio(data, sample_rate, caption)
 
 
-aud1 = _make_wandb_audio(440, "four forty")
-
-
-@lru_cache
+@pytest.fixture
 def aud_ref_https() -> wandb.Audio:
     return wandb.Audio(
         "https://wandb-artifacts-refs-public-test.s3-us-west-2.amazonaws.com/StarWars3.wav",
@@ -255,105 +253,133 @@ def aud_ref_https() -> wandb.Audio:
     )
 
 
-@lru_cache
+@pytest.fixture
 def aud_ref_s3() -> wandb.Audio:
     return wandb.Audio(
-        "s3://wandb-artifacts-refs-public-test/StarWars3.wav", caption="star wars s3"
+        "s3://wandb-artifacts-refs-public-test/StarWars3.wav",
+        caption="star wars s3",
     )
 
 
-@lru_cache
+@pytest.fixture
 def aud_ref_gs() -> wandb.Audio:
     return wandb.Audio(
-        "gs://wandb-artifact-refs-public-test/StarWars3.wav", caption="star wars gs"
+        "gs://wandb-artifact-refs-public-test/StarWars3.wav",
+        caption="star wars gs",
     )
 
 
-np_data = np.random.randint(255, size=(4, 16, 16, 3))
-
-
-def _make_wandb_table():
-    table = wandb.Table(
-        columns=[c for c in COLUMNS[:-1]],
-        data=[
-            [
-                1,
-                1,
-                "string1",
-                True,
-                1,
-                1.1,
-                _make_wandb_image(),
-                static_point_cloud1(),
-                _make_html(),
-                static_video1(),
-                b1,
-                aud1,
-            ],
-            [
-                2,
-                2,
-                "string2",
-                True,
-                1,
-                1.2,
-                _make_wandb_image(),
-                static_point_cloud2(),
-                _make_html(),
-                static_video2(),
-                b2,
-                aud_ref_https(),
-            ],
-            [
-                3,
-                1,
-                "string3",
-                False,
-                -0,
-                -1.3,
-                _make_wandb_image("2"),
-                static_point_cloud3(),
-                _make_html(),
-                static_video3(),
-                b3,
-                aud_ref_s3(),
-            ],
-            [
-                4,
-                3,
-                "string4",
-                False,
-                -0,
-                -1.4,
-                _make_wandb_image("2"),
-                static_point_cloud4(),
-                _make_html(),
-                static_video4(),
-                b4,
-                aud_ref_gs(),
-            ],
-        ],
-    )
-    table.cast("class_id", WANDB_CLASSES.get_type())
-    table.add_column(COLUMNS[-1], np_data)
-    return table
+@pytest.fixture(scope="module")
+def np_data() -> np.ndarray:
+    return np.random.randint(255, size=(4, 16, 16, 3))
 
 
 @pytest.fixture
-def wandb_table() -> wandb.Table:
-    return _make_wandb_table()
+def make_wandb_table(
+    make_wandb_image,
+    make_html,
+    pc1,
+    pc2,
+    pc3,
+    pc4,
+    vid1,
+    vid2,
+    vid3,
+    vid4,
+    b1,
+    b2,
+    b3,
+    b4,
+    np_data,
+    aud1,
+    aud_ref_https,
+    aud_ref_s3,
+    aud_ref_gs,
+) -> Callable[[], wandb.Table]:
+    """Factory fixture for generating test `wandb.Table` objects."""
 
+    first_columns, last_column = COLUMNS[:-1], COLUMNS[-1]
 
-def _make_wandb_joinedtable():
-    return wandb.JoinedTable(_make_wandb_table(), _make_wandb_table(), "id")
+    def _make_wandb_table():
+        table = wandb.Table(
+            columns=first_columns,
+            data=[
+                [
+                    1,
+                    1,
+                    "string1",
+                    True,
+                    1,
+                    1.1,
+                    make_wandb_image(),
+                    pc1,
+                    make_html(),
+                    vid1,
+                    b1,
+                    aud1,
+                ],
+                [
+                    2,
+                    2,
+                    "string2",
+                    True,
+                    1,
+                    1.2,
+                    make_wandb_image(),
+                    pc2,
+                    make_html(),
+                    vid2,
+                    b2,
+                    aud_ref_https,
+                ],
+                [
+                    3,
+                    1,
+                    "string3",
+                    False,
+                    -0,
+                    -1.3,
+                    make_wandb_image("2"),
+                    pc3,
+                    make_html(),
+                    vid3,
+                    b3,
+                    aud_ref_s3,
+                ],
+                [
+                    4,
+                    3,
+                    "string4",
+                    False,
+                    -0,
+                    -1.4,
+                    make_wandb_image("2"),
+                    pc4,
+                    make_html(),
+                    vid4,
+                    b4,
+                    aud_ref_gs,
+                ],
+            ],
+        )
+        table.cast("class_id", WANDB_CLASSES.get_type())
+        table.add_column(last_column, np_data)
+        return table
+
+    return _make_wandb_table
 
 
 @pytest.fixture
-def wandb_joinedtable() -> wandb.JoinedTable:
-    return _make_wandb_joinedtable()
+def wandb_table(make_wandb_table) -> wandb.Table:
+    return make_wandb_table()
 
 
-def _b64_to_hex_id(id_string):
+@pytest.fixture
+def wandb_joinedtable(make_wandb_table) -> wandb.JoinedTable:
+    return wandb.JoinedTable(make_wandb_table(), make_wandb_table(), join_key="id")
+
+
+def _b64_to_hex_id(id_string: str) -> str:
     return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
 
 
@@ -371,34 +397,34 @@ def test_artifact_add_reference_via_url(user, cleanup):
     middle_artifact_name = "middle_artifact"
     downstream_artifact_name = "downstream_artifact"
 
-    upstream_local_path = "upstream/local/path/"
+    upstream_local_path = Path("upstream/local/path/")
 
-    upstream_artifact_path = "upstream/artifact/path/"
-    middle_artifact_path = "middle/artifact/path/"
-    downstream_artifact_path = "downstream/artifact/path/"
+    upstream_artifact_path = Path("upstream/artifact/path/")
+    middle_artifact_path = Path("middle/artifact/path/")
+    downstream_artifact_path = Path("downstream/artifact/path/")
 
-    upstream_local_file_path = upstream_local_path + "file.txt"
-    upstream_artifact_file_path = upstream_artifact_path + "file.txt"
-    middle_artifact_file_path = middle_artifact_path + "file.txt"
-    downstream_artifact_file_path = downstream_artifact_path + "file.txt"
+    upstream_local_file_path = upstream_local_path / "file.txt"
+    upstream_artifact_file_path = upstream_artifact_path / "file.txt"
+    middle_artifact_file_path = middle_artifact_path / "file.txt"
+    downstream_artifact_file_path = downstream_artifact_path / "file.txt"
 
     file_text = "Luke, I am your Father!!!!!"
     # Create a super important file
-    if not os.path.exists(upstream_local_path):
-        os.makedirs(upstream_local_path)
-    with open(upstream_local_file_path, "w") as file:
-        file.write(file_text)
+    upstream_local_path.mkdir(parents=True, exist_ok=True)
+    upstream_local_file_path.write_text(file_text)
 
     # Create an artifact with such file stored
     with wandb.init() as run:
         artifact = wandb.Artifact(upstream_artifact_name, "database")
-        artifact.add_file(upstream_local_file_path, upstream_artifact_file_path)
+        artifact.add_file(
+            str(upstream_local_file_path), str(upstream_artifact_file_path)
+        )
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
     with wandb.init() as run:
         artifact = wandb.Artifact(middle_artifact_name, "database")
-        upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
+        upstream_artifact = run.use_artifact(f"{upstream_artifact_name}:latest")
         artifact.add_reference(
             f"wandb-artifact://{_b64_to_hex_id(upstream_artifact.id)}/{str(upstream_artifact_file_path)}",
             middle_artifact_file_path,
@@ -416,17 +442,18 @@ def test_artifact_add_reference_via_url(user, cleanup):
         run.log_artifact(artifact)
 
     # Remove the directories for good measure
-    if os.path.isdir("upstream"):
+    with suppress(OSError):
         shutil.rmtree("upstream")
-    if os.path.isdir("artifacts"):
+    with suppress(OSError):
         shutil.rmtree("artifacts")
 
     # Finally, use the artifact (download it) and enforce that the file is where we want it!
     with wandb.init() as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
-        with open(os.path.join(downstream_path, downstream_artifact_file_path)) as file:
-            assert file.read() == file_text
+        assert (
+            Path(downstream_path) / downstream_artifact_file_path
+        ).read_text() == file_text
 
 
 # # Artifact1.add_reference(artifact2.get_entry(file_name))
@@ -441,28 +468,26 @@ def test_add_reference_via_artifact_entry(user, cleanup):
     middle_artifact_name = "middle_artifact"
     downstream_artifact_name = "downstream_artifact"
 
-    upstream_local_path = "upstream/local/path/"
+    upstream_local_path = Path("upstream/local/path/")
 
     upstream_artifact_path = "upstream/artifact/path/"
     middle_artifact_path = "middle/artifact/path/"
     downstream_artifact_path = "downstream/artifact/path/"
 
-    upstream_local_file_path = upstream_local_path + "file.txt"
+    upstream_local_file_path = upstream_local_path / "file.txt"
     upstream_artifact_file_path = upstream_artifact_path + "file.txt"
     middle_artifact_file_path = middle_artifact_path + "file.txt"
     downstream_artifact_file_path = downstream_artifact_path + "file.txt"
 
     file_text = "Luke, I am your Father!!!!!"
     # Create a super important file
-    if not os.path.exists(upstream_local_path):
-        os.makedirs(upstream_local_path)
-    with open(upstream_local_file_path, "w") as file:
-        file.write(file_text)
+    upstream_local_path.mkdir(parents=True, exist_ok=True)
+    upstream_local_file_path.write_text(file_text)
 
     # Create an artifact with such file stored
     with wandb.init() as run:
         artifact = wandb.Artifact(upstream_artifact_name, "database")
-        artifact.add_file(upstream_local_file_path, upstream_artifact_file_path)
+        artifact.add_file(str(upstream_local_file_path), upstream_artifact_file_path)
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
@@ -486,9 +511,9 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         run.log_artifact(artifact)
 
     # Remove the directories for good measure
-    if os.path.isdir("upstream"):
+    with suppress(OSError):
         shutil.rmtree("upstream")
-    if os.path.isdir("artifacts"):
+    with suppress(OSError):
         shutil.rmtree("artifacts")
 
     # Finally, use the artifact (download it) and enforce that the file is where we want it!
@@ -498,15 +523,16 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         downstream_path = (
             downstream_artifact.download()
         )  # should not fail on second download.
-        # assert os.path.islink(
-        #     os.path.join(downstream_path, downstream_artifact_file_path)
-        # )
-        with open(os.path.join(downstream_path, downstream_artifact_file_path)) as file:
-            assert file.read() == file_text
+
+        assert (
+            Path(downstream_path) / downstream_artifact_file_path
+        ).read_text() == file_text
 
 
 # # Artifact1.get(MEDIA_NAME) => media obj
-def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handler):
+def test_get_artifact_obj_by_name(
+    user, cleanup, anon_s3_handler, anon_gcs_handler, make_wandb_image, make_wandb_table
+):
     """Test the ability to instantiate a wandb Media object from the name of the object.
 
     This is the logical inverse of Artifact.add(name).
@@ -514,8 +540,8 @@ def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handl
     # TODO: test more robustly for every Media type, nested objects (eg. Table -> Image), and references.
     with wandb.init() as run:
         artifact = wandb.Artifact("A2", "database")
-        image = _make_wandb_image()
-        table = _make_wandb_table()
+        image = make_wandb_image()
+        table = make_wandb_table()
         artifact.add(image, "I1")
         artifact.add(table, "T1")
         run.log_artifact(artifact)
@@ -528,18 +554,18 @@ def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handl
         actual_table = artifact.get("T1")
         assert actual_table.columns == COLUMNS
         assert actual_table.data[0][COLUMNS.index("Image")] == image
-        assert actual_table.data[1][COLUMNS.index("Image")] == _make_wandb_image("2")
-        actual_table._eq_debug(_make_wandb_table(), True)
-        assert actual_table == _make_wandb_table()
+        assert actual_table.data[1][COLUMNS.index("Image")] == make_wandb_image("2")
+        actual_table._eq_debug(make_wandb_table(), True)
+        assert actual_table == make_wandb_table()
 
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
-def test_adding_artifact_by_object(user, cleanup):
+def test_adding_artifact_by_object(user, cleanup, make_wandb_image):
     """Test adding wandb Media objects to an artifact by passing the object itself."""
     # Create an artifact with such file stored
     with wandb.init() as run:
         artifact = wandb.Artifact("upstream_media", "database")
-        artifact.add(_make_wandb_image(), "I1")
+        artifact.add(make_wandb_image(), "I1")
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
@@ -549,20 +575,19 @@ def test_adding_artifact_by_object(user, cleanup):
         artifact.add(upstream_artifact.get("I1"), "T2")
         run.log_artifact(artifact)
 
-    if os.path.isdir("artifacts"):
+    with suppress(OSError):
         shutil.rmtree("artifacts")
 
     with wandb.init() as run:
         downstream_artifact = run.use_artifact("downstream_media:latest")
         downstream_path = downstream_artifact.download()  # noqa: F841
-        # assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
-        assert downstream_artifact.get("T2") == _make_wandb_image()
+        assert downstream_artifact.get("T2") == make_wandb_image()
 
 
-def test_image_reference_artifact(user, cleanup):
+def test_image_reference_artifact(user, cleanup, make_wandb_image):
     with wandb.init() as run:
         artifact = wandb.Artifact("image_data", "data")
-        image = _make_wandb_image()
+        image = make_wandb_image()
         artifact.add(image, "image")
         run.log_artifact(artifact)
 
@@ -576,13 +601,12 @@ def test_image_reference_artifact(user, cleanup):
     with wandb.init() as run:
         artifact_2 = run.use_artifact("reference_data:latest")
         artifact_2.download()
-        # assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
 
 
-def test_nested_reference_artifact(user, cleanup):
+def test_nested_reference_artifact(user, cleanup, make_wandb_image):
     with wandb.init() as run:
         artifact = wandb.Artifact("image_data", "data")
-        image = _make_wandb_image()
+        image = make_wandb_image()
         artifact.add(image, "image")
         run.log_artifact(artifact)
 
@@ -596,18 +620,17 @@ def test_nested_reference_artifact(user, cleanup):
     with wandb.init() as run:
         artifact_3 = run.use_artifact("reference_data:latest")
         table_2 = artifact_3.get("table_2")
-        # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
         table._eq_debug(table_2, True)
         assert table == table_2
         artifact_3.download()
 
 
 def test_table_slice_reference_artifact(
-    user, cleanup, anon_s3_handler, anon_gcs_handler
+    user, cleanup, anon_s3_handler, anon_gcs_handler, make_wandb_table
 ):
     with wandb.init() as run:
         artifact = wandb.Artifact("table_data", "data")
-        table = _make_wandb_table()
+        table = make_wandb_table()
         artifact.add(table, "table")
         run.log_artifact(artifact)
 
@@ -638,9 +661,7 @@ def test_table_slice_reference_artifact(
         table1 = artifact_3.get("table1")
         table2 = artifact_3.get("table2")
 
-    assert not os.path.isdir(os.path.join(artifact_2._default_root()))
-    # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
-    # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test2.png"))
+    assert not Path(artifact_2._default_root()).is_dir()
 
     def assert_eq_data(d1, d2):
         assert len(d1) == len(d2)
@@ -684,8 +705,8 @@ def assert_media_obj_referential_equality(obj: WBValue):
 
     assert obj1 == obj
 
-    target_path = os.path.join(orig_dir, f"obj.{type(obj)._log_type}.json")
-    assert os.path.isfile(target_path)
+    target_path = Path(orig_dir) / f"obj.{type(obj)._log_type}.json"
+    assert target_path.is_file()
 
     with wandb.init() as run3:
         orig_artifact_ref = run3.use_artifact("orig_artifact:latest")
@@ -722,15 +743,15 @@ def assert_media_obj_referential_equality(obj: WBValue):
         obj._eq_debug(obj3, True)
 
     assert obj3 == obj
-    assert not os.path.isdir(os.path.join(mid_dir))
+    assert not Path(mid_dir).is_dir()
 
 
-def test_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(_make_wandb_table())
+def test_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler, make_wandb_table):
+    assert_media_obj_referential_equality(make_wandb_table())
 
 
-def test_image_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_wandb_image())
+def test_image_refs(user, cleanup, make_wandb_image):
+    assert_media_obj_referential_equality(make_wandb_image())
 
 
 def test_point_cloud_refs(user, cleanup):
@@ -741,12 +762,12 @@ def test_bokeh_refs(user, cleanup):
     assert_media_obj_referential_equality(_make_bokeh())
 
 
-def test_html_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_html())
+def test_html_refs(user, cleanup, make_html):
+    assert_media_obj_referential_equality(make_html())
 
 
-def test_video_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_video())
+def test_video_refs(user, cleanup, make_video):
+    assert_media_obj_referential_equality(make_video())
 
 
 def test_joined_table_refs(
@@ -756,25 +777,27 @@ def test_joined_table_refs(
 
 
 @pytest.mark.timeout(60)
-def test_audio_ref_https(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(aud_ref_https())
+def test_audio_ref_https(
+    user, cleanup, anon_s3_handler, anon_gcs_handler, aud_ref_https
+):
+    assert_media_obj_referential_equality(aud_ref_https)
 
 
 @pytest.mark.timeout(60)
-def test_audio_ref_s3(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(aud_ref_s3())
+def test_audio_ref_s3(user, cleanup, anon_s3_handler, anon_gcs_handler, aud_ref_s3):
+    assert_media_obj_referential_equality(aud_ref_s3)
 
 
 @pytest.mark.timeout(60)
-def test_audio_ref_gs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(aud_ref_gs())
+def test_audio_ref_gs(user, cleanup, anon_s3_handler, anon_gcs_handler, aud_ref_gs):
+    assert_media_obj_referential_equality(aud_ref_gs)
 
 
-def test_joined_table_referential(user, cleanup):
-    src_image_1 = _make_wandb_image()
-    src_image_2 = _make_wandb_image()
-    src_image_3 = _make_wandb_image()
-    src_image_4 = _make_wandb_image()
+def test_joined_table_referential(user, cleanup, make_wandb_image):
+    src_image_1 = make_wandb_image()
+    src_image_2 = make_wandb_image()
+    src_image_3 = make_wandb_image()
+    src_image_4 = make_wandb_image()
     src_table_1 = wandb.Table(["id", "image"], [[1, src_image_1], [2, src_image_2]])
     src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
     src_jt_1 = wandb.JoinedTable(src_table_1, src_table_2, "id")
@@ -800,11 +823,11 @@ def test_joined_table_referential(user, cleanup):
         assert src_jt_1 == src_jt_2
 
 
-def test_joined_table_add_by_path(user, cleanup):
-    src_image_1 = _make_wandb_image()
-    src_image_2 = _make_wandb_image()
-    src_image_3 = _make_wandb_image()
-    src_image_4 = _make_wandb_image()
+def test_joined_table_add_by_path(user, cleanup, make_wandb_image):
+    src_image_1 = make_wandb_image()
+    src_image_2 = make_wandb_image()
+    src_image_3 = make_wandb_image()
+    src_image_4 = make_wandb_image()
     src_table_1 = wandb.Table(["id", "image"], [[1, src_image_1], [2, src_image_2]])
     src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
     with wandb.init() as run:
@@ -851,11 +874,10 @@ def test_joined_table_add_by_path(user, cleanup):
 
 
 def test_image_reference_with_preferred_path(user, cleanup):
-    assets_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
-    )
-    orig_im_path = os.path.join(assets_path, "test.png")
-    orig_im_path_2 = os.path.join(assets_path, "test2.png")
+    assets_path = Path(__file__).resolve().parent.parent.parent / "assets"
+
+    orig_im_path = assets_path / "test.png"
+    orig_im_path_2 = assets_path / "test2.png"
     desired_artifact_path = "images/sample.png"
     with wandb.init() as run:
         artifact = wandb.Artifact("artifact_1", type="test_artifact")
@@ -951,16 +973,13 @@ def test_distributed_artifact_simple(user, cleanup):
     # Finish
     run = wandb.init(group=group_name)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
-    # artifact.add_file("./test.py")
     run.finish_artifact(artifact)
     run.finish()
 
     # test
     with wandb.init() as run:
         artifact = run.use_artifact(f"{artifact_name}:latest")
-    assert len(artifact.manifest.entries.keys()) == count * 2
-    # for image, path in zip(images, image_paths):
-    #     assert image == artifact.get(path)
+    assert len(artifact.manifest.entries) == count * 2
 
 
 @pytest.fixture
@@ -970,11 +989,11 @@ def cleanup():
 
 
 def _cleanup():
-    if os.path.isdir("wandb"):
+    with suppress(OSError):
         shutil.rmtree("wandb")
-    if os.path.isdir("artifacts"):
+    with suppress(OSError):
         shutil.rmtree("artifacts")
-    if os.path.isdir("upstream"):
+    with suppress(OSError):
         shutil.rmtree("upstream")
 
 
