@@ -3,10 +3,10 @@ import os
 from typing import Any, Dict, List, Optional, Union
 
 import wandb
-import wandb.data_types as data_types
-from wandb.data_types import _SavedModel
+import wandb.sdk.data_types as data_types
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
+from wandb.sdk.data_types import _SavedModel
 
 
 def _add_any(

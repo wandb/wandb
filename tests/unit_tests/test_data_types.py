@@ -13,8 +13,9 @@ import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
-from wandb import data_types
+from wandb.sdk.data_types import Bokeh, ImageMask, Node, _dtypes
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
+from wandb.sdk.data_types.utils import _prune_max_seq
 
 
 def subdict(d, expected_dict):
@@ -205,7 +206,7 @@ def test_image_accepts_bounding_boxes_optional_args(
 
     boxes_with_removed_optional_args = [dissoc(full_box, k) for k in optional_keys]
 
-    img = data_types.Image(
+    img = wandb.Image(
         image,
         boxes={
             "predictions": {
@@ -274,14 +275,14 @@ def test_max_images(mock_run):
     large_list = [wandb.Image(large_image)] * 200
     large_list[0].bind_to_run(run, "test2", 0, 0)
     meta = wandb.Image.seq_to_json(
-        wandb.wandb_sdk.data_types.utils._prune_max_seq(large_list),
+        _prune_max_seq(large_list),
         run,
         "test2",
         0,
     )
     expected = {
         "_type": "images/separated",
-        "count": data_types.Image.MAX_ITEMS,
+        "count": wandb.Image.MAX_ITEMS,
         "height": 10,
         "width": 10,
     }
@@ -590,7 +591,7 @@ def test_create_bokeh_plot(
 ):
     """Ensure that wandb.Bokeh constructor accepts a bokeh plot."""
     bp = bokeh_plot()
-    bp = wandb.data_types.Bokeh(bp)
+    bp = Bokeh(bp)
     bp.bind_to_run(mock_run(), "bokeh", 0)
 
 
@@ -1074,7 +1075,7 @@ def test_ndarrays_in_tables():
 
     assert any(
         [
-            isinstance(t, wandb.data_types._dtypes.NDArrayType)
+            isinstance(t, _dtypes.NDArrayType)
             for t in nda_table._column_types.params["type_map"]["ndarray"].params[
                 "allowed_types"
             ]
@@ -1089,10 +1090,10 @@ def test_ndarrays_in_tables():
 
     assert isinstance(
         nda_table._column_types.params["type_map"]["odd_col"],
-        wandb.data_types._dtypes.ListType,
+        _dtypes.ListType,
     )
 
-    nda_table.cast("odd_col", wandb.data_types._dtypes.NDArrayType(shape=(2, 1)))
+    nda_table.cast("odd_col", _dtypes.NDArrayType(shape=(2, 1)))
     nda_table.add_data(np.random.randint(255, size=(2, 1)))
     nda_table.add_data(np.random.randint(255, size=(2, 1)).tolist())
     with pytest.raises(TypeError):
@@ -1102,7 +1103,7 @@ def test_ndarrays_in_tables():
 
     assert isinstance(
         nda_table._column_types.params["type_map"]["odd_col"],
-        wandb.data_types._dtypes.NDArrayType,
+        _dtypes.NDArrayType,
     )
 
 
@@ -1418,8 +1419,8 @@ def test_object3d_score_is_optional(mock_run):
 
 def test_graph():
     graph = wandb.Graph()
-    node_a = data_types.Node("a", "Node A", size=(4,))
-    node_b = data_types.Node("b", "Node B", size=(16,))
+    node_a = Node("a", "Node A", size=(4,))
+    node_b = Node("b", "Node B", size=(16,))
     graph.add_node(node_a)
     graph.add_node(node_b)
     graph.add_edge(node_a, node_b)
@@ -1447,10 +1448,10 @@ def test_graph():
 
 
 def test_partitioned_table():
-    partition_table = wandb.data_types.PartitionedTable(parts_path="parts")
+    partition_table = wandb.PartitionedTable(parts_path="parts")
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
-    assert partition_table == wandb.data_types.PartitionedTable(parts_path="parts")
-    assert partition_table != wandb.data_types.PartitionedTable(parts_path="parts2")
+    assert partition_table == wandb.PartitionedTable(parts_path="parts")
+    assert partition_table != wandb.PartitionedTable(parts_path="parts2")
 
 
 ################################################################################
@@ -1481,7 +1482,7 @@ def test_media_keys_escaped_as_glob_for_publish(mock_run):
                 },
             },
         ),
-        wandb.data_types.ImageMask(
+        ImageMask(
             {
                 "mask_data": np.random.randint(0, 10, (300, 300)),
             },

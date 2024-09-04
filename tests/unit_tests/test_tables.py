@@ -3,6 +3,8 @@ import datetime
 import numpy as np
 import pytest
 import wandb
+import wandb.sdk
+from wandb.sdk.data_types import data_types
 
 
 def test_basic_ndx():
@@ -37,7 +39,7 @@ def test_pk_cast(use_helper=False):
     if use_helper:
         table.set_pk("id")
     else:
-        table.cast("id", wandb.data_types._PrimaryKeyType())
+        table.cast("id", data_types._PrimaryKeyType())
 
     assert all(
         [row[0]._table == table and row[0]._col_name == "id" for row in table.data]
@@ -60,7 +62,7 @@ def test_pk_cast(use_helper=False):
     assert all(row[0]._table == table for row in table.data)
     assert isinstance(
         table._column_types.params["type_map"]["id"],
-        wandb.data_types._PrimaryKeyType,
+        data_types._PrimaryKeyType,
     )
 
     # Assert that multiple PKs are not supported
@@ -68,7 +70,7 @@ def test_pk_cast(use_helper=False):
         if use_helper:
             table.set_pk("b")
         else:
-            table.cast("b", wandb.data_types._PrimaryKeyType())
+            table.cast("b", data_types._PrimaryKeyType())
 
     # Fails on Numerics for now
     table = wandb.Table(columns=["id", "b"], data=[[1, "a"], [2, "b"]])
@@ -76,13 +78,13 @@ def test_pk_cast(use_helper=False):
         if use_helper:
             table.set_pk("id")
         else:
-            table.cast("id", wandb.data_types._PrimaryKeyType())
+            table.cast("id", data_types._PrimaryKeyType())
 
     # Assert that the table was not modified
     assert all([row[0].__class__ is int for row in table.data])
     assert not isinstance(
         table._column_types.params["type_map"]["id"],
-        wandb.data_types._PrimaryKeyType,
+        data_types._PrimaryKeyType,
     )
 
     # TODO: Test duplicates (not supported today)
@@ -116,7 +118,7 @@ def test_fk_cast(use_helper=False):
     if use_helper:
         table.set_fk("fk", table_a, "id")
     else:
-        table.cast("fk", wandb.data_types._ForeignKeyType(table_a, "id"))
+        table.cast("fk", data_types._ForeignKeyType(table_a, "id"))
 
     # Adding is supported
     table.add_data("3", "c")
@@ -133,7 +135,7 @@ def test_fk_cast(use_helper=False):
     )
     assert isinstance(
         table._column_types.params["type_map"]["fk"],
-        wandb.data_types._ForeignKeyType,
+        data_types._ForeignKeyType,
     )
 
     # Fails on Numerics for now
@@ -142,13 +144,13 @@ def test_fk_cast(use_helper=False):
         if use_helper:
             table.set_fk("fk", table_a, "id")
         else:
-            table.cast("fk", wandb.data_types._ForeignKeyType(table_a, "id"))
+            table.cast("fk", data_types._ForeignKeyType(table_a, "id"))
 
     # Assert that the table was not modified
     assert all([row[0].__class__ is int for row in table.data])
     assert not isinstance(
         table._column_types.params["type_map"]["fk"],
-        wandb.data_types._ForeignKeyType,
+        data_types._ForeignKeyType,
     )
 
 

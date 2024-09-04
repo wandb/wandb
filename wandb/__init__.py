@@ -62,7 +62,7 @@ from wandb.sdk.data_types import Graph
 from wandb.sdk.data_types import Image
 from wandb.sdk.data_types import Plotly
 
-# from wandb.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
+# from wandb.sdk.data_types import Bokeh # keeping out of top level for now since Bokeh plots have poor UI
 from wandb.sdk.data_types import Video
 from wandb.sdk.data_types import Audio
 from wandb.sdk.data_types import Table

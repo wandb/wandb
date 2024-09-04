@@ -3,7 +3,7 @@ import datetime
 import numpy as np
 import pytest
 import wandb
-from wandb import data_types
+from wandb.sdk import data_types
 from wandb.sdk.data_types._dtypes import (
     AnyType,
     BooleanType,
@@ -20,6 +20,7 @@ from wandb.sdk.data_types._dtypes import (
     UnionType,
     UnknownType,
 )
+from wandb.sdk.data_types.helper_types import classes
 
 
 def test_none_type():
@@ -271,9 +272,9 @@ def test_nested_dict():
 
 def test_image_type(assets_path):
     class_labels = {1: "tree", 2: "car", 3: "road"}
-    wb_type = data_types._ImageFileType()
+    wb_type = data_types.data_types._ImageFileType()
     image_simple = data_types.Image(np.random.rand(10, 10))
-    wb_type_simple = data_types._ImageFileType.from_obj(image_simple)
+    wb_type_simple = data_types.data_types._ImageFileType.from_obj(image_simple)
     im_path = assets_path("test.png")
     image_annotated = data_types.Image(
         np.random.rand(10, 10),
@@ -319,7 +320,7 @@ def test_image_type(assets_path):
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },
     )
-    wb_type_annotated = data_types._ImageFileType.from_obj(image_annotated)
+    wb_type_annotated = data_types.data_types._ImageFileType.from_obj(image_annotated)
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -355,7 +356,7 @@ def test_image_type(assets_path):
     # Merge when disjoint
     assert wb_type_annotated.assign(
         image_annotated_differently
-    ) == data_types._ImageFileType(
+    ) == data_types.data_types._ImageFileType(
         box_layers={"box_predictions": {1, 2, 3}, "box_ground_truth": {1, 2, 3}},
         box_score_keys={"loss", "acc"},
         mask_layers={
@@ -440,18 +441,14 @@ def test_classes_type():
         ]
     )
 
-    wb_class_type = (
-        wandb.wandb_sdk.data_types.helper_types.classes._ClassesIdType.from_obj(
-            wb_classes
-        )
-    )
+    wb_class_type = classes._ClassesIdType.from_obj(wb_classes)
     assert wb_class_type.assign(1) == wb_class_type
     assert wb_class_type.assign(0) == InvalidType()
 
 
 def test_table_type():
     table_1 = wandb.Table(columns=["col"], data=[[1]])
-    t1 = data_types._TableType.from_obj(table_1)
+    t1 = data_types.data_types._TableType.from_obj(table_1)
     table_2 = wandb.Table(columns=["col"], data=[[1.3]])
     table_3 = wandb.Table(columns=["col"], data=[["a"]])
     assert t1.assign(table_2) == t1
