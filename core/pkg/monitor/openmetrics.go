@@ -220,7 +220,11 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 					value = m.Counter.GetValue()
 				}
 
-				key := fmt.Sprintf("%s.%s.%d", o.name, name, index)
+				// the frontend understands the format openmetrics.<endpoint>.<metric>.<index>
+				// and aggregates the metrics based on <index>, which is a unique identifier
+				// for the metric based on its labels. the openmetrics prefix is stripped off
+				// and not displayed in the frontend.
+				key := fmt.Sprintf("openmetrics.%s.%s.%d", o.name, name, index)
 				result[key] = value
 			}
 		}
