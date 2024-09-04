@@ -74,15 +74,19 @@ func NewOpenMetrics(
 	filters *spb.OpenMetricsFilters,
 	retryClient *retryablehttp.Client,
 ) *OpenMetrics {
+	var client *retryablehttp.Client
+
 	if retryClient == nil {
-		retryClient := retryablehttp.NewClient()
-		retryClient.Logger = logger
-		retryClient.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
-		retryClient.RetryMax = DefaultOpenMetricsRetryMax
-		retryClient.RetryWaitMin = DefaultOpenMetricsRetryWaitMin
-		retryClient.RetryWaitMax = DefaultOpenMetricsRetryWaitMax
-		retryClient.HTTPClient.Timeout = DefaultOpenMetricsTimeout
-		retryClient.Backoff = clients.ExponentialBackoffWithJitter
+		client = retryablehttp.NewClient()
+		client.Logger = logger
+		client.CheckRetry = retryablehttp.ErrorPropagatedRetryPolicy
+		client.RetryMax = DefaultOpenMetricsRetryMax
+		client.RetryWaitMin = DefaultOpenMetricsRetryWaitMin
+		client.RetryWaitMax = DefaultOpenMetricsRetryWaitMax
+		client.HTTPClient.Timeout = DefaultOpenMetricsTimeout
+		client.Backoff = clients.ExponentialBackoffWithJitter
+	} else {
+		client = retryClient
 	}
 
 	var processedFilters []Filter
@@ -102,7 +106,7 @@ func NewOpenMetrics(
 		name:        name,
 		url:         url,
 		filters:     processedFilters,
-		client:      retryClient,
+		client:      client,
 		logger:      logger,
 		labelMap:    make(map[string]map[string]int),
 		labelHashes: make(map[string]map[string]string),
