@@ -76,8 +76,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-# from wandb.core import *
-from wandb.viz import visualize
+from wandb.sdk.lib.viz import visualize
 from wandb import plot
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
