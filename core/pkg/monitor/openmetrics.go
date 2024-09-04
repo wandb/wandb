@@ -250,7 +250,6 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 			}
 		}
 
-		fmt.Println(result)
 		return result, nil
 	}
 
