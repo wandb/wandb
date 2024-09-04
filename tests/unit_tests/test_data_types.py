@@ -13,7 +13,7 @@ import responses
 import wandb
 from bokeh.plotting import figure
 from PIL import Image
-from wandb.sdk.data_types import Bokeh, ImageMask, Node, _dtypes
+from wandb.sdk.data_types import Bokeh, ImageMask, Node, PartitionedTable, _dtypes
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 from wandb.sdk.data_types.utils import _prune_max_seq
 
@@ -1448,10 +1448,10 @@ def test_graph():
 
 
 def test_partitioned_table():
-    partition_table = wandb.PartitionedTable(parts_path="parts")
+    partition_table = PartitionedTable(parts_path="parts")
     assert len([(ndx, row) for ndx, row in partition_table.iterrows()]) == 0
-    assert partition_table == wandb.PartitionedTable(parts_path="parts")
-    assert partition_table != wandb.PartitionedTable(parts_path="parts2")
+    assert partition_table == PartitionedTable(parts_path="parts")
+    assert partition_table != PartitionedTable(parts_path="parts2")
 
 
 ################################################################################
