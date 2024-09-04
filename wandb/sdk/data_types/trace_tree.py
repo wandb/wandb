@@ -14,9 +14,9 @@ from enum import Enum
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
-import wandb.data_types
 from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import Media
+from wandb.sdk.data_types.data_types import _json_helper
 
 if TYPE_CHECKING:  # pragma: no cover
     from wandb.sdk.artifacts.artifact import Artifact
@@ -142,7 +142,7 @@ def _fallback_serialize(obj: Any) -> str:
 def _safe_serialize(obj: dict) -> str:
     try:
         return json.dumps(
-            wandb.data_types._json_helper(obj, None),
+            _json_helper(obj, None),
             skipkeys=True,
             default=_fallback_serialize,
         )
