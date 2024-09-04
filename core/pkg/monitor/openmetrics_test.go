@@ -230,7 +230,8 @@ func TestIntermittentFailure(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(randomMetrics()))
+		_, err := w.Write([]byte(randomMetrics()))
+		assert.NoError(t, err)
 	}))
 	defer server.Close()
 
