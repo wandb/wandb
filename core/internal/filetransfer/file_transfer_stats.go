@@ -4,16 +4,16 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // FileTransferStats reports file upload/download progress and totals.
 type FileTransferStats interface {
 	// GetFilesStats returns byte counts for uploads.
-	GetFilesStats() *service.FilePusherStats
+	GetFilesStats() *spb.FilePusherStats
 
 	// GetFileCounts returns a breakdown of the kinds of files uploaded.
-	GetFileCounts() *service.FileCounts
+	GetFileCounts() *spb.FileCounts
 
 	// IsDone returns whether all uploads finished.
 	IsDone() bool
@@ -59,18 +59,18 @@ func NewFileTransferStats() FileTransferStats {
 	}
 }
 
-func (fts *fileTransferStats) GetFilesStats() *service.FilePusherStats {
+func (fts *fileTransferStats) GetFilesStats() *spb.FilePusherStats {
 	// NOTE: We don't lock, so these could be out of sync. For instance,
 	// TotalBytes could be less than UploadedBytes!
-	return &service.FilePusherStats{
+	return &spb.FilePusherStats{
 		UploadedBytes: fts.uploadedBytes.Load(),
 		TotalBytes:    fts.totalBytes.Load(),
 		DedupedBytes:  fts.dedupedBytes.Load(),
 	}
 }
 
-func (fts *fileTransferStats) GetFileCounts() *service.FileCounts {
-	return &service.FileCounts{
+func (fts *fileTransferStats) GetFileCounts() *spb.FileCounts {
+	return &spb.FileCounts{
 		WandbCount:    fts.wandbCount.Load(),
 		MediaCount:    fts.mediaCount.Load(),
 		ArtifactCount: fts.artifactCount.Load(),

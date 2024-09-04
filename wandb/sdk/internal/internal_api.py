@@ -11,6 +11,7 @@ import socket
 import sys
 import threading
 from copy import deepcopy
+from pathlib import Path
 from typing import (
     IO,
     TYPE_CHECKING,
@@ -37,14 +38,14 @@ from wandb_gql.client import RetryError
 import wandb
 from wandb import env, util
 from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messages
-from wandb.errors import CommError, UnsupportedError, UsageError
+from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
 
-from ..lib import retry
+from ..lib import credentials, retry
 from ..lib.filenames import DIFF_FNAME, METADATA_FNAME
 from ..lib.gitlib import GitRepo
 from . import context
@@ -231,24 +232,28 @@ class Api:
 
         # todo: remove these hacky hacks after settings refactor is complete
         #  keeping this code here to limit scope and so that it is easy to remove later
-        extra_http_headers = self.settings("_extra_http_headers") or json.loads(
+        self._extra_http_headers = self.settings("_extra_http_headers") or json.loads(
             self._environ.get("WANDB__EXTRA_HTTP_HEADERS", "{}")
         )
+        self._extra_http_headers.update(_thread_local_api_settings.headers or {})
+
+        auth = None
+        if self.access_token is not None:
+            self._extra_http_headers["Authorization"] = f"Bearer {self.access_token}"
+        elif _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+
         proxies = self.settings("_proxies") or json.loads(
             self._environ.get("WANDB__PROXIES", "{}")
         )
 
-        auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("api", self.api_key or "")
-        extra_http_headers.update(_thread_local_api_settings.headers or {})
         self.client = Client(
             transport=GraphQLSession(
                 headers={
                     "User-Agent": self.user_agent,
                     "X-WANDB-USERNAME": env.get_username(env=self._environ),
                     "X-WANDB-USER-EMAIL": env.get_user_email(env=self._environ),
-                    **extra_http_headers,
+                    **self._extra_http_headers,
                 },
                 use_json=True,
                 # this timeout won't apply when the DNS lookup fails. in that case, it will be 60s
@@ -375,6 +380,35 @@ class Api:
         sagemaker_key: Optional[str] = parse_sm_secrets().get(env.API_KEY)
         default_key: Optional[str] = self.default_settings.get("api_key")
         return env_key or key or sagemaker_key or default_key
+
+    @property
+    def access_token(self) -> Optional[str]:
+        """Retrieves an access token for authentication.
+
+        This function attempts to exchange an identity token for a temporary
+        access token from the server, and save it to the credentials file.
+        It uses the path to the identity token as defined in the environment
+        variables. If the environment variable is not set, it returns None.
+
+        Returns:
+            Optional[str]: The access token if available, otherwise None if
+            no identity token is supplied.
+        Raises:
+            AuthenticationError: If the path to the identity token is not found.
+        """
+        token_file_str = self._environ.get(env.IDENTITY_TOKEN_FILE)
+        if not token_file_str:
+            return None
+
+        token_file = Path(token_file_str)
+        if not token_file.exists():
+            raise AuthenticationError(f"Identity token file not found: {token_file}")
+
+        base_url = self.settings("base_url")
+        credentials_file = env.get_credentials_file(
+            str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE), self._environ
+        )
+        return credentials.access_token(base_url, token_file, credentials_file)
 
     @property
     def api_url(self) -> str:
@@ -2674,14 +2708,20 @@ class Api:
             A tuple of the content length and the streaming response
         """
         check_httpclient_logger_handler()
+
+        http_headers = _thread_local_api_settings.headers or {}
+
         auth = None
-        if _thread_local_api_settings.cookies is None:
-            auth = ("user", self.api_key or "")
+        if self.access_token is not None:
+            http_headers["Authorization"] = f"Bearer {self.access_token}"
+        elif _thread_local_api_settings.cookies is None:
+            auth = ("api", self.api_key or "")
+
         response = requests.get(
             url,
             auth=auth,
             cookies=_thread_local_api_settings.cookies or {},
-            headers=_thread_local_api_settings.headers or {},
+            headers=http_headers,
             stream=True,
         )
         response.raise_for_status()

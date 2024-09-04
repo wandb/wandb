@@ -4,6 +4,7 @@ import atexit
 import concurrent.futures
 import contextlib
 import json
+import logging
 import multiprocessing.dummy
 import os
 import re
@@ -31,6 +32,8 @@ from typing import (
     Union,
     cast,
 )
+
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
@@ -75,13 +78,14 @@ from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
 from wandb_gql import gql  # noqa: E402
 
 reset_path()
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
@@ -751,7 +755,7 @@ class Artifact:
     def save(
         self,
         project: Optional[str] = None,
-        settings: Optional["wandb.wandb_sdk.wandb_settings.Settings"] = None,
+        settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
     ) -> None:
         """Persist any changes made to the artifact.
 
@@ -1300,7 +1304,8 @@ class Artifact:
                 automatic integrity validation. Disabling checksumming will speed up
                 artifact creation but reference directories will not iterated through so the
                 objects in the directory will not be saved to the artifact. We recommend
-                adding reference objects in the case checksumming is false.
+                setting `checksum=False` when adding reference objects, in which case
+                a new version will only be created if the reference URI changes.
             max_objects: The maximum number of objects to consider when adding a
                 reference that points to directory or bucket store prefix. By default,
                 the maximum number of objects allowed for Amazon S3,
@@ -1627,56 +1632,50 @@ class Artifact:
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
-        Existing files located within `root` are not modified. Explicitly delete
-        `root` before you call `download` if you want the contents of `root` to exactly
-        match the artifact.
+        Existing files located within `root` are not modified. Explicitly delete `root`
+        before you call `download` if you want the contents of `root` to exactly match
+        the artifact.
 
         Arguments:
             root: The directory W&B stores the artifact's files.
             allow_missing_references: If set to `True`, any invalid reference paths
                 will be ignored while downloading referenced files.
-            skip_cache: If set to `True`, the artifact cache will be skipped when downloading
-                and W&B will download each file into the default root or specified download directory.
+            skip_cache: If set to `True`, the artifact cache will be skipped when
+                downloading and W&B will download each file into the default root or
+                specified download directory.
+            path_prefix: If specified, only files with a path that starts with the given
+                prefix will be downloaded. Uses unix format (forward slashes).
 
         Returns:
             The path to the downloaded contents.
 
         Raises:
             ArtifactNotLoggedError: If the artifact is not logged.
+            RuntimeError: If the artifact is attempted to be downloaded in offline mode.
         """
         self._ensure_logged("download")
 
         root = FilePathStr(str(root or self._default_root()))
         self._add_download_root(root)
 
-        if is_require_core():
-            return self._download_using_core(
-                root=root,
-                allow_missing_references=allow_missing_references,
-            )
+        # TODO: we need a better way to check for offline mode across the app, as this is an anti-pattern
+        if env.is_offline() or util._is_offline():
+            raise RuntimeError("Cannot download artifacts in offline mode.")
+
+        # TODO: download artifacts using core when implemented
+        # if is_require_core():
+        #     return self._download_using_core(
+        #         root=root,
+        #         allow_missing_references=allow_missing_references,
+        #         skip_cache=bool(skip_cache),
+        #         path_prefix=path_prefix,
+        #     )
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
             skip_cache=skip_cache,
             path_prefix=path_prefix,
         )
-
-    @classmethod
-    def path_contains_dir_prefix(cls, path: StrPath, dir_path: StrPath) -> bool:
-        """Returns true if `path` contains `dir_path` as a prefix."""
-        if not dir_path:
-            return True
-        path_parts = PurePosixPath(path).parts
-        dir_parts = PurePosixPath(dir_path).parts
-        return path_parts[: len(dir_parts)] == dir_parts
-
-    @classmethod
-    def should_download_entry(
-        cls, entry: ArtifactManifestEntry, prefix: Optional[StrPath]
-    ) -> bool:
-        if prefix is None:
-            return True
-        return cls.path_contains_dir_prefix(entry.path, prefix)
 
     def _download_using_core(
         self,
@@ -1699,6 +1698,7 @@ class Artifact:
             settings = wl.settings.to_proto()
             # TODO: remove this
             tmp_dir = pathlib.Path(tempfile.mkdtemp())
+
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
             settings.files_dir.value = str(tmp_dir / "files")
@@ -1743,11 +1743,6 @@ class Artifact:
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
 
-        if wandb.run is None:
-            backend.cleanup()
-            # TODO: remove this
-            shutil.rmtree(tmp_dir)
-
         return FilePathStr(root)
 
     def _download(
@@ -1757,9 +1752,6 @@ class Artifact:
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in core
-        require_core = is_require_core()
-
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
         log = False
@@ -1790,6 +1782,9 @@ class Artifact:
                     wandb.termwarn(str(e))
                     return
                 raise
+            except _GCSIsADirectoryError as e:
+                logger.debug(str(e))
+                return
             download_logger.notify_downloaded()
 
         download_entry = partial(
@@ -1810,11 +1805,12 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_entry(edge["node"]["name"])
-                    if require_core and entry.ref is None:
-                        # Handled by core
-                        continue
+                    # TODO: uncomment once artifact downloads are supported in core
+                    # if require_core and entry.ref is None:
+                    #     # Handled by core
+                    #     continue
                     entry._download_url = edge["node"]["directUrl"]
-                    if self.should_download_entry(entry, prefix=path_prefix):
+                    if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
                 # Wait for download threads to catch up.
                 max_backlog = fetch_url_batch_size
@@ -2354,12 +2350,6 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
-
-
-def is_require_core() -> bool:
-    if env.is_require_core():
-        return bool(get_core_path())
-    return False
 
 
 class _ArtifactVersionType(WBType):

@@ -15,6 +15,7 @@ import os
 import platform
 import sys
 import tempfile
+import time
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
 
 import wandb
@@ -30,15 +31,7 @@ from wandb.util import _is_artifact_representation
 
 from . import wandb_login, wandb_setup
 from .backend.backend import Backend
-from .lib import (
-    RunDisabled,
-    SummaryDisabled,
-    filesystem,
-    ipython,
-    module,
-    reporting,
-    telemetry,
-)
+from .lib import SummaryDisabled, filesystem, ipython, module, reporting, telemetry
 from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.printer import Printer, get_printer
@@ -182,7 +175,9 @@ class _WandbInit:
         # we add this logic to be backward compatible with the old behavior of disable
         # where it would disable the service if the mode was set to disabled
         mode = kwargs.get("mode")
-        settings_mode = (kwargs.get("settings") or {}).get("mode")
+        settings_mode = (kwargs.get("settings") or {}).get("mode") or os.environ.get(
+            "WANDB_MODE"
+        )
         _disable_service = mode == "disabled" or settings_mode == "disabled"
         setup_settings = {"_disable_service": _disable_service}
 
@@ -270,7 +265,7 @@ class _WandbInit:
 
         monitor_gym = kwargs.pop("monitor_gym", None)
         if monitor_gym and len(wandb.patched["gym"]) == 0:
-            wandb.gym.monitor()
+            wandb.gym.monitor()  # type: ignore
 
         if wandb.patched["tensorboard"]:
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
@@ -279,7 +274,7 @@ class _WandbInit:
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
         if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
-            wandb.tensorboard.patch()
+            wandb.tensorboard.patch()  # type: ignore
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_sync = True
 
@@ -322,6 +317,15 @@ class _WandbInit:
         # if user explicitly set these to false in UI
         if save_code_pre_user_settings is False:
             settings.update({"save_code": False}, source=Source.INIT)
+
+        # TODO: remove this once we refactor the client. This is a temporary
+        # fix to make sure that we use the same project name for wandb-core.
+        # The reason this is not going throught the settings object is to
+        # avoid failure cases in other parts of the code that will be
+        # removed with the switch to wandb-core.
+        if settings.project is None:
+            project = wandb.util.auto_project_name(settings.program)
+            settings.update({"project": project}, source=Source.INIT)
 
         # TODO(jhr): should this be moved? probably.
         settings._set_run_start_time(source=Source.INIT)
@@ -458,7 +462,7 @@ class _WandbInit:
 
     def _jupyter_setup(self, settings: Settings) -> None:
         """Add hooks, and session history saving."""
-        self.notebook = wandb.jupyter.Notebook(settings)
+        self.notebook = wandb.jupyter.Notebook(settings)  # type: ignore
         ipython = self.notebook.shell
 
         # Monkey patch ipython publish to capture displayed outputs
@@ -520,20 +524,64 @@ class _WandbInit:
         logger.info(f"Logging user logs to {settings.log_user}")
         logger.info(f"Logging internal logs to {settings.log_internal}")
 
-    def _make_run_disabled(self) -> RunDisabled:
-        drun = RunDisabled()
-        drun.config = wandb.wandb_sdk.wandb_config.Config()
-        drun.config.update(self.sweep_config)
-        drun.config.update(self.config)
-        drun.summary = SummaryDisabled()
-        drun.log = lambda data, *_, **__: drun.summary.update(data)
-        drun.finish = lambda *_, **__: module.unset_globals()
-        drun.step = 0
-        drun.resumed = False
-        drun.disabled = True
-        drun.id = runid.generate_id()
-        drun.name = "dummy-" + drun.id
-        drun.dir = tempfile.gettempdir()
+    def _make_run_disabled(self) -> Run:
+        """Returns a Run-like object where all methods are no-ops.
+
+        This method is used when wandb.init(mode="disabled") is called or WANDB_MODE=disabled
+        is set. It creates a Run object that mimics the behavior of a normal Run but doesn't
+        communicate with the W&B servers.
+
+        The returned Run object has all expected attributes and methods, but they are
+        no-op versions that don't perform any actual logging or communication.
+        """
+        drun = Run(settings=Settings(mode="disabled", files_dir=tempfile.gettempdir()))
+        # config and summary objects
+        drun._config = wandb.sdk.wandb_config.Config()
+        drun._config.update(self.sweep_config)
+        drun._config.update(self.config)
+        drun.summary = SummaryDisabled()  # type: ignore
+        # methods
+        drun.log = lambda data, *_, **__: drun.summary.update(data)  # type: ignore
+        drun.finish = lambda *_, **__: module.unset_globals()  # type: ignore
+        drun.join = drun.finish  # type: ignore
+        drun.define_metric = lambda *_, **__: wandb.sdk.wandb_metric.Metric("dummy")  # type: ignore
+        drun.save = lambda *_, **__: False  # type: ignore
+        for symbol in (
+            "alert",
+            "finish_artifact",
+            "get_project_url",
+            "get_sweep_url",
+            "get_url",
+            "link_artifact",
+            "link_model",
+            "use_artifact",
+            "log_artifact",
+            "log_code",
+            "log_model",
+            "use_model",
+            "mark_preempting",
+            "plot_table",
+            "restore",
+            "status",
+            "watch",
+            "unwatch",
+            "upsert_artifact",
+            "_finish",
+        ):
+            setattr(drun, symbol, lambda *_, **__: None)  # type: ignore
+        # attributes
+        drun._step = 0
+        drun._attach_id = None
+        drun._run_obj = None
+        drun._run_id = runid.generate_id()
+        drun._name = "dummy-" + drun.id
+        drun._project = "dummy"
+        drun._entity = "dummy"
+        drun._tags = tuple()
+        drun._notes = None
+        drun._group = None
+        drun._start_time = time.time()
+        drun._starting_step = 0
         module.set_global(
             run=drun,
             config=drun.config,
@@ -554,7 +602,7 @@ class _WandbInit:
         percent_done = handle.percent_done
         self.printer.progress_update(line, percent_done=percent_done)
 
-    def init(self) -> Union[Run, RunDisabled]:  # noqa: C901
+    def init(self) -> Run:  # noqa: C901
         if logger is None:
             raise RuntimeError("Logger not initialized")
         logger.info("calling init triggers")
@@ -689,8 +737,17 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if self.settings._require_core:
+            if (
+                self.settings._require_core
+                and not self.settings._require_legacy_service
+            ):
                 tel.feature.core = True
+            if self.settings._shared:
+                wandb.termwarn(
+                    "The `_shared` feature is experimental and may change. "
+                    "Please contact support@wandb.com for guidance and to report any issues."
+                )
+                tel.feature.shared_mode = True
 
             tel.env.maybe_mp = _maybe_mp_process(backend)
 
@@ -844,7 +901,7 @@ def _attach(
     run_id: Optional[str] = None,
     *,
     run: Optional["Run"] = None,
-) -> Union[Run, RunDisabled, None]:
+) -> Optional[Run]:
     """Attach to a run currently executing in another process/thread.
 
     Arguments:
@@ -863,7 +920,7 @@ def _attach(
         raise UsageError(
             "Either `attach_id` or `run_id` must be specified or `run` must have `_attach_id`"
         )
-    wandb._assert_is_user_process()
+    wandb._assert_is_user_process()  # type: ignore
 
     _wl = wandb_setup._setup()
     assert _wl
@@ -898,7 +955,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init(settings=settings)
+        run._init()
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
@@ -948,7 +1005,7 @@ def init(
     fork_from: Optional[str] = None,
     resume_from: Optional[str] = None,
     settings: Union[Settings, Dict[str, Any], None] = None,
-) -> Union[Run, RunDisabled]:
+) -> Run:
     r"""Start a new run to track and log to W&B.
 
     In an ML training pipeline, you could add `wandb.init()`
@@ -989,8 +1046,9 @@ def init(
 
     Arguments:
         project: (str, optional) The name of the project where you're sending
-            the new run. If the project is not specified, the run is put in an
-            "Uncategorized" project.
+            the new run. If the project is not specified, we will try to infer
+            the project name from git root or the current program file. If we
+            can't infer the project name, we will default to `"uncategorized"`.
         entity: (str, optional) An entity is a username or team name where
             you're sending runs. This entity must exist before you can send runs
             there, so make sure to create your account or team in the UI before
@@ -1151,7 +1209,7 @@ def init(
     Returns:
         A `Run` object.
     """
-    wandb._assert_is_user_process()
+    wandb._assert_is_user_process()  # type: ignore
 
     kwargs = dict(locals())
 

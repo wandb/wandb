@@ -18,6 +18,7 @@ import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
+from wandb.sdk.lib import import_hooks
 
 from . import wandb_manager, wandb_settings
 from .lib import config_util, server, tracelog
@@ -268,19 +269,21 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                     self._config = config_dict
 
     def _teardown(self, exit_code: Optional[int] = None) -> None:
-        exit_code = exit_code or 0
-        self._teardown_manager(exit_code=exit_code)
+        import_hooks.unregister_all_post_import_hooks()
+
+        if not self._manager:
+            return
+
+        internal_exit_code = self._manager._teardown(exit_code or 0)
+        self._manager = None
+
+        if internal_exit_code != 0:
+            sys.exit(internal_exit_code)
 
     def _setup_manager(self) -> None:
         if self._settings._disable_service:
             return
         self._manager = wandb_manager._Manager(settings=self._settings)
-
-    def _teardown_manager(self, exit_code: int) -> None:
-        if not self._manager:
-            return
-        self._manager._teardown(exit_code)
-        self._manager = None
 
     def _get_manager(self) -> Optional[wandb_manager._Manager]:
         return self._manager
@@ -312,24 +315,86 @@ def _setup(
 ) -> Optional["_WandbSetup"]:
     """Set up library context."""
     if _reset:
-        setup_instance = _WandbSetup._instance
-        if setup_instance:
-            setup_instance._teardown()
-        _WandbSetup._instance = None
+        teardown()
         return None
+
     wl = _WandbSetup(settings=settings)
     return wl
 
 
-def setup(
-    settings: Optional[Settings] = None,
-) -> Optional["_WandbSetup"]:
+def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
+    """Prepares W&B for use in the current process and its children.
+
+    You can usually ignore this as it is implicitly called by `wandb.init()`.
+
+    When using wandb in multiple processes, calling `wandb.setup()`
+    in the parent process before starting child processes may improve
+    performance and resource utilization.
+
+    Note that `wandb.setup()` modifies `os.environ`, and it is important
+    that child processes inherit the modified environment variables.
+
+    See also `wandb.teardown()`.
+
+    Args:
+        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
+            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
+
+    Example:
+        ```python
+        import multiprocessing
+
+        import wandb
+
+
+        def run_experiment(params):
+            with wandb.init(config=params):
+                # Run experiment
+                pass
+
+
+        if __name__ == "__main__":
+            # Start backend and set global config
+            wandb.setup(settings={"project": "my_project"})
+
+            # Define experiment parameters
+            experiment_params = [
+                {"learning_rate": 0.01, "epochs": 10},
+                {"learning_rate": 0.001, "epochs": 20},
+            ]
+
+            # Start multiple processes, each running a separate experiment
+            processes = []
+            for params in experiment_params:
+                p = multiprocessing.Process(target=run_experiment, args=(params,))
+                p.start()
+                processes.append(p)
+
+            # Wait for all processes to complete
+            for p in processes:
+                p.join()
+
+            # Optional: Explicitly shut down the backend
+            wandb.teardown()
+        ```
+    """
     ret = _setup(settings=settings)
     return ret
 
 
 def teardown(exit_code: Optional[int] = None) -> None:
+    """Waits for wandb to finish and frees resources.
+
+    Completes any runs that were not explicitly finished
+    using `run.finish()` and waits for all data to be uploaded.
+
+    It is recommended to call this at the end of a session
+    that used `wandb.setup()`. It is invoked automatically
+    in an `atexit` hook, but this is not reliable in certain setups
+    such as when using Python's `multiprocessing` module.
+    """
     setup_instance = _WandbSetup._instance
+    _WandbSetup._instance = None
+
     if setup_instance:
         setup_instance._teardown(exit_code=exit_code)
-    _WandbSetup._instance = None

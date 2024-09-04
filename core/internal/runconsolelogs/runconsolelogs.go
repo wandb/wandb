@@ -5,13 +5,17 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"golang.org/x/time/rate"
 )
 
 const (
@@ -31,9 +35,10 @@ type Sender struct {
 	// console messages.
 	consoleOutputFile paths.RelativePath
 
-	outputFileWriter *outputFileWriter
-	logger           *observability.CoreLogger
-	loopbackChan     chan<- *service.Record
+	writer *debouncedWriter
+
+	logger    *observability.CoreLogger
+	extraWork runwork.ExtraWork
 }
 
 type Params struct {
@@ -42,11 +47,15 @@ type Params struct {
 	Settings *settings.Settings
 	Logger   *observability.CoreLogger
 
-	// LoopbackChan is for emitting new records.
-	LoopbackChan chan<- *service.Record
+	ExtraWork runwork.ExtraWork
 
 	// FileStreamOrNil is the filestream API.
 	FileStreamOrNil filestream.FileStream
+
+	// GetNow is an optional function that returns the current time.
+	//
+	// It is used for testing.
+	GetNow func() time.Time
 }
 
 func New(params Params) *Sender {
@@ -55,8 +64,12 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: Settings is nil")
 	case params.Logger == nil:
 		panic("runconsolelogs: Logger is nil")
-	case params.LoopbackChan == nil:
-		panic("runconsolelogs: LoopbackChan is nil")
+	case params.ExtraWork == nil:
+		panic("runconsolelogs: ExtraWork is nil")
+	}
+
+	if params.GetNow == nil {
+		params.GetNow = time.Now
 	}
 
 	var fsWriter *filestreamWriter
@@ -80,18 +93,24 @@ func New(params Params) *Sender {
 			))
 	}
 
-	model := &RunLogsChangeModel{
-		maxLines:      maxTerminalLines,
-		maxLineLength: maxTerminalLineLength,
-		onChange: func(lineNum int, line RunLogsLine) {
+	writer := NewDebouncedWriter(
+		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
+		params.ExtraWork.BeforeEndCtx(),
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
-				fileWriter.WriteToFile(lineNum, line)
+				fileWriter.WriteToFile(lines)
 			}
 
 			if fsWriter != nil {
-				fsWriter.SendChanged(lineNum, line)
+				fsWriter.SendChanged(lines)
 			}
 		},
+	)
+	model := &RunLogsChangeModel{
+		maxLines:      maxTerminalLines,
+		maxLineLength: maxTerminalLineLength,
+		onChange:      writer.OnChanged,
+		getNow:        params.GetNow,
 	}
 
 	return &Sender{
@@ -106,9 +125,9 @@ func New(params Params) *Sender {
 
 		consoleOutputFile: params.ConsoleOutputFile,
 
-		outputFileWriter: fileWriter,
-		logger:           params.Logger,
-		loopbackChan:     params.LoopbackChan,
+		writer:    writer,
+		logger:    params.Logger,
+		extraWork: params.ExtraWork,
 	}
 }
 
@@ -116,20 +135,17 @@ func New(params Params) *Sender {
 //
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
-	if s.outputFileWriter != nil {
-		s.outputFileWriter.Finish()
-	}
-
+	s.writer.Wait()
 	s.uploadOutputFile()
 }
 
 // StreamLogs saves captured console logs with the run.
-func (s *Sender) StreamLogs(record *service.OutputRawRecord) {
+func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 	switch record.OutputType {
-	case service.OutputRawRecord_STDOUT:
+	case spb.OutputRawRecord_STDOUT:
 		s.stdoutTerm.Write(record.Line)
 
-	case service.OutputRawRecord_STDERR:
+	case spb.OutputRawRecord_STDERR:
 		s.stderrTerm.Write(record.Line)
 
 	default:
@@ -142,18 +158,17 @@ func (s *Sender) StreamLogs(record *service.OutputRawRecord) {
 
 // uploadOutputFile uploads the console output file that we created.
 func (s *Sender) uploadOutputFile() {
-	record := &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{
-						Path: string(s.consoleOutputFile),
-						Type: service.FilesItem_WANDB,
+	s.extraWork.AddRecord(
+		&spb.Record{
+			RecordType: &spb.Record_Files{
+				Files: &spb.FilesRecord{
+					Files: []*spb.FilesItem{
+						{
+							Path: string(s.consoleOutputFile),
+							Type: spb.FilesItem_WANDB,
+						},
 					},
 				},
 			},
-		},
-	}
-
-	s.loopbackChan <- record
+		})
 }

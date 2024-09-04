@@ -1,49 +1,32 @@
 package filestream
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"sync"
 
-	"github.com/segmentio/encoding/json"
 	"github.com/wandb/wandb/core/internal/api"
 )
 
-// FsTransmitData is serialized and sent to a W&B server
-type FsTransmitData struct {
-	Files      map[string]FsTransmitFileData `json:"files,omitempty"`
-	Complete   *bool                         `json:"complete,omitempty"`
-	Exitcode   *int32                        `json:"exitcode,omitempty"`
-	Preempting bool                          `json:"preempting,omitempty"`
-	Dropped    int32                         `json:"dropped,omitempty"`
-	Uploaded   []string                      `json:"uploaded,omitempty"`
-}
-
-// FsServerFileData (part of FsTransmitData) is serialized and sent to a W&B server
-type FsTransmitFileData struct {
-	Offset  int      `json:"offset"`
-	Content []string `json:"content"`
-}
-
 // startProcessingUpdates asynchronously ingests updates.
 //
-// This returns a channel of actual work to perform to update the filestream's
-// next request.
+// This returns a channel of requests to send.
 func (fs *fileStream) startProcessingUpdates(
 	updates <-chan Update,
-) <-chan CollectorStateUpdate {
-	stateUpdates := make(chan CollectorStateUpdate)
+) <-chan *FileStreamRequest {
+	requests := make(chan *FileStreamRequest)
 
 	go func() {
-		defer close(stateUpdates)
+		defer close(requests)
 
 		fs.logger.Debug("filestream: open", "path", fs.path)
 
 		for update := range updates {
 			err := update.Apply(UpdateContext{
-				ModifyRequest: func(csu CollectorStateUpdate) {
-					stateUpdates <- csu
+				MakeRequest: func(req *FileStreamRequest) {
+					requests <- req
 				},
 
 				Settings: fs.settings,
@@ -63,33 +46,36 @@ func (fs *fileStream) startProcessingUpdates(
 		}
 	}()
 
-	return stateUpdates
+	return requests
 }
 
 // startTransmitting makes requests to the filestream API.
 //
-// It ingests a channel of updates and outputs a channel of API responses.
+// It ingests a channel of requests and outputs a channel of API responses.
 //
-// Updates are batched to reduce the total number of HTTP requests.
+// Requests are batched to reduce the total number of HTTP requests.
 // An empty "heartbeat" request is sent when there are no updates for too long,
 // guaranteeing that a request is sent at least once every period specified
 // by `heartbeatStopwatch`.
 func (fs *fileStream) startTransmitting(
-	stateUpdates <-chan CollectorStateUpdate,
+	requests <-chan *FileStreamRequest,
 	initialOffsets FileStreamOffsetMap,
 ) <-chan map[string]any {
+	maxRequestSizeBytes := fs.settings.GetFileStreamMaxBytes()
+	if maxRequestSizeBytes <= 0 {
+		maxRequestSizeBytes = 10 << 20 // 10 MB
+	}
+
 	transmissions := CollectLoop{
-		TransmitRateLimit: fs.transmitRateLimit,
-	}.Start(
-		stateUpdates,
-		initialOffsets,
-	)
+		TransmitRateLimit:   fs.transmitRateLimit,
+		MaxRequestSizeBytes: int(maxRequestSizeBytes),
+	}.Start(requests)
 
 	feedback := TransmitLoop{
 		HeartbeatStopwatch:     fs.heartbeatStopwatch,
 		Send:                   fs.send,
 		LogFatalAndStopWorking: fs.logFatalAndStopWorking,
-	}.Start(transmissions)
+	}.Start(transmissions, initialOffsets)
 
 	return feedback
 }
@@ -112,7 +98,7 @@ func (fs *fileStream) startProcessingFeedback(
 }
 
 func (fs *fileStream) send(
-	data *FsTransmitData,
+	data *FileStreamRequestJSON,
 	feedbackChan chan<- map[string]any,
 ) error {
 	// Stop working after death to avoid data corruption.
@@ -150,7 +136,15 @@ func (fs *fileStream) send(
 	case resp.StatusCode < 200 || resp.StatusCode > 300:
 		// If we reach here, that means all retries were exhausted. This could
 		// mean, for instance, that the user's internet connection broke.
-		return fmt.Errorf("filestream: failed to upload: %v", resp.Status)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<10))
+		_ = resp.Body.Close()
+
+		return fmt.Errorf(
+			"filestream: failed to upload: %v path=%v: %s",
+			resp.Status,
+			req.Path,
+			string(body),
+		)
 	}
 
 	defer func(Body io.ReadCloser) {

@@ -1,0 +1,11 @@
+id: 0.console.t5_tqdm_post_finish
+plugin:
+    - wandb
+depend:
+  requirements:
+    - tqdm
+tag:
+  skips:
+    - platform: win
+assert:
+    - :wandb:runs[0][exitcode]: 0

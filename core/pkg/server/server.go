@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 )
 
 const (
@@ -25,7 +25,8 @@ type ServerParams struct {
 	ListenIPAddress string
 	PortFilename    string
 	ParentPid       int
-	SentryClient    *sentry.Client
+	SentryClient    *sentry_ext.Client
+	Commit          string
 }
 
 // Server is the core server
@@ -41,7 +42,7 @@ type Server struct {
 	listener net.Listener
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.Client
+	sentryClient *sentry_ext.Client
 
 	// wg is the WaitGroup to wait for all connections to finish
 	// and for the serve goroutine to finish
@@ -49,6 +50,9 @@ type Server struct {
 
 	// parentPid is the parent pid to watch and exit if it goes away
 	parentPid int
+
+	// commit is the W&B Git commit hash
+	commit string
 }
 
 // NewServer creates a new server
@@ -74,6 +78,7 @@ func NewServer(
 		wg:           sync.WaitGroup{},
 		parentPid:    params.ParentPid,
 		sentryClient: params.SentryClient,
+		commit:       params.Commit,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -85,18 +90,19 @@ func NewServer(
 	return s, nil
 }
 
-func (s *Server) loopCheckIfParentGone(pid int) bool {
-	for {
-		select {
-		case <-s.ctx.Done():
-			return false
-		case <-time.After(IntervalCheckParentPidMilliseconds * time.Millisecond):
-		}
-		parentpid := os.Getppid()
-		if parentpid != pid {
-			return true
-		}
+// exitWhenParentIsGone exits the process if the parent process is killed.
+func (s *Server) exitWhenParentIsGone() {
+	slog.Info("Will exit if parent process dies.", "ppid", s.parentPid)
+
+	for os.Getppid() == s.parentPid {
+		time.Sleep(IntervalCheckParentPidMilliseconds * time.Millisecond)
 	}
+
+	slog.Info("Parent process exited, terminating service process.")
+
+	// The user process has exited, so there's no need to sync
+	// uncommitted data, and we can quit immediately.
+	os.Exit(1)
 }
 
 func (s *Server) SetDefaultLoggerPath(path string) {
@@ -106,34 +112,37 @@ func (s *Server) SetDefaultLoggerPath(path string) {
 	defaultLoggerPath.Store(path)
 }
 
-// Serve starts the server
-func (s *Server) Start() {
-	// watch for parent process exit in background (if specified)
+func (s *Server) Serve() {
 	if s.parentPid != 0 {
-		s.wg.Add(1)
-		go func() {
-			shouldExit := s.loopCheckIfParentGone(s.parentPid)
-			if shouldExit {
-				slog.Info("Parent process exited, terminating core process")
-				// Forcefully exit the server process because our controlling user process
-				// has exited so there is no need to sync uncommitted data.
-				// Exit code is arbitrary as parent process is gone.
-				os.Exit(1)
-			}
-			s.wg.Done()
-		}()
+		go s.exitWhenParentIsGone()
 	}
 
-	// run server in background
 	s.wg.Add(1)
 	go func() {
 		defer s.wg.Done()
 		s.serve()
 	}()
+
+	// Wait for the signal to shut down.
+	<-s.ctx.Done()
+	slog.Info("server is shutting down")
+
+	// Stop accepting new connections.
+	if err := s.listener.Close(); err != nil {
+		slog.Error("failed to Close listener", "error", err)
+	}
+
+	// Wait for asynchronous work to finish.
+	s.wg.Wait()
+
+	slog.Info("server is closed")
 }
 
 func (s *Server) serve() {
 	slog.Info("server is running", "addr", s.listener.Addr())
+
+	streamMux := NewStreamMux()
+
 	// Run a separate goroutine to handle incoming connections
 	for {
 		conn, err := s.listener.Accept()
@@ -148,27 +157,19 @@ func (s *Server) serve() {
 		} else {
 			s.wg.Add(1)
 			go func() {
-				nc := NewConnection(s.ctx, s.cancel, conn, s.sentryClient)
-				nc.HandleConnection()
+				NewConnection(
+					streamMux,
+					s.ctx,
+					s.cancel,
+					conn,
+					s.sentryClient,
+					s.commit,
+				).HandleConnection()
+
 				s.wg.Done()
 			}()
 		}
 	}
-}
-
-// Wait waits for a signal to shutdown the server
-func (s *Server) Wait() {
-	<-s.ctx.Done()
-	slog.Info("server is shutting down")
-}
-
-// Close closes the server
-func (s *Server) Close() {
-	if err := s.listener.Close(); err != nil {
-		slog.Error("failed to Close listener", "error", err)
-	}
-	s.wg.Wait()
-	slog.Info("server is closed")
 }
 
 func writePortFile(portFile string, port int) error {

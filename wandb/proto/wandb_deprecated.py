@@ -25,6 +25,10 @@ DEPRECATED_FEATURES = Literal[
     "artifactmanifestentry__name",
     "api__artifact_versions",
     "artifact_collection__change_type",
+    "run__define_metric_copy",
+    "run_disabled",
+    "keras_callback",
+    "run__define_metric_best_goal",
 ]
 
 
@@ -43,3 +47,7 @@ class Deprecated:
     artifactmanifestentry__name: DEPRECATED_FEATURES = "artifactmanifestentry__name"
     api__artifact_versions: DEPRECATED_FEATURES = "api__artifact_versions"
     artifact_collection__change_type: DEPRECATED_FEATURES = "artifact_collection__change_type"
+    run__define_metric_copy: DEPRECATED_FEATURES = "run__define_metric_copy"
+    run_disabled: DEPRECATED_FEATURES = "run_disabled"
+    keras_callback: DEPRECATED_FEATURES = "keras_callback"
+    run__define_metric_best_goal: DEPRECATED_FEATURES = "run__define_metric_best_goal"

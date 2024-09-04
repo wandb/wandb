@@ -61,7 +61,7 @@ class Config:
 
         Using absl flags
         ```
-        flags.DEFINE_string(‘model’, None, ‘model to run’) # name, default, help
+        flags.DEFINE_string("model", None, "model to run") # name, default, help
         wandb.config.update(flags.FLAGS) # adds all absl flags to config
         ```
 
@@ -128,6 +128,9 @@ class Config:
 
     def __getitem__(self, key):
         return self._items[key]
+
+    def __iter__(self):
+        return iter(self._items)
 
     def _check_locked(self, key, ignore_locked=False) -> bool:
         locked = self._locked.get(key)

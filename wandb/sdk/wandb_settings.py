@@ -43,7 +43,7 @@ from wandb.apis.internal import Api
 from wandb.errors import UsageError
 from wandb.proto import wandb_settings_pb2
 from wandb.sdk.internal.system.env_probe_helpers import is_aws_lambda
-from wandb.sdk.lib import filesystem
+from wandb.sdk.lib import credentials, filesystem
 from wandb.sdk.lib._settings_toposort_generated import SETTINGS_TOPOLOGICALLY_SORTED
 from wandb.sdk.lib.run_moment import RunMoment
 from wandb.sdk.wandb_setup import _EarlyLogger
@@ -314,6 +314,7 @@ class SettingsData:
     _disable_machine_info: bool  # Disable automatic machine info collection
     _executable: str
     _extra_http_headers: Mapping[str, str]
+    _file_stream_max_bytes: int  # max size for filestream requests in core
     # file stream retry client configuration
     _file_stream_retry_max: int  # max number of retries
     _file_stream_retry_wait_min_seconds: float  # min wait time between retries
@@ -355,6 +356,7 @@ class SettingsData:
     _python: str
     _runqueue_item_id: str
     _require_core: bool
+    _require_legacy_service: bool
     _save_requirements: bool
     _service_transport: str
     _service_wait: float
@@ -362,8 +364,11 @@ class SettingsData:
     _start_datetime: str
     _start_time: float
     _stats_pid: int  # (internal) base pid for system stats
-    _stats_sample_rate_seconds: float
-    _stats_samples_to_average: int
+    _stats_sampling_interval: float  # sampling interval for system stats
+    _stats_sample_rate_seconds: float  # badly-named sampling interval, deprecated
+    _stats_samples_to_average: (
+        int  # number of samples to average before reporting, deprecated
+    )
     _stats_join_assets: (
         bool  # join metrics from different assets before sending to backend
     )
@@ -391,6 +396,7 @@ class SettingsData:
     config_paths: Sequence[str]
     console: str
     console_multipart: bool  # whether to produce multipart console log files
+    credentials_file: str  # file path to write access tokens
     deployment: str
     disable_code: bool
     disable_git: bool
@@ -402,8 +408,8 @@ class SettingsData:
     entity: str
     files_dir: str
     force: bool
-    fork_from: Optional[RunMoment]
-    resume_from: Optional[RunMoment]
+    fork_from: RunMoment
+    resume_from: RunMoment
     git_commit: str
     git_remote: str
     git_remote_url: str
@@ -412,6 +418,7 @@ class SettingsData:
     host: str
     http_proxy: str  # proxy server for the http requests to W&B
     https_proxy: str  # proxy server for the https requests to W&B
+    identity_token_file: str  # file path to supply a jwt for authentication
     ignore_globs: Tuple[str]
     init_timeout: float
     is_local: bool
@@ -472,8 +479,6 @@ class SettingsData:
     sync_dir: str
     sync_file: str
     sync_symlink_latest: str
-    system_sample: int
-    system_sample_seconds: int
     table_raise_on_max_row_limit_exceeded: bool
     timespec: str
     tmp_dir: str
@@ -615,7 +620,7 @@ class Property:
 
 
 class Settings(SettingsData):
-    """A class to represent modifiable settings."""
+    """Settings for the W&B SDK."""
 
     def _default_props(self) -> Dict[str, Dict[str, Any]]:
         """Initialize instance attributes (individual settings) as Property objects.
@@ -647,7 +652,7 @@ class Settings(SettingsData):
             },
             _disable_service={
                 "value": False,
-                "preprocessor": _str_as_bool,
+                "preprocessor": self._process_disable_service,
                 "is_policy": True,
             },
             _disable_setproctitle={"value": False, "preprocessor": _str_as_bool},
@@ -659,6 +664,7 @@ class Settings(SettingsData):
             _disable_update_check={"preprocessor": _str_as_bool},
             _disable_viewer={"preprocessor": _str_as_bool},
             _extra_http_headers={"preprocessor": _str_as_json},
+            _file_stream_max_bytes={"preprocessor": int},
             _file_stream_retry_max={"preprocessor": int},
             _file_stream_retry_wait_min_seconds={"preprocessor": float},
             _file_stream_retry_wait_max_seconds={"preprocessor": float},
@@ -714,6 +720,7 @@ class Settings(SettingsData):
                 "preprocessor": _str_as_json,
             },
             _require_core={"value": False, "preprocessor": _str_as_bool},
+            _require_legacy_service={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
                 "value": 30,
@@ -725,6 +732,11 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             _start_datetime={"preprocessor": _datetime_as_str},
+            _stats_sampling_interval={
+                "value": 10.0,
+                "preprocessor": float,
+                "validator": self._validate__stats_sampling_interval,
+            },
             _stats_sample_rate_seconds={
                 "value": 2.0,
                 "preprocessor": float,
@@ -783,6 +795,10 @@ class Settings(SettingsData):
                 "auto_hook": True,
             },
             console_multipart={"value": False, "preprocessor": _str_as_bool},
+            credentials_file={
+                "value": str(credentials.DEFAULT_WANDB_CREDENTIALS_FILE),
+                "preprocessor": str,
+            },
             deployment={
                 "hook": lambda _: "local" if self.is_local else "cloud",
                 "auto_hook": True,
@@ -829,6 +845,7 @@ class Settings(SettingsData):
                 "hook": lambda x: self._proxies and self._proxies.get("https") or x,
                 "auto_hook": True,
             },
+            identity_token_file={"value": None, "preprocessor": str},
             ignore_globs={
                 "value": tuple(),
                 "preprocessor": lambda x: tuple(x) if not isinstance(x, tuple) else x,
@@ -873,7 +890,9 @@ class Settings(SettingsData):
             program={
                 "hook": lambda x: self._get_program(x),
             },
-            project={"validator": self._validate_project},
+            project={
+                "validator": self._validate_project,
+            },
             project_url={"hook": lambda _: self._project_url(), "auto_hook": True},
             quiet={"preprocessor": _str_as_bool},
             reinit={"preprocessor": _str_as_bool},
@@ -944,8 +963,6 @@ class Settings(SettingsData):
                 "value": "latest-run",
                 "hook": lambda x: self._path_convert(self.wandb_dir, x),
             },
-            system_sample={"value": 15},
-            system_sample_seconds={"value": 2},
             table_raise_on_max_row_limit_exceeded={
                 "value": False,
                 "preprocessor": _str_as_bool,
@@ -1162,9 +1179,25 @@ class Settings(SettingsData):
         return True
 
     @staticmethod
+    def _process_disable_service(value: Union[str, bool]) -> bool:
+        value = _str_as_bool(value)
+        if value:
+            wandb.termwarn(
+                "Disabling the wandb service is deprecated as of version 0.18.0 and will be removed in version 0.19.0.",
+                repeat=False,
+            )
+        return value
+
+    @staticmethod
     def _validate__service_wait(value: float) -> bool:
         if value <= 0:
             raise UsageError("_service_wait must be a positive number")
+        return True
+
+    @staticmethod
+    def _validate__stats_sampling_interval(value: float) -> bool:
+        if value < 0.1:
+            raise UsageError("sampling interval must be >= 0.1 seconds")
         return True
 
     @staticmethod
@@ -1704,7 +1737,7 @@ class Settings(SettingsData):
 
         # Attempt to get notebook information if not already set by the user
         if self._jupyter and (self.notebook_name is None or self.notebook_name == ""):
-            meta = wandb.jupyter.notebook_metadata(self.silent)
+            meta = wandb.jupyter.notebook_metadata(self.silent)  # type: ignore
             settings["_jupyter_path"] = meta.get("path")
             settings["_jupyter_name"] = meta.get("name")
             settings["_jupyter_root"] = meta.get("root")
@@ -1864,16 +1897,29 @@ class Settings(SettingsData):
 
         # update settings
         self.update(init_settings, source=Source.INIT)
+        self._handle_fork_logic()
         self._handle_rewind_logic()
         self._handle_resume_logic()
+
+    def _handle_fork_logic(self) -> None:
+        if self.fork_from is None:
+            return
+
+        if self.run_id is not None and (self.fork_from.run == self.run_id):
+            raise ValueError(
+                "Provided `run_id` is the same as the run to `fork_from`. "
+                "Please provide a different `run_id` or remove the `run_id` argument. "
+                "If you want to rewind the current run, please use `resume_from` instead."
+            )
 
     def _handle_rewind_logic(self) -> None:
         if self.resume_from is None:
             return
 
-        if self.run_id is not None:
+        if self.run_id is not None and (self.resume_from.run != self.run_id):
             wandb.termwarn(
-                "You cannot specify both run_id and resume_from. " "Ignoring run_id."
+                "Both `run_id` and `resume_from` have been specified with different ids. "
+                "`run_id` will be ignored."
             )
         self.update({"run_id": self.resume_from.run}, source=Source.INIT)
 

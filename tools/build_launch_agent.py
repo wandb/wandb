@@ -42,7 +42,7 @@ ENV WANDB_AGENT_VERSION={agent_version}
 """
 
 DOCKERIGNORE = """
-.tox/
+.nox/
 """
 
 

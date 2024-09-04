@@ -30,7 +30,7 @@ Please make sure to update the ToC when you update this page!
     + [Adding URLs](#adding-urls)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core-)
+  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
 
@@ -140,17 +140,13 @@ Examples can be found in the section below.
 
 | Type     | Name                        | Description                                                                                  | User-facing? |
 |----------|-----------------------------|----------------------------------------------------------------------------------------------|--------------|
-| feat     | ✨ Feature                   | A pull request that adds new functionality that directly impacts users                       | Yes          |
-| fix      | 🐛 Fix                      | A pull request that fixes a bug                                                              | Yes          |
-| docs     | 📚 Documentation            | Documentation changes only                                                                   | Maybe        |
-| style    | 💎 Style                    | Changes that do not affect the meaning of the code (e.g. linting or adding type annotations) | No           |
-| refactor | 📦 Code Refactor            | A code change that neither fixes a bug nor adds a feature                                    | No           |
-| perf     | 🚀 Performance Improvements | A code change that improves performance                                                      | No           |
-| test     | 🚨 Tests                    | Adding new or missing tests or correcting existing tests                                     | No           |
-| build    | 🛠 Builds                   | Changes that affect the build system (e.g. protobuf) or external dependencies                | Maybe        |
-| ci       | ⚙️ Continuous Integrations  | Changes to our CI configuration files and scripts                                            | No           |
-| chore    | ♻️ Chores                   | Other changes that don't modify source code files.                                           | No           |
-| revert   | 🗑 Reverts                  | Reverts a previous commit                                                                    | Maybe        |
+| feat     | ✨ Feature                  | Changes that add new functionality that directly impacts users                               | Yes          |
+| fix      | 🐛 Fix                      | Changes that fix existing issues                                                             | Yes          |
+| refactor | 💎 Code Refactor            | A code change that neither fixes a bug nor adds a new feature                                | No           |
+| docs     | 📜 Documentation            | Documentation changes only                                                                   | Maybe        |
+| style    | 💅 Style                    | Changes that do not affect the meaning of the code (e.g. linting)                            | Maybe        |
+| chore    | ⚙️ Chores                    | Changes that do not modify source code (e.g. CI configuration files, build scripts)          | No           |
+| revert   | ♻️ Reverts                   | Reverts a previous commit                                                                    | Maybe        |
 | security | 🔒 Security                 | Security fix/feature                                                                         | Maybe        |
 
 #### Scopes
@@ -159,12 +155,9 @@ Which part of the codebase does this change impact? Only certain scopes are perm
 
 | Scope        | Name                     | Description                                             |
 |--------------|--------------------------|---------------------------------------------------------|
-| sdk          | Software Development Kit | Generic SDK changes or if can't define a narrower scope |
-| cli          | Command-Line Interface   | Generic CLI changes                                     |
-| public-api   | Public API               | Public API changes                                      |
+| sdk          | Software Development Kit | Changes that don't fall under the other scopes|
 | integrations | Integrations             | Changes related to third-party integrations             |
 | artifacts    | Artifacts                | Changes related to Artifacts                            |
-| media        | Media Types              | Changes related to Media types                          |
 | sweeps       | Sweeps                   | Changes related to Sweeps                               |
 | launch       | Launch                   | Changes related to Launch                               |
 
@@ -218,9 +211,16 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.22.4` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.22.6` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
 brew install go@1.22
+```
+
+### Setting up Rust on Linux
+
+If you are developing on a Linux machine, you will need the Rust toolchain to build the `nvidia_gpu_stats` binary used to monitor Nvidia GPUs on Linux. Refer to the official Rust [docs](https://www.rust-lang.org/tools/install) and install it by running:
+```shell
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 ### Building/installing the package
@@ -267,10 +267,10 @@ pre-commit run ruff-format --all-files --hook-stage pre-push
 We use [protocol buffers](https://developers.google.com/protocol-buffers) to communicate
 from the user process to the `wandb` backend process.
 
-If you update any of the `.proto` files in `wandb/proto`, you'll need to:
+If you update any of the `.proto` files in `wandb/proto`, you'll need to run the
+ proto nox command to build the protocol buffer files:
 
 
-- Now you can run the proto action to build the protocol buffer files.
 ```shell
 nox -t proto
 ```

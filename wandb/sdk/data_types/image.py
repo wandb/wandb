@@ -418,6 +418,8 @@ class Image(BatchableMedia):
                 )
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
+        from wandb.sdk.wandb_run import Run
+
         json_dict = super().to_json(run_or_artifact)
         json_dict["_type"] = Image._log_type
         json_dict["format"] = self.format
@@ -456,7 +458,7 @@ class Image(BatchableMedia):
                     "digest": classes_entry.digest,
                 }
 
-        elif not isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        elif not isinstance(run_or_artifact, Run):
             raise ValueError("to_json accepts wandb_run.Run or wandb_artifact.Artifact")
 
         if self._boxes:

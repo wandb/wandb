@@ -2,7 +2,7 @@ package launch
 
 import (
 	"github.com/wandb/wandb/core/internal/data_types"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // Selector for job inputs from the wandb.config.
@@ -12,14 +12,15 @@ import (
 type launchWandbConfigParameters struct {
 	includePaths []ConfigPath
 	excludePaths []ConfigPath
+	inputSchema  *string
 }
 
 func newWandbConfigParameters() *launchWandbConfigParameters {
-	return &launchWandbConfigParameters{[]ConfigPath{}, []ConfigPath{}}
+	return &launchWandbConfigParameters{[]ConfigPath{}, []ConfigPath{}, nil}
 }
 
 func (p *launchWandbConfigParameters) appendIncludePaths(
-	includePaths []*service.JobInputPath,
+	includePaths []*spb.JobInputPath,
 ) {
 	for _, path := range includePaths {
 		p.includePaths = append(p.includePaths, path.Path)
@@ -27,7 +28,7 @@ func (p *launchWandbConfigParameters) appendIncludePaths(
 }
 
 func (p *launchWandbConfigParameters) appendExcludePaths(
-	excludePaths []*service.JobInputPath,
+	excludePaths []*spb.JobInputPath,
 ) {
 	for _, path := range excludePaths {
 		p.excludePaths = append(p.excludePaths, path.Path)
@@ -51,12 +52,7 @@ func (p *launchWandbConfigParameters) exclude() []ConfigPath {
 // If there are any errors in the process, the function logs them and returns
 // an unknown type representation. The errors should never happen in practice.
 func (j *JobBuilder) inferRunConfigTypes() (*data_types.TypeRepresentation, error) {
-	tree, err := j.runConfig.CloneTree()
-	if err != nil {
-		return nil, err
-	}
-
-	config := NewConfigFrom(tree)
+	config := NewConfigFrom(j.runConfig.CloneTree())
 	typeInfo := data_types.ResolveTypes(
 		config.filterTree(
 			j.wandbConfigParameters.include(),

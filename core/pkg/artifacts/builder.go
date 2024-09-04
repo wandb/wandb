@@ -8,19 +8,18 @@ import (
 	"os"
 	"sort"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
-
 	"google.golang.org/protobuf/proto"
 )
 
 type ArtifactBuilder struct {
-	artifactRecord   *service.ArtifactRecord
+	artifactRecord   *spb.ArtifactRecord
 	isDigestUpToDate bool
 }
 
-func NewArtifactBuilder(artifactRecord *service.ArtifactRecord) *ArtifactBuilder {
-	artifactClone := proto.Clone(artifactRecord).(*service.ArtifactRecord)
+func NewArtifactBuilder(artifactRecord *spb.ArtifactRecord) *ArtifactBuilder {
+	artifactClone := proto.Clone(artifactRecord).(*spb.ArtifactRecord)
 	builder := &ArtifactBuilder{
 		artifactRecord: artifactClone,
 	}
@@ -32,23 +31,23 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 	if b.artifactRecord.Manifest != nil {
 		return
 	}
-	b.artifactRecord.Manifest = &service.ArtifactManifest{
+	b.artifactRecord.Manifest = &spb.ArtifactManifest{
 		Version:       1,
 		StoragePolicy: "wandb-storage-policy-v1",
-		StoragePolicyConfig: []*service.StoragePolicyConfigItem{{
+		StoragePolicyConfig: []*spb.StoragePolicyConfigItem{{
 			Key:       "storageLayout",
 			ValueJson: "\"V2\"",
 		}},
 	}
 }
 
-func (b *ArtifactBuilder) AddData(name string, dataMap map[string]interface{}) error {
-	filename, digest, size, err := utils.WriteJsonToFileWithDigest(dataMap)
+func (b *ArtifactBuilder) AddData(name string, data any) error {
+	filename, digest, size, err := utils.WriteJsonToFileWithDigest(data)
 	if err != nil {
 		return err
 	}
 	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
-		&service.ArtifactManifestEntry{
+		&spb.ArtifactManifestEntry{
 			Path:      name,
 			Digest:    digest,
 			LocalPath: filename,
@@ -79,7 +78,7 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 	}
 	digest := utils.ComputeB64MD5(data)
 	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
-		&service.ArtifactManifestEntry{
+		&spb.ArtifactManifestEntry{
 			Path:      name,
 			Digest:    digest,
 			LocalPath: path,
@@ -102,7 +101,7 @@ func (b *ArtifactBuilder) updateManifestDigest() {
 	b.isDigestUpToDate = true
 }
 
-func (b *ArtifactBuilder) GetArtifact() *service.ArtifactRecord {
+func (b *ArtifactBuilder) GetArtifact() *spb.ArtifactRecord {
 	b.updateManifestDigest()
 	return b.artifactRecord
 }

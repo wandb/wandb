@@ -216,6 +216,32 @@ func (v *CommitArtifactResponse) GetCommitArtifact() *CommitArtifactCommitArtifa
 	return v.CommitArtifact
 }
 
+type CompleteMultipartAction string
+
+const (
+	CompleteMultipartActionComplete CompleteMultipartAction = "Complete"
+)
+
+// CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload includes the requested fields of the GraphQL type CompleteMultipartUploadArtifactPayload.
+type CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload struct {
+	Digest *string `json:"digest"`
+}
+
+// GetDigest returns CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload.Digest, and is useful for accessing the field via an interface.
+func (v *CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload) GetDigest() *string {
+	return v.Digest
+}
+
+// CompleteMultipartUploadArtifactResponse is returned by CompleteMultipartUploadArtifact on success.
+type CompleteMultipartUploadArtifactResponse struct {
+	CompleteMultipartUploadArtifact *CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload `json:"completeMultipartUploadArtifact"`
+}
+
+// GetCompleteMultipartUploadArtifact returns CompleteMultipartUploadArtifactResponse.CompleteMultipartUploadArtifact, and is useful for accessing the field via an interface.
+func (v *CompleteMultipartUploadArtifactResponse) GetCompleteMultipartUploadArtifact() *CompleteMultipartUploadArtifactCompleteMultipartUploadArtifactCompleteMultipartUploadArtifactPayload {
+	return v.CompleteMultipartUploadArtifact
+}
+
 // CreateArtifactCreateArtifactCreateArtifactPayload includes the requested fields of the GraphQL type CreateArtifactPayload.
 type CreateArtifactCreateArtifactCreateArtifactPayload struct {
 	Artifact CreateArtifactCreateArtifactCreateArtifactPayloadArtifact `json:"artifact"`
@@ -327,9 +353,16 @@ func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFi
 
 // CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile includes the requested fields of the GraphQL type File.
 type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile struct {
-	UploadUrl     *string                                                                                                           `json:"uploadUrl"`
-	UploadHeaders []string                                                                                                          `json:"uploadHeaders"`
-	Artifact      *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact `json:"artifact"`
+	StoragePath         *string                                                                                                                      `json:"storagePath"`
+	UploadUrl           *string                                                                                                                      `json:"uploadUrl"`
+	UploadHeaders       []string                                                                                                                     `json:"uploadHeaders"`
+	UploadMultipartUrls *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls `json:"uploadMultipartUrls"`
+	Artifact            *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact            `json:"artifact"`
+}
+
+// GetStoragePath returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.StoragePath, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile) GetStoragePath() *string {
+	return v.StoragePath
 }
 
 // GetUploadUrl returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.UploadUrl, and is useful for accessing the field via an interface.
@@ -340,6 +373,11 @@ func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFi
 // GetUploadHeaders returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.UploadHeaders, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile) GetUploadHeaders() []string {
 	return v.UploadHeaders
+}
+
+// GetUploadMultipartUrls returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.UploadMultipartUrls, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile) GetUploadMultipartUrls() *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls {
+	return v.UploadMultipartUrls
 }
 
 // GetArtifact returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFile.Artifact, and is useful for accessing the field via an interface.
@@ -355,6 +393,38 @@ type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileCo
 // GetId returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileArtifact) GetId() string {
 	return v.Id
+}
+
+// CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls includes the requested fields of the GraphQL type UploadMultipartUrls.
+type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls struct {
+	UploadID       string                                                                                                                                                   `json:"uploadID"`
+	UploadUrlParts []CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart `json:"uploadUrlParts"`
+}
+
+// GetUploadID returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls.UploadID, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls) GetUploadID() string {
+	return v.UploadID
+}
+
+// GetUploadUrlParts returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls.UploadUrlParts, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrls) GetUploadUrlParts() []CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart {
+	return v.UploadUrlParts
+}
+
+// CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart includes the requested fields of the GraphQL type UploadUrlPart.
+type CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart struct {
+	PartNumber int64  `json:"partNumber"`
+	UploadUrl  string `json:"uploadUrl"`
+}
+
+// GetPartNumber returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart.PartNumber, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart) GetPartNumber() int64 {
+	return v.PartNumber
+}
+
+// GetUploadUrl returns CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart.UploadUrl, and is useful for accessing the field via an interface.
+func (v *CreateArtifactFilesCreateArtifactFilesCreateArtifactFilesPayloadFilesFileConnectionEdgesFileEdgeNodeFileUploadMultipartUrlsUploadUrlPartsUploadUrlPart) GetUploadUrl() string {
+	return v.UploadUrl
 }
 
 // CreateArtifactFilesResponse is returned by CreateArtifactFiles on success.
@@ -517,6 +587,94 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
+// RewindRunResponse is returned by RewindRun on success.
+type RewindRunResponse struct {
+	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
+}
+
+// GetRewindRun returns RewindRunResponse.RewindRun, and is useful for accessing the field via an interface.
+func (v *RewindRunResponse) GetRewindRun() *RewindRunRewindRunRewindRunPayload { return v.RewindRun }
+
+// RewindRunRewindRunRewindRunPayload includes the requested fields of the GraphQL type RewindRunPayload.
+type RewindRunRewindRunRewindRunPayload struct {
+	RewoundRun *RewindRunRewindRunRewindRunPayloadRewoundRun `json:"rewoundRun"`
+}
+
+// GetRewoundRun returns RewindRunRewindRunRewindRunPayload.RewoundRun, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayload) GetRewoundRun() *RewindRunRewindRunRewindRunPayloadRewoundRun {
+	return v.RewoundRun
+}
+
+// RewindRunRewindRunRewindRunPayloadRewoundRun includes the requested fields of the GraphQL type Run.
+type RewindRunRewindRunRewindRunPayloadRewoundRun struct {
+	Id               string                                               `json:"id"`
+	Name             string                                               `json:"name"`
+	DisplayName      *string                                              `json:"displayName"`
+	Description      *string                                              `json:"description"`
+	Config           *string                                              `json:"config"`
+	SweepName        *string                                              `json:"sweepName"`
+	Project          *RewindRunRewindRunRewindRunPayloadRewoundRunProject `json:"project"`
+	HistoryLineCount *int                                                 `json:"historyLineCount"`
+}
+
+// GetId returns RewindRunRewindRunRewindRunPayloadRewoundRun.Id, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetId() string { return v.Id }
+
+// GetName returns RewindRunRewindRunRewindRunPayloadRewoundRun.Name, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetName() string { return v.Name }
+
+// GetDisplayName returns RewindRunRewindRunRewindRunPayloadRewoundRun.DisplayName, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetDisplayName() *string { return v.DisplayName }
+
+// GetDescription returns RewindRunRewindRunRewindRunPayloadRewoundRun.Description, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetDescription() *string { return v.Description }
+
+// GetConfig returns RewindRunRewindRunRewindRunPayloadRewoundRun.Config, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetConfig() *string { return v.Config }
+
+// GetSweepName returns RewindRunRewindRunRewindRunPayloadRewoundRun.SweepName, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetSweepName() *string { return v.SweepName }
+
+// GetProject returns RewindRunRewindRunRewindRunPayloadRewoundRun.Project, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetProject() *RewindRunRewindRunRewindRunPayloadRewoundRunProject {
+	return v.Project
+}
+
+// GetHistoryLineCount returns RewindRunRewindRunRewindRunPayloadRewoundRun.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRun) GetHistoryLineCount() *int {
+	return v.HistoryLineCount
+}
+
+// RewindRunRewindRunRewindRunPayloadRewoundRunProject includes the requested fields of the GraphQL type Project.
+type RewindRunRewindRunRewindRunPayloadRewoundRunProject struct {
+	Id     string                                                    `json:"id"`
+	Name   string                                                    `json:"name"`
+	Entity RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity `json:"entity"`
+}
+
+// GetId returns RewindRunRewindRunRewindRunPayloadRewoundRunProject.Id, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProject) GetId() string { return v.Id }
+
+// GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProject.Name, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProject) GetName() string { return v.Name }
+
+// GetEntity returns RewindRunRewindRunRewindRunPayloadRewoundRunProject.Entity, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProject) GetEntity() RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity {
+	return v.Entity
+}
+
+// RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity includes the requested fields of the GraphQL type Entity.
+type RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity struct {
+	Id   string `json:"id"`
+	Name string `json:"name"`
+}
+
+// GetId returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Id, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() string { return v.Id }
+
+// GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
+func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
+
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
 	Id     string                                `json:"id"`
@@ -677,6 +835,64 @@ func (v *ServerInfoServerInfoLatestLocalVersionInfo) GetVersionOnThisInstanceStr
 	return v.VersionOnThisInstanceString
 }
 
+// UpdateArtifactManifestResponse is returned by UpdateArtifactManifest on success.
+type UpdateArtifactManifestResponse struct {
+	UpdateArtifactManifest *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload `json:"updateArtifactManifest"`
+}
+
+// GetUpdateArtifactManifest returns UpdateArtifactManifestResponse.UpdateArtifactManifest, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestResponse) GetUpdateArtifactManifest() *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload {
+	return v.UpdateArtifactManifest
+}
+
+// UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload includes the requested fields of the GraphQL type UpdateArtifactManifestPayload.
+type UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload struct {
+	ArtifactManifest UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest `json:"artifactManifest"`
+}
+
+// GetArtifactManifest returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload.ArtifactManifest, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayload) GetArtifactManifest() UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest {
+	return v.ArtifactManifest
+}
+
+// UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest includes the requested fields of the GraphQL type ArtifactManifest.
+type UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest struct {
+	Id   string                                                                                        `json:"id"`
+	File UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile `json:"file"`
+}
+
+// GetId returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest.Id, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest) GetId() string {
+	return v.Id
+}
+
+// GetFile returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest.File, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifest) GetFile() UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile {
+	return v.File
+}
+
+// UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile includes the requested fields of the GraphQL type File.
+type UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile struct {
+	Id            string   `json:"id"`
+	UploadUrl     *string  `json:"uploadUrl"`
+	UploadHeaders []string `json:"uploadHeaders"`
+}
+
+// GetId returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile.Id, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile) GetId() string {
+	return v.Id
+}
+
+// GetUploadUrl returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile.UploadUrl, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile) GetUploadUrl() *string {
+	return v.UploadUrl
+}
+
+// GetUploadHeaders returns UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile.UploadHeaders, and is useful for accessing the field via an interface.
+func (v *UpdateArtifactManifestUpdateArtifactManifestUpdateArtifactManifestPayloadArtifactManifestFile) GetUploadHeaders() []string {
+	return v.UploadHeaders
+}
+
 // UpdateArtifactResponse is returned by UpdateArtifact on success.
 type UpdateArtifactResponse struct {
 	UpdateArtifact *UpdateArtifactUpdateArtifactUpdateArtifactPayload `json:"updateArtifact"`
@@ -742,13 +958,14 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayload) GetInserted() *bool { retu
 
 // UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun includes the requested fields of the GraphQL type Run.
 type UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun struct {
-	Id          string                                                       `json:"id"`
-	Name        string                                                       `json:"name"`
-	DisplayName *string                                                      `json:"displayName"`
-	Description *string                                                      `json:"description"`
-	Config      *string                                                      `json:"config"`
-	SweepName   *string                                                      `json:"sweepName"`
-	Project     *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
+	Id               string                                                       `json:"id"`
+	Name             string                                                       `json:"name"`
+	DisplayName      *string                                                      `json:"displayName"`
+	Description      *string                                                      `json:"description"`
+	Config           *string                                                      `json:"config"`
+	SweepName        *string                                                      `json:"sweepName"`
+	Project          *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject `json:"project"`
+	HistoryLineCount *int                                                         `json:"historyLineCount"`
 }
 
 // GetId returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Id, and is useful for accessing the field via an interface.
@@ -778,6 +995,11 @@ func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetSweepName() *s
 // GetProject returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.Project, and is useful for accessing the field via an interface.
 func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetProject() *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject {
 	return v.Project
+}
+
+// GetHistoryLineCount returns UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun.HistoryLineCount, and is useful for accessing the field via an interface.
+func (v *UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun) GetHistoryLineCount() *int {
+	return v.HistoryLineCount
 }
 
 // UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject includes the requested fields of the GraphQL type Project.
@@ -939,6 +1161,34 @@ type __CommitArtifactInput struct {
 
 // GetArtifactID returns __CommitArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
 func (v *__CommitArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// __CompleteMultipartUploadArtifactInput is used internally by genqlient
+type __CompleteMultipartUploadArtifactInput struct {
+	CompleteMultipartAction CompleteMultipartAction `json:"completeMultipartAction"`
+	CompletedParts          []UploadPartsInput      `json:"completedParts"`
+	ArtifactID              string                  `json:"artifactID"`
+	StoragePath             string                  `json:"storagePath"`
+	UploadID                string                  `json:"uploadID"`
+}
+
+// GetCompleteMultipartAction returns __CompleteMultipartUploadArtifactInput.CompleteMultipartAction, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetCompleteMultipartAction() CompleteMultipartAction {
+	return v.CompleteMultipartAction
+}
+
+// GetCompletedParts returns __CompleteMultipartUploadArtifactInput.CompletedParts, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetCompletedParts() []UploadPartsInput {
+	return v.CompletedParts
+}
+
+// GetArtifactID returns __CompleteMultipartUploadArtifactInput.ArtifactID, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetArtifactID() string { return v.ArtifactID }
+
+// GetStoragePath returns __CompleteMultipartUploadArtifactInput.StoragePath, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetStoragePath() string { return v.StoragePath }
+
+// GetUploadID returns __CompleteMultipartUploadArtifactInput.UploadID, and is useful for accessing the field via an interface.
+func (v *__CompleteMultipartUploadArtifactInput) GetUploadID() string { return v.UploadID }
 
 // __CreateArtifactFilesInput is used internally by genqlient
 type __CreateArtifactFilesInput struct {
@@ -1134,6 +1384,30 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __RewindRunInput is used internally by genqlient
+type __RewindRunInput struct {
+	RunName     string  `json:"runName"`
+	Entity      *string `json:"entity"`
+	Project     *string `json:"project"`
+	MetricName  string  `json:"metricName"`
+	MetricValue float64 `json:"metricValue"`
+}
+
+// GetRunName returns __RewindRunInput.RunName, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetRunName() string { return v.RunName }
+
+// GetEntity returns __RewindRunInput.Entity, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetEntity() *string { return v.Entity }
+
+// GetProject returns __RewindRunInput.Project, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetProject() *string { return v.Project }
+
+// GetMetricName returns __RewindRunInput.MetricName, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetMetricName() string { return v.MetricName }
+
+// GetMetricValue returns __RewindRunInput.MetricValue, and is useful for accessing the field via an interface.
+func (v *__RewindRunInput) GetMetricValue() float64 { return v.MetricValue }
+
 // __RunResumeStatusInput is used internally by genqlient
 type __RunResumeStatusInput struct {
 	Project *string `json:"project"`
@@ -1177,6 +1451,26 @@ func (v *__UpdateArtifactInput) GetArtifactID() string { return v.ArtifactID }
 
 // GetMetadata returns __UpdateArtifactInput.Metadata, and is useful for accessing the field via an interface.
 func (v *__UpdateArtifactInput) GetMetadata() *string { return v.Metadata }
+
+// __UpdateArtifactManifestInput is used internally by genqlient
+type __UpdateArtifactManifestInput struct {
+	ArtifactManifestID string  `json:"artifactManifestID"`
+	Digest             *string `json:"digest"`
+	BaseArtifactID     *string `json:"baseArtifactID"`
+	IncludeUpload      bool    `json:"includeUpload"`
+}
+
+// GetArtifactManifestID returns __UpdateArtifactManifestInput.ArtifactManifestID, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetArtifactManifestID() string { return v.ArtifactManifestID }
+
+// GetDigest returns __UpdateArtifactManifestInput.Digest, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetDigest() *string { return v.Digest }
+
+// GetBaseArtifactID returns __UpdateArtifactManifestInput.BaseArtifactID, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetBaseArtifactID() *string { return v.BaseArtifactID }
+
+// GetIncludeUpload returns __UpdateArtifactManifestInput.IncludeUpload, and is useful for accessing the field via an interface.
+func (v *__UpdateArtifactManifestInput) GetIncludeUpload() bool { return v.IncludeUpload }
 
 // __UpsertBucketInput is used internally by genqlient
 type __UpsertBucketInput struct {
@@ -1440,6 +1734,49 @@ func CommitArtifact(
 	return &data_, err_
 }
 
+// The query or mutation executed by CompleteMultipartUploadArtifact.
+const CompleteMultipartUploadArtifact_Operation = `
+mutation CompleteMultipartUploadArtifact ($completeMultipartAction: CompleteMultipartAction!, $completedParts: [UploadPartsInput!]!, $artifactID: ID!, $storagePath: String!, $uploadID: String!) {
+	completeMultipartUploadArtifact(input: {completeMultipartAction:$completeMultipartAction,completedParts:$completedParts,artifactID:$artifactID,storagePath:$storagePath,uploadID:$uploadID}) {
+		digest
+	}
+}
+`
+
+func CompleteMultipartUploadArtifact(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	completeMultipartAction CompleteMultipartAction,
+	completedParts []UploadPartsInput,
+	artifactID string,
+	storagePath string,
+	uploadID string,
+) (*CompleteMultipartUploadArtifactResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "CompleteMultipartUploadArtifact",
+		Query:  CompleteMultipartUploadArtifact_Operation,
+		Variables: &__CompleteMultipartUploadArtifactInput{
+			CompleteMultipartAction: completeMultipartAction,
+			CompletedParts:          completedParts,
+			ArtifactID:              artifactID,
+			StoragePath:             storagePath,
+			UploadID:                uploadID,
+		},
+	}
+	var err_ error
+
+	var data_ CompleteMultipartUploadArtifactResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
 // The query or mutation executed by CreateArtifact.
 const CreateArtifact_Operation = `
 mutation CreateArtifact ($entityName: String!, $projectName: String!, $artifactTypeName: String!, $artifactCollectionName: String!, $runName: String, $digest: String!, $description: String, $aliases: [ArtifactAliasInput!], $metadata: JSONString, $ttlDurationSeconds: Int64, $historyStep: Int64, $distributedID: String, $clientID: ID!, $sequenceClientID: ID!) {
@@ -1516,8 +1853,16 @@ mutation CreateArtifactFiles ($artifactFiles: [CreateArtifactFileSpecInput!]!, $
 		files {
 			edges {
 				node {
+					storagePath
 					uploadUrl
 					uploadHeaders
+					uploadMultipartUrls {
+						uploadID
+						uploadUrlParts {
+							partNumber
+							uploadUrl
+						}
+					}
 					artifact {
 						id
 					}
@@ -1752,6 +2097,65 @@ func NotifyScriptableRunAlert(
 	return &data_, err_
 }
 
+// The query or mutation executed by RewindRun.
+const RewindRun_Operation = `
+mutation RewindRun ($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
+	rewindRun(input: {runName:$runName,entityName:$entity,projectName:$project,metricName:$metricName,metricValue:$metricValue}) {
+		rewoundRun {
+			id
+			name
+			displayName
+			description
+			config
+			sweepName
+			project {
+				id
+				name
+				entity {
+					id
+					name
+				}
+			}
+			historyLineCount
+		}
+	}
+}
+`
+
+func RewindRun(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	runName string,
+	entity *string,
+	project *string,
+	metricName string,
+	metricValue float64,
+) (*RewindRunResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "RewindRun",
+		Query:  RewindRun_Operation,
+		Variables: &__RewindRunInput{
+			RunName:     runName,
+			Entity:      entity,
+			Project:     project,
+			MetricName:  metricName,
+			MetricValue: metricValue,
+		},
+	}
+	var err_ error
+
+	var data_ RewindRunResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
 // The query or mutation executed by RunResumeStatus.
 const RunResumeStatus_Operation = `
 query RunResumeStatus ($project: String, $entity: String, $name: String!) {
@@ -1926,6 +2330,54 @@ func UpdateArtifact(
 	return &data_, err_
 }
 
+// The query or mutation executed by UpdateArtifactManifest.
+const UpdateArtifactManifest_Operation = `
+mutation UpdateArtifactManifest ($artifactManifestID: ID!, $digest: String, $baseArtifactID: ID, $includeUpload: Boolean!) {
+	updateArtifactManifest(input: {artifactManifestID:$artifactManifestID,digest:$digest,baseArtifactID:$baseArtifactID}) {
+		artifactManifest {
+			id
+			file {
+				id
+				uploadUrl @include(if: $includeUpload)
+				uploadHeaders @include(if: $includeUpload)
+			}
+		}
+	}
+}
+`
+
+func UpdateArtifactManifest(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	artifactManifestID string,
+	digest *string,
+	baseArtifactID *string,
+	includeUpload bool,
+) (*UpdateArtifactManifestResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "UpdateArtifactManifest",
+		Query:  UpdateArtifactManifest_Operation,
+		Variables: &__UpdateArtifactManifestInput{
+			ArtifactManifestID: artifactManifestID,
+			Digest:             digest,
+			BaseArtifactID:     baseArtifactID,
+			IncludeUpload:      includeUpload,
+		},
+	}
+	var err_ error
+
+	var data_ UpdateArtifactManifestResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
 // The query or mutation executed by UpsertBucket.
 const UpsertBucket_Operation = `
 mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: String, $groupName: String, $description: String, $displayName: String, $notes: String, $commit: String, $config: JSONString, $host: String, $debug: Boolean, $program: String, $repo: String, $jobType: String, $state: String, $sweep: String, $tags: [String!], $summaryMetrics: JSONString) {
@@ -1945,6 +2397,7 @@ mutation UpsertBucket ($id: String, $name: String, $project: String, $entity: St
 					name
 				}
 			}
+			historyLineCount
 		}
 		inserted
 	}

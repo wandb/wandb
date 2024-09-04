@@ -1,6 +1,6 @@
 package filestream
 
-import "github.com/wandb/wandb/core/pkg/service"
+import spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
 // PreemptingUpdate indicates a run's preemption status.
 //
@@ -11,18 +11,13 @@ import "github.com/wandb/wandb/core/pkg/service"
 // even send heartbeats for some time, and to be more lenient with
 // deciding if the run crashed.
 type PreemptingUpdate struct {
-	Record *service.RunPreemptingRecord
+	Record *spb.RunPreemptingRecord
 }
 
 func (u *PreemptingUpdate) Apply(ctx UpdateContext) error {
-	ctx.ModifyRequest(&collectorPreemptingUpdate{})
+	ctx.MakeRequest(&FileStreamRequest{
+		Preempting: true,
+	})
 
 	return nil
-}
-
-type collectorPreemptingUpdate struct{}
-
-func (u *collectorPreemptingUpdate) Apply(state *CollectorState) {
-	state.HasPreempting = true
-	state.Preempting = true
 }

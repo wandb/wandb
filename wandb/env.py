@@ -52,6 +52,8 @@ SWEEP_ID = "WANDB_SWEEP_ID"
 HTTP_TIMEOUT = "WANDB_HTTP_TIMEOUT"
 FILE_PUSHER_TIMEOUT = "WANDB_FILE_PUSHER_TIMEOUT"
 API_KEY = "WANDB_API_KEY"
+IDENTITY_TOKEN_FILE = "WANDB_IDENTITY_TOKEN_FILE"
+CREDENTIALS_FILE = "WANDB_CREDENTIALS_FILE"
 JOB_TYPE = "WANDB_JOB_TYPE"
 DISABLE_CODE = "WANDB_DISABLE_CODE"
 DISABLE_GIT = "WANDB_DISABLE_GIT"
@@ -89,6 +91,7 @@ LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
 _REQUIRE_CORE = "WANDB__REQUIRE_CORE"
+_REQUIRE_LEGACY_SERVICE = "WANDB__REQUIRE_LEGACY_SERVICE"
 
 # For testing, to be removed in future version
 USE_V1_ARTIFACTS = "_WANDB_USE_V1_ARTIFACTS"
@@ -132,6 +135,8 @@ def immutable_keys() -> List[str]:
         CACHE_DIR,
         USE_V1_ARTIFACTS,
         DISABLE_SSL,
+        IDENTITY_TOKEN_FILE,
+        CREDENTIALS_FILE,
     ]
 
 
@@ -150,11 +155,29 @@ def _env_as_bool(
 
 
 def is_require_core(env: Optional[Env] = None) -> bool:
+    """Return whether wandb.require("core") was used.
+
+    Note that this may contradict wandb.require("legacy-service").
+    """
     return _env_as_bool(_REQUIRE_CORE, default="False", env=env)
+
+
+def is_require_legacy_service(env: Optional[Env] = None) -> bool:
+    """Return whether wandb.require("legacy-service") was used.
+
+    Note that this may contradict wandb.require("core").
+    """
+    return _env_as_bool(_REQUIRE_LEGACY_SERVICE, default="False", env=env)
 
 
 def is_debug(default: Optional[str] = None, env: Optional[Env] = None) -> bool:
     return _env_as_bool(DEBUG, default=default, env=env)
+
+
+def is_offline(env: Optional[Env] = None) -> bool:
+    if env is None:
+        env = os.environ
+    return env.get(MODE) == "offline"
 
 
 def error_reporting_enabled() -> bool:
@@ -479,6 +502,18 @@ def get_launch_trace_id(env: Optional[Env] = None) -> Optional[str]:
         env = os.environ
     val = env.get(LAUNCH_TRACE_ID, None)
     return val
+
+
+def get_credentials_file(default: str, env: Optional[Env] = None) -> Path:
+    """Retrieve the path for the credentials file used to save access tokens.
+
+    The credentials file path can be set via an environment variable, otherwise
+    the default path is used.
+    """
+    if env is None:
+        env = os.environ
+    credentials_file = env.get(CREDENTIALS_FILE, default)
+    return Path(credentials_file)
 
 
 def strtobool(val: str) -> bool:

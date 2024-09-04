@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/auth"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -19,11 +19,11 @@ type Settings struct {
 	// The source proto.
 	//
 	// DO NOT ADD USAGES. Used to refactor incrementally.
-	Proto *service.Settings
+	Proto *spb.Settings
 }
 
 // Parses the Settings proto into a Settings object.
-func From(proto *service.Settings) *Settings {
+func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
 }
 
@@ -68,6 +68,14 @@ func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()
 }
 
+// Whether we are in shared mode.
+//
+// In "shared" mode, multiple processes can write to the same run,
+// for example from different machines.
+func (s *Settings) IsSharedMode() bool {
+	return s.Proto.XShared.GetValue()
+}
+
 // The ID of the run.
 func (s *Settings) GetRunID() string {
 	return s.Proto.RunId.GetValue()
@@ -86,6 +94,25 @@ func (s *Settings) GetProject() string {
 // The W&B entity, like a user or a team.
 func (s *Settings) GetEntity() string {
 	return s.Proto.Entity.GetValue()
+}
+
+// The W&B user name.
+func (s *Settings) GetUserName() string {
+	return s.Proto.Username.GetValue()
+}
+
+// The W&B email address.
+func (s *Settings) GetEmail() string {
+	return s.Proto.Email.GetValue()
+}
+
+// The W&B sweep URL.
+func (s *Settings) GetSweepURL() string {
+	return s.Proto.SweepUrl.GetValue()
+}
+
+func (s *Settings) GetBaseURL() string {
+	return s.Proto.BaseUrl.GetValue()
 }
 
 // The start time of the run.
@@ -114,6 +141,85 @@ func (s *Settings) GetIgnoreGlobs() []string {
 	return s.Proto.IgnoreGlobs.GetValue()
 }
 
+// An approximate maximum request size for the filestream API.
+func (s *Settings) GetFileStreamMaxBytes() int32 {
+	return s.Proto.XFileStreamMaxBytes.GetValue()
+}
+
+// Additional headers to add to all outgoing HTTP requests.
+func (s *Settings) GetExtraHTTPHeaders() map[string]string {
+	return s.Proto.XExtraHttpHeaders.GetValue()
+}
+
+// Maximum number of retries for filestream operations.
+func (s *Settings) GetFileStreamMaxRetries() int32 {
+	return s.Proto.XFileStreamRetryMax.GetValue()
+}
+
+// Initial wait in-between filestream retries.
+func (s *Settings) GetFileStreamRetryWaitMin() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XFileStreamRetryWaitMinSeconds.GetValue())
+}
+
+// Final wait in-between filestream retries.
+func (s *Settings) GetFileStreamRetryWaitMax() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XFileStreamRetryWaitMaxSeconds.GetValue())
+}
+
+// Per-retry timeout for filestream operations.
+func (s *Settings) GetFileStreamTimeout() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XFileStreamTimeoutSeconds.GetValue())
+}
+
+// Maximum number of retries for file upload/download operations.
+func (s *Settings) GetFileTransferMaxRetries() int32 {
+	return s.Proto.XFileTransferRetryMax.GetValue()
+}
+
+// Initial wait in-between file upload/download retries.
+func (s *Settings) GetFileTransferRetryWaitMin() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XFileTransferRetryWaitMinSeconds.GetValue())
+}
+
+// Final wait in-between file upload/download retries.
+func (s *Settings) GetFileTransferRetryWaitMax() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XFileTransferRetryWaitMaxSeconds.GetValue())
+}
+
+// Per-retry timeout for file upload/download operations.
+func (s *Settings) GetFileTransferTimeout() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XFileTransferTimeoutSeconds.GetValue())
+}
+
+// Maximum number of retries for GraphQL operations.
+func (s *Settings) GetGraphQLMaxRetries() int32 {
+	return s.Proto.XGraphqlRetryMax.GetValue()
+}
+
+// Initial wait in-between GraphQL retries.
+func (s *Settings) GetGraphQLRetryWaitMin() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XGraphqlRetryWaitMinSeconds.GetValue())
+}
+
+// Final wait in-between GraphQL retries.
+func (s *Settings) GetGraphQLRetryWaitMax() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XGraphqlRetryWaitMaxSeconds.GetValue())
+}
+
+// Per-retry timeout for GraphQL operations.
+func (s *Settings) GetGraphQLTimeout() time.Duration {
+	return time.Second * time.Duration(
+		s.Proto.XGraphqlTimeoutSeconds.GetValue())
+}
+
 // Custom proxy for http requests to W&B.
 func (s *Settings) GetHTTPProxy() string {
 	return s.Proto.HttpProxy.GetValue()
@@ -122,4 +228,19 @@ func (s *Settings) GetHTTPProxy() string {
 // Custom proxy for https requests to W&B.
 func (s *Settings) GetHTTPSProxy() string {
 	return s.Proto.HttpsProxy.GetValue()
+}
+
+// Resume mode for the run.
+func (s *Settings) GetResume() string {
+	return s.Proto.Resume.GetValue()
+}
+
+// ResumeFrom (or Rewind) information for the run.
+func (s *Settings) GetResumeFrom() *spb.RunMoment {
+	return s.Proto.ResumeFrom
+}
+
+// Fork information for the run.
+func (s *Settings) GetForkFrom() *spb.RunMoment {
+	return s.Proto.ForkFrom
 }

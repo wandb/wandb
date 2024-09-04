@@ -2,13 +2,14 @@ package server
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type Responder interface {
-	Respond(response *service.ServerResponse)
+	Respond(response *spb.ServerResponse)
 }
 
 type ResponderEntry struct {
@@ -17,15 +18,28 @@ type ResponderEntry struct {
 }
 
 type Dispatcher struct {
+	sync.RWMutex
 	responders map[string]Responder
 	logger     *observability.CoreLogger
 }
 
+func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
+	return &Dispatcher{
+		RWMutex:    sync.RWMutex{},
+		logger:     logger,
+		responders: make(map[string]Responder),
+	}
+}
+
 // AddResponders adds the given responders to the stream's dispatcher.
 func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
+	d.Lock()
+	defer d.Unlock()
+
 	if d.responders == nil {
 		d.responders = make(map[string]Responder)
 	}
+
 	for _, entry := range entries {
 		responderId := entry.ID
 		if _, ok := d.responders[responderId]; !ok {
@@ -36,29 +50,28 @@ func (d *Dispatcher) AddResponders(entries ...ResponderEntry) {
 	}
 }
 
-func (d *Dispatcher) handleRespond(result *service.Result) {
-	responderId := result.GetControl().GetConnectionId()
+// handleRespond sends the given result to the appropriate responder.
+func (d *Dispatcher) handleRespond(result *spb.Result) {
 	d.logger.Debug("dispatch: got result", "result", result)
-	if responderId == "" {
+
+	responderID := result.GetControl().GetConnectionId()
+	if responderID == "" {
 		d.logger.Debug("dispatch: got result with no connection id", "result", result)
 		return
 	}
-	response := &service.ServerResponse{
-		ServerResponseType: &service.ServerResponse_ResultCommunicate{
-			ResultCommunicate: result,
-		},
-	}
-	if responder, ok := d.responders[responderId]; ok {
-		responder.Respond(response)
-	} else {
-		d.logger.CaptureFatalAndPanic(
-			fmt.Errorf("dispatch: no responder found: %s", responderId))
-	}
-}
 
-func NewDispatcher(logger *observability.CoreLogger) *Dispatcher {
-	return &Dispatcher{
-		logger:     logger,
-		responders: make(map[string]Responder),
+	d.RLock()
+	responder, ok := d.responders[responderID]
+	d.RUnlock()
+
+	if ok {
+		responder.Respond(&spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_ResultCommunicate{
+				ResultCommunicate: result,
+			},
+		})
+	} else {
+		d.logger.CaptureError(
+			fmt.Errorf("dispatch: no responder found: %s", responderID))
 	}
 }

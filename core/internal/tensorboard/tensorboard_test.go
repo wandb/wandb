@@ -8,11 +8,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -37,7 +38,7 @@ type testContext struct {
 func setupTest(t *testing.T, opts testOptions) testContext {
 	t.Helper()
 
-	outChan := make(chan *service.Record, 100)
+	runWork := runworktest.New()
 	fileReadDleay := waitingtest.NewFakeDelay()
 
 	tmpdir := t.TempDir()
@@ -45,14 +46,14 @@ func setupTest(t *testing.T, opts testOptions) testContext {
 		return filepath.Join(tmpdir, filepath.FromSlash(slashPath))
 	}
 
-	settingsProto := &service.Settings{}
+	settingsProto := &spb.Settings{}
 	if opts.SlashFilesDir != "" {
 		settingsProto.FilesDir = wrapperspb.String(toPath(opts.SlashFilesDir))
 	}
 	settings := settings.From(settingsProto)
 
 	handler := tensorboard.NewTBHandler(tensorboard.Params{
-		OutputRecords: outChan,
+		ExtraWork:     runWork,
 		Logger:        observability.NewNoOpLogger(),
 		Settings:      settings,
 		FileReadDelay: fileReadDleay,
@@ -76,7 +77,7 @@ func Test_SymlinksFile(t *testing.T) {
 	ctx.TouchFile("logs/train/events.out.tfevents.123.hostname")
 
 	require.NoError(t,
-		ctx.Handler.Handle(&service.TBRecord{
+		ctx.Handler.Handle(&spb.TBRecord{
 			LogDir:  ctx.Path("logs/train"),
 			RootDir: ctx.Path("logs"),
 			Save:    true,

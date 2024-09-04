@@ -36,6 +36,11 @@ def install_timed(session: nox.Session, *args, **kwargs):
 
 
 def install_wandb(session: nox.Session):
+    """Builds and installs wandb."""
+    session.env["WANDB_BUILD_COVERAGE"] = "true"
+    session.env["WANDB_BUILD_GORACEDETECT"] = "true"
+    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
+
     if session.venv_backend == "uv":
         install_timed(session, "--reinstall", "--refresh-package", "wandb", ".")
     else:
@@ -91,6 +96,14 @@ def run_pytest(
         "USERNAME": session.env.get("USERNAME"),
         "PATH": session.env.get("PATH"),
         "USERPROFILE": session.env.get("USERPROFILE"),
+        # Tool settings are often set here. We invoke Docker in system tests,
+        # which uses auth information from the home directory.
+        "HOME": session.env.get("HOME"),
+        "CI": session.env.get("CI"),
+        # Required for the importers tests
+        "WANDB_TEST_SERVER_URL2": session.env.get("WANDB_TEST_SERVER_URL2"),
+        # Required for functional tests with openai
+        "OPENAI_API_KEY": session.env.get("OPENAI_API_KEY"),
     }
 
     # Print 20 slowest tests.
@@ -130,88 +143,6 @@ def run_pytest(
     )
 
 
-def run_yea(
-    session: nox.Session,
-    shard: str,
-    require_core: bool,
-    yeadoc: bool,
-    paths: List[str],
-) -> None:
-    """Runs tests using yea-wandb.
-
-    yea is a custom test runner that allows running scripts and asserting on
-    their outputs and side effects.
-
-    Args:
-        session: The current nox session.
-        shard: The "--shard" argument to pass to yea. Only tests that declare
-            a matching shard run.
-        require_core: Whether to require("core") for the test.
-        yeadoc: Whether to pass the "--yeadoc" argument to yea to make it scan
-            for docstring tests.
-        paths: The test paths to run or ["--all"].
-    """
-    yea_opts = [
-        "--strict",
-        *["--shard", shard],
-        "--mitm",
-    ]
-
-    if yeadoc:
-        yea_opts.append("--yeadoc")
-
-    yea_env = {
-        "YEACOV_SOURCE": str(site_packages_dir(session) / "wandb"),
-        "USERNAME": session.env.get("USERNAME"),
-        "PATH": session.env.get("PATH"),
-        "WANDB_API_KEY": session.env.get("WANDB_API_KEY"),
-        "WANDB__REQUIRE_CORE": str(require_core),
-        # Set the _network_buffer setting to 1000 to increase the likelihood
-        # of triggering flow control logic.
-        "WANDB__NETWORK_BUFFER": "1000",
-        # Disable writing to Sentry.
-        "WANDB_ERROR_REPORTING": "false",
-        "WANDB_CORE_ERROR_REPORTING": "false",
-    }
-
-    # is the version constraint needed?
-    install_timed(
-        session,
-        "yea-wandb==0.9.20",
-        "pip",  # used by yea to install per-test dependencies
-    )
-
-    (circle_node_index, circle_node_total) = get_circleci_splits(session)
-    if circle_node_total > 0:
-        yea_opts.append(f"--splits={circle_node_total}")
-        yea_opts.append(f"--group={int(circle_node_index) + 1}")
-
-    # yea invokes Python 'coverage'
-    yea_env.update(python_coverage_env(session))
-    yea_env.update(go_coverage_env(session))
-    session.notify("coverage")
-
-    session.run(
-        "yea",
-        *yea_opts,
-        "run",
-        *paths,
-        env=yea_env,
-        include_outer_env=False,
-    )
-
-    # yea always puts test results into test-results/junit-yea.xml, so we
-    # give the file a unique name after to avoid conflicts when other sessions
-    # also invoke yea.
-    os.rename(
-        pathlib.Path("test-results", "junit-yea.xml"),
-        pathlib.Path(
-            "test-results",
-            f"junit-yea-{get_session_file_name(session)}.xml",
-        ),
-    )
-
-
 @nox.session(python=_SUPPORTED_PYTHONS)
 def unit_tests(session: nox.Session) -> None:
     """Runs Python unit tests.
@@ -219,9 +150,6 @@ def unit_tests(session: nox.Session) -> None:
     By default this runs all unit tests, but specific tests can be selected
     by passing them via positional arguments.
     """
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
 
     install_timed(
@@ -235,15 +163,12 @@ def unit_tests(session: nox.Session) -> None:
 
     run_pytest(
         session,
-        paths=session.posargs or ["tests/pytest_tests/unit_tests"],
+        paths=session.posargs or ["tests/unit_tests"],
     )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def system_tests(session: nox.Session) -> None:
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
     install_timed(
         session,
@@ -257,9 +182,10 @@ def system_tests(session: nox.Session) -> None:
         paths=(
             session.posargs
             or [
-                "tests/pytest_tests/system_tests",
-                "--ignore=tests/pytest_tests/system_tests/test_importers",
-                "--ignore=tests/pytest_tests/system_tests/test_notebooks",
+                "tests/system_tests",
+                "--ignore=tests/system_tests/test_importers",
+                "--ignore=tests/system_tests/test_notebooks",
+                "--ignore=tests/system_tests/test_functional",
             ]
         ),
     )
@@ -267,9 +193,6 @@ def system_tests(session: nox.Session) -> None:
 
 @nox.session(python=_SUPPORTED_PYTHONS)
 def notebook_tests(session: nox.Session) -> None:
-    session.env["WANDB_BUILD_COVERAGE"] = "true"
-    session.env["WANDB_BUILD_UNIVERSAL"] = "false"
-
     install_wandb(session)
     install_timed(
         session,
@@ -296,39 +219,25 @@ def notebook_tests(session: nox.Session) -> None:
         paths=(
             session.posargs
             or [
-                "tests/pytest_tests/system_tests/test_notebooks",
+                "tests/system_tests/test_notebooks",
             ]
         ),
     )
 
 
 @nox.session(python=_SUPPORTED_PYTHONS)
-@nox.parametrize("core", [False, True], ["no_wandb_core", "wandb_core"])
-def functional_tests(session: nox.Session, core: bool) -> None:
-    """Runs functional tests using yea.
-
-    The yea shard must be specified using the YEA_SHARD environment variable.
-    The test paths to run may be specified via positional arguments.
-    """
-    shard = session.env.get("YEA_SHARD")
-    if not shard:
-        session.error("No YEA_SHARD environment variable specified")
-
-    session.log(f"Using YEA_SHARD={shard}")
-
+def functional_tests(session: nox.Session):
+    """Runs functional tests using pytest."""
     install_wandb(session)
-    run_yea(
+    install_timed(
         session,
-        shard=shard,
-        require_core=core,
-        yeadoc=True,
-        paths=(
-            session.posargs
-            or [
-                "tests/functional_tests",
-                "tests/standalone_tests",
-            ]
-        ),
+        "-r",
+        "requirements_dev.txt",
+    )
+
+    run_pytest(
+        session,
+        paths=(session.posargs or ["tests/system_tests/test_functional"]),
     )
 
 
@@ -372,50 +281,6 @@ def develop(session: nox.Session) -> None:
             "--strip",
             external=True,
         )
-
-
-@nox.session(python=False, name="list-failing-tests-wandb-core")
-def list_failing_tests_wandb_core(session: nox.Session) -> None:
-    """Lists the core failing tests grouped by feature."""
-    import pandas as pd
-    import pytest
-
-    class MyPlugin:
-        def __init__(self):
-            self.collected = []
-            self.features = []
-
-        def pytest_collection_modifyitems(self, items):
-            for item in items:
-                marks = item.own_markers
-                for mark in marks:
-                    if mark.name == "wandb_core_failure":
-                        self.collected.append(item.nodeid)
-                        self.features.append(
-                            {
-                                "name": item.nodeid,
-                                "feature": mark.kwargs.get("feature", "unspecified"),
-                            }
-                        )
-
-        def pytest_collection_finish(self):
-            session.log("\n\nFailing tests grouped by feature:")
-            df = pd.DataFrame(self.features)
-            for feature, group in df.groupby("feature"):
-                session.log(f"\n{feature}:")
-                for name in group["name"]:
-                    session.log(f"  {name}")
-
-    my_plugin = MyPlugin()
-    pytest.main(
-        [
-            "-m",
-            "wandb_core_failure",
-            "tests/pytest_tests/system_tests/test_core",
-            "--collect-only",
-        ],
-        plugins=[my_plugin],
-    )
 
 
 @nox.session(python=False, name="graphql-codegen-schema-change")
@@ -577,7 +442,7 @@ def _generate_proto_go(session: nox.Session) -> None:
     session.run("./core/scripts/generate-proto.sh", external=True)
 
 
-@nox.session(name="proto-python", tags=["proto"], python="3.9")
+@nox.session(name="proto-python", tags=["proto"], python="3.10")
 @nox.parametrize("pb", [3, 4, 5])
 def proto_python(session: nox.Session, pb: int) -> None:
     """Generate Python bindings for protobufs.
@@ -615,7 +480,7 @@ def _generate_proto_python(session: nox.Session, pb: int) -> None:
         session.run("python", "wandb_generate_proto.py")
 
 
-@nox.session(name="generate-deprecated", tags=["proto"], python="3.9")
+@nox.session(name="generate-deprecated", tags=["proto"], python="3.10")
 def generate_deprecated_class_definition(session: nox.Session) -> None:
     session.install("-e", ".")
 
@@ -653,7 +518,7 @@ def proto_check_go(session: nox.Session) -> None:
     _ensure_no_diff(
         session,
         after=lambda: _generate_proto_go(session),
-        in_directory="core/pkg/service/.",
+        in_directory="core/pkg/service_go_proto/.",
     )
 
 
@@ -682,6 +547,7 @@ def mypy_report(session: nox.Session) -> None:
         "lxml",
         "pandas-stubs",
         "types-click",
+        "types-jsonschema",
         "types-openpyxl",
         "types-Pillow",
         "types-PyYAML",
@@ -733,8 +599,7 @@ def python_coverage_env(session: nox.Session) -> Dict[str, str]:
     Configures the 'coverage' tool https://coverage.readthedocs.io/en/latest/
     to be usable with the "coverage" session.
 
-    Both yea and pytest invoke coverage; for pytest it is via the pytest-cov
-    package.
+    pytest invoke coverage; for pytest it is via the pytest-cov package.
     """
     # https://coverage.readthedocs.io/en/latest/cmd.html#data-file
     _NOX_PYTEST_COVERAGE_DIR.mkdir(exist_ok=True, parents=True)
@@ -836,3 +701,79 @@ def combine_test_results(session: nox.Session) -> None:
     )
 
     shutil.rmtree(_NOX_PYTEST_RESULTS_DIR, ignore_errors=True)
+
+
+@nox.session(name="bump-go-version")
+def bump_go_version(session: nox.Session) -> None:
+    """Bump the Go version."""
+    install_timed(session, "bump2version", "requests")
+
+    # Get the latest Go version
+    latest_version = session.run(
+        "./tools/get_go_version.py",
+        silent=True,
+        external=True,
+    )
+    latest_version = latest_version.strip()
+
+    session.log(f"Latest Go version: {latest_version}")
+
+    # Run bump2version with the fetched version
+    session.run(
+        "bump2version",
+        "patch",
+        "--new-version",
+        latest_version,
+        "--config-file",
+        ".bumpversion.go.cfg",
+        "--no-commit",
+        "--allow-dirty",
+        external=True,
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+def launch_release_tests(session: nox.Session) -> None:
+    """Run launch-release tests.
+
+    See tests/release_tests/test_launch/README.md for more info.
+    """
+    install_wandb(session)
+    install_timed(
+        session,
+        "pytest",
+        "wandb[launch]",
+    )
+
+    session.run("wandb", "login")
+
+    run_pytest(
+        session,
+        paths=session.posargs or ["tests/release_tests/test_launch/"],
+    )
+
+
+@nox.session(python=_SUPPORTED_PYTHONS)
+@nox.parametrize("importer", ["wandb", "mlflow"])
+def importer_tests(session: nox.Session, importer: str):
+    """Run importer tests for wandb->wandb and mlflow->wandb."""
+    install_wandb(session)
+    session.install("-r", "requirements_dev.txt")
+    if importer == "wandb":
+        session.install(".[workspaces]", "pydantic>=2")
+    elif importer == "mlflow":
+        session.install("pydantic<2")
+    if session.python != "3.7":
+        session.install("polyfactory")
+    session.install(
+        "polars<=1.2.1",
+        "rich",
+        "filelock",
+    )
+
+    run_pytest(
+        session,
+        paths=(
+            session.posargs or [f"tests/system_tests/test_importers/test_{importer}"]
+        ),
+    )

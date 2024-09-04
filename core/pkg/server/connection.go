@@ -11,11 +11,11 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/wandb/wandb/core/internal/sentry"
+	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -29,6 +29,9 @@ const (
 // It handles the incoming messages from the client
 // and passes them to the stream
 type Connection struct {
+	// streamMux maps stream IDs to active streams (i.e. runs)
+	streamMux *StreamMux
+
 	// ctx is the context for the connection
 	ctx context.Context
 
@@ -38,14 +41,17 @@ type Connection struct {
 	// conn is the underlying connection
 	conn net.Conn
 
+	// commit is the W&B Git commit hash
+	commit string
+
 	// id is the unique id for the connection
 	id string
 
 	// inChan is the channel for incoming messages
-	inChan chan *service.ServerRequest
+	inChan chan *spb.ServerRequest
 
 	// outChan is the channel for outgoing messages
-	outChan chan *service.ServerResponse
+	outChan chan *spb.ServerResponse
 
 	// stream is the stream for the connection, each connection has a single stream
 	// however, a stream can have multiple connections
@@ -55,24 +61,28 @@ type Connection struct {
 	closed *atomic.Bool
 
 	// sentryClient is the client used to report errors to sentry.io
-	sentryClient *sentry.Client
+	sentryClient *sentry_ext.Client
 }
 
 // NewConnection creates a new connection
 func NewConnection(
+	streamMux *StreamMux,
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
-	sentryClient *sentry.Client,
+	sentryClient *sentry_ext.Client,
+	commit string,
 ) *Connection {
 
 	nc := &Connection{
+		streamMux:    streamMux,
 		ctx:          ctx,
 		cancel:       cancel,
 		conn:         conn,
+		commit:       commit,
 		id:           conn.RemoteAddr().String(), // TODO: check if this is properly unique
-		inChan:       make(chan *service.ServerRequest, BufferSize),
-		outChan:      make(chan *service.ServerResponse, BufferSize),
+		inChan:       make(chan *spb.ServerRequest, BufferSize),
+		outChan:      make(chan *spb.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
 		sentryClient: sentryClient,
 	}
@@ -123,7 +133,7 @@ func (nc *Connection) Close() {
 	slog.Info("closed connection", "id", nc.id)
 }
 
-func (nc *Connection) Respond(resp *service.ServerResponse) {
+func (nc *Connection) Respond(resp *spb.ServerResponse) {
 	if nc.closed.Load() {
 		// TODO: this is a bit of a hack, we should probably handle this better
 		//       and not send responses to closed connections
@@ -143,20 +153,48 @@ func (nc *Connection) readConnection() {
 	scanner.Split(ScanWBRecords)
 
 	for scanner.Scan() {
-		msg := &service.ServerRequest{}
+		msg := &spb.ServerRequest{}
 		if err := proto.Unmarshal(scanner.Bytes(), msg); err != nil {
 			slog.Error(
-				"unmarshalling error",
-				"err", err,
-				"conn", nc.conn.RemoteAddr())
+				"connection: unmarshalling error",
+				"error", err,
+				"id", nc.id)
 		} else {
 			nc.inChan <- msg
 		}
 	}
-	if scanner.Err() != nil && !errors.Is(scanner.Err(), net.ErrClosed) {
-		panic(scanner.Err())
-	}
+
 	close(nc.inChan)
+
+	if scanner.Err() != nil {
+		switch {
+		case errors.Is(scanner.Err(), net.ErrClosed):
+			// All good! The connection closed normally.
+
+		default:
+			// This can happen if:
+			//
+			// A) The client process dies
+			// B) The input is corrupted
+			// C) The client process exits before finishing socket operations
+			//
+			// Case (A) is an expected failure mode. Case (B) should be
+			// extremely rare or the result of a bug.
+			//
+			// Case (C) is subtle and is unavoidable by design. Unfortunately,
+			// data may be lost. This happens when a child process started
+			// using Python's multiprocessing exits without any completion
+			// signal (e.g. run.finish()). `atexit` hooks do not run in
+			// multiprocessing, so there's no way to wait for sockets to
+			// flush.
+
+			slog.Error(
+				"connection: fatal error reading connection",
+				"error", scanner.Err(),
+				"id", nc.id,
+			)
+		}
+	}
 }
 
 // handleServerRequest handles outgoing messages from the server
@@ -197,19 +235,19 @@ func (nc *Connection) handleServerRequest() {
 	for msg := range nc.inChan {
 		slog.Debug("handling server request", "msg", msg, "id", nc.id)
 		switch x := msg.ServerRequestType.(type) {
-		case *service.ServerRequest_InformInit:
+		case *spb.ServerRequest_InformInit:
 			nc.handleInformInit(x.InformInit)
-		case *service.ServerRequest_InformStart:
+		case *spb.ServerRequest_InformStart:
 			nc.handleInformStart(x.InformStart)
-		case *service.ServerRequest_InformAttach:
+		case *spb.ServerRequest_InformAttach:
 			nc.handleInformAttach(x.InformAttach)
-		case *service.ServerRequest_RecordPublish:
+		case *spb.ServerRequest_RecordPublish:
 			nc.handleInformRecord(x.RecordPublish)
-		case *service.ServerRequest_RecordCommunicate:
+		case *spb.ServerRequest_RecordCommunicate:
 			nc.handleInformRecord(x.RecordCommunicate)
-		case *service.ServerRequest_InformFinish:
+		case *spb.ServerRequest_InformFinish:
 			nc.handleInformFinish(x.InformFinish)
-		case *service.ServerRequest_InformTeardown:
+		case *spb.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
 		case nil:
 			slog.Error("ServerRequestType is nil", "id", nc.id)
@@ -227,7 +265,7 @@ func (nc *Connection) handleServerRequest() {
 
 // handleInformInit is called when the client sends an InformInit message
 // to the server, to start a new stream
-func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
+func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
 	err := settings.EnsureAPIKey()
@@ -243,12 +281,12 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(settings, streamId, nc.sentryClient)
+	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
-	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
+	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
@@ -258,7 +296,7 @@ func (nc *Connection) handleInformInit(msg *service.ServerInformInitRequest) {
 // handleInformStart is called when the client sends an InformStart message
 // TODO: probably can remove this, we should be able to update the settings
 // using the regular InformRecord messages
-func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
+func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 	// todo: if we keep this and end up updating the settings here
 	//       we should update the stream logger to use the new settings as well
 	nc.stream.settings = settings.From(msg.GetSettings())
@@ -267,7 +305,6 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 	// add attrs from settings:
 	nc.stream.logger.SetTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
-		"entity":  nc.stream.settings.GetEntity(),
 	})
 	// TODO: remove this once we have a better observability setup
 	nc.stream.logger.CaptureInfo("wandb-core", nil)
@@ -277,20 +314,20 @@ func (nc *Connection) handleInformStart(msg *service.ServerInformStartRequest) {
 // to the server, to attach to an existing stream.
 // this is used for attaching to a stream that was previously started
 // hence multiple clients can attach to the same stream
-func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest) {
+func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	var err error
-	nc.stream, err = streamMux.GetStream(streamId)
+	nc.stream, err = nc.streamMux.GetStream(streamId)
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
 		nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 		// TODO: we should redo this attach logic, so that the stream handles
 		//       the attach logic
-		resp := &service.ServerResponse{
-			ServerResponseType: &service.ServerResponse_InformAttachResponse{
-				InformAttachResponse: &service.ServerInformAttachResponse{
+		resp := &spb.ServerResponse{
+			ServerResponseType: &spb.ServerResponse_InformAttachResponse{
+				InformAttachResponse: &spb.ServerInformAttachResponse{
 					XInfo:    msg.XInfo,
 					Settings: nc.stream.settings.Proto,
 				},
@@ -304,7 +341,7 @@ func (nc *Connection) handleInformAttach(msg *service.ServerInformAttachRequest)
 // this is the regular communication between the client and the server
 // for a specific stream, the messages are part of the regular execution
 // and are not control messages like the other Inform* messages
-func (nc *Connection) handleInformRecord(msg *service.Record) {
+func (nc *Connection) handleInformRecord(msg *spb.Record) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	if nc.stream == nil {
@@ -316,7 +353,7 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 		if msg.Control != nil {
 			msg.Control.ConnectionId = nc.id
 		} else {
-			msg.Control = &service.Control{ConnectionId: nc.id}
+			msg.Control = &spb.Control{ConnectionId: nc.id}
 		}
 		nc.stream.HandleRecord(msg)
 	}
@@ -324,23 +361,23 @@ func (nc *Connection) handleInformRecord(msg *service.Record) {
 
 // handleInformFinish is called when the client sends a finish message
 // this should happen when the client want to close a specific stream
-func (nc *Connection) handleInformFinish(msg *service.ServerInformFinishRequest) {
+func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	streamId := msg.XInfo.StreamId
 	slog.Info("handle finish received", "streamId", streamId, "id", nc.id)
-	if stream, err := streamMux.RemoveStream(streamId); err != nil {
+	if stream, err := nc.streamMux.RemoveStream(streamId); err != nil {
 		slog.Error("handleInformFinish:", "err", err, "streamId", streamId, "id", nc.id)
 	} else {
 		stream.Close()
 	}
 }
 
-// handleInformTeardown is called when the client sends a teardown message
-// this should happen when the client is shutting down and wants to close
-// all streams
-func (nc *Connection) handleInformTeardown(teardown *service.ServerInformTeardownRequest) {
-	slog.Debug("handle teardown received", "id", nc.id)
-	// cancel the context to signal the server to shutdown
-	// this will trigger all the connections to close
+// handleInformTeardown is used by the client to shut down the entire server.
+func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownRequest) {
+	slog.Info("connection: teardown", "id", nc.id)
+
+	// Cancelling the context allows the server and all connections to stop.
 	nc.cancel()
-	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
+
+	// Wait for all streams to complete.
+	nc.streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 }

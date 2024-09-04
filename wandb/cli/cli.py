@@ -678,7 +678,7 @@ def sync(
     skip_console=None,
 ):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to sync offline runs")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -916,7 +916,7 @@ def sweep(
     elif is_state_change_command == 1:
         sweep_id = config_yaml_or_sweep_id
         api = _get_cling_api()
-        if api.api_key is None:
+        if not api.is_authenticated:
             wandb.termlog("Login to W&B to use the sweep feature")
             ctx.invoke(login, no_offline=True)
             api = _get_cling_api(reset=True)
@@ -959,7 +959,7 @@ def sweep(
         return ret
 
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1136,7 +1136,7 @@ def launch_sweep(
 ):
     api = _get_cling_api()
     env = os.environ
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1418,6 +1418,13 @@ def launch_sweep(
     If passed in, will override the docker image value passed in using a config file.""",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    default=None,
+    metavar="BASE IMAGE",
+    help="""Docker image to run job code in. Incompatible with --docker-image.""",
+)
+@click.option(
     "--config",
     "-c",
     metavar="FILE",
@@ -1508,6 +1515,7 @@ def launch(
     entity,
     project,
     docker_image,
+    base_image,
     config,
     cli_template_vars,
     queue,
@@ -1604,6 +1612,7 @@ def launch(
             git_hash=git_version,
             name=job_name,
             project=project,
+            base_image=base_image,
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
@@ -1818,7 +1827,7 @@ def launch_agent(
 @display_error
 def agent(ctx, project, entity, count, sweep_id):
     api = _get_cling_api()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep agent feature")
         ctx.invoke(login, no_offline=True)
         api = _get_cling_api(reset=True)
@@ -1842,7 +1851,7 @@ def scheduler(
     sweep_id,
 ):
     api = InternalApi()
-    if api.api_key is None:
+    if not api.is_authenticated:
         wandb.termlog("Login to W&B to use the sweep scheduler feature")
         ctx.invoke(login, no_offline=True)
         api = InternalApi(reset=True)
@@ -2002,6 +2011,12 @@ def describe(job):
     "provided, this is used as the base path for the Dockerfile and entrypoint.",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    type=str,
+    help="Base image to use for the job. Incompatible with image jobs.",
+)
+@click.option(
     "--dockerfile",
     "-D",
     type=str,
@@ -2025,6 +2040,7 @@ def create(
     git_hash,
     runtime,
     build_context,
+    base_image,
     dockerfile,
 ):
     """Create a job from a source, without a wandb run.
@@ -2056,6 +2072,10 @@ def create(
         )
         entrypoint = "main.py"
 
+    if job_type == "image" and base_image:
+        wandb.termerror("Cannot provide --base-image/-B for an `image` job")
+        return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -2069,6 +2089,7 @@ def create(
         git_hash=git_hash,
         runtime=runtime,
         build_context=build_context,
+        base_image=base_image,
         dockerfile=dockerfile,
     )
     if not artifact:

@@ -41,7 +41,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	)
 
 	// Mocking task
-	task := &filetransfer.Task{
+	task := &filetransfer.DefaultDownloadTask{
 		Path: "test-download-file.txt",
 		Url:  mockServer.URL,
 	}
@@ -55,6 +55,7 @@ func TestDefaultFileTransfer_Download(t *testing.T) {
 	content, err := os.ReadFile(task.Path)
 	assert.NoError(t, err)
 	assert.Equal(t, contentExpected, content)
+	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
 }
 
 func TestDefaultFileTransfer_Upload(t *testing.T) {
@@ -106,8 +107,7 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	defer os.Remove(filename)
 
 	// Mocking task
-	task := &filetransfer.Task{
-		Type:    filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path:    filename,
 		Url:     mockServer.URL,
 		Headers: headers,
@@ -116,6 +116,74 @@ func TestDefaultFileTransfer_Upload(t *testing.T) {
 	// Performing the upload
 	err = ft.Upload(task)
 	assert.NoError(t, err)
+	assert.Equal(t, task.Response.StatusCode, http.StatusOK)
+}
+
+func TestDefaultFileTransfer_UploadOffsetChunk(t *testing.T) {
+	entireContent := []byte("test content for upload")
+	expectedContent := []byte("content")
+
+	chunkCheckHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, err := io.ReadAll(r.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, expectedContent, body)
+	})
+	server := httptest.NewServer(chunkCheckHandler)
+
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	_, err = tempFile.Write(entireContent)
+	assert.NoError(t, err)
+	tempFile.Close()
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.DefaultUploadTask{
+		Path:   tempFile.Name(),
+		Url:    server.URL,
+		Offset: 5,
+		Size:   7,
+	}
+
+	err = ft.Upload(task)
+	assert.NoError(t, err)
+}
+
+func TestDefaultFileTransfer_UploadOffsetChunkOverlong(t *testing.T) {
+	entireContent := []byte("test content for upload")
+
+	chunkCheckHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	})
+	server := httptest.NewServer(chunkCheckHandler)
+
+	ft := filetransfer.NewDefaultFileTransfer(
+		impatientClient(),
+		observability.NewNoOpLogger(),
+		filetransfer.NewFileTransferStats(),
+	)
+
+	tempFile, err := os.CreateTemp("", "")
+	assert.NoError(t, err)
+	_, err = tempFile.Write(entireContent)
+	assert.NoError(t, err)
+	tempFile.Close()
+	defer os.Remove(tempFile.Name())
+
+	task := &filetransfer.DefaultUploadTask{
+		Path:   tempFile.Name(),
+		Url:    server.URL,
+		Offset: 17,
+		Size:   1000,
+	}
+
+	err = ft.Upload(task)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "offset + size exceeds the file size")
 }
 
 func TestDefaultFileTransfer_UploadNotFound(t *testing.T) {
@@ -161,8 +229,7 @@ func TestDefaultFileTransfer_UploadContextCancelled(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	err = ft.Upload(&filetransfer.Task{
-		Type:    filetransfer.UploadTask,
+	err = ft.Upload(&filetransfer.DefaultUploadTask{
 		Path:    tempFile.Name(),
 		Url:     server.URL,
 		Context: ctx,
@@ -186,8 +253,7 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type: filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),
 		Url:  server.URL,
 	}
@@ -197,6 +263,7 @@ func TestDefaultFileTransfer_UploadNoServer(t *testing.T) {
 
 	err = ft.Upload(task)
 	assert.Error(t, err)
+	assert.Nil(t, task.Response)
 	assert.Contains(t, err.Error(), "connection refused")
 	assert.Contains(t, err.Error(), "giving up after 2 attempt(s)")
 }
@@ -217,8 +284,7 @@ func uploadToServerWithHandler(
 	assert.NoError(t, err)
 	defer os.Remove(tempFile.Name())
 
-	task := &filetransfer.Task{
-		Type: filetransfer.UploadTask,
+	task := &filetransfer.DefaultUploadTask{
 		Path: tempFile.Name(),
 		Url:  server.URL,
 	}
