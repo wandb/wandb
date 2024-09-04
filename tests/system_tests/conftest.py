@@ -1043,3 +1043,8 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
+
+
+@pytest.fixture(scope="function")
+def tokenized_circular_pattern():
+    return TokenizedCircularPattern
