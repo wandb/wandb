@@ -10,7 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import wandb
 from wandb import util
-from wandb.data_types import Table
+from wandb.sdk.data_types import Table
 from wandb.sdk.lib import telemetry
 from wandb.sdk.wandb_run import Run
 from wandb.util import parse_version

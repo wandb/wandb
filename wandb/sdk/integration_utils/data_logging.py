@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Union
 import wandb
 
 if TYPE_CHECKING:
-    from wandb.data_types import _TableIndex
+    from wandb.sdk.data_types.data_types import _TableIndex
 
 CAN_INFER_IMAGE_AND_VIDEO = sys.version_info.major == 3 and sys.version_info.minor >= 5
 
@@ -161,7 +161,7 @@ class ValidationDataLogger:
         val_ndx_col_name: str = "val_row",
         table_name: str = "validation_predictions",
         commit: bool = True,
-    ) -> wandb.data_types.Table:
+    ) -> "wandb.Table":
         """Log a set of predictions.
 
         Intended usage:
