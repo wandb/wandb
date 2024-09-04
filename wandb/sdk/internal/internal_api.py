@@ -41,6 +41,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -3385,6 +3386,27 @@ class Api:
             open_file.close()
         return responses
 
+    def server_link_artifact_input_introspection(self) -> List:
+        query_string = """
+           query ProbeServerLinkArtifactInput {
+                LinkArtifactInputInfoType: __type(name:"LinkArtifactInput") {
+                    inputFields{
+                        name
+                    }
+                }
+            }
+        """
+
+        query = gql(query_string)
+        res = self.gql(query)
+        link_artifact_input_info = [
+            field.get("name", "")
+            for field in res.get("LinkArtifactInputInfoType", {}).get(
+                "inputFields", [{}]
+            )
+        ]
+        return link_artifact_input_info
+
     def link_artifact(
         self,
         client_id: str,
@@ -3393,6 +3415,7 @@ class Api:
         entity: str,
         project: str,
         aliases: Sequence[str],
+        organization: Optional[str],
     ) -> Dict[str, Any]:
         template = """
                 mutation LinkArtifact(
@@ -3400,14 +3423,16 @@ class Api:
                     $entityName: String!,
                     $projectName: String!,
                     $aliases: [ArtifactAliasInput!],
-                    ID_TYPE
+                    ID_TYPE,
+                    _ORGANIZATION_TYPE_
                     ) {
                         linkArtifact(input: {
                             artifactPortfolioName: $artifactPortfolioName,
                             entityName: $entityName,
                             projectName: $projectName,
                             aliases: $aliases,
-                            ID_VALUE
+                            ID_VALUE,
+                            _ORGANIZATION_VALUE_
                         }) {
                             versionIndex
                         }
@@ -3425,6 +3450,18 @@ class Api:
             replace("ID_TYPE", "$clientID: ID")
             replace("ID_VALUE", "clientID: $clientID")
 
+        link_artifact_fields = self.server_link_artifact_input_introspection()
+
+        if (
+            is_artifact_registry_project(project)
+            and "organizationName" not in link_artifact_fields
+        ):
+            # TODO: add better language around warning
+            wandb.termwarn("Upgrade server to be able to shorthand registry input")
+        else:
+            replace("_ORGANIZATION_TYPE_", "$organizationName: String")
+            replace("_ORGANIZATION_VALUE_", "organizationName: $organizationName")
+
         variable_values = {
             "clientID": client_id,
             "artifactID": server_id,
@@ -3435,6 +3472,7 @@ class Api:
                 {"alias": alias, "artifactCollectionName": portfolio_name}
                 for alias in aliases
             ],
+            "organizationName": organization,
         }
 
         mutation = gql(template)
