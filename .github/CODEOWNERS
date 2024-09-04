@@ -1,7 +1,7 @@
 # GraphQL
 /wandb/sdk/internal/internal_api.py @wandb/sdk-team
 # Changing public interfaces
-/tests/pytest_tests/unit_tests/test_library_public.py @wandb/sdk-team
+/tests/unit_tests/test_library_public.py @wandb/sdk-team
 /wandb/__init__.py @wandb/sdk-team
 # Packaging and releasing-related files
 /pyproject.toml @wandb/sdk-team
@@ -19,8 +19,6 @@
 # ML Workflows team
 /core/pkg/artifacts/ @wandb/mlw-team
 /wandb/sdk/artifacts/ @wandb/mlw-team
-/tests/functional_tests/t0_main/artifacts/ @wandb/mlw-team
-/tests/pytest_tests/system_tests/test_artifacts/ @wandb/mlw-team
-/tests/pytest_tests/unit_tests/test_artifacts/ @wandb/mlw-team
-/tests/pytest_tests/unit_tests/test_launch/ @wandb/mlw-team
-/tests/pytest_tests/unit_tests_old/tests_launch/ @wandb/mlw-team
+/tests/system_tests/test_artifacts/ @wandb/mlw-team
+/tests/unit_tests/test_artifacts/ @wandb/mlw-team
+/tests/unit_tests/test_launch/ @wandb/mlw-team

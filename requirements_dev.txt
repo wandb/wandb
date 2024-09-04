@@ -8,12 +8,11 @@ hypothesis-fspaths
 Pillow
 pandas
 polars
-moviepy~=1.0.3
+moviepy
 imageio[ffmpeg]
-matplotlib!=3.5.2
+matplotlib
 soundfile
-rdkit; (sys_platform != 'darwin') or (sys_platform == 'darwin' and platform.machine != 'arm64')
-rdkit; python_version > '3.7' and sys_platform == 'darwin' and platform.machine == 'arm64'
+rdkit
 plotly
 bokeh
 
@@ -25,23 +24,27 @@ ipykernel
 nbclient
 
 scikit-learn
+tensorflow; python_version > '3.11'
 tensorflow<2.14; sys_platform != 'darwin' and python_version < '3.12'
-tensorflow>=1.15.2; sys_platform == 'darwin' and platform.machine != 'arm64'
-tensorflow-macos; python_version > '3.7' and python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
-tensorboard
-torch; python_version < '3.12'
-torchvision; python_version < '3.12'
-jax[cpu]; python_version > '3.7' and (sys_platform == 'darwin' or sys_platform == 'linux')
+tensorflow-macos; python_version < '3.11' and sys_platform == 'darwin' and platform.machine == 'arm64'
+torch
+torchvision
+jax[cpu]
+lightning
+ray[air,tune]
 
 fastcore
-pyarrow; python_version < '3.12'  # TODO: 3.12 support will be added in 14.0.0
-metaflow>=2.3.5
+pyarrow
+metaflow
 xgboost
-lightgbm; sys_platform != 'darwin'
-mlflow; python_version < '3.12'  # TODO: requires pyarrow
-# kfp<2.0.0  # TODO: put back when we support kfp>=2.0.0
-urllib3<2
+lightgbm
+mlflow
+urllib3
 docker
+catboost
+openai
+gymnasium
+stable_baselines3
 
 responses
 prometheus_client

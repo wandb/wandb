@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -42,7 +41,7 @@ func TestArtifactBuilder(t *testing.T) {
 	}
 	metadataJson, err := json.Marshal(metadata)
 	assert.Nil(t, err)
-	baseArtifact := &service.ArtifactRecord{
+	baseArtifact := &spb.ArtifactRecord{
 		Entity:           "entity",
 		Project:          "project",
 		RunId:            "runid",

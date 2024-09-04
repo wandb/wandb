@@ -24,8 +24,9 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
 	"github.com/wandb/wandb/core/pkg/utils"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // Stream processes incoming records for a single run.
@@ -203,10 +204,9 @@ func NewStream(
 		HandlerParams{
 			Logger:            s.logger,
 			Settings:          s.settings.Proto,
-			FwdChan:           make(chan *service.Record, BufferSize),
-			OutChan:           make(chan *service.Result, BufferSize),
+			FwdChan:           make(chan runwork.Work, BufferSize),
+			OutChan:           make(chan *spb.Result, BufferSize),
 			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
-			RunfilesUploader:  runfilesUploaderOrNil,
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
@@ -218,7 +218,7 @@ func NewStream(
 		WriterParams{
 			Logger:   s.logger,
 			Settings: s.settings.Proto,
-			FwdChan:  make(chan *service.Record, BufferSize),
+			FwdChan:  make(chan runwork.Work, BufferSize),
 		},
 	)
 
@@ -250,7 +250,7 @@ func NewStream(
 			Peeker:              peeker,
 			RunSummary:          runsummary.New(),
 			GraphqlClient:       graphqlClientOrNil,
-			OutChan:             make(chan *service.Result, BufferSize),
+			OutChan:             make(chan *spb.Result, BufferSize),
 			Mailbox:             mailbox,
 			OutputFileName:      outputFile,
 		},
@@ -293,9 +293,9 @@ func (s *Stream) Start() {
 	}()
 
 	// handle dispatching between components
-	for _, ch := range []chan *service.Result{s.handler.outChan, s.sender.outChan} {
+	for _, ch := range []chan *spb.Result{s.handler.outChan, s.sender.outChan} {
 		s.wg.Add(1)
-		go func(ch chan *service.Result) {
+		go func(ch chan *spb.Result) {
 			for result := range ch {
 				s.dispatcher.handleRespond(result)
 			}
@@ -307,7 +307,7 @@ func (s *Stream) Start() {
 }
 
 // HandleRecord handles the given record by sending it to the stream's handler.
-func (s *Stream) HandleRecord(rec *service.Record) {
+func (s *Stream) HandleRecord(rec *spb.Record) {
 	s.logger.Debug("handling record", "record", rec)
 	s.runWork.AddRecord(rec)
 }
@@ -324,12 +324,12 @@ func (s *Stream) Close() {
 // to be fully processed, and prints the run footer to the terminal.
 func (s *Stream) FinishAndClose(exitCode int32) {
 	if !s.settings.IsSync() {
-		s.HandleRecord(&service.Record{
-			RecordType: &service.Record_Exit{
-				Exit: &service.RunExitRecord{
+		s.HandleRecord(&spb.Record{
+			RecordType: &spb.Record_Exit{
+				Exit: &spb.RunExitRecord{
 					ExitCode: exitCode,
 				}},
-			Control: &service.Control{AlwaysSend: true},
+			Control: &spb.Control{AlwaysSend: true},
 		})
 	}
 

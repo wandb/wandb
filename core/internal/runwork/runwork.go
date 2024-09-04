@@ -1,7 +1,9 @@
 // Package runwork manages all work that's part of a run.
 //
-// This defines a channel-like object for Record protos that can be
-// safely closed.
+// This defines a Work type which wraps the Record proto,
+// and RunWork which is like a Work channel that can be closed
+// more than once and that doesn't panic if more Work is added
+// after close.
 package runwork
 
 import (
@@ -10,23 +12,23 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 var errRecordAfterClose = errors.New("runwork: ignoring record after close")
 
-// ExtraWork allows injecting records into the Handler->Sender pipeline.
+// ExtraWork allows injecting tasks into the Handler->Sender pipeline.
 type ExtraWork interface {
 	// AddRecord emits a record to process for the run.
 	//
 	// This may only be called before the end of the run---see the comment
 	// on BeforeEndCtx. If called after the end of the run, the record is
 	// ignored and an error is logged and captured.
-	AddRecord(record *service.Record)
+	AddRecord(record *spb.Record)
 
 	// AddRecordOrCancel is like AddRecord but exits early if the 'done'
 	// channel is closed.
-	AddRecordOrCancel(done <-chan struct{}, record *service.Record)
+	AddRecordOrCancel(done <-chan struct{}, record *spb.Record)
 
 	// BeforeEndCtx is a context that's cancelled when no additional work
 	// may be performed for the run.
@@ -42,12 +44,12 @@ type ExtraWork interface {
 	BeforeEndCtx() context.Context
 }
 
-// RunWork is a channel for all records to process in a run.
+// RunWork is a channel for all tasks in a run.
 type RunWork interface {
 	ExtraWork
 
-	// Chan returns the channel of records added via AddRecord.
-	Chan() <-chan *service.Record
+	// Chan returns the channel of work for the run.
+	Chan() <-chan Work
 
 	// SetDone indicates that the run is done, allowing the channel
 	// to become closed.
@@ -71,9 +73,9 @@ type runWork struct {
 	doneMu sync.Mutex    // locked for closing `done`
 	done   chan struct{} // closed on SetDone()
 
-	internalRecords chan *service.Record
-	endCtx          context.Context
-	endCtxCancel    func()
+	internalWork chan Work
+	endCtx       context.Context
+	endCtxCancel func()
 
 	logger *observability.CoreLogger
 }
@@ -82,13 +84,13 @@ func New(bufferSize int, logger *observability.CoreLogger) RunWork {
 	endCtx, endCtxCancel := context.WithCancel(context.Background())
 
 	return &runWork{
-		addRecordCV:     sync.NewCond(&sync.Mutex{}),
-		closed:          make(chan struct{}),
-		done:            make(chan struct{}),
-		internalRecords: make(chan *service.Record, bufferSize),
-		endCtx:          endCtx,
-		endCtxCancel:    endCtxCancel,
-		logger:          logger,
+		addRecordCV:  sync.NewCond(&sync.Mutex{}),
+		closed:       make(chan struct{}),
+		done:         make(chan struct{}),
+		internalWork: make(chan Work, bufferSize),
+		endCtx:       endCtx,
+		endCtxCancel: endCtxCancel,
+		logger:       logger,
 	}
 }
 
@@ -109,13 +111,13 @@ func (rw *runWork) decAddRecord() {
 	}
 }
 
-func (rw *runWork) AddRecord(record *service.Record) {
+func (rw *runWork) AddRecord(record *spb.Record) {
 	rw.AddRecordOrCancel(nil, record)
 }
 
 func (rw *runWork) AddRecordOrCancel(
 	cancel <-chan struct{},
-	record *service.Record,
+	record *spb.Record,
 ) {
 	rw.incAddRecord()
 	defer rw.decAddRecord()
@@ -147,7 +149,7 @@ func (rw *runWork) AddRecordOrCancel(
 		rw.logger.CaptureError(errRecordAfterClose, "record", record)
 
 	case <-cancel:
-	case rw.internalRecords <- record:
+	case rw.internalWork <- WorkRecord{record}:
 	}
 }
 
@@ -155,8 +157,8 @@ func (rw *runWork) BeforeEndCtx() context.Context {
 	return rw.endCtx
 }
 
-func (rw *runWork) Chan() <-chan *service.Record {
-	return rw.internalRecords
+func (rw *runWork) Chan() <-chan Work {
+	return rw.internalWork
 }
 
 func (rw *runWork) SetDone() {
@@ -190,7 +192,7 @@ func (rw *runWork) Close() {
 		for rw.addRecordCount > 0 {
 			rw.addRecordCV.Wait() // Close.B
 		}
-		close(rw.internalRecords)
+		close(rw.internalWork)
 		rw.addRecordCV.L.Unlock()
 	}
 }

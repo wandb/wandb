@@ -21,8 +21,9 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waitingtest"
 	"github.com/wandb/wandb/core/internal/watchertest"
-	"github.com/wandb/wandb/core/pkg/service"
 	"google.golang.org/protobuf/types/known/wrapperspb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func stubCreateRunFilesOneFile(
@@ -115,9 +116,9 @@ func TestUploader(t *testing.T) {
 			FileTransfer: fakeFileTransfer,
 			FileWatcher:  fakeFileWatcher,
 			BatchDelay:   batchDelay,
-			Settings: settings.From(&service.Settings{
+			Settings: settings.From(&spb.Settings{
 				FilesDir:    &wrapperspb.StringValue{Value: filesDir},
-				IgnoreGlobs: &service.ListStringValue{Value: ignoreGlobs},
+				IgnoreGlobs: &spb.ListStringValue{Value: ignoreGlobs},
 				XOffline:    &wrapperspb.BoolValue{Value: isOffline},
 				XSync:       &wrapperspb.BoolValue{Value: isSync},
 			}),
@@ -126,9 +127,9 @@ func TestUploader(t *testing.T) {
 		t.Run(name, test)
 	}
 
-	policiesUploadImmediately := []service.FilesItem_PolicyType{
-		service.FilesItem_NOW,
-		service.FilesItem_LIVE,
+	policiesUploadImmediately := []spb.FilesItem_PolicyType{
+		spb.FilesItem_NOW,
+		spb.FilesItem_LIVE,
 	}
 	for _, policy := range policiesUploadImmediately {
 		runTest(fmt.Sprintf("Process with '%v' policy uploads immediately", policy),
@@ -137,8 +138,8 @@ func TestUploader(t *testing.T) {
 				stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 				writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-				uploader.Process(&service.FilesRecord{
-					Files: []*service.FilesItem{
+				uploader.Process(&spb.FilesRecord{
+					Files: []*spb.FilesItem{
 						{Path: "test.txt", Policy: policy},
 					},
 				})
@@ -153,9 +154,9 @@ func TestUploader(t *testing.T) {
 		func(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "test.txt", Policy: service.FilesItem_LIVE},
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: "test.txt", Policy: spb.FilesItem_LIVE},
 				},
 			})
 			uploader.Finish()
@@ -170,9 +171,9 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Path: "test.txt", Policy: service.FilesItem_NOW},
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
+					{Path: "test.txt", Policy: spb.FilesItem_NOW},
 				},
 			})
 			uploader.Finish()
@@ -186,12 +187,12 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "test.txt"))
 
-			uploader.Process(&service.FilesRecord{
-				Files: []*service.FilesItem{
+			uploader.Process(&spb.FilesRecord{
+				Files: []*spb.FilesItem{
 					{
 						Path:   "test.txt",
-						Policy: service.FilesItem_NOW,
-						Type:   service.FilesItem_ARTIFACT,
+						Policy: spb.FilesItem_NOW,
+						Type:   spb.FilesItem_ARTIFACT,
 					},
 				},
 			})

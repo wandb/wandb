@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.8.dev1"
+__version__ = "0.17.9.dev1"
 
 from typing import Optional
 
@@ -199,14 +199,18 @@ if wandb_sdk.lib.ipython.in_notebook():
 from .analytics import Sentry as _Sentry
 
 if "dev" in __version__:
+    import wandb.env
     import os
 
     # disable error reporting in dev versions for the python client
-    os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
-        "WANDB_ERROR_REPORTING", "false"
+    os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
+        wandb.env.ERROR_REPORTING, "false"
     )
+
     # turn on wandb-core for dev versions
-    os.environ["WANDB__REQUIRE_CORE"] = os.environ.get("WANDB__REQUIRE_CORE", "true")
+    if not wandb.env.is_require_legacy_service():
+        os.environ[wandb.env._REQUIRE_CORE] = os.environ.get(
+            wandb.env._REQUIRE_CORE, "true")
 
 _sentry = _Sentry()
 _sentry.setup()
@@ -215,6 +219,7 @@ _sentry.setup()
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
     "save",
     "sweep",
@@ -237,6 +242,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",

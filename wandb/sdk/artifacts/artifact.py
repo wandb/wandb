@@ -4,6 +4,7 @@ import atexit
 import concurrent.futures
 import contextlib
 import json
+import logging
 import multiprocessing.dummy
 import os
 import re
@@ -31,6 +32,8 @@ from typing import (
     Union,
     cast,
 )
+
+from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
@@ -75,13 +78,14 @@ from wandb.sdk.lib.hashutil import B64MD5, b64_to_hex_id, md5_file_b64
 from wandb.sdk.lib.mailbox import Mailbox
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath, URIStr
 from wandb.sdk.lib.runid import generate_id
-from wandb.util import get_core_path
 
 reset_path = util.vendor_setup()
 
 from wandb_gql import gql  # noqa: E402
 
 reset_path()
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
@@ -1658,13 +1662,14 @@ class Artifact:
         if env.is_offline() or util._is_offline():
             raise RuntimeError("Cannot download artifacts in offline mode.")
 
-        if is_require_core():
-            return self._download_using_core(
-                root=root,
-                allow_missing_references=allow_missing_references,
-                skip_cache=bool(skip_cache),
-                path_prefix=path_prefix,
-            )
+        # TODO: download artifacts using core when implemented
+        # if is_require_core():
+        #     return self._download_using_core(
+        #         root=root,
+        #         allow_missing_references=allow_missing_references,
+        #         skip_cache=bool(skip_cache),
+        #         path_prefix=path_prefix,
+        #     )
         return self._download(
             root=root,
             allow_missing_references=allow_missing_references,
@@ -1693,6 +1698,7 @@ class Artifact:
             settings = wl.settings.to_proto()
             # TODO: remove this
             tmp_dir = pathlib.Path(tempfile.mkdtemp())
+
             settings.sync_dir.value = str(tmp_dir)
             settings.sync_file.value = str(tmp_dir / f"{stream_id}.wandb")
             settings.files_dir.value = str(tmp_dir / "files")
@@ -1737,11 +1743,6 @@ class Artifact:
         if response.error_message:
             raise ValueError(f"Error downloading artifact: {response.error_message}")
 
-        if wandb.run is None:
-            backend.cleanup()
-            # TODO: remove this
-            shutil.rmtree(tmp_dir)
-
         return FilePathStr(root)
 
     def _download(
@@ -1751,9 +1752,6 @@ class Artifact:
         skip_cache: Optional[bool] = None,
         path_prefix: Optional[StrPath] = None,
     ) -> FilePathStr:
-        # todo: remove once artifact reference downloads are supported in core
-        require_core = is_require_core()
-
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
         log = False
@@ -1784,6 +1782,9 @@ class Artifact:
                     wandb.termwarn(str(e))
                     return
                 raise
+            except _GCSIsADirectoryError as e:
+                logger.debug(str(e))
+                return
             download_logger.notify_downloaded()
 
         download_entry = partial(
@@ -1804,9 +1805,10 @@ class Artifact:
                 cursor = attrs["pageInfo"]["endCursor"]
                 for edge in attrs["edges"]:
                     entry = self.get_entry(edge["node"]["name"])
-                    if require_core and entry.ref is None:
-                        # Handled by core
-                        continue
+                    # TODO: uncomment once artifact downloads are supported in core
+                    # if require_core and entry.ref is None:
+                    #     # Handled by core
+                    #     continue
                     entry._download_url = edge["node"]["directUrl"]
                     if (not path_prefix) or entry.path.startswith(str(path_prefix)):
                         active_futures.add(executor.submit(download_entry, entry))
@@ -2348,12 +2350,6 @@ class Artifact:
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:
             return gql_ttl_duration_seconds
         return None
-
-
-def is_require_core() -> bool:
-    if env.is_require_core():
-        return bool(get_core_path())
-    return False
 
 
 class _ArtifactVersionType(WBType):

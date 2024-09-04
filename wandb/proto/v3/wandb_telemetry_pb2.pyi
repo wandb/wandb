@@ -188,6 +188,7 @@ class Imports(google.protobuf.message.Message):
     LIGHTNING_FABRIC_FIELD_NUMBER: builtins.int
     CURATED_TRANSFORMERS_FIELD_NUMBER: builtins.int
     ORJSON_FIELD_NUMBER: builtins.int
+    LIGHTNING_FIELD_NUMBER: builtins.int
     torch: builtins.bool
     keras: builtins.bool
     tensorflow: builtins.bool
@@ -300,6 +301,8 @@ class Imports(google.protobuf.message.Message):
     curated_transformers: builtins.bool
     """curated-transformers"""
     orjson: builtins.bool
+    lightning: builtins.bool
+    """lightning, formerly pytorch-lightning"""
     def __init__(
         self,
         *,
@@ -400,8 +403,9 @@ class Imports(google.protobuf.message.Message):
         lightning_fabric: builtins.bool = ...,
         curated_transformers: builtins.bool = ...,
         orjson: builtins.bool = ...,
+        lightning: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "curated_transformers", b"curated_transformers", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_core", b"keras_core", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "lightning_fabric", b"lightning_fabric", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "orjson", b"orjson", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["TTS", b"TTS", "accelerate", b"accelerate", "albumentations", b"albumentations", "allennlp", b"allennlp", "anomalib", b"anomalib", "anthropic", b"anthropic", "asyncio", b"asyncio", "autogluon", b"autogluon", "autokeras", b"autokeras", "catalyst", b"catalyst", "catboost", b"catboost", "chromadb", b"chromadb", "cohere", b"cohere", "colossalai", b"colossalai", "composer", b"composer", "curated_transformers", b"curated_transformers", "dask", b"dask", "datasets", b"datasets", "deepchecks", b"deepchecks", "deepchem", b"deepchem", "deepctr", b"deepctr", "detectron2", b"detectron2", "dgl", b"dgl", "diffusers", b"diffusers", "elegy", b"elegy", "evaluate", b"evaluate", "fairseq", b"fairseq", "fastai", b"fastai", "flair", b"flair", "flash", b"flash", "flax", b"flax", "huggingface_hub", b"huggingface_hub", "hydra", b"hydra", "ignite", b"ignite", "jax", b"jax", "jina", b"jina", "joblib", b"joblib", "keras", b"keras", "keras_core", b"keras_core", "keras_cv", b"keras_cv", "kornia", b"kornia", "langchain", b"langchain", "langflow", b"langflow", "lightgbm", b"lightgbm", "lightning", b"lightning", "lightning_fabric", b"lightning_fabric", "llama_index", b"llama_index", "merlin", b"merlin", "metaflow", b"metaflow", "mmcls", b"mmcls", "mmcv", b"mmcv", "mmdet", b"mmdet", "mmengine", b"mmengine", "mmocr", b"mmocr", "mmseg", b"mmseg", "monai", b"monai", "nanodet", b"nanodet", "openai", b"openai", "optimum", b"optimum", "optuna", b"optuna", "orjson", b"orjson", "paddlenlp", b"paddlenlp", "paddleocr", b"paddleocr", "paddleseg", b"paddleseg", "peft", b"peft", "pinecone", b"pinecone", "ppdet", b"ppdet", "prefect", b"prefect", "prefect_ray", b"prefect_ray", "promptlayer", b"promptlayer", "pycaret", b"pycaret", "pytorch_lightning", b"pytorch_lightning", "pytorchvideo", b"pytorchvideo", "ray", b"ray", "recbole", b"recbole", "sacred", b"sacred", "segmentation_models_pytorch", b"segmentation_models_pytorch", "sentence_transformers", b"sentence_transformers", "simpletransformers", b"simpletransformers", "sklearn", b"sklearn", "skorch", b"skorch", "spacy", b"spacy", "sparseml", b"sparseml", "stability_sdk", b"stability_sdk", "syft", b"syft", "tensorflow", b"tensorflow", "timm", b"timm", "torch", b"torch", "torch_geometric", b"torch_geometric", "torchdrug", b"torchdrug", "torchtext", b"torchtext", "torchvision", b"torchvision", "transformers", b"transformers", "trl", b"trl", "trlx", b"trlx", "weaviate", b"weaviate", "xgboost", b"xgboost", "zenml", b"zenml"]) -> None: ...
 
 global___Imports = Imports
 
@@ -799,8 +803,10 @@ class Deprecated(google.protobuf.message.Message):
     ARTIFACT_COLLECTION__CHANGE_TYPE_FIELD_NUMBER: builtins.int
     RUN__DEFINE_METRIC_COPY_FIELD_NUMBER: builtins.int
     RUN_DISABLED_FIELD_NUMBER: builtins.int
+    KERAS_CALLBACK_FIELD_NUMBER: builtins.int
+    RUN__DEFINE_METRIC_BEST_GOAL_FIELD_NUMBER: builtins.int
     keras_callback__data_type: builtins.bool
-    """wandb.keras.WandbCallback(data_type=...) called"""
+    """wandb.integration.keras.WandbCallback(data_type=...) called"""
     run__mode: builtins.bool
     """wandb.run.mode called"""
     run__save_no_args: builtins.bool
@@ -816,7 +822,7 @@ class Deprecated(google.protobuf.message.Message):
     init__config_exclude_keys: builtins.bool
     """wandb.init(config_exclude_keys=...) called"""
     keras_callback__save_model: builtins.bool
-    """wandb.keras.WandbCallback(save_model=True) called"""
+    """wandb.integration.keras.WandbCallback(save_model=True) called"""
     langchain_tracer: builtins.bool
     """wandb.integration.langchain.WandbTracer called"""
     artifact__get_path: builtins.bool
@@ -831,6 +837,10 @@ class Deprecated(google.protobuf.message.Message):
     """wandb.run.define_metric() called with summary="copy" """
     run_disabled: builtins.bool
     """wandb.sdk.lib.disabled.RunDisabled used"""
+    keras_callback: builtins.bool
+    """wandb.integration.keras.WandbCallback used"""
+    run__define_metric_best_goal: builtins.bool
+    """wandb.run.define_metric() called with summary="best" and goal="maximize/minimize" """
     def __init__(
         self,
         *,
@@ -850,8 +860,10 @@ class Deprecated(google.protobuf.message.Message):
         artifact_collection__change_type: builtins.bool = ...,
         run__define_metric_copy: builtins.bool = ...,
         run_disabled: builtins.bool = ...,
+        keras_callback: builtins.bool = ...,
+        run__define_metric_best_goal: builtins.bool = ...,
     ) -> None: ...
-    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_copy", b"run__define_metric_copy", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["api__artifact_versions", b"api__artifact_versions", "artifact__get_path", b"artifact__get_path", "artifact_collection__change_type", b"artifact_collection__change_type", "artifactmanifestentry__name", b"artifactmanifestentry__name", "init__config_exclude_keys", b"init__config_exclude_keys", "init__config_include_keys", b"init__config_include_keys", "keras_callback", b"keras_callback", "keras_callback__data_type", b"keras_callback__data_type", "keras_callback__save_model", b"keras_callback__save_model", "langchain_tracer", b"langchain_tracer", "plots", b"plots", "run__define_metric_best_goal", b"run__define_metric_best_goal", "run__define_metric_copy", b"run__define_metric_copy", "run__join", b"run__join", "run__log_sync", b"run__log_sync", "run__mode", b"run__mode", "run__save_no_args", b"run__save_no_args", "run_disabled", b"run_disabled"]) -> None: ...
 
 global___Deprecated = Deprecated
 

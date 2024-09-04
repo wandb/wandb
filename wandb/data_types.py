@@ -1420,6 +1420,7 @@ class Graph(Media):
 
     @classmethod
     def from_keras(cls, model):
+        # TODO: his method requires a refactor to work with the keras 3.
         graph = cls()
         # Shamelessly copied (then modified) from keras/keras/utils/layer_utils.py
         sequential_like = cls._is_sequential(model)
