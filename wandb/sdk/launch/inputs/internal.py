@@ -14,7 +14,7 @@ import tempfile
 from typing import Any, Dict, List, Optional
 
 import wandb
-import wandb.data_types
+import wandb.sdk.data_types
 from wandb.sdk.launch.errors import LaunchError
 from wandb.sdk.launch.inputs.schema import META_SCHEMA
 from wandb.sdk.wandb_run import Run

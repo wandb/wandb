@@ -158,7 +158,7 @@ class Media(WBValue):
         # NOTE: uses of Audio in this class are a temporary hack -- when Ref support moves up
         # into Media itself we should get rid of them
         from wandb import Image
-        from wandb.data_types import Audio
+        from wandb.sdk.data_types import Audio
         from wandb.sdk.wandb_run import Run
 
         json_obj = {}
