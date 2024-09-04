@@ -379,7 +379,7 @@ jobs:
           files: |
             wandb-${{ github.event.inputs.version }}.zip
             wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: true
+          draft: false
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
@@ -396,7 +396,7 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.27.0
         with:
           # Slack channel id, channel name, or user id to post message.
           # See also: https://api.slack.com/methods/chat.postMessage#channels
