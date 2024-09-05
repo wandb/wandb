@@ -173,7 +173,7 @@ func (g *GPUNvidia) Sample() (map[string]any, error) {
 		}
 	}
 
-	return g.sample, nil
+	return metrics, nil
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
