@@ -1,0 +1,50 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Library</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <IncludeBuildOutput>true</IncludeBuildOutput>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <WandbCoreDir>$(MSBuildProjectDirectory)/wandb-core</WandbCoreDir>
+    <GoSrcDir>$(MSBuildProjectDirectory)/../../../../core</GoSrcDir>
+  </PropertyGroup>
+  <ItemGroup>
+      <Protobuf Include="$(MSBuildProjectDirectory)/../../../../wandb/proto/*.proto" ProtoRoot="$(MSBuildProjectDirectory)/../../../../" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Google.Protobuf" Version="3.28.0" />
+    <PackageReference Include="Grpc.Tools" Version="2.66.0">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="wandb-core.exe">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>runtimes/win-x64/native/</PackagePath>
+    </None>
+    <None Update="wandb-core">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>runtimes/linux-x64/native/</PackagePath>
+    </None>
+    <None Update="wandb-core">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <Pack>true</Pack>
+      <PackagePath>runtimes/osx-x64/native/</PackagePath>
+    </None>
+  </ItemGroup>
+  <Target Name="BuildGoBinary" BeforeTargets="Build">
+    <PropertyGroup>
+      <GoBinaryPath Condition="'$(OS)' == 'Windows_NT'">wandb-core.exe</GoBinaryPath>
+      <GoBinaryPath Condition="'$(OS)' != 'Windows_NT'">wandb-core</GoBinaryPath>
+    </PropertyGroup>
+    <Exec Command="go build -ldflags='-s -w' -mod=vendor -o $(MSBuildProjectDirectory)/$(GoBinaryPath) cmd/wandb-core/main.go" WorkingDirectory="$(GoSrcDir)"/>
+    <ItemGroup>
+      <None Include="$(GoBinaryPath)">
+        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      </None>
+    </ItemGroup>
+  </Target>
+</Project>
