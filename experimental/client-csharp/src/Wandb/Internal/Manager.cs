@@ -4,14 +4,14 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace Wandb.Core
+namespace Wandb.Internal
 {
-    public class WandbManager : IDisposable
+    public class Manager : IDisposable
     {
         private Process? _coreProcess;
         private string _portFilePath;
 
-        public WandbManager()
+        public Manager()
         {
             _portFilePath = Path.Combine(Path.GetTempPath(), $"port-{Process.GetCurrentProcess().Id}.txt");
         }
