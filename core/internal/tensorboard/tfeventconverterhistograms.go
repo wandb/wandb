@@ -17,17 +17,30 @@ func processHistograms(
 	value *tbproto.Summary_Value,
 	logger *observability.CoreLogger,
 ) {
-	tensorValue, ok := value.GetValue().(*tbproto.Summary_Value_Tensor)
-	if !ok {
+	switch value := value.GetValue().(type) {
+	case *tbproto.Summary_Value_Tensor:
+		processHistogramsTensor(emitter, tag, value.Tensor, logger)
+
+	case *tbproto.Summary_Value_Histo:
+		processHistogramsProto(emitter, tag, value.Histo, logger)
+
+	default:
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: expected histograms value to be a Tensor"+
-					" but its type is %T",
-				value.GetValue()))
-		return
+					" or HistogramProto but its type is %T",
+				value))
 	}
+}
 
-	tensor, err := tensorFromProto(tensorValue.Tensor)
+// processHistogramsTensor handles a tensor summary value as a histogram.
+func processHistogramsTensor(
+	emitter Emitter,
+	tag string,
+	tensorValue *tbproto.TensorProto,
+	logger *observability.CoreLogger,
+) {
+	tensor, err := tensorFromProto(tensorValue)
 	if err != nil {
 		logger.CaptureError(
 			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
@@ -49,19 +62,55 @@ func processHistograms(
 		return
 	}
 
-	leftEdge := leftEdges[0]
 	rightEdge := rightEdges[len(rightEdges)-1]
 
 	binEdges := make([]float64, 0, 1+len(leftEdges))
 	binEdges = append(binEdges, leftEdges...)
 	binEdges = append(binEdges, rightEdge)
 
-	if len(weights) > 32 {
-		binEdges, weights, err = reduceHistogram(
+	emitHistogram(binEdges, weights, emitter, tag, logger)
+}
+
+// processHistogramsProto handles a histo summary value.
+func processHistogramsProto(
+	emitter Emitter,
+	tag string,
+	histo *tbproto.HistogramProto,
+	logger *observability.CoreLogger,
+) {
+	rightEdges := histo.BucketLimit
+
+	binEdges := make([]float64, 0, 1+len(rightEdges))
+	binEdges = append(binEdges, histo.Min)
+	binEdges = append(binEdges, rightEdges...)
+
+	binWeights := histo.Bucket
+
+	emitHistogram(binEdges, binWeights, emitter, tag, logger)
+}
+
+func emitHistogram(
+	binEdges []float64,
+	binWeights []float64,
+	emitter Emitter,
+	tag string,
+	logger *observability.CoreLogger,
+) {
+	if len(binEdges) != 1+len(binWeights) {
+		logger.CaptureError(
+			errors.New("tensorboard: invalid histogram"),
+			"len(binEdges)", len(binEdges),
+			"len(binWeights)", len(binWeights))
+		return
+	}
+
+	if len(binWeights) > 32 {
+		var err error
+		binEdges, binWeights, err = reduceHistogram(
 			32,
-			leftEdge,
-			rightEdge,
-			weights,
+			binEdges[0],
+			binEdges[len(binEdges)-1],
+			binWeights,
 		)
 
 		if err != nil {
@@ -73,7 +122,7 @@ func processHistograms(
 
 	str, err := wbvalue.Histogram{
 		BinEdges:   binEdges,
-		BinWeights: weights,
+		BinWeights: binWeights,
 	}.HistoryValueJSON()
 	if err != nil {
 		logger.CaptureError(

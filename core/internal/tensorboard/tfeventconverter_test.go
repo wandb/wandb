@@ -287,6 +287,41 @@ func TestConvertHistogram(t *testing.T) {
 		emitter.EmitHistoryCalls)
 }
 
+func TestConvertHistogramProto(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	expectedHistogramJSON, err := wbvalue.Histogram{
+		BinEdges:   []float64{0.0, 0.5, 1.0, 1.5, 2.0, 2.5},
+		BinWeights: []float64{7, 5, 10, 11, 4},
+	}.HistoryValueJSON()
+	require.NoError(t, err)
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			&tbproto.Summary_Value{
+				Tag: "my_hist",
+				Value: &tbproto.Summary_Value_Histo{
+					Histo: &tbproto.HistogramProto{
+						Min:         0,
+						BucketLimit: []float64{0.5, 1.0, 1.5, 2.0, 2.5},
+						Bucket:      []float64{7, 5, 10, 11, 4},
+					},
+				},
+			}),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitHistory{
+			{
+				Key:       pathtree.PathOf("train/my_hist"),
+				ValueJSON: expectedHistogramJSON,
+			},
+		},
+		emitter.EmitHistoryCalls)
+}
+
 func TestConvertHistogramRebin(t *testing.T) {
 	// A histogram of 100 bins should be rebinned to 32 bins.
 	// Sum of weights should remain the same.
