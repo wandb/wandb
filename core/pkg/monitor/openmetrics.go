@@ -4,7 +4,9 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
+	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
@@ -184,69 +186,76 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 		defer resp.Body.Close()
 	}
 
-	if resp != nil && resp.StatusCode == 200 {
-		var parser expfmt.TextParser
-		metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
-		if err != nil {
-			o.logger.Error("Error parsing metrics", "error", err)
-			return nil, err
-		}
-
-		result := make(map[string]any)
-
-		for name, mf := range metricFamilies {
-			for _, m := range mf.Metric {
-				// only GAUGE and COUNTER metrics are supported
-				if m.Counter == nil && m.Gauge == nil {
-					continue
-				}
-
-				labels := make(map[string]string)
-				for _, label := range m.GetLabel() {
-					labels[label.GetName()] = label.GetValue()
-				}
-
-				if !ShouldCaptureMetric(o.Name(), name, labels, o.filters) {
-					continue
-				}
-
-				labelHash := o.generateLabelHash(labels)
-
-				if _, ok := o.labelMap[name]; !ok {
-					o.labelMap[name] = make(map[string]int)
-				}
-				if _, ok := o.labelMap[name][labelHash]; !ok {
-					o.labelMap[name][labelHash] = len(o.labelMap[name])
-					o.labelHashes[labelHash] = labels
-				}
-				index := o.labelMap[name][labelHash]
-
-				var value float64
-				if m.Gauge != nil {
-					value = m.Gauge.GetValue()
-				} else if m.Counter != nil {
-					value = m.Counter.GetValue()
-				}
-
-				// the frontend understands the format openmetrics.<endpoint>.<metric>.<index>
-				// and aggregates the metrics based on <index>, which is a unique identifier
-				// for the metric based on its labels. the openmetrics prefix is stripped off
-				// and not displayed in the frontend.
-				key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
-				result[key] = value
-			}
-		}
-
-		return result, nil
+	if resp == nil {
+		return nil, fmt.Errorf("could not fetch metrics from endpoint")
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	var parser expfmt.TextParser
+	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
+	if err != nil {
+		o.logger.Error("Error parsing metrics", "error", err)
+		return nil, err
+	}
+
+	result := make(map[string]any)
+
+	for name, mf := range metricFamilies {
+		for _, m := range mf.Metric {
+			// only GAUGE and COUNTER metrics are supported
+			if m.Counter == nil && m.Gauge == nil {
+				continue
+			}
+
+			labels := make(map[string]string)
+			for _, label := range m.GetLabel() {
+				labels[label.GetName()] = label.GetValue()
+			}
+
+			if !ShouldCaptureMetric(o.Name(), name, labels, o.filters) {
+				continue
+			}
+
+			labelHash := o.generateLabelHash(labels)
+
+			if _, ok := o.labelMap[name]; !ok {
+				o.labelMap[name] = make(map[string]int)
+			}
+			if _, ok := o.labelMap[name][labelHash]; !ok {
+				o.labelMap[name][labelHash] = len(o.labelMap[name])
+				o.labelHashes[labelHash] = labels
+			}
+			index := o.labelMap[name][labelHash]
+
+			var value float64
+			if m.Gauge != nil {
+				value = m.Gauge.GetValue()
+			} else if m.Counter != nil {
+				value = m.Counter.GetValue()
+			}
+
+			// the frontend understands the format openmetrics.<endpoint>.<metric>.<index>
+			// and aggregates the metrics based on <index>, which is a unique identifier
+			// for the metric based on its labels. the openmetrics prefix is stripped off
+			// and not displayed in the frontend.
+			key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
+			result[key] = value
+		}
+	}
+
+	return result, nil
 }
 
 // generateLabelHash creates a hash of the label map for consistent indexing.
 func (o *OpenMetrics) generateLabelHash(labels map[string]string) string {
-	labelStr := fmt.Sprintf("%v", labels)
-	hash := md5.Sum([]byte(labelStr))
+	var sb strings.Builder
+	for k, v := range labels {
+		sb.WriteString(k)
+		sb.WriteString(v)
+	}
+	hash := md5.Sum([]byte(sb.String()))
 	return hex.EncodeToString(hash[:])
 }
 
