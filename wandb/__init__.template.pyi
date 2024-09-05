@@ -79,7 +79,7 @@ from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
-__version__: str = "0.17.9"
+__version__: str = "0.17.10.dev1"
 
 run: Optional[Run] = None
 config = wandb_config.Config
