@@ -518,6 +518,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_TB:
 		go func() {
+			defer s.logger.Reraise()
 			s.tbHandler.Finish()
 			request.State++
 			s.fwdRequestDefer(request)
@@ -537,6 +538,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_OUTPUT:
 		go func() {
+			defer s.logger.Reraise()
 			s.consoleLogsSender.Finish()
 			request.State++
 			s.fwdRequestDefer(request)
@@ -554,6 +556,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
 		go func() {
+			defer s.logger.Reraise()
 			s.fileWatcher.Finish()
 			if s.fileTransferManager != nil {
 				s.runfilesUploader.UploadRemaining()
@@ -568,6 +571,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_FS:
 		go func() {
+			defer s.logger.Reraise()
 			if s.fileStream != nil {
 				if s.exitRecord != nil {
 					s.fileStream.FinishWithExit(
