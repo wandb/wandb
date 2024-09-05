@@ -163,6 +163,7 @@ func (g *GPUNvidia) Sample() (map[string]any, error) {
 	metrics := make(map[string]any)
 
 	for metric, value := range g.sample {
+		fmt.Println(metric, value)
 		// skip metrics that start with "_", some of which are internal metrics
 		// TODO: other metrics lack aggregation on the frontend; could be added in the future.
 		if strings.HasPrefix(metric, "_") {
