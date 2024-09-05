@@ -15,12 +15,52 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
+// Filter represents a filter to apply to metrics collected from an OpenMetrics endpoint.
+//
+// Provides a fine-grained control over which metrics to collect.
+// OpenMetrics filters can be specified via wandb.Settings in one of the two formats:
+//   - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
+//   - ("metric regex pattern 1", "metric regex pattern 2", ...)
+//
+// These are converted to a list of Filter objects using the processMappingFilters
+// and processSequenceFilters functions, respectively.
 type Filter struct {
 	MetricNameRegex string
 	LabelFilters    [][2]string
 }
 
-// metrics are collected on a best-effort basis, but we do allow for some retries
+// processSequenceFilters converts a sequence of metric regex patterns to a list of Filter objects.
+func processSequenceFilters(sequence *spb.ListStringValue) []Filter {
+	if sequence == nil {
+		return nil
+	}
+	result := make([]Filter, len(sequence.GetValue()))
+	for i, filter := range sequence.GetValue() {
+		result[i] = Filter{MetricNameRegex: filter}
+	}
+	return result
+}
+
+// processMappingFilters converts a mapping of metric regex patterns to label regex patterns
+// to a list of Filter objects.
+func processMappingFilters(mapping *spb.MapStringKeyMapStringKeyStringValue) []Filter {
+	if mapping == nil {
+		return nil
+	}
+	result := []Filter{}
+	for metricRegex, labelFilters := range mapping.GetValue() {
+		filter := Filter{MetricNameRegex: metricRegex}
+		for labelName, labelRegex := range labelFilters.GetValue() {
+			filter.LabelFilters = append(filter.LabelFilters, [2]string{labelName, labelRegex})
+		}
+		result = append(result, filter)
+	}
+	return result
+}
+
+// Constants for the default OpenMetrics HTTP client configuration.
+//
+// Metrics are collected on a best-effort basis, but we do allow for some retries.
 const (
 	DefaultOpenMetricsRetryMax     = 3
 	DefaultOpenMetricsRetryWaitMin = 1 * time.Second
@@ -39,32 +79,6 @@ type OpenMetrics struct {
 	logger      *observability.CoreLogger
 	labelMap    map[string]map[string]int
 	labelHashes map[string]map[string]string
-}
-
-func processSequenceFilters(sequence *spb.ListStringValue) []Filter {
-	if sequence == nil {
-		return nil
-	}
-	result := make([]Filter, len(sequence.GetValue()))
-	for i, filter := range sequence.GetValue() {
-		result[i] = Filter{MetricNameRegex: filter}
-	}
-	return result
-}
-
-func processMappingFilters(mapping *spb.MapStringKeyMapStringKeyStringValue) []Filter {
-	if mapping == nil {
-		return nil
-	}
-	result := []Filter{}
-	for metricRegex, labelFilters := range mapping.GetValue() {
-		filter := Filter{MetricNameRegex: metricRegex}
-		for labelName, labelRegex := range labelFilters.GetValue() {
-			filter.LabelFilters = append(filter.LabelFilters, [2]string{labelName, labelRegex})
-		}
-		result = append(result, filter)
-	}
-	return result
 }
 
 func NewOpenMetrics(
@@ -117,35 +131,7 @@ func NewOpenMetrics(
 
 func (o *OpenMetrics) Name() string { return o.name }
 
-type FilterMap map[string]map[string]string
-
-// // nestedDictToTuple converts a nested map to a slice of tuples
-// func nestedDictToTuple(nestedDict FilterMap) [][]string {
-// 	result := [][]string{}
-// 	for k, v := range nestedDict {
-// 		tuple := []string{k}
-// 		for k2, v2 := range v {
-// 			tuple = append(tuple, k2, v2)
-// 		}
-// 		result = append(result, tuple)
-// 	}
-// 	return result
-// }
-
-// // tupleToNestedDict converts a slice of tuples to a nested map
-// func tupleToNestedDict(nestedTuple [][]string) FilterMap {
-// 	result := FilterMap{}
-// 	for _, tuple := range nestedTuple {
-// 		k := tuple[0]
-// 		result[k] = make(map[string]string)
-// 		for i := 1; i < len(tuple); i += 2 {
-// 			result[k][tuple[i]] = tuple[i+1]
-// 		}
-// 	}
-// 	return result
-// }
-
-// shouldCaptureMetric checks if a metric should be captured based on the filters
+// ShouldCaptureMetric checks if a metric should be captured based on the filters.
 func ShouldCaptureMetric(
 	endpointName, metricName string,
 	metricLabels map[string]string,
@@ -188,6 +174,7 @@ func ShouldCaptureMetric(
 	return false
 }
 
+// Sample fetches and processes metrics from the OpenMetrics endpoint.
 func (o *OpenMetrics) Sample() (map[string]any, error) {
 	resp, err := o.client.Get(o.url)
 	if err != nil {
@@ -219,7 +206,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 					labels[label.GetName()] = label.GetValue()
 				}
 
-				if !ShouldCaptureMetric(o.name, name, labels, o.filters) {
+				if !ShouldCaptureMetric(o.Name(), name, labels, o.filters) {
 					continue
 				}
 
@@ -245,7 +232,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 				// and aggregates the metrics based on <index>, which is a unique identifier
 				// for the metric based on its labels. the openmetrics prefix is stripped off
 				// and not displayed in the frontend.
-				key := fmt.Sprintf("openmetrics.%s.%s.%d", o.name, name, index)
+				key := fmt.Sprintf("openmetrics.%s.%s.%d", o.Name(), name, index)
 				result[key] = value
 			}
 		}
@@ -256,12 +243,14 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 	return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 }
 
+// generateLabelHash creates a hash of the label map for consistent indexing.
 func (o *OpenMetrics) generateLabelHash(labels map[string]string) string {
 	labelStr := fmt.Sprintf("%v", labels)
 	hash := md5.Sum([]byte(labelStr))
 	return hex.EncodeToString(hash[:])
 }
 
+// IsAvailable checks if the OpenMetrics endpoint is accessible.
 func (o *OpenMetrics) IsAvailable() bool {
 	// try to fetch the metrics once to check if the endpoint is available
 	_, err := o.Sample()
