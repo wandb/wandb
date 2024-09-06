@@ -98,7 +98,7 @@ func processHistogramsProto(
 	var binEdges []float64
 	switch {
 	// TB defines the left-most bin's edges as (-inf, rightEdges[0]),
-	// but this bin's value is often set to 0 . If that's the case,
+	// but this bin's value is often set to 0. If that's the case,
 	// just drop the bin so that we only have finite width bins.
 	case binWeights[0] == 0:
 		binEdges = rightEdges
