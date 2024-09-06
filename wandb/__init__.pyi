@@ -147,7 +147,7 @@ def setup(
 
             # Optional: Explicitly shut down the backend
             wandb.teardown()
-    ```
+        ```
     """
     ...
 
@@ -400,7 +400,7 @@ def init(
         KeyboardInterrupt: if user interrupts the run.
 
     Returns:
-    A `Run` object.
+        A `Run` object.
     """
     ...
 
@@ -415,7 +415,7 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
         quiet: Set to true to minimize log output
 
     Returns:
-    None
+        None
     """
     ...
 
@@ -452,7 +452,7 @@ def login(
 
     Raises:
         AuthenticationError - if api_key fails verification with the server
-    UsageError - if api_key cannot be configured and no tty
+        UsageError - if api_key cannot be configured and no tty
     """
     ...
 
@@ -686,7 +686,7 @@ def log(
 
     Raises:
         wandb.Error: if called before `wandb.init`
-    ValueError: if invalid data is passed
+        ValueError: if invalid data is passed
     """
     ...
 
@@ -740,7 +740,7 @@ def save(
     Returns:
         Paths to the symlinks created for the matched files.
 
-    For historical reasons, this may return a boolean in legacy code.
+        For historical reasons, this may return a boolean in legacy code.
     """
     ...
 
@@ -777,7 +777,7 @@ def sweep(
       prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
-    sweep_id: str. A unique identifier for the sweep.
+      sweep_id: str. A unique identifier for the sweep.
     """
     ...
 
@@ -797,7 +797,7 @@ def controller(
         print(tuner.sweep_id)
         tuner.configure_search(...)
         tuner.configure_stopping(...)
-    ```
+        ```
     """
     ...
 
@@ -830,7 +830,7 @@ def agent(
         count: The number of sweep config trials to try.
 
     Returns:
-    None
+        None
     """
     ...
 
@@ -867,7 +867,7 @@ def define_metric(
             previous calls.
 
     Returns:
-    An object that represents this call but can otherwise be discarded.
+        An object that represents this call but can otherwise be discarded.
     """
     ...
 
@@ -898,7 +898,7 @@ def log_artifact(
             defaults to `["latest"]`
 
     Returns:
-    An `Artifact` object.
+        An `Artifact` object.
     """
     ...
 
@@ -925,7 +925,7 @@ def use_artifact(
                                    Will be shown in UI.
 
     Returns:
-    An `Artifact` object.
+        An `Artifact` object.
     """
     ...
 
@@ -971,7 +971,7 @@ def log_model(
         ValueError: if name has invalid special characters
 
     Returns:
-    None
+        None
     """
     ...
 
@@ -1012,7 +1012,7 @@ def use_model(name: str) -> FilePathStr:
         AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
 
     Returns:
-    path: (str) path to downloaded model artifact file(s).
+        path: (str) path to downloaded model artifact file(s).
     """
     ...
 
@@ -1083,6 +1083,6 @@ def link_model(
         ValueError: if name has invalid special characters
 
     Returns:
-    None
+        None
     """
     ...

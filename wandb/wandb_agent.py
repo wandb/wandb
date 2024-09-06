@@ -560,9 +560,6 @@ def agent(
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
-
-    Returns:
-        None
     """
     global _INSTANCES
     _INSTANCES += 1

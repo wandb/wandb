@@ -120,7 +120,7 @@ def generate_stubs(wandb_root: Path, template: str, generated_stub: str) -> None
             continue
 
         placeholder = f'"""<{source_info}>"""'
-        template_content = template_content.replace(placeholder, f'"""{docstring}"""')
+        template_content = template_content.replace(placeholder, f'"""{docstring}\n"""')
         print(f"Docstring updated for '{func_name}'.")
 
     output_path.write_text(template_content)

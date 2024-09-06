@@ -4356,9 +4356,6 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
     Arguments:
         exit_code: Set to something other than 0 to mark a run as failed
         quiet: Set to true to minimize log output
-
-    Returns:
-        None
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
