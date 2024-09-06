@@ -266,7 +266,7 @@ func (e *tfEmitter) EmitImage(
 ) error {
 	maybeRunFilePath, err := runRelativePath(
 		filepath.Join("media", "images"),
-		".png",
+		fmt.Sprintf(".%s", img.Format),
 	)
 	if err != nil {
 		return err
@@ -286,7 +286,7 @@ func (e *tfEmitter) EmitImage(
 	if err := os.MkdirAll(filepath.Dir(fsPath), 0777); err != nil {
 		return fmt.Errorf("error creating directory: %v", err)
 	}
-	if err := os.WriteFile(fsPath, img.PNG, 0644); err != nil {
+	if err := os.WriteFile(fsPath, img.EncodedData, 0644); err != nil {
 		return fmt.Errorf("error writing image to file: %v", err)
 	}
 
