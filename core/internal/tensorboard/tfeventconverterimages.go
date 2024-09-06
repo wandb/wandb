@@ -3,7 +3,6 @@ package tensorboard
 import (
 	"errors"
 	"fmt"
-	"slices"
 	"strconv"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -12,36 +11,49 @@ import (
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
-// processImages process data logged with `tf.summary.image()`.
+// processImages processes data logged with `tf.summary.image()`.
 func processImages(
 	emitter Emitter,
 	tag string,
 	value *tbproto.Summary_Value,
 	logger *observability.CoreLogger,
 ) {
-	tensorValue, ok := value.GetValue().(*tbproto.Summary_Value_Tensor)
-	if !ok {
+	switch x := value.GetValue().(type) {
+	case *tbproto.Summary_Value_Tensor:
+		processImagesTensor(emitter, tag, x.Tensor, logger)
+
+	case *tbproto.Summary_Value_Image:
+		processImagesProto(emitter, tag, x.Image, logger)
+
+	default:
 		logger.CaptureError(
 			fmt.Errorf(
-				"tensorboard: expected images value to be a Tensor"+
-					" but its type is %T",
+				"tensorboard: expected images summary to use 'image'"+
+					" or 'tensor' field but its type is %T",
 				value.GetValue()))
-		return
 	}
+}
 
-	if len(tensorValue.Tensor.StringVal) != 3 {
+// processImagesTensor processes a summary with an image in the 'tensor' field.
+func processImagesTensor(
+	emitter Emitter,
+	tag string,
+	tensorValue *tbproto.TensorProto,
+	logger *observability.CoreLogger,
+) {
+	if len(tensorValue.StringVal) != 3 {
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: expected images tensor string_val"+
 					" to have 3 values, but it has %d",
-				len(tensorValue.Tensor.StringVal)))
+				len(tensorValue.StringVal)))
 		return
 	}
 
 	// Format: https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/image/summary.py#L17-L18
-	width, err1 := strconv.Atoi(string(tensorValue.Tensor.StringVal[0]))
-	height, err2 := strconv.Atoi(string(tensorValue.Tensor.StringVal[1]))
-	png := tensorValue.Tensor.StringVal[2]
+	width, err1 := strconv.Atoi(string(tensorValue.StringVal[0]))
+	height, err2 := strconv.Atoi(string(tensorValue.StringVal[1]))
+	png := tensorValue.StringVal[2]
 	if err1 != nil || err2 != nil {
 		logger.CaptureError(
 			fmt.Errorf(
@@ -50,23 +62,43 @@ func processImages(
 		return
 	}
 
-	// Verify that the first 8 bytes are the PNG signature.
-	if len(png) < 8 || !slices.Equal(
-		png[:8],
-		[]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
-	) {
-		logger.CaptureError(errors.New("tensorboard: image is not PNG-encoded"))
-		return
+	emitImage(width, height, png, emitter, tag, logger)
+
+}
+
+// processImagesProto processes a summary with the 'image' field.
+func processImagesProto(
+	emitter Emitter,
+	tag string,
+	value *tbproto.Summary_Image,
+	logger *observability.CoreLogger,
+) {
+	emitImage(
+		int(value.Width),
+		int(value.Height),
+		value.EncodedImageString,
+		emitter,
+		tag,
+		logger,
+	)
+}
+
+func emitImage(
+	width int,
+	height int,
+	encodedData []byte,
+	emitter Emitter,
+	tag string,
+	logger *observability.CoreLogger,
+) {
+	image, err := wbvalue.ImageFromData(width, height, encodedData)
+	if err != nil {
+		logger.CaptureError(
+			fmt.Errorf("tensorboard: failed to read image: %v", err),
+			"tag", tag)
 	}
 
-	err := emitter.EmitImage(
-		pathtree.PathOf(tag),
-		wbvalue.Image{
-			PNG:    png,
-			Width:  width,
-			Height: height,
-		},
-	)
+	err = emitter.EmitImage(pathtree.PathOf(tag), image)
 	if err != nil {
 		logger.CaptureError(
 			fmt.Errorf(

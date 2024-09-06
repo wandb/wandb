@@ -59,6 +59,9 @@ func (h *TFEventConverter) ConvertNext(
 
 			case *tbproto.Summary_Value_Histo:
 				processHistogramsProto(emitter, tag, value.Histo, logger)
+
+			case *tbproto.Summary_Value_Image:
+				processImagesProto(emitter, tag, value.Image, logger)
 			}
 
 		case "scalars":
