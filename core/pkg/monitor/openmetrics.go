@@ -27,6 +27,41 @@ import (
 //
 // These are converted to a list of Filter objects using the processMappingFilters
 // and processSequenceFilters functions, respectively.
+//
+// The following code snippet demonstrates how to configure OpenMetrics filters
+// to capture only the metrics DCGM_FI_DEV_POWER_USAGE with the labels gpu="0" or gpu="1"
+// from node1 and 5 metrics with the label gpu=".*" from node2.
+//
+// run = wandb.init(
+//
+//	project="dcgm",
+//	settings=wandb.Settings(
+//	    _stats_open_metrics_endpoints={
+//	        "node1": "http://192.168.0.1:9400/metrics",
+//	        "node2": "http://192.168.0.2:9400/metrics",
+//	    },
+//	    _stats_open_metrics_filters={
+//	        "node1.DCGM_FI_DEV_POWER_USAGE": {
+//	            "gpu": "[0,1]",
+//	        },
+//	        "node2.DCGM_FI_DEV_(POWER_USAGE|MEM_COPY_UTIL|TOTAL_ENERGY_CONSUMPTION|GPU_TEMP|MEMORY_TEMP)": {
+//	            "gpu": ".*",
+//	        },
+//	    },
+//	),
+//
+// )
+//
+// The OpenMetrics endpoint at http://192.168.0.1:9400/metrics (designated `node1` by the user
+// in the settings) might expose the following metrics:
+//
+// # HELP DCGM_FI_DEV_POWER_USAGE Power draw (in W).
+// # TYPE DCGM_FI_DEV_POWER_USAGE gauge
+// DCGM_FI_DEV_POWER_USAGE{gpu="0",UUID="GPU-c601d117-58ff-cd30-ae20-529ab192ba51"} 99.9
+// DCGM_FI_DEV_POWER_USAGE{gpu="1",UUID="GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e"} 0.1
+// DCGM_FI_DEV_POWER_USAGE{gpu="2",UUID="GPU-a7c8aa83-d112-b463-3456-5fc2f3f2k43s"} 40.2
+//
+// The specified filter will capture only the metrics with lables gpu="0" and gpu="1" from node1.
 type Filter struct {
 	MetricNameRegex string
 	LabelFilters    []LabelFilter
@@ -79,14 +114,18 @@ const (
 // OpenMetrics is a monitor that collects metrics from an OpenMetrics endpoint.
 //
 // Supports only GAUGE and COUNTER metrics.
+//
+// The labels of the metrics are used to uniquely identify them. The labels are hashed
+// to generate a unique identifier for each metric. The unique identifier is used to
+// aggregate the metrics in the frontend.
 type OpenMetrics struct {
 	name        string
 	url         string
 	filters     []Filter
 	client      *retryablehttp.Client
 	logger      *observability.CoreLogger
-	labelMap    map[string]map[string]int
-	labelHashes map[string]map[string]string
+	labelMap    map[string]map[string]int    // metricName -> labelHash -> index
+	labelHashes map[string]map[string]string // labelHash -> labels
 	cache       *lru.Cache
 }
 
