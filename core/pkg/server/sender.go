@@ -517,9 +517,12 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_TB:
-		request.State++
-		s.tbHandler.Finish()
-		s.fwdRequestDefer(request)
+		go func() {
+			defer s.logger.Reraise()
+			s.tbHandler.Finish()
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_FLUSH_SUM:
 		s.summaryDebouncer.Flush(s.streamSummary)
 		s.summaryDebouncer.Stop()
@@ -534,9 +537,12 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_OUTPUT:
-		s.consoleLogsSender.Finish()
-		request.State++
-		s.fwdRequestDefer(request)
+		go func() {
+			defer s.logger.Reraise()
+			s.consoleLogsSender.Finish()
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_FLUSH_JOB:
 		s.sendJobFlush()
 		request.State++
@@ -549,29 +555,37 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		// updates to the runfiles uploader. The uploader creates file upload
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
-		s.fileWatcher.Finish()
-		if s.fileTransferManager != nil {
-			s.runfilesUploader.UploadRemaining()
-			s.runfilesUploader.Finish()
-			s.fileTransferManager.Close()
-		}
-		request.State++
-		s.fwdRequestDefer(request)
+		go func() {
+			defer s.logger.Reraise()
+			s.fileWatcher.Finish()
+			if s.fileTransferManager != nil {
+				s.runfilesUploader.UploadRemaining()
+				s.runfilesUploader.Finish()
+				s.fileTransferManager.Close()
+			}
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_JOIN_FP:
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_FS:
-		if s.fileStream != nil {
-			if s.exitRecord != nil {
-				s.fileStream.FinishWithExit(s.exitRecord.GetExit().GetExitCode())
-			} else {
-				s.logger.CaptureError(
-					fmt.Errorf("sender: no exit code on finish"))
-				s.fileStream.FinishWithoutExit()
+		go func() {
+			defer s.logger.Reraise()
+			if s.fileStream != nil {
+				if s.exitRecord != nil {
+					s.fileStream.FinishWithExit(
+						s.exitRecord.GetExit().GetExitCode(),
+					)
+				} else {
+					s.logger.CaptureError(
+						fmt.Errorf("sender: no exit code on finish"))
+					s.fileStream.FinishWithoutExit()
+				}
 			}
-		}
-		request.State++
-		s.fwdRequestDefer(request)
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_FLUSH_FINAL:
 		request.State++
 		s.fwdRequestDefer(request)

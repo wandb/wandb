@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.9.dev1"
+__version__ = "0.17.10.dev1"
 
 from typing import Optional
 
@@ -76,8 +76,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-# from wandb.core import *
-from wandb.viz import visualize
+from wandb.sdk.lib.viz import visualize
 from wandb import plot
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
