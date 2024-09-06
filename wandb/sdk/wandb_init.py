@@ -1157,6 +1157,7 @@ def init(
             mode if a user isn't logged in to W&B. (default: `False`)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
             tensorboardX and save the relevant events file. (default: `False`)
+        tensorboard: (bool, optional) Alias for `sync_tensorboard`, deprecated.
         monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
             See [our guide to this integration](https://docs.wandb.com/guides/integrations/openai-gym).
@@ -1170,6 +1171,12 @@ def init(
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
+        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to resume a run from. This allows users to truncate
+            the history logged to a run at an intermediate step and resume logging from that step.
+            It uses run forking under the hood. The target run must be in the
+            current project. Example: `resume_from="my-run-id?_step=1234"`.
+        settings: (dict, wandb.Settings, optional) Settings to use for this run. (default: None)
 
     Examples:
     ### Set where the run is logged

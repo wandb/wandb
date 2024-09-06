@@ -243,25 +243,10 @@ func (tb *TBHandler) updateRootDirFromLogDir(
 	tb.trackedDirs = append(tb.trackedDirs, newLogDir)
 
 	if len(tb.trackedDirs) > 1 {
-		longestPrefix := string(tb.trackedDirs[0])
+		rootDir, err := paths.LongestCommonPrefix(tb.trackedDirs)
 
-		for _, path := range tb.trackedDirs[1:] {
-			pathRunes := []rune(string(path))
-
-			for i, char := range longestPrefix {
-				if char != pathRunes[i] {
-					longestPrefix = longestPrefix[:i]
-					break
-				}
-			}
-		}
-
-		rootDir, err := paths.Absolute(longestPrefix)
 		if err != nil {
-			return fmt.Errorf(
-				"tensorboard: error while inferring root dir: %v",
-				err,
-			)
+			return fmt.Errorf("tensorboard: %v", err)
 		}
 
 		tb.rootDir = rootDir

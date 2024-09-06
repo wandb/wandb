@@ -6,14 +6,15 @@ import (
 	"fmt"
 	"image"
 	"path/filepath"
-	"slices"
 
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/pkg/utils"
 
 	// Import image codecs.
+	//
+	// NOTE: These imports are used for their side-effects.
 	_ "image/jpeg"
-	"image/png"
+	_ "image/png"
 )
 
 // Image is an image logged to a run.
@@ -21,8 +22,14 @@ import (
 // Images are uploaded as files in the run's media/images/ folder,
 // and metadata about them is saved in the run's history.
 type Image struct {
-	// PNG is the PNG encoding of the image.
-	PNG []byte
+	// EncodedData is the image encoded according to Format.
+	EncodedData []byte
+
+	// Format is the encoding used for the image.
+	//
+	// It should be the file extension for the image file as well.
+	// Known supported formats include "png", "jpeg", "bmp".
+	Format string
 
 	// Width is the image's width in pixels.
 	Width int
@@ -37,45 +44,24 @@ func ImageFromData(
 	height int,
 	encodedData []byte,
 ) (Image, error) {
-	var pngData []byte
+	config, format, err := image.DecodeConfig(bytes.NewReader(encodedData))
 
-	// Special case for PNG data which we can send directly.
-	if len(encodedData) >= 8 && slices.Equal(
-		encodedData[:8],
-		[]byte{0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A},
-	) {
-		pngData = encodedData
-	} else {
-		config, _, err := image.DecodeConfig(bytes.NewReader(encodedData))
-
-		if err != nil {
-			return Image{}, fmt.Errorf("failed to parse image format: %v", err)
-		}
-		if config.Height != height || config.Width != width {
-			return Image{}, fmt.Errorf(
-				"expected dimensions (%d, %d), but saw (%d, %d)",
-				width, height,
-				config.Width, config.Height,
-			)
-		}
-
-		img, _, err := image.Decode(bytes.NewReader(encodedData))
-		if err != nil {
-			return Image{}, fmt.Errorf("failed to decode image: %v", err)
-		}
-
-		pngDataBuf := bytes.Buffer{}
-		if err = png.Encode(&pngDataBuf, img); err != nil {
-			return Image{}, fmt.Errorf("failed to encode png: %v", err)
-		}
-
-		pngData = pngDataBuf.Bytes()
+	if err != nil {
+		return Image{}, fmt.Errorf("failed to parse image format: %v", err)
+	}
+	if config.Height != height || config.Width != width {
+		return Image{}, fmt.Errorf(
+			"expected dimensions (%d, %d), but saw (%d, %d)",
+			width, height,
+			config.Width, config.Height,
+		)
 	}
 
 	return Image{
-		PNG:    pngData,
-		Width:  width,
-		Height: height,
+		EncodedData: encodedData,
+		Format:      format,
+		Width:       width,
+		Height:      height,
 	}, nil
 }
 
@@ -86,9 +72,9 @@ func (img Image) HistoryValueJSON(filePath paths.RelativePath) (string, error) {
 	bytes, err := json.Marshal(map[string]any{
 		"_type":  "image-file",
 		"path":   filepath.ToSlash(string(filePath)),
-		"sha256": utils.ComputeSHA256(img.PNG),
+		"sha256": utils.ComputeSHA256(img.EncodedData),
 		"format": "png",
-		"size":   len(img.PNG),
+		"size":   len(img.EncodedData),
 		"width":  img.Width,
 		"height": img.Height,
 	})

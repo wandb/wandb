@@ -16,6 +16,16 @@ import (
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
+const testPNG2x4 = "" +
+	// PNG header
+	"\x89PNG\x0D\x0A\x1A\x0A" +
+	// Required IHDR chunk
+	"\x00\x00\x00\x0DIHDR" + // chunk length, "IHDR" magic
+	"\x00\x00\x00\x02" + // image width
+	"\x00\x00\x00\x04" + // image height
+	"\x01\x00\x00\x00\x00" + // buncha other stuff
+	"\x8C\x94\xD3\x94" // CRC-32 of "IHDR" and the chunk data
+
 func scalarValue(tag string, plugin string, value float32) *tbproto.Summary_Value {
 	return &tbproto.Summary_Value{
 		Tag: tag,
@@ -365,7 +375,7 @@ func TestConvertImage(t *testing.T) {
 		emitter,
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
-				"2", "4", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
+				"2", "4", testPNG2x4)),
 		observability.NewNoOpLogger(),
 	)
 
@@ -374,9 +384,10 @@ func TestConvertImage(t *testing.T) {
 			{
 				Key: pathtree.PathOf("train/my_img"),
 				Image: wbvalue.Image{
-					Width:  2,
-					Height: 4,
-					PNG:    []byte("\x89PNG\x0D\x0A\x1A\x0Acontent"),
+					Width:       2,
+					Height:      4,
+					EncodedData: []byte(testPNG2x4),
+					Format:      "png",
 				},
 			},
 		},
