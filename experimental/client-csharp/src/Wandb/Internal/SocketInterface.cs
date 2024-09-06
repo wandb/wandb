@@ -18,6 +18,12 @@ namespace Wandb.Internal
             await _tcpCommunication.Open(port);
         }
 
+        public async Task Inform(ServerRequest request)
+        {
+            byte[] data = request.ToByteArray();
+            await _tcpCommunication.Send(data);
+        }
+
         public async Task Publish(Record record)
         {
             byte[] data = record.ToByteArray();
@@ -30,7 +36,7 @@ namespace Wandb.Internal
             {
                 Run = new RunRecord
                 {
-
+                    RunId = run.Settings.GetRunId()
                 }
             };
             return await Deliver(record);

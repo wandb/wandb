@@ -1,6 +1,7 @@
-﻿using System;
-using System.Threading.Tasks;
+﻿using System.Text;
 using Wandb.Internal;
+
+
 
 namespace Wandb
 {
@@ -27,11 +28,17 @@ namespace Wandb
                 _isInitialized = true;
             }
 
-            // Here you would typically send a command to initialize a new run
-            // and receive a run ID or other necessary information
-            var runInfo = await _interface.Deliver(new byte[] { /* init run command */ });
+            RandomStringGenerator generator = new();
+            string runId = generator.GenerateRandomString(8);
 
-            return new Run(_interface, runInfo);
+            var settings = new Settings(
+                runId: runId
+            );
+
+            var run = new Run(_interface, settings);
+            await run.Init();
+
+            return run;
         }
 
         public void Dispose()

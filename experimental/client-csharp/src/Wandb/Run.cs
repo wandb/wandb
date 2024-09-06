@@ -8,24 +8,30 @@ namespace Wandb
     public class Run
     {
         private readonly SocketInterface _interface;
-        private readonly byte[] _runInfo;
+        public Settings Settings;
 
-        internal Run(SocketInterface @interface, byte[] runInfo)
+        internal Run(SocketInterface @interface, Settings settings)
         {
             _interface = @interface;
-            _runInfo = runInfo;
+            Settings = settings;
+        }
+
+        public async Task Init()
+        {
+            //
+            // await _interface.DeliverRun(this);
         }
 
         public async Task Log(object data)
         {
             byte[] serializedData = SerializeData(data);
-            await _interface.Publish(serializedData);
+            // await _interface.Publish(serializedData);
         }
 
         public async Task Finish()
         {
             // Send finish command
-            await _interface.Deliver(new byte[] { /* finish command */ });
+            // await _interface.Deliver(new byte[] { /* finish command */ });
         }
 
         private byte[] SerializeData(object data)
