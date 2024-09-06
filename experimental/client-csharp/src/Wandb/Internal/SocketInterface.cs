@@ -30,6 +30,18 @@ namespace Wandb.Internal
             return await Deliver(record);
         }
 
+        public async Task<Record> DeliverRunStart()
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    RunStart = new RunStartRequest()
+                }
+            };
+            return await Deliver(record);
+        }
+
         public async Task<Record> Deliver(Record record)
         {
             ServerRequest request = new ServerRequest
@@ -38,7 +50,18 @@ namespace Wandb.Internal
             };
 
             return await SendAndRecv(request);
+        }
 
+        public async Task PublishPartialHistory()
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    PartialHistory = new PartialHistoryRequest()
+                }
+            };
+            await Publish(record);
         }
 
         public async Task Publish(Record record)
