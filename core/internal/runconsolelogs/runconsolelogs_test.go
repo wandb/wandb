@@ -8,7 +8,8 @@ import (
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
-	"github.com/wandb/wandb/core/internal/runworktest"
+	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/runfilestest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -26,8 +27,10 @@ func TestFileStreamUpdates(t *testing.T) {
 		ConsoleOutputFile: *outputFile,
 		Settings:          settings,
 		Logger:            observability.NewNoOpLogger(),
-		ExtraWork:         runworktest.New(),
-		FileStreamOrNil:   fileStream,
+		RunfilesUploaderOrNil: runfiles.NewUploader(
+			runfilestest.WithTestDefaults(runfiles.UploaderParams{}),
+		),
+		FileStreamOrNil: fileStream,
 		GetNow: func() time.Time {
 			return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		},
