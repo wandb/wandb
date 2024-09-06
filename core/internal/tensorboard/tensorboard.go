@@ -168,10 +168,12 @@ func (tb *TBHandler) startStream(
 		// We may have to wait a short time for the root directory if
 		// it is not set explicitly.
 		var rootDir paths.AbsolutePath
+		var namespace string
 		if explicitRootDir != nil {
 			rootDir = *explicitRootDir
+			namespace = tb.getNamespace(logDir, rootDir)
 		} else {
-			inferredRootDir, err := tb.inferRootDir()
+			inferredRootDir, inferredNamespace, err := tb.inferRootDirAndNamespace(logDir)
 
 			if err != nil {
 				tb.logger.CaptureError(
@@ -184,17 +186,13 @@ func (tb *TBHandler) startStream(
 			}
 
 			rootDir = *inferredRootDir
+			namespace = inferredNamespace
 		}
 
 		stream.Start()
 		tb.startWG.Done()
 
-		tb.watch(
-			stream,
-			tb.getNamespace(logDir, rootDir),
-			rootDir,
-			shouldSave,
-		)
+		tb.watch(stream, namespace, rootDir, shouldSave)
 	}()
 }
 
@@ -256,10 +254,14 @@ func (tb *TBHandler) updateRootDirFromLogDir(
 	return nil
 }
 
-// inferRootDir blocks until rootDir is set.
+// inferRootDirAndNamespace blocks until rootDir is set, then uses
+// it to infer a namespace for the given log directory.
 //
-// After a timeout, this just returns the current working directory.
-func (tb *TBHandler) inferRootDir() (*paths.AbsolutePath, error) {
+// After a timeout, this just returns the current working directory
+// and an empty namespace.
+func (tb *TBHandler) inferRootDirAndNamespace(
+	logDir paths.AbsolutePath,
+) (*paths.AbsolutePath, string, error) {
 	resultChan := make(chan paths.AbsolutePath, 1)
 	go func() {
 		tb.rootDirCond.L.Lock()
@@ -281,9 +283,14 @@ func (tb *TBHandler) inferRootDir() (*paths.AbsolutePath, error) {
 	// then we just default to the current working directory as a root.
 	select {
 	case result := <-resultChan:
-		return &result, nil
+		return &result, "", nil
 	case <-time.After(10 * time.Second):
-		return paths.CWD()
+		cwd, err := paths.CWD()
+		if err != nil {
+			return nil, "", fmt.Errorf("error getting working directory: %v", err)
+		}
+
+		return cwd, tb.getNamespace(logDir, *cwd), nil
 	}
 }
 
