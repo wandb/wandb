@@ -1,15 +1,10 @@
 """Tests for tensorboardX integration."""
 
-import pytest
 import torch
 import wandb
 from tensorboardX import SummaryWriter
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="mismatched implementation details",
-)
 def test_add_scalar(wandb_init, relay_server):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:
@@ -28,10 +23,6 @@ def test_add_scalar(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="mismatched implementation details",
-)
 def test_add_image(wandb_init, relay_server):
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True) as run:

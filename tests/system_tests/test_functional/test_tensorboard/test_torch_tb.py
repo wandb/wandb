@@ -10,9 +10,6 @@ import wandb
 from torch.utils.tensorboard import SummaryWriter
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="hangs on processing tensorboard data"
-)
 def test_add_scalar(wandb_init, relay_server):
     """Test adding a scalar to TensorBoard and syncing it to W&B."""
 
@@ -38,10 +35,6 @@ def test_add_scalar(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data and missing implementation of old style TensorBoard",
-)
 def test_add_scalars(wandb_init, relay_server):
     """Test adding multiple scalars to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -76,9 +69,6 @@ def test_add_scalars(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="missing implementation of old style TensorBoard"
-)
 def test_add_image(wandb_init, relay_server):
     """Test adding an image to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -108,10 +98,6 @@ def test_add_image(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data and missing implementation of old style TensorBoard",
-)
 def test_add_images(wandb_init, relay_server):
     """Test adding multiple images to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -141,10 +127,6 @@ def test_add_images(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="missing implementation of old style TensorBoard and hangs on processing data",
-)
 def test_add_histogram(wandb_init, relay_server):
     """Test adding a histogram to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -167,10 +149,6 @@ def test_add_histogram(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="missing implementation of old style TensorBoard",
-)
 def test_add_histogram_raw(wandb_init, relay_server):
     """Test adding a histogram with raw data to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -209,9 +187,6 @@ def test_add_histogram_raw(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard", reason="old style TensorBoard not implemented"
-)
 def test_add_pr_curve(wandb_init, relay_server):
     """Test adding a precision-recall curve to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:

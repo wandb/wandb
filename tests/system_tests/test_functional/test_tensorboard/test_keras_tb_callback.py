@@ -4,7 +4,6 @@ Test that the Keras TensorBoard callback works with W&B.
 
 import keras
 import numpy as np
-import pytest
 import tensorflow as tf
 import wandb
 
@@ -19,10 +18,6 @@ class MyModel(keras.Model):
         return outputs
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
 def test_tb_callback(relay_server, wandb_init):
     with relay_server() as relay:
         with wandb.init(sync_tensorboard=True):
