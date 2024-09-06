@@ -24,6 +24,19 @@ namespace Wandb.Internal
             await _tcpCommunication.Send(data);
         }
 
+        public async Task<Record> DeliverRun(Run run)
+        {
+            var record = new Record
+            {
+                Run = new RunRecord
+                {
+
+                }
+            };
+            return await Deliver(record);
+        }
+
+
         public async Task<Record> Deliver(Record record)
         {
             byte[] data = record.ToByteArray();
