@@ -3,6 +3,7 @@ package tensorboard
 import (
 	"errors"
 	"fmt"
+	"runtime/debug"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
@@ -17,17 +18,30 @@ func processHistograms(
 	value *tbproto.Summary_Value,
 	logger *observability.CoreLogger,
 ) {
-	tensorValue, ok := value.GetValue().(*tbproto.Summary_Value_Tensor)
-	if !ok {
+	switch value := value.GetValue().(type) {
+	case *tbproto.Summary_Value_Tensor:
+		processHistogramsTensor(emitter, tag, value.Tensor, logger)
+
+	case *tbproto.Summary_Value_Histo:
+		processHistogramsProto(emitter, tag, value.Histo, logger)
+
+	default:
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: expected histograms value to be a Tensor"+
-					" but its type is %T",
-				value.GetValue()))
-		return
+					" or HistogramProto but its type is %T",
+				value))
 	}
+}
 
-	tensor, err := tensorFromProto(tensorValue.Tensor)
+// processHistogramsTensor handles a tensor summary value as a histogram.
+func processHistogramsTensor(
+	emitter Emitter,
+	tag string,
+	tensorValue *tbproto.TensorProto,
+	logger *observability.CoreLogger,
+) {
+	tensor, err := tensorFromProto(tensorValue)
 	if err != nil {
 		logger.CaptureError(
 			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
@@ -49,19 +63,85 @@ func processHistograms(
 		return
 	}
 
-	leftEdge := leftEdges[0]
 	rightEdge := rightEdges[len(rightEdges)-1]
 
 	binEdges := make([]float64, 0, 1+len(leftEdges))
 	binEdges = append(binEdges, leftEdges...)
 	binEdges = append(binEdges, rightEdge)
 
-	if len(weights) > 32 {
-		binEdges, weights, err = reduceHistogram(
+	emitHistogram(binEdges, weights, emitter, tag, logger)
+}
+
+// processHistogramsProto handles a histo summary value.
+func processHistogramsProto(
+	emitter Emitter,
+	tag string,
+	histo *tbproto.HistogramProto,
+	logger *observability.CoreLogger,
+) {
+	rightEdges := histo.BucketLimit
+	binWeights := histo.Bucket
+
+	if len(rightEdges) == 0 {
+		logger.CaptureError(
+			errors.New("tensorboard: invalid histogram: empty BucketLimit"),
+			"tag", tag)
+		return
+	}
+	if len(rightEdges) != len(binWeights) {
+		logger.CaptureError(
+			errors.New("tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)"),
+			"tag", tag)
+		return
+	}
+
+	var binEdges []float64
+	switch {
+	// TB defines the left-most bin's edges as (-inf, rightEdges[0]),
+	// but this bin's value is often set to 0. If that's the case,
+	// just drop the bin so that we only have finite width bins.
+	case binWeights[0] == 0:
+		binEdges = rightEdges
+		binWeights = binWeights[1:]
+
+	// If the left bin has a count, try using histo.Min as its
+	// leftmost edge.
+	case histo.Min < rightEdges[0]:
+		binEdges = make([]float64, 0, 1+len(rightEdges))
+		binEdges = append(binEdges, histo.Min)
+		binEdges = append(binEdges, rightEdges...)
+
+	default:
+		logger.CaptureError(
+			errors.New("tensorboard: invalid histogram: histo.Min >= rightEdges[0]"),
+			"tag", tag)
+		return
+	}
+
+	emitHistogram(binEdges, binWeights, emitter, tag, logger)
+}
+
+func emitHistogram(
+	binEdges []float64,
+	binWeights []float64,
+	emitter Emitter,
+	tag string,
+	logger *observability.CoreLogger,
+) {
+	if len(binEdges) != 1+len(binWeights) {
+		logger.CaptureError(
+			errors.New("tensorboard: invalid histogram"),
+			"len(binEdges)", len(binEdges),
+			"len(binWeights)", len(binWeights))
+		return
+	}
+
+	if len(binWeights) > 32 {
+		var err error
+		binEdges, binWeights, err = reduceHistogram(
 			32,
-			leftEdge,
-			rightEdge,
-			weights,
+			binEdges,
+			binWeights,
 		)
 
 		if err != nil {
@@ -73,7 +153,7 @@ func processHistograms(
 
 	str, err := wbvalue.Histogram{
 		BinEdges:   binEdges,
-		BinWeights: weights,
+		BinWeights: binWeights,
 	}.HistoryValueJSON()
 	if err != nil {
 		logger.CaptureError(
@@ -84,69 +164,124 @@ func processHistograms(
 	emitter.EmitHistory(pathtree.PathOf(tag), str)
 }
 
-// reduceHistogram returns a histogram with fewer bins preserving their total.
-//
-// The input histogram is assumed to consist of adjacent, equal-width bins.
-// This is consistent with the current TensorBoard histogram summary
-// implementation:
-//
-// https://github.com/tensorflow/tensorboard/blob/b56c65521cbccf3097414cbd7e30e55902e08cab/tensorboard/plugins/histogram/summary.py#L94
+// reduceHistogram returns a histogram with fewer bins preserving their total
+// and the bin edge distribution.
 func reduceHistogram(
 	desiredBins int,
-	leftEdge float64,
-	rightEdge float64,
+	oldEdges []float64,
 	oldWeights []float64,
 ) (newEdges []float64, newWeights []float64, err error) {
-	if desiredBins >= len(oldWeights) {
-		return nil, nil, fmt.Errorf(
-			"%d is not smaller than %d",
-			desiredBins, len(oldWeights))
-	}
-	if rightEdge <= leftEdge {
-		return nil, nil, fmt.Errorf(
-			"histogram right edge is %f, which is <= %f",
-			rightEdge, leftEdge)
-	}
+	// There are many array accesses that are safe but only
+	// due to non-obvious arithmetic reasons, so catch all
+	// panics just in case.
+	defer func() {
+		if recoveredErr := recover(); recoveredErr != nil {
+			newEdges = nil
+			newWeights = nil
+			err = fmt.Errorf(
+				"panic: %v\n%s",
+				recoveredErr,
+				string(debug.Stack()),
+			)
+		}
+	}()
 
-	oldBinWidth := (rightEdge - leftEdge) / float64(len(oldWeights))
-	newBinWidth := (rightEdge - leftEdge) / float64(desiredBins)
-
-	newEdges = make([]float64, desiredBins+1)
-	newEdges[0] = leftEdge
-	for i := 1; i <= desiredBins; i++ {
-		newEdges[i] = leftEdge + newBinWidth*float64(i)
+	newEdges, err = reduceEdges(desiredBins, oldEdges)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	newWeights = make([]float64, desiredBins)
-	for i, x := range oldWeights {
-		oldLeftEdge := leftEdge + oldBinWidth*float64(i)
-		oldRightEdge := oldLeftEdge + oldBinWidth
+	oldBinIdx := 0
 
-		firstBinIdx := int((oldLeftEdge - leftEdge) / newBinWidth)
-		lastBinIdx := int((oldRightEdge - leftEdge) / newBinWidth)
+	for newBinIdx := 0; newBinIdx < desiredBins; newBinIdx++ {
+		// Add whole old bins to the new bin.
+		//
+		// oldBinIdx cannot go out of bounds because the final
+		// edges in oldEdges and newEdges are equal.
+		for oldEdges[oldBinIdx+1] < newEdges[newBinIdx+1] {
+			newWeights[newBinIdx] += oldWeights[oldBinIdx]
+			oldBinIdx++
+		}
 
-		// On the last value, lastBinIdx is 1+len(newWeights).
-		// Clamp defensively to avoid panics.
-		firstBinIdx = max(0, min(len(newWeights)-1, firstBinIdx))
-		lastBinIdx = max(0, min(len(newWeights)-1, lastBinIdx))
+		// If the new bin's right edge is between two old edges,
+		// add a fraction of the old bin to the current new bin,
+		// and the rest to the next new bin.
+		oldLeftEdge := oldEdges[oldBinIdx]
+		oldRightEdge := oldEdges[oldBinIdx+1]
+		newRightEdge := newEdges[newBinIdx+1]
 
-		// NOTE: len(newEdges) == len(newWeights)+1 so this is safe.
-		firstBinRightEdge := newEdges[firstBinIdx+1]
-		lastBinLeftEdge := newEdges[lastBinIdx]
+		if newRightEdge <= oldRightEdge {
+			frac := (newRightEdge - oldLeftEdge) / (oldRightEdge - oldLeftEdge)
 
-		// The first bin may contain all or part of the original weight.
-		newWeights[firstBinIdx] += x *
-			((min(firstBinRightEdge, oldRightEdge) - oldLeftEdge) / oldBinWidth)
+			newWeights[newBinIdx] += frac * oldWeights[oldBinIdx]
+			newWeights[min(
+				newBinIdx+1,
+				len(newWeights)-1,
+			)] += (1 - frac) * oldWeights[oldBinIdx]
 
-		// The last bin, if different from the first, gets the remainder
-		// of the original weight. Here, it must be true that:
-		//   * leftBinEdge < lastBinLeftEdge <= oldRightEdge
-		//   * lastBinIdx == firstBinIdx+1
-		if lastBinIdx > firstBinIdx {
-			newWeights[lastBinIdx] +=
-				x * ((oldRightEdge - lastBinLeftEdge) / oldBinWidth)
+			oldBinIdx++
 		}
 	}
 
 	return
+}
+
+func reduceEdges(
+	desiredBins int,
+	oldEdges []float64,
+) ([]float64, error) {
+	if len(oldEdges) < 1 {
+		return nil, errors.New("invalid histogram")
+	}
+
+	oldBinCount := len(oldEdges) - 1
+
+	if desiredBins >= oldBinCount {
+		return nil, fmt.Errorf(
+			"%d is not smaller than %d",
+			desiredBins, oldBinCount)
+	}
+
+	oldEdgeIdxStep := oldBinCount / desiredBins
+	oldEdgeIdxFracStep := oldBinCount % desiredBins
+
+	newEdges := make([]float64, desiredBins+1)
+	newEdges[0] = oldEdges[0]
+	newEdges[desiredBins] = oldEdges[oldBinCount]
+
+	// Use a fractional index to avoid floating-point arithmetic.
+	//
+	// Using '/' to denote float division, our position in
+	// the oldEdges array is given by
+	//     oldEdgeIdx + oldEdgeIdxFrac / desiredBins
+	// and it increases by
+	//     oldBinCount / desiredBins
+	// after each iteration.
+	//
+	// Using integers avoids precision errors and ensures
+	//     oldEdgeIdx = floor(newEdgeIdx * oldBinCount / desiredBins)
+	//                < floor(desiredBins * oldBinCount / desiredBins)
+	//                = oldBinCount
+	//                = len(oldEdges) - 1
+	oldEdgeIdx := oldEdgeIdxStep
+	oldEdgeIdxFrac := oldEdgeIdxFracStep
+
+	for newEdgeIdx := 1; newEdgeIdx < desiredBins; newEdgeIdx++ {
+		oldEdge1 := oldEdges[oldEdgeIdx]
+		oldEdge2 := oldEdges[oldEdgeIdx+1] // guaranteed safe, see above
+
+		newEdges[newEdgeIdx] = oldEdge1 +
+			(oldEdge2-oldEdge1)*
+				(float64(oldEdgeIdxFrac)/float64(desiredBins))
+
+		oldEdgeIdx += oldEdgeIdxStep
+		oldEdgeIdxFrac += oldEdgeIdxFracStep
+		if oldEdgeIdxFrac >= desiredBins {
+			oldEdgeIdx++
+			oldEdgeIdxFrac -= desiredBins
+		}
+	}
+
+	return newEdges, nil
 }
