@@ -95,7 +95,6 @@ func New(params Params) *Sender {
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		params.ExtraWork.BeforeEndCtx(),
 		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				fileWriter.WriteToFile(lines)
