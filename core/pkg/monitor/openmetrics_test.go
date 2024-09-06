@@ -114,7 +114,7 @@ func TestMetricFilters(t *testing.T) {
 			filters: []monitor.Filter{
 				{
 					MetricNameRegex: ".*DCGM_FI_DEV_POWER_USAGE",
-					LabelFilters:    [][2]string{{"pod", "wandb-.*"}},
+					LabelFilters:    []monitor.LabelFilter{{"pod", "wandb-.*"}},
 				},
 			},
 			endpointName:  "node1",
@@ -126,7 +126,7 @@ func TestMetricFilters(t *testing.T) {
 			filters: []monitor.Filter{
 				{
 					MetricNameRegex: ".*DCGM_FI_DEV_POWER_USAGE",
-					LabelFilters:    [][2]string{{"pod", "^wandb-.*"}},
+					LabelFilters:    []monitor.LabelFilter{{"pod", "^wandb-.*"}},
 				},
 			},
 			endpointName:  "node2",
@@ -160,7 +160,7 @@ func TestMetricFilters(t *testing.T) {
 			filters: []monitor.Filter{
 				{
 					MetricNameRegex: ".*DCGM_.*",
-					LabelFilters:    [][2]string{{"pod", "wandb-.*"}},
+					LabelFilters:    []monitor.LabelFilter{{"pod", "wandb-.*"}},
 				},
 			},
 			endpointName:  "node6",
@@ -172,7 +172,7 @@ func TestMetricFilters(t *testing.T) {
 			filters: []monitor.Filter{
 				{
 					MetricNameRegex: ".*DCGM_.*",
-					LabelFilters:    [][2]string{{"pod", "^wandb-.*"}},
+					LabelFilters:    []monitor.LabelFilter{{"pod", "^wandb-.*"}},
 				},
 			},
 			endpointName:  "node7",
@@ -184,7 +184,7 @@ func TestMetricFilters(t *testing.T) {
 			filters: []monitor.Filter{
 				{
 					MetricNameRegex: "node[0-9].DCGM_.*",
-					LabelFilters:    [][2]string{{"pod", "wandb-.*"}},
+					LabelFilters:    []monitor.LabelFilter{{"pod", "wandb-.*"}},
 				},
 			},
 			endpointName:  "node8",
@@ -196,7 +196,7 @@ func TestMetricFilters(t *testing.T) {
 			filters: []monitor.Filter{
 				{
 					MetricNameRegex: "node[0-7].DCGM_.*",
-					LabelFilters:    [][2]string{{"pod", "wandb-.*"}},
+					LabelFilters:    []monitor.LabelFilter{{"pod", "wandb-.*"}},
 				},
 			},
 			endpointName:  "node8",
@@ -206,14 +206,12 @@ func TestMetricFilters(t *testing.T) {
 		},
 	}
 
+	logger := observability.NewNoOpLogger()
 	for i, tc := range testCases {
 		t.Run(fmt.Sprintf("Case %d", i), func(t *testing.T) {
-			result := monitor.ShouldCaptureMetric(
-				tc.endpointName,
-				tc.metricName,
-				tc.metricLabels,
-				tc.filters,
-			)
+			om := monitor.NewOpenMetrics(logger, tc.endpointName, "http://localhost:9400", nil, nil)
+			om.SetFilters(tc.filters)
+			result := om.ShouldCaptureMetric(tc.metricName, tc.metricLabels)
 			assert.Equal(t, tc.shouldCapture, result)
 		})
 	}
@@ -256,4 +254,34 @@ func TestIntermittentFailure(t *testing.T) {
 
 	// Verify that we made more requests than samples due to retries
 	assert.Greater(t, requestCount.Load(), int32(2), "Expected more requests than samples due to retries")
+}
+
+func TestCache(t *testing.T) {
+	logger := observability.NewNoOpLogger()
+	om := monitor.NewOpenMetrics(logger, "dcgm", "http://localhost:9400", nil, nil)
+
+	filters := []monitor.Filter{
+		{
+			MetricNameRegex: ".*DCGM_FI_DEV_POWER_USAGE",
+			LabelFilters:    []monitor.LabelFilter{{"pod", "wandb-.*"}},
+		},
+	}
+	om.SetFilters(filters)
+	metricName := "DCGM_FI_DEV_POWER_USAGE"
+	metricLabels := map[string]string{"pod": "wandb-1337"}
+
+	hash := om.GenerateLabelHash(metricLabels)
+	// check that metricName+hash is not in the cache
+	_, ok := om.Cache().Get(metricName + hash)
+	assert.False(t, ok)
+
+	om.ShouldCaptureMetric(metricName, metricLabels)
+	// check that metricName+hash is in the cache
+	_, ok = om.Cache().Get(metricName + hash)
+	assert.True(t, ok)
+
+	om.ShouldCaptureMetric(metricName, metricLabels)
+	// check that metricName+hash is in the cache
+	_, ok = om.Cache().Get(metricName + hash)
+	assert.True(t, ok)
 }

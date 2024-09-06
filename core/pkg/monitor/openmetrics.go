@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -28,7 +29,12 @@ import (
 // and processSequenceFilters functions, respectively.
 type Filter struct {
 	MetricNameRegex string
-	LabelFilters    [][2]string
+	LabelFilters    []LabelFilter
+}
+
+type LabelFilter struct {
+	LabelName  string
+	LabelRegex string
 }
 
 // processSequenceFilters converts a sequence of metric regex patterns to a list of Filter objects.
@@ -53,7 +59,7 @@ func processMappingFilters(mapping *spb.MapStringKeyMapStringKeyStringValue) []F
 	for metricRegex, labelFilters := range mapping.GetValue() {
 		filter := Filter{MetricNameRegex: metricRegex}
 		for labelName, labelRegex := range labelFilters.GetValue() {
-			filter.LabelFilters = append(filter.LabelFilters, [2]string{labelName, labelRegex})
+			filter.LabelFilters = append(filter.LabelFilters, LabelFilter{labelName, labelRegex})
 		}
 		result = append(result, filter)
 	}
@@ -81,6 +87,7 @@ type OpenMetrics struct {
 	logger      *observability.CoreLogger
 	labelMap    map[string]map[string]int
 	labelHashes map[string]map[string]string
+	cache       *lru.Cache
 }
 
 func NewOpenMetrics(
@@ -118,6 +125,13 @@ func NewOpenMetrics(
 		}
 	}
 
+	// cache to use with ShouldCaptureMetric
+	cache, err := lru.New(100)
+	if err != nil {
+		logger.Error("openmetrics: error creating cache", "error", err)
+		return nil
+	}
+
 	om := &OpenMetrics{
 		name:        name,
 		url:         url,
@@ -126,6 +140,7 @@ func NewOpenMetrics(
 		logger:      logger,
 		labelMap:    make(map[string]map[string]int),
 		labelHashes: make(map[string]map[string]string),
+		cache:       cache,
 	}
 
 	return om
@@ -133,45 +148,63 @@ func NewOpenMetrics(
 
 func (o *OpenMetrics) Name() string { return o.name }
 
+func (o *OpenMetrics) SetFilters(filters []Filter) {
+	o.filters = filters
+}
+
+func (o *OpenMetrics) Cache() *lru.Cache {
+	return o.cache
+}
+
 // ShouldCaptureMetric checks if a metric should be captured based on the filters.
-func ShouldCaptureMetric(
-	endpointName, metricName string,
-	metricLabels map[string]string,
-	filters []Filter,
-) bool {
-	if len(filters) == 0 {
+func (o *OpenMetrics) ShouldCaptureMetric(metricName string, metricLabels map[string]string) bool {
+	if len(o.filters) == 0 {
 		return true // If no filters, capture all metrics
 	}
 
-	fullMetricName := fmt.Sprintf("%s.%s", endpointName, metricName)
+	// generate a hash of metricName and metricLabels to avoid recomputing it
+	// for the same metric
+	hash := o.GenerateLabelHash(metricLabels)
+	if shouldCapture, ok := o.cache.Get(metricName + hash); ok {
+		return shouldCapture.(bool)
+	}
 
-	for _, filter := range filters {
+	var shouldCapture bool
+
+	fullMetricName := fmt.Sprintf("%s.%s", o.Name(), metricName)
+
+	for _, filter := range o.filters {
 		if match, _ := regexp.MatchString(filter.MetricNameRegex, fullMetricName); !match {
 			continue
 		}
 
+		// if only metric name regex is provided, capture the metric.
 		if len(filter.LabelFilters) == 0 {
-			return true // If only metric name regex is provided, capture the metric
+			o.cache.Add(metricName+hash, true)
+			return true
 		}
 
-		shouldCapture := true
+		shouldCapture = true
 		for _, labelFilter := range filter.LabelFilters {
-			labelName, labelRegex := labelFilter[0], labelFilter[1]
-			if labelValue, ok := metricLabels[labelName]; !ok {
+			if labelValue, ok := metricLabels[labelFilter.LabelName]; !ok {
 				shouldCapture = false
 				break
 			} else {
-				if match, _ := regexp.MatchString(labelRegex, labelValue); !match {
+				if match, _ := regexp.MatchString(labelFilter.LabelRegex, labelValue); !match {
 					shouldCapture = false
 					break
 				}
 			}
 		}
 
+		o.cache.Add(metricName+hash, shouldCapture)
+
 		if shouldCapture {
 			return true
 		}
 	}
+
+	o.cache.Add(metricName+hash, false)
 
 	return false
 }
@@ -214,11 +247,11 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 				labels[label.GetName()] = label.GetValue()
 			}
 
-			if !ShouldCaptureMetric(o.Name(), name, labels, o.filters) {
+			if !o.ShouldCaptureMetric(name, labels) {
 				continue
 			}
 
-			labelHash := o.generateLabelHash(labels)
+			labelHash := o.GenerateLabelHash(labels)
 
 			if _, ok := o.labelMap[name]; !ok {
 				o.labelMap[name] = make(map[string]int)
@@ -249,7 +282,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 }
 
 // generateLabelHash creates a hash of the label map for consistent indexing.
-func (o *OpenMetrics) generateLabelHash(labels map[string]string) string {
+func (o *OpenMetrics) GenerateLabelHash(labels map[string]string) string {
 	var sb strings.Builder
 	for k, v := range labels {
 		sb.WriteString(k)
