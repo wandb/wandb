@@ -397,7 +397,7 @@ func TestConvertImage_NotPNG(t *testing.T) {
 	)
 
 	assert.Empty(t, emitter.EmitImageCalls)
-	assert.Contains(t, logs.String(), "image is not PNG-encoded")
+	assert.Contains(t, logs.String(), "failed to parse image format")
 }
 
 func TestConvertImage_BadDims(t *testing.T) {

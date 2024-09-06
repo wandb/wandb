@@ -96,6 +96,7 @@ func emitImage(
 		logger.CaptureError(
 			fmt.Errorf("tensorboard: failed to read image: %v", err),
 			"tag", tag)
+		return
 	}
 
 	err = emitter.EmitImage(pathtree.PathOf(tag), image)
