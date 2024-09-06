@@ -1,5 +1,6 @@
-using System;
-using System.Threading.Tasks;
+using Google.Protobuf;
+using WandbInternal;
+
 
 namespace Wandb.Internal
 {
@@ -17,15 +18,19 @@ namespace Wandb.Internal
             await _tcpCommunication.Open(port);
         }
 
-        public async Task Publish(byte[] data)
+        public async Task Publish(Record record)
         {
+            byte[] data = record.ToByteArray();
             await _tcpCommunication.Send(data);
         }
 
-        public async Task<byte[]> Deliver(byte[] data)
+        public async Task<Record> Deliver(Record record)
         {
+            byte[] data = record.ToByteArray();
             await _tcpCommunication.Send(data);
-            return await _tcpCommunication.Receive();
+
+            byte[] receivedData = await _tcpCommunication.Receive();
+            return Record.Parser.ParseFrom(receivedData);
         }
 
         public void Dispose()
