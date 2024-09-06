@@ -430,6 +430,7 @@ def login(
             "allow", only create an anonymous user if the user
             isn't already logged in. If set to "never", never log a
             user anonymously. Default set to "never".
+        key: (string, optional) The API key to use.
         relogin: (bool, optional) If true, will re-prompt for API key.
         host: (string, optional) The host to connect to.
         force: (bool, optional) If true, will force a relogin.
@@ -816,7 +817,10 @@ def agent(
         project: The name of the project where W&B runs created from
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
-    count: The number of sweep config trials to try.
+        count: The number of sweep config trials to try.
+
+    Returns:
+    None
     """
     ...
 
@@ -1030,7 +1034,7 @@ def link_model(
         registered_model_name: (str) - the name of the registered model that the model is to be linked to.
             A registered model is a collection of model versions linked to the model registry, typically representing a
             team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+        name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
             default to the basename of the path prepended with the current run id  if not specified.
         aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
             inside the registered model.

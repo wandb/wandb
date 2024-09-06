@@ -3512,7 +3512,7 @@ class Run:
             registered_model_name: (str) - the name of the registered model that the model is to be linked to.
                 A registered model is a collection of model versions linked to the model registry, typically representing a
                 team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-                name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
                 default to the basename of the path prepended with the current run id  if not specified.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.
@@ -4356,6 +4356,9 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
     Arguments:
         exit_code: Set to something other than 0 to mark a run as failed
         quiet: Set to true to minimize log output
+
+    Returns:
+        None
     """
     if wandb.run:
         wandb.run.finish(exit_code=exit_code, quiet=quiet)
