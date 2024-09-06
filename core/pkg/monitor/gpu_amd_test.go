@@ -8,16 +8,19 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/monitor"
+	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func TestNewGPUAMD(t *testing.T) {
-	gpu := monitor.NewGPUAMD()
+	logger := observability.NewNoOpLogger()
+	gpu := monitor.NewGPUAMD(logger)
 	assert.NotNil(t, gpu)
 	assert.Equal(t, "gpu", gpu.Name())
 }
 
 func TestGPUAMD_ParseStats(t *testing.T) {
-	gpu := monitor.NewGPUAMD()
+	logger := observability.NewNoOpLogger()
+	gpu := monitor.NewGPUAMD(logger)
 	stats := map[string]interface{}{
 		"GPU use (%)":                        "10",
 		"GPU memory use (%)":                 "20",
@@ -50,7 +53,8 @@ func getROCMSMIStatsMock() (monitor.InfoDict, error) {
 }
 
 func TestGPUAMD_SampleStats(t *testing.T) {
-	gpu := monitor.NewGPUAMD()
+	logger := observability.NewNoOpLogger()
+	gpu := monitor.NewGPUAMD(logger)
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	metrics, err := gpu.Sample()
 	assert.Nil(t, err)
@@ -58,7 +62,8 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 }
 
 func TestGPUAMD_Probe(t *testing.T) {
-	gpu := monitor.NewGPUAMD()
+	logger := observability.NewNoOpLogger()
+	gpu := monitor.NewGPUAMD(logger)
 	gpu.IsAvailableFunc = func() bool { return true }
 	gpu.GetROCMSMIStatsFunc = getROCMSMIStatsMock
 	info := gpu.Probe()
