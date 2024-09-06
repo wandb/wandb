@@ -67,4 +67,4 @@ export WANDB__REQUIRE_LEGACY_SERVICE=TRUE
 ```
 **Important Notes:**
 * Incompatibility: You cannot use wandb.require("legacy-service") alongside wandb.require("core").
-* Environment Variable Conflict: Setting WANDB__REQUIRE_LEGACY_SERVICE=TRUE will raise an error if WANDB__REQUIRE_CORE=true is also set.
+* Environment Variable Conflict: Setting WANDB__REQUIRE_LEGACY_SERVICE=TRUE will raise an error if WANDB__REQUIRE_CORE=TRUE is also set.
