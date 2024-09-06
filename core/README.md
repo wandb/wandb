@@ -54,5 +54,17 @@ If it is not supported for your platform, you will see an error if you try to st
 
 ### Disabling `wandb-core`
 
-To revert to the old SDK backend, simply add `wandb.require("legacy-service")` to your script or set the `WANDB__REQUIRE_LEGACY_SERVICE` environment variable as `TRUE`.
+If you need to revert to the previous SDK backend while using `wandb < 0.18.0`, you can do so by following one of these steps:
 
+**Option 1**: Modify your script Add the following line to your script:
+```
+wandb.require("legacy-service")
+````
+**Option 2**: Set an environment variable Alternatively, set the environment variable WANDB__REQUIRE_LEGACY_SERVICE to TRUE:
+
+```
+export WANDB__REQUIRE_LEGACY_SERVICE=TRUE
+```
+**Important Notes:**
+* Incompatibility: You cannot use wandb.require("legacy-service") alongside wandb.require("core").
+* Environment Variable Conflict: Setting WANDB__REQUIRE_LEGACY_SERVICE=TRUE will raise an error if WANDB__REQUIRE_CORE=true is also set.
