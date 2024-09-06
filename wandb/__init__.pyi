@@ -413,9 +413,6 @@ def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> Non
     Arguments:
         exit_code: Set to something other than 0 to mark a run as failed
         quiet: Set to true to minimize log output
-
-    Returns:
-        None
     """
     ...
 
@@ -828,9 +825,6 @@ def agent(
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
         count: The number of sweep config trials to try.
-
-    Returns:
-        None
     """
     ...
 
