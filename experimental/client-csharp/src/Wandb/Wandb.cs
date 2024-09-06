@@ -14,7 +14,7 @@ namespace Wandb
         public Session()
         {
             _manager = new Manager();
-            _interface = new WandbInterface();
+            _interface = new SocketInterface();
         }
 
         public async Task<Run> InitRun()

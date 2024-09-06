@@ -6,17 +6,15 @@ namespace Wandb.Internal
     public class SocketInterface : IDisposable
     {
         private readonly TcpCommunication _tcpCommunication;
-        private int _port;
 
-        public SocketInterface(int port)
+        public SocketInterface()
         {
-            _port = port;
             _tcpCommunication = new TcpCommunication();
         }
 
-        public async Task Initialize()
+        public async Task Initialize(int port)
         {
-            await _tcpCommunication.Open(_port);
+            await _tcpCommunication.Open(port);
         }
 
         public async Task Publish(byte[] data)

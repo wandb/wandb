@@ -9,7 +9,11 @@
     <GoSrcDir>$(MSBuildProjectDirectory)/../../../../core</GoSrcDir>
   </PropertyGroup>
   <ItemGroup>
-      <Protobuf Include="$(MSBuildProjectDirectory)/../../../../wandb/proto/*.proto" ProtoRoot="$(MSBuildProjectDirectory)/../../../../" />
+      <Protobuf Include="$(MSBuildProjectDirectory)/../../../../wandb/proto/*.proto" ProtoRoot="$(MSBuildProjectDirectory)/../../../../">
+        <OutputDir>$(ProjectDir)Generated</OutputDir>
+        <CompileOutputs>true</CompileOutputs>
+        <GrpcServices>None</GrpcServices>
+      </Protobuf>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.28.0" />
