@@ -51,13 +51,13 @@ WANDB_CLASSES: Final[wandb.Classes] = wandb.Classes(
 
 
 @pytest.fixture(scope="module")
-def make_wandb_image() -> Callable[[str], wandb.Image] | Callable[[], wandb.Image]:
+def make_wandb_image() -> Callable[[str], wandb.Image]:
     """Factory fixture for generating test `wandb.Image` objects."""
 
-    def _make_wandb_image(suffix: str = "") -> wandb.Image:
+    def _make_wandb_image(name: str) -> wandb.Image:
         assets_path = Path(__file__).resolve().parent.parent.parent / "assets"
 
-        img_path = str(assets_path / f"test{suffix!s}.png")
+        img_path = str(assets_path / f"{name}.png")
 
         position = {"minX": 0.1, "maxX": 0.2, "minY": 0.3, "maxY": 0.4}
         box_caption = "minMax(pixel)"
@@ -148,26 +148,6 @@ def point_clouds(
     )
 
 
-# @pytest.fixture(scope="module")
-# def pc1(make_point_cloud) -> wandb.Object3D:
-#     return make_point_cloud()
-#
-#
-# @pytest.fixture(scope="module")
-# def pc2(make_point_cloud) -> wandb.Object3D:
-#     return make_point_cloud()
-#
-#
-# @pytest.fixture(scope="module")
-# def pc3(make_point_cloud) -> wandb.Object3D:
-#     return make_point_cloud()
-#
-#
-# @pytest.fixture(scope="module")
-# def pc4(make_point_cloud) -> wandb.Object3D:
-#     return make_point_cloud()
-
-
 @pytest.fixture(scope="module")
 def make_bokeh() -> Callable[[], Bokeh]:
     def _make_bokeh():
@@ -184,26 +164,6 @@ def make_bokeh() -> Callable[[], Bokeh]:
 @pytest.fixture(scope="module")
 def bokeh_objs(make_bokeh) -> tuple[Bokeh, Bokeh, Bokeh, Bokeh]:
     return make_bokeh(), make_bokeh(), make_bokeh(), make_bokeh()
-
-
-# @pytest.fixture
-# def b1(make_bokeh) -> Bokeh:
-#     return make_bokeh()
-#
-#
-# @pytest.fixture
-# def b2(make_bokeh) -> Bokeh:
-#     return make_bokeh()
-#
-#
-# @pytest.fixture
-# def b3(make_bokeh) -> Bokeh:
-#     return make_bokeh()
-#
-#
-# @pytest.fixture
-# def b4(make_bokeh) -> Bokeh:
-#     return make_bokeh()
 
 
 @pytest.fixture(scope="module")
@@ -232,26 +192,6 @@ def make_video() -> Callable[[], wandb.Video]:
 @pytest.fixture(scope="module")
 def vid_objs(make_video) -> tuple[wandb.Video, wandb.Video, wandb.Video, wandb.Video]:
     return make_video(), make_video(), make_video(), make_video()
-
-
-# @pytest.fixture(scope="module")
-# def vid1(make_video) -> wandb.Video:
-#     return make_video()
-#
-#
-# @pytest.fixture(scope="module")
-# def vid2(make_video) -> wandb.Video:
-#     return make_video()
-#
-#
-# @pytest.fixture(scope="module")
-# def vid3(make_video) -> wandb.Video:
-#     return make_video()
-#
-#
-# @pytest.fixture(scope="module")
-# def vid4(make_video) -> wandb.Video:
-#     return make_video()
 
 
 @pytest.fixture(scope="module")
@@ -323,7 +263,7 @@ def make_wandb_table(
                     True,
                     1,
                     1.1,
-                    make_wandb_image(),
+                    make_wandb_image("test"),
                     point_clouds[0],
                     make_html(),
                     vid_objs[0],
@@ -337,7 +277,7 @@ def make_wandb_table(
                     True,
                     1,
                     1.2,
-                    make_wandb_image(),
+                    make_wandb_image("test"),
                     point_clouds[1],
                     make_html(),
                     vid_objs[1],
@@ -351,7 +291,7 @@ def make_wandb_table(
                     False,
                     -0,
                     -1.3,
-                    make_wandb_image("2"),
+                    make_wandb_image("test2"),
                     point_clouds[2],
                     make_html(),
                     vid_objs[2],
@@ -365,7 +305,7 @@ def make_wandb_table(
                     False,
                     -0,
                     -1.4,
-                    make_wandb_image("2"),
+                    make_wandb_image("test2"),
                     point_clouds[3],
                     make_html(),
                     vid_objs[3],
@@ -383,7 +323,7 @@ def make_wandb_table(
 
 @pytest.fixture
 def wandb_image(make_wandb_image) -> wandb.Image:
-    return make_wandb_image()
+    return make_wandb_image("test")
 
 
 @pytest.fixture
@@ -562,7 +502,7 @@ def test_get_artifact_obj_by_name(
     # TODO: test more robustly for every Media type, nested objects (eg. Table -> Image), and references.
     with wandb_init() as run:
         artifact = wandb.Artifact("A2", "database")
-        image = make_wandb_image()
+        image = make_wandb_image("test")
         table = make_wandb_table()
         artifact.add(image, "I1")
         artifact.add(table, "T1")
@@ -577,7 +517,7 @@ def test_get_artifact_obj_by_name(
         assert isinstance(actual_table, wandb.Table)
         assert actual_table.columns == COLUMNS
         assert actual_table.data[0][COLUMNS.index("Image")] == image
-        assert actual_table.data[1][COLUMNS.index("Image")] == make_wandb_image("2")
+        assert actual_table.data[1][COLUMNS.index("Image")] == make_wandb_image("test2")
         actual_table._eq_debug(make_wandb_table(), True)
         assert actual_table == make_wandb_table()
 
@@ -588,7 +528,7 @@ def test_adding_artifact_by_object(wandb_init, cleanup, make_wandb_image):
     # Create an artifact with such file stored
     with wandb_init() as run:
         artifact = wandb.Artifact("upstream_media", "database")
-        artifact.add(make_wandb_image(), "I1")
+        artifact.add(make_wandb_image("test"), "I1")
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
@@ -604,7 +544,7 @@ def test_adding_artifact_by_object(wandb_init, cleanup, make_wandb_image):
     with wandb_init() as run:
         downstream_artifact = run.use_artifact("downstream_media:latest")
         downstream_path = downstream_artifact.download()  # noqa: F841
-        assert downstream_artifact.get("T2") == make_wandb_image()
+        assert downstream_artifact.get("T2") == make_wandb_image("test")
 
 
 def test_image_reference_artifact(wandb_init, cleanup, wandb_image):
@@ -831,10 +771,10 @@ def test_audio_ref_gs(
 
 def test_joined_table_referential(wandb_init, cleanup, make_wandb_image):
     src_table_1 = wandb.Table(
-        ["id", "image"], [[1, make_wandb_image()], [2, make_wandb_image()]]
+        ["id", "image"], [[1, make_wandb_image("test")], [2, make_wandb_image("test")]]
     )
     src_table_2 = wandb.Table(
-        ["id", "image"], [[1, make_wandb_image()], [2, make_wandb_image()]]
+        ["id", "image"], [[1, make_wandb_image("test")], [2, make_wandb_image("test")]]
     )
     src_jt_1 = wandb.JoinedTable(src_table_1, src_table_2, "id")
 
@@ -863,15 +803,15 @@ def test_joined_table_add_by_path(wandb_init, cleanup, make_wandb_image):
     src_table_1 = wandb.Table(
         columns=["id", "image"],
         data=[
-            [1, make_wandb_image()],
-            [2, make_wandb_image()],
+            [1, make_wandb_image("test")],
+            [2, make_wandb_image("test")],
         ],
     )
     src_table_2 = wandb.Table(
         columns=["id", "image"],
         data=[
-            [1, make_wandb_image()],
-            [2, make_wandb_image()],
+            [1, make_wandb_image("test")],
+            [2, make_wandb_image("test")],
         ],
     )
     with wandb_init() as run:
