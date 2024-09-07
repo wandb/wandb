@@ -1,4 +1,4 @@
-query ProbeTypeInputFields (
+query InputFields (
     $typeName: String!
 ) {
     TypeInfo: __type(name: $typeName) {

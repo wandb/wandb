@@ -308,7 +308,7 @@ func TestSendArtifact(t *testing.T) {
 
 			mockGQL := gqlmock.NewMockClient()
 			mockGQL.StubMatchOnce(
-				gqlmock.WithOpName("ProbeTypeInputFields"),
+				gqlmock.WithOpName("InputFields"),
 				`{"TypeInfo": {"inputFields": [{"name": "tags"}]}}`,
 			)
 			mockGQL.StubMatchOnce(

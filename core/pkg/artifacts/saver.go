@@ -100,16 +100,15 @@ func (as *ArtifactSaver) createArtifact() (
 		runId = &as.Artifact.RunId
 	}
 
-	// Check what fields are actually supported on the input
-	//
-	// Note: if tags are empty, `omitempty` ensures they're nulled out
-	// (effectively omitted) in the prepare GraphQL request
-	var tags []gql.TagInput
-
-	inputFieldNames, err := getAllowedInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
+	// Check which fields are actually supported on the input
+	inputFieldNames, err := getInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
+
+	// Note: if tags are empty, `omitempty` ensures they're nulled out
+	// (effectively omitted) in the prepare GraphQL request
+	var tags []gql.TagInput
 	if slices.Contains(inputFieldNames, "tags") {
 		for _, tag := range as.Artifact.Tags {
 			tags = append(tags, gql.TagInput{TagName: tag})
@@ -143,21 +142,21 @@ func (as *ArtifactSaver) createArtifact() (
 	return response.GetCreateArtifact().GetArtifact(), nil
 }
 
-func getAllowedInputFields(ctx context.Context, client graphql.Client, inputTypeName string) ([]string, error) {
-	response, err := gql.ProbeTypeInputFields(ctx, client, inputTypeName)
+func getInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
+	response, err := gql.InputFields(ctx, client, typeName)
 	if err != nil {
 		return nil, err
 	}
 	typeInfo := response.GetTypeInfo()
 	if typeInfo == nil {
-		return nil, fmt.Errorf("unable to verify allowed fields for %s", inputTypeName)
+		return nil, fmt.Errorf("unable to verify allowed fields for %s", typeName)
 	}
-	inputFields := typeInfo.GetInputFields()
-	inputFieldNames := make([]string, len(inputFields))
-	for i, field := range inputFields {
-		inputFieldNames[i] = field.GetName()
+	fields := typeInfo.GetInputFields()
+	fieldNames := make([]string, len(fields))
+	for i, field := range fields {
+		fieldNames[i] = field.GetName()
 	}
-	return inputFieldNames, nil
+	return fieldNames, nil
 }
 
 func (as *ArtifactSaver) createManifest(
