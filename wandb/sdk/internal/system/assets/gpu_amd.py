@@ -183,8 +183,17 @@ class GPUAMD:
 
         can_read_rocm_smi = False
         try:
-            if parse_stats(get_rocm_smi_stats()):
-                can_read_rocm_smi = True
+            # try to read stats from rocm-smi and parse them
+            raw_stats = get_rocm_smi_stats()
+            card_keys = [
+                key for key in sorted(raw_stats.keys()) if key.startswith("card")
+            ]
+
+            for card_key in card_keys:
+                card_stats = raw_stats[card_key]
+                parse_stats(card_stats)
+
+            can_read_rocm_smi = True
         except Exception:
             pass
 
