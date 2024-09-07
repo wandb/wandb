@@ -7,7 +7,6 @@ import (
 	"math"
 	"net/url"
 	"os"
-	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -101,11 +100,20 @@ func (as *ArtifactSaver) createArtifact() (
 		runId = &as.Artifact.RunId
 	}
 
+	// Check what fields are actually supported on the input
+	//
 	// Note: if tags are empty, `omitempty` ensures they're nulled out
 	// (effectively omitted) in the prepare GraphQL request
 	var tags []gql.TagInput
-	for _, tag := range as.Artifact.Tags {
-		tags = append(tags, gql.TagInput{TagName: tag})
+
+	inputFieldNames, err := getAllowedInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
+	if err != nil {
+		return gql.CreatedArtifactArtifact{}, err
+	}
+	if slices.Contains(inputFieldNames, "tags") {
+		for _, tag := range as.Artifact.Tags {
+			tags = append(tags, gql.TagInput{TagName: tag})
+		}
 	}
 
 	input := gql.CreateArtifactInput{
@@ -127,32 +135,6 @@ func (as *ArtifactSaver) createArtifact() (
 		ClientID:                  as.Artifact.ClientId,
 		SequenceClientID:          as.Artifact.SequenceClientId,
 	}
-
-	// Check what fields are actually supported on the input
-	inputTypeName := reflect.TypeOf(input).Name()
-	inputFieldNames, err := getAllowedInputFields(as.Ctx, as.GraphqlClient, inputTypeName)
-	if err != nil {
-		return gql.CreatedArtifactArtifact{}, err
-	}
-
-	if !slices.Contains(inputFieldNames, "tags") {
-		input.Tags = nil
-	}
-
-	// // "Zero-out" fields that aren't among allowed input fields
-	// inputVal := reflect.ValueOf(input).Elem()
-	// inputTyp := reflect.TypeOf(input).Elem()
-	//
-	// for i := 0; i < inputVal.NumField(); i++ {
-	// 	fieldVal := inputVal.Field(i)
-	// 	fieldDef := inputTyp.Field(i)
-	//
-	// 	fieldJsonName := fieldDef.Tag.Get("json")
-	//
-	// 	if !slices.Contains(inputFieldNames, fieldJsonName) {
-	// 		fieldVal.Set(reflect.Zero(fieldVal.Type()))
-	// 	}
-	// }
 
 	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
 	if err != nil {

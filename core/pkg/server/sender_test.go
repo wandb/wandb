@@ -308,6 +308,10 @@ func TestSendArtifact(t *testing.T) {
 
 			mockGQL := gqlmock.NewMockClient()
 			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("ProbeTypeInputFields"),
+				`{"TypeInfo": {"inputFields": [{"name": "tags"}]}}`,
+			)
+			mockGQL.StubMatchOnce(
 				gqlmock.WithOpName("CreateArtifact"),
 				validCreateArtifactResponse,
 			)
@@ -345,11 +349,11 @@ func TestSendArtifact(t *testing.T) {
 			sender.SendRecord(artifact)
 
 			requests := mockGQL.AllRequests()
-			assert.Equal(t, len(requests), 1)
+			assert.LessOrEqual(t, len(requests), 2)
 
-			// We may have had to check ServerInfo for compatibility, but
+			// We may have had an introspection request to check for server compatibility, but
 			// CreateArtifact should still be the last request
-			createArtifactRequest := requests[0]
+			createArtifactRequest := requests[len(requests)-1]
 
 			// Tags should only have been included in the request if the server supports it
 			var expectedTagsValue gomock.Matcher

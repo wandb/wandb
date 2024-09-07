@@ -69,6 +69,9 @@ func (m *queryVariablesMatcher) Matches(x any) bool {
 		var curr interface{}
 		curr = varmap
 		for _, key := range strings.Split(variable.Name, ".") {
+			if curr == nil {
+				return false
+			}
 			curr = curr.(map[string]any)[key]
 		}
 		if !variable.Value.Matches(curr) {
