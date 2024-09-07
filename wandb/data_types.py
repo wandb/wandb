@@ -13,6 +13,8 @@ serialize to JSON, since that is what wandb uses to save the objects locally
 and upload them to the W&B server.
 """
 
+from __future__ import annotations
+
 import base64
 import binascii
 import codecs
@@ -24,6 +26,8 @@ import os
 import pprint
 from decimal import Decimal
 from typing import Optional
+
+from typing_extensions import Final
 
 import wandb
 from wandb import util
@@ -175,9 +179,9 @@ class Table(Media):
             (disables type validation). Defaults to False
     """
 
-    MAX_ROWS = 10000
-    MAX_ARTIFACT_ROWS = 200000
-    _MAX_EMBEDDING_DIMENSIONS = 150
+    MAX_ROWS: Final[int] = 10000
+    MAX_ARTIFACT_ROWS: Final[int] = 200000
+    _MAX_EMBEDDING_DIMENSIONS: Final[int] = 150
     _log_type = "table"
 
     def __init__(
@@ -341,44 +345,55 @@ class Table(Media):
     def __ne__(self, other):
         return not self.__eq__(other)
 
-    def _eq_debug(self, other, should_assert=False):
-        eq = isinstance(other, Table)
-        assert not should_assert or eq, "Found type {}, expected {}".format(
-            other.__class__, Table
-        )
-        eq = eq and len(self.data) == len(other.data)
-        assert not should_assert or eq, "Found {} rows, expected {}".format(
-            len(other.data), len(self.data)
-        )
-        eq = eq and self.columns == other.columns
-        assert not should_assert or eq, "Found columns {}, expected {}".format(
-            other.columns, self.columns
-        )
-        eq = eq and self._column_types == other._column_types
-        assert (
-            not should_assert or eq
-        ), "Found column type {}, expected column type {}".format(
-            other._column_types, self._column_types
-        )
-        if eq:
-            for row_ndx in range(len(self.data)):
-                for col_ndx in range(len(self.data[row_ndx])):
-                    _eq = self.data[row_ndx][col_ndx] == other.data[row_ndx][col_ndx]
-                    # equal if all are equal
-                    if util.is_numpy_array(_eq):
-                        _eq = ((_eq * -1) + 1).sum() == 0
-                    eq = eq and _eq
-                    assert (
-                        not should_assert or eq
-                    ), "Unequal data at row_ndx {} col_ndx {}: found {}, expected {}".format(
-                        row_ndx,
-                        col_ndx,
-                        other.data[row_ndx][col_ndx],
-                        self.data[row_ndx][col_ndx],
-                    )
-                    if not eq:
-                        return eq
-        return eq
+    def _eq_debug(self, other, should_assert: bool = False) -> bool:
+        eq_type = isinstance(other, Table)
+        if not eq_type:
+            if should_assert:
+                raise AssertionError(f"Found type {other.__class__}, expected {Table}")
+            return False
+
+        eq_len = len(self.data) == len(other.data)
+        if not eq_len:
+            if should_assert:
+                raise AssertionError(
+                    f"Found {len(other.data)} rows, expected {len(self.data)}"
+                )
+            return False
+
+        eq_columns = self.columns == other.columns
+        if not eq_columns:
+            if should_assert:
+                raise AssertionError(
+                    f"Found columns {other.columns}, expected {self.columns}"
+                )
+            return False
+
+        eq_column_types = self._column_types == other._column_types
+        if not eq_column_types:
+            if should_assert:
+                raise AssertionError(
+                    f"Found column type {other._column_types}, expected column type {self._column_types}"
+                )
+            return False
+
+        for row_idx, (row_a, row_b) in enumerate(zip(self.data, other.data)):
+            for col_idx, (val_a, val_b) in enumerate(zip(row_a, row_b)):
+                _eq = val_a == val_b
+
+                # equal if all are equal
+                if util.is_numpy_array(_eq):
+                    eq_vals = _eq.all()
+                else:
+                    eq_vals = _eq
+
+                if not eq_vals:
+                    if should_assert:
+                        raise AssertionError(
+                            f"Unequal data at row {row_idx!r}, col {col_idx!r}: found {val_b!r}, expected {val_a!r}"
+                        )
+                    return False
+
+        return True
 
     def __eq__(self, other):
         return self._eq_debug(other)
@@ -442,7 +457,7 @@ class Table(Media):
             )
         return result_type
 
-    def _to_table_json(self, max_rows=None, warn=True):
+    def _to_table_json(self, max_rows: int | None = None, warn: bool = True):
         # separate this method for easier testing
         if max_rows is None:
             max_rows = Table.MAX_ROWS
