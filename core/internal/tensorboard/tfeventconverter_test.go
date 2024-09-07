@@ -16,6 +16,16 @@ import (
 	"github.com/wandb/wandb/core/pkg/observability"
 )
 
+const testPNG2x4 = "" +
+	// PNG header
+	"\x89PNG\x0D\x0A\x1A\x0A" +
+	// Required IHDR chunk
+	"\x00\x00\x00\x0DIHDR" + // chunk length, "IHDR" magic
+	"\x00\x00\x00\x02" + // image width
+	"\x00\x00\x00\x04" + // image height
+	"\x01\x00\x00\x00\x00" + // buncha other stuff
+	"\x8C\x94\xD3\x94" // CRC-32 of "IHDR" and the chunk data
+
 func scalarValue(tag string, plugin string, value float32) *tbproto.Summary_Value {
 	return &tbproto.Summary_Value{
 		Tag: tag,
@@ -287,6 +297,41 @@ func TestConvertHistogram(t *testing.T) {
 		emitter.EmitHistoryCalls)
 }
 
+func TestConvertHistogramProto(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+	expectedHistogramJSON, err := wbvalue.Histogram{
+		BinEdges:   []float64{0.0, 0.5, 1.0, 1.5, 2.0, 2.5},
+		BinWeights: []float64{7, 5, 10, 11, 4},
+	}.HistoryValueJSON()
+	require.NoError(t, err)
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			&tbproto.Summary_Value{
+				Tag: "my_hist",
+				Value: &tbproto.Summary_Value_Histo{
+					Histo: &tbproto.HistogramProto{
+						Min:         0,
+						BucketLimit: []float64{0.5, 1.0, 1.5, 2.0, 2.5},
+						Bucket:      []float64{7, 5, 10, 11, 4},
+					},
+				},
+			}),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitHistory{
+			{
+				Key:       pathtree.PathOf("train/my_hist"),
+				ValueJSON: expectedHistogramJSON,
+			},
+		},
+		emitter.EmitHistoryCalls)
+}
+
 func TestConvertHistogramRebin(t *testing.T) {
 	// A histogram of 100 bins should be rebinned to 32 bins.
 	// Sum of weights should remain the same.
@@ -330,7 +375,7 @@ func TestConvertImage(t *testing.T) {
 		emitter,
 		summaryEvent(123, 0.345,
 			tensorValueStrings("my_img", "images",
-				"2", "4", "\x89PNG\x0D\x0A\x1A\x0Acontent")),
+				"2", "4", testPNG2x4)),
 		observability.NewNoOpLogger(),
 	)
 
@@ -339,9 +384,10 @@ func TestConvertImage(t *testing.T) {
 			{
 				Key: pathtree.PathOf("train/my_img"),
 				Image: wbvalue.Image{
-					Width:  2,
-					Height: 4,
-					PNG:    []byte("\x89PNG\x0D\x0A\x1A\x0Acontent"),
+					Width:       2,
+					Height:      4,
+					EncodedData: []byte(testPNG2x4),
+					Format:      "png",
 				},
 			},
 		},
@@ -362,7 +408,7 @@ func TestConvertImage_NotPNG(t *testing.T) {
 	)
 
 	assert.Empty(t, emitter.EmitImageCalls)
-	assert.Contains(t, logs.String(), "image is not PNG-encoded")
+	assert.Contains(t, logs.String(), "failed to parse image format")
 }
 
 func TestConvertImage_BadDims(t *testing.T) {
