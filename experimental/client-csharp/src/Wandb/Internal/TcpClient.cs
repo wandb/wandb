@@ -4,6 +4,14 @@ using System.Threading.Tasks;
 
 namespace Wandb.Internal
 {
+
+
+    public class MessageHeader
+    {
+        public byte Magic { get; set; }
+        public uint DataLength { get; set; }
+    }
+
     public class TcpCommunication : IDisposable
     {
         private TcpClient? _client;
@@ -20,6 +28,14 @@ namespace Wandb.Internal
         {
             if (_stream == null)
                 throw new InvalidOperationException("Connection not open");
+
+            var header = new MessageHeader
+            {
+                Magic = (byte)'W',
+                DataLength = (uint)data.Length
+            };
+            await _stream.WriteAsync([header.Magic], 0, 1);
+            await _stream.WriteAsync(BitConverter.GetBytes(header.DataLength), 0, 4);
 
             await _stream.WriteAsync(data, 0, data.Length);
         }

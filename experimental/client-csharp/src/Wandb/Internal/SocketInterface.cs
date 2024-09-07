@@ -1,7 +1,6 @@
 using Google.Protobuf;
 using WandbInternal;
 
-
 namespace Wandb.Internal
 {
     public class SocketInterface : IDisposable
@@ -44,7 +43,7 @@ namespace Wandb.Internal
 
         public async Task<Record> Deliver(Record record)
         {
-            ServerRequest request = new ServerRequest
+            ServerRequest request = new()
             {
                 RecordPublish = record
             };
@@ -76,7 +75,7 @@ namespace Wandb.Internal
 
         public async Task InformInit(Settings settings, string streamId)
         {
-            ServerRequest request = new ServerRequest
+            ServerRequest request = new()
             {
                 InformInit = new ServerInformInitRequest
                 {
@@ -96,7 +95,7 @@ namespace Wandb.Internal
 
         public async Task InformFinish(string streamId)
         {
-            ServerRequest request = new ServerRequest
+            ServerRequest request = new()
             {
                 InformFinish = new ServerInformFinishRequest
                 {
