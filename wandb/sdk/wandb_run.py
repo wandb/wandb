@@ -57,6 +57,7 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.viz import CustomChart, Visualize, custom_chart
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -66,7 +67,6 @@ from wandb.util import (
     add_import_hook,
     parse_artifact_string,
 )
-from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
 from .data_types._dtypes import TypeRegistry
@@ -3512,7 +3512,7 @@ class Run:
             registered_model_name: (str) - the name of the registered model that the model is to be linked to.
                 A registered model is a collection of model versions linked to the model registry, typically representing a
                 team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-                name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
                 default to the basename of the path prepended with the current run id  if not specified.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.

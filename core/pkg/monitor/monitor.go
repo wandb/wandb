@@ -159,7 +159,7 @@ func New(
 	if gpu := NewGPUNvidia(logger, pid, samplingInterval); gpu != nil {
 		systemMonitor.assets = append(systemMonitor.assets, gpu)
 	}
-	if gpu := NewGPUAMD(); gpu != nil {
+	if gpu := NewGPUAMD(logger); gpu != nil {
 		systemMonitor.assets = append(systemMonitor.assets, gpu)
 	}
 	if gpu := NewGPUApple(); gpu != nil {
@@ -221,9 +221,11 @@ func (sm *SystemMonitor) Start() {
 	go func() {
 		systemInfo := sm.probe()
 		if systemInfo != nil {
-			sm.extraWork.AddRecordOrCancel(
+			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				makeMetadataRecord(systemInfo),
+				runwork.WorkFromRecord(
+					makeMetadataRecord(systemInfo),
+				),
 			)
 		}
 	}()
@@ -307,9 +309,11 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			}
 
 			// publish metrics
-			sm.extraWork.AddRecordOrCancel(
+			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				makeStatsRecord(metrics, ts),
+				runwork.WorkFromRecord(
+					makeStatsRecord(metrics, ts),
+				),
 			)
 		}
 	}

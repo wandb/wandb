@@ -95,7 +95,6 @@ func New(params Params) *Sender {
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		params.ExtraWork.BeforeEndCtx(),
 		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				fileWriter.WriteToFile(lines)
@@ -158,17 +157,20 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 
 // uploadOutputFile uploads the console output file that we created.
 func (s *Sender) uploadOutputFile() {
-	s.extraWork.AddRecord(
-		&spb.Record{
-			RecordType: &spb.Record_Files{
-				Files: &spb.FilesRecord{
-					Files: []*spb.FilesItem{
-						{
-							Path: string(s.consoleOutputFile),
-							Type: spb.FilesItem_WANDB,
+	s.extraWork.AddWork(
+		runwork.WorkFromRecord(
+			&spb.Record{
+				RecordType: &spb.Record_Files{
+					Files: &spb.FilesRecord{
+						Files: []*spb.FilesItem{
+							{
+								Path: string(s.consoleOutputFile),
+								Type: spb.FilesItem_WANDB,
+							},
 						},
 					},
 				},
 			},
-		})
+		),
+	)
 }

@@ -148,7 +148,12 @@ ignore_errors = true
 
 
 [tool.ruff]
-extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
+extend-exclude = [
+    "landfill/**",
+    "wandb/__init__.py",
+    "wandb/vendor/**",
+    "wandb/proto/**",
+]
 target-version = "py37"
 
 [tool.ruff.lint]
@@ -231,7 +236,6 @@ ignore_errors = false
 
 [[tool.mypy.overrides]]
 module = [
-    "wandb.testing.*",
     "wandb.integration.*",
     "wandb.apis.*",
     "wandb.proto.*",

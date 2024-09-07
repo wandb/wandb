@@ -1,0 +1,19 @@
+syntax = "proto3";
+
+option go_package = "github.com/wandb/wandb/core/internal/tensorboard/tbproto";
+
+// A histogram in TensorBoard.
+//
+// https://github.com/tensorflow/tensorboard/blob/master/tensorboard/compat/proto/histogram.proto
+message HistogramProto {
+  // The smallest value in the underlying data.
+  double min = 1;
+
+  // Parallel arrays encoding the bucket boundaries and the bucket values.
+  // bucket(i) is the count for the bucket i.  The range for
+  // a bucket is:
+  //   i == 0:  -DBL_MAX .. bucket_limit(0)
+  //   i != 0:  bucket_limit(i-1) .. bucket_limit(i)
+  repeated double bucket_limit = 6 [packed = true];
+  repeated double bucket = 7 [packed = true];
+}
