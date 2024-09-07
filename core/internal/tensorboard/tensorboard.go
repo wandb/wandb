@@ -283,14 +283,27 @@ func (tb *TBHandler) inferRootDirAndNamespace(
 	// then we just default to the current working directory as a root.
 	select {
 	case result := <-resultChan:
-		return &result, "", nil
+		namespace := tb.getNamespace(logDir, result)
+
+		tb.logger.Info(
+			"tensorboard: inferred root directory",
+			"rootDir", string(result),
+			"logDir", string(logDir),
+			"namespace", namespace)
+
+		return &result, namespace, nil
+
 	case <-time.After(10 * time.Second):
+		tb.logger.Info(
+			"tensorboard: no root directory after 10 seconds," +
+				" using working directory")
+
 		cwd, err := paths.CWD()
 		if err != nil {
 			return nil, "", fmt.Errorf("error getting working directory: %v", err)
 		}
 
-		return cwd, tb.getNamespace(logDir, *cwd), nil
+		return cwd, "", nil
 	}
 }
 

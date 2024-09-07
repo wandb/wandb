@@ -34,10 +34,16 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 }
 
 type GPUAMD struct {
-	name string
+	name   string
+	logger *observability.CoreLogger
 }
 
-func NewGPUAMD() *GPUAMD { return &GPUAMD{name: "gpu"} }
+func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
+	return &GPUAMD{
+		name:   "gpu",
+		logger: logger,
+	}
+}
 
 func (g *GPUAMD) Name() string { return g.name }
 
