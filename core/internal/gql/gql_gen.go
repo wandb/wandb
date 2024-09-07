@@ -725,6 +725,34 @@ func (v *NotifyScriptableRunAlertResponse) GetNotifyScriptableRunAlert() *Notify
 	return v.NotifyScriptableRunAlert
 }
 
+// ProbeTypeInputFieldsResponse is returned by ProbeTypeInputFields on success.
+type ProbeTypeInputFieldsResponse struct {
+	TypeInfo *ProbeTypeInputFieldsTypeInfoType `json:"TypeInfo"`
+}
+
+// GetTypeInfo returns ProbeTypeInputFieldsResponse.TypeInfo, and is useful for accessing the field via an interface.
+func (v *ProbeTypeInputFieldsResponse) GetTypeInfo() *ProbeTypeInputFieldsTypeInfoType {
+	return v.TypeInfo
+}
+
+// ProbeTypeInputFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+type ProbeTypeInputFieldsTypeInfoType struct {
+	InputFields []ProbeTypeInputFieldsTypeInfoTypeInputFieldsInputValue `json:"inputFields"`
+}
+
+// GetInputFields returns ProbeTypeInputFieldsTypeInfoType.InputFields, and is useful for accessing the field via an interface.
+func (v *ProbeTypeInputFieldsTypeInfoType) GetInputFields() []ProbeTypeInputFieldsTypeInfoTypeInputFieldsInputValue {
+	return v.InputFields
+}
+
+// ProbeTypeInputFieldsTypeInfoTypeInputFieldsInputValue includes the requested fields of the GraphQL type __InputValue.
+type ProbeTypeInputFieldsTypeInfoTypeInputFieldsInputValue struct {
+	Name string `json:"name"`
+}
+
+// GetName returns ProbeTypeInputFieldsTypeInfoTypeInputFieldsInputValue.Name, and is useful for accessing the field via an interface.
+func (v *ProbeTypeInputFieldsTypeInfoTypeInputFieldsInputValue) GetName() string { return v.Name }
+
 // RewindRunResponse is returned by RewindRun on success.
 type RewindRunResponse struct {
 	RewindRun *RewindRunRewindRunRewindRunPayload `json:"rewindRun"`
@@ -1485,6 +1513,14 @@ func (v *__NotifyScriptableRunAlertInput) GetSeverity() *AlertSeverity { return 
 // GetWaitDuration returns __NotifyScriptableRunAlertInput.WaitDuration, and is useful for accessing the field via an interface.
 func (v *__NotifyScriptableRunAlertInput) GetWaitDuration() *int64 { return v.WaitDuration }
 
+// __ProbeTypeInputFieldsInput is used internally by genqlient
+type __ProbeTypeInputFieldsInput struct {
+	TypeName string `json:"typeName"`
+}
+
+// GetTypeName returns __ProbeTypeInputFieldsInput.TypeName, and is useful for accessing the field via an interface.
+func (v *__ProbeTypeInputFieldsInput) GetTypeName() string { return v.TypeName }
+
 // __RewindRunInput is used internally by genqlient
 type __RewindRunInput struct {
 	RunName     string  `json:"runName"`
@@ -2167,6 +2203,43 @@ func NotifyScriptableRunAlert(
 	var err_ error
 
 	var data_ NotifyScriptableRunAlertResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by ProbeTypeInputFields.
+const ProbeTypeInputFields_Operation = `
+query ProbeTypeInputFields ($typeName: String!) {
+	TypeInfo: __type(name: $typeName) {
+		inputFields {
+			name
+		}
+	}
+}
+`
+
+func ProbeTypeInputFields(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	typeName string,
+) (*ProbeTypeInputFieldsResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "ProbeTypeInputFields",
+		Query:  ProbeTypeInputFields_Operation,
+		Variables: &__ProbeTypeInputFieldsInput{
+			TypeName: typeName,
+		},
+	}
+	var err_ error
+
+	var data_ ProbeTypeInputFieldsResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

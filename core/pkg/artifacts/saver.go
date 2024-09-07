@@ -7,6 +7,8 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -126,11 +128,54 @@ func (as *ArtifactSaver) createArtifact() (
 		SequenceClientID:          as.Artifact.SequenceClientId,
 	}
 
+	// Check what fields are actually supported on the input
+	inputTypeName := reflect.TypeOf(input).Name()
+	inputFieldNames, err := getAllowedInputFields(as.Ctx, as.GraphqlClient, inputTypeName)
+	if err != nil {
+		return gql.CreatedArtifactArtifact{}, err
+	}
+
+	if !slices.Contains(inputFieldNames, "tags") {
+		input.Tags = nil
+	}
+
+	// // "Zero-out" fields that aren't among allowed input fields
+	// inputVal := reflect.ValueOf(input).Elem()
+	// inputTyp := reflect.TypeOf(input).Elem()
+	//
+	// for i := 0; i < inputVal.NumField(); i++ {
+	// 	fieldVal := inputVal.Field(i)
+	// 	fieldDef := inputTyp.Field(i)
+	//
+	// 	fieldJsonName := fieldDef.Tag.Get("json")
+	//
+	// 	if !slices.Contains(inputFieldNames, fieldJsonName) {
+	// 		fieldVal.Set(reflect.Zero(fieldVal.Type()))
+	// 	}
+	// }
+
 	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
+}
+
+func getAllowedInputFields(ctx context.Context, client graphql.Client, inputTypeName string) ([]string, error) {
+	response, err := gql.ProbeTypeInputFields(ctx, client, inputTypeName)
+	if err != nil {
+		return nil, err
+	}
+	typeInfo := response.GetTypeInfo()
+	if typeInfo == nil {
+		return nil, fmt.Errorf("unable to verify allowed fields for %s", inputTypeName)
+	}
+	inputFields := typeInfo.GetInputFields()
+	inputFieldNames := make([]string, len(inputFields))
+	for i, field := range inputFields {
+		inputFieldNames[i] = field.GetName()
+	}
+	return inputFieldNames, nil
 }
 
 func (as *ArtifactSaver) createManifest(
