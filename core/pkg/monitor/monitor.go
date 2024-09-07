@@ -159,7 +159,7 @@ func New(
 	if gpu := NewGPUNvidia(logger, pid, samplingInterval); gpu != nil {
 		systemMonitor.assets = append(systemMonitor.assets, gpu)
 	}
-	if gpu := NewGPUAMD(); gpu != nil {
+	if gpu := NewGPUAMD(logger); gpu != nil {
 		systemMonitor.assets = append(systemMonitor.assets, gpu)
 	}
 	if gpu := NewGPUApple(); gpu != nil {
