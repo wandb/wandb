@@ -83,11 +83,15 @@ __all__ = [
 
 
 class _TableLinkMixin:
-    def set_table(self, table):
+    _table: Table | None
+
+    def set_table(self, table: Table) -> None:
         self._table = table
 
 
 class _TableKey(str, _TableLinkMixin):
+    _col_name: str | None
+
     def set_table(self, table, col_name):
         assert col_name in table.columns
         self._table = table
