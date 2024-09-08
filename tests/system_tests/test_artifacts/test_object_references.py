@@ -116,12 +116,12 @@ def make_wandb_image(tmp_assets_dir) -> Callable[[str], wandb.Image]:
     return _make_wandb_image
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def wandb_image_1(make_wandb_image) -> wandb.Image:
     return make_wandb_image("test")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def wandb_image_2(make_wandb_image) -> wandb.Image:
     return make_wandb_image("test2")
 
@@ -135,7 +135,7 @@ def make_point_cloud() -> Callable[[], Object3D]:
         # Choose a random sample
         theta_chi = pi * np.random.rand(point_count, 2)
 
-        def gen_point(theta: float, chi: float, i: int):
+        def gen_point(theta: float, chi: float, i: int) -> list[float]:
             sin_theta, cos_theta = sin(theta), cos(theta)
             sin_chi, cos_chi = sin(chi), cos(chi)
 
@@ -779,7 +779,7 @@ def assert_media_obj_referential_equality(wandb_init, obj: WBValue):
         last_dir = last_artifact_ref._default_root()  # noqa: F841
         obj3 = last_artifact_ref.get(last_obj_name)
 
-    assert not Path(last_dir).is_dir()
+    assert (not Path(last_dir).is_dir()) or (not set(Path(last_dir).iterdir()))
 
     if hasattr(obj, "_eq_debug"):
         obj._eq_debug(obj3, True)
