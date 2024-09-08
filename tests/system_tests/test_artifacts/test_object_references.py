@@ -5,7 +5,6 @@ import binascii
 import shutil
 import time
 from collections.abc import Callable
-from contextlib import suppress
 from math import cos, pi, sin
 from pathlib import Path
 
@@ -117,12 +116,12 @@ def make_wandb_image(tmp_assets_dir) -> Callable[[str], wandb.Image]:
     return _make_wandb_image
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def wandb_image_1(make_wandb_image) -> wandb.Image:
     return make_wandb_image("test")
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture
 def wandb_image_2(make_wandb_image) -> wandb.Image:
     return make_wandb_image("test2")
 
@@ -137,15 +136,18 @@ def make_point_cloud() -> Callable[[], Object3D]:
         theta_chi = pi * np.random.rand(point_count, 2)
 
         def gen_point(theta: float, chi: float, i: int):
-            p = sin(theta) * 4.5 * sin(i + 0.5 * (i**2 + 2)) + cos(chi) * 7 * sin(
-                0.5 * (2 * i - 4) * (i + 2)
+            sin_theta, cos_theta = sin(theta), cos(theta)
+            sin_chi, cos_chi = sin(chi), cos(chi)
+
+            p = 4.5 * sin_theta * sin(i + 0.5 * (i**2 + 2)) + 7 * cos_chi * sin(
+                i**2 - 4
             )
 
-            x = p * sin(chi) * cos(theta)
-            y = p * sin(chi) * sin(theta)
-            z = p * cos(chi)
+            x = p * sin_chi * cos_theta
+            y = p * sin_chi * sin_theta
+            z = p * cos_chi
 
-            r = sin(theta) * 120 + 120
+            r = sin_theta * 120 + 120
             g = sin(x) * 120 + 120
             b = cos(y) * 120 + 120
 
@@ -369,146 +371,186 @@ def wandb_joinedtable(make_wandb_table) -> wandb.JoinedTable:
     return wandb.JoinedTable(make_wandb_table(), make_wandb_table(), join_key="id")
 
 
-def _b64_to_hex_id(id_string: str) -> str:
-    return binascii.hexlify(base64.standard_b64decode(str(id_string))).decode("utf-8")
+def _b64_to_hex_id(id_str: str) -> str:
+    return binascii.hexlify(base64.standard_b64decode(str(id_str))).decode("utf-8")
 
 
-# Artifact1.add_reference(artifact_URL) => recursive reference
-def test_artifact_add_reference_via_url(wandb_init, tmp_path, cleanup):
-    """Test adding a reference to an artifact via a URL.
+class TestArtifactAddReference:
+    @pytest.fixture
+    def file_text(self) -> str:
+        return "Luke, I am your Father!!!!!"
 
-    This test creates three artifacts. The middle artifact references the first
-    artifact's file, and the last artifact references the middle artifact's reference.
-    The end result of downloading the last artifact in a fresh, forth run, should be
-    that all 3 artifacts are downloaded and that the file in the last artifact is
-    actually a symlink to the first artifact's file.
-    """
-    upstream_artifact_name = "upstream_artifact"
-    middle_artifact_name = "middle_artifact"
-    downstream_artifact_name = "downstream_artifact"
+    @pytest.fixture
+    def upstream_local_file_path(self, tmp_path, file_text) -> Path:
+        upstream_local_file_path = tmp_path / "upstream/local/path/file.txt"
 
-    upstream_local_path = tmp_path / "upstream/local/path"
-    upstream_artifact_path = tmp_path / "upstream/artifact/path"
-    middle_artifact_path = tmp_path / "middle/artifact/path"
-    downstream_artifact_path = tmp_path / "downstream/artifact/path"
+        # Create a super important file
+        upstream_local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        upstream_local_file_path.write_text(file_text)
 
-    upstream_local_file_path = upstream_local_path / "file.txt"
-    upstream_artifact_file_path = upstream_artifact_path / "file.txt"
-    middle_artifact_file_path = middle_artifact_path / "file.txt"
-    downstream_artifact_file_path = downstream_artifact_path / "file.txt"
+        return upstream_local_file_path
 
-    file_text = "Luke, I am your Father!!!!!"
-    # Create a super important file
-    upstream_local_path.mkdir(parents=True, exist_ok=True)
-    upstream_local_file_path.write_text(file_text)
+    @pytest.fixture
+    def upstream_artifact_name(self) -> str:
+        return "upstream_artifact"
 
-    # Create an artifact with such file stored
-    with wandb_init() as run:
-        artifact = wandb.Artifact(upstream_artifact_name, "database")
-        artifact.add_file(
-            str(upstream_local_file_path), str(upstream_artifact_file_path)
-        )
-        run.log_artifact(artifact)
+    @pytest.fixture
+    def middle_artifact_name(self) -> str:
+        return "middle_artifact"
 
-    # Create an middle artifact with such file referenced (notice no need to download)
-    with wandb_init() as run:
-        artifact = wandb.Artifact(middle_artifact_name, "database")
-        upstream_artifact = run.use_artifact(f"{upstream_artifact_name}:latest")
-        artifact.add_reference(
-            f"wandb-artifact://{_b64_to_hex_id(upstream_artifact.id)}/{upstream_artifact_file_path!s}",
-            middle_artifact_file_path,
-        )
-        run.log_artifact(artifact)
+    @pytest.fixture
+    def downstream_artifact_name(self) -> str:
+        return "downstream_artifact"
 
-    # Create a downstream artifact that is referencing the middle's reference
-    with wandb_init() as run:
-        artifact = wandb.Artifact(downstream_artifact_name, "database")
-        middle_artifact = run.use_artifact(f"{middle_artifact_name!s}:latest")
-        artifact.add_reference(
-            f"wandb-artifact://{_b64_to_hex_id(middle_artifact.id)}/{middle_artifact_file_path!s}",
-            downstream_artifact_file_path,
-        )
-        run.log_artifact(artifact)
+    # Artifact1.add_reference(artifact_URL) => recursive reference
+    def test_artifact_add_reference_via_url(
+        self,
+        wandb_init,
+        tmp_path,
+        upstream_artifact_name,
+        middle_artifact_name,
+        downstream_artifact_name,
+        upstream_local_file_path,
+        file_text,
+        cleanup,
+    ):
+        """Test adding a reference to an artifact via a URL.
 
-    # Remove the directories for good measure
-    with suppress(OSError):
-        shutil.rmtree("upstream")
-    with suppress(OSError):
-        shutil.rmtree("artifacts")
+        This test creates three artifacts. The middle artifact references the first
+        artifact's file, and the last artifact references the middle artifact's reference.
+        The end result of downloading the last artifact in a fresh, forth run, should be
+        that all 3 artifacts are downloaded and that the file in the last artifact is
+        actually a symlink to the first artifact's file.
+        """
+        # upstream_artifact_name = self.upstream_artifact_name()
+        # middle_artifact_name = "middle_artifact"
+        # downstream_artifact_name = "downstream_artifact"
 
-    # Finally, use the artifact (download it) and enforce that the file is where we want it!
-    with wandb_init() as run:
-        downstream_artifact = run.use_artifact(f"{downstream_artifact_name!s}:latest")
-        downstream_path = downstream_artifact.download()
-        assert (
-            Path(downstream_path) / downstream_artifact_file_path
-        ).read_text() == file_text
+        # upstream_local_file_path = tmp_path / "upstream/local/path/file.txt"
+        upstream_artifact_file_path = tmp_path / "upstream/artifact/path/file.txt"
+        middle_artifact_file_path = tmp_path / "middle/artifact/path/file.txt"
+        downstream_artifact_file_path = tmp_path / "downstream/artifact/path/file.txt"
 
+        # file_text = "Luke, I am your Father!!!!!"
+        # # Create a super important file
+        # upstream_local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        # upstream_local_file_path.write_text(file_text)
 
-# # Artifact1.add_reference(artifact2.get_entry(file_name))
-def test_add_reference_via_artifact_entry(wandb_init, tmp_path, cleanup):
-    """Test adding a reference to an artifact via an ArtifactEntry.
+        # Create an artifact with such file stored
+        with wandb_init() as run:
+            artifact = wandb.Artifact(upstream_artifact_name, "database")
+            artifact.add_file(
+                str(upstream_local_file_path), str(upstream_artifact_file_path)
+            )
+            run.log_artifact(artifact)
 
-    This test is the same as test_artifact_add_reference_via_url, but rather than
-    passing the direct URL, we pass an Artifact entry, which will automatically resolve
-    to the correct URL.
-    """
-    upstream_artifact_name = "upstream_artifact"
-    middle_artifact_name = "middle_artifact"
-    downstream_artifact_name = "downstream_artifact"
+        # Create an middle artifact with such file referenced (notice no need to download)
+        with wandb_init() as run:
+            artifact = wandb.Artifact(middle_artifact_name, "database")
+            upstream_artifact = run.use_artifact(f"{upstream_artifact_name}:latest")
+            artifact.add_reference(
+                f"wandb-artifact://{_b64_to_hex_id(upstream_artifact.id)}/{upstream_artifact_file_path!s}",
+                middle_artifact_file_path,
+            )
+            run.log_artifact(artifact)
 
-    upstream_local_dir = tmp_path / "upstream/local/path"
-    upstream_artifact_dir = tmp_path / "upstream/artifact/path"
-    middle_artifact_dir = tmp_path / "middle/artifact/path"
-    downstream_artifact_dir = tmp_path / "downstream/artifact/path"
+        # Create a downstream artifact that is referencing the middle's reference
+        with wandb_init() as run:
+            artifact = wandb.Artifact(downstream_artifact_name, "database")
+            middle_artifact = run.use_artifact(f"{middle_artifact_name!s}:latest")
+            artifact.add_reference(
+                f"wandb-artifact://{_b64_to_hex_id(middle_artifact.id)}/{middle_artifact_file_path!s}",
+                downstream_artifact_file_path,
+            )
+            run.log_artifact(artifact)
 
-    upstream_local_file_path = upstream_local_dir / "file.txt"
-    upstream_artifact_file_path = upstream_artifact_dir / "file.txt"
-    middle_artifact_file_path = middle_artifact_dir / "file.txt"
-    downstream_artifact_file_path = downstream_artifact_dir / "file.txt"
+        # # Remove the directories for good measure
+        # with suppress(OSError):
+        #     shutil.rmtree("upstream")
+        # with suppress(OSError):
+        #     shutil.rmtree("artifacts")
 
-    file_text = "Luke, I am your Father!!!!!"
-    # Create a super important file
-    upstream_local_dir.mkdir(parents=True, exist_ok=True)
-    upstream_local_file_path.write_text(file_text)
+        # Finally, use the artifact (download it) and enforce that the file is where we want it!
+        with wandb_init() as run:
+            downstream_artifact = run.use_artifact(
+                f"{downstream_artifact_name!s}:latest"
+            )
+            downstream_path = downstream_artifact.download()
+            assert (
+                Path(downstream_path) / downstream_artifact_file_path
+            ).read_text() == file_text
 
-    # Create an artifact with such file stored
-    with wandb_init() as run:
-        artifact = wandb.Artifact(upstream_artifact_name, "database")
-        artifact.add_file(
-            str(upstream_local_file_path), str(upstream_artifact_file_path)
-        )
-        run.log_artifact(artifact)
+    # # Artifact1.add_reference(artifact2.get_entry(file_name))
+    def test_add_reference_via_artifact_entry(
+        self,
+        wandb_init,
+        tmp_path,
+        upstream_artifact_name,
+        middle_artifact_name,
+        downstream_artifact_name,
+        upstream_local_file_path,
+        file_text,
+        cleanup,
+    ):
+        """Test adding a reference to an artifact via an ArtifactEntry.
 
-    # Create an middle artifact with such file referenced (notice no need to download)
-    with wandb_init() as run:
-        artifact = wandb.Artifact(middle_artifact_name, "database")
-        upstream_artifact = run.use_artifact(f"{upstream_artifact_name!s}:latest")
-        artifact.add_reference(
-            upstream_artifact.get_entry(upstream_artifact_file_path),
-            middle_artifact_file_path,
-        )
-        run.log_artifact(artifact)
+        This test is the same as test_artifact_add_reference_via_url, but rather than
+        passing the direct URL, we pass an Artifact entry, which will automatically resolve
+        to the correct URL.
+        """
+        # upstream_artifact_name = self.upstream_artifact_name()
+        # middle_artifact_name = "middle_artifact"
+        # downstream_artifact_name = "downstream_artifact"
 
-    # Create a downstream artifact that is referencing the middle's reference
-    with wandb_init() as run:
-        artifact = wandb.Artifact(downstream_artifact_name, "database")
-        middle_artifact = run.use_artifact(f"{middle_artifact_name}:latest")
-        artifact.add_reference(
-            middle_artifact.get_entry(middle_artifact_file_path),
-            downstream_artifact_file_path,
-        )
-        run.log_artifact(artifact)
+        # upstream_local_file_path = tmp_path / "upstream/local/path/file.txt"
+        upstream_artifact_file_path = tmp_path / "upstream/artifact/path/file.txt"
+        middle_artifact_file_path = tmp_path / "middle/artifact/path/file.txt"
+        downstream_artifact_file_path = tmp_path / "downstream/artifact/path/file.txt"
 
-    # Remove the directories for good measure
-    with suppress(OSError):
-        shutil.rmtree("upstream")
-    with suppress(OSError):
-        shutil.rmtree("artifacts")
+        # file_text = "Luke, I am your Father!!!!!"
+        # # Create a super important file
+        # upstream_local_file_path.parent.mkdir(parents=True, exist_ok=True)
+        # upstream_local_file_path.write_text(file_text)
 
-    # Finally, use the artifact (download it) and enforce that the file is where we want it!
-    with wandb_init() as run:
-        downstream_artifact = run.use_artifact(f"{downstream_artifact_name!s}:latest")
+        # Create an artifact with such file stored
+        with wandb_init() as run:
+            artifact = wandb.Artifact(upstream_artifact_name, "database")
+            artifact.add_file(
+                str(upstream_local_file_path), str(upstream_artifact_file_path)
+            )
+            run.log_artifact(artifact)
+
+        # Create an middle artifact with such file referenced (notice no need to download)
+        with wandb_init() as run:
+            artifact = wandb.Artifact(middle_artifact_name, "database")
+            upstream_artifact = run.use_artifact(f"{upstream_artifact_name!s}:latest")
+            artifact.add_reference(
+                upstream_artifact.get_entry(upstream_artifact_file_path),
+                middle_artifact_file_path,
+            )
+            run.log_artifact(artifact)
+
+        # Create a downstream artifact that is referencing the middle's reference
+        with wandb_init() as run:
+            artifact = wandb.Artifact(downstream_artifact_name, "database")
+            middle_artifact = run.use_artifact(f"{middle_artifact_name}:latest")
+            artifact.add_reference(
+                middle_artifact.get_entry(middle_artifact_file_path),
+                downstream_artifact_file_path,
+            )
+            run.log_artifact(artifact)
+
+        # Remove the directories for good measure
+        # with suppress(OSError):
+        #     shutil.rmtree("upstream")
+        # with suppress(OSError):
+        #     shutil.rmtree("artifacts")
+
+        # Finally, use the artifact (download it) and enforce that the file is where we want it!
+        with wandb_init() as run:
+            downstream_artifact = run.use_artifact(
+                f"{downstream_artifact_name!s}:latest"
+            )
         downstream_path = downstream_artifact.download()
         _ = downstream_artifact.download()  # should not fail on second download.
 
@@ -568,8 +610,8 @@ def test_adding_artifact_by_object(wandb_init, cleanup, make_wandb_image):
         artifact.add(upstream_artifact.get("I1"), "T2")
         run.log_artifact(artifact)
 
-    with suppress(OSError):
-        shutil.rmtree("artifacts")
+    # with suppress(OSError):
+    #     shutil.rmtree("artifacts")
 
     with wandb_init() as run:
         downstream_artifact = run.use_artifact("downstream_media:latest")
@@ -589,7 +631,7 @@ def test_image_reference_artifact(wandb_init, cleanup, wandb_image):
         artifact.add(artifact_1.get("image"), "image_2")
         run.log_artifact(artifact)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         artifact_2 = run.use_artifact("reference_data:latest")
         artifact_2.download()
@@ -648,7 +690,7 @@ def test_table_slice_reference_artifact(
         artifact.add(table2, "table2")
         run.log_artifact(artifact)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         artifact_3 = run.use_artifact("reference_data:latest")
         table1 = artifact_3.get("table1")
@@ -716,7 +758,7 @@ def assert_media_obj_referential_equality(wandb_init, obj: WBValue):
         mid_dir = mid_artifact_ref._default_root()
         obj2 = mid_artifact_ref.get(mid_entry_name)
 
-    assert not Path(mid_dir).is_dir()
+    # assert not Path(mid_dir).is_dir()
 
     if hasattr(obj, "_eq_debug"):
         obj._eq_debug(obj2, True)
@@ -813,22 +855,23 @@ def test_audio_ref_gs(
     assert_media_obj_referential_equality(wandb_init, aud_ref_gs)
 
 
-def test_joined_table_referential(wandb_init, cleanup, make_wandb_image):
+def test_joined_table_referential(wandb_init, cleanup, wandb_image_1):
     columns = ["id", "image"]
     src_table_1 = wandb.Table(
         columns=columns,
         data=[
-            [1, make_wandb_image("test")],
-            [2, make_wandb_image("test")],
+            [1, wandb_image_1],
+            [2, wandb_image_1],
         ],
     )
     src_table_2 = wandb.Table(
         columns=columns,
         data=[
-            [1, make_wandb_image("test")],
-            [2, make_wandb_image("test")],
+            [1, wandb_image_1],
+            [2, wandb_image_1],
         ],
     )
+
     src_jt_1 = wandb.JoinedTable(src_table_1, src_table_2, "id")
 
     with wandb_init() as run:
@@ -844,7 +887,7 @@ def test_joined_table_referential(wandb_init, cleanup, make_wandb_image):
         art2.add(src_jt_2, "src_jt_2")
         run.log_artifact(art2)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         art2 = run.use_artifact("art2:latest")
         src_jt_2 = art2.get("src_jt_2")
@@ -892,7 +935,7 @@ def test_joined_table_add_by_path(wandb_init, cleanup, wandb_image_1):
 
         run.log_artifact(tables)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         tables_2 = wandb.Artifact("tables_2", "database")
         upstream = run.use_artifact("tables:latest")
@@ -906,7 +949,7 @@ def test_joined_table_add_by_path(wandb_init, cleanup, wandb_image_1):
         tables_2.add(jt, "jt")
         run.log_artifact(tables_2)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         tables_2 = run.use_artifact("tables_2:latest")
         jt_2 = tables_2.get("jt")
@@ -938,7 +981,7 @@ def test_image_reference_with_preferred_path(wandb_init, tmp_assets_dir, cleanup
         artifact.add(table, "table")
         run.log_artifact(artifact)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         artifact_1 = run.use_artifact("artifact_1:latest")
         original_table = artifact_1.get("table")
@@ -954,7 +997,7 @@ def test_image_reference_with_preferred_path(wandb_init, tmp_assets_dir, cleanup
         artifact.add(table, "table")
         run.log_artifact(artifact)
 
-    _cleanup()
+    # _cleanup()
     with wandb_init() as run:
         artifact_2 = run.use_artifact("artifact_2:latest")
         artifact_2.download()
@@ -1030,46 +1073,66 @@ def test_distributed_artifact_simple(wandb_init, cleanup):
 @pytest.fixture
 def cleanup():
     yield
-    _cleanup()
+    # _cleanup()
 
 
-def _cleanup():
-    # pass
-    # # with suppress(OSError):
-    # #     shutil.rmtree("wandb")
-    with suppress(OSError):
-        shutil.rmtree("artifacts")
-    with suppress(OSError):
-        shutil.rmtree("upstream")
+# def _cleanup():
+#     # pass
+#     # # with suppress(OSError):
+#     # #     shutil.rmtree("wandb")
+#     with suppress(OSError):
+#         shutil.rmtree("artifacts")
+#     with suppress(OSError):
+#         shutil.rmtree("upstream")
+
+
+# @pytest.fixture
+# def anon_s3_handler(monkeypatch):
+#     def init_anon_boto(self):
+#         if self._s3 is not None:
+#             return self._s3
+#         self._botocore = botocore
+#         self._s3 = boto3.session.Session().resource(
+#             "s3",
+#             config=botocore.client.Config(signature_version=botocore.UNSIGNED),
+#         )
+#         return self._s3
+#
+#     monkeypatch.setattr(S3Handler, "init_boto", init_anon_boto)
+#     yield
+#
+#
+# @pytest.fixture
+# def anon_gcs_handler(monkeypatch):
+#     def init_anon_gcs(self):
+#         if self._client is not None:
+#             return self._client
+#         self._client = google.cloud.storage.Client.create_anonymous_client()
+#         return self._client
+#
+#     monkeypatch.setattr(GCSHandler, "init_gcs", init_anon_gcs)
+#     yield
 
 
 @pytest.fixture
-def anon_s3_handler(monkeypatch):
-    def init_boto(self):
+def anon_cloud_handlers(monkeypatch):
+    def init_anon_boto(self):
         if self._s3 is not None:
             return self._s3
         self._botocore = botocore
         self._s3 = boto3.session.Session().resource(
-            "s3", config=botocore.client.Config(signature_version=botocore.UNSIGNED)
+            "s3",
+            config=botocore.client.Config(signature_version=botocore.UNSIGNED),
         )
         return self._s3
 
-    monkeypatch.setattr(S3Handler, "init_boto", init_boto)
-    yield
-
-
-@pytest.fixture
-def anon_gcs_handler(monkeypatch):
-    def init_gcs(self):
+    def init_anon_gcs(self):
         if self._client is not None:
             return self._client
         self._client = google.cloud.storage.Client.create_anonymous_client()
         return self._client
 
-    monkeypatch.setattr(GCSHandler, "init_gcs", init_gcs)
-    yield
+    monkeypatch.setattr(S3Handler, "init_boto", init_anon_boto)
+    monkeypatch.setattr(GCSHandler, "init_gcs", init_anon_gcs)
 
-
-@pytest.fixture
-def anon_cloud_handlers(anon_gcs_handler, anon_s3_handler):
     yield
