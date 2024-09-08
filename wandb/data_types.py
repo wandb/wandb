@@ -112,11 +112,9 @@ class _TableIndex(int, _TableLinkMixin):
 def _json_helper(val, artifact):
     if isinstance(val, WBValue):
         return val.to_json(artifact)
-    elif val.__class__ is dict:
-        res = {}
-        for key in val:
-            res[key] = _json_helper(val[key], artifact)
-        return res
+
+    if val.__class__ is dict:
+        return {key: _json_helper(obj, artifact) for key, obj in val.items()}
 
     if hasattr(val, "tolist"):
         py_val = val.tolist()
@@ -125,35 +123,29 @@ def _json_helper(val, artifact):
             # need to convert to milliseconds
             return _json_helper(py_val / int(1e6), artifact)
         return _json_helper(py_val, artifact)
-    elif hasattr(val, "item"):
+
+    if hasattr(val, "item"):
         return _json_helper(val.item(), artifact)
 
     if isinstance(val, datetime.datetime):
-        if val.tzinfo is None:
-            val = datetime.datetime(
-                val.year,
-                val.month,
-                val.day,
-                val.hour,
-                val.minute,
-                val.second,
-                val.microsecond,
-                tzinfo=datetime.timezone.utc,
-            )
-        return int(val.timestamp() * 1000)
-    elif isinstance(val, datetime.date):
+        val = val.replace(tzinfo=datetime.timezone.utc) if (val.tzinfo is None) else val
+        return int(val.timestamp() * 1_000)
+
+    if isinstance(val, datetime.date):
         return int(
-            datetime.datetime(
-                val.year, val.month, val.day, tzinfo=datetime.timezone.utc
+            datetime.datetime.combine(
+                val, datetime.time(), tzinfo=datetime.timezone.utc
             ).timestamp()
-            * 1000
+            * 1_000
         )
-    elif isinstance(val, (list, tuple)):
-        return [_json_helper(i, artifact) for i in val]
-    elif isinstance(val, Decimal):
+
+    if isinstance(val, (list, tuple)):
+        return [_json_helper(obj, artifact) for obj in val]
+
+    if isinstance(val, Decimal):
         return float(val)
-    else:
-        return util.json_friendly(val)[0]
+
+    return util.json_friendly(val)[0]
 
 
 class Table(Media):
