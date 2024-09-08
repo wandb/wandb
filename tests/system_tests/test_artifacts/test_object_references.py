@@ -755,7 +755,7 @@ def assert_media_obj_referential_equality(wandb_init, obj: WBValue):
 
     with wandb_init() as run4:
         mid_artifact_ref = run4.use_artifact(f"{mid_artifact.name}:latest")
-        mid_dir = mid_artifact_ref._default_root()
+        # mid_dir = mid_artifact_ref._default_root()
         obj2 = mid_artifact_ref.get(mid_entry_name)
 
     # assert not Path(mid_dir).is_dir()
