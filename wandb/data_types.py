@@ -25,7 +25,6 @@ import logging
 import os
 import pprint
 from decimal import Decimal
-from typing import Optional
 
 from typing_extensions import Final
 
@@ -1047,7 +1046,7 @@ class Audio(BatchableMedia):
         )
 
     def bind_to_run(
-        self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
+        self, run, key, step, id_=None, ignore_copy_err: bool | None = None
     ):
         if self.path_is_reference(self._path):
             raise ValueError(

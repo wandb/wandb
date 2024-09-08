@@ -13,10 +13,9 @@ import botocore
 import google.cloud.storage
 import numpy as np
 import pytest
+import wandb
 from bokeh.plotting import figure
 from typing_extensions import Final
-
-import wandb
 from wandb import Html, Object3D
 from wandb.data_types import Bokeh
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import GCSHandler
