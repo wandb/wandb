@@ -44,7 +44,7 @@ def test_add_scalars(wandb_init, relay_server):
         with wandb_init(sync_tensorboard=True), SummaryWriter() as writer:
             for i in range(10):
                 writer.add_scalars(
-                    "my_scalars",
+                    "value",
                     {
                         "one": 1.1,
                         "two": 2.2,
@@ -57,10 +57,10 @@ def test_add_scalars(wandb_init, relay_server):
         run_id = run_ids[0]
 
         summary = relay.context.get_run_summary(run_id)
-        assert summary["my_scalars_one/one"] == pytest.approx(1.1)
-        assert summary["my_scalars_one/global_step"] == 9
-        assert summary["my_scalars_two/two"] == pytest.approx(2.2)
-        assert summary["my_scalars_two/global_step"] == 9
+        assert summary["value_one/value"] == pytest.approx(1.1)
+        assert summary["value_one/global_step"] == 9
+        assert summary["value_two/value"] == pytest.approx(2.2)
+        assert summary["value_two/global_step"] == 9
 
         telemetry = relay.context.get_run_telemetry(run_id)
         assert 35 in telemetry["3"]  # tensorboard_sync
