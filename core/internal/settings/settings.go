@@ -245,7 +245,7 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
 
-// Fork information for the run.
+// File path to supply a jwt for authentication
 func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
