@@ -141,9 +141,9 @@ def _replace_refs_and_allofs(schema: dict, defs: Optional[dict]) -> dict:
     ret: Dict[str, Any] = {}
     if "$ref" in schema and defs:
         # Reference found, replace it with its definition
-        def_key = schema["$ref"].split("#/$defs/")[1]
+        def_key = schema.pop("$ref").split("#/$defs/")[1]
         # Also run recursive replacement in case a ref contains more refs
-        return _replace_refs_and_allofs(defs.pop(def_key), defs)
+        ret = _replace_refs_and_allofs(defs.pop(def_key), defs)
     for key, val in schema.items():
         if isinstance(val, dict):
             # Step into dicts recursively
