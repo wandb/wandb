@@ -200,10 +200,14 @@ def test_add_pr_curve_plugin(relay_server, wandb_init):
 
 
 def test_compat_tensorboard(relay_server, wandb_init):
-    relay = relay_server()
-    run = wandb_init(sync_tensorboard=True)
-    sess = tf.compat.v1.Session(graph=tf.compat.v1.Graph())
-    with relay, run, sess:
+    # Parenthesized context managers which result in better formatting
+    # are supported starting Python 3.10.
+    # fmt: off
+    with relay_server() as relay, \
+        wandb_init(sync_tensorboard=True) as run, \
+        tf.compat.v1.Session(graph=tf.compat.v1.Graph()) as sess:
+        # fmt: on
+
         x_scalar = tf.compat.v1.get_variable(
             "x_scalar",
             shape=[],
