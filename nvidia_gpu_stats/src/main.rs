@@ -1,7 +1,5 @@
 use clap::Parser;
-use nix::unistd::getppid;
 use sentry::types::Dsn;
-use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
 use std::env;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -40,6 +38,76 @@ fn parse_bool(s: &str) -> bool {
     }
 }
 
+/// Listen for signals to gracefully shutdown the program
+#[cfg(unix)]
+fn setup_signal_handler(running: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+    use signal_hook::{consts::TERM_SIGNALS, iterator::Signals};
+    let mut signals = Signals::new(TERM_SIGNALS)?;
+    thread::spawn(move || {
+        for _sig in signals.forever() {
+            running.store(false, Ordering::Relaxed);
+            break;
+        }
+    });
+    Ok(())
+}
+
+#[cfg(windows)]
+fn setup_signal_handler(_running: Arc<AtomicBool>) -> Result<(), Box<dyn std::error::Error>> {
+    // Windows doesn't support the same signal handling as Unix, so we can't
+    // gracefully shutdown the program. Instead, we rely on the parent process
+    // to kill the program when it's done.
+    Ok(())
+}
+
+/// Check if the parent process is still alive
+#[cfg(unix)]
+fn is_parent_alive(ppid: i32) -> bool {
+    use nix::unistd::getppid;
+    getppid() == nix::unistd::Pid::from_raw(ppid)
+}
+
+#[cfg(windows)]
+fn is_parent_alive(ppid: i32) -> bool {
+    // This function checks if the parent process is still alive by enumerating
+    // all processes and checking if the parent process ID matches the given
+    // parent process ID. This is a workaround for the lack of signal handling
+    // on Windows.
+    use winapi::um::handleapi::CloseHandle;
+    use winapi::um::processthreadsapi::GetCurrentProcessId;
+    use winapi::um::tlhelp32::{
+        CreateToolhelp32Snapshot, Process32First, Process32Next, PROCESSENTRY32, TH32CS_SNAPPROCESS,
+    };
+    use winapi::um::winnt::HANDLE;
+
+    unsafe {
+        let snapshot: HANDLE = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+        if snapshot == winapi::um::handleapi::INVALID_HANDLE_VALUE {
+            return false;
+        }
+
+        let mut pe32: PROCESSENTRY32 = std::mem::zeroed();
+        pe32.dwSize = std::mem::size_of::<PROCESSENTRY32>() as u32;
+
+        if Process32First(snapshot, &mut pe32) != 0 {
+            loop {
+                if pe32.th32ProcessID == GetCurrentProcessId() as u32
+                    && pe32.th32ParentProcessID == ppid as u32
+                {
+                    CloseHandle(snapshot);
+                    return true;
+                }
+                if Process32Next(snapshot, &mut pe32) == 0 {
+                    break;
+                }
+            }
+        }
+
+        CloseHandle(snapshot);
+    }
+    false
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse command-line arguments
     let args = Args::parse();
@@ -74,13 +142,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let r = running.clone();
 
     // Set up signal handler for graceful shutdown
-    let mut signals = Signals::new(TERM_SIGNALS)?;
-    thread::spawn(move || {
-        for _sig in signals.forever() {
-            r.store(false, Ordering::Relaxed);
-            break;
-        }
-    });
+    setup_signal_handler(r)?;
 
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
@@ -109,7 +171,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         // Check if parent process is still alive and break loop if not
-        if getppid() != nix::unistd::Pid::from_raw(args.ppid) {
+        if !is_parent_alive(args.ppid) {
             break;
         }
 

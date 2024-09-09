@@ -4,6 +4,12 @@ use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
 use sysinfo::{Pid, System};
 
+#[cfg(target_os = "windows")]
+const LIB_PATH: &str = "nvml.dll";
+
+#[cfg(not(target_os = "windows"))]
+const LIB_PATH: &str = "libnvidia-ml.so.1";
+
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
@@ -12,13 +18,11 @@ pub struct NvidiaGpu {
 
 impl NvidiaGpu {
     pub fn new() -> Result<Self, NvmlError> {
-        // Nvml::init() attempts to load libnvidia-ml.so which is usually a symlink
+        // On Linux, Nvml::init() attempts to load libnvidia-ml.so which is usually a symlink
         // to libnvidia-ml.so.1 and not available in certain environments.
         // We follow go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
         // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
-        let nvml = Nvml::builder()
-            .lib_path("libnvidia-ml.so.1".as_ref())
-            .init()?;
+        let nvml = Nvml::builder().lib_path(LIB_PATH.as_ref()).init()?;
         let cuda_version = nvml.sys_cuda_driver_version()?;
         format!(
             "{}.{}",

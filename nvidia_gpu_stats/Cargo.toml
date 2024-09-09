@@ -18,3 +18,10 @@ sentry = { version = "0.34", default-features = false, features = [
     "reqwest",
     "rustls",
 ] }
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = [
+    "processthreadsapi",
+    "tlhelp32",
+    "handleapi",
+    "winnt",
+] }
