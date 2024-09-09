@@ -1,5 +1,6 @@
 use clap::Parser;
 use sentry::types::Dsn;
+use std::collections::HashSet;
 use std::env;
 use std::io;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -144,6 +145,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Set up signal handler for graceful shutdown
     setup_signal_handler(r)?;
 
+    // Error cache to minimize duplicate error messages sent to Sentry
+    let mut error_cache: HashSet<String> = HashSet::new();
+
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
         let sampling_start = Instant::now();
@@ -155,7 +159,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         // Sample GPU metrics
         let mut metrics = Metrics::new();
         if let Err(e) = nvidia_gpu.sample_metrics(&mut metrics, args.pid) {
-            sentry::capture_error(&e);
+            let error_message = e.to_string();
+            if !error_cache.contains(&error_message) {
+                error_cache.insert(error_message);
+                sentry::capture_error(&e);
+            }
         }
 
         // Add timestamp to metrics
@@ -166,7 +174,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             if e.kind() == io::ErrorKind::BrokenPipe {
                 break;
             } else {
-                sentry::capture_error(&e);
+                let error_message = e.to_string();
+                if !error_cache.contains(&error_message) {
+                    error_cache.insert(error_message);
+                    sentry::capture_error(&e);
+                }
             }
         }
 
@@ -186,7 +198,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Graceful shutdown of NVML
     if let Err(e) = nvidia_gpu.shutdown() {
         sentry::capture_error(&e);
-        eprintln!("Error shutting down NVML: {}", e);
     }
 
     Ok(())
