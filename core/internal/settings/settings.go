@@ -244,3 +244,8 @@ func (s *Settings) GetResumeFrom() *spb.RunMoment {
 func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
+
+// Fork information for the run.
+func (s *Settings) GetIdentityTokenFile() string {
+	return s.Proto.IdentityTokenFile.GetValue()
+}

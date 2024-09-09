@@ -268,6 +268,14 @@ func (nc *Connection) handleServerRequest() {
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
+	tokenFile := settings.GetIdentityTokenFile()
+	if tokenFile != "" {
+		panic("Identity federation via the wandb sdk is temporarily unavailable in version 0.18.0 or later. " +
+			"Support for this feature will be reintroduced in an upcoming release. To continue using this feature, " +
+			"please downgrade to version 0.17.9 or lower using the following command: pip install wandb==0.17.9. " +
+			"Thank you for your patience.")
+	}
+
 	err := settings.EnsureAPIKey()
 	if err != nil {
 		slog.Error(
