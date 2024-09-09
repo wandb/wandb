@@ -204,8 +204,8 @@ def test_compat_tensorboard(relay_server, wandb_init):
     # are supported starting Python 3.10.
     # fmt: off
     with relay_server() as relay, \
-        wandb_init(sync_tensorboard=True) as run, \
-        tf.compat.v1.Session(graph=tf.compat.v1.Graph()) as sess:
+         wandb_init(sync_tensorboard=True) as run, \
+         tf.compat.v1.Session(graph=tf.compat.v1.Graph()) as sess:
         # fmt: on
 
         x_scalar = tf.compat.v1.get_variable(
