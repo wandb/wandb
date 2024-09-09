@@ -281,7 +281,15 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
+	// if we are in offline mode, we don't want to send any data to sentry
+	var sentryClient *sentry_ext.Client
+	if settings.IsOffline() {
+		sentryClient = sentry_ext.New(sentry_ext.Params{DSN: ""})
+	} else {
+		sentryClient = nc.sentryClient
+	}
+
+	nc.stream = NewStream(nc.commit, settings, sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
