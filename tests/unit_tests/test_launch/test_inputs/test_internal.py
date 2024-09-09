@@ -207,7 +207,6 @@ def test_handle_config_file_input(mocker):
     platform.system().lower() == "windows",
     reason="Doesn't work on Windows",
 )
-@pytest.mark.skip(reason="TODO: This test is failing on Pydantic 2.9.0.")
 def test_handle_config_file_input_pydantic(
     mocker,
     expected_json_schema,
