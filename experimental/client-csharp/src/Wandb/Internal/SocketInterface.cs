@@ -84,12 +84,7 @@ namespace Wandb.Internal
             {
                 InformInit = new ServerInformInitRequest
                 {
-                    // TODO: add conversion settings to protobuf
-                    Settings = new WandbInternal.Settings
-                    {
-                        BaseUrl = settings.GetBaseUrl(),
-                        RunId = settings.GetRunId(),
-                    },
+                    Settings = settings.ToProto(),
                     Info = new _RecordInfo
                     {
                         StreamId = streamId

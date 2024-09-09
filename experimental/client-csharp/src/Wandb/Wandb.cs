@@ -1,7 +1,4 @@
-﻿using System.Text;
-using Wandb.Internal;
-
-
+﻿using Wandb.Internal;
 
 namespace Wandb
 {
@@ -32,12 +29,17 @@ namespace Wandb
             string runId = generator.GenerateRandomString(8);
 
             // TODO: do not hardcode stuff
-            string baseUrl = "https://api.wandb.ai";
+            string timespec = DateTime.Now.ToString("yyyyMMdd_HHmmss");
 
             var settings = new Settings(
-                baseUrl: baseUrl,
-                runId: runId
+                runId: runId,
+                timespec: timespec
             );
+
+            // Create the run directory structure
+            Directory.CreateDirectory(settings.GetSyncDir());
+            Directory.CreateDirectory(settings.GetFilesDir());
+            Directory.CreateDirectory(settings.GetLogDir());
 
             var run = new Run(_interface, settings);
             await run.Init();
