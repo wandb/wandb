@@ -31,7 +31,11 @@ namespace Wandb
             RandomStringGenerator generator = new();
             string runId = generator.GenerateRandomString(8);
 
+            // TODO: do not hardcode stuff
+            string baseUrl = "https://api.wandb.ai";
+
             var settings = new Settings(
+                baseUrl: baseUrl,
                 runId: runId
             );
 

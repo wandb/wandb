@@ -24,6 +24,10 @@ namespace Wandb.Internal
                 Run = new RunRecord
                 {
                     RunId = run.Settings.GetRunId()
+                },
+                Info = new _RecordInfo
+                {
+                    StreamId = run.Settings.GetRunId()
                 }
             };
             return await Deliver(record);
@@ -46,6 +50,7 @@ namespace Wandb.Internal
             ServerRequest request = new()
             {
                 RecordPublish = record
+
             };
 
             return await SendAndRecv(request);
@@ -82,6 +87,7 @@ namespace Wandb.Internal
                     // TODO: add conversion settings to protobuf
                     Settings = new WandbInternal.Settings
                     {
+                        BaseUrl = settings.GetBaseUrl(),
                         RunId = settings.GetRunId(),
                     },
                     Info = new _RecordInfo

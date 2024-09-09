@@ -18,8 +18,8 @@ namespace Wandb
 
         public async Task Init()
         {
-            //
-            // await _interface.DeliverRun(this);
+            await _interface.InformInit(Settings, Settings.GetRunId());
+            await _interface.DeliverRun(this);
         }
 
         public async Task Log(object data)
