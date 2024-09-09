@@ -15,6 +15,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Add support for artifact tags, via `Artifact.tags` and `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
 
+### Fixed
+
+- Detect the notebook name in VS Code's built-in jupyter server (@dmitryduev in https://github.com/wandb/wandb/pull/8311)
+
 ## [0.17.9] - 2024-09-05
 
 ### Changed
