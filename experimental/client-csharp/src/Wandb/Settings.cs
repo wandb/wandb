@@ -30,6 +30,26 @@ namespace Wandb
             return Path.Combine(GetSyncDir(), "logs");
         }
 
+        public string GetLogInternal()
+        {
+            return Path.Combine(GetLogDir(), "debug-internal.log");
+        }
+
+        public string GetLogSymlinkInternal()
+        {
+            return Path.Combine(GetWandbDir(), "debug-internal.log");
+        }
+
+        public string GetLogSymlinkUser()
+        {
+            return Path.Combine(GetWandbDir(), "debug.log");
+        }
+
+        public string GetLogUser()
+        {
+            return Path.Combine(GetLogDir(), "debug.log");
+        }
+
         public string GetMode()
         {
             return mode;
@@ -82,6 +102,10 @@ namespace Wandb
                 BaseUrl = baseUrl,
                 FilesDir = GetFilesDir(),
                 LogDir = GetLogDir(),
+                LogInternal = GetLogInternal(),
+                LogSymlinkInternal = GetLogSymlinkInternal(),
+                LogSymlinkUser = GetLogSymlinkUser(),
+                LogUser = GetLogUser(),
                 Mode = mode,
                 Offline = GetOffline(),
                 RunId = runId,
