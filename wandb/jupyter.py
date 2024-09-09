@@ -167,8 +167,6 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
             urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
         ).json()
         for nn in res:
-            # TODO: wandb/client#400 found a case where res returned an array of
-            # strings...
             if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
                 if nn["kernel"]["id"] == kernel_id:
                     return {
@@ -176,7 +174,24 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
                         "path": nn["notebook"]["path"],
                         "name": nn["notebook"]["name"],
                     }
-    return None
+
+    if not kernel_id:
+        return None
+
+    # Built-in notebook server in VS Code
+    try:
+        from IPython import get_ipython
+
+        ipython = get_ipython()
+        notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
+        if notebook_path:
+            return {
+                "root": os.path.dirname(notebook_path),
+                "path": notebook_path,
+                "name": os.path.basename(notebook_path),
+            }
+    except Exception:
+        return None
 
 
 def notebook_metadata(silent: bool) -> Dict[str, str]:
