@@ -17,7 +17,7 @@ namespace Wandb.Internal
             await _tcpCommunication.Open(port);
         }
 
-        public async Task<Record> DeliverRun(Run run)
+        public async Task<Result> DeliverRun(Run run)
         {
             var record = new Record
             {
@@ -33,7 +33,7 @@ namespace Wandb.Internal
             return await Deliver(record);
         }
 
-        public async Task<Record> DeliverRunStart()
+        public async Task<Result> DeliverRunStart()
         {
             var record = new Record
             {
@@ -45,7 +45,7 @@ namespace Wandb.Internal
             return await Deliver(record);
         }
 
-        public async Task<Record> Deliver(Record record)
+        public async Task<Result> Deliver(Record record)
         {
             ServerRequest request = new()
             {
@@ -53,7 +53,8 @@ namespace Wandb.Internal
 
             };
 
-            return await SendAndRecv(request);
+            ServerResponse response = await SendAndRecv(request);
+            return response.ResultCommunicate;
         }
 
         public async Task PublishPartialHistory()
@@ -115,14 +116,14 @@ namespace Wandb.Internal
             await _tcpCommunication.Send(data);
         }
 
-        public async Task<Record> SendAndRecv(ServerRequest request)
+        public async Task<ServerResponse> SendAndRecv(ServerRequest request)
         {
 
             byte[] data = request.ToByteArray();
             await _tcpCommunication.Send(data);
 
             byte[] receivedData = await _tcpCommunication.Receive();
-            return Record.Parser.ParseFrom(receivedData);
+            return ServerResponse.Parser.ParseFrom(receivedData);
 
 
         }
