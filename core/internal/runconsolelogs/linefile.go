@@ -52,7 +52,7 @@ func CreateLineFile(path string, perm fs.FileMode) (*lineFile, error) {
 // UpdateLines replaces lines in the file.
 //
 // This is written for performance when updating lines near the end of the file.
-func (f *lineFile) UpdateLines(lines sparselist.SparseList[string]) error {
+func (f *lineFile) UpdateLines(lines sparselist.SparseList[string]) (err error) {
 	if lines.Len() == 0 {
 		return nil
 	}
@@ -61,7 +61,14 @@ func (f *lineFile) UpdateLines(lines sparselist.SparseList[string]) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		// An error in Close() can indicate a problem flushing writes
+		// to the file.
+		closeErr := file.Close()
+		if err == nil {
+			err = closeErr
+		}
+	}()
 
 	oldLinesReversed := []string{}
 	origNextLine := f.nextLineNum
