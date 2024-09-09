@@ -133,10 +133,6 @@ def test_add_images(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="missing implementation of old style TensorBoard and hangs on processing data",
-)
 def test_add_histogram(wandb_init, relay_server):
     """Test adding a histogram to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
@@ -159,10 +155,6 @@ def test_add_histogram(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="missing implementation of old style TensorBoard",
-)
 def test_add_histogram_raw(wandb_init, relay_server):
     """Test adding a histogram with raw data to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
