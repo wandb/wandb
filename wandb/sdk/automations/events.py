@@ -8,7 +8,7 @@ from typing_extensions import Annotated
 
 from wandb.sdk.automations._typing import TypenameField
 from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.expr import AnyExpr, MetricPredicate
+from wandb.sdk.automations.expr import AnyExpr, QueryExpr
 
 
 # Triggers on mutation
@@ -35,7 +35,7 @@ class RunMetricEvent(Base):
     event_type: str  # TODO: TBD
 
     run_filter: Json[Filter]
-    metric_filter: Json[MetricPredicate]
+    metric_filter: Json[QueryExpr]
 
 
 AnyEvent = Annotated[

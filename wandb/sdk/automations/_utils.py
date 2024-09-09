@@ -11,6 +11,7 @@ from pydantic import TypeAdapter, field_validator
 from wandb_gql import gql
 
 from wandb import Api
+from wandb.apis.public import RetryingClient
 from wandb.sdk.automations._typing import Base64Id, TypenameField
 from wandb.sdk.automations.base import Base
 
@@ -54,10 +55,10 @@ OrgsInfoAdapter = TypeAdapter(list[OrgInfo])
 
 
 def get_orgs_info(entity: str | None = None) -> list[OrgInfo]:
-    api = _get_api()
+    client = _client()
 
     params = {"entityName": entity}
-    data = api.client.execute(_FETCH_ORGS_ENTITIES_PROJECTS, variable_values=params)
+    data = client.execute(_FETCH_ORGS_ENTITIES_PROJECTS, variable_values=params)
 
     viewer = data["viewer"]
     orgs = OrgsInfoAdapter.validate_python(viewer["organizations"])
@@ -78,11 +79,12 @@ def iter_entity_project_pairs(orgs: Iterable[OrgInfo]) -> Iterator[tuple[str, st
                 yield entity_name, entity_project.name
 
 
-def _get_api() -> Api:
-    return Api(
+def _client() -> RetryingClient:
+    api = Api(
         overrides={"base_url": "https://api.wandb.ai"},
         api_key=os.environ["WANDB_API_KEY"],
     )
+    return api.client
 
 
 _PROJECT_INFO_FRAGMENT = dedent(

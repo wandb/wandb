@@ -36,7 +36,7 @@ class Expr(Base, ABC):
     #     if isinstance(self, In):
     #         return Nin(nin_=self.in_)
     #     return Not(not_=self)
-
+    #
     # # ------------------------------------------------------------------------------
     # def __lt__(self, other: ValueT) -> Lt:
     #     raise NotImplementedError
@@ -66,18 +66,23 @@ ValueT = TypeVar("ValueT")
 
 # ------------------------------------------------------------------------------
 # MongoDB specs: https://www.mongodb.com/docs/manual/reference/operator/query-logical/
-class Or(Expr):
-    """Type for the `$or` operator -- also effectively an `any` operator."""
+class Op(Expr):
+    pass
 
-    or_: list[AnyExpr] = Field(alias="$or")
-
-
-class And(Expr):
-    and_: list[AnyExpr] = Field(alias="$and")
+    def __repr__(self) -> str:
+        return "hello"
 
 
-class Not(Expr):
-    not_: AnyExpr = Field(alias="$not")
+class Or(Op):
+    exprs: list[AnyExpr] = Field(alias="$or")
+
+
+class And(Op):
+    exprs: list[AnyExpr] = Field(alias="$and")
+
+
+class Not(Op):
+    exprs: AnyExpr = Field(alias="$not")
 
 
 # ------------------------------------------------------------------------------
@@ -88,49 +93,45 @@ class Regex(Expr):
 
 # ------------------------------------------------------------------------------
 class Lt(Expr):
-    lt_: ValueT = Field(alias="$lt")
+    val: ValueT = Field(alias="$lt")
 
 
 class Gt(Expr):
-    gt_: ValueT = Field(alias="$gt")
+    val: ValueT = Field(alias="$gt")
 
 
 class Lte(Expr):
-    lte_: ValueT = Field(alias="$lte")
+    val: ValueT = Field(alias="$lte")
 
 
 class Gte(Expr):
-    gte_: ValueT = Field(alias="$gte")
+    val: ValueT = Field(alias="$gte")
 
 
 # ------------------------------------------------------------------------------
 class Eq(Expr):
-    eq_: ValueT = Field(alias="$eq")
+    val: ValueT = Field(alias="$eq")
 
 
 class Ne(Expr):
-    ne_: ValueT = Field(alias="$ne")
+    val: ValueT = Field(alias="$ne")
 
 
 # ------------------------------------------------------------------------------
 class In(Expr):
-    in_: list[ValueT] = Field(alias="$in")
+    vals: list[ValueT] = Field(alias="$in")
 
 
 class Nin(Expr):
-    nin_: list[ValueT] = Field(alias="$nin")
+    vals: list[ValueT] = Field(alias="$nin")
 
 
 # ------------------------------------------------------------------------------
-class FieldPredicate(RootModel):
+class QueryExpr(RootModel):
     root: dict[str, AnyExpr]
 
     def __repr_args__(self) -> _repr.ReprArgs:
         yield from self.root.items()
-
-
-class MetricPredicate(FieldPredicate):
-    pass
 
 
 AnyExpr = Union[
@@ -146,5 +147,5 @@ AnyExpr = Union[
     Ne,
     In,
     Nin,
-    FieldPredicate,
+    QueryExpr,
 ]
