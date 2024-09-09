@@ -18,50 +18,11 @@ import (
 	"github.com/prometheus/common/expfmt"
 )
 
-// Filter represents a filter to apply to metrics collected from an OpenMetrics endpoint.
+// Filter defines criteria for selecting metrics from an OpenMetrics endpoint.
 //
-// Provides a fine-grained control over which metrics to collect.
-// OpenMetrics filters can be specified via wandb.Settings in one of the two formats:
-//   - {"metric regex pattern, including endpoint name as prefix": {"label": "label value regex pattern"}}
-//   - ("metric regex pattern 1", "metric regex pattern 2", ...)
-//
-// These are converted to a list of Filter objects using the processMappingFilters
-// and processSequenceFilters functions, respectively.
-//
-// The following code snippet demonstrates how to configure OpenMetrics filters
-// to capture only the metrics DCGM_FI_DEV_POWER_USAGE with the labels gpu="0" or gpu="1"
-// from node1 and 5 metrics with the label gpu=".*" from node2.
-//
-// run = wandb.init(
-//
-//	project="dcgm",
-//	settings=wandb.Settings(
-//	    _stats_open_metrics_endpoints={
-//	        "node1": "http://192.168.0.1:9400/metrics",
-//	        "node2": "http://192.168.0.2:9400/metrics",
-//	    },
-//	    _stats_open_metrics_filters={
-//	        "node1.DCGM_FI_DEV_POWER_USAGE": {
-//	            "gpu": "[0,1]",
-//	        },
-//	        "node2.DCGM_FI_DEV_(POWER_USAGE|MEM_COPY_UTIL|TOTAL_ENERGY_CONSUMPTION|GPU_TEMP|MEMORY_TEMP)": {
-//	            "gpu": ".*",
-//	        },
-//	    },
-//	),
-//
-// )
-//
-// The OpenMetrics endpoint at http://192.168.0.1:9400/metrics (designated `node1` by the user
-// in the settings) might expose the following metrics:
-//
-// # HELP DCGM_FI_DEV_POWER_USAGE Power draw (in W).
-// # TYPE DCGM_FI_DEV_POWER_USAGE gauge
-// DCGM_FI_DEV_POWER_USAGE{gpu="0",UUID="GPU-c601d117-58ff-cd30-ae20-529ab192ba51"} 99.9
-// DCGM_FI_DEV_POWER_USAGE{gpu="1",UUID="GPU-a7c8aa83-d112-b585-8456-5fc2f3e6d18e"} 0.1
-// DCGM_FI_DEV_POWER_USAGE{gpu="2",UUID="GPU-a7c8aa83-d112-b463-3456-5fc2f3f2k43s"} 40.2
-//
-// The specified filter will capture only the metrics with lables gpu="0" and gpu="1" from node1.
+// It represents the internal structure for spb.OpenMetricsFilters.
+// For more details on configuring OpenMetrics filters, refer to the documentation
+// for the _stats_open_metrics_endpoints and _stats_open_metrics_filters settings.
 type Filter struct {
 	MetricNameRegex string
 	LabelFilters    []LabelFilter
@@ -160,14 +121,14 @@ func NewOpenMetrics(
 		case *spb.OpenMetricsFilters_Mapping:
 			processedFilters = processMappingFilters(v.Mapping)
 		default:
-			logger.Warn("Unknown filter type, using empty filter")
+			logger.Warn("monitor: openmetrics: unknown filter type, using empty filter")
 		}
 	}
 
 	// cache to use with ShouldCaptureMetric
 	cache, err := lru.New(100)
 	if err != nil {
-		logger.Error("openmetrics: error creating cache", "error", err)
+		logger.Error("monitor: openmetrics: error creating cache", "error", err)
 		return nil
 	}
 
@@ -268,7 +229,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 	var parser expfmt.TextParser
 	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
-		o.logger.Error("Error parsing metrics", "error", err)
+		o.logger.Error("monitor: openmetrics: error parsing metrics", "error", err)
 		return nil, err
 	}
 
@@ -337,7 +298,7 @@ func (o *OpenMetrics) IsAvailable() bool {
 	_, err := o.Sample()
 	if err != nil {
 		o.logger.Warn(
-			"openmetrics: failed to fetch metrics from endpoint",
+			"monitor: openmetrics: failed to fetch metrics from endpoint",
 			"url", o.url,
 			"error", err,
 		)
