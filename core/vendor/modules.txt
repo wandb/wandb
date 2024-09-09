@@ -168,6 +168,9 @@ github.com/kevinburke/ssh_config
 # github.com/lufia/plan9stats v0.0.0-20240513124658-fba389f38bae
 ## explicit; go 1.16
 github.com/lufia/plan9stats
+# github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822
+## explicit
+github.com/munnerz/goautoneg
 # github.com/pjbgf/sha1cd v0.3.0
 ## explicit; go 1.19
 github.com/pjbgf/sha1cd
@@ -179,6 +182,13 @@ github.com/pmezard/go-difflib/difflib
 # github.com/power-devops/perfstat v0.0.0-20240221224432-82ca36839d55
 ## explicit; go 1.14
 github.com/power-devops/perfstat
+# github.com/prometheus/client_model v0.6.1
+## explicit; go 1.19
+github.com/prometheus/client_model/go
+# github.com/prometheus/common v0.58.0
+## explicit; go 1.20
+github.com/prometheus/common/expfmt
+github.com/prometheus/common/model
 # github.com/radovskyb/watcher v1.0.7
 ## explicit
 github.com/radovskyb/watcher
@@ -233,15 +243,14 @@ github.com/xanzy/ssh-agent
 # github.com/yusufpapurcu/wmi v1.2.4
 ## explicit; go 1.16
 github.com/yusufpapurcu/wmi
-# golang.org/x/crypto v0.24.0
-## explicit; go 1.18
+# golang.org/x/crypto v0.26.0
+## explicit; go 1.20
 golang.org/x/crypto/argon2
 golang.org/x/crypto/blake2b
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/cast5
 golang.org/x/crypto/chacha20
 golang.org/x/crypto/curve25519
-golang.org/x/crypto/curve25519/internal/field
 golang.org/x/crypto/hkdf
 golang.org/x/crypto/internal/alias
 golang.org/x/crypto/internal/poly1305
@@ -255,7 +264,7 @@ golang.org/x/crypto/ssh/knownhosts
 golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.26.0
+# golang.org/x/net v0.28.0
 ## explicit; go 1.18
 golang.org/x/net/context
 golang.org/x/net/internal/socks
@@ -270,7 +279,7 @@ golang.org/x/sys/execabs
 golang.org/x/sys/unix
 golang.org/x/sys/windows
 golang.org/x/sys/windows/registry
-# golang.org/x/text v0.16.0
+# golang.org/x/text v0.17.0
 ## explicit; go 1.18
 golang.org/x/text/cases
 golang.org/x/text/internal
@@ -309,6 +318,7 @@ golang.org/x/tools/internal/typesinternal
 golang.org/x/tools/internal/versions
 # google.golang.org/protobuf v1.34.2
 ## explicit; go 1.20
+google.golang.org/protobuf/encoding/protodelim
 google.golang.org/protobuf/encoding/protojson
 google.golang.org/protobuf/encoding/prototext
 google.golang.org/protobuf/encoding/protowire

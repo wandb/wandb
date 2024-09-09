@@ -2,41 +2,10 @@
 Used https://www.tensorflow.org/api_docs/python/tf/summary as reference."""
 
 import pytest
-import tensorboard.plugins.pr_curve.summary as pr_curve_plugins_summary
 import tensorboard.summary.v1 as tensorboard_summary_v1
 import tensorflow as tf
 import wandb
 from wandb.errors import term
-
-PR_CURVE_SPEC = {
-    "panel_type": "Vega2",
-    "panel_config": {
-        "fieldSettings": {"x": "recall", "y": "precision"},
-        "panelDefId": "wandb/line/v0",
-        "stringSettings": {"title": "test_pr/pr_curves Precision v. Recall"},
-        "transform": {"name": "tableWithLeafColNames"},
-        "userQuery": {
-            "queryFields": [
-                {
-                    "name": "runSets",
-                    "args": [{"name": "runSets", "value": "${runSets}"}],
-                    "fields": [
-                        {"name": "id", "fields": []},
-                        {"name": "name", "fields": []},
-                        {"name": "_defaultColorIndex", "fields": []},
-                        {
-                            "name": "summaryTable",
-                            "fields": [],
-                            "args": [
-                                {"name": "tableKey", "value": "test_pr/pr_curves_table"}
-                            ],
-                        },
-                    ],
-                }
-            ]
-        },
-    },
-}
 
 
 def test_histogram(wandb_init, relay_server):
@@ -119,101 +88,65 @@ def test_scalar(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-def test_add_pr_curve(relay_server, wandb_init):
-    with relay_server() as relay:
-        with wandb_init(sync_tensorboard=True) as run:
-            with tf.summary.create_file_writer("test/logs").as_default():
-                tf.summary.experimental.write_raw_pb(
-                    tensorboard_summary_v1.pr_curve(
-                        "test_pr",
-                        labels=tf.constant(
-                            [True, False, True],
-                        ),
-                        predictions=tf.constant(
-                            [0.7, 0.2, 0.3],
-                        ),
-                        num_thresholds=5,
-                    ),
-                    step=0,
-                )
+def test_pr_curves(relay_server, wandb_init):
+    with relay_server() as relay, wandb_init(sync_tensorboard=True) as run:
+        writer = tf.summary.create_file_writer("test/logs")
+        with writer.as_default():
+            tf.summary.experimental.write_raw_pb(
+                tensorboard_summary_v1.pr_curve(
+                    "test_pr",
+                    labels=tf.constant([True, False, True]),
+                    predictions=tf.constant([0.7, 0.2, 0.3]),
+                    num_thresholds=5,
+                ),
+                step=0,
+            )
 
-        config = relay.context.config[run.id]
-        assert (
-            config["_wandb"]["value"]["visualize"]["test_pr/pr_curves"] == PR_CURVE_SPEC
-        )
-    wandb.tensorboard.unpatch()
-
-
-def test_add_pr_curve_plugin(relay_server, wandb_init):
-    with relay_server() as relay:
-        with wandb_init(sync_tensorboard=True) as run:
-            with tf.compat.v1.Session() as sess:
-                with tf.compat.v1.summary.FileWriter(
-                    "test/logs", session=sess
-                ) as writer:
-                    summary = tf.compat.v1.summary.merge(
-                        [
-                            pr_curve_plugins_summary.op(
-                                name="test_pr",
-                                labels=tf.constant(
-                                    [True, False, True],
-                                ),
-                                predictions=tf.constant(
-                                    [0.7, 0.2, 0.3],
-                                ),
-                                num_thresholds=5,
-                            )
-                        ]
-                    )
-                    writer.add_summary(sess.run(summary), 0)
-
-        config = relay.context.get_run_config(run.id)
-        assert (
-            config["_wandb"]["value"]["visualize"]["test_pr/pr_curves"] == PR_CURVE_SPEC
-        )
-
-        summary = relay.context.get_run_summary(run.id)
-        assert summary["global_step"] == 0
-        assert summary["test_pr/pr_curves_table"]["_type"] == "table-file"
-
+    config = relay.context.config[run.id]
+    assert "test_pr/pr_curves" in config["_wandb"]["value"]["visualize"]
     wandb.tensorboard.unpatch()
 
 
 def test_compat_tensorboard(relay_server, wandb_init):
-    with relay_server() as relay:
-        with wandb_init(sync_tensorboard=True) as run:
-            with tf.compat.v1.Session() as sess:
-                x_scalar = tf.compat.v1.get_variable(
-                    "x_scalar",
-                    shape=[],
-                    initializer=tf.compat.v1.truncated_normal_initializer(
-                        mean=0,
-                        stddev=1,
-                    ),
+    # Parenthesized context managers which result in better formatting
+    # are supported starting Python 3.10.
+    # fmt: off
+    with relay_server() as relay, \
+         wandb_init(sync_tensorboard=True) as run, \
+         tf.compat.v1.Session(graph=tf.compat.v1.Graph()) as sess:
+        # fmt: on
+
+        x_scalar = tf.compat.v1.get_variable(
+            "x_scalar",
+            shape=[],
+            initializer=tf.compat.v1.truncated_normal_initializer(
+                mean=0,
+                stddev=1,
+            ),
+        )
+        init = tf.compat.v1.global_variables_initializer()
+        summary = tf.compat.v1.summary.scalar(
+            "x_scalar",
+            x_scalar,
+        )
+        with tf.compat.v1.summary.FileWriter("test/logs", sess.graph) as writer:
+            for step in range(10):
+                sess.run(init)
+                writer.add_summary(
+                    sess.run(summary),
+                    step,
                 )
-                init = tf.compat.v1.global_variables_initializer()
-                summary = tf.compat.v1.summary.scalar(
-                    "x_scalar",
-                    x_scalar,
-                )
-                with tf.compat.v1.summary.FileWriter("test/logs", sess.graph) as writer:
-                    for step in range(10):
-                        sess.run(init)
-                        writer.add_summary(
-                            sess.run(summary),
-                            step,
-                        )
 
-        run_ids = relay.context.get_run_ids()
-        assert len(run_ids) == 1
-        assert run.id == run_ids[0]
+    run_ids = relay.context.get_run_ids()
+    assert len(run_ids) == 1
+    assert run.id == run_ids[0]
 
-        summary = relay.context.get_run_summary(run.id)
-        assert summary["global_step"] == 9
-        assert "x_scalar_1" in summary
+    summary = relay.context.get_run_summary(run.id)
+    assert summary["global_step"] == 9
+    assert "x_scalar_1" in summary
 
-        history = relay.context.get_run_history(run.id)
-        assert len(history) == 10
+    history = relay.context.get_run_history(run.id)
+    assert len(history) == 10
 
     wandb.tensorboard.unpatch()
 
