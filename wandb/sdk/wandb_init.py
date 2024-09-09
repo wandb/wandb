@@ -273,8 +273,9 @@ class _WandbInit:
 
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
-        if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
-            wandb.tensorboard.patch()  # type: ignore
+        if tensorboard or sync_tensorboard:
+            if len(wandb.patched["tensorboard"]) == 0:
+                wandb.tensorboard.patch()  # type: ignore
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_sync = True
 
