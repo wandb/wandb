@@ -10,12 +10,26 @@ namespace Wandb
     {
         private readonly SocketInterface _interface;
         public Settings Settings;
+        public Config Config;
 
         internal Run(SocketInterface @interface, Settings settings)
         {
             _interface = @interface;
+
             Settings = settings;
+
+            Config = new Config();
+            // Subscribe to ConfigUpdated event
+            Config.ConfigUpdated += OnConfigUpdated;
         }
+
+        // Callback method
+        private async void OnConfigUpdated(string key, object value)
+        {
+            // Handle the updated configuration
+            await _interface.PublishConfig(key, value); // Example method in SocketInterface
+        }
+
 
         public async Task Init()
         {
@@ -43,6 +57,8 @@ namespace Wandb
             }
             printRunURL();
         }
+
+
 
 
         public async Task Log(Dictionary<string, object> data)
@@ -119,6 +135,8 @@ namespace Wandb
         public void Dispose()
         {
             _interface.Dispose();
+            // Unsubscribe to avoid memory leaks
+            Config.ConfigUpdated -= OnConfigUpdated;
         }
     }
 }

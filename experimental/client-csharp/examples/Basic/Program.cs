@@ -10,8 +10,12 @@ class Program
         {
             var run1 = await session.Init(project: "csharp");
             await run1.Log(new Dictionary<string, object> { { "loss", 0.5 } });
+
+            run1.Config["batch_size"] = 64;
             // add some sleep to simulate training
-            await Task.Delay(10000);
+            await Task.Delay(5000);
+
+
 
             await run1.Finish();
 

@@ -136,6 +136,25 @@ namespace Wandb.Internal
             await Publish(record);
         }
 
+        public async Task PublishConfig(string key, object value)
+        {
+            var config = new ConfigRecord();
+            config.Update.Add(new ConfigItem
+            {
+                Key = key,
+                ValueJson = JsonSerializer.Serialize(value)
+            });
+            var record = new Record
+            {
+                Config = config,
+                Info = new _RecordInfo
+                {
+                    StreamId = _streamId
+                }
+            };
+            await Publish(record);
+        }
+
         public async Task Publish(Record record)
         {
             ServerRequest request = new ServerRequest
