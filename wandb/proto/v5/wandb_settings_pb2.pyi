@@ -172,6 +172,7 @@ class Settings(google.protobuf.message.Message):
     _START_TIME_FIELD_NUMBER: builtins.int
     LOG_DIR_FIELD_NUMBER: builtins.int
     LOG_INTERNAL_FIELD_NUMBER: builtins.int
+    CONSOLE_FIELD_NUMBER: builtins.int
     FILES_DIR_FIELD_NUMBER: builtins.int
     IGNORE_GLOBS_FIELD_NUMBER: builtins.int
     _DISABLE_UPDATE_CHECK_FIELD_NUMBER: builtins.int
@@ -245,7 +246,6 @@ class Settings(google.protobuf.message.Message):
     BASE_URL_FIELD_NUMBER: builtins.int
     CODE_DIR_FIELD_NUMBER: builtins.int
     CONFIG_PATHS_FIELD_NUMBER: builtins.int
-    CONSOLE_FIELD_NUMBER: builtins.int
     DEPLOYMENT_FIELD_NUMBER: builtins.int
     DISABLE_CODE_FIELD_NUMBER: builtins.int
     DISABLE_GIT_FIELD_NUMBER: builtins.int
@@ -377,6 +377,23 @@ class Settings(google.protobuf.message.Message):
     @property
     def log_internal(self) -> google.protobuf.wrappers_pb2.StringValue:
         """Filename to use for internal logs."""
+
+    @property
+    def console(self) -> google.protobuf.wrappers_pb2.StringValue:
+        """Defines the type of console capture to be applied. Possible values are:
+
+        "off" - Disables console capture.
+
+        "redirect" - Redirects low-level file descriptors for capturing output.
+
+        "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+        mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+
+        "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+        through an emulator.
+
+        "wrap_emu" - Same as "wrap" but captures output through an emulator.
+        """
 
     @property
     def files_dir(self) -> google.protobuf.wrappers_pb2.StringValue:
@@ -573,8 +590,6 @@ class Settings(google.protobuf.message.Message):
     @property
     def config_paths(self) -> global___ListStringValue: ...
     @property
-    def console(self) -> google.protobuf.wrappers_pb2.StringValue: ...
-    @property
     def deployment(self) -> google.protobuf.wrappers_pb2.StringValue: ...
     @property
     def disable_code(self) -> google.protobuf.wrappers_pb2.BoolValue: ...
@@ -768,6 +783,7 @@ class Settings(google.protobuf.message.Message):
         _start_time: google.protobuf.wrappers_pb2.DoubleValue | None = ...,
         log_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         log_internal: google.protobuf.wrappers_pb2.StringValue | None = ...,
+        console: google.protobuf.wrappers_pb2.StringValue | None = ...,
         files_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         ignore_globs: global___ListStringValue | None = ...,
         _disable_update_check: google.protobuf.wrappers_pb2.BoolValue | None = ...,
@@ -841,7 +857,6 @@ class Settings(google.protobuf.message.Message):
         base_url: google.protobuf.wrappers_pb2.StringValue | None = ...,
         code_dir: google.protobuf.wrappers_pb2.StringValue | None = ...,
         config_paths: global___ListStringValue | None = ...,
-        console: google.protobuf.wrappers_pb2.StringValue | None = ...,
         deployment: google.protobuf.wrappers_pb2.StringValue | None = ...,
         disable_code: google.protobuf.wrappers_pb2.BoolValue | None = ...,
         disable_git: google.protobuf.wrappers_pb2.BoolValue | None = ...,
