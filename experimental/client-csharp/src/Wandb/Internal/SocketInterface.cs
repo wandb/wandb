@@ -1,6 +1,7 @@
-using Google.Protobuf;
-using WandbInternal;
 using System.Text.Json;
+using Google.Protobuf;
+using Google.Protobuf.WellKnownTypes;
+using WandbInternal;
 
 
 namespace Wandb.Internal
@@ -8,15 +9,12 @@ namespace Wandb.Internal
     public class SocketInterface : IDisposable
     {
         private readonly TcpCommunication _tcpCommunication;
+        private string _streamId;
 
-        public SocketInterface()
+        public SocketInterface(TcpCommunication tcpCommunication, string streamId)
         {
-            _tcpCommunication = new TcpCommunication();
-        }
-
-        public async Task Initialize(int port)
-        {
-            await _tcpCommunication.Open(port);
+            _tcpCommunication = tcpCommunication;
+            _streamId = streamId;
         }
 
         public async Task<Result> DeliverRun(Run run)
@@ -28,11 +26,11 @@ namespace Wandb.Internal
                 Run = new RunRecord
                 {
                     Project = run.Settings.Project,
-                    RunId = run.Settings.RunId
+                    RunId = run.Settings.RunId,
                 },
                 Info = new _RecordInfo
                 {
-                    StreamId = run.Settings.RunId
+                    StreamId = _streamId
                 },
                 Control = new Control
                 {
@@ -58,13 +56,14 @@ namespace Wandb.Internal
                             Project = run.Settings.Project,
                             Entity = run.Settings.Entity,
                             DisplayName = run.Settings.DisplayName,
-                            RunId = run.Settings.RunId
+                            RunId = run.Settings.RunId,
+                            StartTime = Timestamp.FromDateTime(run.Settings.StartDatetime.ToUniversalTime()),
                         },
                     },
                 },
                 Info = new _RecordInfo
                 {
-                    StreamId = run.Settings.RunId
+                    StreamId = _streamId
                 },
                 Control = new Control
                 {
@@ -76,7 +75,7 @@ namespace Wandb.Internal
         }
 
 
-        public async Task<Result> DelieverExit(string streamId, int exitCode = 0)
+        public async Task<Result> DelieverExit(int exitCode = 0)
         {
             RandomStringGenerator generator = new();
 
@@ -88,7 +87,7 @@ namespace Wandb.Internal
                 },
                 Info = new _RecordInfo
                 {
-                    StreamId = streamId
+                    StreamId = _streamId
                 },
                 Control = new Control
                 {
@@ -111,7 +110,7 @@ namespace Wandb.Internal
             return response.ResultCommunicate;
         }
 
-        public async Task PublishPartialHistory(string streamId, Dictionary<string, object> data)
+        public async Task PublishPartialHistory(Dictionary<string, object> data)
         {
             var partialHistory = new PartialHistoryRequest();
             foreach (var kvp in data)
@@ -131,7 +130,7 @@ namespace Wandb.Internal
                 },
                 Info = new _RecordInfo
                 {
-                    StreamId = streamId
+                    StreamId = _streamId
                 }
             };
             await Publish(record);
@@ -147,7 +146,7 @@ namespace Wandb.Internal
         }
 
 
-        public async Task InformInit(Settings settings, string streamId)
+        public async Task InformInit(Settings settings)
         {
             ServerRequest request = new()
             {
@@ -156,14 +155,14 @@ namespace Wandb.Internal
                     Settings = settings.ToProto(),
                     Info = new _RecordInfo
                     {
-                        StreamId = streamId
+                        StreamId = _streamId
                     }
                 }
             };
             await Send(request);
         }
 
-        public async Task InformFinish(string streamId)
+        public async Task InformFinish()
         {
             ServerRequest request = new()
             {
@@ -171,7 +170,7 @@ namespace Wandb.Internal
                 {
                     Info = new _RecordInfo
                     {
-                        StreamId = streamId
+                        StreamId = _streamId
                     }
                 }
             };

@@ -11,8 +11,7 @@ namespace Wandb
         public string Project { get; set; }
         public string RunId { get; }
 
-        public string Timespec { get; }
-
+        public DateTime StartDatetime { get; set; }
 
         public Settings(
             string? baseUrl = null,
@@ -20,8 +19,7 @@ namespace Wandb
             string? entity = null,
             string? mode = null,
             string? project = null,
-            string? runId = null,
-            string? timespec = null
+            string? runId = null
             )
         {
             RandomStringGenerator generator = new();
@@ -32,9 +30,12 @@ namespace Wandb
             Mode = mode ?? "online";
             Project = project ?? "uncategorized";
             RunId = runId ?? generator.GenerateRandomString(8);
-            Timespec = timespec ?? DateTime.Now.ToString("yyyyMMdd_HHmmss");
+
+
+            StartDatetime = DateTime.UtcNow;
         }
 
+        public string Timespec => StartDatetime.ToString("yyyyMMdd_HHmmss");
         public string FilesDir => Path.Combine(SyncDir, "files");
         public string LogDir => Path.Combine(SyncDir, "logs");
         public string LogInternal => Path.Combine(LogDir, "debug-internal.log");
@@ -71,7 +72,15 @@ namespace Wandb
                 SyncDir = SyncDir,
                 SyncFile = SyncFile,
                 Timespec = Timespec,
-                WandbDir = WandbDir
+                WandbDir = WandbDir,
+                DisableStats = true,
+                DisableGit = true,
+                DisableMeta = true,
+                DisableCode = true,
+                DisableJobCreation = true,
+                SaveCode = false,
+                Console = "off",
+                SaveRequirements = false,
             };
         }
 

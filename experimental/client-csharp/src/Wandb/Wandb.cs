@@ -5,27 +5,34 @@ namespace Wandb
     public class Session : IDisposable
     {
         private readonly Manager _manager;
-        private readonly SocketInterface _interface;
+        private readonly TcpCommunication _tcpCommunication;
         private bool _isInitialized = false;
         private int? _port = null;
 
         public Session()
         {
             _manager = new Manager();
-            _interface = new SocketInterface();
+            _tcpCommunication = new TcpCommunication();
         }
 
-        public async Task<Run> InitRun(
-            string? project = null
-        )
+        public async Task Setup()
         {
+
             if (!_isInitialized)
             {
                 var timeout = TimeSpan.FromSeconds(30); // TODO: get from default settings
                 _port = await _manager.LaunchCore(timeout);
-                await _interface.Initialize(_port.Value);
+                await _tcpCommunication.Open(_port.Value);
                 _isInitialized = true;
             }
+        }
+
+        public async Task<Run> Init(
+            string? project = null
+        )
+        {
+            await Setup();
+
             var settings = new Settings(
                 project: project
             );
@@ -35,7 +42,7 @@ namespace Wandb
             Directory.CreateDirectory(settings.FilesDir);
             Directory.CreateDirectory(settings.LogDir);
 
-            var run = new Run(_interface, settings);
+            var run = new Run(new SocketInterface(_tcpCommunication, settings.RunId), settings);
             await run.Init();
 
             return run;
@@ -44,7 +51,7 @@ namespace Wandb
         public void Dispose()
         {
             _manager.Dispose();
-            _interface.Dispose();
+            _tcpCommunication.Dispose();
         }
     }
 }

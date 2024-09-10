@@ -8,13 +8,16 @@ class Program
     {
         using (var session = new Session())
         {
-            var run1 = await session.InitRun(project: "csharp");
+            var run1 = await session.Init(project: "csharp");
             await run1.Log(new Dictionary<string, object> { { "loss", 0.5 } });
+            // add some sleep to simulate training
+            await Task.Delay(10000);
+
             await run1.Finish();
 
             // // You can create multiple runs in the same session
-            // var run2 = await session.InitRun();
-            // await run2.Log(new { loss = 0.3, step = 1 });
+            // var run2 = await session.Init();
+            // await run2.Log(new Dictionary<string, object> { { "loss", 0.3 } });
             // await run2.Finish();
         }
     }
