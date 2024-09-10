@@ -2586,6 +2586,7 @@ class Run:
         installed_packages_list: List[str],
         patch_path: Optional[os.PathLike] = None,
     ) -> "Artifact":
+        print(f"In _construct_job_artifact, {name=}, {source_dict=}")
         job_artifact = job_builder.JobArtifact(name)
         if patch_path and os.path.exists(patch_path):
             job_artifact.add_file(FilePathStr(str(patch_path)), "diff.patch")
@@ -2604,6 +2605,7 @@ class Run:
         docker_image_name: Optional[str] = None,
         args: Optional[List[str]] = None,
     ) -> Optional["Artifact"]:
+        print(f"In _create_image_job, {docker_image_name=}, {os.getenv('WANDB_DOCKER')=}")
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
         if not docker_image_name:
@@ -2611,6 +2613,9 @@ class Run:
 
         name = wandb.util.make_artifact_name_safe(f"job-{docker_image_name}")
         s_args: Sequence[str] = args if args is not None else self._settings._args
+        print(f"{name=}")
+        print(f"{docker_image_name=}")
+        print(f"{s_args=}")
         source_info: JobSourceDict = {
             "_version": "v0",
             "source_type": "image",

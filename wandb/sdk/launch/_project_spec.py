@@ -447,6 +447,7 @@ class LaunchProject:
         Returns:
             Dictionary of environment variables.
         """
+        print(f"In get_env_vars_dict, {self.docker_image=}")
         env_vars = {}
         env_vars["WANDB_BASE_URL"] = api.settings("base_url")
         override_api_key = self.launch_spec.get("_wandb_api_key")
@@ -484,6 +485,7 @@ class LaunchProject:
         env_vars["WANDB_ARTIFACTS"] = json.dumps(
             {**artifacts, **self.override_artifacts}
         )
+        print(f"End of get_env_vars_dict, {env_vars.get('WANDB_DOCKER')=}")
         return env_vars
 
     def parse_existing_requirements(self) -> str:
