@@ -25,6 +25,7 @@ namespace Wandb.Internal
             {
                 Run = new RunRecord
                 {
+                    Project = run.Settings.Project,
                     RunId = run.Settings.RunId
                 },
                 Info = new _RecordInfo

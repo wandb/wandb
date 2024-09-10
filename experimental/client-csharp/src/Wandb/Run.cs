@@ -33,7 +33,12 @@ namespace Wandb
                 throw new Exception(runResult.Error.Message);
             }
 
+            // save project, entity and displa name to settings
+            Settings.Project = runResult.Run.Project;
+            Settings.Entity = runResult.Run.Entity;
+            Settings.DisplayName = runResult.Run.DisplayName;
 
+            Console.WriteLine("Settings: {0}", Settings.ToString());
         }
 
         public async Task Log(object data)

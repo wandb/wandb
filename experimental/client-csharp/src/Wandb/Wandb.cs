@@ -15,7 +15,9 @@ namespace Wandb
             _interface = new SocketInterface();
         }
 
-        public async Task<Run> InitRun()
+        public async Task<Run> InitRun(
+            string? project = null
+        )
         {
             if (!_isInitialized)
             {
@@ -24,16 +26,10 @@ namespace Wandb
                 await _interface.Initialize(_port.Value);
                 _isInitialized = true;
             }
-
-            RandomStringGenerator generator = new();
-            string runId = generator.GenerateRandomString(8);
-
-            // TODO: do not hardcode stuff
-            string timespec = DateTime.Now.ToString("yyyyMMdd_HHmmss");
+            Console.WriteLine("Project: {0}", project);
 
             var settings = new Settings(
-                runId: runId,
-                timespec: timespec
+                project: project
             );
 
             // Create the run directory structure

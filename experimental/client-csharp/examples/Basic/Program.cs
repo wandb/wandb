@@ -8,7 +8,7 @@ class Program
     {
         using (var session = new Session())
         {
-            var run1 = await session.InitRun();
+            var run1 = await session.InitRun(project: "csharp");
             // await run1.Log(new { loss = 0.5, step = 1 });
             // await run1.Finish();
 
