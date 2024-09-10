@@ -411,7 +411,7 @@ jobs:
         run: |
           echo "## What's Changed" > release_notes.md
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
-      - name: Draft Release
+      - name: Create Release Notes
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ github.event.inputs.version }}
@@ -421,7 +421,7 @@ jobs:
           files: |
             wandb-${{ github.event.inputs.version }}.zip
             wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: false
+          draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
