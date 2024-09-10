@@ -282,7 +282,9 @@ jobs:
           session: <<parameters.session>>
 
   gpu-win:
-    executor: win/server-2019-cuda
+    executor:
+      name: win/server-2019-cuda
+      shell: bash.exe
     steps:
       - run:
           name: Install Python
@@ -302,6 +304,7 @@ jobs:
           command: choco install -y mingw --version 12.2 --allow-downgrade
 
       - install_go
+      - install_rust
       - run: '&"C:\Program Files\NVIDIA Corporation\NVSMI\nvidia-smi.exe"'
 
   nox-tests-win:
