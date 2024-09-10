@@ -101,11 +101,9 @@ class CustomBuildHook(BuildHookInterface):
 
     def _include_nvidia_gpu_stats(self) -> bool:
         """Returns whether we should produce a wheel with nvidia_gpu_stats."""
-        return (
-            not _get_env_bool(_WANDB_BUILD_SKIP_NVIDIA, default=False)
-            # TODO: Add support for Windows.
-            and self._target_platform().goos == "linux"
-        )
+        return not _get_env_bool(
+            _WANDB_BUILD_SKIP_NVIDIA, default=False
+        ) and self._target_platform().goos in ("linux", "windows")
 
     def _is_platform_wheel(self) -> bool:
         """Returns whether we're producing a platform-specific wheel."""
