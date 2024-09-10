@@ -1,5 +1,7 @@
 using Google.Protobuf;
 using WandbInternal;
+using System.Text.Json;
+
 
 namespace Wandb.Internal
 {
@@ -73,6 +75,31 @@ namespace Wandb.Internal
             return await Deliver(record);
         }
 
+
+        public async Task<Result> DelieverExit(string streamId, int exitCode = 0)
+        {
+            RandomStringGenerator generator = new();
+
+            var record = new Record
+            {
+                Exit = new RunExitRecord
+                {
+                    ExitCode = exitCode
+                },
+                Info = new _RecordInfo
+                {
+                    StreamId = streamId
+                },
+                Control = new Control
+                {
+                    ReqResp = true,
+                    MailboxSlot = generator.GenerateRandomString(16)
+                }
+
+            };
+            return await Deliver(record);
+        }
+
         public async Task<Result> Deliver(Record record)
         {
             ServerRequest request = new()
@@ -84,13 +111,27 @@ namespace Wandb.Internal
             return response.ResultCommunicate;
         }
 
-        public async Task PublishPartialHistory()
+        public async Task PublishPartialHistory(string streamId, Dictionary<string, object> data)
         {
+            var partialHistory = new PartialHistoryRequest();
+            foreach (var kvp in data)
+            {
+                partialHistory.Item.Add(new HistoryItem
+                {
+                    Key = kvp.Key,
+                    ValueJson = JsonSerializer.Serialize(kvp.Value)
+                });
+            }
+
             var record = new Record
             {
                 Request = new Request
                 {
-                    PartialHistory = new PartialHistoryRequest()
+                    PartialHistory = partialHistory
+                },
+                Info = new _RecordInfo
+                {
+                    StreamId = streamId
                 }
             };
             await Publish(record);

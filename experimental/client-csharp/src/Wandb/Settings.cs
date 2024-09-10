@@ -10,7 +10,9 @@ namespace Wandb
         public string Mode { get; }
         public string Project { get; set; }
         public string RunId { get; }
+
         public string Timespec { get; }
+
 
         public Settings(
             string? baseUrl = null,
@@ -41,6 +43,8 @@ namespace Wandb
         public string LogUser => Path.Combine(LogDir, "debug.log");
         public bool IsOffline => Mode == "offline";
         public string RunMode => Mode == "offline" ? "offline-run" : "run";
+
+        public string RunURL => $"{BaseUrl.Replace("api.wandb.ai", "wandb.ai")}/{Entity}/{Project}/runs/{RunId}";
         public string SyncDir => Path.Combine(WandbDir, $"{RunMode}-{Timespec}-{RunId}");
         public string SyncFile => Path.Combine(SyncDir, $"run-{RunId}.wandb");
 

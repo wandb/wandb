@@ -1,8 +1,8 @@
 using System;
 using System.Threading.Tasks;
 using Wandb.Internal;
-using System.Text.Json;
 using WandbInternal;
+using System.Text;
 
 namespace Wandb
 {
@@ -42,25 +42,25 @@ namespace Wandb
             {
                 throw new Exception("Failed to deliver run start");
             }
+            Console.WriteLine($"wandb: Run {Settings.RunId} is live at {Settings.RunURL}");
         }
 
-        public async Task Log(object data)
+
+        public async Task Log(Dictionary<string, object> data)
         {
-            byte[] serializedData = SerializeData(data);
-            // await _interface.Publish(serializedData);
+            await _interface.PublishPartialHistory(Settings.RunId, data);
         }
 
         public async Task Finish()
         {
+            Result deliverExitResult = await _interface.DelieverExit(streamId: Settings.RunId);
+            if (deliverExitResult.ExitResult == null)
+            {
+                throw new Exception("Failed to deliver exit");
+            }
             // Send finish command
-            // await _interface.Deliver(new byte[] { /* finish command */ });
-        }
-
-        private byte[] SerializeData(object data)
-        {
-            // Convert the object to JSON, then to bytes
-            string jsonString = JsonSerializer.Serialize(data);
-            return System.Text.Encoding.UTF8.GetBytes(jsonString);
+            await _interface.InformFinish(Settings.RunId);
+            Console.WriteLine($"wandb: Run {Settings.RunId} is finished at {Settings.RunURL}");
         }
     }
 }
