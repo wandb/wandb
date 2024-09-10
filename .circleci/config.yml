@@ -286,6 +286,7 @@ jobs:
       name: win/server-2019-cuda
       shell: bash.exe
     steps:
+      - checkout
       - run:
           name: Install Python
           command: >
