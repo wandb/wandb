@@ -45,8 +45,8 @@ type Backend struct {
 	// user. There's no guarantee that all logs are made at the Debug level.
 	logger *slog.Logger
 
-	// API key for backend requests.
-	apiKey string
+	// Credentials to apply for backend requests.
+	credentialProvider CredentialProvider
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -88,6 +88,9 @@ type clientImpl struct {
 
 	// Headers to pass in every request.
 	extraHeaders map[string]string
+
+	// Credentials to apply on every request.
+	credentialProvider CredentialProvider
 }
 
 // An HTTP request to the W&B backend.
@@ -131,8 +134,8 @@ type BackendOptions struct {
 	// Logger for HTTP operations.
 	Logger *slog.Logger
 
-	// W&B API key.
-	APIKey string
+	// Credentials to apply on every request.
+	CredentialProvider CredentialProvider
 }
 
 // Creates a [Backend].
@@ -141,9 +144,9 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		baseURL: opts.BaseURL,
-		logger:  opts.Logger,
-		apiKey:  opts.APIKey,
+		baseURL:            opts.BaseURL,
+		logger:             opts.Logger,
+		credentialProvider: opts.CredentialProvider,
 	}
 }
 
@@ -194,6 +197,8 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
+
+	CredentialProvider CredentialProvider
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -204,6 +209,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
+	// PrepareRetry gets called before the retry operation and prepares the request for retry
+	retryableHTTP.PrepareRetry = func(req *http.Request) error {
+		return backend.credentialProvider.Apply(req)
+	}
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
@@ -245,8 +254,9 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 
 	return &clientImpl{
-		backend:       backend,
-		retryableHTTP: retryableHTTP,
-		extraHeaders:  opts.ExtraHeaders,
+		backend:            backend,
+		retryableHTTP:      retryableHTTP,
+		extraHeaders:       opts.ExtraHeaders,
+		credentialProvider: opts.CredentialProvider,
 	}
 }

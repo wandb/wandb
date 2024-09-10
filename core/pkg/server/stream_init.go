@@ -39,10 +39,17 @@ func NewBackend(
 		logger.CaptureFatalAndPanic(
 			fmt.Errorf("sender: failed to parse base URL: %v", err))
 	}
+
+	credentialProvider, err := api.NewCredentialProvider(settings)
+	if err != nil {
+		logger.CaptureFatalAndPanic(
+			fmt.Errorf("sender: failed to fetch credentials: %v", err))
+	}
+
 	return api.New(api.BackendOptions{
-		BaseURL: baseURL,
-		Logger:  logger.Logger,
-		APIKey:  settings.GetAPIKey(),
+		BaseURL:            baseURL,
+		Logger:             logger.Logger,
+		CredentialProvider: credentialProvider,
 	})
 }
 
@@ -123,6 +130,11 @@ func NewGraphQLClient(
 	}
 	if timeout := settings.GetGraphQLTimeout(); timeout > 0 {
 		opts.NonRetryTimeout = timeout
+	}
+	if credentialProvider, err := api.NewCredentialProvider(settings); err != nil {
+		opts.CredentialProvider = credentialProvider
+	} else {
+		panic(fmt.Errorf("failed to fetch credentials: %v", err))
 	}
 
 	httpClient := backend.NewClient(opts)
