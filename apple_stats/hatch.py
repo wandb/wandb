@@ -1,7 +1,6 @@
 """Builds the AppleStats Swift binary for monitoring system metrics on arm64 macOS."""
 
 import pathlib
-import platform
 import subprocess
 
 
