@@ -1,5 +1,6 @@
-"""Based on examples from https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/TensorBoard
-Test that the Keras TensorBoard callback works with W&B.
+"""Test that the Keras TensorBoard callback works with W&B.
+
+Based on examples from https://www.tensorflow.org/api_docs/python/tf/keras/callbacks/TensorBoard.
 """
 
 import keras
@@ -19,11 +20,49 @@ class MyModel(keras.Model):
         return outputs
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
-def test_tb_callback(relay_server, wandb_init):
+@pytest.mark.wandb_core_only(reason="legacy service has different, worse behavior")
+def test_tb_callback(relay_server):
+    with relay_server() as relay:
+        with wandb.init(sync_tensorboard=True):
+            model = MyModel()
+            model.compile("sgd", "mse")
+
+            x_train = np.random.rand(100, 28)
+            y_train = np.random.rand(100, 10)
+
+            tb_callback = keras.callbacks.TensorBoard(
+                write_images=True, histogram_freq=5
+            )
+            model.fit(
+                x_train,
+                y_train,
+                epochs=10,
+                callbacks=[tb_callback],
+            )
+
+        run_ids = relay.context.get_run_ids()
+        assert len(run_ids) == 1
+        run_id = run_ids[0]
+
+        summary = relay.context.get_run_summary(run_id)
+        history = relay.context.get_run_history(run_id)
+
+        assert summary["global_step"] == 9
+        assert "epoch_loss" in summary
+        assert "epoch_learning_rate" in summary
+
+        assert summary["kernel/histogram"]["_type"] == "histogram"
+        assert summary["bias/histogram"]["_type"] == "histogram"
+
+        # The test configured Keras to logs histograms and their images
+        # every 5 steps.
+        for tag in ["kernel/histogram", "bias/histogram", "kernel/image", "bias/image"]:
+            steps = history["global_step", tag].dropna()["global_step"].tolist()
+            assert steps == [0, 5]
+
+
+@pytest.mark.skip_wandb_core(reason="legacy service has different, worse behavior")
+def test_tb_callback_legacy(relay_server):
     with relay_server() as relay:
         with wandb.init(sync_tensorboard=True):
             model = MyModel()
