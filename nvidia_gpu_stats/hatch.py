@@ -1,6 +1,7 @@
 """Builds the nvidia_gpu_stats binary for monitoring NVIDIA GPUs."""
 
 import pathlib
+import platform
 import subprocess
 
 
@@ -46,5 +47,9 @@ def build_nvidia_gpu_stats(
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     source_path = source_path / "target" / "release" / "nvidia_gpu_stats"
+
+    if platform.system().lower() == "windows":
+        source_path = source_path.with_suffix(".exe")
+
     source_path.replace(output_path)
     output_path.chmod(0o755)
