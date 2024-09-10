@@ -19,7 +19,6 @@ func NewOutputFileWriter(
 	path string,
 	logger *observability.CoreLogger,
 ) (*outputFileWriter, error) {
-
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return nil, err
 	}
