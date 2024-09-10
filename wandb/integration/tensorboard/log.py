@@ -54,9 +54,6 @@ def make_ndarray(tensor: Any) -> Optional["np.ndarray"]:
 def namespaced_tag(tag: str, namespace: str = "") -> str:
     if not namespace:
         return tag
-    elif tag in namespace:
-        # This happens with tensorboardX
-        return namespace
     else:
         return namespace + "/" + tag
 
