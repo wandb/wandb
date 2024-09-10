@@ -38,22 +38,16 @@ def test_add_scalar(wandb_init, relay_server):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data and missing implementation of old style TensorBoard",
-)
 def test_add_scalars(wandb_init, relay_server):
     """Test adding multiple scalars to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True), SummaryWriter() as writer:
-            r = 5
             for i in range(10):
                 writer.add_scalars(
-                    "run_14h",
+                    "value",
                     {
-                        "xsinx": np.sin(i / r),
-                        "xcosx": np.cos(i / r),
-                        "tanx": np.tan(i / r),
+                        "one": 1.1,
+                        "two": 2.2,
                     },
                     i,
                 )
@@ -63,12 +57,10 @@ def test_add_scalars(wandb_init, relay_server):
         run_id = run_ids[0]
 
         summary = relay.context.get_run_summary(run_id)
-        assert summary["run_14h_xsinx"] == pytest.approx(np.sin(9 / r))
-        assert summary["run_14h_xsinx/global_step"] == 9
-        assert summary["run_14h_xcosx"] == pytest.approx(np.cos(9 / r))
-        assert summary["run_14h_xcosx/global_step"] == 9
-        assert summary["run_14h_tanx"] == pytest.approx(np.tan(9 / r))
-        assert summary["run_14h_tanx/global_step"] == 9
+        assert summary["value_one/value"] == pytest.approx(1.1)
+        assert summary["value_one/global_step"] == 9
+        assert summary["value_two/value"] == pytest.approx(2.2)
+        assert summary["value_two/global_step"] == 9
 
         telemetry = relay.context.get_run_telemetry(run_id)
         assert 35 in telemetry["3"]  # tensorboard_sync

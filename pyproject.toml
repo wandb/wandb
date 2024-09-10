@@ -122,14 +122,21 @@ markers = [
 timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
-testpaths = "tests"
 filterwarnings = ["ignore::DeprecationWarning", "error:ResourceWarning"]
+testpaths = "tests"
+# The testpaths setting is ignored by VSCode's usage of pytest --collect-only,
+# causing it to execute files named test_*.py while trying to do pytest
+# discovery. Some of these files, in particular old "yea" tests, execute
+# code at the top-level.
 norecursedirs = [
+    # Custom directories to ignore:
     "vendor",
     "wandb/vendor",
-    "build/",
-    "tests/functional_tests",
-    "tests/standalone_tests",
+    "landfill",
+    # Standard directories to ignore:
+    ".*",
+    "build",
+    "dist",
 ]
 
 [tool.coverage.paths]
