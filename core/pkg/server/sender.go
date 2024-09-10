@@ -1300,6 +1300,12 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *spb.Record) {
+	if s.exitRecord != nil {
+		s.logger.CaptureError(
+			errors.New("sender: received Exit record more than once, ignoring"))
+		return
+	}
+
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
 
