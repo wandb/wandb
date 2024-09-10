@@ -40,15 +40,49 @@ namespace Wandb.Internal
             await _stream.WriteAsync(data, 0, data.Length);
         }
 
+        public async Task<int> ReceiveExactly(byte[] buffer, int offset, int count)
+        {
+            int bytesRead = 0;
+            while (bytesRead < count)
+            {
+                if (_stream == null)
+                    throw new InvalidOperationException("Connection not open");
+                int received = await _stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead);
+                if (received == 0)
+                    throw new EndOfStreamException("Connection closed prematurely");
+                bytesRead += received;
+            }
+            return bytesRead;
+        }
+
+        // TODO: Recieve should be reading everything it can and keeping
+        // track of the message boundaries in an internal buffer
         public async Task<byte[]> Receive()
         {
-            if (_stream == null)
-                throw new InvalidOperationException("Connection not open");
+            // Read the magic byte
+            byte[] magicByte = new byte[1];
+            int bytesRead = await ReceiveExactly(magicByte, 0, 1);
+            Console.WriteLine($"Read {bytesRead} bytes");
+            Console.WriteLine($"Magic byte: {BitConverter.ToString(magicByte)}");
 
-            byte[] buffer = new byte[4096]; // Adjust buffer size as needed
-            int bytesRead = await _stream.ReadAsync(buffer, 0, buffer.Length);
-            Array.Resize(ref buffer, bytesRead);
-            return buffer;
+            if (magicByte[0] != (byte)'W')
+            {
+                Console.WriteLine($"Magic number is not 'W': {magicByte[0]}");
+                return Array.Empty<byte>();
+            }
+
+            // Read the body length
+            byte[] bodyLengthBytes = new byte[4];
+            await ReceiveExactly(bodyLengthBytes, 0, 4);
+            uint bodyLength = BitConverter.ToUInt32(bodyLengthBytes, 0);
+            Console.WriteLine($"Body length: {bodyLength}");
+
+            // Read the body
+            byte[] body = new byte[bodyLength];
+            await ReceiveExactly(body, 0, (int)bodyLength);
+            Console.WriteLine($"Body: {BitConverter.ToString(body)}");
+
+            return body;
         }
 
         public void Close()

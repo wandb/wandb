@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Wandb.Internal;
 using System.Text.Json;
+using WandbInternal;
 
 namespace Wandb
 {
@@ -19,7 +20,8 @@ namespace Wandb
         public async Task Init()
         {
             await _interface.InformInit(Settings, Settings.GetRunId());
-            await _interface.DeliverRun(this);
+            Result result = await _interface.DeliverRun(this);
+            Console.WriteLine("{0}", result);
         }
 
         public async Task Log(object data)

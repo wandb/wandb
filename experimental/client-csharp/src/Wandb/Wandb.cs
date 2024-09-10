@@ -19,7 +19,7 @@ namespace Wandb
         {
             if (!_isInitialized)
             {
-                var timeout = TimeSpan.FromSeconds(30); // Adjust as needed
+                var timeout = TimeSpan.FromSeconds(30); // TODO: get from default settings
                 _port = await _manager.LaunchCore(timeout);
                 await _interface.Initialize(_port.Value);
                 _isInitialized = true;

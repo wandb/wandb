@@ -19,6 +19,8 @@ namespace Wandb.Internal
 
         public async Task<Result> DeliverRun(Run run)
         {
+            RandomStringGenerator generator = new();
+
             var record = new Record
             {
                 Run = new RunRecord
@@ -28,6 +30,11 @@ namespace Wandb.Internal
                 Info = new _RecordInfo
                 {
                     StreamId = run.Settings.GetRunId()
+                },
+                Control = new Control
+                {
+                    ReqResp = true,
+                    MailboxSlot = generator.GenerateRandomString(16)
                 }
             };
             return await Deliver(record);
@@ -52,7 +59,7 @@ namespace Wandb.Internal
                 RecordPublish = record
 
             };
-
+            Console.WriteLine("Delivering record: {0}", request);
             ServerResponse response = await SendAndRecv(request);
             return response.ResultCommunicate;
         }
@@ -116,16 +123,20 @@ namespace Wandb.Internal
             await _tcpCommunication.Send(data);
         }
 
+        // TODO: Receive should be running in a separate thread delivering
+        // messages to the corresponding mailbox slots.
+        // This method should wait on a mailbox slot and return the message
+        // since there is no guarantee on the message reception order.
         public async Task<ServerResponse> SendAndRecv(ServerRequest request)
         {
-
             byte[] data = request.ToByteArray();
+            Console.WriteLine("Sending data: {0}", data);
             await _tcpCommunication.Send(data);
+            Console.WriteLine("Sent data: {0}", data);
 
             byte[] receivedData = await _tcpCommunication.Receive();
+            Console.WriteLine("Received data: {0}", receivedData);
             return ServerResponse.Parser.ParseFrom(receivedData);
-
-
         }
 
         public void Dispose()
