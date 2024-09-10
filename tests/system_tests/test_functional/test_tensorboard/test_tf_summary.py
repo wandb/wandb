@@ -199,45 +199,46 @@ def test_add_pr_curve_plugin(relay_server, wandb_init):
     wandb.tensorboard.unpatch()
 
 
-@pytest.mark.skip_wandb_core(
-    feature="tensorboard",
-    reason="hangs on processing data",
-)
 def test_compat_tensorboard(relay_server, wandb_init):
-    with relay_server() as relay:
-        with wandb_init(sync_tensorboard=True) as run:
-            with tf.compat.v1.Session() as sess:
-                x_scalar = tf.compat.v1.get_variable(
-                    "x_scalar",
-                    shape=[],
-                    initializer=tf.compat.v1.truncated_normal_initializer(
-                        mean=0,
-                        stddev=1,
-                    ),
+    # Parenthesized context managers which result in better formatting
+    # are supported starting Python 3.10.
+    # fmt: off
+    with relay_server() as relay, \
+         wandb_init(sync_tensorboard=True) as run, \
+         tf.compat.v1.Session(graph=tf.compat.v1.Graph()) as sess:
+        # fmt: on
+
+        x_scalar = tf.compat.v1.get_variable(
+            "x_scalar",
+            shape=[],
+            initializer=tf.compat.v1.truncated_normal_initializer(
+                mean=0,
+                stddev=1,
+            ),
+        )
+        init = tf.compat.v1.global_variables_initializer()
+        summary = tf.compat.v1.summary.scalar(
+            "x_scalar",
+            x_scalar,
+        )
+        with tf.compat.v1.summary.FileWriter("test/logs", sess.graph) as writer:
+            for step in range(10):
+                sess.run(init)
+                writer.add_summary(
+                    sess.run(summary),
+                    step,
                 )
-                init = tf.compat.v1.global_variables_initializer()
-                summary = tf.compat.v1.summary.scalar(
-                    "x_scalar",
-                    x_scalar,
-                )
-                with tf.compat.v1.summary.FileWriter("test/logs", sess.graph) as writer:
-                    for step in range(10):
-                        sess.run(init)
-                        writer.add_summary(
-                            sess.run(summary),
-                            step,
-                        )
 
-        run_ids = relay.context.get_run_ids()
-        assert len(run_ids) == 1
-        assert run.id == run_ids[0]
+    run_ids = relay.context.get_run_ids()
+    assert len(run_ids) == 1
+    assert run.id == run_ids[0]
 
-        summary = relay.context.get_run_summary(run.id)
-        assert summary["global_step"] == 9
-        assert "x_scalar_1" in summary
+    summary = relay.context.get_run_summary(run.id)
+    assert summary["global_step"] == 9
+    assert "x_scalar_1" in summary
 
-        history = relay.context.get_run_history(run.id)
-        assert len(history) == 10
+    history = relay.context.get_run_history(run.id)
+    assert len(history) == 10
 
     wandb.tensorboard.unpatch()
 
