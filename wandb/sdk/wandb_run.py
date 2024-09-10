@@ -4264,7 +4264,7 @@ class Run:
             return
 
         printer.display(
-            "The legacy backend is deprecated. In version 0.19.0, `wandb-core` will become "
+            "The legacy backend is deprecated. In future versions, `wandb-core` will become "
             "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
             "For more information, visit https://wandb.me/wandb-core",
             level="warn",

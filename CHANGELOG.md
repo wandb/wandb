@@ -21,7 +21,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Changed
 
-- The `wandb` package now uses the `wandb-core` binary as the default runtime service. To revert to the legacy behavior,
+- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
 add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
 to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
 
