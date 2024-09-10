@@ -1,4 +1,4 @@
-//go:build !linux || libwandb_core
+//go:build !linux
 
 package monitor
 
@@ -7,6 +7,8 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// GPUNvidia is a dummy implementation of the Asset interface for Nvidia GPUs
+// for non-Linux platforms.
 type GPUNvidia struct {
 	name             string
 	pid              int32
@@ -33,11 +35,19 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	return nil
 }
 
+// GPUAMD is a dummy implementation of the Asset interface for AMD GPUs
+// for non-Linux platforms.
 type GPUAMD struct {
-	name string
+	name   string
+	logger *observability.CoreLogger
 }
 
-func NewGPUAMD() *GPUAMD { return &GPUAMD{name: "gpu"} }
+func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
+	return &GPUAMD{
+		name:   "gpu",
+		logger: logger,
+	}
+}
 
 func (g *GPUAMD) Name() string { return g.name }
 
@@ -49,6 +59,8 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	return nil
 }
 
+// Trainium is a dummy implementation of the Asset interface for Trainium
+// for non-Linux platforms.
 type Trainium struct {
 	name                    string
 	pid                     int32

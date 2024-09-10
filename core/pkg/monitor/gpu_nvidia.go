@@ -1,4 +1,4 @@
-//go:build linux && !libwandb_core
+//go:build linux
 
 package monitor
 
@@ -173,7 +173,7 @@ func (g *GPUNvidia) Sample() (map[string]any, error) {
 		}
 	}
 
-	return g.sample, nil
+	return metrics, nil
 }
 
 func (g *GPUNvidia) IsAvailable() bool {

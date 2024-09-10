@@ -57,6 +57,7 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
+from wandb.sdk.lib.viz import CustomChart, Visualize, custom_chart
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -66,9 +67,9 @@ from wandb.util import (
     add_import_hook,
     parse_artifact_string,
 )
-from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
+from .artifacts._validators import validate_aliases, validate_tags
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
@@ -3111,6 +3112,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
     ) -> Artifact:
         """Declare an artifact as an output of a run.
 
@@ -3131,12 +3133,17 @@ class Run:
             type: (str) The type of artifact to log, examples include `dataset`, `model`
             aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
+            tags: (list, optional) Tags to apply to this artifact, if any.
 
         Returns:
             An `Artifact` object.
         """
         return self._log_artifact(
-            artifact_or_path, name=name, type=type, aliases=aliases
+            artifact_or_path,
+            name=name,
+            type=type,
+            aliases=aliases,
+            tags=tags,
         )
 
     @_run_decorator._noop_on_finish()
@@ -3253,6 +3260,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         is_user_created: bool = False,
@@ -3263,13 +3271,17 @@ class Run:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
+
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
+
         if aliases is not None:
-            if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
-                raise ValueError(
-                    "Aliases must not contain any of the following characters: /, :"
-                )
+            aliases = validate_aliases(aliases)
+
+        # Check if artifact tags are supported
+        if tags is not None:
+            tags = validate_tags(tags)
+
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
@@ -3281,6 +3293,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    tags,
                     self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
@@ -3292,6 +3305,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    tags,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -3301,6 +3315,7 @@ class Run:
                 self,
                 artifact,
                 aliases,
+                tags,
                 finalize=finalize,
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
@@ -3374,6 +3389,7 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
+
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
@@ -3512,7 +3528,7 @@ class Run:
             registered_model_name: (str) - the name of the registered model that the model is to be linked to.
                 A registered model is a collection of model versions linked to the model registry, typically representing a
                 team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-                name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
                 default to the basename of the path prepended with the current run id  if not specified.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.

@@ -88,11 +88,15 @@ class CustomBuildHook(BuildHookInterface):
         return not self._must_build_universal()
 
     def _include_apple_stats(self) -> bool:
-        """Returns whether we should produce a wheel with apple_gpu_stats."""
+        """Returns whether we should produce a wheel with apple_gpu_stats.
+
+        The Apple GPU stats binary is only built for macOS arm64.
+        """
         return (
             not self._must_build_universal()
             and not _get_env_bool(_WANDB_BUILD_SKIP_APPLE, default=False)
             and self._target_platform().goos == "darwin"
+            and self._target_platform().goarch == "arm64"
         )
 
     def _include_nvidia_gpu_stats(self) -> bool:

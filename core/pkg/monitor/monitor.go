@@ -159,7 +159,7 @@ func New(
 	if gpu := NewGPUNvidia(logger, pid, samplingInterval); gpu != nil {
 		systemMonitor.assets = append(systemMonitor.assets, gpu)
 	}
-	if gpu := NewGPUAMD(); gpu != nil {
+	if gpu := NewGPUAMD(logger); gpu != nil {
 		systemMonitor.assets = append(systemMonitor.assets, gpu)
 	}
 	if gpu := NewGPUApple(); gpu != nil {
@@ -170,6 +170,16 @@ func New(
 	}
 	if trainium := NewTrainium(logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
 		systemMonitor.assets = append(systemMonitor.assets, trainium)
+	}
+
+	// OpenMetrics endpoints to monitor.
+	if endpoints := settings.XStatsOpenMetricsEndpoints.GetValue(); endpoints != nil {
+		for name, url := range endpoints {
+			filters := settings.XStatsOpenMetricsFilters
+			if om := NewOpenMetrics(logger, name, url, filters, nil); om != nil {
+				systemMonitor.assets = append(systemMonitor.assets, om)
+			}
+		}
 	}
 
 	return systemMonitor
@@ -221,9 +231,11 @@ func (sm *SystemMonitor) Start() {
 	go func() {
 		systemInfo := sm.probe()
 		if systemInfo != nil {
-			sm.extraWork.AddRecordOrCancel(
+			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				makeMetadataRecord(systemInfo),
+				runwork.WorkFromRecord(
+					makeMetadataRecord(systemInfo),
+				),
 			)
 		}
 	}()
@@ -307,9 +319,11 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 			}
 
 			// publish metrics
-			sm.extraWork.AddRecordOrCancel(
+			sm.extraWork.AddWorkOrCancel(
 				sm.ctx.Done(),
-				makeStatsRecord(metrics, ts),
+				runwork.WorkFromRecord(
+					makeStatsRecord(metrics, ts),
+				),
 			)
 		}
 	}

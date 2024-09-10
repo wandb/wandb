@@ -17,7 +17,8 @@ import requests
 import wandb
 import wandb.old.settings
 import wandb.util
-from wandb.testing.relay import (
+
+from .relay import (
     DeliberateHTTPError,
     InjectedResponse,
     RelayServer,
@@ -1042,3 +1043,8 @@ def inject_graphql_response(base_url, user):
         )
 
     yield helper
+
+
+@pytest.fixture(scope="function")
+def tokenized_circular_pattern():
+    return TokenizedCircularPattern

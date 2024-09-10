@@ -199,7 +199,6 @@ class SockAcceptThread(threading.Thread):
         self._clients = ClientDict()
 
     def run(self) -> None:
-        self._sock.listen(5)
         read_threads = []
 
         while not self._stopped.is_set():
@@ -254,6 +253,7 @@ class SocketServer:
 
     def start(self) -> None:
         self._bind()
+        self._sock.listen(5)
         self._thread = SockAcceptThread(sock=self._sock, mux=self._mux)
         self._thread.start()
         # Note: Uncomment to figure out what thread is not exiting properly

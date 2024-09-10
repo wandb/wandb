@@ -2,7 +2,6 @@ import re
 
 import pytest
 import wandb
-from wandb.testing.relay import TokenizedCircularPattern
 
 
 def log_line_match_http_error(user, project, run_id, status_code):
@@ -42,6 +41,7 @@ def test_retryable_codes(
     relay_server,
     inject_file_stream_response,
     monkeypatch,
+    tokenized_circular_pattern,
 ):
     # turn on debug logs
     monkeypatch.setenv("WANDB_DEBUG", "true")
@@ -60,9 +60,9 @@ def test_retryable_codes(
             inject_file_stream_response(
                 run=run,
                 application_pattern=(
-                    TokenizedCircularPattern.APPLY_TOKEN
-                    + TokenizedCircularPattern.APPLY_TOKEN
-                    + TokenizedCircularPattern.STOP_TOKEN
+                    tokenized_circular_pattern.APPLY_TOKEN
+                    + tokenized_circular_pattern.APPLY_TOKEN
+                    + tokenized_circular_pattern.STOP_TOKEN
                 ),
                 status=status_code,
                 body="transient error",
@@ -102,6 +102,7 @@ def test_non_retryable_codes(
     relay_server,
     inject_file_stream_response,
     monkeypatch,
+    tokenized_circular_pattern,
 ):
     # turn on debug logs
     monkeypatch.setenv("WANDB_DEBUG", "true")
@@ -120,8 +121,8 @@ def test_non_retryable_codes(
             inject_file_stream_response(
                 run=run,
                 application_pattern=(
-                    TokenizedCircularPattern.APPLY_TOKEN
-                    + TokenizedCircularPattern.STOP_TOKEN
+                    tokenized_circular_pattern.APPLY_TOKEN
+                    + tokenized_circular_pattern.STOP_TOKEN
                 ),
                 status=status_code,
                 body="non-retryable error",
@@ -144,6 +145,7 @@ def test_connection_reset(
     relay_server,
     inject_file_stream_connection_reset,
     monkeypatch,
+    tokenized_circular_pattern,
 ):
     # turn on debug logs
     monkeypatch.setenv("WANDB_DEBUG", "true")
@@ -162,9 +164,9 @@ def test_connection_reset(
             inject_file_stream_connection_reset(
                 run=run,
                 application_pattern=(
-                    TokenizedCircularPattern.APPLY_TOKEN
-                    + TokenizedCircularPattern.APPLY_TOKEN
-                    + TokenizedCircularPattern.STOP_TOKEN
+                    tokenized_circular_pattern.APPLY_TOKEN
+                    + tokenized_circular_pattern.APPLY_TOKEN
+                    + tokenized_circular_pattern.STOP_TOKEN
                 ),
                 body=ConnectionResetError("Connection reset by peer"),
             )

@@ -54,6 +54,7 @@ type SenderParams struct {
 	Backend             *api.Backend
 	FileStream          fs.FileStream
 	FileTransferManager filetransfer.FileTransferManager
+	FileTransferStats   filetransfer.FileTransferStats
 	FileWatcher         watcher.Watcher
 	RunfilesUploader    runfiles.Uploader
 	TBHandler           *tensorboard.TBHandler
@@ -88,6 +89,9 @@ type Sender struct {
 
 	// fileTransferManager is the file uploader/downloader
 	fileTransferManager filetransfer.FileTransferManager
+
+	// fileTransferStats tracks file upload progress
+	fileTransferStats filetransfer.FileTransferStats
 
 	// fileWatcher notifies when files in the file system are changed
 	fileWatcher watcher.Watcher
@@ -167,6 +171,7 @@ func NewSender(
 		settings:            params.Settings.Proto,
 		fileStream:          params.FileStream,
 		fileTransferManager: params.FileTransferManager,
+		fileTransferStats:   params.FileTransferStats,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
 		tbHandler:           params.TBHandler,
@@ -292,7 +297,7 @@ func (s *Sender) fwdRecord(record *spb.Record) {
 		return
 	}
 
-	s.runWork.AddRecord(record)
+	s.runWork.AddWork(runwork.WorkFromRecord(record))
 }
 
 func (s *Sender) SendRecord(record *spb.Record) {
@@ -512,9 +517,12 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_TB:
-		request.State++
-		s.tbHandler.Finish()
-		s.fwdRequestDefer(request)
+		go func() {
+			defer s.logger.Reraise()
+			s.tbHandler.Finish()
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_FLUSH_SUM:
 		s.summaryDebouncer.Flush(s.streamSummary)
 		s.summaryDebouncer.Stop()
@@ -529,9 +537,12 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_OUTPUT:
-		s.consoleLogsSender.Finish()
-		request.State++
-		s.fwdRequestDefer(request)
+		go func() {
+			defer s.logger.Reraise()
+			s.consoleLogsSender.Finish()
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_FLUSH_JOB:
 		s.sendJobFlush()
 		request.State++
@@ -544,34 +555,43 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		// updates to the runfiles uploader. The uploader creates file upload
 		// tasks, so it must be flushed before we close the file transfer
 		// manager.
-		s.fileWatcher.Finish()
-		if s.fileTransferManager != nil {
-			s.runfilesUploader.UploadRemaining()
-			s.runfilesUploader.Finish()
-			s.fileTransferManager.Close()
-		}
-		request.State++
-		s.fwdRequestDefer(request)
+		go func() {
+			defer s.logger.Reraise()
+			s.fileWatcher.Finish()
+			if s.fileTransferManager != nil {
+				s.runfilesUploader.UploadRemaining()
+				s.runfilesUploader.Finish()
+				s.fileTransferManager.Close()
+			}
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_JOIN_FP:
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_FS:
-		if s.fileStream != nil {
-			if s.exitRecord != nil {
-				s.fileStream.FinishWithExit(s.exitRecord.GetExit().GetExitCode())
-			} else {
-				s.logger.CaptureError(
-					fmt.Errorf("sender: no exit code on finish"))
-				s.fileStream.FinishWithoutExit()
+		go func() {
+			defer s.logger.Reraise()
+			if s.fileStream != nil {
+				if s.exitRecord != nil {
+					s.fileStream.FinishWithExit(
+						s.exitRecord.GetExit().GetExitCode(),
+					)
+				} else {
+					s.logger.CaptureError(
+						fmt.Errorf("sender: no exit code on finish"))
+					s.fileStream.FinishWithoutExit()
+				}
 			}
-		}
-		request.State++
-		s.fwdRequestDefer(request)
+			request.State++
+			s.fwdRequestDefer(request)
+		}()
 	case spb.DeferRequest_FLUSH_FINAL:
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_END:
 		request.State++
+		s.fileTransferStats.SetDone()
 		s.syncService.Flush()
 		if !s.settings.GetXSync().GetValue() {
 			// if sync is enabled, we don't need to do this
@@ -1280,6 +1300,12 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 
 // sendExit sends an exit record to the server and triggers the shutdown of the stream
 func (s *Sender) sendExit(record *spb.Record) {
+	if s.exitRecord != nil {
+		s.logger.CaptureError(
+			errors.New("sender: received Exit record more than once, ignoring"))
+		return
+	}
+
 	// response is done by respond() and called when defer state machine is complete
 	s.exitRecord = record
 
