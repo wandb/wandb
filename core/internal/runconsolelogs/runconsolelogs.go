@@ -40,6 +40,9 @@ type Sender struct {
 
 	logger                *observability.CoreLogger
 	runfilesUploaderOrNil runfiles.Uploader
+
+	// captureEnabled indicates whether to capture console output.
+	captureEnabled bool
 }
 
 type Params struct {
@@ -126,6 +129,7 @@ func New(params Params) *Sender {
 		writer:                writer,
 		logger:                params.Logger,
 		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
+		captureEnabled:        params.Settings.IsConsoleCaptureEnabled(),
 	}
 }
 
@@ -135,7 +139,7 @@ func New(params Params) *Sender {
 func (s *Sender) Finish() {
 	s.writer.Wait()
 
-	if s.runfilesUploaderOrNil != nil {
+	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
 		s.runfilesUploaderOrNil.UploadNow(
 			s.consoleOutputFile,
 			filetransfer.RunFileKindWandb,
@@ -145,6 +149,9 @@ func (s *Sender) Finish() {
 
 // StreamLogs saves captured console logs with the run.
 func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
+	if !s.captureEnabled {
+		return
+	}
 	switch record.OutputType {
 	case spb.OutputRawRecord_STDOUT:
 		s.stdoutTerm.Write(record.Line)
