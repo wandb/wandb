@@ -21,7 +21,7 @@ class MyModel(keras.Model):
 
 
 @pytest.mark.wandb_core_only(reason="legacy service has different behavior")
-def test_tb_callback(relay_server):
+def test_tb_callback(relay_server, user):
     with relay_server() as relay:
         with wandb.init(sync_tensorboard=True):
             model = MyModel()
@@ -62,7 +62,7 @@ def test_tb_callback(relay_server):
 
 
 @pytest.mark.skip_wandb_core(reason="legacy service has different behavior")
-def test_tb_callback_legacy(relay_server):
+def test_tb_callback_legacy(relay_server, user):
     with relay_server() as relay:
         with wandb.init(sync_tensorboard=True):
             model = MyModel()
