@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"log/slog"
 
 	"github.com/wandb/wandb/core/internal/processlib"
@@ -82,7 +81,6 @@ func main() {
 		)
 		slog.Info("FeatureState", "shutdownOnParentExitEnabled", shutdownOnParentExitEnabled)
 		loggerPath = file.Name()
-		fmt.Println("Logging to", loggerPath)
 		defer file.Close()
 	}
 
