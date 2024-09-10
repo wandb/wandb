@@ -90,6 +90,9 @@ type clientImpl struct {
 
 	// Headers to pass in every request.
 	extraHeaders map[string]string
+
+	// Credentials to apply on every request.
+	credentialProvider CredentialProvider
 }
 
 // An HTTP request to the W&B backend.
@@ -207,6 +210,9 @@ type ClientOptions struct {
 	// This is insecure and should only be used for testing/debugging
 	// or in environments where the backend is trusted.
 	InsecureDisableSSL bool
+
+	// Adds credentials to http requests.
+	CredentialProvider CredentialProvider
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -217,6 +223,10 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
+	// PrepareRetry gets called before the retry operation and prepares the request for retry
+	retryableHTTP.PrepareRetry = func(req *http.Request) error {
+		return backend.credentialProvider.Apply(req)
+	}
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
@@ -264,8 +274,9 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 
 	return &clientImpl{
-		backend:       backend,
-		retryableHTTP: retryableHTTP,
-		extraHeaders:  opts.ExtraHeaders,
+		backend:            backend,
+		retryableHTTP:      retryableHTTP,
+		extraHeaders:       opts.ExtraHeaders,
+		credentialProvider: opts.CredentialProvider,
 	}
 }
