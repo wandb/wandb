@@ -57,7 +57,7 @@ def test_tb_callback(relay_server, user):
         # The test configured Keras to logs histograms and their images
         # every 5 steps.
         for tag in ["kernel/histogram", "bias/histogram", "kernel/image", "bias/image"]:
-            steps = history.loc["global_step", tag].dropna()["global_step"].tolist()
+            steps = history[["global_step", tag]].dropna()["global_step"].tolist()
             assert steps == [0, 5]
 
 
