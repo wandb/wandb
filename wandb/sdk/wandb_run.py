@@ -2605,7 +2605,9 @@ class Run:
         docker_image_name: Optional[str] = None,
         args: Optional[List[str]] = None,
     ) -> Optional["Artifact"]:
-        print(f"In _create_image_job, {docker_image_name=}, {os.getenv('WANDB_DOCKER')=}")
+        print(
+            f"In _create_image_job, {docker_image_name=}, {os.getenv('WANDB_DOCKER')=}"
+        )
         docker_image_name = docker_image_name or os.getenv("WANDB_DOCKER")
 
         if not docker_image_name:
