@@ -37,9 +37,9 @@ namespace Wandb
             );
 
             // Create the run directory structure
-            Directory.CreateDirectory(settings.GetSyncDir());
-            Directory.CreateDirectory(settings.GetFilesDir());
-            Directory.CreateDirectory(settings.GetLogDir());
+            Directory.CreateDirectory(settings.SyncDir);
+            Directory.CreateDirectory(settings.FilesDir);
+            Directory.CreateDirectory(settings.LogDir);
 
             var run = new Run(_interface, settings);
             await run.Init();

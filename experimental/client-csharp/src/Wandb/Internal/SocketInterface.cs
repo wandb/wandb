@@ -25,11 +25,11 @@ namespace Wandb.Internal
             {
                 Run = new RunRecord
                 {
-                    RunId = run.Settings.GetRunId()
+                    RunId = run.Settings.RunId
                 },
                 Info = new _RecordInfo
                 {
-                    StreamId = run.Settings.GetRunId()
+                    StreamId = run.Settings.RunId
                 },
                 Control = new Control
                 {

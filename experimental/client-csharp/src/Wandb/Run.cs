@@ -19,9 +19,21 @@ namespace Wandb
 
         public async Task Init()
         {
-            await _interface.InformInit(Settings, Settings.GetRunId());
-            Result result = await _interface.DeliverRun(this);
-            Console.WriteLine("{0}", result);
+            await _interface.InformInit(Settings, Settings.RunId);
+            Result deliverRunResult = await _interface.DeliverRun(this);
+            Console.WriteLine("{0}", deliverRunResult);
+            if (deliverRunResult.RunResult == null)
+            {
+                throw new Exception("Failed to deliver run");
+            }
+
+            RunUpdateResult runResult = deliverRunResult.RunResult;
+            if (runResult.Error != null)
+            {
+                throw new Exception(runResult.Error.Message);
+            }
+
+
         }
 
         public async Task Log(object data)
