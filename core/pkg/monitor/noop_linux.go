@@ -4,7 +4,7 @@ package monitor
 
 import spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 
-// GPUApple is a dummy implementation of the Asset interface for Apple GPU.
+// GPUApple is a dummy implementation of the Asset interface for Apple GPUs.
 type GPUApple struct {
 	name string
 }
