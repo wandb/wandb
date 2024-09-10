@@ -1,4 +1,4 @@
-//go:build !linux
+//go:build windows
 
 package monitor
 
@@ -7,36 +7,26 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// GPUNvidia is a dummy implementation of the Asset interface for Nvidia GPUs
-// for non-Linux platforms.
-type GPUNvidia struct {
-	name             string
-	pid              int32
-	samplingInterval float64
-	logger           *observability.CoreLogger
+// GPUApple is a dummy implementation of the Asset interface for Apple GPUs.
+type GPUApple struct {
+	name string
 }
 
-func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
-	return &GPUNvidia{
-		name:             "gpu",
-		pid:              pid,
-		samplingInterval: samplingInterval,
-		logger:           logger,
-	}
+func NewGPUApple() *GPUApple {
+	return &GPUApple{name: "gpu"}
 }
 
-func (g *GPUNvidia) Name() string { return g.name }
+func (g *GPUApple) Name() string { return g.name }
 
-func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
+func (g *GPUApple) Sample() (map[string]any, error) { return nil, nil }
 
-func (g *GPUNvidia) IsAvailable() bool { return false }
+func (g *GPUApple) IsAvailable() bool { return false }
 
-func (g *GPUNvidia) Probe() *spb.MetadataRequest {
+func (g *GPUApple) Probe() *spb.MetadataRequest {
 	return nil
 }
 
-// GPUAMD is a dummy implementation of the Asset interface for AMD GPUs
-// for non-Linux platforms.
+// GPUAMD is a dummy implementation of the Asset interface for AMD GPUs.
 type GPUAMD struct {
 	name   string
 	logger *observability.CoreLogger
@@ -59,8 +49,7 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	return nil
 }
 
-// Trainium is a dummy implementation of the Asset interface for Trainium
-// for non-Linux platforms.
+// Trainium is a dummy implementation of the Asset interface for Trainium.
 type Trainium struct {
 	name                    string
 	pid                     int32
