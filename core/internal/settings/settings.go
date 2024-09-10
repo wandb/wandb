@@ -249,3 +249,8 @@ func (s *Settings) GetForkFrom() *spb.RunMoment {
 func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
+
+// Mode of console capture. One of "off", "wrap", "redirect".
+func (s *Settings) GetConsole() string {
+	return s.Proto.Console.GetValue()
+}

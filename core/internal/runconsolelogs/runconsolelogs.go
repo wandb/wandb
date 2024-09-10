@@ -83,6 +83,7 @@ func New(params Params) *Sender {
 			string(params.ConsoleOutputFile),
 		),
 		params.Logger,
+		params.Settings.GetConsole() == "off",
 	)
 
 	if err != nil {

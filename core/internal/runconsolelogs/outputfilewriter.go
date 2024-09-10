@@ -18,7 +18,12 @@ type outputFileWriter struct {
 func NewOutputFileWriter(
 	path string,
 	logger *observability.CoreLogger,
+	disable bool,
 ) (*outputFileWriter, error) {
+	if disable {
+		return nil, nil
+	}
+
 	if err := os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
 		return nil, err
 	}
