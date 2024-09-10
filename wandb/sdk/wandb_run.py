@@ -3876,6 +3876,11 @@ class Run:
             settings=settings,
             printer=printer,
         )
+        Run._footer_notify_wandb_core(
+            quiet=quiet,
+            settings=settings,
+            printer=printer,
+        )
         Run._footer_local_warn(
             server_info_response=server_info_response,
             quiet=quiet,
@@ -4246,6 +4251,24 @@ class Run:
                 check_version.upgrade_message,
                 level="warn",
             )
+
+    @staticmethod
+    def _footer_notify_wandb_core(
+        *,
+        quiet: Optional[bool] = None,
+        settings: "Settings",
+        printer: Union["PrinterTerm", "PrinterJupyter"],
+    ) -> None:
+        """Prints a message advertising the upcoming core release."""
+        if quiet or not settings._require_legacy_service:
+            return
+
+        printer.display(
+            "The legacy backend is deprecated. In version 0.19.0, `wandb-core` will become "
+            "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
+            "For more information, visit https://wandb.me/wandb-core",
+            level="warn",
+        )
 
     @staticmethod
     def _footer_reporter_warn_err(
