@@ -1,6 +1,7 @@
-//go:build darwin
-
 package monitor
+
+// suppress golangci-lint unused code warning as it is only used on darwin
+var _ = queryMapNumber
 
 // queryMapNumber reads a number-valued property from a JSON object.
 //
