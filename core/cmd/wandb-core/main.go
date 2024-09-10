@@ -41,17 +41,19 @@ func main() {
 	}
 
 	// set up sentry reporting
-	params := sentry_ext.Params{
-		DSN:              SentryDSN,
+	var sentryDSN string
+	if *disableAnalytics {
+		sentryDSN = ""
+	} else {
+		sentryDSN = SentryDSN
+	}
+	sentryClient := sentry_ext.New(sentry_ext.Params{
+		DSN:              sentryDSN,
 		AttachStacktrace: true,
 		Release:          version.Version,
 		Commit:           commit,
 		Environment:      version.Environment,
-	}
-	if *disableAnalytics {
-		params.DSN = ""
-	}
-	sentryClient := sentry_ext.New(params)
+	})
 	defer sentryClient.Flush(2)
 
 	// store commit hash in context

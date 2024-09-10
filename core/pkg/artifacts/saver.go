@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -81,7 +82,7 @@ func NewArtifactSaver(
 }
 
 func (as *ArtifactSaver) createArtifact() (
-	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
+	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
 	var aliases []gql.ArtifactAliasInput
@@ -99,28 +100,63 @@ func (as *ArtifactSaver) createArtifact() (
 		runId = &as.Artifact.RunId
 	}
 
-	response, err := gql.CreateArtifact(
-		as.Ctx,
-		as.GraphqlClient,
-		as.Artifact.Entity,
-		as.Artifact.Project,
-		as.Artifact.Type,
-		as.Artifact.Name,
-		runId,
-		as.Artifact.Digest,
-		utils.NilIfZero(as.Artifact.Description),
-		aliases,
-		utils.NilIfZero(as.Artifact.Metadata),
-		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-		utils.NilIfZero(as.HistoryStep),
-		utils.NilIfZero(as.Artifact.DistributedId),
-		as.Artifact.ClientId,
-		as.Artifact.SequenceClientId,
-	)
+	// Check which fields are actually supported on the input
+	inputFieldNames, err := getInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
 	if err != nil {
-		return gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact{}, err
+		return gql.CreatedArtifactArtifact{}, err
+	}
+
+	// Note: if tags are empty, `omitempty` ensures they're nulled out
+	// (effectively omitted) in the prepare GraphQL request
+	var tags []gql.TagInput
+	if slices.Contains(inputFieldNames, "tags") {
+		for _, tag := range as.Artifact.Tags {
+			tags = append(tags, gql.TagInput{TagName: tag})
+		}
+	}
+
+	input := gql.CreateArtifactInput{
+		EntityName:                as.Artifact.Entity,
+		ProjectName:               as.Artifact.Project,
+		ArtifactTypeName:          as.Artifact.Type,
+		ArtifactCollectionName:    as.Artifact.Name,
+		RunName:                   runId,
+		Digest:                    as.Artifact.Digest,
+		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
+		Description:               utils.NilIfZero(as.Artifact.Description),
+		Aliases:                   aliases,
+		Tags:                      tags,
+		Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
+		TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+		HistoryStep:               utils.NilIfZero(as.HistoryStep),
+		EnableDigestDeduplication: true,
+		DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
+		ClientID:                  as.Artifact.ClientId,
+		SequenceClientID:          as.Artifact.SequenceClientId,
+	}
+
+	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
+	if err != nil {
+		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
+}
+
+func getInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
+	response, err := gql.InputFields(ctx, client, typeName)
+	if err != nil {
+		return nil, err
+	}
+	typeInfo := response.GetTypeInfo()
+	if typeInfo == nil {
+		return nil, fmt.Errorf("unable to verify allowed fields for %s", typeName)
+	}
+	fields := typeInfo.GetInputFields()
+	fieldNames := make([]string, len(fields))
+	for i, field := range fields {
+		fieldNames[i] = field.GetName()
+	}
+	return fieldNames, nil
 }
 
 func (as *ArtifactSaver) createManifest(
@@ -636,6 +672,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
+
 	artifactID = artifactAttrs.Id
 	var baseArtifactId *string
 	if as.Artifact.BaseId != "" {

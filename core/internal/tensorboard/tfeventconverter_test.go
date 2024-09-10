@@ -333,11 +333,11 @@ func TestConvertHistogramProto(t *testing.T) {
 }
 
 func TestConvertHistogramRebin(t *testing.T) {
-	// A histogram of 100 bins should be rebinned to 32 bins.
+	// A histogram of 1000 bins should be rebinned to 512 bins.
 	// Sum of weights should remain the same.
 	converter := tensorboard.TFEventConverter{Namespace: "train"}
-	inputTensor := make([]float32, 100*3)
-	for i := 0; i < 100; i++ {
+	inputTensor := make([]float32, 1000*3)
+	for i := 0; i < 1000; i++ {
 		// Left edge, right edge, weight.
 		inputTensor[i*3+0] = float32(i)
 		inputTensor[i*3+1] = float32(i + 1)
@@ -349,7 +349,7 @@ func TestConvertHistogramRebin(t *testing.T) {
 		emitter,
 		summaryEvent(123, 0.345,
 			tensorValue("my_hist", "histograms",
-				[]int{100, 3}, inputTensor...)),
+				[]int{1000, 3}, inputTensor...)),
 		observability.NewNoOpLogger(),
 	)
 
@@ -358,13 +358,13 @@ func TestConvertHistogramRebin(t *testing.T) {
 		json.Unmarshal(
 			[]byte(emitter.EmitHistoryCalls[0].ValueJSON),
 			&result))
-	assert.Len(t, result["bins"], 33)
-	assert.Len(t, result["values"], 32)
+	assert.Len(t, result["bins"], 513)
+	assert.Len(t, result["values"], 512)
 	sumOfWeights := float64(0)
 	for _, x := range result["values"].([]any) {
 		sumOfWeights += x.(float64)
 	}
-	assert.EqualValues(t, 100, sumOfWeights)
+	assert.EqualValues(t, 1000, sumOfWeights)
 }
 
 func TestConvertImage(t *testing.T) {
