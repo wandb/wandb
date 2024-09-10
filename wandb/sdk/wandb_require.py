@@ -42,7 +42,7 @@ class _Requires:
 
     def require_core(self) -> None:
         wandb.termwarn(
-            "This is currently the default behavior and does not need to be set."
+            "`wandb.require('core')` is redundant as it is now the default behavior."
         )
 
     def require_legacy_service(self) -> None:

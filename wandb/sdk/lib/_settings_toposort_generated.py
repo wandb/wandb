@@ -213,6 +213,8 @@ SETTINGS_TOPOLOGICALLY_SORTED: Final[Tuple[_Setting, ...]] = (
     "_notebook",
     "disabled",
     "_offline",
+    "_require_legacy_service",
+    "_require_core",
     "_shared",
     "_stats_neuron_monitor_config_path",
     "run_mode",

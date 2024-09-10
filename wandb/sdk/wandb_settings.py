@@ -355,7 +355,6 @@ class SettingsData:
     ]  # custom proxy servers for the requests to W&B [scheme -> url]
     _python: str
     _runqueue_item_id: str
-    _require_core: bool
     _require_legacy_service: bool
     _save_requirements: bool
     _service_transport: str
@@ -719,7 +718,6 @@ class Settings(SettingsData):
                 # TODO: deprecate and ask the user to use http_proxy and https_proxy instead
                 "preprocessor": _str_as_json,
             },
-            _require_core={"value": False, "preprocessor": _str_as_bool},
             _require_legacy_service={"value": False, "preprocessor": _str_as_bool},
             _save_requirements={"value": True, "preprocessor": _str_as_bool},
             _service_wait={
