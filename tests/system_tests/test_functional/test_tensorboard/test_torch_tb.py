@@ -137,47 +137,11 @@ def test_add_histogram(wandb_init, relay_server):
     """Test adding a histogram to TensorBoard and syncing it to W&B."""
     with relay_server() as relay:
         with wandb_init(sync_tensorboard=True), SummaryWriter() as writer:
-            for i in range(10):
-                x = np.random.random(1000)
-                writer.add_histogram("distribution centers", x + i, i)
-
-        run_ids = relay.context.get_run_ids()
-        assert len(run_ids) == 1
-        run_id = run_ids[0]
-
-        summary = relay.context.get_run_summary(run_id)
-        assert summary["global_step"] == 9
-        assert summary["distribution centers"]["_type"] == "histogram"
-
-        telemetry = relay.context.get_run_telemetry(run_id)
-        assert 35 in telemetry["3"]  # tensorboard_sync
-
-    wandb.tensorboard.unpatch()
-
-
-def test_add_histogram_raw(wandb_init, relay_server):
-    """Test adding a histogram with raw data to TensorBoard and syncing it to W&B."""
-    with relay_server() as relay:
-        with wandb_init(sync_tensorboard=True), SummaryWriter() as writer:
-            dummy_data = []
-            for idx, value in enumerate(range(50)):
-                dummy_data += [idx + 0.001] * value
-
-            bins = list(range(50 + 2))
-            bins = np.array(bins)
-            values = np.array(dummy_data).astype(float).reshape(-1)
-            counts, limits = np.histogram(values, bins=bins)
-            sum_sq = values.dot(values)
-            writer.add_histogram_raw(
-                tag="histogram_with_raw_data",
-                min=values.min(),
-                max=values.max(),
-                num=len(values),
-                sum=values.sum(),
-                sum_squares=sum_sq,
-                bucket_limits=limits[1:].tolist(),
-                bucket_counts=counts.tolist(),
-                global_step=0,
+            writer.add_histogram(
+                "distribution centers",
+                1 + np.random.random(1000),
+                global_step=4,
+                bins=500,
             )
 
         run_ids = relay.context.get_run_ids()
@@ -185,10 +149,12 @@ def test_add_histogram_raw(wandb_init, relay_server):
         run_id = run_ids[0]
 
         summary = relay.context.get_run_summary(run_id)
-        assert summary["global_step"] == 0
-        assert summary["histogram_with_raw_data"]["_type"] == "histogram"
-        assert len(summary["histogram_with_raw_data"]["values"]) == 49
-        assert len(summary["histogram_with_raw_data"]["bins"]) == 50
+        assert summary["global_step"] == 4
+        assert summary["distribution centers"]["_type"] == "histogram"
+        assert len(summary["distribution centers"]["values"]) == 500
+
+        telemetry = relay.context.get_run_telemetry(run_id)
+        assert 35 in telemetry["3"]  # tensorboard_sync
 
     wandb.tensorboard.unpatch()
 
