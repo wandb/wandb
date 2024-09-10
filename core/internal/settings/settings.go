@@ -250,7 +250,8 @@ func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
 
-// Mode of console capture. One of "off", "wrap", "redirect".
-func (s *Settings) GetConsole() string {
-	return s.Proto.Console.GetValue()
+// Checks whether console capture is enabled. If it is, stdout and stderr
+// will be captured and sent to W&B.
+func (s *Settings) IsConsoleCaptureEnabled() bool {
+	return s.Proto.Console.GetValue() != "off"
 }

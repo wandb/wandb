@@ -143,8 +143,8 @@ type Sender struct {
 	// mailbox is used to store cancel functions for each mailbox slot
 	mailbox *mailbox.Mailbox
 
-	// consoleLogsSenderOrNil uploads captured console output.
-	consoleLogsSenderOrNil *runconsolelogs.Sender
+	// consoleLogsSender uploads captured console output.
+	consoleLogsSender *runconsolelogs.Sender
 }
 
 // NewSender creates a new Sender with the given settings
@@ -192,7 +192,7 @@ func NewSender(
 			params.Logger,
 		),
 
-		consoleLogsSenderOrNil: runconsolelogs.New(runconsolelogs.Params{
+		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
 			ConsoleOutputFile: outputFileName,
 			Settings:          params.Settings,
 			Logger:            params.Logger,
@@ -539,9 +539,7 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 	case spb.DeferRequest_FLUSH_OUTPUT:
 		go func() {
 			defer s.logger.Reraise()
-			if s.consoleLogsSenderOrNil != nil {
-				s.consoleLogsSenderOrNil.Finish()
-			}
+			s.consoleLogsSender.Finish()
 			request.State++
 			s.fwdRequestDefer(request)
 		}()
@@ -1262,10 +1260,7 @@ func (s *Sender) sendOutput(_ *spb.Record, _ *spb.OutputRecord) {
 }
 
 func (s *Sender) sendOutputRaw(_ *spb.Record, outputRaw *spb.OutputRawRecord) {
-	if s.consoleLogsSenderOrNil == nil {
-		return
-	}
-	s.consoleLogsSenderOrNil.StreamLogs(outputRaw)
+	s.consoleLogsSender.StreamLogs(outputRaw)
 }
 
 func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
