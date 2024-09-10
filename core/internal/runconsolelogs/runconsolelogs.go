@@ -68,6 +68,10 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: ExtraWork is nil")
 	}
 
+	if params.Settings.GetConsole() == "off" {
+		return nil
+	}
+
 	if params.GetNow == nil {
 		params.GetNow = time.Now
 	}
@@ -83,7 +87,6 @@ func New(params Params) *Sender {
 			string(params.ConsoleOutputFile),
 		),
 		params.Logger,
-		params.Settings.GetConsole() == "off",
 	)
 
 	if err != nil {
