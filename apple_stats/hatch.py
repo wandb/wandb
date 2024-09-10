@@ -51,7 +51,6 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
             " package that doesn't collect Apple system metrics."
         ) from e
 
-    # Copy the built binary to the output path
     built_binary = (
         source_path  # break line for readability
         / ".build"
@@ -60,8 +59,3 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
         / "AppleStats"
     )
     subprocess.check_call(["cp", str(built_binary), str(output_path)])
-
-
-if __name__ == "__main__":
-    output_path = pathlib.Path("path/to/output/AppleStats")
-    build_applestats(output_path)
