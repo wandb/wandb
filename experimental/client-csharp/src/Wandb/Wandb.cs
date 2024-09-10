@@ -26,8 +26,6 @@ namespace Wandb
                 await _interface.Initialize(_port.Value);
                 _isInitialized = true;
             }
-            Console.WriteLine("Project: {0}", project);
-
             var settings = new Settings(
                 project: project
             );

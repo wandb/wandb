@@ -21,7 +21,6 @@ namespace Wandb
         {
             await _interface.InformInit(Settings, Settings.RunId);
             Result deliverRunResult = await _interface.DeliverRun(this);
-            Console.WriteLine("{0}", deliverRunResult);
             if (deliverRunResult.RunResult == null)
             {
                 throw new Exception("Failed to deliver run");
@@ -38,7 +37,11 @@ namespace Wandb
             Settings.Entity = runResult.Run.Entity;
             Settings.DisplayName = runResult.Run.DisplayName;
 
-            Console.WriteLine("Settings: {0}", Settings.ToString());
+            Result result = await _interface.DeliverRunStart(this);
+            if (result.Response == null)
+            {
+                throw new Exception("Failed to deliver run start");
+            }
         }
 
         public async Task Log(object data)

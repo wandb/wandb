@@ -41,13 +41,33 @@ namespace Wandb.Internal
             return await Deliver(record);
         }
 
-        public async Task<Result> DeliverRunStart()
+        public async Task<Result> DeliverRunStart(Run run)
         {
+            RandomStringGenerator generator = new();
+
             var record = new Record
             {
                 Request = new Request
                 {
-                    RunStart = new RunStartRequest()
+                    RunStart = new RunStartRequest
+                    {
+                        Run = new RunRecord
+                        {
+                            Project = run.Settings.Project,
+                            Entity = run.Settings.Entity,
+                            DisplayName = run.Settings.DisplayName,
+                            RunId = run.Settings.RunId
+                        },
+                    },
+                },
+                Info = new _RecordInfo
+                {
+                    StreamId = run.Settings.RunId
+                },
+                Control = new Control
+                {
+                    ReqResp = true,
+                    MailboxSlot = generator.GenerateRandomString(16)
                 }
             };
             return await Deliver(record);
@@ -60,7 +80,6 @@ namespace Wandb.Internal
                 RecordPublish = record
 
             };
-            Console.WriteLine("Delivering record: {0}", request);
             ServerResponse response = await SendAndRecv(request);
             return response.ResultCommunicate;
         }
@@ -131,12 +150,9 @@ namespace Wandb.Internal
         public async Task<ServerResponse> SendAndRecv(ServerRequest request)
         {
             byte[] data = request.ToByteArray();
-            Console.WriteLine("Sending data: {0}", data);
             await _tcpCommunication.Send(data);
-            Console.WriteLine("Sent data: {0}", data);
 
             byte[] receivedData = await _tcpCommunication.Receive();
-            Console.WriteLine("Received data: {0}", receivedData);
             return ServerResponse.Parser.ParseFrom(receivedData);
         }
 

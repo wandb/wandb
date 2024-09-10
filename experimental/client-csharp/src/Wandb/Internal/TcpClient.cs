@@ -62,12 +62,9 @@ namespace Wandb.Internal
             // Read the magic byte
             byte[] magicByte = new byte[1];
             int bytesRead = await ReceiveExactly(magicByte, 0, 1);
-            Console.WriteLine($"Read {bytesRead} bytes");
-            Console.WriteLine($"Magic byte: {BitConverter.ToString(magicByte)}");
 
             if (magicByte[0] != (byte)'W')
             {
-                Console.WriteLine($"Magic number is not 'W': {magicByte[0]}");
                 return Array.Empty<byte>();
             }
 
@@ -75,12 +72,10 @@ namespace Wandb.Internal
             byte[] bodyLengthBytes = new byte[4];
             await ReceiveExactly(bodyLengthBytes, 0, 4);
             uint bodyLength = BitConverter.ToUInt32(bodyLengthBytes, 0);
-            Console.WriteLine($"Body length: {bodyLength}");
 
             // Read the body
             byte[] body = new byte[bodyLength];
             await ReceiveExactly(body, 0, (int)bodyLength);
-            Console.WriteLine($"Body: {BitConverter.ToString(body)}");
 
             return body;
         }
