@@ -193,11 +193,11 @@ func NewSender(
 		),
 
 		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
-			ConsoleOutputFile: outputFileName,
-			Settings:          params.Settings,
-			Logger:            params.Logger,
-			ExtraWork:         runWork,
-			FileStreamOrNil:   params.FileStream,
+			ConsoleOutputFile:     outputFileName,
+			Settings:              params.Settings,
+			Logger:                params.Logger,
+			RunfilesUploaderOrNil: params.RunfilesUploader,
+			FileStreamOrNil:       params.FileStream,
 		}),
 	}
 
