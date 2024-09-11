@@ -9,8 +9,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 )
 
-// CredentialProvider defines an interface for managing and applying credentials
-// on HTTP requests
+// CredentialProvider adds credentials to HTTP requests.
 type CredentialProvider interface {
 	// Apply sets the appropriate authorization headers or parameters on the
 	// HTTP request.
@@ -18,7 +17,8 @@ type CredentialProvider interface {
 }
 
 func NewCredentialProvider(
-	settings *settings.Settings) (CredentialProvider, error) {
+	settings *settings.Settings,
+) (CredentialProvider, error) {
 	if settings.GetIdentityTokenFile() != "" {
 		return nil, fmt.Errorf("Identity federation via the wandb sdk " +
 			"is temporarily unavailable in wandb-core, or version 0.18.0 or " +
@@ -30,14 +30,15 @@ func NewCredentialProvider(
 	return NewAPIKeyCredentialProvider(settings)
 }
 
-var _ CredentialProvider = &APIKeyCredentialProvider{}
+var _ CredentialProvider = &apiKeyCredentialProvider{}
 
-type APIKeyCredentialProvider struct {
+type apiKeyCredentialProvider struct {
 	apiKey string
 }
 
 func NewAPIKeyCredentialProvider(
-	settings *settings.Settings) (CredentialProvider, error) {
+	settings *settings.Settings,
+) (CredentialProvider, error) {
 	if err := settings.EnsureAPIKey(); err != nil {
 		slog.Error(
 			"connection: couldn't get API key",
@@ -46,12 +47,12 @@ func NewAPIKeyCredentialProvider(
 		return nil, err
 	}
 
-	return &APIKeyCredentialProvider{
+	return &apiKeyCredentialProvider{
 		apiKey: settings.GetAPIKey(),
 	}, nil
 }
 
-func (c *APIKeyCredentialProvider) Apply(req *http.Request) error {
+func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 	req.Header.Set(
 		"Authorization",
 		"Basic "+base64.StdEncoding.EncodeToString(
