@@ -9,7 +9,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
 	github.com/hashicorp/golang-lru v1.0.2
-	github.com/prometheus/common v0.58.0
+	github.com/prometheus/common v0.59.1
 	github.com/radovskyb/watcher v1.0.7
 	github.com/shirou/gopsutil/v4 v4.24.8
 	github.com/spf13/afero v1.11.0
