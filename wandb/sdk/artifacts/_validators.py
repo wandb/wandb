@@ -73,7 +73,7 @@ def ensure_logged(method: DecoratedFunc) -> DecoratedFunc:
         self: Artifact = args[0]
         if self.is_draft():
             raise ArtifactNotLoggedError(artifact=self, attr=attr_name)
-        return method(self, *args, **kwargs)
+        return method(*args, **kwargs)
 
     return wrapper
 
@@ -87,6 +87,6 @@ def ensure_not_finalized(method: DecoratedFunc) -> DecoratedFunc:
         self: Artifact = args[0]
         if self._final:
             raise ArtifactFinalizedError(artifact=self, attr=attr_name)
-        return method(self, *args, **kwargs)
+        return method(*args, **kwargs)
 
     return wrapper
