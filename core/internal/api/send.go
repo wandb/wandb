@@ -75,7 +75,8 @@ func (client *clientImpl) sendToWandbBackend(
 	client.setClientHeaders(req)
 	err := client.backend.credentialProvider.Apply(req.Request)
 	if err != nil {
-		return nil, fmt.Errorf("api: failed provide credentials for request: %v", err)
+		return nil, fmt.Errorf("api: failed provide credentials for "+
+			"request: %v", err)
 	}
 
 	resp, err := client.send(req)

@@ -57,7 +57,8 @@ func TestSend(t *testing.T) {
 	assert.Equal(t, "two", req.Header.Get("Header2"))
 	assert.Equal(t, "xyz", req.Header.Get("ClientHeader"))
 	assert.Equal(t, "wandb-core", req.Header.Get("User-Agent"))
-	assert.Equal(t, "Basic YXBpOnRlc3RfYXBpX2tleQ==", req.Header.Get("Authorization"))
+	assert.Equal(t, "Basic YXBpOnRlc3RfYXBpX2tleQ==",
+		req.Header.Get("Authorization"))
 }
 
 func TestDo_ToWandb_SetsAuth(t *testing.T) {
@@ -121,7 +122,8 @@ func newClient(
 	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
-	backend := api.New(api.BackendOptions{BaseURL: baseURL, CredentialProvider: credentialProvider})
+	backend := api.New(api.BackendOptions{BaseURL: baseURL,
+		CredentialProvider: credentialProvider})
 	return backend.NewClient(opts)
 }
 
