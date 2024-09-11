@@ -35,7 +35,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
-from wandb.errors import WandbCoreNotAvailableError
+from wandb.errors import UsageError, WandbCoreNotAvailableError
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -47,9 +47,6 @@ from wandb.sdk.lib import filesystem
 from wandb.sdk.lib.wburls import wburls
 from wandb.sync import SyncManager, get_run_from_path, get_runs
 from wandb.util import get_core_path
-
-# TODO: move CLI to wandb-core backend
-wandb.require("legacy-service")
 
 # Send cli logs to wandb/debug-cli.<username>.log by default and fallback to a temp dir.
 _wandb_dir = wandb.old.core.wandb_dir(env.get_dir())
@@ -126,6 +123,9 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
+    # TODO: move CLI to wandb-core backend
+    wandb.require("legacy-service")
+
     global _api
     if reset:
         _api = None
@@ -229,6 +229,9 @@ def projects(entity, display=True):
 @click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+    # TODO: move CLI to wandb-core backend
+    wandb.require("legacy-service")
+
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -440,8 +443,11 @@ def beta():
 
     wandb._sentry.configure_scope(process_context="wandb_beta")
 
-    # TODO: this is to undo wandb.require("legacy-service") in the main cli
-    os.environ[wandb.env._REQUIRE_LEGACY_SERVICE] = "false"
+    if wandb.env.is_require_legacy_service():
+        raise UsageError(
+            "wandb beta commands can only be used with wandb-core. "
+            f"Please make sure that `{wandb.env._REQUIRE_LEGACY_SERVICE}` is not set."
+        )
 
     try:
         get_core_path()
@@ -2947,14 +2953,6 @@ def enabled(service):
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
         )
-
-
-@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
-@click.argument("args", nargs=-1)
-def gc(args):
-    click.echo(
-        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
-    )
 
 
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")
