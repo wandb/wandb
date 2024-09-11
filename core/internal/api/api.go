@@ -213,6 +213,10 @@ type ClientOptions struct {
 
 	// Adds credentials to http requests.
 	CredentialProvider CredentialProvider
+
+	// Function that gets called before the retry operation and prepares the
+	// request for retry
+	PrepareRetry func(*http.Request) error
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -223,10 +227,15 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
-	// PrepareRetry gets called before the retry operation and prepares the request for retry
-	retryableHTTP.PrepareRetry = func(req *http.Request) error {
-		return backend.credentialProvider.Apply(req)
+
+	// Set the PrepareRetry function on the client
+	prepareRetry := opts.PrepareRetry
+	if prepareRetry == nil {
+		prepareRetry = func(req *http.Request) error {
+			return backend.credentialProvider.Apply(req)
+		}
 	}
+	retryableHTTP.PrepareRetry = prepareRetry
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy
