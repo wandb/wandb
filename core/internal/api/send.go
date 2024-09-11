@@ -22,6 +22,7 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 		retryableReq.Header.Set(headerKey, headerValue)
 	}
 	client.setClientHeaders(retryableReq)
+
 	err = client.backend.credentialProvider.Apply(retryableReq.Request)
 	if err != nil {
 		return nil, fmt.Errorf("api: failed provide credentials for request: %v", err)
