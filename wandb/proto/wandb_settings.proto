@@ -43,7 +43,7 @@ message RunMoment {
 //
 // Next ID: 175
 message Settings {
-  reserved 12, 94, 136, 137;
+  reserved 12, 36, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -80,6 +80,21 @@ message Settings {
   // Filename to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
 
+  // Defines the type of console capture to be applied. Possible values are:
+  //
+  // "off" - Disables console capture.
+  //
+  // "redirect" - Redirects low-level file descriptors for capturing output.
+  //
+  // "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+  // mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+  //
+  // "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+  // through an emulator.
+  //
+  // "wrap_emu" - Same as "wrap" but captures output through an emulator.
+  google.protobuf.StringValue console = 60;
+
   // Absolute path to the local directory where this run's files are stored.
   google.protobuf.StringValue files_dir = 70;
 
@@ -88,9 +103,6 @@ message Settings {
 
   // Disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue _disable_update_check = 165;
-
-  // Explicitly require wandb-core to be used.
-  google.protobuf.BoolValue _require_core = 36;
 
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue _require_legacy_service = 173;
@@ -191,7 +203,6 @@ message Settings {
   google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
-  google.protobuf.StringValue console = 60;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
   google.protobuf.BoolValue disable_git = 63;

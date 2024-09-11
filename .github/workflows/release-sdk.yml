@@ -259,7 +259,7 @@ jobs:
 
   verify-test-pypi:
     needs: test-pypi-publish
-    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_legacy_service && '' || 'with core' }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
@@ -270,7 +270,7 @@ jobs:
           - ubuntu-20.04
           - windows-2019
           - macos-14
-        use_core: [false, true]
+        use_legacy_service: [false, true]
 
     steps:
       - name: Setup Python
@@ -288,7 +288,7 @@ jobs:
       - name: Smoke-test wandb
         shell: bash
         run: |
-          WANDB__REQUIRE_CORE=${{ matrix.use_core }} \
+          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -297,6 +297,10 @@ jobs:
     name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        use_legacy_service: [false, true]
 
     steps:
       - name: Set up Python
@@ -314,17 +318,10 @@ jobs:
             --extra-index-url https://test.pypi.org/simple/ \
             wandb==${{ github.event.inputs.version }}
 
-      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
+      - name: Smoke-test wandb ${{ matrix.use_legacy_service && '' || 'with core' }}
         shell: bash
         run: |
-          WANDB__REQUIRE_CORE=false \
-          WANDB_MODE=offline \
-          python -c "import wandb; run = wandb.init(); run.finish()"
-
-      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=true)
-        shell: bash
-        run: |
-          WANDB__REQUIRE_CORE=true \
+          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -411,7 +408,7 @@ jobs:
         run: |
           echo "## What's Changed" > release_notes.md
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
-      - name: Draft Release
+      - name: Create Release Notes
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ github.event.inputs.version }}
@@ -421,7 +418,7 @@ jobs:
           files: |
             wandb-${{ github.event.inputs.version }}.zip
             wandb-${{ github.event.inputs.version }}.tar.gz
-          draft: false
+          draft: true
           token: ${{ secrets.GITHUB_TOKEN }}
 
   slack:
