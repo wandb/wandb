@@ -1,4 +1,4 @@
-"""Internal validation helper functions that are specific to artifacts."""
+"""Internal validation utilities that are specific to artifacts."""
 
 from __future__ import annotations
 
@@ -15,6 +15,8 @@ if TYPE_CHECKING:
     from typing import Collection
 
     from wandb.sdk.artifacts.artifact import Artifact
+
+    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
 
 
 def validate_aliases(aliases: Collection[str]) -> list[str]:
@@ -50,32 +52,31 @@ def validate_tags(tags: Collection[str]) -> list[str]:
     return list(dict.fromkeys(tags))
 
 
-DecoratedFunc = TypeVar("DecoratedFunc", bound=Callable[..., Any])
+DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
+"""Type hint for a decorated function that'll preserve its signature (e.g. for arg autocompletion in IDEs)."""
 
 
-def ensure_logged(method: DecoratedFunc) -> DecoratedFunc:
+def ensure_logged(method: DecoratedF) -> DecoratedF:
     """Decorator to ensure that a method can only be called on logged artifacts."""
-    attr_name = method.__name__
+    qualname = method.__qualname__
 
     @wraps(method)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        self: Artifact = args[0]
+    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self.is_draft():
-            raise ArtifactNotLoggedError(artifact=self, attr=attr_name)
-        return method(*args, **kwargs)
+            raise ArtifactNotLoggedError(qualname=qualname, obj=self)
+        return method(self, *args, **kwargs)
 
-    return cast(DecoratedFunc, wrapper)
+    return cast(DecoratedF, wrapper)
 
 
-def ensure_not_finalized(method: DecoratedFunc) -> DecoratedFunc:
+def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
     """Decorator to ensure that a method can only be called if the artifact has not been finalized."""
-    attr_name = method.__name__
+    qualname = method.__qualname__
 
     @wraps(method)
-    def wrapper(*args: Any, **kwargs: Any) -> Any:
-        self: Artifact = args[0]
+    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self._final:
-            raise ArtifactFinalizedError(artifact=self, attr=attr_name)
-        return method(*args, **kwargs)
+            raise ArtifactFinalizedError(qualname=qualname, obj=self)
+        return method(self, *args, **kwargs)
 
-    return cast(DecoratedFunc, wrapper)
+    return cast(DecoratedF, wrapper)

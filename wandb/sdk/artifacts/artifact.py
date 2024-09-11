@@ -554,7 +554,7 @@ class Artifact:
             ArtifactNotLoggedError: Unable to fetch inherited TTL if the artifact has not been logged or saved
         """
         if self._ttl_is_inherited and (self.is_draft() or self._ttl_changed):
-            raise ArtifactNotLoggedError(self, "ttl")
+            raise ArtifactNotLoggedError(f"{type(self).__name__}.ttl", self)
         if self._ttl_duration_seconds is None:
             return None
         return timedelta(seconds=self._ttl_duration_seconds)
@@ -815,7 +815,7 @@ class Artifact:
         """
         if self.is_draft():
             if self._save_future is None:
-                raise ArtifactNotLoggedError(self, "wait")
+                raise ArtifactNotLoggedError(type(self).wait.__qualname__, self)
             result = self._save_future.get(timeout)
             if not result:
                 raise WaitTimeoutError(
