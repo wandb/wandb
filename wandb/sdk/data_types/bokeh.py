@@ -5,6 +5,7 @@ import os
 from wandb import util
 from wandb.sdk.lib import runid
 
+from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import Media
 
@@ -59,3 +60,11 @@ class Bokeh(Media):
     @classmethod
     def from_json(cls, json_obj, source_artifact):
         return cls(source_artifact.get_entry(json_obj["path"]).download())
+
+
+class _BokehFileType(_dtypes.Type):
+    name = "bokeh-file"
+    types = [Bokeh]
+
+
+_dtypes.TypeRegistry.add(_BokehFileType)
