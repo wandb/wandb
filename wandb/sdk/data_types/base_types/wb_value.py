@@ -3,6 +3,8 @@ from typing import TYPE_CHECKING, Any, ClassVar, Dict, List, Optional, Type, Uni
 from wandb import util
 
 if TYPE_CHECKING:  # pragma: no cover
+    from typing_extensions import Self
+
     from wandb.sdk.artifacts.artifact import Artifact
 
     from ...wandb_run import Run as LocalRun
@@ -88,9 +90,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def from_json(
-        cls: Type["WBValue"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "WBValue":
+    def from_json(cls, json_obj: dict, source_artifact: "Artifact") -> Self:
         """Deserialize a `json_obj` into it's class representation.
 
         If additional resources were stored in the `run_or_artifact` artifact during the

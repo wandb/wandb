@@ -86,8 +86,8 @@ if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
 
 
-# Renamed TypeAlias for `type`, needed to avoid shadowing name of `Artifact.type` further below.
-type_: TypeAlias = type
+# Define this alias up here, to avoid conflict when shadowing name of `Artifact.type` further below.
+WBValueType: TypeAlias = type[WBValue]
 
 
 class Artifact:
@@ -1635,7 +1635,7 @@ class Artifact:
 
     def _get_obj_entry(
         self, name: str
-    ) -> tuple[ArtifactManifestEntry, type_[WBValue]] | tuple[None, None]:
+    ) -> tuple[ArtifactManifestEntry, WBValueType] | tuple[None, None]:
         """Return an object entry by name, handling any type suffixes.
 
         When objects are added with `.add(obj, name)`, the name is typically changed to
