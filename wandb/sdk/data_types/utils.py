@@ -1,6 +1,8 @@
+import datetime
 import logging
 import os
 import re
+from decimal import Decimal
 from typing import TYPE_CHECKING, Optional, Sequence, Union, cast
 
 import wandb
@@ -178,3 +180,50 @@ def _prune_max_seq(seq: Sequence["BatchableMedia"]) -> Sequence["BatchableMedia"
         )
         items = seq[: seq[0].MAX_ITEMS]
     return items
+
+
+def _json_helper(val, artifact):
+    if isinstance(val, WBValue):
+        return val.to_json(artifact)
+    elif val.__class__ is dict:
+        res = {}
+        for key in val:
+            res[key] = _json_helper(val[key], artifact)
+        return res
+
+    if hasattr(val, "tolist"):
+        py_val = val.tolist()
+        if val.__class__.__name__ == "datetime64" and isinstance(py_val, int):
+            # when numpy datetime64 .tolist() returns an int, it is nanoseconds.
+            # need to convert to milliseconds
+            return _json_helper(py_val / int(1e6), artifact)
+        return _json_helper(py_val, artifact)
+    elif hasattr(val, "item"):
+        return _json_helper(val.item(), artifact)
+
+    if isinstance(val, datetime.datetime):
+        if val.tzinfo is None:
+            val = datetime.datetime(
+                val.year,
+                val.month,
+                val.day,
+                val.hour,
+                val.minute,
+                val.second,
+                val.microsecond,
+                tzinfo=datetime.timezone.utc,
+            )
+        return int(val.timestamp() * 1000)
+    elif isinstance(val, datetime.date):
+        return int(
+            datetime.datetime(
+                val.year, val.month, val.day, tzinfo=datetime.timezone.utc
+            ).timestamp()
+            * 1000
+        )
+    elif isinstance(val, (list, tuple)):
+        return [_json_helper(i, artifact) for i in val]
+    elif isinstance(val, Decimal):
+        return float(val)
+    else:
+        return util.json_friendly(val)[0]
