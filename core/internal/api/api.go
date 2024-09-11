@@ -194,9 +194,6 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
-
-	// Function that gets called before the retry operation and prepares the request for retry
-	PrepareRetry func(*http.Request) error
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -207,15 +204,6 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	retryableHTTP.RetryWaitMin = opts.RetryWaitMin
 	retryableHTTP.RetryWaitMax = opts.RetryWaitMax
 	retryableHTTP.HTTPClient.Timeout = opts.NonRetryTimeout
-
-	// Set the PrepareRetry function on the client
-	prepareRetry := opts.PrepareRetry
-	if prepareRetry == nil {
-		prepareRetry = func(req *http.Request) error {
-			return backend.credentialProvider.Apply(req)
-		}
-	}
-	retryableHTTP.PrepareRetry = prepareRetry
 
 	// Set the retry policy with debug logging if possible.
 	retryPolicy := opts.RetryPolicy

@@ -2,7 +2,6 @@ package api_test
 
 import (
 	"bytes"
-	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -23,14 +22,14 @@ import (
 
 func TestSend(t *testing.T) {
 	server := NewRecordingServer()
-	clientSettings := wbsettings.From(&spb.Settings{
+	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
 
 	{
 		defer server.Close()
-		_, err := newClient(t, clientSettings, api.ClientOptions{
+		_, err := newClient(t, settings, api.ClientOptions{
 			ExtraHeaders: map[string]string{
 				"ClientHeader": "xyz",
 			},
@@ -228,49 +227,4 @@ func TestNewClientWithProxy(t *testing.T) {
 	// Check that Proxy-Authorization header is set
 	proxyReqHeader := resp.Request.Header.Get("Proxy-Authorization")
 	assert.Equal(t, "Basic dXNlcjpwYXNz", proxyReqHeader)
-}
-
-func TestNewClientWithRetry(t *testing.T) {
-	serverCallCount := 0
-	server := httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			serverCallCount++
-			if serverCallCount == 1 {
-				w.WriteHeader(http.StatusInternalServerError)
-				_, _ = w.Write([]byte("Internal Server Error"))
-				return
-			}
-			_, _ = w.Write([]byte("OK"))
-		}),
-	)
-
-	serverURL := server.URL + "/wandb"
-	settings := wbsettings.From(&spb.Settings{
-		BaseUrl: &wrapperspb.StringValue{Value: serverURL},
-		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
-	})
-
-	retryCallCount := 0
-	client := newClient(t, settings, api.ClientOptions{
-		RetryPolicy: func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-			if resp.StatusCode == http.StatusInternalServerError {
-				return true, nil
-			}
-			return false, nil
-		},
-		RetryMax: 2,
-		PrepareRetry: func(req *http.Request) error {
-			retryCallCount++
-			return nil
-		},
-	})
-
-	// Create a test request
-	testReq, err := http.NewRequest("GET", serverURL, nil)
-	require.NoError(t, err)
-	resp, err := client.Do(testReq)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, 1, retryCallCount)
 }

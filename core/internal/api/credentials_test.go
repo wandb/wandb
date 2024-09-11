@@ -33,7 +33,7 @@ func TestNewAPIKeyCredentialProvider_NoAPIKey(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestNewIdentityTokenCredentialProvider(t *testing.T) {
+func TestNewAccessTokenCredentialProvider(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{
 		IdentityTokenFile: &wrapperspb.StringValue{Value: "jwt.txt"},
 	})
