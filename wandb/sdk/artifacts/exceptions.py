@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypeVar
 
 from wandb import errors
 
 if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
+
+    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
 
 
 class ArtifactStatusError(AttributeError):
@@ -15,44 +17,42 @@ class ArtifactStatusError(AttributeError):
 
     def __init__(
         self,
-        artifact: Artifact | None = None,
-        attr: str | None = None,
         msg: str = "Artifact is in an invalid state for the requested operation.",
+        name: str | None = None,
+        obj: ArtifactT | None = None,
     ):
-        cls_name = type(artifact).__name__ if artifact else "Artifact"
-        method_id = f"{cls_name}.{attr}" if attr else cls_name
-        formatted_msg = msg.format(method_id=method_id)
-
-        # Follow the same pattern as AttributeError: `name/obj` properties set separately for
-        # compatibility with Python < 3.10.
-        super().__init__(formatted_msg)
-        self.obj = artifact
-        self.name = attr or ""
+        # Follow the same pattern as AttributeError in python 3.10+ by `name/obj` attributes
+        # See: https://docs.python.org/3/library/exceptions.html#AttributeError
+        try:
+            super().__init__(msg, name=name, obj=obj)
+        except TypeError:
+            # The `name`/`obj` keyword args and attributes were only added in python >= 3.10
+            super().__init__(msg)
+            self.name = name or ""
+            self.obj = obj
 
 
 class ArtifactNotLoggedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes only available after logging."""
 
-    def __init__(self, artifact: Artifact, attr: str):
-        super().__init__(
-            artifact,
-            attr,
-            msg=(
-                "{method_id!r} used prior to logging artifact or while in offline mode. "
-                "Call wait() before accessing logged artifact properties."
-            ),
+    def __init__(self, qualname: str, obj: ArtifactT):
+        name = qualname.split(".")[-1]
+        msg = (
+            f"{qualname!r} used prior to logging artifact or while in offline mode. "
+            f"Call {type(obj).wait.__qualname__}() before accessing logged artifact properties."
         )
+
+        super().__init__(msg=msg, name=name, obj=obj)
 
 
 class ArtifactFinalizedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes that can't be changed after logging."""
 
-    def __init__(self, artifact: Artifact, attr: str):
-        super().__init__(
-            artifact,
-            attr,
-            msg="'{method_id}' used on logged artifact. Can't modify finalized artifact.",
-        )
+    def __init__(self, qualname: str, obj: ArtifactT):
+        name = qualname.split(".")[-1]
+        msg = f"{qualname!r} used on logged artifact. Can't modify finalized artifact."
+
+        super().__init__(msg=msg, name=name, obj=obj)
 
 
 class WaitTimeoutError(errors.Error):
