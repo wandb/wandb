@@ -48,7 +48,6 @@ from wandb.proto.wandb_internal_pb2 import (
     PollExitResponse,
     Result,
     RunRecord,
-    ServerInfoResponse,
 )
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
@@ -105,7 +104,6 @@ if TYPE_CHECKING:
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
-        CheckVersionResponse,
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
@@ -561,12 +559,10 @@ class Run:
 
     _run_status_checker: Optional[RunStatusChecker]
 
-    _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
-    _server_info_response: Optional[ServerInfoResponse]
     _internal_messages_response: Optional["InternalMessagesResponse"]
 
     _stdout_slave_fd: Optional[int]
@@ -669,11 +665,9 @@ class Run:
         # Created when the run "starts".
         self._run_status_checker = None
 
-        self._check_version = None
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
-        self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
 
@@ -2453,8 +2447,6 @@ class Run:
             sampled_history=self._sampled_history,
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
-            # server_info_response=self._server_info_response,
-            # check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
             reporter=self._reporter,
             quiet=self._quiet,
@@ -2675,25 +2667,6 @@ class Run:
         self._console_stop()  # TODO: there's a race here with jupyter console logging
 
         assert self._backend and self._backend.interface
-
-        # if not self._settings._disable_update_check:
-        #     logger.info("communicating current version")
-        #     version_handle = self._backend.interface.deliver_check_version(
-        #         current_version=wandb.__version__
-        #     )
-        #     version_result = version_handle.wait(timeout=10)
-        #     if not version_result:
-        #         version_handle.abandon()
-        #     else:
-        #         self._check_version = version_result.response.check_version_response
-        #         logger.info("got version response %s", self._check_version)
-
-        # # get the server info before starting the defer state machine as
-        # # it will stop communication with the server
-        # server_info_handle = self._backend.interface.deliver_request_server_info()
-        # result = server_info_handle.wait(timeout=-1)
-        # assert result
-        # self._server_info_response = result.response.server_info_response
 
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
@@ -3713,27 +3686,6 @@ class Run:
         Run._header_run_info(settings=settings, printer=printer)
 
     @staticmethod
-    def _header_version_check_info(
-        check_version: Optional["CheckVersionResponse"] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if not check_version or settings._offline:
-            return
-
-        if check_version.delete_message:
-            printer.display(check_version.delete_message, level="error")
-        elif check_version.yank_message:
-            printer.display(check_version.yank_message, level="warn")
-
-        printer.display(
-            check_version.upgrade_message,
-            off=not check_version.upgrade_message,
-            level="warn",
-        )
-
-    @staticmethod
     def _header_wandb_version_info(
         *,
         settings: "Settings",
@@ -3846,8 +3798,6 @@ class Run:
         sampled_history: Optional["SampledHistoryResponse"] = None,
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
-        server_info_response: Optional[ServerInfoResponse] = None,
-        check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
@@ -3870,19 +3820,7 @@ class Run:
             printer=printer,
         )
         Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
-        Run._footer_version_check_info(
-            check_version=check_version_response,
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
-        )
         Run._footer_notify_wandb_core(
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
-        )
-        Run._footer_local_warn(
-            server_info_response=server_info_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3895,12 +3833,6 @@ class Run:
         )
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
-        )
-        Run._footer_server_messages(
-            server_info_response=server_info_response,
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
         )
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
@@ -4157,33 +4089,6 @@ class Run:
             printer.display(printer.panel(panel))
 
     @staticmethod
-    def _footer_local_warn(
-        server_info_response: Optional[ServerInfoResponse] = None,
-        quiet: Optional[bool] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if settings._offline:
-            return
-
-        if not server_info_response or not server_info_response.local_info:
-            return
-
-        if settings.is_local:
-            local_info = server_info_response.local_info
-            latest_version, out_of_date = local_info.version, local_info.out_of_date
-            if out_of_date:
-                printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
-                    f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
-                    level="warn",
-                )
-
-    @staticmethod
     def _footer_internal_messages(
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
         quiet: Optional[bool] = None,
@@ -4199,58 +4104,6 @@ class Run:
 
         for message in internal_messages_response.messages.warning:
             printer.display(message, level="warn")
-
-    @staticmethod
-    def _footer_server_messages(
-        server_info_response: Optional[ServerInfoResponse] = None,
-        quiet: Optional[bool] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if settings.disable_hints:
-            return
-
-        if server_info_response and server_info_response.server_messages:
-            for message in server_info_response.server_messages.item:
-                printer.display(
-                    message.html_text if printer._html else message.utf_text,
-                    default_text=message.plain_text,
-                    level=message.level,
-                    off=message.type.lower() != "footer",
-                )
-
-    @staticmethod
-    def _footer_version_check_info(
-        check_version: Optional["CheckVersionResponse"] = None,
-        quiet: Optional[bool] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if not check_version:
-            return
-
-        if settings._offline:
-            return
-
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if check_version.delete_message:
-            printer.display(check_version.delete_message, level="error")
-        elif check_version.yank_message:
-            printer.display(check_version.yank_message, level="warn")
-
-        # only display upgrade message if packages are bad
-        if check_version.upgrade_message:
-            printer.display(
-                check_version.upgrade_message,
-                level="warn",
-            )
 
     @staticmethod
     def _footer_notify_wandb_core(
