@@ -15,11 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import (
-    core_debug,
-    core_error_reporting_enabled,
-    is_require_legacy_service,
-)
+from wandb.env import core_debug, core_error_reporting_enabled
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
@@ -168,32 +164,29 @@ class _Service:
 
             service_args = []
 
-            if not is_require_legacy_service():
-                try:
-                    core_path = get_core_path()
-                except WandbCoreNotAvailableError as e:
-                    _sentry.reraise(e)
+            try:
+                core_path = get_core_path()
+            except WandbCoreNotAvailableError as e:
+                _sentry.reraise(e)
 
-                service_args.extend([core_path])
+            service_args.extend([core_path])
 
-                if not core_error_reporting_enabled(default="True"):
-                    service_args.append("--no-observability")
+            if not core_error_reporting_enabled(default="True"):
+                service_args.append("--no-observability")
 
-                if core_debug(default="False"):
-                    service_args.append("--debug")
+            if core_debug(default="False"):
+                service_args.append("--debug")
 
-                trace_filename = os.environ.get("_WANDB_TRACE")
-                if trace_filename is not None:
-                    service_args.extend(["--trace", trace_filename])
+            trace_filename = os.environ.get("_WANDB_TRACE")
+            if trace_filename is not None:
+                service_args.extend(["--trace", trace_filename])
 
-                exec_cmd_list = []
-                termlog(
-                    "Using wandb-core as the SDK backend."
-                    f" Please refer to {wburls.get('wandb_core')} for more information.",
-                    repeat=False,
-                )
-            else:
-                service_args.extend(["wandb", "service", "--debug"])
+            exec_cmd_list = []
+            termlog(
+                "Using wandb-core as the SDK backend."
+                f" Please refer to {wburls.get('wandb_core')} for more information.",
+                repeat=False,
+            )
 
             service_args += [
                 "--port-filename",
