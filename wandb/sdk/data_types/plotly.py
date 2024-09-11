@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING, Sequence, Type, Union
 from wandb import util
 from wandb.sdk.lib import runid
 
-from ._private import MEDIA_TMP
+from ._private import _get_media_tmp_dir
 from .base_types.media import Media, _numpy_arrays_to_lists
 from .base_types.wb_value import WBValue
 from .image import Image
@@ -66,7 +66,9 @@ class Plotly(Media):
                     "Logged plots must be plotly figures, or matplotlib plots convertible to plotly via mpl_to_plotly"
                 )
 
-        tmp_path = os.path.join(MEDIA_TMP.name, runid.generate_id() + ".plotly.json")
+        tmp_path = os.path.join(
+            _get_media_tmp_dir().name, runid.generate_id() + ".plotly.json"
+        )
         val = _numpy_arrays_to_lists(val.to_plotly_json())
         with codecs.open(tmp_path, "w", encoding="utf-8") as fp:
             util.json_dump_safer(val, fp)
