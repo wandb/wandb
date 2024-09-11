@@ -3,10 +3,20 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Hashable, TypeVar
+from functools import wraps
+from typing import TYPE_CHECKING, Callable, Hashable, TypeVar
+
+from typing_extensions import Concatenate, ParamSpec
+
+from wandb.sdk.artifacts.exceptions import (
+    ArtifactFinalizedError,
+    ArtifactNotLoggedError,
+)
 
 if TYPE_CHECKING:
     from typing import Collection
+
+    from wandb.sdk.artifacts.artifact import Artifact
 
 
 HashableT = TypeVar("HashableT", bound=Hashable)
@@ -43,3 +53,37 @@ def validate_tags(tags: Collection[str]) -> list[str]:
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
         )
     return list(dict.fromkeys(tags))
+
+
+P = ParamSpec("P")
+ReturnT = TypeVar("ReturnT")
+
+
+def ensure_logged(
+    method: Callable[Concatenate[Artifact, P], ReturnT],
+) -> Callable[Concatenate[Artifact, P], ReturnT]:
+    """Decorator to ensure that a method can only be called on logged artifacts."""
+    attr_name = method.__name__
+
+    @wraps(method)
+    def wrapper(self: Artifact, *args: P.args, **kwargs: P.kwargs) -> ReturnT:
+        if self.is_draft():
+            raise ArtifactNotLoggedError(artifact=self, attr=attr_name)
+        return method(self, *args, **kwargs)
+
+    return wrapper
+
+
+def ensure_not_finalized(
+    method: Callable[Concatenate[Artifact, P], ReturnT],
+) -> Callable[Concatenate[Artifact, P], ReturnT]:
+    """Decorator to ensure that a method can only be called if the artifact has not been finalized."""
+    attr_name = method.__name__
+
+    @wraps(method)
+    def wrapper(self: Artifact, *args: P.args, **kwargs: P.kwargs) -> None:
+        if self._final:
+            raise ArtifactFinalizedError(artifact=self, attr=attr_name)
+        return method(self, *args, **kwargs)
+
+    return wrapper
