@@ -19,7 +19,7 @@ from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, cast
+from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, TypeAlias, cast
 
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
@@ -79,6 +79,10 @@ logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from wandb.sdk.interface.message_future import MessageFuture
+
+
+# Renamed TypeAlias for `type`, needed to avoid shadowing name of `Artifact.type` further below.
+type_: TypeAlias = type
 
 
 class Artifact:
@@ -1626,7 +1630,7 @@ class Artifact:
 
     def _get_obj_entry(
         self, name: str
-    ) -> tuple[ArtifactManifestEntry, type[WBValue]] | tuple[None, None]:
+    ) -> tuple[ArtifactManifestEntry, type_[WBValue]] | tuple[None, None]:
         """Return an object entry by name, handling any type suffixes.
 
         When objects are added with `.add(obj, name)`, the name is typically changed to
