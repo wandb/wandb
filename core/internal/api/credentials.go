@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/base64"
 	"fmt"
+	"log/slog"
 	"net/http"
 
 	"github.com/wandb/wandb/core/internal/settings"
@@ -38,6 +39,10 @@ type APIKeyCredentialProvider struct {
 func NewAPIKeyCredentialProvider(
 	settings *settings.Settings) (CredentialProvider, error) {
 	if err := settings.EnsureAPIKey(); err != nil {
+		slog.Error(
+			"connection: couldn't get API key",
+			"err", err,
+		)
 		return nil, err
 	}
 
