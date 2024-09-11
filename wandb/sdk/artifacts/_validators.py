@@ -3,10 +3,14 @@
 from __future__ import annotations
 
 import re
+import sys
 from functools import wraps
 from typing import TYPE_CHECKING, Callable, Hashable, TypeVar
 
-from typing_extensions import Concatenate, ParamSpec
+if sys.version_info < (3, 10):
+    from typing_extensions import Concatenate, ParamSpec
+else:
+    from typing import Concatenate, ParamSpec
 
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
