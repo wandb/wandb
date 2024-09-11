@@ -123,6 +123,9 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
+    # TODO: move CLI to wandb-core backend
+    wandb.require("legacy-service")
+
     global _api
     if reset:
         _api = None
@@ -226,6 +229,9 @@ def projects(entity, display=True):
 @click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+    # TODO: move CLI to wandb-core backend
+    wandb.require("legacy-service")
+
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -2947,14 +2953,6 @@ def enabled(service):
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
         )
-
-
-@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
-@click.argument("args", nargs=-1)
-def gc(args):
-    click.echo(
-        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
-    )
 
 
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")
