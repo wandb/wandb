@@ -85,7 +85,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 	assert.NotEmpty(t, server.Requests()[0].Header.Get("Authorization"))
 }
 
-//func TestDo_NotToWandb_NoAuth(t *testing.T) {
+// func TestDo_NotToWandb_NoAuth(t *testing.T) {
 //	server := NewRecordingServer()
 //	clientSettings := settings.From(&spb.Settings{
 //		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
