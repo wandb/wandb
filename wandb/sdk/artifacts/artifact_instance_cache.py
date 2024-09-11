@@ -14,4 +14,4 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
 # There is nothing special about the artifact cache, it's just a global capped dict.
-artifact_instance_cache: CappedDict[str, Artifact] = CappedDict(100)
+artifact_instance_cache: dict[str, Artifact] = CappedDict(100)
