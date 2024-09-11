@@ -5,6 +5,7 @@ from typing import Optional
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
 
+from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
 
@@ -154,3 +155,11 @@ class Audio(BatchableMedia):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+
+class _AudioFileType(_dtypes.Type):
+    name = "audio-file"
+    types = [Audio]
+
+
+_dtypes.TypeRegistry.add(_AudioFileType)

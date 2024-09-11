@@ -1889,11 +1889,6 @@ class _PrimaryKeyType(_dtypes.Type):
             return cls()
 
 
-class _AudioFileType(_dtypes.Type):
-    name = "audio-file"
-    types = [Audio]
-
-
 class _BokehFileType(_dtypes.Type):
     name = "bokeh-file"
     types = [Bokeh]
@@ -1909,7 +1904,6 @@ class _PartitionedTableType(_dtypes.Type):
     types = [PartitionedTable]
 
 
-_dtypes.TypeRegistry.add(_AudioFileType)
 _dtypes.TypeRegistry.add(_BokehFileType)
 _dtypes.TypeRegistry.add(_ImageFileType)
 _dtypes.TypeRegistry.add(_TableType)
