@@ -131,11 +131,6 @@ func NewGraphQLClient(
 	if timeout := settings.GetGraphQLTimeout(); timeout > 0 {
 		opts.NonRetryTimeout = timeout
 	}
-	if credentialProvider, err := api.NewCredentialProvider(settings); err != nil {
-		opts.CredentialProvider = credentialProvider
-	} else {
-		panic(fmt.Errorf("failed to fetch credentials: %v", err))
-	}
 
 	httpClient := backend.NewClient(opts)
 	endpoint := fmt.Sprintf("%s/graphql", settings.GetBaseURL())
