@@ -704,7 +704,6 @@ class Artifact:
     @ensure_logged
     def file_count(self) -> int:
         """The number of files (including references)."""
-        # self._ensure_logged("file_count")
         assert self._file_count is not None
         return self._file_count
 
@@ -712,7 +711,6 @@ class Artifact:
     @ensure_logged
     def created_at(self) -> str:
         """Timestamp when the artifact was created."""
-        # self._ensure_logged("created_at")
         assert self._created_at is not None
         return self._created_at
 
@@ -720,7 +718,6 @@ class Artifact:
     @ensure_logged
     def updated_at(self) -> str:
         """The time when the artifact was last updated."""
-        # self._ensure_logged("updated_at")
         assert self._created_at is not None
         return self._updated_at or self._created_at
 
