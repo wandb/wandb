@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 
 import wandb
@@ -66,7 +66,7 @@ class WBLocalArtifactHandler(StorageHandler):
         # Return the new entry
         return [
             ArtifactManifestEntry(
-                path=name or os.path.basename(path),
+                path=name or Path(path).name,
                 ref=path,
                 size=0,
                 digest=target_entry.digest,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult
 
@@ -77,7 +77,7 @@ class HTTPHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        name = name or os.path.basename(path)
+        name = name or Path(path).name
         if not checksum:
             return [ArtifactManifestEntry(path=name, ref=path, digest=path)]
 

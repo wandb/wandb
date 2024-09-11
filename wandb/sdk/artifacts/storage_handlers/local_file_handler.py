@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 import shutil
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult
 
@@ -43,7 +44,7 @@ class LocalFileHandler(StorageHandler):
         if manifest_entry.ref is None:
             raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
-        if not os.path.exists(local_path):
+        if not Path(local_path).exists():
             raise ValueError(
                 "Local file reference: Failed to find file at path {}".format(
                     local_path
@@ -63,7 +64,7 @@ class LocalFileHandler(StorageHandler):
                 f"Local file reference: Digest mismatch for path {local_path}: expected {manifest_entry.digest} but found {md5}"
             )
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(Path(path).parent)
 
         with cache_open() as f:
             shutil.copy(local_path, f.name)
@@ -77,20 +78,20 @@ class LocalFileHandler(StorageHandler):
         checksum: bool = True,
         max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
-        local_path = util.local_file_uri_to_path(path)
+        local_path = Path(util.local_file_uri_to_path(path))
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
         # We have a single file or directory
         # Note, we follow symlinks for files contained within the directory
         entries = []
 
-        def md5(path: str) -> B64MD5:
+        def md5(path: StrPath) -> B64MD5:
             return (
                 md5_file_b64(path)
                 if checksum
                 else md5_string(str(os.stat(path).st_size))
             )
 
-        if os.path.isdir(local_path):
+        if local_path.is_dir():
             i = 0
             start_time = time.time()
             if checksum:
@@ -107,29 +108,29 @@ class LocalFileHandler(StorageHandler):
                             "Exceeded %i objects tracked, pass max_objects to add_reference"
                             % max_objects
                         )
-                    physical_path = os.path.join(root, sub_path)
+                    physical_path = Path(root) / sub_path
                     # TODO(spencerpearson): this is not a "logical path" in the sense that
                     # `LogicalPath` returns a "logical path"; it's a relative path
                     # **on the local filesystem**.
-                    logical_path = os.path.relpath(physical_path, start=local_path)
+                    logical_path = physical_path.relative_to(local_path)
                     if name is not None:
-                        logical_path = os.path.join(name, logical_path)
+                        logical_path = Path(name) / logical_path
 
                     entry = ArtifactManifestEntry(
                         path=logical_path,
-                        ref=FilePathStr(os.path.join(path, logical_path)),
-                        size=os.path.getsize(physical_path),
-                        digest=md5(physical_path),
+                        ref=FilePathStr(str(Path(path) / logical_path)),
+                        size=physical_path.stat().st_size,
+                        digest=md5(str(physical_path)),
                     )
                     entries.append(entry)
             if checksum:
                 termlog("Done. %.1fs" % (time.time() - start_time), prefix=False)
-        elif os.path.isfile(local_path):
-            name = name or os.path.basename(local_path)
+        elif local_path.is_file():
+            name = name or local_path.name
             entry = ArtifactManifestEntry(
                 path=name,
                 ref=path,
-                size=os.path.getsize(local_path),
+                size=local_path.stat().st_size,
                 digest=md5(local_path),
             )
             entries.append(entry)

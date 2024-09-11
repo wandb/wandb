@@ -18,7 +18,7 @@ import time
 from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, cast
 
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
@@ -1173,11 +1173,11 @@ class Artifact:
         """
         if self._tmp_dir is None:
             self._tmp_dir = tempfile.TemporaryDirectory()
-        path = os.path.join(self._tmp_dir.name, name.lstrip("/"))
-        if os.path.exists(path):
-            raise ValueError(f"File with name {name!r} already exists at {path!r}")
+        path = Path(self._tmp_dir.name) / name.lstrip("/")
+        if path.exists():
+            raise ValueError(f"File with name {name!r} already exists at {str(path)!r}")
 
-        filesystem.mkdir_exists_ok(os.path.dirname(path))
+        filesystem.mkdir_exists_ok(path.parent)
         try:
             with util.fsync_open(path, mode, encoding) as f:
                 yield f
@@ -1220,17 +1220,18 @@ class Artifact:
             version because it is finalized. Log a new artifact version instead.
             ValueError: Policy must be "mutable" or "immutable"
         """
-        if not os.path.isfile(local_path):
+        if not Path(local_path).is_file():
             raise ValueError("Path is not a file: {}".format(local_path))
 
-        name = LogicalPath(name or os.path.basename(local_path))
+        name = LogicalPath(name or Path(local_path).name)
         digest = md5_file_b64(local_path)
 
         if is_tmp:
-            file_path, file_name = os.path.split(name)
+            name_as_path = name.to_path()
+            file_path, file_name = name_as_path.parent, name_as_path.name
             file_name_parts = file_name.split(".")
             file_name_parts[0] = b64_to_hex_id(digest)[:20]
-            name = os.path.join(file_path, ".".join(file_name_parts))
+            name = file_path / ".".join(file_name_parts)
 
         return self._add_local_file(
             name, local_path, digest=digest, skip_cache=skip_cache, policy=policy
@@ -1261,7 +1262,7 @@ class Artifact:
             version because it is finalized. Log a new artifact version instead.
             ValueError: Policy must be "mutable" or "immutable"
         """
-        if not os.path.isdir(local_path):
+        if not Path(local_path).is_dir():
             raise ValueError("Path is not a directory: {}".format(local_path))
 
         termlog(
@@ -1275,11 +1276,11 @@ class Artifact:
         paths = []
         for dirpath, _, filenames in os.walk(local_path, followlinks=True):
             for fname in filenames:
-                physical_path = os.path.join(dirpath, fname)
-                logical_path = os.path.relpath(physical_path, start=local_path)
+                physical_path = Path(dirpath) / fname
+                logical_path = physical_path.relative_to(local_path)
                 if name is not None:
-                    logical_path = os.path.join(name, logical_path)
-                paths.append((logical_path, physical_path))
+                    logical_path = Path(name) / logical_path
+                paths.append((str(logical_path), str(physical_path)))
 
         def add_manifest_file(log_phy_path: tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
@@ -1454,9 +1455,9 @@ class Artifact:
             f.write(json.dumps(val, sort_keys=True))
 
         if is_tmp_name:
-            file_path = os.path.join(self._TMP_DIR.name, str(id(self)), name)
-            folder_path, _ = os.path.split(file_path)
-            if not os.path.exists(folder_path):
+            file_path = Path(self._TMP_DIR.name) / str(id(self)) / name
+            folder_path = file_path.parent
+            if not folder_path.exists():
                 os.makedirs(folder_path)
             with open(file_path, "w") as tmp_f:
                 do_write(tmp_f)
@@ -1475,8 +1476,8 @@ class Artifact:
             obj._set_artifact_target(self, entry.path)
 
         if is_tmp_name:
-            if os.path.exists(file_path):
-                os.remove(file_path)
+            if Path(file_path).exists():
+                Path(file_path).unlink()
 
         return entry
 
@@ -1986,7 +1987,7 @@ class Artifact:
             ValueError: If the artifact contains more than one file.
         """
         if root is None:
-            root = os.path.join(".", "artifacts", self.name)
+            root = str(Path(".") / "artifacts" / self.name)
 
         if len(self.manifest.entries) > 1:
             raise ValueError(
@@ -2017,7 +2018,7 @@ class Artifact:
 
     def _default_root(self, include_version: bool = True) -> FilePathStr:
         name = self.source_name if include_version else self.source_name.split(":")[0]
-        root = os.path.join(env.get_artifact_dir(), name)
+        root = Path(env.get_artifact_dir()) / name
         # In case we're on a system where the artifact dir has a name corresponding to
         # an unexpected filesystem, we'll check for alternate roots. If one exists we'll
         # use that, otherwise we'll fall back to the system-preferred path.
@@ -2025,7 +2026,7 @@ class Artifact:
         return FilePathStr(str(path))
 
     def _add_download_root(self, dir_path: str) -> None:
-        self._download_roots.add(os.path.abspath(dir_path))
+        self._download_roots.add(str(Path(dir_path).absolute()))
 
     def _local_path_to_name(self, file_path: str) -> str | None:
         """Convert a local file path to a path entry in the artifact."""

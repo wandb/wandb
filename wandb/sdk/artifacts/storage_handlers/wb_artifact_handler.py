@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence
 from urllib.parse import urlparse
 
@@ -127,7 +127,7 @@ class WBArtifactHandler(StorageHandler):
         assert entry is not None
         return [
             ArtifactManifestEntry(
-                path=name or os.path.basename(path),
+                path=name or Path(path).name,
                 ref=path,
                 size=0,
                 digest=entry.digest,

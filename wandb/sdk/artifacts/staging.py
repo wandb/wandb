@@ -5,7 +5,7 @@ in order to avoid file changes corrupting the artifact. Once the upload is compl
 file should be moved to the artifact cache.
 """
 
-import os
+from pathlib import Path
 
 from wandb import env
 from wandb.sdk.lib.filesystem import mkdir_exists_ok
@@ -13,13 +13,14 @@ from wandb.sdk.lib.paths import FilePathStr
 
 
 def get_staging_dir() -> FilePathStr:
-    path = os.path.join(env.get_data_dir(), "artifacts", "staging")
+    path = Path(env.get_data_dir()) / "artifacts" / "staging"
     try:
         mkdir_exists_ok(path)
     except OSError as e:
         raise PermissionError(
-            f"Unable to write staging files to {path}. To fix this problem, please set "
+            f"Unable to write staging files to {path!s}. To fix this problem, please set "
             f"{env.DATA_DIR} to a directory where you have the necessary write access."
         ) from e
 
-    return FilePathStr(os.path.abspath(os.path.expanduser(path)))
+    full_path = Path(path).expanduser().absolute()
+    return FilePathStr(str(full_path))

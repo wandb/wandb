@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 from urllib.parse import urlparse
@@ -145,8 +144,7 @@ class ArtifactManifestEntry:
 
         root = root or self._parent_artifact._default_root()
         self._parent_artifact._add_download_root(root)
-        path = str(Path(self.path))
-        dest_path = os.path.join(root, path)
+        dest_path = str(Path(root) / self.path)
 
         if skip_cache:
             override_cache_path = dest_path
