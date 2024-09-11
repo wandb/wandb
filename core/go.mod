@@ -4,7 +4,7 @@ go 1.23.0
 
 require (
 	github.com/Khan/genqlient v0.7.0
-	github.com/getsentry/sentry-go v0.28.1
+	github.com/getsentry/sentry-go v0.29.0
 	github.com/go-git/go-git/v5 v5.12.0
 	github.com/golang/mock v1.6.0
 	github.com/hashicorp/go-retryablehttp v0.7.7
