@@ -5,12 +5,12 @@ from __future__ import annotations
 import re
 import sys
 from functools import wraps
-from typing import TYPE_CHECKING, Callable, Hashable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 
 if sys.version_info < (3, 10):
-    from typing_extensions import Concatenate, ParamSpec
+    from typing_extensions import ParamSpec
 else:
-    from typing import Concatenate, ParamSpec
+    from typing import ParamSpec
 
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -22,8 +22,8 @@ if TYPE_CHECKING:
 
     from wandb.sdk.artifacts.artifact import Artifact
 
-
-HashableT = TypeVar("HashableT", bound=Hashable)
+    # Any instance of Artifact or its subclasses
+    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
 
 
 def validate_aliases(aliases: Collection[str]) -> list[str]:
@@ -60,17 +60,17 @@ def validate_tags(tags: Collection[str]) -> list[str]:
 
 
 P = ParamSpec("P")
-ReturnT = TypeVar("ReturnT")
+R = TypeVar("R")  # Return type
+DecoratedFunc = TypeVar("DecoratedFunc", bound=Callable[..., Any])
 
 
-def ensure_logged(
-    method: Callable[Concatenate[Artifact, P], ReturnT],
-) -> Callable[Concatenate[Artifact, P], ReturnT]:
+def ensure_logged(method: DecoratedFunc) -> DecoratedFunc:
     """Decorator to ensure that a method can only be called on logged artifacts."""
     attr_name = method.__name__
 
     @wraps(method)
-    def wrapper(self: Artifact, *args: P.args, **kwargs: P.kwargs) -> ReturnT:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        self: Artifact = args[0]
         if self.is_draft():
             raise ArtifactNotLoggedError(artifact=self, attr=attr_name)
         return method(self, *args, **kwargs)
@@ -78,14 +78,13 @@ def ensure_logged(
     return wrapper
 
 
-def ensure_not_finalized(
-    method: Callable[Concatenate[Artifact, P], ReturnT],
-) -> Callable[Concatenate[Artifact, P], ReturnT]:
+def ensure_not_finalized(method: DecoratedFunc) -> DecoratedFunc:
     """Decorator to ensure that a method can only be called if the artifact has not been finalized."""
     attr_name = method.__name__
 
     @wraps(method)
-    def wrapper(self: Artifact, *args: P.args, **kwargs: P.kwargs) -> ReturnT:
+    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+        self: Artifact = args[0]
         if self._final:
             raise ArtifactFinalizedError(artifact=self, attr=attr_name)
         return method(self, *args, **kwargs)
