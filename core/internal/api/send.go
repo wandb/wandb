@@ -22,7 +22,7 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 		retryableReq.Header.Set(headerKey, headerValue)
 	}
 	client.setClientHeaders(retryableReq)
-	err = client.credentialProvider.Apply(retryableReq.Request)
+	err = client.backend.credentialProvider.Apply(retryableReq.Request)
 	if err != nil {
 		return nil, fmt.Errorf("api: failed provide credentials for request: %v", err)
 	}
@@ -72,7 +72,7 @@ func (client *clientImpl) sendToWandbBackend(
 	req *retryablehttp.Request,
 ) (*http.Response, error) {
 	client.setClientHeaders(req)
-	err := client.credentialProvider.Apply(req.Request)
+	err := client.backend.credentialProvider.Apply(req.Request)
 	if err != nil {
 		return nil, fmt.Errorf("api: failed provide credentials for request: %v", err)
 	}
