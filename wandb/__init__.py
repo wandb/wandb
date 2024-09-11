@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.10.dev1"
+__version__ = "0.18.0rc1"
 
 from typing import Optional
 
