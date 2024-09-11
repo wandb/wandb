@@ -19,7 +19,7 @@ from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, Type, cast
+from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, cast
 
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
@@ -1626,7 +1626,7 @@ class Artifact:
 
     def _get_obj_entry(
         self, name: str
-    ) -> tuple[ArtifactManifestEntry | None, Type[WBValue] | None]:
+    ) -> tuple[ArtifactManifestEntry, type[WBValue]] | tuple[None, None]:
         """Return an object entry by name, handling any type suffixes.
 
         When objects are added with `.add(obj, name)`, the name is typically changed to
