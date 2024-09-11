@@ -21,7 +21,7 @@ class ArtifactStatusError(AttributeError):
     ):
         cls_name = type(artifact).__name__ if artifact else "Artifact"
         method_id = f"{cls_name}.{attr}" if attr else cls_name
-        formatted_msg = msg.format(artifact=artifact, method_id=method_id)
+        formatted_msg = msg.format(method_id=method_id)
 
         # Follow the same pattern as AttributeError: `name/obj` properties set separately for
         # compatibility with Python < 3.10.
@@ -33,7 +33,7 @@ class ArtifactStatusError(AttributeError):
 class ArtifactNotLoggedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes only available after logging."""
 
-    def __init__(self, artifact: Artifact | None = None, attr: str | None = None):
+    def __init__(self, artifact: Artifact, attr: str):
         super().__init__(
             artifact,
             attr,
@@ -47,7 +47,7 @@ class ArtifactNotLoggedError(ArtifactStatusError):
 class ArtifactFinalizedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes that can't be changed after logging."""
 
-    def __init__(self, artifact: Artifact | None = None, attr: str | None = None):
+    def __init__(self, artifact: Artifact, attr: str):
         super().__init__(
             artifact,
             attr,
