@@ -85,29 +85,30 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 	assert.NotEmpty(t, server.Requests()[0].Header.Get("Authorization"))
 }
 
-// func TestDo_NotToWandb_NoAuth(t *testing.T) {
-//	server := NewRecordingServer()
-//	clientSettings := settings.From(&spb.Settings{
-//		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
-//	})
-//
-//	{
-//		defer server.Close()
-//		req, _ := http.NewRequest(
-//			http.MethodGet,
-//			server.URL+"/notwandb/xyz",
-//			bytes.NewBufferString("test body"),
-//		)
-//
-//		_, err := newClient(t, clientSettings, api.ClientOptions{}).
-//			Do(req)
-//
-//		assert.NoError(t, err)
-//	}
-//
-//	assert.Len(t, server.Requests(), 1)
-//	assert.Empty(t, server.Requests()[0].Header.Get("Authorization"))
-//}
+func TestDo_NotToWandb_NoAuth(t *testing.T) {
+	server := NewRecordingServer()
+	clientSettings := settings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+	})
+
+	{
+		defer server.Close()
+		req, _ := http.NewRequest(
+			http.MethodGet,
+			server.URL+"/notwandb/xyz",
+			bytes.NewBufferString("test body"),
+		)
+
+		_, err := newClient(t, clientSettings, api.ClientOptions{}).
+			Do(req)
+
+		assert.NoError(t, err)
+	}
+
+	assert.Len(t, server.Requests(), 1)
+	assert.Empty(t, server.Requests()[0].Header.Get("Authorization"))
+}
 
 func newClient(
 	t *testing.T,
