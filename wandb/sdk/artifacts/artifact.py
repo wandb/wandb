@@ -19,7 +19,7 @@ from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, TypeAlias, cast
+from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, cast
 
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
@@ -27,6 +27,11 @@ if sys.version_info < (3, 8):
     from typing_extensions import Literal
 else:
     from typing import Literal
+
+if sys.version_info < (3, 10):
+    from typing_extensions import TypeAlias
+else:
+    from typing import TypeAlias
 
 from urllib.parse import urlparse
 
