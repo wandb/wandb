@@ -2,6 +2,7 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
-	"github.com/wandb/wandb/core/internal/settings"
+	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -22,7 +23,7 @@ import (
 
 func TestSend(t *testing.T) {
 	server := NewRecordingServer()
-	clientSettings := settings.From(&spb.Settings{
+	clientSettings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
@@ -62,7 +63,7 @@ func TestSend(t *testing.T) {
 
 func TestDo_ToWandb_SetsAuth(t *testing.T) {
 	server := NewRecordingServer()
-	clientSettings := settings.From(&spb.Settings{
+	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
@@ -75,7 +76,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 			bytes.NewBufferString("test body"),
 		)
 
-		_, err := newClient(t, clientSettings, api.ClientOptions{}).
+		_, err := newClient(t, settings, api.ClientOptions{}).
 			Do(req)
 
 		assert.NoError(t, err)
@@ -87,7 +88,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 
 func TestDo_NotToWandb_NoAuth(t *testing.T) {
 	server := NewRecordingServer()
-	clientSettings := settings.From(&spb.Settings{
+	clientSettings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
@@ -112,7 +113,7 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 
 func newClient(
 	t *testing.T,
-	settings *settings.Settings,
+	settings *wbsettings.Settings,
 	opts api.ClientOptions,
 ) api.Client {
 	baseURL, err := url.Parse(settings.GetBaseURL())
@@ -186,7 +187,7 @@ func TestNewClientWithProxy(t *testing.T) {
 
 	proxyParsedURL, _ := url.Parse(testServer.URL)
 
-	credentialProvider, err := api.NewCredentialProvider(settings.From(&spb.Settings{
+	credentialProvider, err := api.NewCredentialProvider(wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
 	}))
 	require.NoError(t, err)
@@ -227,4 +228,49 @@ func TestNewClientWithProxy(t *testing.T) {
 	// Check that Proxy-Authorization header is set
 	proxyReqHeader := resp.Request.Header.Get("Proxy-Authorization")
 	assert.Equal(t, "Basic dXNlcjpwYXNz", proxyReqHeader)
+}
+
+func TestNewClientWithRetry(t *testing.T) {
+	serverCallCount := 0
+	server := httptest.NewServer(http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			serverCallCount++
+			if serverCallCount == 1 {
+				w.WriteHeader(http.StatusInternalServerError)
+				_, _ = w.Write([]byte("Internal Server Error"))
+				return
+			}
+			_, _ = w.Write([]byte("OK"))
+		}),
+	)
+
+	serverURL := server.URL + "/wandb"
+	settings := wbsettings.From(&spb.Settings{
+		BaseUrl: &wrapperspb.StringValue{Value: serverURL},
+		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
+	})
+
+	retryCallCount := 0
+	client := newClient(t, settings, api.ClientOptions{
+		RetryPolicy: func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+			if resp.StatusCode == http.StatusInternalServerError {
+				return true, nil
+			}
+			return false, nil
+		},
+		RetryMax: 2,
+		PrepareRetry: func(req *http.Request) error {
+			retryCallCount++
+			return nil
+		},
+	})
+
+	// Create a test request
+	testReq, err := http.NewRequest("GET", serverURL, nil)
+	require.NoError(t, err)
+	resp, err := client.Do(testReq)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, 1, retryCallCount)
 }
