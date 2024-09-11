@@ -4260,13 +4260,13 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if quiet or settings._require_core:
+        if quiet or not settings._require_legacy_service:
             return
 
         printer.display(
-            "The new W&B backend becomes opt-out in version 0.18.0;"
-            ' try it out with `wandb.require("core")`!'
-            " See https://wandb.me/wandb-core for more information.",
+            "The legacy backend is deprecated. In future versions, `wandb-core` will become "
+            "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
+            "For more information, visit https://wandb.me/wandb-core",
             level="warn",
         )
 

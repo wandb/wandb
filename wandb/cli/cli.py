@@ -35,7 +35,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
-from wandb.errors import WandbCoreNotAvailableError
+from wandb.errors import UsageError, WandbCoreNotAvailableError
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -433,8 +433,15 @@ def init(ctx, project, entity, reset, mode):
 def beta():
     """Beta versions of wandb CLI commands. Requires wandb-core."""
     # this is the future that requires wandb-core!
+    import wandb.env
+
     wandb._sentry.configure_scope(process_context="wandb_beta")
-    wandb.require("core")
+
+    if wandb.env.is_require_legacy_service():
+        raise UsageError(
+            "wandb beta commands can only be used with wandb-core. "
+            f"Please make sure that `{wandb.env._REQUIRE_LEGACY_SERVICE}` is not set."
+        )
 
     try:
         get_core_path()
