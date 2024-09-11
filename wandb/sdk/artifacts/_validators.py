@@ -3,14 +3,8 @@
 from __future__ import annotations
 
 import re
-import sys
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, TypeVar
-
-if sys.version_info < (3, 10):
-    from typing_extensions import ParamSpec
-else:
-    from typing import ParamSpec
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
 
 from wandb.sdk.artifacts.exceptions import (
     ArtifactFinalizedError,
@@ -21,9 +15,6 @@ if TYPE_CHECKING:
     from typing import Collection
 
     from wandb.sdk.artifacts.artifact import Artifact
-
-    # Any instance of Artifact or its subclasses
-    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
 
 
 def validate_aliases(aliases: Collection[str]) -> list[str]:
@@ -59,8 +50,6 @@ def validate_tags(tags: Collection[str]) -> list[str]:
     return list(dict.fromkeys(tags))
 
 
-P = ParamSpec("P")
-R = TypeVar("R")  # Return type
 DecoratedFunc = TypeVar("DecoratedFunc", bound=Callable[..., Any])
 
 
@@ -69,13 +58,13 @@ def ensure_logged(method: DecoratedFunc) -> DecoratedFunc:
     attr_name = method.__name__
 
     @wraps(method)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         self: Artifact = args[0]
         if self.is_draft():
             raise ArtifactNotLoggedError(artifact=self, attr=attr_name)
         return method(*args, **kwargs)
 
-    return wrapper
+    return cast(DecoratedFunc, wrapper)
 
 
 def ensure_not_finalized(method: DecoratedFunc) -> DecoratedFunc:
@@ -83,10 +72,10 @@ def ensure_not_finalized(method: DecoratedFunc) -> DecoratedFunc:
     attr_name = method.__name__
 
     @wraps(method)
-    def wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+    def wrapper(*args: Any, **kwargs: Any) -> Any:
         self: Artifact = args[0]
         if self._final:
             raise ArtifactFinalizedError(artifact=self, attr=attr_name)
         return method(*args, **kwargs)
 
-    return wrapper
+    return cast(DecoratedFunc, wrapper)
