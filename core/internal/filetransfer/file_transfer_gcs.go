@@ -52,7 +52,6 @@ func NewGCSFileTransfer(
 		var err error
 		client, err = storage.NewClient(ctx)
 		if err != nil {
-			logger.CaptureError(fmt.Errorf("gcs file transfer: error creating new gcs client: %v", err))
 			return nil, err
 		}
 		client.SetRetry(storage.WithBackoff(gax.Backoff{}), storage.WithMaxAttempts(5))
@@ -66,21 +65,25 @@ func NewGCSFileTransfer(
 	return fileTransfer, nil
 }
 
-// Upload uploads a file to the server
+// Upload uploads a file to the server.
 func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
 	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.Path)
 
 	return fmt.Errorf("not implemented yet")
 }
 
-// Download downloads a file from the server
+// Download downloads a file from the server.
 func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
-	ft.logger.Debug("GCSFileTransfer: Download: downloading file", "path", task.Path, "ref", task.Reference)
+	ft.logger.Debug(
+		"GCSFileTransfer: Download: downloading file",
+		"path", task.Path,
+		"ref", task.Reference,
+	)
 
 	reference := task.Reference
 
 	// Parse the reference path to get the scheme, bucket, and object
-	bucketName, objectName, err := parseReference(reference)
+	bucketName, objectPathPrefix, err := parseReference(reference)
 	if err != nil {
 		return formatDownloadError("error parsing reference", err)
 	}
@@ -90,7 +93,7 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	if task.Digest == reference {
 		// Get all of the objects under the reference
 		var objectNames []string
-		query := &storage.Query{Prefix: objectName}
+		query := &storage.Query{Prefix: objectPathPrefix}
 		it := bucket.Objects(ft.ctx, query)
 		for {
 			objAttrs, err := it.Next()
@@ -107,30 +110,35 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 		g := new(errgroup.Group)
 		g.SetLimit(maxWorkers)
 		for _, name := range objectNames {
-			objName := name // for closure in the goroutine
+			objectName := name // for closure in the goroutine
 			g.Go(func() error {
-				object, _, err := ft.getObjectAndAttrs(bucket, task, objName)
+				object, _, err := ft.getObjectAndAttrs(bucket, task, objectName)
 				if err != nil {
 					if errors.Is(err, ErrObjectIsDirectory) {
 						ft.logger.Debug(
 							"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
 							"reference", reference,
-							"object", objName,
+							"object", objectName,
 						)
 						return nil
 					}
-					return formatDownloadError(fmt.Sprintf("error getting object %s", objName), err)
+					return formatDownloadError(
+						fmt.Sprintf("error getting object %s", objectName),
+						err,
+					)
 				}
-				localPath := getDownloadFilePath(objName, objectName, task.Path)
+				localPath := getDownloadFilePath(objectName, objectPathPrefix, task.Path)
 				return ft.downloadFile(object, localPath)
 			})
 		}
 
-		// Wait for all of the go routines to complete and return an error if any errored out
+		// Wait for all of the go routines to complete and return an error
+		// if any errored out
 		if err := g.Wait(); err != nil {
 			return formatDownloadError("", err)
 		}
 	} else {
+		objectName := objectPathPrefix
 		object, objAttrs, err := ft.getObjectAndAttrs(bucket, task, objectName)
 		if err != nil {
 			if errors.Is(err, ErrObjectIsDirectory) {
@@ -143,7 +151,11 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 			return formatDownloadError(fmt.Sprintf("error getting object %s", objectName), err)
 		}
 		if objAttrs.Etag != task.Digest {
-			err := fmt.Errorf("digest/etag mismatch: etag %s does not match expected digest %s", objAttrs.Etag, task.Digest)
+			err := fmt.Errorf(
+				"digest/etag mismatch: etag %s does not match expected digest %s",
+				objAttrs.Etag,
+				task.Digest,
+			)
 			return formatDownloadError("", err)
 		}
 		return ft.downloadFile(object, task.Path)
@@ -151,34 +163,22 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	return nil
 }
 
-// DownloadFile downloads the contents of object into a file at path localPath
-func (ft *GCSFileTransfer) downloadFile(object *storage.ObjectHandle, localPath string) error {
+// DownloadFile downloads the contents of object into a file at path localPath.
+func (ft *GCSFileTransfer) downloadFile(
+	object *storage.ObjectHandle,
+	localPath string,
+) (err error) {
 	r, err := object.NewReader(ft.ctx)
 	if err != nil {
 		return formatDownloadError("error creating reader", err)
 	}
-	defer func(file io.ReadCloser) {
-		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				fmt.Errorf(
-					"file transfer: download: error closing response reader: %v",
-					err,
-				))
-		}
-	}(r)
+	defer r.Close()
 
 	// Check if the directory exists, and create it if it doesn't
 	dir := path.Dir(localPath)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-			return formatDownloadError(
-				fmt.Sprintf("error creating download directory %s", dir),
-				err,
-			)
-		}
-	} else if err != nil {
+	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
 		return formatDownloadError(
-			fmt.Sprintf("error finding download directory %s", dir),
+			fmt.Sprintf("error creating download directory %s", dir),
 			err,
 		)
 	}
@@ -191,13 +191,14 @@ func (ft *GCSFileTransfer) downloadFile(object *storage.ObjectHandle, localPath 
 			err,
 		)
 	}
+
 	defer func(file *os.File) {
-		if err := file.Close(); err != nil {
-			ft.logger.CaptureError(
-				formatDownloadError(
-					fmt.Sprintf("error closing file %s", localPath),
-					err,
-				))
+		fileError := file.Close()
+		if err == nil {
+			err = formatDownloadError(
+				fmt.Sprintf("error closing file %s", localPath),
+				fileError,
+			)
 		}
 	}(file)
 
@@ -212,10 +213,11 @@ func (ft *GCSFileTransfer) downloadFile(object *storage.ObjectHandle, localPath 
 	return nil
 }
 
-/*
- * getObjectAndAttrs returns the object handle and attributes if the object exists and corresponds with a file.
- * If the object corresponds to a directory, we return the ErrObjectIsDirectory error to skip downloading without failing.
- */
+// getObjectAndAttrs returns the object handle and attributes if the object
+// exists and corresponds with a file.
+//
+// If the object corresponds to a directory, we return the ErrObjectIsDirectory
+// error to skip downloading without failing.
 func (ft *GCSFileTransfer) getObjectAndAttrs(
 	bucket *storage.BucketHandle,
 	task *ReferenceArtifactDownloadTask,
@@ -230,7 +232,8 @@ func (ft *GCSFileTransfer) getObjectAndAttrs(
 	}
 
 	attrs, err := object.Attrs(ft.ctx)
-	// if object doesn't have an extension and has size 0, it might be a directory as we cut off the ending "/" in the manifest entry
+	// if object doesn't have an extension and has size 0, it might be a
+	// directory as we cut off the ending "/" in the manifest entry.
 	if err != nil && (path.Ext(object.ObjectName()) == "" && task.Size == 0) {
 		key := key + "/"
 		object, err := ft.getObject(bucket, task, key)
@@ -238,7 +241,8 @@ func (ft *GCSFileTransfer) getObjectAndAttrs(
 			return nil, nil, err
 		}
 
-		// if the new key corresponds with an existing directory, it should return the attrs without an error
+		// if the new key corresponds with an existing directory, it should
+		// return the attrs without an error
 		_, err = object.Attrs(ft.ctx)
 		if err != nil {
 			return nil, nil, err
@@ -250,7 +254,8 @@ func (ft *GCSFileTransfer) getObjectAndAttrs(
 	return object, attrs, nil
 }
 
-// getObject returns the object handle given a bucket, key, and possible versionId
+// getObject returns the object handle given a bucket, key, and task object
+// with a possible versionId.
 func (ft *GCSFileTransfer) getObject(
 	bucket *storage.BucketHandle,
 	task *ReferenceArtifactDownloadTask,
@@ -268,7 +273,8 @@ func (ft *GCSFileTransfer) getObject(
 	return object, nil
 }
 
-// parseReference parses the reference path and returns the bucket name and object name
+// parseReference parses the reference path and returns the bucket name and
+// object name.
 func parseReference(reference string) (string, string, error) {
 	uriParts, err := url.Parse(reference)
 	if err != nil {
@@ -283,14 +289,15 @@ func parseReference(reference string) (string, string, error) {
 	return bucketName, objectName, nil
 }
 
-// getDownloadFilePath returns the file path to download the file to when removing duplicate info from the extension
+// getDownloadFilePath returns the file path to download the file to when
+// removing duplicate info from the extension.
 func getDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
 	ext, _ := strings.CutPrefix(objectName, prefix)
 	localPath := baseFilePath + ext
 	return localPath
 }
 
-// safeConvertToInt64 attempts to convert an interface{} to an int64 value
+// safeConvertToInt64 attempts to convert an interface{} to an int64 value.
 func safeConvertToInt64(value interface{}) (int64, error) {
 	floatVal, ok := value.(float64)
 	if !ok {
