@@ -177,9 +177,16 @@ class _WandbInit:
         # TODO: use the regular settins object to handle this
         mode = kwargs.get("mode")
         settings_mode = (kwargs.get("settings") or {}).get("mode") or os.environ.get(
-            "WANDB_MODE"
+            wandb.env.MODE
         )
-        setup_settings = {"mode": mode or settings_mode}
+        settings__disable_service = (kwargs.get("settings") or {}).get(
+            "_disable_service"
+        ) or os.environ.get(wandb.env._DISABLE_SERVICE)
+
+        setup_settings = {
+            "mode": mode or settings_mode,
+            "_disable_service": settings__disable_service,
+        }
 
         self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
