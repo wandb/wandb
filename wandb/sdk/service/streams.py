@@ -317,7 +317,7 @@ class StreamMux:
         # These could be done in parallel in the future
         for _sid, stream in started_streams.items():
             # dispatch all our final requests
-            server_info_handle = stream.interface.deliver_request_server_info()
+            # server_info_handle = stream.interface.deliver_request_server_info()
             poll_exit_handle = stream.interface.deliver_poll_exit()
             final_summary_handle = stream.interface.deliver_get_summary()
             sampled_history_handle = stream.interface.deliver_request_sampled_history()
@@ -327,10 +327,10 @@ class StreamMux:
             assert result
             internal_messages_response = result.response.internal_messages_response
 
-            # wait for them, it's ok to do this serially but this can be improved
-            result = server_info_handle.wait(timeout=-1)
-            assert result
-            server_info_response = result.response.server_info_response
+            # # wait for them, it's ok to do this serially but this can be improved
+            # result = server_info_handle.wait(timeout=-1)
+            # assert result
+            # server_info_response = result.response.server_info_response
 
             result = poll_exit_handle.wait(timeout=-1)
             assert result
@@ -348,7 +348,7 @@ class StreamMux:
                 sampled_history=sampled_history,
                 final_summary=final_summary,
                 poll_exit_response=poll_exit_response,
-                server_info_response=server_info_response,
+                # server_info_response=server_info_response,
                 internal_messages_response=internal_messages_response,
                 settings=stream._settings,  # type: ignore
                 printer=printer,

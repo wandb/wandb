@@ -2453,8 +2453,8 @@ class Run:
             sampled_history=self._sampled_history,
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
-            server_info_response=self._server_info_response,
-            check_version_response=self._check_version,
+            # server_info_response=self._server_info_response,
+            # check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
             reporter=self._reporter,
             quiet=self._quiet,
@@ -2676,24 +2676,24 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        if not self._settings._disable_update_check:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=10)
-            if not version_result:
-                version_handle.abandon()
-            else:
-                self._check_version = version_result.response.check_version_response
-                logger.info("got version response %s", self._check_version)
+        # if not self._settings._disable_update_check:
+        #     logger.info("communicating current version")
+        #     version_handle = self._backend.interface.deliver_check_version(
+        #         current_version=wandb.__version__
+        #     )
+        #     version_result = version_handle.wait(timeout=10)
+        #     if not version_result:
+        #         version_handle.abandon()
+        #     else:
+        #         self._check_version = version_result.response.check_version_response
+        #         logger.info("got version response %s", self._check_version)
 
-        # get the server info before starting the defer state machine as
-        # it will stop communication with the server
-        server_info_handle = self._backend.interface.deliver_request_server_info()
-        result = server_info_handle.wait(timeout=-1)
-        assert result
-        self._server_info_response = result.response.server_info_response
+        # # get the server info before starting the defer state machine as
+        # # it will stop communication with the server
+        # server_info_handle = self._backend.interface.deliver_request_server_info()
+        # result = server_info_handle.wait(timeout=-1)
+        # assert result
+        # self._server_info_response = result.response.server_info_response
 
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
