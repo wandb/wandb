@@ -89,9 +89,6 @@ type clientImpl struct {
 
 	// Headers to pass in every request.
 	extraHeaders map[string]string
-
-	// Credentials to apply on every request.
-	credentialProvider CredentialProvider
 }
 
 // An HTTP request to the W&B backend.
@@ -203,8 +200,6 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
-
-	CredentialProvider CredentialProvider
 }
 
 // Creates a new [Client] for making requests to the [Backend].
@@ -260,9 +255,8 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 		)
 
 	return &clientImpl{
-		backend:            backend,
-		retryableHTTP:      retryableHTTP,
-		extraHeaders:       opts.ExtraHeaders,
-		credentialProvider: opts.CredentialProvider,
+		backend:       backend,
+		retryableHTTP: retryableHTTP,
+		extraHeaders:  opts.ExtraHeaders,
 	}
 }
