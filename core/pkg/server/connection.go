@@ -267,7 +267,7 @@ func (nc *Connection) handleServerRequest() {
 // to the server, to start a new stream
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
-	
+
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
