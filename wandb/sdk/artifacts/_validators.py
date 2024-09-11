@@ -85,7 +85,7 @@ def ensure_not_finalized(
     attr_name = method.__name__
 
     @wraps(method)
-    def wrapper(self: Artifact, *args: P.args, **kwargs: P.kwargs) -> None:
+    def wrapper(self: Artifact, *args: P.args, **kwargs: P.kwargs) -> ReturnT:
         if self._final:
             raise ArtifactFinalizedError(artifact=self, attr=attr_name)
         return method(self, *args, **kwargs)
