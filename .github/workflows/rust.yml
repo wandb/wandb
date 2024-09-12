@@ -14,7 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Protoc
-        uses: arduino/setup-protoc@v2
+        uses: arduino/setup-protoc@v3
       - name: Setup Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Setup python

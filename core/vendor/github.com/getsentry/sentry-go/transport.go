@@ -357,7 +357,6 @@ func NewHTTPTransport() *HTTPTransport {
 	transport := HTTPTransport{
 		BufferSize: defaultBufferSize,
 		Timeout:    defaultTimeout,
-		limits:     make(ratelimit.Map),
 	}
 	return &transport
 }
@@ -550,9 +549,14 @@ func (t *HTTPTransport) worker() {
 				}
 				Logger.Printf("Sending %s failed with the following error: %s", eventType, string(b))
 			}
+
 			t.mu.Lock()
+			if t.limits == nil {
+				t.limits = make(ratelimit.Map)
+			}
 			t.limits.Merge(ratelimit.FromResponse(response))
 			t.mu.Unlock()
+
 			// Drain body up to a limit and close it, allowing the
 			// transport to reuse TCP connections.
 			_, _ = io.CopyN(io.Discard, response.Body, maxDrainResponseBytes)
@@ -690,6 +694,10 @@ func (t *HTTPSyncTransport) SendEventWithContext(ctx context.Context, event *Eve
 	}
 
 	t.mu.Lock()
+	if t.limits == nil {
+		t.limits = make(ratelimit.Map)
+	}
+
 	t.limits.Merge(ratelimit.FromResponse(response))
 	t.mu.Unlock()
 
