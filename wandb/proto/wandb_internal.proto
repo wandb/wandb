@@ -7,6 +7,8 @@ import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 /*
  * Record: Persistent on disk data (BE CAREFUL)
  * Result: responses from Record requests
