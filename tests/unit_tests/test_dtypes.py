@@ -20,6 +20,7 @@ from wandb.sdk.data_types._dtypes import (
     UnionType,
     UnknownType,
 )
+from wandb.sdk.data_types.image import _ImageFileType
 
 
 def test_none_type():
@@ -271,9 +272,9 @@ def test_nested_dict():
 
 def test_image_type(assets_path):
     class_labels = {1: "tree", 2: "car", 3: "road"}
-    wb_type = data_types._ImageFileType()
+    wb_type = _ImageFileType()
     image_simple = data_types.Image(np.random.rand(10, 10))
-    wb_type_simple = data_types._ImageFileType.from_obj(image_simple)
+    wb_type_simple = _ImageFileType.from_obj(image_simple)
     im_path = assets_path("test.png")
     image_annotated = data_types.Image(
         np.random.rand(10, 10),
@@ -319,7 +320,7 @@ def test_image_type(assets_path):
             "mask_ground_truth": {"path": im_path, "class_labels": class_labels},
         },
     )
-    wb_type_annotated = data_types._ImageFileType.from_obj(image_annotated)
+    wb_type_annotated = _ImageFileType.from_obj(image_annotated)
     image_annotated_differently = data_types.Image(
         np.random.rand(10, 10),
         boxes={
@@ -353,9 +354,7 @@ def test_image_type(assets_path):
     # OK to assign Images with disjoint class set
     assert wb_type_annotated.assign(image_simple) == wb_type_annotated
     # Merge when disjoint
-    assert wb_type_annotated.assign(
-        image_annotated_differently
-    ) == data_types._ImageFileType(
+    assert wb_type_annotated.assign(image_annotated_differently) == _ImageFileType(
         box_layers={"box_predictions": {1, 2, 3}, "box_ground_truth": {1, 2, 3}},
         box_score_keys={"loss", "acc"},
         mask_layers={
