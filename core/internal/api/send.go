@@ -33,7 +33,7 @@ func (client *clientImpl) Send(req *Request) (*http.Response, error) {
 
 	err = client.backend.credentialProvider.Apply(retryableReq.Request)
 	if err != nil {
-		return nil, fmt.Errorf("api: failed provide credentials for request: %v", err)
+		return nil, fmt.Errorf("api: failed provide Credentials for request: %v", err)
 	}
 	// Prevent the connection from being re-used in case of an error.
 	// TODO: There is an unlikely scenario when an attempt to reuse the connection
@@ -86,7 +86,7 @@ func (client *clientImpl) sendToWandbBackend(
 	client.setClientHeaders(req)
 	err := client.backend.credentialProvider.Apply(req.Request)
 	if err != nil {
-		return nil, fmt.Errorf("api: failed provide credentials for "+
+		return nil, fmt.Errorf("api: failed provide Credentials for "+
 			"request: %v", err)
 	}
 
