@@ -4,6 +4,8 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 message ListStringValue {
   repeated string value = 1;
 }
@@ -43,7 +45,7 @@ message RunMoment {
 //
 // Next ID: 175
 message Settings {
-  reserved 12, 94, 136, 137;
+  reserved 12, 36, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -103,9 +105,6 @@ message Settings {
 
   // Disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue _disable_update_check = 165;
-
-  // Explicitly require wandb-core to be used.
-  google.protobuf.BoolValue _require_core = 36;
 
   // Explicitly require wandb-core to not be used.
   google.protobuf.BoolValue _require_legacy_service = 173;

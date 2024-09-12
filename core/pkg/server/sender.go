@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -360,6 +359,10 @@ func (s *Sender) sendRecord(record *spb.Record) {
 // sendRequest sends a request
 func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 	switch x := request.RequestType.(type) {
+	case *spb.Request_ServerInfo:
+	case *spb.Request_CheckVersion:
+		// These requests were removed from the client, so we don't need to
+		// handle them. Keep for now should be removed in the future
 	case *spb.Request_RunStart:
 		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
@@ -368,8 +371,6 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestDefer(x.Defer)
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(record, x.LogArtifact)
-	case *spb.Request_ServerInfo:
-		s.sendRequestServerInfo(record, x.ServerInfo)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *spb.Request_DownloadArtifact:
@@ -382,8 +383,6 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
-	case *spb.Request_CheckVersion:
-		s.sendRequestCheckVersion(record, x.CheckVersion)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -1504,77 +1503,6 @@ func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
 	s.fwdRecord(rec)
 }
 
-func (s *Sender) sendRequestCheckVersion(record *spb.Record, request *spb.CheckVersionRequest) {
-	currVersion := request.GetCurrentVersion()
-	// if the current version is empty, we can't check for a new version
-	if currVersion == "" {
-		s.logger.Error("sender: sendRequestCheckVersion: current version is empty")
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	// if there is no graphql client, we don't need to do anything as we can't
-	// check for the server provided version
-	if s.graphqlClient == nil {
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	response, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
-	// if the request failed, we can't check for the server provided version this
-	// check is best effort
-	if err != nil {
-		s.logger.Error("sender: sendRequestCheckVersion: failed to get server info", "error", err)
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	// if the response is nil or the server info is nil, we can't check for the
-	// server provided version this check is best effort
-	if response == nil || response.GetServerInfo() == nil {
-		s.logger.Error("sender: sendRequestCheckVersion: server info is nil")
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	// For now, the server should be compatible with all client versions
-	// so we only check if the current version is less than the max version
-	switch x := response.GetServerInfo().GetCliVersionInfo().(type) {
-	case map[string]any:
-		if maxVersion, ok := x["max_cli_version"].(string); ok {
-			currVersion = strings.Replace(currVersion, ".dev", "-dev", 1)
-			if semver.Compare("v"+currVersion, "v"+maxVersion) == -1 {
-				s.respond(record,
-					&spb.Response{
-						ResponseType: &spb.Response_CheckVersionResponse{
-							CheckVersionResponse: &spb.CheckVersionResponse{
-								UpgradeMessage: fmt.Sprintf(
-									"There is a new version of wandb available. Please upgrade to wandb==%s", maxVersion,
-								),
-							},
-						},
-					},
-				)
-				return
-			}
-		}
-	default:
-		err := fmt.Errorf("server client version is of type %T should be a map", x)
-		s.logger.Error("sender: sendRequestCheckVersion: failed to get server info", "error", err)
-	}
-	s.respond(record,
-		&spb.Response{},
-	)
-}
-
 func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
 
 	// TODO: unify everywhere to use settings
@@ -1673,81 +1601,6 @@ func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) 
 			return
 		}
 	}
-}
-
-// sendRequestServerInfo sends a server info request to the server to probe the server for
-// version compatibility and other server information
-func (s *Sender) sendRequestServerInfo(record *spb.Record, _ *spb.ServerInfoRequest) {
-
-	// if there is no graphql client, we don't need to do anything
-	// just respond with an empty server info response
-	if s.graphqlClient == nil {
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{},
-				},
-			},
-		)
-		return
-	}
-
-	response, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
-	// if there is an error, we don't know the server info
-	// respond with an empty server info response
-	// this is a best effort to get the server info
-	if err != nil {
-		s.logger.Error(
-			"sender: getServerInfo: failed to get server info", "error", err,
-		)
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{},
-				},
-			},
-		)
-		return
-	}
-	if response == nil || response.GetServerInfo() == nil {
-		s.logger.Error("sender: getServerInfo: server info is nil")
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{},
-				},
-			},
-		)
-		return
-	}
-
-	// if we have server info, respond with the server info
-	// this is a best effort to get the server info
-	latestVersion := response.GetServerInfo().GetLatestLocalVersionInfo()
-	if latestVersion != nil {
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{
-						LocalInfo: &spb.LocalInfo{
-							Version:   latestVersion.GetLatestVersionString(),
-							OutOfDate: latestVersion.GetOutOfDate(),
-						},
-					},
-				},
-			},
-		)
-		return
-	}
-
-	// default response if we don't have server info
-	s.respond(record,
-		&spb.Response{
-			ResponseType: &spb.Response_ServerInfoResponse{
-				ServerInfoResponse: &spb.ServerInfoResponse{},
-			},
-		},
-	)
 }
 
 func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {

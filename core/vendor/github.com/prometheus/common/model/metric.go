@@ -34,10 +34,13 @@ var (
 	// goroutines are started.
 	NameValidationScheme = LegacyValidation
 
-	// NameEscapingScheme defines the default way that names will be
-	// escaped when presented to systems that do not support UTF-8 names. If the
-	// Content-Type "escaping" term is specified, that will override this value.
-	NameEscapingScheme = ValueEncodingEscaping
+	// NameEscapingScheme defines the default way that names will be escaped when
+	// presented to systems that do not support UTF-8 names. If the Content-Type
+	// "escaping" term is specified, that will override this value.
+	// NameEscapingScheme should not be set to the NoEscaping value. That string
+	// is used in content negotiation to indicate that a system supports UTF-8 and
+	// has that feature enabled.
+	NameEscapingScheme = UnderscoreEscaping
 )
 
 // ValidationScheme is a Go enum for determining how metric and label names will
