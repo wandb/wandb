@@ -166,10 +166,11 @@ type Request struct {
 }
 
 var sensitiveHeaders = map[string]struct{}{
-	"Authorization":   {},
-	"Cookie":          {},
-	"X-Forwarded-For": {},
-	"X-Real-Ip":       {},
+	"Authorization":       {},
+	"Proxy-Authorization": {},
+	"Cookie":              {},
+	"X-Forwarded-For":     {},
+	"X-Real-Ip":           {},
 }
 
 // NewRequest returns a new Sentry Request from the given http.Request.
