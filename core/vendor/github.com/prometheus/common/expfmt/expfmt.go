@@ -112,6 +112,29 @@ func NewOpenMetricsFormat(version string) (Format, error) {
 	return FmtUnknown, fmt.Errorf("unknown open metrics version string")
 }
 
+// WithEscapingScheme returns a copy of Format with the specified escaping
+// scheme appended to the end. If an escaping scheme already exists it is
+// removed.
+func (f Format) WithEscapingScheme(s model.EscapingScheme) Format {
+	var terms []string
+	for _, p := range strings.Split(string(f), ";") {
+		toks := strings.Split(p, "=")
+		if len(toks) != 2 {
+			trimmed := strings.TrimSpace(p)
+			if len(trimmed) > 0 {
+				terms = append(terms, trimmed)
+			}
+			continue
+		}
+		key := strings.TrimSpace(toks[0])
+		if key != model.EscapingKey {
+			terms = append(terms, strings.TrimSpace(p))
+		}
+	}
+	terms = append(terms, model.EscapingKey+"="+s.String())
+	return Format(strings.Join(terms, "; "))
+}
+
 // FormatType deduces an overall FormatType for the given format.
 func (f Format) FormatType() FormatType {
 	toks := strings.Split(string(f), ";")

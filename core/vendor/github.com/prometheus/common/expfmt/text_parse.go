@@ -75,7 +75,9 @@ type TextParser struct {
 	// count and sum of that summary/histogram.
 	currentIsSummaryCount, currentIsSummarySum     bool
 	currentIsHistogramCount, currentIsHistogramSum bool
-	currentMetricIsInsideBraces                    bool
+	// These indicate if the metric name from the current line being parsed is inside
+	// braces and if that metric name was found respectively.
+	currentMetricIsInsideBraces, currentMetricInsideBracesIsPresent bool
 }
 
 // TextToMetricFamilies reads 'in' as the simple and flat text-based exchange
@@ -147,6 +149,7 @@ func (p *TextParser) reset(in io.Reader) {
 func (p *TextParser) startOfLine() stateFn {
 	p.lineCount++
 	p.currentMetricIsInsideBraces = false
+	p.currentMetricInsideBracesIsPresent = false
 	if p.skipBlankTab(); p.err != nil {
 		// This is the only place that we expect to see io.EOF,
 		// which is not an error but the signal that we are done.
@@ -301,17 +304,24 @@ func (p *TextParser) startLabelName() stateFn {
 	}
 	if p.currentByte != '=' {
 		if p.currentMetricIsInsideBraces {
-			if p.currentMF != nil && p.currentMF.GetName() != p.currentToken.String() {
-				p.parseError(fmt.Sprintf("multiple metric names %s %s", p.currentMF.GetName(), p.currentToken.String()))
+			if p.currentMetricInsideBracesIsPresent {
+				p.parseError(fmt.Sprintf("multiple metric names for metric %q", p.currentMF.GetName()))
 				return nil
 			}
 			switch p.currentByte {
 			case ',':
 				p.setOrCreateCurrentMF()
+				if p.currentMF.Type == nil {
+					p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
+				}
 				p.currentMetric = &dto.Metric{}
+				p.currentMetricInsideBracesIsPresent = true
 				return p.startLabelName
 			case '}':
 				p.setOrCreateCurrentMF()
+				if p.currentMF.Type == nil {
+					p.currentMF.Type = dto.MetricType_UNTYPED.Enum()
+				}
 				p.currentMetric = &dto.Metric{}
 				p.currentMetric.Label = append(p.currentMetric.Label, p.currentLabelPairs...)
 				p.currentLabelPairs = nil
