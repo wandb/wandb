@@ -321,7 +321,9 @@ def test_run_create(user, relay_server):
 
 
 def test_run_update(user, relay_server):
-    seed_run = Api().create_run()
+    seed_run = wandb.init(config={"foo": "not_bar"})
+    seed_run.log(dict(acc=100, loss=0))
+    seed_run.finish()
 
     with relay_server() as relay:
         run = Api().run(f"{seed_run.entity}/{seed_run.project}/{seed_run.id}")
@@ -333,8 +335,9 @@ def test_run_update(user, relay_server):
         result = relay.context.get_run(run.id)
         assert result["tags"] == ["test"]
         assert result["config"]["foo"]["value"] == "bar"
-        assert result["rawconfig"]["_wandb"] == wandb_key
+        assert result["config"]["_wandb"]["value"] == wandb_key
         assert result["entity"] == seed_run.entity
+
 
 
 def test_run_delete(user, relay_server):
