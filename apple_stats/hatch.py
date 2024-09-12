@@ -1,7 +1,6 @@
 """Builds the AppleStats Swift binary for monitoring system metrics on arm64 macOS."""
 
 import pathlib
-import platform
 import subprocess
 
 
@@ -20,9 +19,6 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
-    if platform.machine() != "arm64":
-        raise AppleStatsBuildError("This script only builds for arm64 architecture.")
-
     source_path = pathlib.Path("./apple_stats")
 
     cmd = [
