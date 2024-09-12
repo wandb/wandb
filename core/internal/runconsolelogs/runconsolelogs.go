@@ -99,7 +99,16 @@ func New(params Params) *Sender {
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
 		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
-				fileWriter.WriteToFile(lines)
+				err := fileWriter.WriteToFile(lines)
+
+				if err != nil {
+					params.Logger.CaptureError(
+						fmt.Errorf(
+							"runconsolelogs: failed to write to file: %v",
+							err,
+						))
+					fileWriter = nil
+				}
 			}
 
 			if fsWriter != nil {
