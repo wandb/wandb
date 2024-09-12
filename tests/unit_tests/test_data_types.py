@@ -14,6 +14,7 @@ import wandb
 from bokeh.plotting import figure
 from PIL import Image
 from wandb import data_types
+from wandb.sdk.data_types import _dtypes
 from wandb.sdk.data_types.base_types.media import _numpy_arrays_to_lists
 
 
@@ -1074,7 +1075,7 @@ def test_ndarrays_in_tables():
 
     assert any(
         [
-            isinstance(t, wandb.data_types._dtypes.NDArrayType)
+            isinstance(t, _dtypes.NDArrayType)
             for t in nda_table._column_types.params["type_map"]["ndarray"].params[
                 "allowed_types"
             ]
@@ -1089,10 +1090,10 @@ def test_ndarrays_in_tables():
 
     assert isinstance(
         nda_table._column_types.params["type_map"]["odd_col"],
-        wandb.data_types._dtypes.ListType,
+        _dtypes.ListType,
     )
 
-    nda_table.cast("odd_col", wandb.data_types._dtypes.NDArrayType(shape=(2, 1)))
+    nda_table.cast("odd_col", _dtypes.NDArrayType(shape=(2, 1)))
     nda_table.add_data(np.random.randint(255, size=(2, 1)))
     nda_table.add_data(np.random.randint(255, size=(2, 1)).tolist())
     with pytest.raises(TypeError):
@@ -1102,7 +1103,7 @@ def test_ndarrays_in_tables():
 
     assert isinstance(
         nda_table._column_types.params["type_map"]["odd_col"],
-        wandb.data_types._dtypes.NDArrayType,
+        _dtypes.NDArrayType,
     )
 
 

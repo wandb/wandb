@@ -281,7 +281,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             sys.exit(internal_exit_code)
 
     def _setup_manager(self) -> None:
-        if self._settings._disable_service:
+        if self._settings._noop or self._settings._disable_service:
             return
         self._manager = wandb_manager._Manager(settings=self._settings)
 

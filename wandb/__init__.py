@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.10.dev1"
+__version__ = "0.18.1.dev1"
 
 from typing import Optional
 
@@ -205,11 +205,6 @@ if "dev" in __version__:
     os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
         wandb.env.ERROR_REPORTING, "false"
     )
-
-    # turn on wandb-core for dev versions
-    if not wandb.env.is_require_legacy_service():
-        os.environ[wandb.env._REQUIRE_CORE] = os.environ.get(
-            wandb.env._REQUIRE_CORE, "true")
 
 _sentry = _Sentry()
 _sentry.setup()

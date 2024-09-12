@@ -3,7 +3,7 @@
 set -e
 
 # make sure we are running from the core dir
-BASE=$(dirname $(dirname $(readlink -f $0)))
+BASE=$(dirname $(dirname $(dirname $(readlink -f $0))))
 
 GQL_GEN_PATH="internal/gql"
 PREVIOUS_FILE="gql_gen.go"

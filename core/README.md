@@ -65,6 +65,5 @@ wandb.require("legacy-service")
 ```
 export WANDB__REQUIRE_LEGACY_SERVICE=TRUE
 ```
-**Important Notes:**
-* Incompatibility: You cannot use wandb.require("legacy-service") alongside wandb.require("core").
-* Environment Variable Conflict: Setting WANDB__REQUIRE_LEGACY_SERVICE=TRUE will raise an error if WANDB__REQUIRE_CORE=TRUE is also set.
+**Note:**
+* Starting from version 0.18.0, the `wandb-core` service is the default runtime service. As a result, calling `wandb.require("core")` is unnecessary and has no effect in `wandb>=0.18.0`.

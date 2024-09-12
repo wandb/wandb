@@ -5,6 +5,7 @@ import numpy as np
 import pytest
 import wandb
 from wandb import data_types
+from wandb.sdk.data_types import _dtypes
 
 matplotlib.use("Agg")
 
@@ -36,7 +37,7 @@ def test_wb_value(user, sample_data, test_settings):
             "_type": "table",
             "data": [[]],
             "columns": [],
-            "column_types": wandb.data_types._dtypes.TypedDictType({}).to_json(),
+            "column_types": _dtypes.TypedDictType({}).to_json(),
         },
         public_art,
     )

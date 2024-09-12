@@ -90,7 +90,6 @@ _EXECUTABLE = "WANDB_EXECUTABLE"
 LAUNCH_QUEUE_NAME = "WANDB_LAUNCH_QUEUE_NAME"
 LAUNCH_QUEUE_ENTITY = "WANDB_LAUNCH_QUEUE_ENTITY"
 LAUNCH_TRACE_ID = "WANDB_LAUNCH_TRACE_ID"
-_REQUIRE_CORE = "WANDB__REQUIRE_CORE"
 _REQUIRE_LEGACY_SERVICE = "WANDB__REQUIRE_LEGACY_SERVICE"
 
 # For testing, to be removed in future version
@@ -154,19 +153,8 @@ def _env_as_bool(
         return False
 
 
-def is_require_core(env: Optional[Env] = None) -> bool:
-    """Return whether wandb.require("core") was used.
-
-    Note that this may contradict wandb.require("legacy-service").
-    """
-    return _env_as_bool(_REQUIRE_CORE, default="False", env=env)
-
-
 def is_require_legacy_service(env: Optional[Env] = None) -> bool:
-    """Return whether wandb.require("legacy-service") was used.
-
-    Note that this may contradict wandb.require("core").
-    """
+    """Return whether wandb.require("legacy-service") was used."""
     return _env_as_bool(_REQUIRE_LEGACY_SERVICE, default="False", env=env)
 
 
