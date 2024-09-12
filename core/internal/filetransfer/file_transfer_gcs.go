@@ -80,10 +80,8 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 		"ref", task.Reference,
 	)
 
-	reference := task.Reference
-
 	// Parse the reference path to get the scheme, bucket, and object
-	bucketName, objectPathPrefix, err := parseReference(reference)
+	bucketName, objectPathPrefix, err := parseReference(task.Reference)
 	if err != nil {
 		return formatDownloadError("error parsing reference", err)
 	}
