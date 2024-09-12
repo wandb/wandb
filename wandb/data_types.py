@@ -30,6 +30,7 @@ from .sdk.data_types.audio import Audio
 from .sdk.data_types.base_types.media import Media, _numpy_arrays_to_lists
 from .sdk.data_types.base_types.wb_value import WBValue
 from .sdk.data_types.bokeh import Bokeh
+from .sdk.data_types.graph import Graph, Node
 from .sdk.data_types.helper_types.bounding_boxes_2d import BoundingBoxes2D
 from .sdk.data_types.helper_types.classes import Classes
 from .sdk.data_types.helper_types.image_mask import ImageMask
@@ -53,6 +54,8 @@ __all__ = [
     "Audio",
     "Table",
     "Bokeh",
+    "Node",
+    "Graph",
     # Typed Exports
     "Histogram",
     "Html",
