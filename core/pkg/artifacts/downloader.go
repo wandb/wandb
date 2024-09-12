@@ -156,11 +156,11 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 					}
 					if entry.Ref != nil {
 						task := &filetransfer.ReferenceArtifactDownloadTask{
-							FileKind:  filetransfer.RunFileKindArtifact,
-							Path:      downloadLocalPath,
-							Reference: *entry.Ref,
-							Digest:    entry.Digest,
-							Size:      entry.Size,
+							FileKind:     filetransfer.RunFileKindArtifact,
+							PathOrPrefix: downloadLocalPath,
+							Reference:    *entry.Ref,
+							Digest:       entry.Digest,
+							Size:         entry.Size,
 						}
 						versionId, ok := entry.Extra["versionID"]
 						if ok {

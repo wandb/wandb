@@ -67,7 +67,7 @@ func NewGCSFileTransfer(
 
 // Upload uploads a file to the server.
 func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.Path)
+	ft.logger.Debug("GCSFileTransfer: Upload: uploading file", "path", task.PathOrPrefix)
 
 	return fmt.Errorf("not implemented yet")
 }
@@ -76,7 +76,7 @@ func (ft *GCSFileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
 func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	ft.logger.Debug(
 		"GCSFileTransfer: Download: downloading file",
-		"path", task.Path,
+		"path", task.PathOrPrefix,
 		"ref", task.Reference,
 	)
 
@@ -89,81 +89,102 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	}
 	bucket := ft.client.Bucket(bucketName)
 
-	// If not using checksum, we set the digest to the reference
-	if task.Digest == reference {
-		// Get all of the objects under the reference
-		var objectNames []string
-		query := &storage.Query{Prefix: objectPathPrefix}
-		it := bucket.Objects(ft.ctx, query)
-		for {
-			objAttrs, err := it.Next()
-			if err == iterator.Done {
-				break
-			}
-			if err != nil {
-				return formatDownloadError("error iterating through objects", err)
-			}
-			objectNames = append(objectNames, objAttrs.Name)
-		}
+	var objectNames []string
 
-		// Try to download all objects under the reference
-		g := new(errgroup.Group)
-		g.SetLimit(maxWorkers)
-		for _, name := range objectNames {
-			objectName := name // for closure in the goroutine
-			g.Go(func() error {
-				object, _, err := ft.getObjectAndAttrs(bucket, task, objectName)
-				if err != nil {
-					if errors.Is(err, ErrObjectIsDirectory) {
-						ft.logger.Debug(
-							"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
-							"reference", reference,
-							"object", objectName,
-						)
-						return nil
-					}
-					return formatDownloadError(
-						fmt.Sprintf("error getting object %s", objectName),
-						err,
-					)
-				}
-				localPath := getDownloadFilePath(objectName, objectPathPrefix, task.Path)
-				return ft.downloadFile(object, localPath)
-			})
-		}
-
-		// Wait for all of the go routines to complete and return an error
-		// if any errored out
-		if err := g.Wait(); err != nil {
-			return formatDownloadError("", err)
-		}
+	if task.HasSingleFile() {
+		objectNames = []string{objectPathPrefix}
 	} else {
-		objectName := objectPathPrefix
-		object, objAttrs, err := ft.getObjectAndAttrs(bucket, task, objectName)
+		objectNames, err = ft.listObjectNamesWithPrefix(bucket, objectPathPrefix)
 		if err != nil {
-			if errors.Is(err, ErrObjectIsDirectory) {
-				ft.logger.Debug(
-					"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
-					"reference", reference,
-				)
-				return nil
-			}
-			return formatDownloadError(fmt.Sprintf("error getting object %s", objectName), err)
-		}
-		if objAttrs.Etag != task.Digest {
-			err := fmt.Errorf(
-				"digest/etag mismatch: etag %s does not match expected digest %s",
-				objAttrs.Etag,
-				task.Digest,
+			return formatDownloadError(
+				fmt.Sprintf(
+					"error getting objects in bucket %s under prefix %s",
+					bucketName, objectPathPrefix,
+				),
+				err,
 			)
-			return formatDownloadError("", err)
 		}
-		return ft.downloadFile(object, task.Path)
+	}
+
+	return ft.downloadFiles(bucket, task, objectNames)
+}
+
+// listObjectNamesWithPrefix returns a list of names of all the objects
+// with a specified prefix in the given bucket.
+func (ft *GCSFileTransfer) listObjectNamesWithPrefix(
+	bucket *storage.BucketHandle,
+	prefix string,
+) ([]string, error) {
+	var objectNames []string
+	query := &storage.Query{Prefix: prefix}
+	it := bucket.Objects(ft.ctx, query)
+	for {
+		objAttrs, err := it.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		objectNames = append(objectNames, objAttrs.Name)
+	}
+	return objectNames, nil
+}
+
+// downloadFiles concurrently gets and downloads all objects with the specified names
+func (ft *GCSFileTransfer) downloadFiles(
+	bucket *storage.BucketHandle,
+	task *ReferenceArtifactDownloadTask,
+	objectNames []string,
+) error {
+	// Parse the reference path to get the objectPathPrefix, for constructing the download path
+	_, objectPathPrefix, err := parseReference(task.Reference)
+	if err != nil {
+		return formatDownloadError("error parsing reference", err)
+	}
+
+	g := new(errgroup.Group)
+	g.SetLimit(maxWorkers)
+	for _, name := range objectNames {
+		objectName := name // for closure in the goroutine
+		g.Go(func() error {
+			object, objAttrs, err := ft.getObjectAndAttrs(bucket, task, objectName)
+			if err != nil {
+				if errors.Is(err, ErrObjectIsDirectory) {
+					ft.logger.Debug(
+						"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
+						"reference", task.Reference,
+						"object", objectName,
+					)
+					return nil
+				}
+				return formatDownloadError(
+					fmt.Sprintf("error getting object %s", objectName),
+					err,
+				)
+			}
+			if task.ShouldCheckDigest() && objAttrs.Etag != task.Digest {
+				err := fmt.Errorf(
+					"digest/etag mismatch: etag %s does not match expected digest %s",
+					objAttrs.Etag,
+					task.Digest,
+				)
+				return formatDownloadError("", err)
+			}
+			localPath := getDownloadFilePath(objectName, objectPathPrefix, task.PathOrPrefix)
+			return ft.downloadFile(object, localPath)
+		})
+	}
+
+	// Wait for all of the go routines to complete and return an error
+	// if any errored out
+	if err := g.Wait(); err != nil {
+		return err
 	}
 	return nil
 }
 
-// DownloadFile downloads the contents of object into a file at path localPath.
+// downloadFile downloads the contents of object into a file at path localPath.
 func (ft *GCSFileTransfer) downloadFile(
 	object *storage.ObjectHandle,
 	localPath string,
@@ -195,10 +216,7 @@ func (ft *GCSFileTransfer) downloadFile(
 	defer func(file *os.File) {
 		fileError := file.Close()
 		if err == nil {
-			err = formatDownloadError(
-				fmt.Sprintf("error closing file %s", localPath),
-				fileError,
-			)
+			err = fileError
 		}
 	}(file)
 

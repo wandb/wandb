@@ -33,27 +33,27 @@ func TestGCSFileTransfer_Download(t *testing.T) {
 		{
 			name: "Returns error if manifest entry reference is nil",
 			task: &filetransfer.ReferenceArtifactDownloadTask{
-				FileKind: filetransfer.RunFileKindArtifact,
-				Path:     "test-download-file.txt",
+				FileKind:     filetransfer.RunFileKindArtifact,
+				PathOrPrefix: "test-download-file.txt",
 			},
 			wantErr: true,
 		},
 		{
 			name: "Returns error if manifest entry reference is not a gcs reference",
 			task: &filetransfer.ReferenceArtifactDownloadTask{
-				FileKind:  filetransfer.RunFileKindArtifact,
-				Path:      "test-download-file.txt",
-				Reference: nonGSReference,
+				FileKind:     filetransfer.RunFileKindArtifact,
+				PathOrPrefix: "test-download-file.txt",
+				Reference:    nonGSReference,
 			},
 			wantErr: true,
 		},
 		{
 			name: "Returns error if gcs reference doesn't exist",
 			task: &filetransfer.ReferenceArtifactDownloadTask{
-				FileKind:  filetransfer.RunFileKindArtifact,
-				Path:      "test-download-file.txt",
-				Reference: gsReference,
-				Size:      100,
+				FileKind:     filetransfer.RunFileKindArtifact,
+				PathOrPrefix: "test-download-file.txt",
+				Reference:    gsReference,
+				Size:         100,
 			},
 			wantErr: true,
 		},

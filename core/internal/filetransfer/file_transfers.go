@@ -36,6 +36,8 @@ func NewFileTransfers(
 	gcsFileTransfer, err := NewGCSFileTransfer(nil, logger, fileTransferStats)
 	if err == nil {
 		filetransfers.GCS = gcsFileTransfer
+	} else {
+		logger.CaptureError(err)
 	}
 
 	return filetransfers
