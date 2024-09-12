@@ -63,6 +63,11 @@ func (s *Settings) GetIdentityTokenFile() string {
 	return s.Proto.IdentityTokenFile.GetValue()
 }
 
+// Path to file for writing temporary access tokens
+func (s *Settings) GetCredentialsFile() string {
+	return s.Proto.CredentialsFile.GetValue()
+}
+
 // Whether we are in offline mode.
 func (s *Settings) IsOffline() bool {
 	return s.Proto.XOffline.GetValue()

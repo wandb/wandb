@@ -204,7 +204,7 @@ type ClientOptions struct {
 	//
 	// If Proxy is nil or returns a nil *URL, no proxy will be used.
 	Proxy func(*http.Request) (*url.URL, error)
-
+	
 	// Whether to disable SSL certificate verification.
 	//
 	// This is insecure and should only be used for testing/debugging
@@ -253,6 +253,18 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 			backend.logger.Handler(),
 			slog.LevelDebug,
 		)
+	}
+
+	// PrepareRetry gets called before the retry attempt
+	retryableHTTP.PrepareRetry = func(req *http.Request) error {
+		if opts.PrepareRetry != nil {
+			err := opts.PrepareRetry(req)
+			if err != nil {
+				return err
+			}
+		}
+		// credentials can expire, so ensure retries have fresh credentials
+		return backend.credentialProvider.Apply(req)
 	}
 
 	// Set the Proxy function on the HTTP client.
