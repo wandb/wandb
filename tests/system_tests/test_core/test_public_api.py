@@ -337,7 +337,7 @@ def test_run_update(user, relay_server):
         assert result["config"]["foo"]["value"] == "bar"
         assert result["config"]["_wandb"]["value"] == wandb_key
         assert result["entity"] == seed_run.entity
-        
+
 
 def test_run_delete(user, relay_server):
     seed_run = Api().create_run()
