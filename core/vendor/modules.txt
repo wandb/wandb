@@ -69,7 +69,7 @@ github.com/emirpasic/gods/lists/arraylist
 github.com/emirpasic/gods/trees
 github.com/emirpasic/gods/trees/binaryheap
 github.com/emirpasic/gods/utils
-# github.com/getsentry/sentry-go v0.28.1
+# github.com/getsentry/sentry-go v0.29.0
 ## explicit; go 1.18
 github.com/getsentry/sentry-go
 github.com/getsentry/sentry-go/internal/debug
@@ -185,7 +185,7 @@ github.com/power-devops/perfstat
 # github.com/prometheus/client_model v0.6.1
 ## explicit; go 1.19
 github.com/prometheus/client_model/go
-# github.com/prometheus/common v0.58.0
+# github.com/prometheus/common v0.59.1
 ## explicit; go 1.20
 github.com/prometheus/common/expfmt
 github.com/prometheus/common/model
