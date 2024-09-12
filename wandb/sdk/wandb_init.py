@@ -738,10 +738,7 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if (
-                self.settings._require_core
-                and not self.settings._require_legacy_service
-            ):
+            if not self.settings._require_legacy_service:
                 tel.feature.core = True
             if self.settings._shared:
                 wandb.termwarn(

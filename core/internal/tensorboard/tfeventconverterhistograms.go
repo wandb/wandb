@@ -136,10 +136,10 @@ func emitHistogram(
 		return
 	}
 
-	if len(binWeights) > 32 {
+	if len(binWeights) > 512 {
 		var err error
 		binEdges, binWeights, err = reduceHistogram(
-			32,
+			512,
 			binEdges,
 			binWeights,
 		)
