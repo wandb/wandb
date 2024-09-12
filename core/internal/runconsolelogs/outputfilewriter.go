@@ -1,7 +1,6 @@
 package runconsolelogs
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
@@ -33,19 +32,16 @@ func NewOutputFileWriter(
 	return &outputFileWriter{outputFile: outputFile, logger: logger}, nil
 }
 
+// WriteToFile makes changes to the underlying file.
+//
+// It returns an error if writing fails, such as if the file is deleted
+// or corrupted. In that case, the file should not be written to again.
 func (w *outputFileWriter) WriteToFile(
 	changes sparselist.SparseList[*RunLogsLine],
-) {
+) error {
 	lines := sparselist.Map(changes, func(line *RunLogsLine) string {
 		return string(line.Content)
 	})
 
-	err := w.outputFile.UpdateLines(lines)
-	if err != nil {
-		w.logger.CaptureError(
-			fmt.Errorf(
-				"runconsolelogs: failed to write to file: %v",
-				err,
-			))
-	}
+	return w.outputFile.UpdateLines(lines)
 }
