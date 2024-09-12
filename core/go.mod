@@ -15,7 +15,6 @@ require (
 	github.com/spf13/afero v1.11.0
 	github.com/stretchr/testify v1.9.0
 	github.com/wandb/simplejsonext v0.0.0-20240710214335-0cdf78d14700
-	golang.org/x/mod v0.21.0
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.6.0
 	google.golang.org/protobuf v1.34.2
@@ -55,6 +54,7 @@ require (
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	golang.org/x/crypto v0.27.0 // indirect
+	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/net v0.29.0 // indirect
 	golang.org/x/sys v0.25.0 // indirect
 	golang.org/x/text v0.18.0 // indirect
