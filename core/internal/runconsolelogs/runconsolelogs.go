@@ -8,8 +8,9 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/internal/runwork"
+	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
@@ -37,8 +38,8 @@ type Sender struct {
 
 	writer *debouncedWriter
 
-	logger    *observability.CoreLogger
-	extraWork runwork.ExtraWork
+	logger                *observability.CoreLogger
+	runfilesUploaderOrNil runfiles.Uploader
 
 	// captureEnabled indicates whether to capture console output.
 	captureEnabled bool
@@ -50,7 +51,7 @@ type Params struct {
 	Settings *settings.Settings
 	Logger   *observability.CoreLogger
 
-	ExtraWork runwork.ExtraWork
+	RunfilesUploaderOrNil runfiles.Uploader
 
 	// FileStreamOrNil is the filestream API.
 	FileStreamOrNil filestream.FileStream
@@ -67,8 +68,6 @@ func New(params Params) *Sender {
 		panic("runconsolelogs: Settings is nil")
 	case params.Logger == nil:
 		panic("runconsolelogs: Logger is nil")
-	case params.ExtraWork == nil:
-		panic("runconsolelogs: ExtraWork is nil")
 	}
 
 	if params.GetNow == nil {
@@ -127,10 +126,10 @@ func New(params Params) *Sender {
 
 		consoleOutputFile: params.ConsoleOutputFile,
 
-		writer:         writer,
-		logger:         params.Logger,
-		extraWork:      params.ExtraWork,
-		captureEnabled: params.Settings.IsConsoleCaptureEnabled(),
+		writer:                writer,
+		logger:                params.Logger,
+		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
+		captureEnabled:        params.Settings.IsConsoleCaptureEnabled(),
 	}
 }
 
@@ -139,8 +138,12 @@ func New(params Params) *Sender {
 // It must run before the filestream is closed.
 func (s *Sender) Finish() {
 	s.writer.Wait()
-	if s.captureEnabled {
-		s.uploadOutputFile()
+
+	if s.captureEnabled && s.runfilesUploaderOrNil != nil {
+		s.runfilesUploaderOrNil.UploadNow(
+			s.consoleOutputFile,
+			filetransfer.RunFileKindWandb,
+		)
 	}
 }
 
@@ -162,24 +165,4 @@ func (s *Sender) StreamLogs(record *spb.OutputRawRecord) {
 			"type", record.OutputType,
 		)
 	}
-}
-
-// uploadOutputFile uploads the console output file that we created.
-func (s *Sender) uploadOutputFile() {
-	s.extraWork.AddWork(
-		runwork.WorkFromRecord(
-			&spb.Record{
-				RecordType: &spb.Record_Files{
-					Files: &spb.FilesRecord{
-						Files: []*spb.FilesItem{
-							{
-								Path: string(s.consoleOutputFile),
-								Type: spb.FilesItem_WANDB,
-							},
-						},
-					},
-				},
-			},
-		),
-	)
 }
