@@ -675,16 +675,16 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
+func (s *Sender) serializeConfig(format runconfig.Format) ([]byte, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.Error("sender: serializeConfig", "error", err)
-		return "", err
+		return nil, err
 	}
 
-	return string(serializedConfig), nil
+	return serializedConfig, nil
 }
 
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
@@ -961,6 +961,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	}
 
 	config, _ := s.serializeConfig(runconfig.FormatJson)
+	configStr := string(config)
 
 	var commit, repo string
 	git := run.GetGit()
@@ -983,7 +984,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		utils.NilIfZero(run.DisplayName), // displayName
 		utils.NilIfZero(run.Notes),       // notes
 		utils.NilIfZero(commit),          // commit
-		&config,                          // config
+		&configStr,                       // config
 		utils.NilIfZero(run.Host),        // host
 		nil,                              // debug
 		utils.NilIfZero(program),         // program
@@ -1116,9 +1117,10 @@ func (s *Sender) upsertConfig() {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
 		return
 	}
-	if config == "" {
+	if len(config) == 0 {
 		return
 	}
+	configStr := string(config)
 
 	ctx := context.WithValue(
 		s.runWork.BeforeEndCtx(),
@@ -1137,7 +1139,7 @@ func (s *Sender) upsertConfig() {
 		nil,                                   // displayName
 		nil,                                   // notes
 		nil,                                   // commit
-		&config,                               // config
+		&configStr,                            // config
 		nil,                                   // host
 		nil,                                   // debug
 		nil,                                   // program
@@ -1154,67 +1156,81 @@ func (s *Sender) upsertConfig() {
 }
 
 func (s *Sender) uploadSummaryFile() {
-	if s.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
+	if s.runfilesUploader == nil {
 		return
 	}
 
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
-		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
-		return
-	}
-	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
-	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
-		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run summary: %v", err))
 		return
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: SummaryFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
+	if err := s.scheduleFileUpload(
+		summary,
+		SummaryFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run summary: %v", err))
 	}
-	s.fwdRecord(record)
 }
 
 func (s *Sender) uploadConfigFile() {
-	if s.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
+	if s.runfilesUploader == nil {
 		return
 	}
 
 	config, err := s.serializeConfig(runconfig.FormatYaml)
 	if err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
-		return
-	}
-	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
-	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run config: %v", err))
 		return
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: ConfigFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
+	if err := s.scheduleFileUpload(
+		config,
+		ConfigFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run config: %v", err))
 	}
-	s.fwdRecord(record)
+}
+
+// scheduleFileUpload creates and uploads a run file.
+//
+// The file is created in the run's files directory and uploaded
+// asynchronously.
+func (s *Sender) scheduleFileUpload(
+	content []byte,
+	runPathStr string,
+	fileKind filetransfer.RunFileKind,
+) error {
+	if s.runfilesUploader == nil {
+		return errors.New("runfilesUploader is nil")
+	}
+
+	maybeRunPath, err := paths.Relative(runPathStr)
+	if err != nil {
+		return err
+	}
+	runPath := *maybeRunPath
+
+	if err = os.WriteFile(
+		filepath.Join(
+			s.settings.GetFilesDir().GetValue(),
+			string(runPath),
+		),
+		content,
+		0644,
+	); err != nil {
+		return err
+	}
+
+	s.runfilesUploader.UploadNow(runPath, fileKind)
+	return nil
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
