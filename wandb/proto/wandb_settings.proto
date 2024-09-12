@@ -4,6 +4,8 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 message ListStringValue {
   repeated string value = 1;
 }

@@ -77,7 +77,6 @@ checkout the official documentation:
   - [fasthttp](https://docs.sentry.io/platforms/go/guides/fasthttp/)
   - [gin](https://docs.sentry.io/platforms/go/guides/gin/)
   - [iris](https://docs.sentry.io/platforms/go/guides/iris/)
-  - [martini](https://docs.sentry.io/platforms/go/guides/martini/)
   - [negroni](https://docs.sentry.io/platforms/go/guides/negroni/)
 
 ## Resources
