@@ -19,7 +19,7 @@ jobs:
         ./core/scripts/code-checks.sh update
     - name: install ruff
       run: pip install ruff
-    - uses: pre-commit/action@v3.0.0
+    - uses: pre-commit/action@v3.0.1
       with:
         extra_args: --hook-stage pre-push --all-files
       env:
