@@ -12,7 +12,7 @@ import tensorflow as tf
 import tensorflow.keras.backend as K  # noqa: N812
 
 import wandb
-from wandb.sdk.integration_utils.data_logging import ValidationDataLogger
+from wandb.integration.integration_utils.data_logging import ValidationDataLogger
 from wandb.sdk.lib.deprecate import Deprecated, deprecate
 from wandb.util import add_import_hook
 

@@ -6,7 +6,7 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 import pytz
 
 import wandb
-from wandb.sdk.integration_utils.auto_logging import Response
+from wandb.integration.integration_utils.auto_logging import Response
 from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)
@@ -32,7 +32,7 @@ PIPELINES_WITH_TOP_K = [
 class HuggingFacePipelineRequestResponseResolver:
     """Resolver for HuggingFace's pipeline request and responses, providing necessary data transformations and formatting.
 
-    This is based off (from wandb.sdk.integration_utils.auto_logging import RequestResponseResolver)
+    This is based off (from wandb.integration.integration_utils.auto_logging import RequestResponseResolver)
     """
 
     autolog_id = None

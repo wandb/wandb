@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import wandb
-from wandb.sdk.integration_utils.auto_logging import Response
+from wandb.integration.integration_utils.auto_logging import Response
 from wandb.sdk.lib.runid import generate_id
 
 logger = logging.getLogger(__name__)

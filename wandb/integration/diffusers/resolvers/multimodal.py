@@ -2,7 +2,7 @@ import logging
 from typing import Any, Dict, List, Sequence
 
 import wandb
-from wandb.sdk.integration_utils.auto_logging import Response
+from wandb.integration.integration_utils.auto_logging import Response
 
 from .utils import (
     chunkify,
@@ -595,7 +595,7 @@ class DiffusersMultiModalPipelineResolver:
 
     This resolver is internally involved in the
     `__call__` for `wandb.integration.diffusers.pipeline_resolver.DiffusersPipelineResolver`.
-    This is based on `wandb.sdk.integration_utils.auto_logging.RequestResponseResolver`.
+    This is based on `wandb.integration.integration_utils.auto_logging.RequestResponseResolver`.
 
     Arguments:
         pipeline_name: (str) The name of the Diffusion Pipeline.
@@ -624,7 +624,7 @@ class DiffusersMultiModalPipelineResolver:
         Arguments:
             args: (Sequence[Any]) List of arguments.
             kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
-            response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
+            response: (wandb.integration.integration_utils.auto_logging.Response) The response from
                 the request.
             start_time: (float) Time when request started.
             time_elapsed: (float) Time elapsed for the request.
@@ -679,7 +679,7 @@ class DiffusersMultiModalPipelineResolver:
         """Unpack the generated images, audio, video, etc. from the Diffusion Pipeline's response.
 
         Arguments:
-            response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
+            response: (wandb.integration.integration_utils.auto_logging.Response) The response from
                 the request.
 
         Returns:
@@ -821,7 +821,7 @@ class DiffusersMultiModalPipelineResolver:
 
         Arguments:
             pipeline: (Any) The Diffusion Pipeline.
-            response: (wandb.sdk.integration_utils.auto_logging.Response) The response from
+            response: (wandb.integration.integration_utils.auto_logging.Response) The response from
                 the request.
             kwargs: (Dict[str, Any]) Dictionary of keyword arguments.
 

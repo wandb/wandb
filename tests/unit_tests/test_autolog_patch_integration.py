@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 import wandb
-from wandb.sdk.integration_utils.auto_logging import AutologAPI, PatchAPI
+from wandb.integration.integration_utils.auto_logging import AutologAPI, PatchAPI
 
 
 class PatchAPITest(PatchAPI):

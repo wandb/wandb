@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import wandb
 import wandb.data_types
-from wandb.sdk.integration_utils.data_logging import (
+from wandb.integration.integration_utils.data_logging import (
     CAN_INFER_IMAGE_AND_VIDEO,
     ValidationDataLogger,
 )
