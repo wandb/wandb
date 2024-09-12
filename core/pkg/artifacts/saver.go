@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/url"
 	"os"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -17,7 +18,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
@@ -29,7 +30,7 @@ type ArtifactSaver struct {
 	FileTransferManager filetransfer.FileTransferManager
 	FileCache           Cache
 	// Input.
-	Artifact         *service.ArtifactRecord
+	Artifact         *spb.ArtifactRecord
 	HistoryStep      int64
 	StagingDir       string
 	maxActiveBatches int
@@ -63,7 +64,7 @@ func NewArtifactSaver(
 	logger *observability.CoreLogger,
 	graphQLClient graphql.Client,
 	uploadManager filetransfer.FileTransferManager,
-	artifact *service.ArtifactRecord,
+	artifact *spb.ArtifactRecord,
 	historyStep int64,
 	stagingDir string,
 ) ArtifactSaver {
@@ -81,7 +82,7 @@ func NewArtifactSaver(
 }
 
 func (as *ArtifactSaver) createArtifact() (
-	attrs gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact,
+	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
 	var aliases []gql.ArtifactAliasInput
@@ -99,28 +100,63 @@ func (as *ArtifactSaver) createArtifact() (
 		runId = &as.Artifact.RunId
 	}
 
-	response, err := gql.CreateArtifact(
-		as.Ctx,
-		as.GraphqlClient,
-		as.Artifact.Entity,
-		as.Artifact.Project,
-		as.Artifact.Type,
-		as.Artifact.Name,
-		runId,
-		as.Artifact.Digest,
-		utils.NilIfZero(as.Artifact.Description),
-		aliases,
-		utils.NilIfZero(as.Artifact.Metadata),
-		utils.NilIfZero(as.Artifact.TtlDurationSeconds),
-		utils.NilIfZero(as.HistoryStep),
-		utils.NilIfZero(as.Artifact.DistributedId),
-		as.Artifact.ClientId,
-		as.Artifact.SequenceClientId,
-	)
+	// Check which fields are actually supported on the input
+	inputFieldNames, err := getInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
 	if err != nil {
-		return gql.CreateArtifactCreateArtifactCreateArtifactPayloadArtifact{}, err
+		return gql.CreatedArtifactArtifact{}, err
+	}
+
+	// Note: if tags are empty, `omitempty` ensures they're nulled out
+	// (effectively omitted) in the prepare GraphQL request
+	var tags []gql.TagInput
+	if slices.Contains(inputFieldNames, "tags") {
+		for _, tag := range as.Artifact.Tags {
+			tags = append(tags, gql.TagInput{TagName: tag})
+		}
+	}
+
+	input := gql.CreateArtifactInput{
+		EntityName:                as.Artifact.Entity,
+		ProjectName:               as.Artifact.Project,
+		ArtifactTypeName:          as.Artifact.Type,
+		ArtifactCollectionName:    as.Artifact.Name,
+		RunName:                   runId,
+		Digest:                    as.Artifact.Digest,
+		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
+		Description:               utils.NilIfZero(as.Artifact.Description),
+		Aliases:                   aliases,
+		Tags:                      tags,
+		Metadata:                  utils.NilIfZero(as.Artifact.Metadata),
+		TtlDurationSeconds:        utils.NilIfZero(as.Artifact.TtlDurationSeconds),
+		HistoryStep:               utils.NilIfZero(as.HistoryStep),
+		EnableDigestDeduplication: true,
+		DistributedID:             utils.NilIfZero(as.Artifact.DistributedId),
+		ClientID:                  as.Artifact.ClientId,
+		SequenceClientID:          as.Artifact.SequenceClientId,
+	}
+
+	response, err := gql.CreateArtifact(as.Ctx, as.GraphqlClient, input)
+	if err != nil {
+		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
+}
+
+func getInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
+	response, err := gql.InputFields(ctx, client, typeName)
+	if err != nil {
+		return nil, err
+	}
+	typeInfo := response.GetTypeInfo()
+	if typeInfo == nil {
+		return nil, fmt.Errorf("unable to verify allowed fields for %s", typeName)
+	}
+	fields := typeInfo.GetInputFields()
+	fieldNames := make([]string, len(fields))
+	for i, field := range fields {
+		fieldNames[i] = field.GetName()
+	}
+	return fieldNames, nil
 }
 
 func (as *ArtifactSaver) createManifest(
@@ -290,9 +326,9 @@ func (as *ArtifactSaver) processFiles(
 				}()
 			} else {
 				task := newUploadTask(fileInfo, *entry.LocalPath)
-				task.SetCompletionCallback(func(t *filetransfer.Task) {
-					doneChan <- uploadResult{name: fileInfo.name, err: t.Err}
-				})
+				task.OnComplete = func() {
+					doneChan <- uploadResult{name: fileInfo.name, err: task.Err}
+				}
 				as.FileTransferManager.AddTask(task)
 			}
 		// Listen for completed uploads, adding to the retry list if they failed.
@@ -367,10 +403,9 @@ func (as *ArtifactSaver) batchSize() int {
 	return max(min(maxBatchSize, filesPerMin), minBatchSize)
 }
 
-func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.Task {
-	return &filetransfer.Task{
+func newUploadTask(fileInfo serverFileResponse, localPath string) *filetransfer.DefaultUploadTask {
+	return &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
 		Path:     localPath,
 		Name:     fileInfo.name,
 		Url:      *fileInfo.uploadUrl,
@@ -439,7 +474,7 @@ func (as *ArtifactSaver) uploadMultipart(
 
 	type partResponse struct {
 		partNumber int64
-		task       *filetransfer.Task
+		task       *filetransfer.DefaultUploadTask
 	}
 
 	wg := sync.WaitGroup{}
@@ -467,10 +502,10 @@ func (as *ArtifactSaver) uploadMultipart(
 			"Content-Length:" + strconv.FormatInt(task.Size, 10),
 			"Content-Type:" + contentType,
 		}
-		task.SetCompletionCallback(func(t *filetransfer.Task) {
-			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: t}
+		task.OnComplete = func() {
+			partResponses <- partResponse{partNumber: partData[i].PartNumber, task: task}
 			wg.Done()
-		})
+		}
 		wg.Add(1)
 		as.FileTransferManager.AddTask(task)
 	}
@@ -592,19 +627,14 @@ func (as *ArtifactSaver) uploadManifest(
 	uploadUrl *string,
 	uploadHeaders []string,
 ) error {
-	resultChan := make(chan *filetransfer.Task)
-	task := &filetransfer.Task{
+	resultChan := make(chan *filetransfer.DefaultUploadTask)
+	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
-		Type:     filetransfer.UploadTask,
 		Path:     manifestFile,
 		Url:      *uploadUrl,
 		Headers:  uploadHeaders,
 	}
-	task.SetCompletionCallback(
-		func(t *filetransfer.Task) {
-			resultChan <- t
-		},
-	)
+	task.OnComplete = func() { resultChan <- task }
 
 	as.FileTransferManager.AddTask(task)
 	<-resultChan
@@ -642,6 +672,7 @@ func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	if err != nil {
 		return "", fmt.Errorf("ArtifactSaver.createArtifact: %w", err)
 	}
+
 	artifactID = artifactAttrs.Id
 	var baseArtifactId *string
 	if as.Artifact.BaseId != "" {

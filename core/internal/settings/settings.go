@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/auth"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -19,11 +19,11 @@ type Settings struct {
 	// The source proto.
 	//
 	// DO NOT ADD USAGES. Used to refactor incrementally.
-	Proto *service.Settings
+	Proto *spb.Settings
 }
 
 // Parses the Settings proto into a Settings object.
-func From(proto *service.Settings) *Settings {
+func From(proto *spb.Settings) *Settings {
 	return &Settings{Proto: proto}
 }
 
@@ -236,11 +236,22 @@ func (s *Settings) GetResume() string {
 }
 
 // ResumeFrom (or Rewind) information for the run.
-func (s *Settings) GetResumeFrom() *service.RunMoment {
+func (s *Settings) GetResumeFrom() *spb.RunMoment {
 	return s.Proto.ResumeFrom
 }
 
 // Fork information for the run.
-func (s *Settings) GetForkFrom() *service.RunMoment {
+func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
+}
+
+// File path to supply a jwt for authentication
+func (s *Settings) GetIdentityTokenFile() string {
+	return s.Proto.IdentityTokenFile.GetValue()
+}
+
+// Checks whether console capture is enabled. If it is, stdout and stderr
+// will be captured and sent to W&B.
+func (s *Settings) IsConsoleCaptureEnabled() bool {
+	return s.Proto.Console.GetValue() != "off"
 }

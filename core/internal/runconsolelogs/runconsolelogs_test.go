@@ -1,7 +1,6 @@
 package runconsolelogs_test
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -9,15 +8,16 @@ import (
 	"github.com/wandb/wandb/core/internal/filestreamtest"
 	"github.com/wandb/wandb/core/internal/paths"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
+	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
 func TestFileStreamUpdates(t *testing.T) {
-	settings := settings.From(&service.Settings{
+	settings := settings.From(&spb.Settings{
 		FilesDir: wrapperspb.String(t.TempDir()),
 	})
 	fileStream := filestreamtest.NewFakeFileStream()
@@ -26,17 +26,16 @@ func TestFileStreamUpdates(t *testing.T) {
 		ConsoleOutputFile: *outputFile,
 		Settings:          settings,
 		Logger:            observability.NewNoOpLogger(),
-		Ctx:               context.Background(),
-		LoopbackChan:      make(chan<- *service.Record, 10),
+		ExtraWork:         runworktest.New(),
 		FileStreamOrNil:   fileStream,
 		GetNow: func() time.Time {
 			return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 		},
 	})
 
-	sender.StreamLogs(&service.OutputRawRecord{Line: "line1\n"})
-	sender.StreamLogs(&service.OutputRawRecord{Line: "line2\n"})
-	sender.StreamLogs(&service.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "line1\n"})
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "line2\n"})
+	sender.StreamLogs(&spb.OutputRawRecord{Line: "\x1b[Aline2 - modified\n"})
 	sender.Finish()
 
 	request := fileStream.GetRequest(settings)

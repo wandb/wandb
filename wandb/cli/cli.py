@@ -35,7 +35,7 @@ import wandb.sdk.verify.verify as wandb_verify
 from wandb import Config, Error, env, util, wandb_agent, wandb_sdk
 from wandb.apis import InternalApi, PublicApi
 from wandb.apis.public import RunQueue
-from wandb.errors import WandbCoreNotAvailableError
+from wandb.errors import UsageError, WandbCoreNotAvailableError
 from wandb.integration.magic import magic_install
 from wandb.sdk.artifacts.artifact_file_cache import get_artifact_file_cache
 from wandb.sdk.launch import utils as launch_utils
@@ -123,6 +123,9 @@ _api = None  # caching api instance allows patching from unit tests
 
 def _get_cling_api(reset=None):
     """Get a reference to the internal api with cling settings."""
+    # TODO: move CLI to wandb-core backend
+    wandb.require("legacy-service")
+
     global _api
     if reset:
         _api = None
@@ -226,6 +229,9 @@ def projects(entity, display=True):
 @click.option("--verify", default=False, is_flag=True, help="Verify login credentials")
 @display_error
 def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
+    # TODO: move CLI to wandb-core backend
+    wandb.require("legacy-service")
+
     # TODO: handle no_offline
     anon_mode = "must" if anonymously else "never"
 
@@ -433,8 +439,15 @@ def init(ctx, project, entity, reset, mode):
 def beta():
     """Beta versions of wandb CLI commands. Requires wandb-core."""
     # this is the future that requires wandb-core!
+    import wandb.env
+
     wandb._sentry.configure_scope(process_context="wandb_beta")
-    wandb.require("core")
+
+    if wandb.env.is_require_legacy_service():
+        raise UsageError(
+            "wandb beta commands can only be used with wandb-core. "
+            f"Please make sure that `{wandb.env._REQUIRE_LEGACY_SERVICE}` is not set."
+        )
 
     try:
         get_core_path()
@@ -1418,6 +1431,13 @@ def launch_sweep(
     If passed in, will override the docker image value passed in using a config file.""",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    default=None,
+    metavar="BASE IMAGE",
+    help="""Docker image to run job code in. Incompatible with --docker-image.""",
+)
+@click.option(
     "--config",
     "-c",
     metavar="FILE",
@@ -1508,6 +1528,7 @@ def launch(
     entity,
     project,
     docker_image,
+    base_image,
     config,
     cli_template_vars,
     queue,
@@ -1604,6 +1625,7 @@ def launch(
             git_hash=git_version,
             name=job_name,
             project=project,
+            base_image=base_image,
             build_context=build_context,
             dockerfile=dockerfile,
             entity=entity,
@@ -2002,6 +2024,12 @@ def describe(job):
     "provided, this is used as the base path for the Dockerfile and entrypoint.",
 )
 @click.option(
+    "--base-image",
+    "-B",
+    type=str,
+    help="Base image to use for the job. Incompatible with image jobs.",
+)
+@click.option(
     "--dockerfile",
     "-D",
     type=str,
@@ -2025,6 +2053,7 @@ def create(
     git_hash,
     runtime,
     build_context,
+    base_image,
     dockerfile,
 ):
     """Create a job from a source, without a wandb run.
@@ -2056,6 +2085,10 @@ def create(
         )
         entrypoint = "main.py"
 
+    if job_type == "image" and base_image:
+        wandb.termerror("Cannot provide --base-image/-B for an `image` job")
+        return
+
     artifact, action, aliases = _create_job(
         api=api,
         path=path,
@@ -2069,6 +2102,7 @@ def create(
         git_hash=git_hash,
         runtime=runtime,
         build_context=build_context,
+        base_image=base_image,
         dockerfile=dockerfile,
     )
     if not artifact:
@@ -2894,7 +2928,6 @@ def disabled(service):
     try:
         api.set_setting("mode", "disabled", persist=True)
         click.echo("W&B disabled.")
-        os.environ[wandb.env._DISABLE_SERVICE] = str(service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
@@ -2914,19 +2947,10 @@ def enabled(service):
     try:
         api.set_setting("mode", "online", persist=True)
         click.echo("W&B enabled.")
-        os.environ[wandb.env._DISABLE_SERVICE] = str(not service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"
         )
-
-
-@cli.command("gc", hidden=True, context_settings={"ignore_unknown_options": True})
-@click.argument("args", nargs=-1)
-def gc(args):
-    click.echo(
-        "`wandb gc` command has been removed. Use `wandb sync --clean` to clean up synced runs."
-    )
 
 
 @cli.command(context_settings=CONTEXT, help="Verify your local instance")

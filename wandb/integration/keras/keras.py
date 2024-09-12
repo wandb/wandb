@@ -417,6 +417,17 @@ class WandbCallback(tf.keras.callbacks.Callback):
     ):
         if wandb.run is None:
             raise wandb.Error("You must call wandb.init() before WandbCallback()")
+
+        deprecate(
+            field_name=Deprecated.keras_callback,
+            warning_message=(
+                "WandbCallback is deprecated and will be removed in a future release. "
+                "Please use the WandbMetricsLogger, WandbModelCheckpoint, and WandbEvalCallback "
+                "callbacks instead. "
+                "See https://docs.wandb.ai/guides/integrations/keras for more information."
+            ),
+        )
+
         with wandb.wandb_lib.telemetry.context(run=wandb.run) as tel:
             tel.feature.keras = True
         self.validation_data = None
@@ -552,7 +563,7 @@ class WandbCallback(tf.keras.callbacks.Callback):
         self.params = params
 
     def set_model(self, model):
-        self.model = model
+        super().set_model(model)
         if self.input_type == "auto" and len(model.inputs) == 1:
             self.input_type = wandb.util.guess_data_type(
                 model.inputs[0].shape, risky=True

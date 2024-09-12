@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 func TestValidHeader(t *testing.T) {
@@ -97,7 +97,7 @@ func TestReadWriteRecord(t *testing.T) {
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 
 	err = store.Write(record)
 	assert.NoError(t, err)
@@ -150,7 +150,7 @@ func TestCorruptFile(t *testing.T) {
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
 	err = store.Close()
@@ -226,7 +226,7 @@ func TestWriteToClosedStore(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.Error(t, err, "can't write header")
 }
@@ -242,7 +242,7 @@ func TestReadFromClosedStore(t *testing.T) {
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
 

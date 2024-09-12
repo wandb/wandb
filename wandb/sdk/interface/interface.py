@@ -54,18 +54,20 @@ MANIFEST_FILE_SIZE_THRESHOLD = 100_000
 
 GlobStr = NewType("GlobStr", str)
 
+if sys.version_info >= (3, 8):
+    from typing import Literal, TypedDict
+else:
+    from typing_extensions import Literal, TypedDict
+
+PolicyName = Literal["now", "live", "end"]
+
+
+class FilesDict(TypedDict):
+    files: Iterable[Tuple[GlobStr, PolicyName]]
+
+
 if TYPE_CHECKING:
     from ..wandb_run import Run
-
-    if sys.version_info >= (3, 8):
-        from typing import Literal, TypedDict
-    else:
-        from typing_extensions import Literal, TypedDict
-
-    PolicyName = Literal["now", "live", "end"]
-
-    class FilesDict(TypedDict):
-        files: Iterable[Tuple[GlobStr, PolicyName]]
 
 
 logger = logging.getLogger("wandb")
@@ -112,15 +114,14 @@ class InterfaceBase:
     def _publish_header(self, header: pb.HeaderRecord) -> None:
         raise NotImplementedError
 
-    def communicate_status(self) -> Optional[pb.StatusResponse]:
-        status = pb.StatusRequest()
-        resp = self._communicate_status(status)
-        return resp
+    def deliver_status(self) -> MailboxHandle:
+        return self._deliver_status(pb.StatusRequest())
 
     @abstractmethod
-    def _communicate_status(
-        self, status: pb.StatusRequest
-    ) -> Optional[pb.StatusResponse]:
+    def _deliver_status(
+        self,
+        status: pb.StatusRequest,
+    ) -> MailboxHandle:
         raise NotImplementedError
 
     def _make_config(
@@ -518,6 +519,7 @@ class InterfaceBase:
         run: "Run",
         artifact: "Artifact",
         aliases: Iterable[str],
+        tags: Optional[Iterable[str]] = None,
         history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -531,8 +533,9 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
@@ -576,6 +579,7 @@ class InterfaceBase:
         run: "Run",
         artifact: "Artifact",
         aliases: Iterable[str],
+        tags: Optional[Iterable[str]] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -588,8 +592,8 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
         self._publish_artifact(proto_artifact)
 
     @abstractmethod

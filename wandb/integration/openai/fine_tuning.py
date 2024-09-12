@@ -1,3 +1,4 @@
+import base64
 import datetime
 import io
 import json
@@ -16,13 +17,13 @@ from wandb.util import parse_version
 
 openai = util.get_module(
     name="openai",
-    required="`openai` not installed. This integration requires `openai`. To fix, please `pip install openai`",
-    lazy="False",
+    required="This integration requires `openai`. To install, please run `pip install openai`",
+    lazy=False,
 )
 
-if parse_version(openai.__version__) < parse_version("1.0.1"):
+if parse_version(openai.__version__) < parse_version("1.12.0"):
     raise wandb.Error(
-        f"This integration requires openai version 1.0.1 and above. Your current version is {openai.__version__} "
+        f"This integration requires openai version 1.12.0 and above. Your current version is {openai.__version__} "
         "To fix, please `pip install -U openai`"
     )
 
@@ -36,23 +37,23 @@ from openai.types.fine_tuning.fine_tuning_job import (  # noqa: E402
 np = util.get_module(
     name="numpy",
     required="`numpy` not installed >> This integration requires numpy!  To fix, please `pip install numpy`",
-    lazy="False",
+    lazy=False,
 )
 
 pd = util.get_module(
     name="pandas",
     required="`pandas` not installed >> This integration requires pandas!  To fix, please `pip install pandas`",
-    lazy="False",
+    lazy=False,
 )
 
 
 class WandbLogger:
     """Log OpenAI fine-tunes to [Weights & Biases](https://wandb.me/openai-docs)."""
 
-    _wandb_api: wandb.Api = None
+    _wandb_api: Optional[wandb.Api] = None
     _logged_in: bool = False
-    openai_client: OpenAI = None
-    _run: Run = None
+    openai_client: Optional[OpenAI] = None
+    _run: Optional[Run] = None
 
     @classmethod
     def sync(
@@ -228,7 +229,14 @@ class WandbLogger:
         # check results are present
         try:
             results_id = fine_tune.result_files[0]
-            results = cls.openai_client.files.content(file_id=results_id).text
+            try:
+                encoded_results = cls.openai_client.files.content(
+                    file_id=results_id
+                ).read()
+                results = base64.b64decode(encoded_results).decode("utf-8")
+            except Exception:
+                # attempt to read as text, works for older jobs
+                results = cls.openai_client.files.content(file_id=results_id).text
         except openai.NotFoundError:
             if show_individual_warnings:
                 wandb.termwarn(

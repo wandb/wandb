@@ -10,14 +10,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
     - uses: actions/setup-go@v5
       with:
-        go-version: '1.22'
-    - uses: actions/setup-python@v3
+        go-version-file: core/go.mod
     - name: setup env
       run: |
         ./core/scripts/code-checks.sh update
-    - uses: pre-commit/action@v3.0.0
+    - name: install ruff
+      run: pip install ruff
+    - uses: pre-commit/action@v3.0.1
       with:
         extra_args: --hook-stage pre-push --all-files
       env:

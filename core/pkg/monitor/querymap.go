@@ -1,5 +1,8 @@
 package monitor
 
+// suppress golangci-lint unused code warning as it is only used on darwin
+var _ = queryMapNumber
+
 // queryMapNumber reads a number-valued property from a JSON object.
 //
 // Returns 0 and false if the key is not found or isn't a number.

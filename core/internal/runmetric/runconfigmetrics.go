@@ -1,11 +1,8 @@
 package runmetric
 
 import (
-	"errors"
-	"fmt"
-
 	"github.com/wandb/wandb/core/internal/corelib"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunConfigMetrics tracks a run's defined metrics in the run's config.
@@ -21,7 +18,7 @@ func NewRunConfigMetrics() *RunConfigMetrics {
 }
 
 // ProcessRecord updates metric definitions.
-func (rcm *RunConfigMetrics) ProcessRecord(record *service.MetricRecord) error {
+func (rcm *RunConfigMetrics) ProcessRecord(record *spb.MetricRecord) error {
 	return rcm.handler.ProcessRecord(record)
 }
 
@@ -30,27 +27,20 @@ func (rcm *RunConfigMetrics) ProcessRecord(record *service.MetricRecord) error {
 //
 // May succeed partially, in which case the returned slice contains all
 // metrics that were successfully encoded and the error is non-nil.
-func (rcm *RunConfigMetrics) ToRunConfigData() ([]map[string]any, error) {
-	var errs []error
+func (rcm *RunConfigMetrics) ToRunConfigData() []map[string]any {
 	var encodedMetrics []map[string]any
 	indexByName := make(map[string]int)
 
 	for name, metric := range rcm.handler.definedMetrics {
-		var err error
-		encodedMetrics, err = rcm.encodeToRunConfigData(
+		encodedMetrics = rcm.encodeToRunConfigData(
 			name,
 			metric,
 			encodedMetrics,
 			indexByName,
-			make(map[string]struct{}),
 		)
-
-		if err != nil {
-			errs = append(errs, err)
-		}
 	}
 
-	return encodedMetrics, errors.Join(errs...)
+	return encodedMetrics
 }
 
 func (rcm *RunConfigMetrics) encodeToRunConfigData(
@@ -58,47 +48,37 @@ func (rcm *RunConfigMetrics) encodeToRunConfigData(
 	metric definedMetric,
 	encodedMetrics []map[string]any,
 	indexByName map[string]int,
-	seenMetrics map[string]struct{},
-) ([]map[string]any, error) {
+) []map[string]any {
 	// Early exit if we already added the metric to the array.
 	if _, processed := indexByName[name]; processed {
-		return encodedMetrics, nil
+		return encodedMetrics
 	}
 
-	// Prevent infinite loops (note: indexByName is updated at the
-	// end of the method, so it's not suitable for this purpose.)
-	if _, seen := seenMetrics[name]; seen {
-		return encodedMetrics, fmt.Errorf("metric '%s' references itself", name)
-	}
-	seenMetrics[name] = struct{}{}
+	index := len(encodedMetrics)
+	indexByName[name] = index
+
+	// Save a spot in encodedMetrics, but encode `record` after we've
+	// fully built it at the end of the method.
+	encodedMetrics = append(encodedMetrics, nil)
 
 	record := metric.ToRecord(name)
+	defer func() {
+		encodedMetrics[index] = corelib.ProtoEncodeToDict(record)
+	}()
 
-	// Encode the step metric first because we need to pass the index
-	// to the UI.
 	if len(metric.Step) > 0 {
-		var err error
-		encodedMetrics, err = rcm.encodeToRunConfigData(
+		// Ensure step has an index.
+		encodedMetrics = rcm.encodeToRunConfigData(
 			metric.Step,
 			// If it doesn't exist, then it's an empty definition which is OK.
 			rcm.handler.definedMetrics[metric.Step],
 			encodedMetrics,
 			indexByName,
-			seenMetrics,
 		)
-
-		if err != nil {
-			return encodedMetrics, fmt.Errorf(
-				"failed to encode metric '%s': %v",
-				name,
-				err,
-			)
-		}
 
 		record.StepMetric = ""
 		record.StepMetricIndex = int32(indexByName[metric.Step] + 1)
 	}
 
-	indexByName[name] = len(encodedMetrics)
-	return append(encodedMetrics, corelib.ProtoEncodeToDict(record)), nil
+	return encodedMetrics
 }

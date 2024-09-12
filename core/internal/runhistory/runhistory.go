@@ -6,16 +6,16 @@ import (
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // RunHistory is a set of metrics in a single step of a run.
 type RunHistory struct {
-	metrics *pathtree.PathTree
+	metrics *pathtree.PathTree[any]
 }
 
 func New() *RunHistory {
-	return &RunHistory{metrics: pathtree.New()}
+	return &RunHistory{metrics: pathtree.New[any]()}
 }
 
 // ToExtendedJSON returns the corresponding wandb-history.jsonl line.
@@ -32,8 +32,8 @@ func (rh *RunHistory) ToExtendedJSON() ([]byte, error) {
 // other metrics.
 //
 // TODO: Don't convert history back to protos. Delete this method.
-func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
-	var records []*service.HistoryItem
+func (rh *RunHistory) ToRecords() ([]*spb.HistoryItem, error) {
+	var records []*spb.HistoryItem
 	var errs []error
 
 	rh.metrics.ForEachLeaf(func(path pathtree.TreePath, value any) bool {
@@ -45,7 +45,7 @@ func (rh *RunHistory) ToRecords() ([]*service.HistoryItem, error) {
 			return true
 		}
 
-		records = append(records, &service.HistoryItem{
+		records = append(records, &spb.HistoryItem{
 			NestedKey: path.Labels(),
 			ValueJson: string(valueJSON),
 		})
@@ -168,7 +168,7 @@ func (rh *RunHistory) SetString(path pathtree.TreePath, value string) {
 // If the history item contains multiple metrics, such as if its ValueJson is
 // a JSON-encoded dictionary, then metrics are set on a best-effort basis,
 // and any errors are joined and returned.
-func (rh *RunHistory) SetFromRecord(record *service.HistoryItem) error {
+func (rh *RunHistory) SetFromRecord(record *spb.HistoryItem) error {
 	var path pathtree.TreePath
 
 	switch {

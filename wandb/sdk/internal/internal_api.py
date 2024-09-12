@@ -3551,7 +3551,7 @@ class Api:
         _id: Optional[str] = response["createArtifactType"]["artifactType"]["id"]
         return _id
 
-    def server_artifact_introspection(self) -> List:
+    def server_artifact_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerArtifact {
                 ArtifactInfoType: __type(name:"Artifact") {
@@ -3572,7 +3572,7 @@ class Api:
 
         return self.server_artifact_fields_info
 
-    def server_create_artifact_introspection(self) -> List:
+    def server_create_artifact_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerCreateArtifactInput {
                 CreateArtifactInputInfoType: __type(name:"CreateArtifactInput") {
@@ -3626,6 +3626,10 @@ class Api:
         if "ttlDurationSeconds" in fields:
             types += "$ttlDurationSeconds: Int64,"
             values += "ttlDurationSeconds: $ttlDurationSeconds,"
+
+        if "tags" in fields:
+            types += "$tags: [TagInput!],"
+            values += "tags: $tags,"
 
         query_template = """
             mutation CreateArtifact(
@@ -3686,18 +3690,25 @@ class Api:
         metadata: Optional[Dict] = None,
         ttl_duration_seconds: Optional[int] = None,
         aliases: Optional[List[Dict[str, str]]] = None,
+        tags: Optional[List[Dict[str, str]]] = None,
         distributed_id: Optional[str] = None,
         is_user_created: Optional[bool] = False,
         history_step: Optional[int] = None,
     ) -> Tuple[Dict, Dict]:
         fields = self.server_create_artifact_introspection()
         artifact_fields = self.server_artifact_introspection()
-        if "ttlIsInherited" not in artifact_fields and ttl_duration_seconds:
+        if ("ttlIsInherited" not in artifact_fields) and ttl_duration_seconds:
             wandb.termwarn(
                 "Server not compatible with setting Artifact TTLs, please upgrade the server to use Artifact TTL"
             )
             # ttlDurationSeconds is only usable if ttlIsInherited is also present
             ttl_duration_seconds = None
+        if ("tags" not in artifact_fields) and tags:
+            wandb.termwarn(
+                "Server not compatible with Artifact tags. "
+                "To use Artifact tags, please upgrade the server to v0.85 or higher."
+            )
+
         query_template = self._get_create_artifact_mutation(
             fields, history_step, distributed_id
         )
@@ -3706,8 +3717,6 @@ class Api:
         project_name = project_name or self.settings("project")
         if not is_user_created:
             run_name = run_name or self.current_run_id
-        if aliases is None:
-            aliases = []
 
         mutation = gql(query_template)
         response = self.gql(
@@ -3722,7 +3731,8 @@ class Api:
                 "sequenceClientID": sequence_client_id,
                 "digest": digest,
                 "description": description,
-                "aliases": [alias for alias in aliases],
+                "aliases": list(aliases or []),
+                "tags": list(tags or []),
                 "metadata": json.dumps(util.make_safe_for_json(metadata))
                 if metadata
                 else None,
