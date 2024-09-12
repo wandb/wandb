@@ -21,6 +21,7 @@ from wandb.sdk.data_types._dtypes import (
     UnknownType,
 )
 from wandb.sdk.data_types.image import _ImageFileType
+from wandb.sdk.data_types.table import _TableType
 
 
 def test_none_type():
@@ -450,7 +451,7 @@ def test_classes_type():
 
 def test_table_type():
     table_1 = wandb.Table(columns=["col"], data=[[1]])
-    t1 = data_types._TableType.from_obj(table_1)
+    t1 = _TableType.from_obj(table_1)
     table_2 = wandb.Table(columns=["col"], data=[[1.3]])
     table_3 = wandb.Table(columns=["col"], data=[["a"]])
     assert t1.assign(table_2) == t1
