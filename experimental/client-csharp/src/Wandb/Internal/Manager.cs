@@ -10,6 +10,7 @@ namespace Wandb.Internal
     {
         private Process? _coreProcess;
         private string _portFilePath;
+        private static readonly char[] separator = ['\r', '\n'];
 
         public Manager()
         {
@@ -50,7 +51,7 @@ namespace Wandb.Internal
                     continue;
 
                 var contents = await File.ReadAllTextAsync(_portFilePath);
-                var lines = contents.Split(new[] { '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+                var lines = contents.Split(separator, StringSplitOptions.RemoveEmptyEntries);
 
                 if (lines.Length > 0 && lines[^1] == "EOF")
                 {

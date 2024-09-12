@@ -28,21 +28,19 @@ namespace Wandb
         }
 
         public async Task<Run> Init(
-            string? project = null
+            Settings? settings = null
         )
         {
             await Setup();
 
-            var settings = new Settings(
-                project: project
-            );
+            var _settings = settings ?? new Settings();
 
             // Create the run directory structure
-            Directory.CreateDirectory(settings.SyncDir);
-            Directory.CreateDirectory(settings.FilesDir);
-            Directory.CreateDirectory(settings.LogDir);
+            Directory.CreateDirectory(_settings.SyncDir);
+            Directory.CreateDirectory(_settings.FilesDir);
+            Directory.CreateDirectory(_settings.LogDir);
 
-            var run = new Run(new SocketInterface(_tcpCommunication, settings.RunId), settings);
+            var run = new Run(new SocketInterface(_tcpCommunication, _settings.RunId), _settings);
             await run.Init();
 
             return run;

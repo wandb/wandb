@@ -4,6 +4,7 @@ namespace Wandb
 {
     public class Settings
     {
+        public string ApiKey { get; set; }
         public string BaseUrl { get; }
         public string DisplayName { get; set; }
         public string Entity { get; set; }
@@ -14,6 +15,7 @@ namespace Wandb
         public DateTime StartDatetime { get; set; }
 
         public Settings(
+            string? apiKey = null,
             string? baseUrl = null,
             string? displayName = null,
             string? entity = null,
@@ -24,6 +26,7 @@ namespace Wandb
         {
             RandomStringGenerator generator = new();
 
+            ApiKey = apiKey;
             BaseUrl = baseUrl ?? "https://api.wandb.ai";
             DisplayName = displayName ?? "";
             Entity = entity ?? "";
@@ -55,6 +58,7 @@ namespace Wandb
         {
             return new WandbInternal.Settings
             {
+                ApiKey = ApiKey,
                 BaseUrl = BaseUrl,
                 Entity = Entity,
                 FilesDir = FilesDir,
