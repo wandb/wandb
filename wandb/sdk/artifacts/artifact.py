@@ -1712,18 +1712,18 @@ class Artifact:
 
         # TODO: download artifacts using core when implemented
         # if is_require_core():
-        #     return self._download_using_core(
-        #         root=root,
-        #         allow_missing_references=allow_missing_references,
-        #         skip_cache=bool(skip_cache),
-        #         path_prefix=path_prefix,
-        #     )
-        return self._download(
+        return self._download_using_core(
             root=root,
             allow_missing_references=allow_missing_references,
-            skip_cache=skip_cache,
+            skip_cache=bool(skip_cache),
             path_prefix=path_prefix,
         )
+        # return self._download(
+        #     root=root,
+        #     allow_missing_references=allow_missing_references,
+        #     skip_cache=skip_cache,
+        #     path_prefix=path_prefix,
+        # )
 
     def _download_using_core(
         self,
@@ -1776,12 +1776,12 @@ class Artifact:
             path_prefix,  # type: ignore
         )
         # TODO: Start the download process in the user process too, to handle reference downloads
-        self._download(
-            root=root,
-            allow_missing_references=allow_missing_references,
-            skip_cache=skip_cache,
-            path_prefix=path_prefix,
-        )
+        # self._download(
+        #     root=root,
+        #     allow_missing_references=allow_missing_references,
+        #     skip_cache=skip_cache,
+        #     path_prefix=path_prefix,
+        # )
         result = handle.wait(timeout=-1)
 
         if result is None:
