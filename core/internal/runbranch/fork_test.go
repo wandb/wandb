@@ -14,7 +14,7 @@ func TestForkSameRunIDs(t *testing.T) {
 		"runid",
 		"_step",
 		0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{},
 		runbranch.RunPath{RunID: "runid"},
 	)
@@ -33,7 +33,7 @@ func TestForkUnsupportedMetricName(t *testing.T) {
 		"runid",
 		"other",
 		0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{},
 		runbranch.RunPath{RunID: "other"},
 	)
@@ -51,7 +51,7 @@ func TestForkGetUpdatesValid(t *testing.T) {
 		"runid",
 		"_step",
 		10,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{},
 		runbranch.RunPath{RunID: "other"},
 	)

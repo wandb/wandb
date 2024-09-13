@@ -46,9 +46,9 @@ func NewRewindBranch(
 	}
 }
 
-// ApplyChanges applies the changes to the run params based on the rewind
+// GetUpdates applies the changes to the run params based on the rewind
 // information returned from the server.
-func (rb RewindBranch) ApplyChanges(
+func (rb RewindBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {

@@ -30,9 +30,9 @@ func NewForkBranch(
 	}
 }
 
-// ApplyChanges applies the changes to the run params based on the fork
+// GetUpdates applies the changes to the run params based on the fork
 // information
-func (fb *ForkBranch) ApplyChanges(
+func (fb *ForkBranch) GetUpdates(
 	params *RunParams,
 	runpath RunPath,
 ) (*RunParams, error) {

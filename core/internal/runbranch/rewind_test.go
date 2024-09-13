@@ -35,7 +35,7 @@ func TestRewindDifferentRunIDs(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "rewind", "_step", 0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{RunID: "other"},
 		runbranch.RunPath{RunID: "other"},
 	)
@@ -55,7 +55,7 @@ func TestRewindUnsupportedMetricName(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "other", 0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{RunID: "runid"},
 		runbranch.RunPath{RunID: "runid"},
 	)
@@ -80,7 +80,7 @@ func TestApplyChangesNoResponse(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(&runbranch.RunParams{
+	).GetUpdates(&runbranch.RunParams{
 		RunID: "runid",
 	}, runbranch.RunPath{RunID: "runid"},
 	)
@@ -119,7 +119,7 @@ func TestRewindApplyChangesWithResponse(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 10,
-	).ApplyChanges(&runbranch.RunParams{
+	).GetUpdates(&runbranch.RunParams{
 		RunID: "runid",
 	}, runbranch.RunPath{RunID: "runid"},
 	)
@@ -163,7 +163,7 @@ func TestRewindApplyChangesConfigNil(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{
 			RunID: "runid",
 		}, runbranch.RunPath{RunID: "runid"},
@@ -201,7 +201,7 @@ func TestRewindApplyChangesInvalidConfig(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{
 			RunID: "runid",
 		}, runbranch.RunPath{RunID: "runid"},
@@ -239,7 +239,7 @@ func TestRewindApplyChangesInvalidTypeConfig(t *testing.T) {
 
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{RunID: "runid"}, runbranch.RunPath{
 			RunID: "runid",
 		},
@@ -278,7 +278,7 @@ func TestRewindApplyChangesConfigNoValue(t *testing.T) {
 	)
 	params, err := runbranch.NewRewindBranch(
 		ctx, mockGQL, "runid", "_step", 0,
-	).ApplyChanges(
+	).GetUpdates(
 		&runbranch.RunParams{RunID: "runid"}, runbranch.RunPath{
 			RunID: "runid",
 		},

@@ -687,6 +687,91 @@ func (s *Sender) serializeConfig(format runconfig.Format) ([]byte, error) {
 	return serializedConfig, nil
 }
 
+// sendRunUpdate sends an upsert run to the server and might update the client
+// of the run state, depending if the client is waiting for a response
+func (s *Sender) sendRunUpdate(record *spb.Record, run *spb.RunRecord) {
+
+	// if there is no client we can't do anything so we just return
+	if s.graphqlClient == nil {
+		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+			s.respond(record,
+				&spb.RunUpdateResult{
+					Run: run,
+				},
+			)
+		}
+		return
+	}
+
+	// start a new context with an additional argument from the parent context
+	// this is used to pass the retry function to the graphql client
+	ctx := context.WithValue(
+		s.runWork.BeforeEndCtx(),
+		clients.CtxRetryPolicyKey,
+		clients.UpsertBucketRetryPolicy,
+	)
+
+	// if the record has a mailbox slot, create a new cancelable context
+	// and store the cancel function in the message registry so that
+	// the context can be canceled if requested by the client
+	mailboxSlot := record.GetControl().GetMailboxSlot()
+	if mailboxSlot != "" {
+		// if this times out, we mark the run as done as there is
+		// no need to proceed with it
+		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
+	} else if !s.startState.Initialized {
+		// this should never happen:
+		// the initial run upsert record should have a mailbox slot set by the client
+		s.logger.CaptureFatalAndPanic(
+			errors.New("sender: sendRunUpdate: mailbox slot not set"),
+		)
+	}
+
+	config, _ := s.serializeConfig(runconfig.FormatJson)
+	configStr := string(config)
+	program := s.settings.GetProgram().GetValue()
+
+	update, err := runbranch.NewNoBranch(
+		ctx,
+		s.graphqlClient,
+	).GetUpdates(run, configStr, program)
+
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: sendRunUpdate: failed to update run state: %s", err),
+		)
+		// provide more info about the error to the user
+		if errType, ok := err.(*runbranch.BranchError); ok {
+			if errType.Response != nil {
+				if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+					result := &spb.RunUpdateResult{
+						Error: errType.Response,
+					}
+					s.respond(record, result)
+				}
+			}
+			return
+		}
+	}
+
+	if !s.startState.Initialized {
+		s.startState.Merge(update)
+	}
+
+	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
+		// This will be done only for the initial run upsert record
+		// the consequent updates are fire-and-forget
+		proto.Merge(run, s.startState.Proto())
+		s.respond(record,
+			&spb.RunUpdateResult{
+				Run: run,
+			},
+		)
+	}
+}
+
+// sendForkRun only update the run state, it acts similarly to starting a new run
+// but with some initial state updates provided by the user
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 
 	fork := s.settings.GetForkFrom()
@@ -694,7 +779,7 @@ func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 		fork.GetRun(),
 		fork.GetMetric(),
 		fork.GetValue(),
-	).ApplyChanges(s.startState, runbranch.RunPath{
+	).GetUpdates(s.startState, runbranch.RunPath{
 		Entity:  s.startState.Entity,
 		Project: s.startState.Project,
 		RunID:   s.startState.RunID,
@@ -720,9 +805,13 @@ func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
 
 	s.startState.Merge(update)
 
-	s.upsertRun(record, run)
+	s.sendRunUpdate(record, run)
 }
 
+// sendRewindRun sends a rewind run request to the server this is only done once
+// for the initial run upsert record and the consequent updates will not have
+// to get the rewind state from the server, as well as inform the server that
+// this is a rewind run
 func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 
 	// if there is no client we can't do anything so we just return
@@ -744,7 +833,7 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 		rewind.GetRun(),
 		rewind.GetMetric(),
 		rewind.GetValue(),
-	).ApplyChanges(s.startState, runbranch.RunPath{
+	).GetUpdates(s.startState, runbranch.RunPath{
 		Entity:  s.startState.Entity,
 		Project: s.startState.Project,
 		RunID:   s.startState.RunID,
@@ -783,6 +872,9 @@ func (s *Sender) sendRewindRun(record *spb.Record, run *spb.RunRecord) {
 	}
 }
 
+// sendResumeRun sends a resume run request to the server this is only done once
+// for the initial run upsert record and the consequent updates will not have
+// to get the resume state from the server
 func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
 
 	// if there is no client we can't do anything so we just return
@@ -837,7 +929,8 @@ func (s *Sender) sendResumeRun(record *spb.Record, run *spb.RunRecord) {
 	s.runConfig.MergeResumedConfig(s.startState.Config)
 
 	proto.Merge(run, s.startState.Proto())
-	s.upsertRun(record, run)
+
+	s.sendRunUpdate(record, run)
 }
 
 // sendRun sends a run record to the server and updates the run record
@@ -849,7 +942,6 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	//  slot.
 	//  We should probably separate the initial upsert from the updates.
 
-	var ok bool
 	runClone, ok := proto.Clone(run).(*spb.RunRecord)
 	if !ok {
 		err := errors.New("failed to clone run record")
@@ -875,184 +967,63 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	s.updateConfigPrivate()
 
 	if !s.startState.Initialized {
-
-		// update the run state with the initial run record
-		s.startState.Merge(&runbranch.RunParams{
-			RunID:       runClone.GetRunId(),
-			Project:     runClone.GetProject(),
-			Entity:      runClone.GetEntity(),
-			DisplayName: runClone.GetDisplayName(),
-			StorageID:   runClone.GetStorageId(),
-			SweepID:     runClone.GetSweepId(),
-			StartTime:   runClone.GetStartTime().AsTime(),
-		})
-
-		isResume := s.settings.GetResume().GetValue()
-		isRewind := s.settings.GetResumeFrom()
-		isFork := s.settings.GetForkFrom()
-		switch {
-		case isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil:
-			if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-				s.respond(record,
-					&spb.RunUpdateResult{
-						Error: &spb.ErrorInfo{
-							Code: spb.ErrorInfo_USAGE,
-							Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
-								"Please specify only one of them.",
-						},
-					},
-				)
-			}
-			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
-		case isResume != "":
-			s.sendResumeRun(record, runClone)
-		case isRewind != nil:
-			s.sendRewindRun(record, runClone)
-		case isFork != nil:
-			s.sendForkRun(record, runClone)
-		default:
-			s.upsertRun(record, runClone)
-		}
+		s.sendInitialRunUpdate(record, runClone)
+		// Since sendRun is used for subsequent updates, we don't want to
+		// update the startState after the initial run upsert
 		s.startState.Initialized = true
 		return
 	}
 
-	s.upsertRun(record, runClone)
+	s.sendRunUpdate(record, runClone)
 }
 
-func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
+// sendInitialRunUpdate sends the initial run update to the server and updates
+// the run state with the initial run record information
+// This is only done once for the initial run upsert record and the consequent
+// updates will not have to get the run state from the server
+func (s *Sender) sendInitialRunUpdate(record *spb.Record, run *spb.RunRecord) {
 
-	// if there is no graphql client, we don't need to do anything
-	if s.graphqlClient == nil {
-		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-			s.respond(record,
-				&spb.RunUpdateResult{
-					Run: run,
-				})
-		}
-		return
-	}
+	// update the run state with the initial run record
+	s.startState.Merge(&runbranch.RunParams{
+		RunID:       run.GetRunId(),
+		Project:     run.GetProject(),
+		Entity:      run.GetEntity(),
+		DisplayName: run.GetDisplayName(),
+		StorageID:   run.GetStorageId(),
+		SweepID:     run.GetSweepId(),
+		StartTime:   run.GetStartTime().AsTime(),
+	})
 
-	// start a new context with an additional argument from the parent context
-	// this is used to pass the retry function to the graphql client
-	ctx := context.WithValue(
-		s.runWork.BeforeEndCtx(),
-		clients.CtxRetryPolicyKey,
-		clients.UpsertBucketRetryPolicy,
-	)
+	isResume := s.settings.GetResume().GetValue()
+	isRewind := s.settings.GetResumeFrom()
+	isFork := s.settings.GetForkFrom()
 
-	// if the record has a mailbox slot, create a new cancelable context
-	// and store the cancel function in the message registry so that
-	// the context can be canceled if requested by the client
-	mailboxSlot := record.GetControl().GetMailboxSlot()
-	if mailboxSlot != "" {
-		// if this times out, we mark the run as done as there is
-		// no need to proceed with it
-		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
-	} else if !s.startState.Initialized {
-		// this should never happen:
-		// the initial run upsert record should have a mailbox slot set by the client
-		s.logger.CaptureFatalAndPanic(
-			errors.New("sender: upsertRun: mailbox slot not set"),
-		)
-	}
-
-	config, _ := s.serializeConfig(runconfig.FormatJson)
-	configStr := string(config)
-
-	var commit, repo string
-	git := run.GetGit()
-	if git != nil {
-		commit = git.GetCommit()
-		repo = git.GetRemoteUrl()
-	}
-
-	program := s.settings.GetProgram().GetValue()
-
-	data, err := gql.UpsertBucket(
-		ctx,                              // ctx
-		s.graphqlClient,                  // client
-		nil,                              // id
-		&run.RunId,                       // name
-		utils.NilIfZero(run.Project),     // project
-		utils.NilIfZero(run.Entity),      // entity
-		utils.NilIfZero(run.RunGroup),    // groupName
-		nil,                              // description
-		utils.NilIfZero(run.DisplayName), // displayName
-		utils.NilIfZero(run.Notes),       // notes
-		utils.NilIfZero(commit),          // commit
-		&configStr,                       // config
-		utils.NilIfZero(run.Host),        // host
-		nil,                              // debug
-		utils.NilIfZero(program),         // program
-		utils.NilIfZero(repo),            // repo
-		utils.NilIfZero(run.JobType),     // jobType
-		nil,                              // state
-		utils.NilIfZero(run.SweepId),     // sweep
-		run.Tags,                         // tags []string,
-		nil,                              // summaryMetrics
-	)
-
-	if err != nil {
-		err = fmt.Errorf("failed to upsert bucket: %s", err)
-		s.logger.Error("sender: upsertRun:", "error", err)
-		// TODO(sync): make this more robust in case of a failed UpsertBucket request.
-		//  Need to inform the sync service that this ops failed.
+	if isResume != "" && isRewind != nil || isResume != "" && isFork != nil || isRewind != nil && isFork != nil {
 		if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
 			s.respond(record,
 				&spb.RunUpdateResult{
 					Error: &spb.ErrorInfo{
-						Message: err.Error(),
-						Code:    spb.ErrorInfo_COMMUNICATION,
+						Code: spb.ErrorInfo_USAGE,
+						Message: "`resume`, `fork_from`, and `resume_from` are mutually exclusive. " +
+							"Please specify only one of them.",
 					},
 				},
 			)
 		}
+		s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
 		return
 	}
 
-	// manage the state of the run
-	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
-		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
-	} else if !s.startState.Initialized {
-
-		bucket := data.GetUpsertBucket().GetBucket()
-
-		project := bucket.GetProject()
-		var projectName, entityName string
-		if project == nil {
-			s.logger.Error("sender: upsertRun: project is nil")
-		} else {
-			entity := project.GetEntity()
-			entityName = entity.GetName()
-			projectName = project.GetName()
-		}
-
-		fileStreamOffset := make(fs.FileStreamOffsetMap)
-		fileStreamOffset[fs.HistoryChunk] = utils.ZeroIfNil(bucket.GetHistoryLineCount())
-
-		params := &runbranch.RunParams{
-			StorageID:        bucket.GetId(),
-			Entity:           utils.ZeroIfNil(&entityName),
-			Project:          utils.ZeroIfNil(&projectName),
-			RunID:            bucket.GetName(),
-			DisplayName:      utils.ZeroIfNil(bucket.GetDisplayName()),
-			SweepID:          utils.ZeroIfNil(bucket.GetSweepName()),
-			FileStreamOffset: fileStreamOffset,
-		}
-
-		s.startState.Merge(params)
-	}
-
-	if record.GetControl().GetReqResp() || record.GetControl().GetMailboxSlot() != "" {
-		// This will be done only for the initial run upsert record
-		// the consequent updates are fire-and-forget
-		proto.Merge(run, s.startState.Proto())
-		s.respond(record,
-			&spb.RunUpdateResult{
-				Run: run,
-			},
-		)
+	switch {
+	case isResume != "":
+		s.sendResumeRun(record, run)
+	case isRewind != nil:
+		s.sendRewindRun(record, run)
+	case isFork != nil:
+		s.sendForkRun(record, run)
+	default:
+		// no branching, just send the run record
+		s.sendRunUpdate(record, run)
 	}
 }
 
