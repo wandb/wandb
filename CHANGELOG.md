@@ -15,6 +15,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - The `wandb.sklearn` module has been deprecated and replaced with `wandb.integration.sklearn`. Please update your imports accordingly as `wandb.sklearn` will be removed in a future release. (@kptkin in https://github.com/wandb/wandb/pull/8256)
 
+### Changed
+
+- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
+
 ## [0.18.0] - 2024-09-11
 
 ### Added
