@@ -1,24 +1,28 @@
 using System.Text;
 
-public class RandomStringGenerator
+
+namespace Wandb.Lib
 {
-    private const string Alphabet = "abcdefghijklmnopqrstuvwxyz1234567890";
-    private readonly Random _random;
-
-    public RandomStringGenerator()
+    public class RandomStringGenerator
     {
-        _random = new Random();
-    }
+        private const string Alphabet = "abcdefghijklmnopqrstuvwxyz1234567890";
+        private readonly Random _random;
 
-    public string GenerateRandomString(int length)
-    {
-        StringBuilder result = new StringBuilder(length);
-
-        for (int i = 0; i < length; i++)
+        public RandomStringGenerator()
         {
-            result.Append(Alphabet[_random.Next(Alphabet.Length)]);
+            _random = new Random();
         }
 
-        return result.ToString();
+        public string GenerateRandomString(int length)
+        {
+            StringBuilder result = new StringBuilder(length);
+
+            for (int i = 0; i < length; i++)
+            {
+                result.Append(Alphabet[_random.Next(Alphabet.Length)]);
+            }
+
+            return result.ToString();
+        }
     }
 }

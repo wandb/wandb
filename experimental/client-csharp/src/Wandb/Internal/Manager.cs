@@ -1,8 +1,4 @@
-using System;
 using System.Diagnostics;
-using System.IO;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace Wandb.Internal
 {
@@ -14,19 +10,19 @@ namespace Wandb.Internal
 
         public Manager()
         {
-            _portFilePath = Path.Combine(Path.GetTempPath(), $"port-{Process.GetCurrentProcess().Id}.txt");
+            _portFilePath = Path.Combine(Path.GetTempPath(), $"port-{Environment.ProcessId}.txt");
         }
 
         public async Task<int> LaunchCore(TimeSpan timeout)
         {
-            File.Create(_portFilePath).Dispose(); // Create empty file
+            await File.Create(_portFilePath).DisposeAsync().ConfigureAwait(false); // Create empty file
 
             _coreProcess = new Process
             {
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "wandb-core",
-                    Arguments = $"--port-filename {_portFilePath} --pid {Process.GetCurrentProcess().Id} --serve-sock",
+                    Arguments = $"--port-filename {_portFilePath} --pid {Environment.ProcessId} --serve-sock",
                     UseShellExecute = false,
                     RedirectStandardOutput = false,  // FIXME:
                     RedirectStandardError = false  // FIXME:
@@ -35,7 +31,7 @@ namespace Wandb.Internal
 
             _coreProcess.Start();
 
-            return await WaitForPort(timeout);
+            return await WaitForPort(timeout).ConfigureAwait(false);
         }
 
         private async Task<int> WaitForPort(TimeSpan timeout)
@@ -45,12 +41,12 @@ namespace Wandb.Internal
 
             while (DateTime.Now - startTime < timeout)
             {
-                await Task.Delay(delayTime);
+                await Task.Delay(delayTime).ConfigureAwait(false);
 
                 if (!File.Exists(_portFilePath))
                     continue;
 
-                var contents = await File.ReadAllTextAsync(_portFilePath);
+                var contents = await File.ReadAllTextAsync(_portFilePath).ConfigureAwait(false);
                 var lines = contents.Split(separator, StringSplitOptions.RemoveEmptyEntries);
 
                 if (lines.Length > 0 && lines[^1] == "EOF")

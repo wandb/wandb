@@ -8,6 +8,10 @@
     <WandbCoreDir>$(MSBuildProjectDirectory)/wandb-core</WandbCoreDir>
     <GoSrcDir>$(MSBuildProjectDirectory)/../../../../core</GoSrcDir>
   </PropertyGroup>
+    <PropertyGroup>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisMode>AllEnabledByDefault</AnalysisMode>
+  </PropertyGroup>
   <ItemGroup>
       <Protobuf Include="$(MSBuildProjectDirectory)/../../../../wandb/proto/*.proto" ProtoRoot="$(MSBuildProjectDirectory)/../../../../">
         <OutputDir>$(ProjectDir)Generated</OutputDir>

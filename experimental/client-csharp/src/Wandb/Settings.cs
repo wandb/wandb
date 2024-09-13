@@ -1,5 +1,6 @@
 using System.Text;
 
+
 namespace Wandb
 {
     public class Settings
@@ -24,7 +25,7 @@ namespace Wandb
             string? runId = null
             )
         {
-            RandomStringGenerator generator = new();
+            Lib.RandomStringGenerator generator = new();
 
             ApiKey = apiKey ?? "";
             BaseUrl = baseUrl ?? "https://api.wandb.ai";
@@ -38,7 +39,7 @@ namespace Wandb
             StartDatetime = DateTime.UtcNow;
         }
 
-        public string Timespec => StartDatetime.ToString("yyyyMMdd_HHmmss");
+        public string Timespec => StartDatetime.ToString("yyyyMMdd_HHmmss", System.Globalization.CultureInfo.InvariantCulture);
         public string FilesDir => Path.Combine(SyncDir, "files");
         public string LogDir => Path.Combine(SyncDir, "logs");
         public string LogInternal => Path.Combine(LogDir, "debug-internal.log");
@@ -59,7 +60,7 @@ namespace Wandb
             return new WandbInternal.Settings
             {
                 ApiKey = ApiKey,
-                BaseUrl = BaseUrl,
+                BaseUrl = BaseUrl.ToString(),
                 Entity = Entity,
                 FilesDir = FilesDir,
                 LogDir = LogDir,
@@ -92,25 +93,25 @@ namespace Wandb
         {
             var sb = new StringBuilder();
             sb.AppendLine("Wandb Settings:");
-            sb.AppendLine($"  Entity: {Entity ?? "Not set"}");
-            sb.AppendLine($"  Run ID: {RunId}");
-            sb.AppendLine($"  Display Name: {DisplayName ?? "Not set"}");
-            sb.AppendLine($"  Timespec: {Timespec}");
-            sb.AppendLine($"  Base URL: {BaseUrl}");
-            sb.AppendLine($"  Mode: {Mode}");
-            sb.AppendLine($"  Project: {Project ?? "Not set"}");
-            sb.AppendLine($"  Is Offline: {IsOffline}");
-            sb.AppendLine($"  Run Mode: {RunMode}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Entity: {Entity ?? "Not set"}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Run ID: {RunId}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Display Name: {DisplayName ?? "Not set"}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Timespec: {Timespec}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Base URL: {BaseUrl}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Mode: {Mode}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Project: {Project ?? "Not set"}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Is Offline: {IsOffline}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Run Mode: {RunMode}");
             // TODO: these make it look like there's an error lol
-            // sb.AppendLine($"  Wandb Dir: {WandbDir}");
-            // sb.AppendLine($"  Sync Dir: {SyncDir}");
-            // sb.AppendLine($"  Files Dir: {FilesDir}");
-            // sb.AppendLine($"  Log Dir: {LogDir}");
-            // sb.AppendLine($"  Sync File: {SyncFile}");
-            // sb.AppendLine($"  Log Internal: {LogInternal}");
-            // sb.AppendLine($"  Log User: {LogUser}");
-            // sb.AppendLine($"  Log Symlink Internal: {LogSymlinkInternal}");
-            // sb.AppendLine($"  Log Symlink User: {LogSymlinkUser}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Wandb Dir: {WandbDir}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Sync Dir: {SyncDir}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Files Dir: {FilesDir}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Log Dir: {LogDir}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Sync File: {SyncFile}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Log Internal: {LogInternal}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Log User: {LogUser}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Log Symlink Internal: {LogSymlinkInternal}");
+            // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Log Symlink User: {LogSymlinkUser}");
             return sb.ToString();
         }
     }

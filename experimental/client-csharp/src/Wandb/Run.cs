@@ -1,6 +1,3 @@
-using System;
-using System.Text;
-using System.Threading.Tasks;
 using WandbInternal;
 using Wandb.Internal;
 
@@ -9,8 +6,8 @@ namespace Wandb
     public class Run : IDisposable
     {
         private readonly SocketInterface _interface;
-        public Settings Settings;
-        public Config Config;
+        public Settings Settings { get; private set; }
+        public Config Config { get; private set; }
 
         internal Run(SocketInterface @interface, Settings settings)
         {
@@ -27,15 +24,15 @@ namespace Wandb
         private async void OnConfigUpdated(string key, object value)
         {
             // Handle the updated configuration
-            await _interface.PublishConfig(key, value); // Example method in SocketInterface
+            await _interface.PublishConfig(key, value).ConfigureAwait(false); // Example method in SocketInterface
         }
 
 
         public async Task Init()
         {
-            await _interface.InformInit(Settings);
+            await _interface.InformInit(Settings).ConfigureAwait(false);
             // TODO: get timeout from settings
-            Result deliverRunResult = await _interface.DeliverRun(this, 30000);
+            Result deliverRunResult = await _interface.DeliverRun(this, 30000).ConfigureAwait(false);
             if (deliverRunResult.RunResult == null)
             {
                 throw new Exception("Failed to deliver run");
@@ -52,37 +49,34 @@ namespace Wandb
             Settings.Entity = runResult.Run.Entity;
             Settings.DisplayName = runResult.Run.DisplayName;
             // TODO: get timeout from settings
-            Result result = await _interface.DeliverRunStart(this, 30000);
+            Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
             if (result.Response == null)
             {
                 throw new Exception("Failed to deliver run start");
             }
-            printRunURL();
+            PrintRunURL();
         }
-
-
-
 
         public async Task Log(Dictionary<string, object> data)
         {
-            await _interface.PublishPartialHistory(data);
+            await _interface.PublishPartialHistory(data).ConfigureAwait(false);
         }
 
         public async Task Finish()
         {
             // TODO: get timeout from settings
-            Result deliverExitResult = await _interface.DelieverExit(timeoutMilliseconds: 600000);
+            Result deliverExitResult = await _interface.DelieverExit(timeoutMilliseconds: 600000).ConfigureAwait(false);
             if (deliverExitResult.ExitResult == null)
             {
                 throw new Exception("Failed to deliver exit");
             }
             // Send finish command
-            await _interface.InformFinish();
-            printRunURL();
-            printRunDir();
+            await _interface.InformFinish().ConfigureAwait(false);
+            PrintRunURL();
+            PrintRunDir();
         }
 
-        private void printRunURL()
+        private void PrintRunURL()
         {
             // Set the color for the prefix to blue
             Console.ForegroundColor = ConsoleColor.Blue;
@@ -114,7 +108,7 @@ namespace Wandb
             Console.WriteLine();
         }
 
-        private void printRunDir()
+        private void PrintRunDir()
         {
             // Set the color for the prefix to blue
             Console.ForegroundColor = ConsoleColor.Blue;

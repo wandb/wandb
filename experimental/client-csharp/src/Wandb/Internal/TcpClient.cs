@@ -30,8 +30,7 @@ namespace Wandb.Internal
 
         public async Task<ServerResponse?> SendAsync(ServerRequest message, int timeoutMilliseconds = 0)
         {
-            // move to SocketInterface
-            // var id = Guid.NewGuid().ToString();
+            ArgumentNullException.ThrowIfNull(message);
 
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
             // + check if it's empty, but we're asked to wait for a response
@@ -58,7 +57,7 @@ namespace Wandb.Internal
             {
                 throw new InvalidOperationException("Not connected.");
             }
-            await _networkStream.WriteAsync(packet);
+            await _networkStream.WriteAsync(packet).ConfigureAwait(false);
 
             // Don't wait for a response if timeout is <= 0
             if (timeoutMilliseconds <= 0)
@@ -73,7 +72,7 @@ namespace Wandb.Internal
 
             try
             {
-                return await tcs.Task;
+                return await tcs.Task.ConfigureAwait(false);
             }
             catch (TaskCanceledException)
             {
@@ -92,7 +91,7 @@ namespace Wandb.Internal
             {
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    var message = await ReadMessageAsync(cancellationToken);
+                    var message = await ReadMessageAsync(cancellationToken).ConfigureAwait(false);
                     if (message != null)
                     {
                         ProcessReceivedMessage(message);
@@ -115,7 +114,7 @@ namespace Wandb.Internal
                 {
                     throw new InvalidOperationException("Not connected.");
                 }
-                int read = await _networkStream.ReadAsync(header.AsMemory(bytesRead, 5 - bytesRead), cancellationToken);
+                int read = await _networkStream.ReadAsync(header.AsMemory(bytesRead, 5 - bytesRead), cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     // Connection closed
@@ -139,7 +138,7 @@ namespace Wandb.Internal
                 {
                     throw new InvalidOperationException("Not connected.");
                 }
-                int read = await _networkStream.ReadAsync(data, bytesRead, (int)length - bytesRead, cancellationToken);
+                int read = await _networkStream.ReadAsync(data.AsMemory(bytesRead, (int)length - bytesRead), cancellationToken).ConfigureAwait(false);
                 if (read == 0)
                 {
                     // Connection closed
@@ -181,14 +180,9 @@ namespace Wandb.Internal
         public void Dispose()
         {
             _cancellationTokenSource.Cancel();
-            if (_receiveTask != null)
-            {
-                _receiveTask.Wait();
-            }
-            if (_networkStream != null)
-            {
-                _networkStream.Close();
-            }
+            _cancellationTokenSource.Dispose();
+            _receiveTask?.Wait();
+            _networkStream?.Close();
             _tcpClient.Close();
         }
     }

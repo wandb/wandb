@@ -5,8 +5,8 @@ namespace Wandb
     public class Session : IDisposable
     {
         private readonly Manager _manager;
-        private bool _isInitialized = false;
-        private int? _port = null;
+        private bool _isInitialized;
+        private int? _port;
 
         public Session()
         {
@@ -22,7 +22,7 @@ namespace Wandb
             }
             // TODO: get timeout from settings
             var timeout = TimeSpan.FromSeconds(30);
-            _port = await _manager.LaunchCore(timeout);
+            _port = await _manager.LaunchCore(timeout).ConfigureAwait(false);
             _isInitialized = true;
         }
 
@@ -30,7 +30,7 @@ namespace Wandb
             Settings? settings = null
         )
         {
-            await Setup();
+            await Setup().ConfigureAwait(false);
 
             var _settings = settings ?? new Settings();
 
@@ -42,13 +42,10 @@ namespace Wandb
 
             if (_port == null)
             {
-                throw new Exception("Port not set");
+                throw new InvalidOperationException("Port not set");
             }
-            var client = new WandbTcpClient();
-            client.Connect("localhost", _port.Value);
-
-            var run = new Run(new SocketInterface(client, _settings.RunId), _settings);
-            await run.Init();
+            var run = new Run(new SocketInterface((int)_port, _settings.RunId), _settings);
+            await run.Init().ConfigureAwait(false);
 
             return run;
         }

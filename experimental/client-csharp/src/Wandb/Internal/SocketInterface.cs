@@ -5,13 +5,22 @@ using WandbInternal;
 
 namespace Wandb.Internal
 {
-    public class SocketInterface(WandbTcpClient client, string streamId) : IDisposable
+    public class SocketInterface : IDisposable
     {
-        private readonly WandbTcpClient _client = client;
-        private string _streamId = streamId;
+        private readonly WandbTcpClient _client;
+        private readonly string _streamId;
+
+        public SocketInterface(int port, string streamId)
+        {
+            _client = new WandbTcpClient();
+            _client.Connect("localhost", port);
+            _streamId = streamId ?? throw new ArgumentNullException(nameof(streamId));
+        }
 
         public async Task<Result> DeliverRun(Run run, int timeoutMilliseconds = 0)
         {
+            ArgumentNullException.ThrowIfNull(run);
+
             var record = new Record
             {
                 Run = new RunRecord
@@ -20,11 +29,13 @@ namespace Wandb.Internal
                     RunId = run.Settings.RunId,
                 }
             };
-            return await Deliver(record, timeoutMilliseconds);
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
         public async Task<Result> DeliverRunStart(Run run, int timeoutMilliseconds = 0)
         {
+            ArgumentNullException.ThrowIfNull(run);
+
             var record = new Record
             {
                 Request = new Request
@@ -42,7 +53,7 @@ namespace Wandb.Internal
                     },
                 }
             };
-            return await Deliver(record, timeoutMilliseconds);
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
 
@@ -55,11 +66,13 @@ namespace Wandb.Internal
                     ExitCode = exitCode
                 }
             };
-            return await Deliver(record, timeoutMilliseconds);
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
         public async Task<Result> Deliver(Record record, int timeoutMilliseconds = 0)
         {
+            ArgumentNullException.ThrowIfNull(record);
+
             record.Info = new _RecordInfo
             {
                 StreamId = _streamId
@@ -74,12 +87,14 @@ namespace Wandb.Internal
             {
                 RecordCommunicate = record
             };
-            ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds) ?? throw new TimeoutException("The request timed out.");
+            ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds).ConfigureAwait(false) ?? throw new TimeoutException("The request timed out.");
             return response.ResultCommunicate;
         }
 
         public async Task PublishPartialHistory(Dictionary<string, object> data)
         {
+            ArgumentNullException.ThrowIfNull(data);
+
             var partialHistory = new PartialHistoryRequest();
             foreach (var kvp in data)
             {
@@ -97,7 +112,7 @@ namespace Wandb.Internal
                     PartialHistory = partialHistory
                 }
             };
-            await Publish(record);
+            await Publish(record).ConfigureAwait(false);
         }
 
         public async Task PublishConfig(string key, object value)
@@ -112,24 +127,28 @@ namespace Wandb.Internal
             {
                 Config = config
             };
-            await Publish(record);
+            await Publish(record).ConfigureAwait(false);
         }
 
         public async Task Publish(Record record)
         {
+            ArgumentNullException.ThrowIfNull(record);
+
             record.Info = new _RecordInfo
             {
                 StreamId = _streamId
             };
-            ServerRequest request = new ServerRequest
+            ServerRequest request = new()
             {
                 RecordPublish = record
             };
-            await _client.SendAsync(request);
+            await _client.SendAsync(request).ConfigureAwait(false);
         }
 
         public async Task InformInit(Settings settings)
         {
+            ArgumentNullException.ThrowIfNull(settings);
+
             ServerRequest request = new()
             {
                 InformInit = new ServerInformInitRequest
@@ -141,7 +160,7 @@ namespace Wandb.Internal
                     }
                 }
             };
-            await _client.SendAsync(request);
+            await _client.SendAsync(request).ConfigureAwait(false);
         }
 
         public async Task InformFinish()
@@ -156,7 +175,7 @@ namespace Wandb.Internal
                     }
                 }
             };
-            await _client.SendAsync(request);
+            await _client.SendAsync(request).ConfigureAwait(false);
         }
 
         public void Dispose()
