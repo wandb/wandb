@@ -1,5 +1,4 @@
 from pytest import fixture
-
 from wandb import Artifact
 from wandb.sdk import automations
 from wandb.sdk.automations.actions import AlertSeverity, NotificationActionInput
