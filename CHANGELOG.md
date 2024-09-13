@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Changed
+
+- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
+
 ## [0.18.0] - 2024-09-11
 
 ### Added
@@ -31,7 +35,6 @@ to disable this new behavior will be removed (@kptkin in https://github.com/wand
 
 ### Changed
 
-- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
 - Changed the default system metrics sampling interval to 10 seconds without averaging, while allowing custom intervals via `wandb.init(settings=wandb.Settings(_stats_sampling_interval=...))` (@dmitryduev in https://github.com/wandb/wandb/pull/8208)
 
 ### Deprecated
