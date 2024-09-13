@@ -174,12 +174,19 @@ class _WandbInit:
 
         # we add this logic to be backward compatible with the old behavior of disable
         # where it would disable the service if the mode was set to disabled
+        # TODO: use the regular settins object to handle this
         mode = kwargs.get("mode")
         settings_mode = (kwargs.get("settings") or {}).get("mode") or os.environ.get(
-            "WANDB_MODE"
+            wandb.env.MODE
         )
-        _disable_service = mode == "disabled" or settings_mode == "disabled"
-        setup_settings = {"_disable_service": _disable_service}
+        settings__disable_service = (kwargs.get("settings") or {}).get(
+            "_disable_service"
+        ) or os.environ.get(wandb.env._DISABLE_SERVICE)
+
+        setup_settings = {
+            "mode": mode or settings_mode,
+            "_disable_service": settings__disable_service,
+        }
 
         self._wl = wandb_setup.setup(settings=setup_settings)
         # Make sure we have a logger setup (might be an early logger)
@@ -273,8 +280,9 @@ class _WandbInit:
 
         tensorboard = kwargs.pop("tensorboard", None)
         sync_tensorboard = kwargs.pop("sync_tensorboard", None)
-        if tensorboard or sync_tensorboard and len(wandb.patched["tensorboard"]) == 0:
-            wandb.tensorboard.patch()  # type: ignore
+        if tensorboard or sync_tensorboard:
+            if len(wandb.patched["tensorboard"]) == 0:
+                wandb.tensorboard.patch()  # type: ignore
             with telemetry.context(obj=self._init_telemetry_obj) as tel:
                 tel.feature.tensorboard_sync = True
 
@@ -737,10 +745,7 @@ class _WandbInit:
                 tel.feature.flow_control_disabled = True
             if self.settings._flow_control_custom:
                 tel.feature.flow_control_custom = True
-            if (
-                self.settings._require_core
-                and not self.settings._require_legacy_service
-            ):
+            if not self.settings._require_legacy_service:
                 tel.feature.core = True
             if self.settings._shared:
                 wandb.termwarn(
@@ -1157,6 +1162,7 @@ def init(
             mode if a user isn't logged in to W&B. (default: `False`)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
             tensorboardX and save the relevant events file. (default: `False`)
+        tensorboard: (bool, optional) Alias for `sync_tensorboard`, deprecated.
         monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
             See [our guide to this integration](https://docs.wandb.com/guides/integrations/openai-gym).
@@ -1170,6 +1176,12 @@ def init(
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
+        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to resume a run from. This allows users to truncate
+            the history logged to a run at an intermediate step and resume logging from that step.
+            It uses run forking under the hood. The target run must be in the
+            current project. Example: `resume_from="my-run-id?_step=1234"`.
+        settings: (dict, wandb.Settings, optional) Settings to use for this run. (default: None)
 
     Examples:
     ### Set where the run is logged

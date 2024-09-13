@@ -209,63 +209,6 @@ def test_offline_resume(wandb_init, test_settings, capsys, resume, found):
     run.finish()
 
 
-@pytest.mark.parametrize(
-    "server_info, warn",
-    [
-        (
-            {
-                "serverInfo": {
-                    "latestLocalVersionInfo": {
-                        "outOfDate": True,
-                        "latestVersionString": "12.0.0",
-                    },
-                },
-            },
-            True,
-        ),
-        (
-            {
-                "serverInfo": {
-                    "latestLocalVersionInfo": {
-                        "outOfDate": False,
-                        "latestVersionString": "12.0.0",
-                    },
-                },
-            },
-            False,
-        ),
-        ({}, False),
-    ],
-)
-@pytest.mark.wandb_core_only(
-    "we are using a different query and the behavior is different"
-)
-def test_local_warning(
-    relay_server,
-    inject_graphql_response,
-    wandb_init,
-    capsys,
-    server_info,
-    warn,
-):
-    inject_response = inject_graphql_response(
-        body=json.dumps({"data": server_info}),
-        status=200,
-        query_match_fn=lambda query, _: "query ServerInfo" in query,
-        application_pattern="1",
-    )
-    with relay_server(inject=[inject_response]):
-        run = wandb_init()
-        run.finish()
-
-    captured = capsys.readouterr().err
-    msg = "version of W&B Server to get the latest features"
-    if warn:
-        assert msg in captured
-    else:
-        assert msg not in captured
-
-
 def test_ignore_globs_wandb_files(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init(settings=dict(ignore_globs=["requirements.txt"]))

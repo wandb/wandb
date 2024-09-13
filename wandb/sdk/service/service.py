@@ -18,7 +18,6 @@ from wandb import _sentry, termlog
 from wandb.env import (
     core_debug,
     core_error_reporting_enabled,
-    is_require_core,
     is_require_legacy_service,
 )
 from wandb.errors import Error, WandbCoreNotAvailableError
@@ -169,7 +168,7 @@ class _Service:
 
             service_args = []
 
-            if is_require_core() and not is_require_legacy_service():
+            if not is_require_legacy_service():
                 try:
                     core_path = get_core_path()
                 except WandbCoreNotAvailableError as e:

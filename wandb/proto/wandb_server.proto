@@ -6,6 +6,8 @@ import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_internal.proto";
 import "wandb/proto/wandb_settings.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 message ServerShutdownRequest {
   _RecordInfo _info = 200;
 }

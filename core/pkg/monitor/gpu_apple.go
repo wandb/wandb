@@ -1,3 +1,5 @@
+//go:build darwin
+
 package monitor
 
 import (
@@ -9,39 +11,62 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// getExecPath returns the path to the apple_gpu_stats program.
+//
+// The apple_gpu_stats program is expected to be in the same directory as the
+// wandb-core executable. It is built as a part of the wandb library build
+// process and included for the MacOS platform.
 func getExecPath() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
 	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "apple_gpu_stats")
+	execPath := filepath.Join(exDirPath, "apple_gpu_stats")
 
-	if _, err := os.Stat(exPath); os.IsNotExist(err) {
+	if _, err := os.Stat(execPath); os.IsNotExist(err) {
 		return "", err
 	}
-	return exPath, nil
+	return execPath, nil
 }
 
+// GPUApple is a monitor for Apple Arm devices.
+//
+// Uses the apple_gpu_stats program to get device stats.
 type GPUApple struct {
 	name        string
 	isAvailable bool
-	exPath      string
+	ExecPath    string
 }
 
 func NewGPUApple() *GPUApple {
 	gpu := &GPUApple{name: "gpu"}
 
-	if exPath, err := getExecPath(); err == nil {
-		gpu.isAvailable = true
-		gpu.exPath = exPath
+	execPath, err := getExecPath()
+	if err != nil {
+		return nil
 	}
+
+	gpu.isAvailable = true
+	gpu.ExecPath = execPath
 
 	return gpu
 }
 
+// parseStats runs the apple_gpu_stats program and parses the output.
+//
+// The output is expected to be a JSON object with the following keys:
+//   - gpuPower: GPU + Neural Engine Total Power (W)
+//   - systemPower: System Power (W)
+//   - recoveryCount: Recovery Count
+//   - utilization: GPU utilization (%)
+//   - allocatedSystemMemory: Memory allocated (bytes)
+//   - inUseSystemMemory: Memory in use (bytes)
+//   - m1Gpu1, m1Gpu2, m1Gpu3, m1Gpu4, m2Gpu1, m2Gpu2,
+//     m3Gpu1, m3Gpu2, m3Gpu3, m3Gpu4, m3Gpu5, m3Gpu6,
+//     m3Gpu7, m3Gpu8: temperature sensor readings (C)
 func (g *GPUApple) parseStats() (map[string]any, error) {
-	rawStats, err := exec.Command(g.exPath).Output()
+	rawStats, err := exec.Command(g.ExecPath).Output()
 	if err != nil {
 		return nil, err
 	}
