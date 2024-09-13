@@ -11,7 +11,7 @@ namespace Wandb.Internal
         private readonly TcpClient _tcpClient;
         private NetworkStream? _networkStream;
         private readonly CancellationTokenSource _cancellationTokenSource;
-        private readonly Task _receiveTask;
+        private Task? _receiveTask;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> _pendingRequests;
 
         public WandbTcpClient()
@@ -19,13 +19,13 @@ namespace Wandb.Internal
             _tcpClient = new TcpClient();
             _cancellationTokenSource = new CancellationTokenSource();
             _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>>();
-            _receiveTask = Task.Run(() => ReceiveLoopAsync(_cancellationTokenSource.Token));
         }
 
         public void Connect(string host, int port)
         {
             _tcpClient.Connect(host, port);
             _networkStream = _tcpClient.GetStream();
+            _receiveTask = Task.Run(() => ReceiveLoopAsync(_cancellationTokenSource.Token));
         }
 
         public async Task<ServerResponse?> SendAsync(ServerRequest message, int timeoutMilliseconds = 0)
@@ -181,7 +181,10 @@ namespace Wandb.Internal
         public void Dispose()
         {
             _cancellationTokenSource.Cancel();
-            _receiveTask.Wait();
+            if (_receiveTask != null)
+            {
+                _receiveTask.Wait();
+            }
             if (_networkStream != null)
             {
                 _networkStream.Close();

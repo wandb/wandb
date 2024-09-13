@@ -70,7 +70,8 @@ namespace Wandb
 
         public async Task Finish()
         {
-            Result deliverExitResult = await _interface.DelieverExit();
+            // TODO: get timeout from settings
+            Result deliverExitResult = await _interface.DelieverExit(timeoutMilliseconds: 600000);
             if (deliverExitResult.ExitResult == null)
             {
                 throw new Exception("Failed to deliver exit");

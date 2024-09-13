@@ -26,7 +26,7 @@ namespace Wandb
         {
             RandomStringGenerator generator = new();
 
-            ApiKey = apiKey;
+            ApiKey = apiKey ?? "";
             BaseUrl = baseUrl ?? "https://api.wandb.ai";
             DisplayName = displayName ?? "";
             Entity = entity ?? "";
