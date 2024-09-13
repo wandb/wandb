@@ -41,7 +41,7 @@ class QueueJobAction(Base):
 
 
 class QueueJobActionInput(ActionInput):
-    """Input schema for creating a QUEUE_JOB action"""
+    """Input schema for creating a QUEUE_JOB action."""
 
     queue_id: Base64Id = Field(alias="queueID")
     template: QueueJobTemplate
@@ -66,7 +66,7 @@ class NotificationAction(Base):
 
 
 class NotificationActionInput(ActionInput):
-    """Input schema for creating a NOTIFICATION action"""
+    """Input schema for creating a NOTIFICATION action."""
 
     integration_id: Base64Id = Field(alias="integrationID")
     title: str
@@ -96,7 +96,7 @@ class WebhookAction(Base):
 
 
 class WebhookActionInput(ActionInput):
-    """Input schema for creating a GENERIC_WEBHOOK action"""
+    """Input schema for creating a GENERIC_WEBHOOK action."""
 
     integration_id: Base64Id = Field(alias="integrationID")
     request_payload: JsonDict
