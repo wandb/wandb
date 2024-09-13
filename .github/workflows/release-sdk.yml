@@ -109,7 +109,7 @@ jobs:
       # All platforms: create wheels
       ##################################################
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v2.20.0
         with:
            package-dir: .
            output-dir: dist
