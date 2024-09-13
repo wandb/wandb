@@ -15,6 +15,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Allow all users to read cache files when core is enabled @moredatarequired in https://github.com/wandb/wandb/pull/8362
 
+### Changed
+
+- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
+
 ## [0.18.0] - 2024-09-11
 
 ### Added
