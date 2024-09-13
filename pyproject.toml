@@ -110,6 +110,7 @@ perf = ["orjson"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 automations = [
+    "gql[all]>=3.0,<4",
     "more-itertools",
     "odmantic>=1.0,<2",
     "pydantic>=2.0,<3",

@@ -1,2 +1,2 @@
 from . import expr, legacy
-from .crud import create, query
+from .api import create, delete, query

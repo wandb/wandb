@@ -11,7 +11,8 @@ JsonDict: TypeAlias = Json[dict[str, Any]]
 
 
 NameT = TypeVar("NameT", bound=str)
+
 TypenameField = Annotated[
     NameT,
-    Field(repr=False, alias="__typename"),
+    Field(repr=False, alias="__typename", frozen=True),
 ]

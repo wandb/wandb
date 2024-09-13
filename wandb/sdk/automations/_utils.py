@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-import os
 from enum import StrEnum
-from pathlib import Path
 from textwrap import dedent
 from typing import Any, Iterable, Iterator, Literal, Mapping
 
-from dotenv import load_dotenv
 from pydantic import TypeAdapter, field_validator
 from wandb_gql import gql
 
@@ -15,7 +12,12 @@ from wandb.apis.public import RetryingClient
 from wandb.sdk.automations._typing import Base64Id, TypenameField
 from wandb.sdk.automations.base import Base
 
-load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
+# load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
+
+
+class UserInfo(Base):
+    id: Base64Id
+    username: str
 
 
 class OrgType(StrEnum):
@@ -51,7 +53,7 @@ class OrgInfo(Base):
     teams: list[EntityInfo]
 
 
-OrgsInfoAdapter = TypeAdapter(list[OrgInfo])
+OrgInfoListAdapter = TypeAdapter(list[OrgInfo])
 
 
 def get_orgs_info(entity: str | None = None) -> list[OrgInfo]:
@@ -61,7 +63,7 @@ def get_orgs_info(entity: str | None = None) -> list[OrgInfo]:
     data = client.execute(_FETCH_ORGS_ENTITIES_PROJECTS, variable_values=params)
 
     viewer = data["viewer"]
-    orgs = OrgsInfoAdapter.validate_python(viewer["organizations"])
+    orgs = OrgInfoListAdapter.validate_python(viewer["organizations"])
     return orgs
 
 
@@ -80,11 +82,13 @@ def iter_entity_project_pairs(orgs: Iterable[OrgInfo]) -> Iterator[tuple[str, st
 
 
 def _client() -> RetryingClient:
-    api = Api(
-        overrides={"base_url": "https://api.wandb.ai"},
-        api_key=os.environ["WANDB_API_KEY"],
-    )
+    api = Api()
     return api.client
+    # api = Api(
+    #     overrides={"base_url": "https://api.wandb.ai"},
+    #     api_key=os.environ["WANDB_API_KEY"],
+    # )
+    # return api.client
 
 
 _PROJECT_INFO_FRAGMENT = dedent(

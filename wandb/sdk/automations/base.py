@@ -45,3 +45,32 @@ class Base(BaseModel, ABC):
             warnings=warnings,
             serialize_as_any=serialize_as_any,
         )
+
+    def model_dump_json(
+        self,
+        *,
+        indent: int | None = None,
+        include: IncEx = None,
+        exclude: IncEx = None,
+        context: dict[str, Any] | None = None,
+        by_alias: bool = True,  # NOTE: changed default
+        exclude_unset: bool = False,
+        exclude_defaults: bool = False,
+        exclude_none: bool = False,
+        round_trip: bool = True,  # NOTE: changed default
+        warnings: bool | Literal["none", "warn", "error"] = True,
+        serialize_as_any: bool = False,
+    ) -> str:
+        return super().model_dump_json(
+            indent=indent,
+            include=include,
+            exclude=exclude,
+            context=context,
+            by_alias=by_alias,
+            exclude_unset=exclude_unset,
+            exclude_defaults=exclude_defaults,
+            exclude_none=exclude_none,
+            round_trip=round_trip,
+            warnings=warnings,
+            serialize_as_any=serialize_as_any,
+        )
