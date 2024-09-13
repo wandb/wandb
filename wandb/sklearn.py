@@ -1,4 +1,3 @@
-import wandb
 from wandb.integration.sklearn import (
     plot_calibration_curve,
     plot_class_proportions,
@@ -33,9 +32,4 @@ __all__ = (
     "plot_silhouette",
     "plot_residuals",
     "plot_outlier_candidates",
-)
-
-wandb.termwarn(
-    "The `wandb.sklearn` module has been deprecated and replaced with `wandb.integration.sklearn`."
-    " Please update your imports accordingly"
 )

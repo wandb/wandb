@@ -41,10 +41,6 @@ to disable this new behavior will be removed (@kptkin in https://github.com/wand
 
 - Changed the default system metrics sampling interval to 10 seconds without averaging, while allowing custom intervals via `wandb.init(settings=wandb.Settings(_stats_sampling_interval=...))` (@dmitryduev in https://github.com/wandb/wandb/pull/8208)
 
-### Deprecated
-
-- `define_metric(summary='best', goal=...)` is deprecated and soon will be removed, use `define_metric(summary='min')` or `define_metric(summary='min')` instead (@kptkin in https://github.com/wandb/wandb/pull/8219)
-
 ## [0.17.8] - 2024-08-28
 
 ### Added
