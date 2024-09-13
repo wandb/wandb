@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import hashlib
 import os
-from typing import Optional
+from typing import TYPE_CHECKING, ClassVar
 
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
@@ -8,6 +10,9 @@ from wandb.sdk.lib import filesystem, runid
 from . import _dtypes
 from ._private import MEDIA_TMP
 from .base_types.media import BatchableMedia
+
+if TYPE_CHECKING:
+    from typing import SupportsFloat
 
 
 class Audio(BatchableMedia):
@@ -21,9 +26,14 @@ class Audio(BatchableMedia):
         caption: (string) Caption to display with audio.
     """
 
-    _log_type = "audio-file"
+    _log_type: ClassVar[str] = "audio-file"
 
-    def __init__(self, data_or_path, sample_rate=None, caption=None):
+    def __init__(
+        self,
+        data_or_path,
+        sample_rate: SupportsFloat | None = None,
+        caption: str | None = None,
+    ):
         """Accept a path to an audio file or a numpy array of audio data."""
         super().__init__()
         self._duration = None
@@ -66,7 +76,7 @@ class Audio(BatchableMedia):
         )
 
     def bind_to_run(
-        self, run, key, step, id_=None, ignore_copy_err: Optional[bool] = None
+        self, run, key, step, id_=None, ignore_copy_err: bool | None = None
     ):
         if self.path_is_reference(self._path):
             raise ValueError(
@@ -142,7 +152,7 @@ class Audio(BatchableMedia):
 
         return None
 
-    def __eq__(self, other):
+    def __eq__(self, other: Audio) -> bool:
         if self.path_is_reference(self._path) or self.path_is_reference(other._path):
             # one or more of these objects is an unresolved reference -- we'll compare
             # their reference paths instead of their SHAs:
@@ -151,7 +161,7 @@ class Audio(BatchableMedia):
                 and self._caption == other._caption
             )
 
-        return super().__eq__(other) and self._caption == other._caption
+        return super().__eq__(other) and (self._caption == other._caption)
 
     def __ne__(self, other):
         return not self.__eq__(other)
