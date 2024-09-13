@@ -3,7 +3,7 @@ from warnings import simplefilter
 from sklearn import model_selection
 
 import wandb
-from wandb.sklearn import utils
+from wandb.integration.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

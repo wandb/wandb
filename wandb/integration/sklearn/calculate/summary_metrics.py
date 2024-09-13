@@ -4,7 +4,7 @@ import numpy as np
 import sklearn
 
 import wandb
-from wandb.sklearn import utils
+from wandb.integration.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)

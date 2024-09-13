@@ -7,7 +7,7 @@ from sklearn import naive_bayes
 
 import wandb
 import wandb.plot
-from wandb.sklearn import calculate, utils
+from wandb.integration.sklearn import calculate, utils
 
 from . import shared
 
