@@ -36,5 +36,6 @@ __all__ = (
 )
 
 wandb.termwarn(
-    "Importing wandb.sklearn is deprecated. Please use wandb.integration.sklearn instead."
+    "The `wandb.sklearn` module has been deprecated and replaced with `wandb.integration.sklearn`."
+    " Please update your imports accordingly"
 )
