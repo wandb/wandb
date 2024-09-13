@@ -1,96 +1,192 @@
-using System;
+using System.Collections.Concurrent;
 using System.Net.Sockets;
-using System.Threading.Tasks;
+using Google.Protobuf;
 
 namespace Wandb.Internal
 {
+    using WandbInternal;
 
-
-    public class MessageHeader
+    public class WandbTcpClient : IDisposable
     {
-        public byte Magic { get; set; }
-        public uint DataLength { get; set; }
-    }
+        private readonly TcpClient _tcpClient;
+        private NetworkStream? _networkStream;
+        private readonly CancellationTokenSource _cancellationTokenSource;
+        private readonly Task _receiveTask;
+        private readonly ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> _pendingRequests;
 
-    public class TcpCommunication : IDisposable
-    {
-        private TcpClient? _client;
-        private NetworkStream? _stream;
-
-        public async Task Open(int port)
+        public WandbTcpClient()
         {
-            _client = new TcpClient();
-            await _client.ConnectAsync("localhost", port);
-            _stream = _client.GetStream();
+            _tcpClient = new TcpClient();
+            _cancellationTokenSource = new CancellationTokenSource();
+            _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>>();
+            _receiveTask = Task.Run(() => ReceiveLoopAsync(_cancellationTokenSource.Token));
         }
 
-        public async Task Send(byte[] data)
+        public void Connect(string host, int port)
         {
-            if (_stream == null)
-                throw new InvalidOperationException("Connection not open");
+            _tcpClient.Connect(host, port);
+            _networkStream = _tcpClient.GetStream();
+        }
 
-            var header = new MessageHeader
+        public async Task<ServerResponse?> SendAsync(ServerRequest message, int timeoutMilliseconds = 0)
+        {
+            // move to SocketInterface
+            // var id = Guid.NewGuid().ToString();
+
+            // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
+            // + check if it's empty, but we're asked to wait for a response
+            string messageId;
+            if (message.RecordCommunicate != null)
             {
-                Magic = (byte)'W',
-                DataLength = (uint)data.Length
-            };
-            await _stream.WriteAsync([header.Magic], 0, 1);
-            await _stream.WriteAsync(BitConverter.GetBytes(header.DataLength), 0, 4);
+                messageId = message.RecordCommunicate.Control.MailboxSlot;
+            }
+            else
+            {
+                messageId = string.Empty;
+            }
 
-            await _stream.WriteAsync(data, 0, data.Length);
+            var data = message.ToByteArray();
+            var packet = Pack(data);
+
+            var tcs = new TaskCompletionSource<ServerResponse>();
+            if (timeoutMilliseconds > 0)
+            {
+                _pendingRequests[messageId] = tcs;
+            }
+
+            if (_networkStream == null)
+            {
+                throw new InvalidOperationException("Not connected.");
+            }
+            await _networkStream.WriteAsync(packet);
+
+            // Don't wait for a response if timeout is <= 0
+            if (timeoutMilliseconds <= 0)
+            {
+                return null;
+            }
+
+            // Wait for a response
+            CancellationTokenSource? cts = null;
+            cts = new CancellationTokenSource(timeoutMilliseconds);
+            cts.Token.Register(() => tcs.TrySetCanceled(), useSynchronizationContext: false);
+
+            try
+            {
+                return await tcs.Task;
+            }
+            catch (TaskCanceledException)
+            {
+                _pendingRequests.TryRemove(messageId, out _);
+                throw new TimeoutException("The request timed out.");
+            }
+            finally
+            {
+                cts?.Dispose();
+            }
         }
 
-        public async Task<int> ReceiveExactly(byte[] buffer, int offset, int count)
+        private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
         {
+            try
+            {
+                while (!cancellationToken.IsCancellationRequested)
+                {
+                    var message = await ReadMessageAsync(cancellationToken);
+                    if (message != null)
+                    {
+                        ProcessReceivedMessage(message);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Receive loop exception: {ex.Message}");
+            }
+        }
+
+        private async Task<ServerResponse?> ReadMessageAsync(CancellationToken cancellationToken)
+        {
+            byte[] header = new byte[5];
             int bytesRead = 0;
-            while (bytesRead < count)
+            while (bytesRead < 5)
             {
-                if (_stream == null)
-                    throw new InvalidOperationException("Connection not open");
-                int received = await _stream.ReadAsync(buffer, offset + bytesRead, count - bytesRead);
-                if (received == 0)
-                    throw new EndOfStreamException("Connection closed prematurely");
-                bytesRead += received;
-            }
-            return bytesRead;
-        }
-
-        // TODO: Recieve should be reading everything it can and keeping
-        // track of the message boundaries in an internal buffer
-        public async Task<byte[]> Receive()
-        {
-            // Read the magic byte
-            byte[] magicByte = new byte[1];
-            int bytesRead = await ReceiveExactly(magicByte, 0, 1);
-
-            if (magicByte[0] != (byte)'W')
-            {
-                return Array.Empty<byte>();
+                if (_networkStream == null)
+                {
+                    throw new InvalidOperationException("Not connected.");
+                }
+                int read = await _networkStream.ReadAsync(header.AsMemory(bytesRead, 5 - bytesRead), cancellationToken);
+                if (read == 0)
+                {
+                    // Connection closed
+                    return null;
+                }
+                bytesRead += read;
             }
 
-            // Read the body length
-            byte[] bodyLengthBytes = new byte[4];
-            await ReceiveExactly(bodyLengthBytes, 0, 4);
-            uint bodyLength = BitConverter.ToUInt32(bodyLengthBytes, 0);
+            if (header[0] != (byte)'W')
+            {
+                throw new InvalidDataException("Invalid message format.");
+            }
 
-            // Read the body
-            byte[] body = new byte[bodyLength];
-            await ReceiveExactly(body, 0, (int)bodyLength);
+            uint length = BitConverter.ToUInt32(header, 1);
 
-            return body;
+            byte[] data = new byte[length];
+            bytesRead = 0;
+            while (bytesRead < length)
+            {
+                if (_networkStream == null)
+                {
+                    throw new InvalidOperationException("Not connected.");
+                }
+                int read = await _networkStream.ReadAsync(data, bytesRead, (int)length - bytesRead, cancellationToken);
+                if (read == 0)
+                {
+                    // Connection closed
+                    return null;
+                }
+                bytesRead += read;
+            }
+
+            var message = ServerResponse.Parser.ParseFrom(data);
+            return message;
         }
 
-        public void Close()
+        private void ProcessReceivedMessage(ServerResponse message)
         {
-            _stream?.Close();
-            _client?.Close();
-            _stream = null;
-            _client = null;
+            // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
+            var messageId = message.ResultCommunicate.Control.MailboxSlot;
+
+            if (_pendingRequests.TryRemove(messageId, out var tcs))
+            {
+                tcs.SetResult(message);
+            }
+            else
+            {
+                // TODO: Handle unsolicited messages, which should not happen
+                Console.WriteLine("Received unsolicited message.");
+            }
+        }
+
+        private static byte[] Pack(byte[] data)
+        {
+            byte[] packet = new byte[1 + 4 + data.Length];
+            packet[0] = (byte)'W';
+            byte[] lengthBytes = BitConverter.GetBytes((uint)data.Length);
+            Array.Copy(lengthBytes, 0, packet, 1, 4);
+            Array.Copy(data, 0, packet, 5, data.Length);
+            return packet;
         }
 
         public void Dispose()
         {
-            Close();
+            _cancellationTokenSource.Cancel();
+            _receiveTask.Wait();
+            if (_networkStream != null)
+            {
+                _networkStream.Close();
+            }
+            _tcpClient.Close();
         }
     }
 }

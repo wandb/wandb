@@ -1,50 +1,30 @@
 using System.Text.Json;
-using Google.Protobuf;
 using Google.Protobuf.WellKnownTypes;
 using WandbInternal;
 
 
 namespace Wandb.Internal
 {
-    public class SocketInterface : IDisposable
+    public class SocketInterface(WandbTcpClient client, string streamId) : IDisposable
     {
-        private readonly TcpCommunication _tcpCommunication;
-        private string _streamId;
+        private readonly WandbTcpClient _client = client;
+        private string _streamId = streamId;
 
-        public SocketInterface(TcpCommunication tcpCommunication, string streamId)
+        public async Task<Result> DeliverRun(Run run, int timeoutMilliseconds = 0)
         {
-            _tcpCommunication = tcpCommunication;
-            _streamId = streamId;
-        }
-
-        public async Task<Result> DeliverRun(Run run)
-        {
-            RandomStringGenerator generator = new();
-
             var record = new Record
             {
                 Run = new RunRecord
                 {
                     Project = run.Settings.Project,
                     RunId = run.Settings.RunId,
-                },
-                Info = new _RecordInfo
-                {
-                    StreamId = _streamId
-                },
-                Control = new Control
-                {
-                    ReqResp = true,
-                    MailboxSlot = generator.GenerateRandomString(16)
                 }
             };
-            return await Deliver(record);
+            return await Deliver(record, timeoutMilliseconds);
         }
 
-        public async Task<Result> DeliverRunStart(Run run)
+        public async Task<Result> DeliverRunStart(Run run, int timeoutMilliseconds = 0)
         {
-            RandomStringGenerator generator = new();
-
             var record = new Record
             {
                 Request = new Request
@@ -60,53 +40,41 @@ namespace Wandb.Internal
                             StartTime = Timestamp.FromDateTime(run.Settings.StartDatetime.ToUniversalTime()),
                         },
                     },
-                },
-                Info = new _RecordInfo
-                {
-                    StreamId = _streamId
-                },
-                Control = new Control
-                {
-                    ReqResp = true,
-                    MailboxSlot = generator.GenerateRandomString(16)
                 }
             };
-            return await Deliver(record);
+            return await Deliver(record, timeoutMilliseconds);
         }
 
 
-        public async Task<Result> DelieverExit(int exitCode = 0)
+        public async Task<Result> DelieverExit(int exitCode = 0, int timeoutMilliseconds = 0)
         {
-            RandomStringGenerator generator = new();
-
             var record = new Record
             {
                 Exit = new RunExitRecord
                 {
                     ExitCode = exitCode
-                },
-                Info = new _RecordInfo
-                {
-                    StreamId = _streamId
-                },
-                Control = new Control
-                {
-                    ReqResp = true,
-                    MailboxSlot = generator.GenerateRandomString(16)
                 }
-
             };
-            return await Deliver(record);
+            return await Deliver(record, timeoutMilliseconds);
         }
 
-        public async Task<Result> Deliver(Record record)
+        public async Task<Result> Deliver(Record record, int timeoutMilliseconds = 0)
         {
+            record.Info = new _RecordInfo
+            {
+                StreamId = _streamId
+            };
+            record.Control = new Control
+            {
+                ReqResp = true,
+                MailboxSlot = Guid.NewGuid().ToString()
+            };
+
             ServerRequest request = new()
             {
-                RecordPublish = record
-
+                RecordCommunicate = record
             };
-            ServerResponse response = await SendAndRecv(request);
+            ServerResponse? response = await _client.SendAsync(request, timeoutMilliseconds) ?? throw new TimeoutException("The request timed out.");
             return response.ResultCommunicate;
         }
 
@@ -127,10 +95,6 @@ namespace Wandb.Internal
                 Request = new Request
                 {
                     PartialHistory = partialHistory
-                },
-                Info = new _RecordInfo
-                {
-                    StreamId = _streamId
                 }
             };
             await Publish(record);
@@ -146,24 +110,23 @@ namespace Wandb.Internal
             });
             var record = new Record
             {
-                Config = config,
-                Info = new _RecordInfo
-                {
-                    StreamId = _streamId
-                }
+                Config = config
             };
             await Publish(record);
         }
 
         public async Task Publish(Record record)
         {
+            record.Info = new _RecordInfo
+            {
+                StreamId = _streamId
+            };
             ServerRequest request = new ServerRequest
             {
                 RecordPublish = record
             };
-            await Send(request);
+            await _client.SendAsync(request);
         }
-
 
         public async Task InformInit(Settings settings)
         {
@@ -178,7 +141,7 @@ namespace Wandb.Internal
                     }
                 }
             };
-            await Send(request);
+            await _client.SendAsync(request);
         }
 
         public async Task InformFinish()
@@ -193,31 +156,12 @@ namespace Wandb.Internal
                     }
                 }
             };
-            await Send(request);
-        }
-
-        public async Task Send(ServerRequest request)
-        {
-            byte[] data = request.ToByteArray();
-            await _tcpCommunication.Send(data);
-        }
-
-        // TODO: Receive should be running in a separate thread delivering
-        // messages to the corresponding mailbox slots.
-        // This method should wait on a mailbox slot and return the message
-        // since there is no guarantee on the message reception order.
-        public async Task<ServerResponse> SendAndRecv(ServerRequest request)
-        {
-            byte[] data = request.ToByteArray();
-            await _tcpCommunication.Send(data);
-
-            byte[] receivedData = await _tcpCommunication.Receive();
-            return ServerResponse.Parser.ParseFrom(receivedData);
+            await _client.SendAsync(request);
         }
 
         public void Dispose()
         {
-            _tcpCommunication.Dispose();
+            _client.Dispose();
         }
     }
 }
