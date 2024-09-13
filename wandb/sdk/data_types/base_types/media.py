@@ -5,6 +5,7 @@ import os
 import platform
 import re
 import shutil
+from pathlib import Path
 from typing import TYPE_CHECKING, Sequence, cast
 
 import wandb
@@ -62,8 +63,7 @@ class Media(WBValue):
             extension
         ), f'Media file extension "{extension}" must occur at the end of path "{path}".'
 
-        with open(self._path, "rb") as f:
-            self._sha256 = hashlib.sha256(f.read()).hexdigest()
+        self._sha256 = hashlib.sha256(Path(self._path).read_bytes()).hexdigest()
         self._size = os.path.getsize(self._path)
 
     @classmethod
@@ -83,7 +83,7 @@ class Media(WBValue):
         return self._run is not None
 
     def file_is_set(self) -> bool:
-        return self._path is not None and self._sha256 is not None
+        return (self._path is not None) and (self._sha256 is not None)
 
     def bind_to_run(
         self,
@@ -115,7 +115,7 @@ class Media(WBValue):
         self._run = run
 
         if self._extension is None:
-            _, extension = os.path.splitext(os.path.basename(self._path))
+            extension = Path(self._path).stem
         else:
             extension = self._extension
 
@@ -161,19 +161,17 @@ class Media(WBValue):
         from wandb.data_types import Audio
         from wandb.sdk.wandb_run import Run
 
-        json_obj = {}
-
         if isinstance(run_or_artifact, Run):
-            json_obj.update(
-                {
-                    "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
-                    "sha256": self._sha256,
-                    "size": self._size,
-                }
-            )
+            json_obj = {
+                "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
+                "sha256": self._sha256,
+                "size": self._size,
+            }
+
             artifact_entry_url = self._get_artifact_entry_ref_url()
             if artifact_entry_url is not None:
                 json_obj["artifact_path"] = artifact_entry_url
+
             artifact_entry_latest_url = self._get_artifact_entry_latest_ref_url()
             if artifact_entry_latest_url is not None:
                 json_obj["_latest_artifact_path"] = artifact_entry_latest_url
@@ -195,7 +193,11 @@ class Media(WBValue):
                     os.path.relpath(self._path, self._run.dir)
                 )
 
+            return json_obj
+
         elif isinstance(run_or_artifact, wandb.Artifact):
+            json_obj = {"_type": self._log_type}
+
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
@@ -220,22 +222,20 @@ class Media(WBValue):
                         )
 
                     # if not, check to see if there is a source artifact for this object
-                    if (
-                        self._artifact_source is not None
-                        # and self._artifact_source.artifact != artifact
-                    ):
-                        default_root = self._artifact_source.artifact._default_root()
+                    artifact_source = self._artifact_source
+                    if artifact_source is not None:
+                        default_root = artifact_source.artifact._default_root()
                         # if there is, get the name of the entry (this might make sense to move to a helper off artifact)
                         if self._path.startswith(default_root):
                             name = self._path[len(default_root) :]
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = self._artifact_source.artifact.get_entry(name)
+                        path = artifact_source.artifact.get_entry(name)
                         artifact.add_reference(path.ref_url(), name=name)
-                    elif (
-                        isinstance(self, Audio) or isinstance(self, Image)
-                    ) and self.path_is_reference(self._path):
+                    elif isinstance(self, (Audio, Image)) and self.path_is_reference(
+                        self._path
+                    ):
                         artifact.add_reference(self._path, name=name)
                     else:
                         entry = artifact.add_file(
@@ -243,10 +243,16 @@ class Media(WBValue):
                         )
                         name = entry.path
 
-                json_obj["path"] = name
-                json_obj["sha256"] = self._sha256
-            json_obj["_type"] = self._log_type
-        return json_obj
+                json_obj = {
+                    **json_obj,
+                    "path": name,
+                    "sha256": self._sha256,
+                }
+                return json_obj
+            else:
+                raise TypeError(
+                    f"Expected {LocalRun.__name__!r} or {Artifact.__name__!r}, got: {type(run_or_artifact)!r}"
+                )
 
     @classmethod
     def from_json(cls: type[Media], json_obj: dict, source_artifact: Artifact) -> Media:

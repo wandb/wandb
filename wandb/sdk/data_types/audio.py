@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import os
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from wandb import util
 from wandb.sdk.lib import filesystem, runid
@@ -13,6 +13,8 @@ from .base_types.media import BatchableMedia
 
 if TYPE_CHECKING:
     from typing import SupportsFloat
+
+    from wandb import Artifact
 
 
 class Audio(BatchableMedia):
@@ -69,7 +71,7 @@ class Audio(BatchableMedia):
         return os.path.join("media", "audio")
 
     @classmethod
-    def from_json(cls, json_obj, source_artifact):
+    def from_json(cls, json_obj: dict[str, Any], source_artifact: Artifact):
         return cls(
             source_artifact.get_entry(json_obj["path"]).download(),
             caption=json_obj["caption"],
