@@ -1554,9 +1554,13 @@ def _is_databricks() -> bool:
     return False
 
 
-def _is_py_or_dockerfile(path: str) -> bool:
+def _is_py_requirements_or_dockerfile(path: str) -> bool:
     file = os.path.basename(path)
-    return file.endswith(".py") or file.startswith("Dockerfile")
+    return (
+        file.endswith(".py")
+        or file.startswith("Dockerfile")
+        or file == "requirements.txt"
+    )
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
