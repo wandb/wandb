@@ -141,7 +141,7 @@ func (ft *GCSFileTransfer) downloadFiles(
 		return formatDownloadError("error parsing reference", err)
 	}
 
-	g := new(errgroup.Group)
+	var g errgroup.Group
 	g.SetLimit(maxWorkers)
 	for _, name := range objectNames {
 		objectName := name // for closure in the goroutine
@@ -211,12 +211,12 @@ func (ft *GCSFileTransfer) downloadFile(
 		)
 	}
 
-	defer func(file *os.File) {
+	defer func() {
 		fileError := file.Close()
 		if err == nil {
 			err = fileError
 		}
-	}(file)
+	}()
 
 	_, err = io.Copy(file, r)
 	if err != nil {
@@ -239,18 +239,19 @@ func (ft *GCSFileTransfer) getObjectAndAttrs(
 	task *ReferenceArtifactDownloadTask,
 	key string,
 ) (*storage.ObjectHandle, *storage.ObjectAttrs, error) {
+	if strings.HasSuffix(key, "/") {
+		return nil, nil, ErrObjectIsDirectory
+	}
 	object, err := ft.getObject(bucket, task, key)
 	if err != nil {
 		return nil, nil, err
-	}
-	if strings.HasSuffix(object.ObjectName(), "/") {
-		return nil, nil, ErrObjectIsDirectory
 	}
 
 	attrs, err := object.Attrs(ft.ctx)
 	// if object doesn't have an extension and has size 0, it might be a
 	// directory as we cut off the ending "/" in the manifest entry.
-	if err != nil && (path.Ext(object.ObjectName()) == "" && task.Size == 0) {
+	if errors.Is(err, storage.ErrObjectNotExist) &&
+		(path.Ext(key) == "" && task.Size == 0) {
 		key := key + "/"
 		object, err := ft.getObject(bucket, task, key)
 		if err != nil {
@@ -305,8 +306,11 @@ func parseReference(reference string) (string, string, error) {
 	return bucketName, objectName, nil
 }
 
-// getDownloadFilePath returns the file path to download the file to when
-// removing duplicate info from the extension.
+// getDownloadFilePath returns the file path to download the file to.
+//
+// We expect the base file path to already have the prefix appended to it, so
+// we remove any part of the object name that is already contained in the base
+// file path before appending it.
 func getDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
 	ext, _ := strings.CutPrefix(objectName, prefix)
 	localPath := baseFilePath + ext

@@ -26,7 +26,9 @@ type ReferenceArtifactTask struct {
 	// Reference to the artifact being transfered
 	Reference string
 
-	// VersionId is the version of the file we want to download
+	// VersionId is the version of the file we want to download. Different
+	// cloud providers use different types of versions, so we store this as
+	// an interface and determine the type based on the reference
 	VersionId interface{}
 
 	// Digest is the checksum to ensure the correct files are being downloaded
