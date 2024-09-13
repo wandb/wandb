@@ -173,8 +173,8 @@ def error_reporting_enabled() -> bool:
 
 
 def core_error_reporting_enabled(default: Optional[str] = None) -> bool:
-    if error_reporting_enabled():
-        return True
+    if not error_reporting_enabled():
+        return False
     return _env_as_bool(CORE_ERROR_REPORTING, default=default)
 
 
