@@ -78,6 +78,8 @@ namespace Wandb
                 SyncFile = SyncFile,
                 Timespec = Timespec,
                 WandbDir = WandbDir,
+                // TODO: we do not capture extra info by default, but
+                // we could make this configurable in the future
                 DisableStats = true,
                 DisableGit = true,
                 DisableMeta = true,
