@@ -34,6 +34,7 @@ from typing import (
 )
 
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 
 if sys.version_info < (3, 8):
     from typing_extensions import Literal
@@ -241,8 +242,25 @@ class Artifact:
 
     @classmethod
     def _from_name(
-        cls, entity: str, project: str, name: str, client: RetryingClient
+        cls,
+        organization: Optional[str],
+        entity: str,
+        project: str,
+        name: str,
+        client: RetryingClient,
     ) -> "Artifact":
+        if is_artifact_registry_project(project):
+            if not organization:
+                return cls._from_name_registry(
+                    cls,
+                    organization,
+                    entity,
+                    project,
+                    name,
+                    client,
+                )
+
+        # Regular route of fetching an artifact via an entity
         query = gql(
             """
             query ArtifactByName(
@@ -269,11 +287,133 @@ class Artifact:
         )
         project_attrs = response.get("project")
         if not project_attrs:
+            # try to find registry using the org name instead of org entity name
+            if is_artifact_registry_project(project):
+                return cls._from_name_registry(
+                    cls,
+                    organization,
+                    entity,
+                    project,
+                    name,
+                    client,
+                )
             raise ValueError(f"project '{project}' not found under entity '{entity}'")
         attrs = project_attrs.get("artifact")
         if not attrs:
             raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
         return cls._from_attrs(entity, project, name, attrs, client)
+
+    @classmethod
+    def _from_name_registry(
+        cls,
+        organization: Optional[str],
+        entity: str,
+        project: str,
+        name: str,
+        client: RetryingClient,
+    ) -> "Artifact":
+        artifact_resp = None
+        org_fields = InternalApi().server_organization_introspection()
+        if "orgEntity" not in org_fields:
+            raise ValueError(
+                "Fetching Registry artifacts without inputting an organization is unavailable for your server version. Please upgrade your server"
+            )
+        org_entity = None
+        if not organization:
+            # Use resolvers to fetch the org via run entity
+            query = gql(
+                """
+                query ArtifactByName(
+                    $entityName: String!,
+                    $projectName: String!,
+                    $name: String!
+                ) {
+                    entity(name: $entityName) {
+                        organization {
+                            name
+                            orgEntity {
+                                name
+                                project(name: $projectName) {
+                                    artifact(name: $name) {
+                                        ...ArtifactFragment
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                """
+                + cls._get_gql_artifact_fragment()
+            )
+            response = client.execute(
+                query,
+                variable_values={
+                    "entityName": entity,
+                    "projectName": project,
+                    "name": name,
+                },
+            )
+            if not response.get("entity"):
+                raise ValueError(
+                    f"Registry artifact in '{project}' not found"
+                )  # please use valid path
+            entity_layer = response.get("entity")
+            if not entity_layer.get("organization") and not entity_layer[
+                "organization"
+            ].get("orgEntity"):
+                raise ValueError(
+                    f"Organization not found for your run entity '{entity}'"
+                )
+            org_layer = entity_layer.get("organization").get("orgEntity")
+            org_entity = org_layer["name"]
+            if not org_layer.get("project"):
+                raise ValueError(
+                    f"Registry '{name}' not found in organization {entity_layer["organization"]["name"]}'"
+                )
+            proj_layer = org_layer["project"]
+            if not proj_layer.get("artifact"):
+                raise ValueError(f"artifact '{name}' not found in registry {project}'")
+            artifact_resp = proj_layer["artifact"]
+        else:
+            # Fetch registry artifact via organization name
+            query = gql(
+                """
+                    query ArtifactByName(
+                        $organizationName: String!,
+                        $projectName: String!,
+                        $name: String!
+                    ) {
+                        organization(name: $organizationName) {
+                            orgEntity {
+                                name
+                                project(name: $projectName) {
+                                    artifact(name: $name) {
+                                        ...ArtifactFragment
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    """
+                + cls._get_gql_artifact_fragment()
+            )
+            response = client.execute(
+                query,
+                variable_values={
+                    "organizationName": organization,
+                    "projectName": project,
+                    "name": name,
+                },
+            )
+            project_attrs = response.get("project")
+            if not project_attrs:
+                raise ValueError(f"Registry artifact in '{project}' not found")
+            attrs = project_attrs.get("artifact")
+            if not attrs:
+                raise ValueError(f"artifact '{name}' not found in '{entity}/{project}'")
+            # TODO: make this sound better
+            termwarn("Don't have to add orgname.....")
+        return cls._from_attrs(org_entity, project, name, artifact_resp, client)
 
     @classmethod
     def _from_attrs(

@@ -18,6 +18,7 @@ import urllib
 from typing import Any, Dict, List, Optional
 
 import requests
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -1031,6 +1032,12 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
+        organization = None
+        if is_artifact_registry_project(project):
+            organization = entity
+            # reset entity since user didn't put in a traditional team entity name
+            # but a org entity or an org name instead
+            entity = ""
         artifact = wandb.Artifact._from_name(
             entity, project, artifact_name, self.client
         )

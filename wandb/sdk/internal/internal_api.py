@@ -4313,3 +4313,24 @@ class Api:
         success: bool = response["stopRun"].get("success")
 
         return success
+
+    def server_organization_introspection(self) -> List:
+        query_string = """
+            query ProbeServerOrganization {
+                OrganizationInfoType: __type(name:"Organization") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_organization_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
+            self.server_artifact_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_organization_fields_info
