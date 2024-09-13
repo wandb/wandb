@@ -141,7 +141,7 @@ class Media(WBValue):
             self._path = new_path
             _datatypes_callback(media_path)
 
-    def to_json(self, run: Union["LocalRun", "Artifact"]) -> dict:
+    def to_json(self, run_or_artifact: Union[LocalRun, Artifact]) -> dict:
         """Serialize the object into a JSON blob.
 
         Uses run or artifact to store additional data. If `run_or_artifact` is a
@@ -163,7 +163,7 @@ class Media(WBValue):
 
         json_obj = {}
 
-        if isinstance(run, Run):
+        if isinstance(run_or_artifact, Run):
             json_obj.update(
                 {
                     "_type": "file",  # TODO(adrian): This isn't (yet) a real media type we support on the frontend.
@@ -184,7 +184,7 @@ class Media(WBValue):
                 )
 
                 assert (
-                    self._run is run
+                    self._run is run_or_artifact
                 ), "We don't support referring to media files across runs."
 
                 # The following two assertions are guaranteed to pass
@@ -195,14 +195,14 @@ class Media(WBValue):
                     os.path.relpath(self._path, self._run.dir)
                 )
 
-        elif isinstance(run, wandb.Artifact):
+        elif isinstance(run_or_artifact, wandb.Artifact):
             if self.file_is_set():
                 # The following two assertions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
                 assert isinstance(self._path, str)
                 assert isinstance(self._sha256, str)
-                artifact = run  # Checks if the concrete image has already been added to this artifact
+                artifact = run_or_artifact  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
                     if self._is_tmp:
