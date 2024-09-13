@@ -5,7 +5,7 @@ from warnings import simplefilter
 import numpy as np
 
 import wandb
-from wandb.sklearn import calculate, utils
+from wandb.integration.sklearn import calculate, utils
 
 from . import shared
 
@@ -13,7 +13,7 @@ from . import shared
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):
+def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):  # noqa: N803
     """Generates all sklearn regressor plots supported by W&B.
 
     The following plots are generated:
@@ -38,7 +38,7 @@ def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):
     wandb.sklearn.plot_regressor(reg, X_train, X_test, y_train, y_test, "Ridge")
     ```
     """
-    wandb.termlog("\nPlotting %s." % model_name)
+    wandb.termlog(f"\nPlotting {model_name}.")
 
     shared.summary_metrics(model, X_train, y_train, X_test, y_test)
     wandb.termlog("Logged summary metrics.")
@@ -53,7 +53,7 @@ def regressor(model, X_train, X_test, y_train, y_test, model_name="Regressor"):
     wandb.termlog("Logged residuals.")
 
 
-def outlier_candidates(regressor=None, X=None, y=None):
+def outlier_candidates(regressor=None, X=None, y=None):  # noqa: N803
     """Measures a datapoint's influence on regression model via cook's distance.
 
     Instances with high influences could potentially be outliers.
@@ -87,7 +87,7 @@ def outlier_candidates(regressor=None, X=None, y=None):
         wandb.log({"outlier_candidates": outliers_chart})
 
 
-def residuals(regressor=None, X=None, y=None):
+def residuals(regressor=None, X=None, y=None):  # noqa: N803
     """Measures and plots the regressor's predicted value against the residual.
 
     The marginal distribution of residuals is also calculated and plotted.

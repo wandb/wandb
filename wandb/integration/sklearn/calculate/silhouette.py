@@ -5,13 +5,13 @@ from sklearn.metrics import silhouette_samples, silhouette_score
 from sklearn.preprocessing import LabelEncoder
 
 import wandb
-from wandb.sklearn import utils
+from wandb.integration.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def silhouette(clusterer, X, cluster_labels, labels, metric, kmeans):
+def silhouette(clusterer, X, cluster_labels, labels, metric, kmeans):  # noqa: N803
     # Run clusterer for n_clusters in range(len(cluster_ranges), get cluster labels
     # TODO - keep/delete once we decide if we should train clusterers
     # or ask for trained models
