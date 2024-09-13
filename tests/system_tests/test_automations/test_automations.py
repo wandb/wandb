@@ -1,4 +1,5 @@
 from pytest import fixture
+
 from wandb import Artifact
 from wandb.sdk import automations
 from wandb.sdk.automations.actions import AlertSeverity, NotificationActionInput
@@ -11,8 +12,8 @@ def collection_name(wandb_init) -> str:
 
 
 @fixture
-def artifact(tmp_path, wandb_init, collection_name, api) -> Artifact:
-    with wandb_init() as run:
+def artifact(tmp_path, wandb_init, user, collection_name, api) -> Artifact:
+    with wandb_init(entity=user) as run:
         artifact_filepath = tmp_path / "test-artifact.txt"
         artifact_filepath.write_text("hello world")
         artifact = Artifact("testing", "dataset")
@@ -20,16 +21,6 @@ def artifact(tmp_path, wandb_init, collection_name, api) -> Artifact:
 
         logged_artifact: Artifact = run.log_artifact(artifact)
         logged_artifact.link(collection_name)
-
-        # collection = ArtifactCollection(
-        #     api.client,
-        #     run.entity,
-        #     run.project,
-        #     collection_name,
-        #     "dataset",
-        # )
-        # collection.save()
-        # logged_artifact.link(collection.name)
 
         logged_artifact.wait()
 

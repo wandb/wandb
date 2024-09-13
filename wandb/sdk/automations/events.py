@@ -10,7 +10,7 @@ from wandb.apis.public import ArtifactCollection, Project
 from wandb.sdk.automations._typing import TypenameField
 from wandb.sdk.automations.actions import ActionInput
 from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.expr import And, AnyExpr, Or, QueryExpr
+from wandb.sdk.automations.op import And, AnyExpr, Or, QueryExpr
 
 # Triggers on GraphQL mutations
 
