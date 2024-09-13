@@ -14,7 +14,7 @@ type ReferenceArtifactTask struct {
 
 	// PathOrPrefix is either the full local path to the file, or in the case
 	// when the artifact was uploaded with `checksum=False`, the path to the
-	// folder where the files will be downloaded, aka the path prefix.
+	// folder where the files will be downloaded, aka the path prefix
 	PathOrPrefix string
 
 	// Size is the number of bytes the reference object is
@@ -35,7 +35,7 @@ type ReferenceArtifactTask struct {
 	//
 	// This is the same as Reference when the artifact was uploaded with
 	// `checksum=False`, and indicates we need to download every object
-	// that has Reference as a prefix
+	// that has Reference as a prefix.
 	Digest string
 }
 
