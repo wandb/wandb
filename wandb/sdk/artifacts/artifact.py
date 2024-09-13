@@ -367,8 +367,9 @@ class Artifact:
             org_layer = entity_layer.get("organization").get("orgEntity")
             org_entity = org_layer["name"]
             if not org_layer.get("project"):
+                org_name = entity_layer["organization"]["name"]
                 raise ValueError(
-                    f"Registry '{name}' not found in organization {entity_layer["organization"]["name"]}'"
+                    f"Registry '{name}' not found in organization: {org_name}"
                 )
             proj_layer = org_layer["project"]
             if not proj_layer.get("artifact"):
