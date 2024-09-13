@@ -2,8 +2,8 @@ package tensorboard
 
 import (
 	"fmt"
-	"strconv"
 
+	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -18,7 +18,7 @@ func processScalars(
 ) {
 	switch value := value.GetValue().(type) {
 	case *tbproto.Summary_Value_SimpleValue:
-		processScalarsSimpleValue(emitter, tag, value.SimpleValue)
+		processScalarsSimpleValue(emitter, tag, value.SimpleValue, logger)
 
 	case *tbproto.Summary_Value_Tensor:
 		tensor, err := tensorFromProto(value.Tensor)
@@ -35,10 +35,14 @@ func processScalars(
 			return
 		}
 
-		emitter.EmitHistory(
-			pathtree.PathOf(tag),
-			strconv.FormatFloat(scalar, 'f', -1, 64),
-		)
+		floatJSON, err := simplejsonext.MarshalToString(scalar)
+		if err != nil {
+			logger.CaptureError(
+				fmt.Errorf("tensorboard: error encoding scalar: %v", err))
+			return
+		}
+
+		emitter.EmitHistory(pathtree.PathOf(tag), floatJSON)
 
 	default:
 		logger.CaptureError(
@@ -53,9 +57,14 @@ func processScalarsSimpleValue(
 	emitter Emitter,
 	tag string,
 	value float32,
+	logger *observability.CoreLogger,
 ) {
-	emitter.EmitHistory(
-		pathtree.PathOf(tag),
-		strconv.FormatFloat(float64(value), 'f', -1, 64),
-	)
+	floatJSON, err := simplejsonext.MarshalToString(value)
+	if err != nil {
+		logger.CaptureError(
+			fmt.Errorf("tensorboard: error encoding scalar: %v", err))
+		return
+	}
+
+	emitter.EmitHistory(pathtree.PathOf(tag), floatJSON)
 }
