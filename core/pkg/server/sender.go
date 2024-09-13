@@ -395,7 +395,7 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || !s.startState.Intialized {
+	if s.settings == nil || !s.startState.Initialized {
 		return
 	}
 
@@ -874,8 +874,7 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	proto.Merge(s.telemetry, run.Telemetry)
 	s.updateConfigPrivate()
 
-	if !s.startState.Intialized {
-		s.startState.Intialized = true
+	if !s.startState.Initialized {
 
 		// update the run state with the initial run record
 		s.startState.Merge(&runbranch.RunParams{
@@ -905,19 +904,17 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 				)
 			}
 			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
-			return
 		case isResume != "":
 			s.sendResumeRun(record, runClone)
-			return
 		case isRewind != nil:
 			s.sendRewindRun(record, runClone)
-			return
 		case isFork != nil:
 			s.sendForkRun(record, runClone)
-			return
 		default:
-			// no branching, just send the run
+			s.upsertRun(record, runClone)
 		}
+		s.startState.Initialized = true
+		return
 	}
 
 	s.upsertRun(record, runClone)
@@ -952,7 +949,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		// if this times out, we mark the run as done as there is
 		// no need to proceed with it
 		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
-	} else if !s.startState.Intialized {
+	} else if !s.startState.Initialized {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
 		s.logger.CaptureFatalAndPanic(
@@ -1017,7 +1014,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	// manage the state of the run
 	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
 		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
-	} else {
+	} else if !s.startState.Initialized {
 
 		bucket := data.GetUpsertBucket().GetBucket()
 
@@ -1106,7 +1103,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	if !s.startState.Intialized {
+	if !s.startState.Initialized {
 		s.logger.Error("sender: upsertConfig: RunRecord is nil")
 		return
 	}
@@ -1283,7 +1280,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	if !s.startState.Intialized {
+	if !s.startState.Initialized {
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendAlert: RunRecord not set"))
 	}
@@ -1462,7 +1459,7 @@ func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
 			}
 
 			var url string
-			if !s.startState.Intialized {
+			if !s.startState.Initialized {
 				baseUrl := s.settings.GetBaseUrl().GetValue()
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
 				url = fmt.Sprintf("%s/%s/%s/runs/%s",
