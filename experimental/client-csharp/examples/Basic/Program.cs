@@ -13,18 +13,25 @@ class Program
                     project: "csharp"
                 )
             );
-            await run1.Log(new Dictionary<string, object> { { "loss", 0.5 } });
+
             run1.Config["batch_size"] = 64;
+
+            await run1.DefineMetric("recall", "epoch", "min,max,mean");
+
+            await run1.Log(new Dictionary<string, object> { { "loss", 0.5 }, { "recall", 0.8 }, { "epoch", 1 } });
+            await run1.Log(new Dictionary<string, object> { { "loss", 0.4 }, { "recall", 0.95 }, { "epoch", 2 } });
+            await run1.Log(new Dictionary<string, object> { { "loss", 0.3 }, { "recall", 0.9 }, { "epoch", 3 } });
+
             await run1.Finish();
 
             // Another run
-            var run2 = await session.Init(
-                settings: new Settings(
-                    project: "csharp"
-                )
-            );
-            await run2.Log(new Dictionary<string, object> { { "loss", 0.3 } });
-            await run2.Finish();
+            // var run2 = await session.Init(
+            //     settings: new Settings(
+            //         project: "csharp"
+            //     )
+            // );
+            // await run2.Log(new Dictionary<string, object> { { "loss", 0.3 } });
+            // await run2.Finish();
         }
     }
 }

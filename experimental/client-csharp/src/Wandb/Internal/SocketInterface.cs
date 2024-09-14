@@ -115,6 +115,60 @@ namespace Wandb.Internal
             await Publish(record).ConfigureAwait(false);
         }
 
+        public async Task PublishMetricDefinition(
+            string name,
+            string stepMetric,
+            string? summary,
+            bool? hidden
+        )
+        {
+            var metricDefinition = new MetricRecord
+            {
+                Name = name,
+                StepMetric = stepMetric,
+                Options = new MetricOptions { },
+                Summary = new MetricSummary { }
+            };
+            if (hidden == true)
+            {
+                metricDefinition.Options.Hidden = true;
+            }
+            // Split the summary string into individual values
+            if (summary != null)
+            {
+
+                string[] summaries = summary.Split(',');
+
+                foreach (string s in summaries)
+                {
+                    // Trim any whitespace from each value
+                    switch (s.Trim())
+                    {
+                        case "min":
+                            metricDefinition.Summary.Min = true;
+                            break;
+                        case "max":
+                            metricDefinition.Summary.Max = true;
+                            break;
+                        case "mean":
+                            metricDefinition.Summary.Mean = true;
+                            break;
+                        case "last":
+                            metricDefinition.Summary.Last = true;
+                            break;
+                        case "none":
+                            metricDefinition.Summary.None = true;
+                            break;
+                    }
+                }
+            }
+            var record = new Record
+            {
+                Metric = metricDefinition
+            };
+            await Publish(record).ConfigureAwait(false);
+        }
+
         public async Task PublishConfig(string key, object value)
         {
             var config = new ConfigRecord();

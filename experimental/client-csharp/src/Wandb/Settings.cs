@@ -35,7 +35,6 @@ namespace Wandb
             Project = project ?? "uncategorized";
             RunId = runId ?? generator.GenerateRandomString(8);
 
-
             StartDatetime = DateTime.UtcNow;
         }
 

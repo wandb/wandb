@@ -62,6 +62,16 @@ namespace Wandb
             await _interface.PublishPartialHistory(data).ConfigureAwait(false);
         }
 
+        public async Task DefineMetric(
+            string name,
+            string stepMetric,
+            string? summary = null, // TODO: make this an object
+            bool? hidden = false
+        )
+        {
+            await _interface.PublishMetricDefinition(name, stepMetric, summary, hidden).ConfigureAwait(false);
+        }
+
         public async Task Finish()
         {
             // TODO: get timeout from settings
