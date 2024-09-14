@@ -35,10 +35,6 @@ cover-results/
 mypy-results/
 .mypy_cache/
 
-.yea_cache/
-.yea-requirements.txt
-.yeadoc/
-
 # Build output in apple_stats.
 apple_stats/.build/
 

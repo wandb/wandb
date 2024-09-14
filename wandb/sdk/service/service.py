@@ -158,9 +158,6 @@ class _Service:
 
             executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
-            # Add coverage collection if needed
-            if os.environ.get("COVERAGE_RCFILE"):
-                exec_cmd_list += ["coverage", "run", "-m"]
 
             service_args = []
 
