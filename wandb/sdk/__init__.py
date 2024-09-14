@@ -18,10 +18,8 @@ __all__ = (
     "unwatch",
     "sweep",
     "controller",
-    "helper",
 )
 
-from . import wandb_helper as helper
 from .artifacts.artifact import Artifact
 from .wandb_alerts import AlertLevel
 from .wandb_config import Config

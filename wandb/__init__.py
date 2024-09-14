@@ -33,7 +33,6 @@ unwatch = wandb_sdk.unwatch
 finish = wandb_sdk.finish
 join = finish
 login = wandb_sdk.login
-helper = wandb_sdk.helper
 sweep = wandb_sdk.sweep
 controller = wandb_sdk.controller
 require = wandb_sdk.require

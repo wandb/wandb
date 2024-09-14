@@ -36,7 +36,7 @@ from .lib.deprecate import Deprecated, deprecate
 from .lib.mailbox import Mailbox, MailboxProgress
 from .lib.printer import Printer, get_printer
 from .lib.wburls import wburls
-from .wandb_helper import parse_config
+from .wandb_config import parse_config
 from .wandb_run import Run, TeardownHook, TeardownStage
 from .wandb_settings import Settings, Source
 
