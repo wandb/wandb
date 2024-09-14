@@ -50,6 +50,23 @@ type uploader struct {
 }
 
 func newUploader(params UploaderParams) *uploader {
+	switch {
+	case params.ExtraWork == nil:
+		panic("runfiles: ExtraWork is nil")
+	case params.Logger == nil:
+		panic("runfiles: Logger is nil")
+	case params.Settings == nil:
+		panic("runfiles: Settings is nil")
+	case params.FileStream == nil:
+		panic("runfiles: FileStream is nil")
+	case params.FileTransfer == nil:
+		panic("runfiles: FileTransfer is nil")
+	case params.GraphQL == nil:
+		panic("runfiles: GraphQL is nil")
+	case params.FileWatcher == nil:
+		panic("runfiles: FileWatcher is nil")
+	}
+
 	uploader := &uploader{
 		extraWork: params.ExtraWork,
 		logger:    params.Logger,
@@ -143,23 +160,31 @@ func (u *uploader) toRealPath(path string) string {
 	return filepath.Join(u.settings.GetFilesDir(), path)
 }
 
-func (u *uploader) UploadNow(path paths.RelativePath) {
+func (u *uploader) UploadNow(
+	path paths.RelativePath,
+	category filetransfer.RunFileKind,
+) {
 	if err := u.lockForOperation("UploadNow"); err != nil {
 		u.logger.CaptureError(err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
 
+	u.knownFile(path).SetCategory(category)
 	u.uploadBatcher.Add([]paths.RelativePath{path})
 }
 
-func (u *uploader) UploadAtEnd(path paths.RelativePath) {
+func (u *uploader) UploadAtEnd(
+	path paths.RelativePath,
+	category filetransfer.RunFileKind,
+) {
 	if err := u.lockForOperation("UploadAtEnd"); err != nil {
 		u.logger.CaptureError(err, "path", string(path))
 		return
 	}
 	defer u.stateMu.Unlock()
 
+	u.knownFile(path).SetCategory(category)
 	u.uploadAtEnd[path] = struct{}{}
 }
 

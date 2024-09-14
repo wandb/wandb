@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package wandb_internal;
 
+option go_package = "core/pkg/service_go_proto";
+
 /*
  * _RecordInfo, _RequestInfo: extra info for all records and requests
  */

@@ -11,7 +11,7 @@ import wandb
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def elbow_curve(clusterer, X, cluster_ranges, n_jobs, show_cluster_time):
+def elbow_curve(clusterer, X, cluster_ranges, n_jobs, show_cluster_time):  # noqa: N803
     if cluster_ranges is None:
         cluster_ranges = range(1, 10, 2)
     else:
@@ -37,19 +37,19 @@ def make_table(cluster_ranges, clfs, times):
     return table
 
 
-def _compute_results_parallel(n_jobs, clusterer, X, cluster_ranges):
+def _compute_results_parallel(n_jobs, clusterer, x, cluster_ranges):
     parallel_runner = Parallel(n_jobs=n_jobs)
     _cluster_scorer = delayed(_clone_and_score_clusterer)
-    results = parallel_runner(_cluster_scorer(clusterer, X, i) for i in cluster_ranges)
+    results = parallel_runner(_cluster_scorer(clusterer, x, i) for i in cluster_ranges)
 
     clfs, times = zip(*results)
 
     return clfs, times
 
 
-def _clone_and_score_clusterer(clusterer, X, n_clusters):
+def _clone_and_score_clusterer(clusterer, x, n_clusters):
     start = time.time()
     clusterer = clone(clusterer)
-    setattr(clusterer, "n_clusters", n_clusters)
+    clusterer.n_clusters = n_clusters
 
-    return clusterer.fit(X).score(X), time.time() - start
+    return clusterer.fit(x).score(x), time.time() - start
