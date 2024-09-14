@@ -43,6 +43,7 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
+from wandb.integration.torch.wandb_torch import TorchHistory
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -620,7 +621,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None  # type: ignore
+        self._torch_history: Optional[TorchHistory] = None  # type: ignore
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -921,9 +922,9 @@ class Run:
         self.__dict__.update(state)
 
     @property
-    def _torch(self) -> "wandb.wandb_torch.TorchHistory":  # type: ignore
+    def _torch(self) -> "TorchHistory":  # type: ignore
         if self._torch_history is None:
-            self._torch_history = wandb.wandb_torch.TorchHistory()  # type: ignore
+            self._torch_history = TorchHistory()  # type: ignore
         return self._torch_history
 
     @property

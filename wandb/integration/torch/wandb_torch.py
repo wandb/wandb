@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 
-"""PyTorch-specific functionality"""
+"""PyTorch-specific functionality."""
 
 import itertools
 from functools import reduce
 from operator import mul
-from typing import List
+from typing import TYPE_CHECKING, List
 
 import wandb
 from wandb import util
@@ -13,13 +13,18 @@ from wandb.data_types import Node
 
 torch = None
 
+if TYPE_CHECKING:
+    from torch import Tensor
+    from torch.nn import Module
+
 
 def nested_shape(array_or_tuple, seen=None):
-    """Figure out the shape of tensors possibly embedded in tuples
-    i.e
-    [0,0] returns (2)
-    ([0,0], [0,0]) returns (2,2)
-    (([0,0], [0,0]),[0,0]) returns ((2,2),2)
+    """Figure out the shape of tensors possibly embedded in tuples.
+
+    for example:
+    - [0,0] returns (2)
+    - ([0,0], [0,0]) returns (2,2)
+    - (([0,0], [0,0]),[0,0]) returns ((2,2),2).
     """
     if seen is None:
         seen = set()
@@ -49,14 +54,14 @@ LOG_TRACK_COUNT, LOG_TRACK_THRESHOLD = range(2)
 
 
 def log_track_init(log_freq: int) -> List[int]:
-    """create tracking structure used by log_track_update"""
-    l = [0] * 2
-    l[LOG_TRACK_THRESHOLD] = log_freq
-    return l
+    """Create tracking structure used by log_track_update."""
+    log_track = [0, 0]
+    log_track[LOG_TRACK_THRESHOLD] = log_freq
+    return log_track
 
 
 def log_track_update(log_track: int) -> bool:
-    """count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached"""
+    """Count (log_track[0]) up to threshold (log_track[1]), reset count (log_track[0]) and return true when reached."""
     log_track[LOG_TRACK_COUNT] += 1
     if log_track[LOG_TRACK_COUNT] < log_track[LOG_TRACK_THRESHOLD]:
         return False
@@ -65,7 +70,7 @@ def log_track_update(log_track: int) -> bool:
 
 
 class TorchHistory:
-    """History methods specific to PyTorch"""
+    """History methods specific to PyTorch."""
 
     def __init__(self):
         global torch
@@ -77,14 +82,15 @@ class TorchHistory:
 
     def add_log_parameters_hook(
         self,
-        module: "torch.nn.Module",
+        module: "Module",
         name: str = "",
         prefix: str = "",
         log_freq: int = 0,
     ) -> None:
-        """This instruments hooks into the pytorch module
+        """This instruments hooks into the pytorch module.
+
         log parameters after a forward pass
-        log_freq - log gradients/parameters every N batches
+        log_freq - log gradients/parameters every N batches.
         """
         # if name is not None:
         prefix = prefix + name
@@ -119,16 +125,19 @@ class TorchHistory:
 
     def add_log_gradients_hook(
         self,
-        module: "torch.nn.Module",
+        module: "Module",
         name: str = "",
         prefix: str = "",
         log_freq: int = 0,
     ) -> None:
-        """This instruments hooks into the pytorch module
-        log gradients after a backward pass
-        log_freq - log gradients/parameters every N batches
-        """
+        """This instruments hooks into the PyTorch module slog gradients after a backward pass.
 
+        Args:
+            module: torch.nn.Module - the module to instrument
+            name: str - the name of the module
+            prefix: str - the prefix to add to the name
+            log_freq: log gradients/parameters every N batches
+        """
         # if name is not None:
         prefix = prefix + name
 
@@ -143,8 +152,8 @@ class TorchHistory:
                     parameter, "gradients/" + prefix + name, log_track_grad
                 )
 
-    def log_tensor_stats(self, tensor, name):
-        """Add distribution statistics on a tensor's elements to the current History entry"""
+    def log_tensor_stats(self, tensor, name):  # noqa: C901
+        """Add distribution statistics on a tensor's elements to the current History entry."""
         # TODO Handle the case of duplicate names.
         if isinstance(tensor, (tuple, list)):
             while isinstance(tensor, (tuple, list)) and isinstance(
@@ -250,9 +259,7 @@ class TorchHistory:
         )
 
     def _hook_variable_gradient_stats(self, var, name, log_track):
-        """Logs a Variable's gradient's distribution statistics next time backward()
-        is called on it.
-        """
+        """Logs a Variable's gradient's distribution statistics next time backward() is called on it."""
         if not isinstance(var, torch.autograd.Variable):
             cls = type(var)
             raise TypeError(
@@ -288,10 +295,10 @@ class TorchHistory:
         else:
             return handle.id in d
 
-    def _no_finite_values(self, tensor: "torch.Tensor") -> bool:
+    def _no_finite_values(self, tensor: "Tensor") -> bool:
         return tensor.shape == torch.Size([0]) or (~torch.isfinite(tensor)).all().item()
 
-    def _remove_infs_nans(self, tensor: "torch.Tensor") -> "torch.Tensor":
+    def _remove_infs_nans(self, tensor: "Tensor") -> "Tensor":
         if not torch.isfinite(tensor).all():
             tensor = tensor[torch.isfinite(tensor)]
 
@@ -420,8 +427,7 @@ class TorchGraph(wandb.data_types.Graph):
 
     @classmethod
     def from_torch_layers(cls, module_graph, variable):
-        """Recover something like neural net layers from PyTorch Module's and the
-        compute graph from a Variable.
+        """Recover something like neural net layers from PyTorch Module's and the compute graph from a Variable.
 
         Example output for a multi-layer RNN. We confusingly assign shared embedding values
         to the encoder, but ordered next to the decoder.

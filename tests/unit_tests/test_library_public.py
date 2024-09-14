@@ -126,7 +126,6 @@ SYMBOLS_ROOT_OTHER = {
     "wandb_controller",
     "wandb_lib",
     "wandb_sdk",
-    "wandb_torch",
     "workflows",
     "xgboost",
     "cli",
