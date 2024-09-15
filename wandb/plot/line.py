@@ -1,10 +1,13 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import wandb
+from wandb.plot.viz import custom_chart
+
+if TYPE_CHECKING:
+    import wandb
 
 
 def line(
-    table: wandb.Table,
+    table: "wandb.Table",
     x: str,
     y: str,
     stroke: Optional[str] = None,
@@ -31,7 +34,7 @@ def line(
         wandb.log({'line-plot1': wandb.plot.line(table, "step", "height")})
         ```
     """
-    return wandb.plot_table(
+    return custom_chart(
         "wandb/line/v0",
         table,
         {"x": x, "y": y, "stroke": stroke},
