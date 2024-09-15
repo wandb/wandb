@@ -1,14 +1,14 @@
 import pytest
 import torch
 import torch.nn as nn
-from wandb.integration.torch.wandb_torch import TorchHistory, nested_shape
+from wandb.integration.torch import wandb_torch
 
 
 def test_nested_shape():
-    shape = nested_shape([2, 4, 5])
+    shape = wandb_torch.nested_shape([2, 4, 5])
     assert shape == [[], [], []]
 
-    shape = nested_shape(
+    shape = wandb_torch.nested_shape(
         [
             torch.ones((2, 3), requires_grad=True),
             torch.ones((4, 5), requires_grad=True),
@@ -22,7 +22,7 @@ def test_nested_shape():
     t3 = [t1, t2]
     t3.append(t3)
     t3.append(t2)
-    shape = nested_shape([t1, t2, t3])
+    shape = wandb_torch.nested_shape([t1, t2, t3])
     assert shape == [[2, 3], [4, 5], [[2, 3], [4, 5], 0, [4, 5]]]
 
 
@@ -42,7 +42,7 @@ def test_nested_shape():
     ],
 )
 def test_no_finite_values(test_input, expected):
-    torch_history = TorchHistory()
+    torch_history = wandb_torch.TorchHistory()
 
     assert torch_history._no_finite_values(test_input) is expected
 
@@ -57,7 +57,7 @@ def test_no_finite_values(test_input, expected):
     ],
 )
 def test_remove_infs_nans(test_input, expected):
-    torch_history = TorchHistory()
+    torch_history = wandb_torch.TorchHistory()
 
     assert torch.equal(torch_history._remove_infs_nans(test_input), expected)
 
