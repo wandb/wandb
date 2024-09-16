@@ -25,6 +25,7 @@ def test_client_sharp(user, relay_server):
 
     config = relay.context.get_run_config(run_id)
     assert config["batch_size"]["value"] == 64
+    assert config["learning_rate"]["value"] == 3e-4
 
     history = relay.context.get_run_history(run_id)
-    assert len(history) == 3
+    assert len(history) == 4

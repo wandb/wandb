@@ -186,6 +186,7 @@ def system_tests(session: nox.Session) -> None:
                 "--ignore=tests/system_tests/test_importers",
                 "--ignore=tests/system_tests/test_notebooks",
                 "--ignore=tests/system_tests/test_functional",
+                "--ignore=tests/system_tests/test_experimental",
             ]
         ),
     )
