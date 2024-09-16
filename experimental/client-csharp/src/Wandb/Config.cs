@@ -1,3 +1,6 @@
+using System.Text.Json;
+using WandbInternal;
+
 namespace Wandb
 {
     public class Config
@@ -17,6 +20,26 @@ namespace Wandb
                 // Trigger the event callback when updated
                 ConfigUpdated?.Invoke(key, value);
             }
+        }
+
+        // GetEnumerator method to allow iteration over the configuration
+        public IEnumerator<KeyValuePair<string, object>> GetEnumerator()
+        {
+            return _configData.GetEnumerator();
+        }
+
+        public ConfigRecord ToProto()
+        {
+            var config = new ConfigRecord();
+            foreach (var (key, value) in this)
+            {
+                config.Update.Add(new ConfigItem
+                {
+                    Key = key,
+                    ValueJson = JsonSerializer.Serialize(value)
+                });
+            }
+            return config;
         }
     }
 }

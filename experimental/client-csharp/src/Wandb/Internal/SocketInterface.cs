@@ -48,8 +48,10 @@ namespace Wandb.Internal
                             Entity = run.Settings.Entity,
                             DisplayName = run.Settings.DisplayName,
                             RunId = run.Settings.RunId,
+                            Resumed = run.Settings.Resumed,
                             StartTime = Timestamp.FromDateTime(run.Settings.StartDatetime.ToUniversalTime()),
-                        },
+                            StartingStep = run.StartingStep,
+                        }
                     },
                 }
             };
@@ -133,7 +135,6 @@ namespace Wandb.Internal
             {
                 metricDefinition.Options.Hidden = true;
             }
-            Console.WriteLine(summary);
             if (summary.HasValue)
             {
                 if (summary == SummaryType.None)

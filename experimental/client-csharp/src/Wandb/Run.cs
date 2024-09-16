@@ -1,3 +1,4 @@
+using System.Text.Json;
 using WandbInternal;
 using Wandb.Internal;
 
@@ -18,6 +19,8 @@ namespace Wandb
         private readonly SocketInterface _interface;
         public Settings Settings { get; private set; }
         public Config Config { get; private set; }
+
+        public int StartingStep { get; private set; }
 
         internal Run(SocketInterface @interface, Settings settings)
         {
@@ -43,7 +46,6 @@ namespace Wandb
             await _interface.InformInit(Settings).ConfigureAwait(false);
             // TODO: get timeout from settings
             Result deliverRunResult = await _interface.DeliverRun(this, 30000).ConfigureAwait(false);
-            Console.WriteLine(deliverRunResult);
             if (deliverRunResult.RunResult == null)
             {
                 throw new Exception("Failed to deliver run");
@@ -55,10 +57,17 @@ namespace Wandb
                 throw new Exception(runResult.Error.Message);
             }
 
-            // save project, entity and displa name to settings
+            // save project, entity, display name, and resume status to settings
             Settings.Project = runResult.Run.Project;
             Settings.Entity = runResult.Run.Entity;
             Settings.DisplayName = runResult.Run.DisplayName;
+            Settings.Resumed = runResult.Run.Resumed;
+
+            StartingStep = (int)runResult.Run.StartingStep;
+
+            // TODO: save config to the run for local access
+            // Console.WriteLine(runResult.Run.Config);
+
             // TODO: get timeout from settings
             Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
 

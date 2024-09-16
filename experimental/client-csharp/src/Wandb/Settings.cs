@@ -19,6 +19,7 @@ namespace Wandb
         public string Mode { get; }
         public string Project { get; set; }
         public ResumeOption? Resume { get; set; }
+        public bool Resumed { get; set; }
         public string RunId { get; }
 
         public DateTime StartDatetime { get; set; }
@@ -93,6 +94,7 @@ namespace Wandb
                 Offline = IsOffline,
                 Project = Project,
                 Resume = ResumeOptionToString(),
+                Resumed = Resumed,
                 RunId = RunId,
                 RunMode = RunMode,
                 RunName = DisplayName,
@@ -127,6 +129,7 @@ namespace Wandb
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Is Offline: {IsOffline}");
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Run Mode: {RunMode}");
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Resume: {ResumeOptionToString() ?? "Not set"}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Resumed: {Resumed}");
             // TODO: these make it look like there's an error lol
             // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Wandb Dir: {WandbDir}");
             // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Sync Dir: {SyncDir}");
