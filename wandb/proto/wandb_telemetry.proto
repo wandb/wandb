@@ -4,6 +4,8 @@ package wandb_internal;
 
 import "wandb/proto/wandb_base.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 /*
  * Telemetry
  */

@@ -6,14 +6,15 @@ from sklearn import metrics
 from sklearn.utils.multiclass import unique_labels
 
 import wandb
-from wandb.sklearn import utils
+
+from .. import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
 
 def validate_labels(*args, **kwargs):  # FIXME
-    assert False
+    raise AssertionError()
 
 
 def confusion_matrix(

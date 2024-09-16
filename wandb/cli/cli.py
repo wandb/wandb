@@ -2928,7 +2928,6 @@ def disabled(service):
     try:
         api.set_setting("mode", "disabled", persist=True)
         click.echo("W&B disabled.")
-        os.environ[wandb.env._DISABLE_SERVICE] = str(service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn off W&B:\nexport WANDB_MODE=disabled"
@@ -2948,7 +2947,6 @@ def enabled(service):
     try:
         api.set_setting("mode", "online", persist=True)
         click.echo("W&B enabled.")
-        os.environ[wandb.env._DISABLE_SERVICE] = str(not service)
     except configparser.Error:
         click.echo(
             "Unable to write config, copy and paste the following in your terminal to turn on W&B:\nexport WANDB_MODE=online"

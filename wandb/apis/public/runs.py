@@ -562,6 +562,8 @@ class Run(Attrs):
     @property
     def json_config(self):
         config = {}
+        if "_wandb" in self.rawconfig:
+            config["_wandb"] = {"value": self.rawconfig["_wandb"], "desc": None}
         for k, v in self.config.items():
             config[k] = {"value": v, "desc": None}
         return json.dumps(config)

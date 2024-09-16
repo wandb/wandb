@@ -4,13 +4,13 @@ import numpy as np
 import sklearn
 
 import wandb
-from wandb.sklearn import utils
+from wandb.integration.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):
+def summary_metrics(model=None, X=None, y=None, X_test=None, y_test=None):  # noqa: N803
     """Calculate summary metrics for both regressors and classifiers.
 
     Called by plot_summary_metrics to visualize metrics. Please use the function

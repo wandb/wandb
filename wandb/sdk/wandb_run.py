@@ -43,6 +43,7 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
+from wandb.integration.torch import wandb_torch
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -61,7 +62,7 @@ from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    _is_py_or_dockerfile,
+    _is_py_requirements_or_dockerfile,
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
@@ -620,7 +621,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None  # type: ignore
+        self._torch_history: Optional[wandb_torch.TorchHistory] = None  # type: ignore
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -921,9 +922,9 @@ class Run:
         self.__dict__.update(state)
 
     @property
-    def _torch(self) -> "wandb.wandb_torch.TorchHistory":  # type: ignore
+    def _torch(self) -> "wandb_torch.TorchHistory":  # type: ignore
         if self._torch_history is None:
-            self._torch_history = wandb.wandb_torch.TorchHistory()  # type: ignore
+            self._torch_history = wandb_torch.TorchHistory()  # type: ignore
         return self._torch_history
 
     @property
@@ -1146,7 +1147,7 @@ class Run:
         name: Optional[str] = None,
         include_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
-        ] = _is_py_or_dockerfile,
+        ] = _is_py_requirements_or_dockerfile,
         exclude_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
         ] = filenames.exclude_wandb_fn,
