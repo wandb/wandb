@@ -21,6 +21,8 @@ namespace Wandb
         public ResumeOption? Resume { get; set; }
         public bool Resumed { get; set; }
         public string RunId { get; }
+        public float ServiceWait { get; set; }
+        public float InitTimeout { get; set; }
 
         public DateTime StartDatetime { get; set; }
 
@@ -44,7 +46,9 @@ namespace Wandb
             string? mode = null,
             string? project = null,
             ResumeOption? resume = null,
-            string? runId = null
+            string? runId = null,
+            float serviceWait = 30.0f,
+            float initTimeout = 90.0f
             )
         {
             Lib.RandomStringGenerator generator = new();
@@ -57,6 +61,8 @@ namespace Wandb
             Project = project ?? Environment.GetEnvironmentVariable("WANDB_PROJECT") ?? "uncategorized";
             Resume = resume;
             RunId = runId ?? generator.GenerateRandomString(8);
+            ServiceWait = serviceWait;
+            InitTimeout = initTimeout;
 
             StartDatetime = DateTime.UtcNow;
         }
@@ -85,6 +91,7 @@ namespace Wandb
                 BaseUrl = BaseUrl.ToString(),
                 Entity = Entity,
                 FilesDir = FilesDir,
+                InitTimeout = InitTimeout,
                 LogDir = LogDir,
                 LogInternal = LogInternal,
                 LogSymlinkInternal = LogSymlinkInternal,
@@ -98,6 +105,7 @@ namespace Wandb
                 RunId = RunId,
                 RunMode = RunMode,
                 RunName = DisplayName,
+                ServiceWait = ServiceWait,
                 SyncDir = SyncDir,
                 SyncFile = SyncFile,
                 Timespec = Timespec,

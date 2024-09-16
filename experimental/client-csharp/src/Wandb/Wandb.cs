@@ -13,16 +13,16 @@ namespace Wandb
             _manager = new Manager();
         }
 
-        public async Task Setup()
+        public async Task Setup(
+            float timeout = 30.0f
+        )
         {
             // TODO: move this logic to manager
             if (_isInitialized)
             {
                 return;
             }
-            // TODO: get timeout from settings
-            var timeout = TimeSpan.FromSeconds(30);
-            _port = await _manager.LaunchCore(timeout).ConfigureAwait(false);
+            _port = await _manager.LaunchCore(TimeSpan.FromSeconds(timeout)).ConfigureAwait(false);
             _isInitialized = true;
         }
 

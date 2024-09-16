@@ -44,8 +44,8 @@ namespace Wandb
         public async Task Init()
         {
             await _interface.InformInit(Settings).ConfigureAwait(false);
-            // TODO: get timeout from settings
-            Result deliverRunResult = await _interface.DeliverRun(this, 30000).ConfigureAwait(false);
+            var initTimeoutMs = (int)(Settings.InitTimeout * 1000);
+            Result deliverRunResult = await _interface.DeliverRun(this, initTimeoutMs).ConfigureAwait(false);
             if (deliverRunResult.RunResult == null)
             {
                 throw new Exception("Failed to deliver run");
@@ -68,7 +68,6 @@ namespace Wandb
             // TODO: save config to the run for local access
             // Console.WriteLine(runResult.Run.Config);
 
-            // TODO: get timeout from settings
             Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
 
             if (result.Response == null)
