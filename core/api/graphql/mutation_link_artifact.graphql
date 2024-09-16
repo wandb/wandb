@@ -1,3 +1,4 @@
+# @genqlient(for: "LinkArtifactInput.organizationName", omitempty: true)
 mutation LinkArtifact(
             $artifactPortfolioName: String!,
             $entityName: String!,

@@ -3,12 +3,14 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ArtifactLinker struct {
@@ -19,15 +21,20 @@ type ArtifactLinker struct {
 }
 
 func (al *ArtifactLinker) Link() error {
-	// TODO: add in backend server introspection check
+	inputFieldNames, err := utils.GetInputFields(al.Ctx, al.GraphqlClient, "LinkArtifactInput")
+	if err != nil {
+		return err
+	}
 	clientId := al.LinkArtifact.ClientId
 	serverId := al.LinkArtifact.ServerId
 	portfolioName := al.LinkArtifact.PortfolioName
 	portfolioEntity := al.LinkArtifact.PortfolioEntity
 	portfolioProject := al.LinkArtifact.PortfolioProject
 	var portfolioAliases []gql.ArtifactAliasInput
-	portfolioOrganization := al.LinkArtifact.PortfolioOrganization
-
+	var portfolioOrganization *string
+	if slices.Contains(inputFieldNames, "organization") {
+		portfolioOrganization = &al.LinkArtifact.PortfolioOrganization
+	}
 	for _, alias := range al.LinkArtifact.PortfolioAliases {
 		portfolioAliases = append(portfolioAliases,
 			gql.ArtifactAliasInput{
@@ -36,7 +43,6 @@ func (al *ArtifactLinker) Link() error {
 			},
 		)
 	}
-	var err error
 	switch {
 	case serverId != "":
 		_, err = gql.LinkArtifact(
@@ -48,7 +54,7 @@ func (al *ArtifactLinker) Link() error {
 			portfolioAliases,
 			nil,
 			&serverId,
-			&portfolioOrganization,
+			portfolioOrganization,
 		)
 	case clientId != "":
 		_, err = gql.LinkArtifact(
@@ -60,7 +66,7 @@ func (al *ArtifactLinker) Link() error {
 			portfolioAliases,
 			&clientId,
 			nil,
-			&portfolioOrganization,
+			portfolioOrganization,
 		)
 	default:
 		err = fmt.Errorf("artifact must have either server id or client id")
