@@ -1,7 +1,6 @@
 package runconsolelogs_test
 
 import (
-	"os"
 	"testing"
 	"time"
 
@@ -25,12 +24,9 @@ func TestFileStreamUpdates(t *testing.T) {
 	fileStream := filestreamtest.NewFakeFileStream()
 	outputFile, _ := paths.Relative("output.log")
 
-	defer func() {
-		os.Remove(string(*outputFile))
-	}()
-
 	sender := New(Params{
 		ConsoleOutputFile: *outputFile,
+		FilesDir:          settings.GetFilesDir(),
 		EnableCapture:     true,
 		Logger:            observability.NewNoOpLogger(),
 		RunfilesUploaderOrNil: runfiles.NewUploader(
