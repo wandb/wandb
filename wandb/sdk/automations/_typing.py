@@ -5,7 +5,7 @@ from typing import Any, TypeAlias
 from pydantic import Base64Str, Field, Json
 from typing_extensions import Annotated, TypeVar
 
-IntId = Annotated[int, Field(repr=False)]
+IntId = Annotated[int, Field()]
 Base64Id = Annotated[Base64Str, Field(repr=False)]
 JsonDict: TypeAlias = Json[dict[str, Any]]
 

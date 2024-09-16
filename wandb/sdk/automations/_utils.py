@@ -12,8 +12,6 @@ from wandb.apis.public import RetryingClient
 from wandb.sdk.automations._typing import Base64Id, TypenameField
 from wandb.sdk.automations.base import Base
 
-# load_dotenv(Path(__file__).parent.parent.parent.parent / ".env")
-
 
 class UserInfo(Base):
     id: Base64Id
@@ -82,13 +80,7 @@ def iter_entity_project_pairs(orgs: Iterable[OrgInfo]) -> Iterator[tuple[str, st
 
 
 def _client() -> RetryingClient:
-    api = Api()
-    return api.client
-    # api = Api(
-    #     overrides={"base_url": "https://api.wandb.ai"},
-    #     api_key=os.environ["WANDB_API_KEY"],
-    # )
-    # return api.client
+    return Api().client
 
 
 _PROJECT_INFO_FRAGMENT = dedent(

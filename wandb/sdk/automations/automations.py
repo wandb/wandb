@@ -6,15 +6,10 @@ from pydantic import Field, Json
 
 from wandb.sdk.automations._typing import Base64Id
 from wandb.sdk.automations._utils import UserInfo
-from wandb.sdk.automations.actions import AnyAction
+from wandb.sdk.automations.actions import ActionType, AnyAction, NewActionConfig
 from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.events import AnyEvent, Filter, FilterEventType
-from wandb.sdk.automations.generated.schema_gen import (
-    TriggeredActionConfig,
-    TriggeredActionType,
-    TriggerScopeType,
-)
-from wandb.sdk.automations.scopes import AnyScope
+from wandb.sdk.automations.events import AnyEvent, EventFilter, EventType
+from wandb.sdk.automations.scopes import AnyScope, ScopeType
 
 
 class Automation(Base):
@@ -24,33 +19,32 @@ class Automation(Base):
 
     name: str
     description: str | None
-
-    created_by: UserInfo
-    created_at: datetime
-    updated_at: datetime | None
-
-    scope: AnyScope
     enabled: bool
 
+    created_by: UserInfo = Field(repr=False)
+    created_at: datetime = Field(repr=False)
+    updated_at: datetime | None = Field(repr=False)
+
+    scope: AnyScope
     event: AnyEvent
     action: AnyAction
 
 
-class CreateAutomationInput(Base):
-    """A newly defined automation, to be prepared and sent by the client to the server."""
+class NewAutomation(Base):
+    """A newly defined automation, prepared to be sent to the server to register it."""
 
     name: str
     description: str | None
-    enabled: bool
+    enabled: bool = True
 
-    scope_type: TriggerScopeType
+    scope_type: ScopeType
     scope_id: Base64Id = Field(alias="scopeID")
 
-    triggering_event_type: FilterEventType
-    event_filter: Json[Filter]
+    triggering_event_type: EventType
+    event_filter: Json[EventFilter]
 
-    triggered_action_type: TriggeredActionType
-    triggered_action_config: TriggeredActionConfig
+    triggered_action_type: ActionType
+    triggered_action_config: NewActionConfig
 
     client_mutation_id: str | None = None
 

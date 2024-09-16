@@ -1,26 +1,31 @@
 from abc import ABC
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 from pydantic.main import IncEx
+from typing_extensions import override
+
+default_model_config: Final[ConfigDict] = ConfigDict(
+    validate_assignment=True,
+    extra="forbid",
+    alias_generator=to_camel,
+    populate_by_name=True,
+    use_enum_values=True,
+    use_attribute_docstrings=True,
+)
 
 
 class Base(BaseModel, ABC):
     """Abstract base class for all automation classes/types."""
 
-    model_config = ConfigDict(
-        validate_assignment=True,
-        extra="forbid",
-        alias_generator=to_camel,
-        populate_by_name=True,
-        use_enum_values=True,
-    )
+    model_config = default_model_config
 
+    @override
     def model_dump(
         self,
         *,
-        mode: Literal["json", "python"] | str = "python",
+        mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
         include: IncEx = None,
         exclude: IncEx = None,
         context: dict[str, Any] | None = None,
@@ -46,6 +51,7 @@ class Base(BaseModel, ABC):
             serialize_as_any=serialize_as_any,
         )
 
+    @override
     def model_dump_json(
         self,
         *,

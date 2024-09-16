@@ -115,7 +115,7 @@ automations = [
     "odmantic>=1.0,<2",
     "pydantic>=2.0,<3",
     "pydantic-settings",
-    "typing-extensions",
+    "typing-extensions>=4.13.0,<5",
     "rich",
 ]
 
