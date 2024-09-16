@@ -55,7 +55,7 @@ func (h *TFEventConverter) ConvertNext(
 
 			switch value := value.GetValue().(type) {
 			case *tbproto.Summary_Value_SimpleValue:
-				processScalarsSimpleValue(emitter, tag, value.SimpleValue)
+				processScalarsSimpleValue(emitter, tag, value.SimpleValue, logger)
 
 			case *tbproto.Summary_Value_Histo:
 				processHistogramsProto(emitter, tag, value.Histo, logger)

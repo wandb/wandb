@@ -51,7 +51,7 @@ _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
 # Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
-from wandb import wandb_torch
+from wandb.integration.torch import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
