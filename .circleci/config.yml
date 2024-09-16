@@ -215,12 +215,12 @@ commands:
             equal: [<< parameters.enabled >>, true]
           steps:
             - run:
-              name: Install extra dependencies
-              command: |
-                wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-                chmod +x dotnet-install.sh
-                ./dotnet-install.sh --version latest
-              no_output_timeout: 5m
+                name: Install extra dependencies
+                command: |
+                  wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+                  chmod +x dotnet-install.sh
+                  ./dotnet-install.sh --version latest
+                no_output_timeout: 5m
 
   setup_gcloud:
     parameters:
