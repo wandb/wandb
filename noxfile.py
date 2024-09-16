@@ -248,7 +248,7 @@ def experimental_tests(session: nox.Session):
     install_timed(
         session,
         "-r",
-        "requirements_test.txt",
+        "requirements_dev.txt",
     )
 
     run_pytest(

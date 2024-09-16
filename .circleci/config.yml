@@ -215,7 +215,7 @@ commands:
             equal: [<< parameters.enabled >>, true]
           steps:
             - run:
-                name: Install extra dependencies
+                name: Install .NET SDK for the C# client tests
                 command: |
                   wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
                   chmod +x dotnet-install.sh
