@@ -84,14 +84,12 @@ func processHistogramsProto(
 
 	if len(rightEdges) == 0 {
 		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: empty BucketLimit"),
-			"tag", tag)
+			errors.New("tensorboard: invalid histogram: empty BucketLimit"))
 		return
 	}
 	if len(rightEdges) != len(binWeights) {
 		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)"),
-			"tag", tag)
+			errors.New("tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)"))
 		return
 	}
 
@@ -113,8 +111,7 @@ func processHistogramsProto(
 
 	default:
 		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: histo.Min >= rightEdges[0]"),
-			"tag", tag)
+			errors.New("tensorboard: invalid histogram: histo.Min >= rightEdges[0]"))
 		return
 	}
 

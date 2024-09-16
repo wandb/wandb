@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.17.10.dev1"
+__version__ = "0.18.1.dev1"
 
 from typing import Optional
 
@@ -51,7 +51,7 @@ _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
 # Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
-from wandb import wandb_torch
+from wandb.integration.torch import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
 from wandb.sdk.data_types._private import _cleanup_media_tmp_dir

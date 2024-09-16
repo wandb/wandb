@@ -76,12 +76,13 @@ var ErrHelp = errors.New("help requested by user")
 // ErrVersion indicates that the builtin --version was provided
 var ErrVersion = errors.New("version requested by user")
 
-// for monkey patching in example code
+// for monkey patching in example and test code
 var mustParseExit = os.Exit
+var mustParseOut io.Writer = os.Stdout
 
 // MustParse processes command line arguments and exits upon failure
 func MustParse(dest ...interface{}) *Parser {
-	return mustParse(Config{Exit: mustParseExit}, dest...)
+	return mustParse(Config{Exit: mustParseExit, Out: mustParseOut}, dest...)
 }
 
 // mustParse is a helper that facilitates testing

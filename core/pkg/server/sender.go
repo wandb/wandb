@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/Khan/genqlient/graphql"
-	"golang.org/x/mod/semver"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
@@ -193,11 +192,11 @@ func NewSender(
 		),
 
 		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
-			ConsoleOutputFile: outputFileName,
-			Settings:          params.Settings,
-			Logger:            params.Logger,
-			ExtraWork:         runWork,
-			FileStreamOrNil:   params.FileStream,
+			ConsoleOutputFile:     outputFileName,
+			Settings:              params.Settings,
+			Logger:                params.Logger,
+			RunfilesUploaderOrNil: params.RunfilesUploader,
+			FileStreamOrNil:       params.FileStream,
 		}),
 	}
 
@@ -360,6 +359,10 @@ func (s *Sender) sendRecord(record *spb.Record) {
 // sendRequest sends a request
 func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 	switch x := request.RequestType.(type) {
+	case *spb.Request_ServerInfo:
+	case *spb.Request_CheckVersion:
+		// These requests were removed from the client, so we don't need to
+		// handle them. Keep for now should be removed in the future
 	case *spb.Request_RunStart:
 		s.sendRequestRunStart(x.RunStart)
 	case *spb.Request_NetworkStatus:
@@ -368,8 +371,6 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestDefer(x.Defer)
 	case *spb.Request_LogArtifact:
 		s.sendRequestLogArtifact(record, x.LogArtifact)
-	case *spb.Request_ServerInfo:
-		s.sendRequestServerInfo(record, x.ServerInfo)
 	case *spb.Request_LinkArtifact:
 		s.sendLinkArtifact(record, x.LinkArtifact)
 	case *spb.Request_DownloadArtifact:
@@ -382,8 +383,6 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
-	case *spb.Request_CheckVersion:
-		s.sendRequestCheckVersion(record, x.CheckVersion)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -396,7 +395,7 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || !s.startState.Intialized {
+	if s.settings == nil || !s.startState.Initialized {
 		return
 	}
 
@@ -676,16 +675,16 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
+func (s *Sender) serializeConfig(format runconfig.Format) ([]byte, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.Error("sender: serializeConfig", "error", err)
-		return "", err
+		return nil, err
 	}
 
-	return string(serializedConfig), nil
+	return serializedConfig, nil
 }
 
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
@@ -875,8 +874,7 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	proto.Merge(s.telemetry, run.Telemetry)
 	s.updateConfigPrivate()
 
-	if !s.startState.Intialized {
-		s.startState.Intialized = true
+	if !s.startState.Initialized {
 
 		// update the run state with the initial run record
 		s.startState.Merge(&runbranch.RunParams{
@@ -906,19 +904,18 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 				)
 			}
 			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
-			return
 		case isResume != "":
 			s.sendResumeRun(record, runClone)
-			return
 		case isRewind != nil:
 			s.sendRewindRun(record, runClone)
-			return
 		case isFork != nil:
 			s.sendForkRun(record, runClone)
-			return
 		default:
-			// no branching, just send the run
+			s.upsertRun(record, runClone)
 		}
+		// mark the run state as initialized after the initial run upsert
+		s.startState.Initialized = true
+		return
 	}
 
 	s.upsertRun(record, runClone)
@@ -953,7 +950,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		// if this times out, we mark the run as done as there is
 		// no need to proceed with it
 		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
-	} else if !s.startState.Intialized {
+	} else if !s.startState.Initialized {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
 		s.logger.CaptureFatalAndPanic(
@@ -962,6 +959,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	}
 
 	config, _ := s.serializeConfig(runconfig.FormatJson)
+	configStr := string(config)
 
 	var commit, repo string
 	git := run.GetGit()
@@ -984,7 +982,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		utils.NilIfZero(run.DisplayName), // displayName
 		utils.NilIfZero(run.Notes),       // notes
 		utils.NilIfZero(commit),          // commit
-		&config,                          // config
+		&configStr,                       // config
 		utils.NilIfZero(run.Host),        // host
 		nil,                              // debug
 		utils.NilIfZero(program),         // program
@@ -1017,7 +1015,9 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	// manage the state of the run
 	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
 		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
-	} else {
+	} else if !s.startState.Initialized {
+		// only update the state once on the initial run upsert, the subsequent
+		// updates are fire-and-forget
 
 		bucket := data.GetUpsertBucket().GetBucket()
 
@@ -1106,7 +1106,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	if !s.startState.Intialized {
+	if !s.startState.Initialized {
 		s.logger.Error("sender: upsertConfig: RunRecord is nil")
 		return
 	}
@@ -1117,9 +1117,10 @@ func (s *Sender) upsertConfig() {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
 		return
 	}
-	if config == "" {
+	if len(config) == 0 {
 		return
 	}
+	configStr := string(config)
 
 	ctx := context.WithValue(
 		s.runWork.BeforeEndCtx(),
@@ -1138,7 +1139,7 @@ func (s *Sender) upsertConfig() {
 		nil,                                   // displayName
 		nil,                                   // notes
 		nil,                                   // commit
-		&config,                               // config
+		&configStr,                            // config
 		nil,                                   // host
 		nil,                                   // debug
 		nil,                                   // program
@@ -1155,67 +1156,81 @@ func (s *Sender) upsertConfig() {
 }
 
 func (s *Sender) uploadSummaryFile() {
-	if s.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
+	if s.runfilesUploader == nil {
 		return
 	}
 
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
-		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
-		return
-	}
-	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
-	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
-		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run summary: %v", err))
 		return
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: SummaryFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
+	if err := s.scheduleFileUpload(
+		summary,
+		SummaryFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run summary: %v", err))
 	}
-	s.fwdRecord(record)
 }
 
 func (s *Sender) uploadConfigFile() {
-	if s.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
+	if s.runfilesUploader == nil {
 		return
 	}
 
 	config, err := s.serializeConfig(runconfig.FormatYaml)
 	if err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
-		return
-	}
-	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
-	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run config: %v", err))
 		return
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: ConfigFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
+	if err := s.scheduleFileUpload(
+		config,
+		ConfigFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run config: %v", err))
 	}
-	s.fwdRecord(record)
+}
+
+// scheduleFileUpload creates and uploads a run file.
+//
+// The file is created in the run's files directory and uploaded
+// asynchronously.
+func (s *Sender) scheduleFileUpload(
+	content []byte,
+	runPathStr string,
+	fileKind filetransfer.RunFileKind,
+) error {
+	if s.runfilesUploader == nil {
+		return errors.New("runfilesUploader is nil")
+	}
+
+	maybeRunPath, err := paths.Relative(runPathStr)
+	if err != nil {
+		return err
+	}
+	runPath := *maybeRunPath
+
+	if err = os.WriteFile(
+		filepath.Join(
+			s.settings.GetFilesDir().GetValue(),
+			string(runPath),
+		),
+		content,
+		0644,
+	); err != nil {
+		return err
+	}
+
+	s.runfilesUploader.UploadNow(runPath, fileKind)
+	return nil
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
@@ -1268,7 +1283,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	if !s.startState.Intialized {
+	if !s.startState.Initialized {
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendAlert: RunRecord not set"))
 	}
@@ -1447,7 +1462,7 @@ func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
 			}
 
 			var url string
-			if !s.startState.Intialized {
+			if !s.startState.Initialized {
 				baseUrl := s.settings.GetBaseUrl().GetValue()
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
 				url = fmt.Sprintf("%s/%s/%s/runs/%s",
@@ -1486,77 +1501,6 @@ func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
 		Uuid:    record.Uuid,
 	}
 	s.fwdRecord(rec)
-}
-
-func (s *Sender) sendRequestCheckVersion(record *spb.Record, request *spb.CheckVersionRequest) {
-	currVersion := request.GetCurrentVersion()
-	// if the current version is empty, we can't check for a new version
-	if currVersion == "" {
-		s.logger.Error("sender: sendRequestCheckVersion: current version is empty")
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	// if there is no graphql client, we don't need to do anything as we can't
-	// check for the server provided version
-	if s.graphqlClient == nil {
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	response, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
-	// if the request failed, we can't check for the server provided version this
-	// check is best effort
-	if err != nil {
-		s.logger.Error("sender: sendRequestCheckVersion: failed to get server info", "error", err)
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	// if the response is nil or the server info is nil, we can't check for the
-	// server provided version this check is best effort
-	if response == nil || response.GetServerInfo() == nil {
-		s.logger.Error("sender: sendRequestCheckVersion: server info is nil")
-		s.respond(record,
-			&spb.Response{},
-		)
-		return
-	}
-
-	// For now, the server should be compatible with all client versions
-	// so we only check if the current version is less than the max version
-	switch x := response.GetServerInfo().GetCliVersionInfo().(type) {
-	case map[string]any:
-		if maxVersion, ok := x["max_cli_version"].(string); ok {
-			currVersion = strings.Replace(currVersion, ".dev", "-dev", 1)
-			if semver.Compare("v"+currVersion, "v"+maxVersion) == -1 {
-				s.respond(record,
-					&spb.Response{
-						ResponseType: &spb.Response_CheckVersionResponse{
-							CheckVersionResponse: &spb.CheckVersionResponse{
-								UpgradeMessage: fmt.Sprintf(
-									"There is a new version of wandb available. Please upgrade to wandb==%s", maxVersion,
-								),
-							},
-						},
-					},
-				)
-				return
-			}
-		}
-	default:
-		err := fmt.Errorf("server client version is of type %T should be a map", x)
-		s.logger.Error("sender: sendRequestCheckVersion: failed to get server info", "error", err)
-	}
-	s.respond(record,
-		&spb.Response{},
-	)
 }
 
 func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequest) {
@@ -1657,81 +1601,6 @@ func (s *Sender) sendRequestSenderRead(_ *spb.Record, _ *spb.SenderReadRequest) 
 			return
 		}
 	}
-}
-
-// sendRequestServerInfo sends a server info request to the server to probe the server for
-// version compatibility and other server information
-func (s *Sender) sendRequestServerInfo(record *spb.Record, _ *spb.ServerInfoRequest) {
-
-	// if there is no graphql client, we don't need to do anything
-	// just respond with an empty server info response
-	if s.graphqlClient == nil {
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{},
-				},
-			},
-		)
-		return
-	}
-
-	response, err := gql.ServerInfo(s.runWork.BeforeEndCtx(), s.graphqlClient)
-	// if there is an error, we don't know the server info
-	// respond with an empty server info response
-	// this is a best effort to get the server info
-	if err != nil {
-		s.logger.Error(
-			"sender: getServerInfo: failed to get server info", "error", err,
-		)
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{},
-				},
-			},
-		)
-		return
-	}
-	if response == nil || response.GetServerInfo() == nil {
-		s.logger.Error("sender: getServerInfo: server info is nil")
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{},
-				},
-			},
-		)
-		return
-	}
-
-	// if we have server info, respond with the server info
-	// this is a best effort to get the server info
-	latestVersion := response.GetServerInfo().GetLatestLocalVersionInfo()
-	if latestVersion != nil {
-		s.respond(record,
-			&spb.Response{
-				ResponseType: &spb.Response_ServerInfoResponse{
-					ServerInfoResponse: &spb.ServerInfoResponse{
-						LocalInfo: &spb.LocalInfo{
-							Version:   latestVersion.GetLatestVersionString(),
-							OutOfDate: latestVersion.GetOutOfDate(),
-						},
-					},
-				},
-			},
-		)
-		return
-	}
-
-	// default response if we don't have server info
-	s.respond(record,
-		&spb.Response{
-			ResponseType: &spb.Response_ServerInfoResponse{
-				ServerInfoResponse: &spb.ServerInfoResponse{},
-			},
-		},
-	)
 }
 
 func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {

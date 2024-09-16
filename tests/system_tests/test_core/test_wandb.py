@@ -263,10 +263,19 @@ def test_run_jobtype(wandb_init):
         assert run.job_type == "job1"
 
 
-def test_run_resumed(wandb_init):
+def test_run_not_resumed(wandb_init):
     run = wandb_init()
     run.finish()
     assert run.resumed is False
+
+
+def test_run_resumed(wandb_init):
+    run = wandb_init()
+    run.finish()
+
+    run = wandb_init(id=run.id, resume="must")
+    assert run.resumed is True
+    run.finish()
 
 
 def test_run_sweepid(wandb_init):

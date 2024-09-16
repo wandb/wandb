@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"log/slog"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -241,6 +242,12 @@ func TestConvertScalar(t *testing.T) {
 	converter.ConvertNext(
 		emitter,
 		summaryEvent(123, 0.345,
+			scalarValue("epoch_loss", "scalars", float32(math.Inf(1)))),
+		observability.NewNoOpLogger(),
+	)
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
 			tensorValue("epoch_loss", "scalars", []int{0}, 2.5)),
 		observability.NewNoOpLogger(),
 	)
@@ -258,6 +265,7 @@ func TestConvertScalar(t *testing.T) {
 	assert.Equal(t,
 		[]mockEmitter_EmitHistory{
 			{pathtree.PathOf("train/epoch_loss"), "0.5"},
+			{pathtree.PathOf("train/epoch_loss"), "Infinity"},
 			{pathtree.PathOf("train/epoch_loss"), "2.5"},
 			{pathtree.PathOf("train/epoch_loss"), "10.5"},
 		},
