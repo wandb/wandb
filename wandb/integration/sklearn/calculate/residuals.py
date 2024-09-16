@@ -3,27 +3,27 @@ from warnings import simplefilter
 from sklearn import model_selection
 
 import wandb
-from wandb.sklearn import utils
+from wandb.integration.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
 
 
-def residuals(regressor, X, y):
+def residuals(regressor, X, y):  # noqa: N803
     # Create the train and test splits
-    X_train, X_test, y_train, y_test = model_selection.train_test_split(
+    x_train, x_test, y_train, y_test = model_selection.train_test_split(
         X, y, test_size=0.2
     )
 
     # Store labels and colors for the legend ordered by call
-    regressor.fit(X_train, y_train)
-    train_score_ = regressor.score(X_train, y_train)
-    test_score_ = regressor.score(X_test, y_test)
+    regressor.fit(x_train, y_train)
+    train_score_ = regressor.score(x_train, y_train)
+    test_score_ = regressor.score(x_test, y_test)
 
-    y_pred_train = regressor.predict(X_train)
+    y_pred_train = regressor.predict(x_train)
     residuals_train = y_pred_train - y_train
 
-    y_pred_test = regressor.predict(X_test)
+    y_pred_test = regressor.predict(x_test)
     residuals_test = y_pred_test - y_test
 
     table = make_table(

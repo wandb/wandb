@@ -246,7 +246,6 @@ module = [
     "wandb.integration.*",
     "wandb.apis.*",
     "wandb.proto.*",
-    "wandb.sklearn.*",
     "wandb.beta.*",
     "wandb.sdk.wandb_login",
     "wandb.cli.*",

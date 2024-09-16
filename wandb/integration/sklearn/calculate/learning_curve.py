@@ -4,7 +4,7 @@ import numpy as np
 from sklearn import model_selection
 
 import wandb
-from wandb.sklearn import utils
+from wandb.integration.sklearn import utils
 
 # ignore all future warnings
 simplefilter(action="ignore", category=FutureWarning)
@@ -12,7 +12,7 @@ simplefilter(action="ignore", category=FutureWarning)
 
 def learning_curve(
     model,
-    X,
+    X,  # noqa: N803
     y,
     cv=None,
     shuffle=False,
