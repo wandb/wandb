@@ -98,6 +98,16 @@ func (r *RunParams) Proto() *spb.RunRecord {
 		proto.SweepId = r.SweepID
 	}
 
+	// update the resumption status
+	if r.Resumed {
+		proto.Resumed = true
+	}
+
+	// update the forked status
+	if r.Forked {
+		proto.Forked = true
+	}
+
 	// update the config
 	if len(r.Config) > 0 {
 		config := spb.ConfigRecord{}
