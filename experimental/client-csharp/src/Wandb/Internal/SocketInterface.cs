@@ -118,7 +118,7 @@ namespace Wandb.Internal
         public async Task PublishMetricDefinition(
             string name,
             string stepMetric,
-            string? summary,
+            SummaryType? summary,
             bool? hidden
         )
         {
@@ -133,33 +133,19 @@ namespace Wandb.Internal
             {
                 metricDefinition.Options.Hidden = true;
             }
-            // Split the summary string into individual values
-            if (summary != null)
+            if (summary.HasValue)
             {
-
-                string[] summaries = summary.Split(',');
-
-                foreach (string s in summaries)
+                if (summary == SummaryType.None)
                 {
-                    // Trim any whitespace from each value
-                    switch (s.Trim())
-                    {
-                        case "min":
-                            metricDefinition.Summary.Min = true;
-                            break;
-                        case "max":
-                            metricDefinition.Summary.Max = true;
-                            break;
-                        case "mean":
-                            metricDefinition.Summary.Mean = true;
-                            break;
-                        case "last":
-                            metricDefinition.Summary.Last = true;
-                            break;
-                        case "none":
-                            metricDefinition.Summary.None = true;
-                            break;
-                    }
+                    metricDefinition.Summary.None = true;
+                }
+                else
+                {
+                    metricDefinition.Summary.None = false;
+                    metricDefinition.Summary.Min = summary.Value.HasFlag(SummaryType.Min);
+                    metricDefinition.Summary.Max = summary.Value.HasFlag(SummaryType.Max);
+                    metricDefinition.Summary.Mean = summary.Value.HasFlag(SummaryType.Mean);
+                    metricDefinition.Summary.Last = summary.Value.HasFlag(SummaryType.Last);
                 }
             }
             var record = new Record

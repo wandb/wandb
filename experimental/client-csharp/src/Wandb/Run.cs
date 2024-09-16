@@ -3,6 +3,16 @@ using Wandb.Internal;
 
 namespace Wandb
 {
+    [Flags]
+    public enum SummaryType
+    {
+        None = 0,
+        Min = 1 << 0,   // 1
+        Max = 1 << 1,   // 2
+        Mean = 1 << 2,  // 4
+        Last = 1 << 3,  // 8
+    }
+
     public class Run : IDisposable
     {
         private readonly SocketInterface _interface;
@@ -65,7 +75,7 @@ namespace Wandb
         public async Task DefineMetric(
             string name,
             string stepMetric,
-            string? summary = null, // TODO: make this an object
+            SummaryType? summary = null,
             bool? hidden = false
         )
         {

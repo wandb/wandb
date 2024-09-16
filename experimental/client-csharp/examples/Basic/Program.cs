@@ -16,7 +16,8 @@ class Program
 
             run1.Config["batch_size"] = 64;
 
-            await run1.DefineMetric("recall", "epoch", "min,max,mean");
+            await run1.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
+            await run1.DefineMetric("loss", "epoch", SummaryType.Min);
 
             await run1.Log(new Dictionary<string, object> { { "loss", 0.5 }, { "recall", 0.8 }, { "epoch", 1 } });
             await run1.Log(new Dictionary<string, object> { { "loss", 0.4 }, { "recall", 0.95 }, { "epoch", 2 } });
