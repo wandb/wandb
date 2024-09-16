@@ -259,7 +259,8 @@ jobs:
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg
       - install_go
       - install_rust
-      - when: <<parameters.install_extras>>
+      - when:
+        condition: <<parameters.install_extras>>
         steps:
           - run:
               name: Install extra dependencies
