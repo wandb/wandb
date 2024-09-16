@@ -24,24 +24,21 @@ func processScalars(
 		tensor, err := tensorFromProto(value.Tensor)
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error parsing tensor: %v", err),
-				"tag", tag)
+				fmt.Errorf("tensorboard: error parsing tensor: %v", err))
 			return
 		}
 
 		scalar, err := tensor.Scalar()
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error getting scalar: %v", err),
-				"tag", tag)
+				fmt.Errorf("tensorboard: error getting scalar: %v", err))
 			return
 		}
 
 		floatJSON, err := simplejsonext.MarshalToString(scalar)
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error encoding scalar: %v", err),
-				"tag", tag)
+				fmt.Errorf("tensorboard: error encoding scalar: %v", err))
 			return
 		}
 
@@ -51,8 +48,7 @@ func processScalars(
 		logger.CaptureError(
 			fmt.Errorf(
 				"tensorboard: unexpected scalars value type: %T",
-				value),
-			"tag", tag)
+				value))
 	}
 }
 
@@ -66,8 +62,7 @@ func processScalarsSimpleValue(
 	floatJSON, err := simplejsonext.MarshalToString(value)
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf("tensorboard: error encoding scalar: %v", err),
-			"tag", tag)
+			fmt.Errorf("tensorboard: error encoding scalar: %v", err))
 		return
 	}
 

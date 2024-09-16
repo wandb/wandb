@@ -30,8 +30,7 @@ func processHistograms(
 			fmt.Errorf(
 				"tensorboard: expected histograms value to be a Tensor"+
 					" or HistogramProto but its type is %T",
-				value),
-			"tag", tag)
+				value))
 	}
 }
 
@@ -45,8 +44,7 @@ func processHistogramsTensor(
 	tensor, err := tensorFromProto(tensorValue)
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to parse tensor: %v", err),
-			"tag", tag)
+			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
 		return
 	}
 
@@ -56,8 +54,7 @@ func processHistogramsTensor(
 	if err1 != nil || err2 != nil || err3 != nil {
 		logger.CaptureError(
 			fmt.Errorf("tensorboard: couldn't read histograms row: %v",
-				errors.Join(err1, err2, err3)),
-			"tag", tag)
+				errors.Join(err1, err2, err3)))
 		return
 	}
 
@@ -87,14 +84,12 @@ func processHistogramsProto(
 
 	if len(rightEdges) == 0 {
 		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: empty BucketLimit"),
-			"tag", tag)
+			errors.New("tensorboard: invalid histogram: empty BucketLimit"))
 		return
 	}
 	if len(rightEdges) != len(binWeights) {
 		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)"),
-			"tag", tag)
+			errors.New("tensorboard: invalid histogram: len(BucketLimit) != len(Bucket)"))
 		return
 	}
 
@@ -116,8 +111,7 @@ func processHistogramsProto(
 
 	default:
 		logger.CaptureError(
-			errors.New("tensorboard: invalid histogram: histo.Min >= rightEdges[0]"),
-			"tag", tag)
+			errors.New("tensorboard: invalid histogram: histo.Min >= rightEdges[0]"))
 		return
 	}
 
@@ -149,8 +143,7 @@ func emitHistogram(
 
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error rebinning histogram: %v", err),
-				"tag", tag)
+				fmt.Errorf("tensorboard: error rebinning histogram: %v", err))
 			return
 		}
 	}
@@ -161,8 +154,7 @@ func emitHistogram(
 	}.HistoryValueJSON()
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf("tensorboard: error serializing histogram: %v", err),
-			"tag", tag)
+			fmt.Errorf("tensorboard: error serializing histogram: %v", err))
 		return
 	}
 
