@@ -2,11 +2,11 @@ from typing import Any
 
 from wandb.sdk.automations import actions, automations, events, expr, scopes
 
-from .actions import *
-from .api import *
-from .automations import *
+from .actions import ActionType, Severity
+from .api import create, define, delete, fetch
+from .automations import NewAutomation
 from .events import EventType, NewEventInput
-from .scopes import *
+from .scopes import ScopeType
 
 
 def on(event_type: EventType, obj: Any) -> NewEventInput:

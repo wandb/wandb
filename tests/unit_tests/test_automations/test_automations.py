@@ -1,13 +1,8 @@
 from base64 import b64encode
 
 from wandb.sdk import automations
-from wandb.sdk.automations import (
-    ArtifactCollection,
-    NewAutomation,
-    Severity,
-    actions,
-    events,
-)
+from wandb.sdk.automations import NewAutomation, Severity, actions, events
+from wandb.sdk.automations.generated.schema_gen import ArtifactCollection
 
 
 def test_define_automation():
