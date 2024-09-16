@@ -521,6 +521,7 @@ class InterfaceBase:
         run: "Run",
         artifact: "Artifact",
         aliases: Iterable[str],
+        tags: Optional[Iterable[str]] = None,
         history_step: Optional[int] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
@@ -534,8 +535,9 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
 
         log_artifact = pb.LogArtifactRequest()
         log_artifact.artifact.CopyFrom(proto_artifact)
@@ -579,6 +581,7 @@ class InterfaceBase:
         run: "Run",
         artifact: "Artifact",
         aliases: Iterable[str],
+        tags: Optional[Iterable[str]] = None,
         is_user_created: bool = False,
         use_after_commit: bool = False,
         finalize: bool = True,
@@ -591,8 +594,8 @@ class InterfaceBase:
         proto_artifact.user_created = is_user_created
         proto_artifact.use_after_commit = use_after_commit
         proto_artifact.finalize = finalize
-        for alias in aliases:
-            proto_artifact.aliases.append(alias)
+        proto_artifact.aliases.extend(aliases or [])
+        proto_artifact.tags.extend(tags or [])
         self._publish_artifact(proto_artifact)
 
     @abstractmethod

@@ -31,35 +31,28 @@ from wandb.sdk.lib.paths import StrPath  # noqa: E402
 @pytest.fixture(autouse=True)
 def setup_wandb_env_variables(monkeypatch: pytest.MonkeyPatch) -> None:
     """Configures wandb env variables to suitable defaults for tests."""
-    # Don't write to Sentry in wandb-core.
-    #
-    # The corresponding setting for wandb is read on import, so it is
-    # configured above the imports in this file.
-    monkeypatch.setenv("WANDB_CORE_ERROR_REPORTING", "false")
-
     # Set the _network_buffer setting to 1000 to increase the likelihood
     # of triggering flow control logic.
     monkeypatch.setenv("WANDB__NETWORK_BUFFER", "1000")
 
 
 @pytest.fixture(autouse=True)
-def toggle_wandb_core(
+def toggle_legacy_service(
     monkeypatch: pytest.MonkeyPatch,
     request: pytest.FixtureRequest,
 ) -> None:
-    """Sets WANDB__REQUIRE_CORE in each test.
+    """Sets WANDB__REQUIRE_LEGACY_SERVICE in each test.
 
-    wandb-core is a Go rewrite of some Python logic, and all tests should work
-    the same both with and without it.
+    This fixture is used to run each test both with and without wandb-core.
     """
-    monkeypatch.setenv("WANDB__REQUIRE_CORE", str(request.param))
+    monkeypatch.setenv("WANDB__REQUIRE_LEGACY_SERVICE", str(request.param))
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     # See https://docs.pytest.org/en/7.1.x/how-to/parametrize.html#basic-pytest-generate-tests-example
 
     # Run each test both with and without wandb-core.
-    if toggle_wandb_core.__name__ in metafunc.fixturenames:
+    if toggle_legacy_service.__name__ in metafunc.fixturenames:
         # Allow tests to opt-out of wandb-core until we have feature parity.
         skip_wandb_core = False
         wandb_core_only = False
@@ -75,17 +68,17 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
                 not skip_wandb_core
             ), "Cannot mark test both skip_wandb_core and wandb_core_only"
 
-            values = [True]
+            values = [False]
             ids = ["wandb_core"]
         elif skip_wandb_core:
-            values = [False]
+            values = [True]
             ids = ["no_wandb_core"]
         else:
-            values = [False, True]
+            values = [True, False]
             ids = ["no_wandb_core", "wandb_core"]
 
         metafunc.parametrize(
-            toggle_wandb_core.__name__,
+            toggle_legacy_service.__name__,
             values,
             ids=ids,
             indirect=True,  # Causes the fixture to be invoked.

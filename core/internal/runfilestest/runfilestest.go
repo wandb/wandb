@@ -1,6 +1,9 @@
 package runfilestest
 
 import (
+	"github.com/wandb/wandb/core/internal/filestreamtest"
+	"github.com/wandb/wandb/core/internal/filetransfertest"
+	"github.com/wandb/wandb/core/internal/gqlmock"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runworktest"
 	"github.com/wandb/wandb/core/internal/settings"
@@ -21,6 +24,18 @@ func WithTestDefaults(params runfiles.UploaderParams) runfiles.UploaderParams {
 
 	if params.Settings == nil {
 		params.Settings = settings.From(&spb.Settings{})
+	}
+
+	if params.FileStream == nil {
+		params.FileStream = filestreamtest.NewFakeFileStream()
+	}
+
+	if params.FileTransfer == nil {
+		params.FileTransfer = filetransfertest.NewFakeFileTransferManager()
+	}
+
+	if params.GraphQL == nil {
+		params.GraphQL = gqlmock.NewMockClient()
 	}
 
 	if params.FileWatcher == nil {

@@ -271,30 +271,33 @@ func (h *Handler) handleRecord(record *spb.Record) {
 func (h *Handler) handleRequest(record *spb.Record) {
 	request := record.GetRequest()
 	switch x := request.RequestType.(type) {
+
+	case *spb.Request_SummaryRecord:
+	case *spb.Request_TelemetryRecord:
+		// TODO: Do we need to implement the above?
+
+	case *spb.Request_Keepalive:
+	case *spb.Request_TestInject:
+	case *spb.Request_JobInfo:
+		// not implemented in the old handler
+
+	case *spb.Request_ServerInfo:
+	case *spb.Request_CheckVersion:
+		// The above been removed from the client but are kept here for now.
+		// Should be removed in the future.
+
 	case *spb.Request_Login:
 		h.handleRequestLogin(record)
-	case *spb.Request_CheckVersion:
-		h.handleRequestCheckVersion(record)
 	case *spb.Request_RunStatus:
 		h.handleRequestRunStatus(record)
 	case *spb.Request_Metadata:
 		h.handleMetadata(x.Metadata)
-	case *spb.Request_SummaryRecord:
-		// TODO: handles sending summary file
-	case *spb.Request_TelemetryRecord:
-		// TODO: handles sending telemetry record
-	case *spb.Request_TestInject:
-		// not implemented in the old handler
-	case *spb.Request_JobInfo:
-		// not implemented in the old handler
 	case *spb.Request_Status:
 		h.handleRequestStatus(record)
 	case *spb.Request_SenderMark:
 		h.handleRequestSenderMark(record)
 	case *spb.Request_StatusReport:
 		h.handleRequestStatusReport(record)
-	case *spb.Request_Keepalive:
-		// keepalive is a no-op
 	case *spb.Request_Shutdown:
 		h.handleRequestShutdown(record)
 	case *spb.Request_Defer:
@@ -311,8 +314,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestRunStart(record, x.RunStart)
 	case *spb.Request_SampledHistory:
 		h.handleRequestSampledHistory(record)
-	case *spb.Request_ServerInfo:
-		h.handleRequestServerInfo(record)
 	case *spb.Request_PythonPackages:
 		h.handleRequestPythonPackages(record, x.PythonPackages)
 	case *spb.Request_StopStatus:
@@ -354,15 +355,6 @@ func (h *Handler) handleRequestLogin(record *spb.Record) {
 	// TODO: implement login if it is needed
 	if record.GetControl().GetReqResp() {
 		h.respond(record, &spb.Response{})
-	}
-}
-
-func (h *Handler) handleRequestCheckVersion(record *spb.Record) {
-	if h.settings.GetXOffline().GetValue() {
-		// Send an empty response if we're offline.
-		h.respond(record, &spb.Response{})
-	} else {
-		h.fwdRecord(record)
 	}
 }
 
@@ -408,38 +400,6 @@ func (h *Handler) handleMetric(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestDefer(record *spb.Record, request *spb.DeferRequest) {
-	switch request.State {
-	case spb.DeferRequest_BEGIN:
-	case spb.DeferRequest_FLUSH_RUN:
-
-	case spb.DeferRequest_FLUSH_STATS:
-		// stop the system monitor to ensure that we don't send any more system metrics
-		// after the run has exited
-		h.systemMonitor.Finish()
-
-	case spb.DeferRequest_FLUSH_PARTIAL_HISTORY:
-		if h.settings.GetXShared().GetValue() {
-			h.flushPartialHistory(false, 0)
-		} else {
-			h.flushPartialHistory(true, h.partialHistoryStep+1)
-		}
-
-	case spb.DeferRequest_FLUSH_TB:
-	case spb.DeferRequest_FLUSH_SUM:
-	case spb.DeferRequest_FLUSH_DEBOUNCER:
-	case spb.DeferRequest_FLUSH_OUTPUT:
-	case spb.DeferRequest_FLUSH_JOB:
-	case spb.DeferRequest_FLUSH_DIR:
-	case spb.DeferRequest_FLUSH_FP:
-	case spb.DeferRequest_JOIN_FP:
-	case spb.DeferRequest_FLUSH_FS:
-	case spb.DeferRequest_FLUSH_FINAL:
-	case spb.DeferRequest_END:
-		h.fileTransferStats.SetDone()
-	default:
-		h.logger.CaptureError(
-			fmt.Errorf("handleDefer: unknown defer state %v", request.State))
-	}
 	// Need to clone the record to avoid race condition with the writer
 	record = proto.Clone(record).(*spb.Record)
 	h.fwdRecordWithControl(record,
@@ -503,19 +463,6 @@ func (h *Handler) handleHeader(record *spb.Record) {
 		MinConsumer: version.MinServerVersion,
 	}
 	h.fwdRecord(record)
-}
-
-func (h *Handler) handleRequestServerInfo(record *spb.Record) {
-	if h.settings.GetXOffline().GetValue() {
-		// Send an empty response if we're offline.
-		h.respond(record, &spb.Response{
-			ResponseType: &spb.Response_ServerInfoResponse{
-				ServerInfoResponse: &spb.ServerInfoResponse{},
-			},
-		})
-	} else {
-		h.fwdRecord(record)
-	}
 }
 
 func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStartRequest) {
@@ -791,6 +738,17 @@ func (h *Handler) handleExit(record *spb.Record, exit *spb.RunExitRecord) {
 
 	if !h.settings.GetXSync().GetValue() {
 		h.updateRunTiming()
+	}
+
+	// Stop generating system statistics events.
+	h.systemMonitor.Finish()
+
+	// Flush any history data---any further history records must
+	// be configured to flush.
+	if h.settings.GetXShared().GetValue() {
+		h.flushPartialHistory(false, 0)
+	} else {
+		h.flushPartialHistory(true, h.partialHistoryStep+1)
 	}
 
 	// send the exit record

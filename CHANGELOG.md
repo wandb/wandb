@@ -11,6 +11,33 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Infinite scalars logged in TensorBoard are uploaded successfully rather than skipped (@timoffex in https://github.com/wandb/wandb/pull/8380)
+- Properly respect `WANDB_ERROR_REPORTING=false`.  This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
+
+### Changed
+
+- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
+
+## [0.18.0] - 2024-09-11
+
+### Added
+
+- Add support for artifact tags, via `Artifact.tags` and `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
+
+### Fixed
+
+- Detect the notebook name in VS Code's built-in jupyter server (@dmitryduev in https://github.com/wandb/wandb/pull/8311)
+
+### Changed
+
+- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
+add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
+to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
+
+## [0.17.9] - 2024-09-05
+
 ### Changed
 
 - Changed the default system metrics sampling interval to 10 seconds without averaging, while allowing custom intervals via `wandb.init(settings=wandb.Settings(_stats_sampling_interval=...))` (@dmitryduev in https://github.com/wandb/wandb/pull/8208)

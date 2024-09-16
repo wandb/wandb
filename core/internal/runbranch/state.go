@@ -51,7 +51,7 @@ type RunParams struct {
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
-	Intialized bool
+	Initialized bool
 }
 
 func (r *RunParams) Proto() *spb.RunRecord {

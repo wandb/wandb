@@ -79,7 +79,7 @@ from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
-__version__: str = "0.17.9.dev1"
+__version__: str = "0.18.1.dev1"
 
 run: Optional[Run] = None
 config = wandb_config.Config
@@ -209,6 +209,7 @@ def log_artifact(
     name: Optional[str] = None,
     type: Optional[str] = None,
     aliases: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
 ) -> Artifact:
     """<sdk/wandb_run.py::Run::log_artifact>"""
     ...

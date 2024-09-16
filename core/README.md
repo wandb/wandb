@@ -16,9 +16,9 @@
 
 ## Introduction
 
-`wandb-core` is a new and improved backend for the W&B SDK that is more performant, versatile, and robust.
+`wandb-core` is a new and improved backend for the W&B SDK that is more performant, versatile, and robust. `wandb-core` is enabled by default with `wandb>=0.18.0`
 
-**Upgrade now and experience:**
+** `wandb-core` enables:**
 
 * 🚀 **Logging performance:** Experience up to 88% performance improvements when logging with multiple processes.
 * 🤏 **Reduced resource consumption:** Lower memory footprint allows you to run more experiments on your machines.
@@ -28,55 +28,6 @@
 * 🌐 **Faster offline sync:** Keep your long-running experiments synced effortlessly with improved offline speeds.
 
 See our [benchmark analysis](https://github.com/wandb/wandb/blob/main/tools/bench/bench.md) for more information on performance improvements.
-
-## Quickstart
-Get started with wandb-core in four steps:
-
-1. First, sign up for a [free W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
-
-2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
-
-```bash
-pip install wandb
-```
-***Note: ensure you have `wandb>=0.17.5`.***
-
-3. Third, log into W&B:
-
-```python
-wandb.login()
-```
-
-4. Use the example code snippet below as a template to integrate W&B to your Python script:
-
-To start using `wandb-core`, add `wandb.require("core")` to your script after importing `wandb`:
-
-```python
-import wandb
-
-# Add requirement for wandb core
-wandb.require("core")
-
-# Start a W&B Run with wandb.init
-run = wandb.init(project="my_first_project")
-
-# Save model inputs and hyperparameters in a wandb.config object
-config = run.config
-config.learning_rate = 0.01
-
-# Model training code here ...
-
-# Log metrics over time to visualize performance with wandb.log
-for i in range(10):
-    run.log({"loss": loss})
-
-run.finish()
-```
-<p align='center'>
-<a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
-</p>
-
-
 
 ## Contributing
 Your contributions are welcome! Please follow our [contributing guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more details.
@@ -103,60 +54,16 @@ If it is not supported for your platform, you will see an error if you try to st
 
 ### Disabling `wandb-core`
 
-To revert to the old SDK backend, simply remove `wandb.require("core")` from your script.
+If you need to revert to the previous SDK backend while using `wandb < 0.18.0`, you can do so by following one of these steps:
 
-### Feature support status
+**Option 1**: Modify your script Add the following line to your script:
+```
+wandb.require("legacy-service")
+````
+**Option 2**: Set an environment variable Alternatively, set the environment variable WANDB__REQUIRE_LEGACY_SERVICE to TRUE:
 
-<details>
-<summary>Click to expand for feature support status in `wandb-core`</summary>
-
-Status legend:
-- ✅: Available: The feature is relatively stable and ready for use.
-- 🚧: In Development: The feature is available but may be unstable or incomplete.
-- ❌: Not Available: The feature is not yet available.
-
-| Category    | Feature           | Status           |
-|-------------|-------------------|------------------|
-| Experiments |                   |                  |
-|             | `init`            | ✅               |
-|             | `log`             | ✅               |
-|             | `log_artifact`    | ✅               |
-|             | `log_code`        | ✅               |
-|             | `config`          | ✅               |
-|             | `summary`         | ✅               |
-|             | `define_metric`   | ✅               |
-|             | `tags`            | ✅               |
-|             | `notes`           | ✅               |
-|             | `name`            | ✅               |
-|             | `alert`           | ✅               |
-|             | `save`            | ✅               |
-|             | `restore`         | ✅               |
-|             | `mark_preempting` | ✅               |
-|             | resume            | ✅               |
-|             | reinit            | ✅               |
-|             | Media             | ✅               |
-|             | Grouping          | ✅               |
-|             | anonymous mode    | ✅               |
-|             | offline mode      | ✅               |
-|             | disabled mode     | ✅               |
-|             | multiprocessing   | ✅               |
-|             | TensorBoard sync  | ✅               |
-|             | console logging   | ✅[^E.1]         |
-|             | system metrics    | ✅[^E.2]         |
-|             | system info       | ✅               |
-|             | auto code saving  | ✅               |
-|             | Forking           | ✅               |
-|             | Rewind            | ✅               |
-|             | Settings          | ✅               |
-| Login       |                   |                  |
-|             | default entity    | ✅               |
-|             | team entity       | ✅               |
-|             | service account   | ✅               |
-| CLI         |                   | ✅               |
-| Artifacts   |                   | ✅               |
-| Sweeps      |                   | ✅               |
-| Launch      |                   | ✅               |
-
-[^E.1]: Only raw console logging is supported.
-[^E.2]: Supported system metrics: CPU, Memory, Disk, Network, NVIDIA GPU, AMD GPU, Apple GPU, AWS Trainium.
-<details>
+```
+export WANDB__REQUIRE_LEGACY_SERVICE=TRUE
+```
+**Note:**
+* Starting from version 0.18.0, the `wandb-core` service is the default runtime service. As a result, calling `wandb.require("core")` is unnecessary and has no effect in `wandb>=0.18.0`.

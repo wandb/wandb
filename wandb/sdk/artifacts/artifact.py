@@ -50,6 +50,7 @@ from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public import ArtifactCollection, ArtifactFiles, RetryingClient, Run
 from wandb.data_types import WBValue
 from wandb.errors.term import termerror, termlog, termwarn
+from wandb.sdk.artifacts._validators import validate_aliases, validate_tags
 from wandb.sdk.artifacts.artifact_download_logger import ArtifactDownloadLogger
 from wandb.sdk.artifacts.artifact_instance_cache import artifact_instance_cache
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
@@ -183,6 +184,8 @@ class Artifact:
         self._ttl_changed: bool = False
         self._aliases: List[str] = []
         self._saved_aliases: List[str] = []
+        self._tags: List[str] = []
+        self._saved_tags: List[str] = []
         self._distributed_id: Optional[str] = None
         self._incremental: bool = incremental
         self._use_as: Optional[str] = use_as
@@ -300,6 +303,7 @@ class Artifact:
             and alias["artifactCollection"]["project"]["name"] == project
             and alias["artifactCollection"]["name"] == name.split(":")[0]
         ]
+        tags = [tag_obj["name"] for tag_obj in attrs.get("tags", [])]
         version_aliases = [
             alias for alias in aliases if util.alias_is_version_index(alias)
         ]
@@ -330,6 +334,8 @@ class Artifact:
             alias for alias in aliases if not util.alias_is_version_index(alias)
         ]
         artifact._saved_aliases = copy(artifact._aliases)
+        artifact._tags = tags
+        artifact._saved_tags = copy(artifact._tags)
         artifact._state = ArtifactState(attrs["state"])
         if "currentManifest" in attrs:
             artifact._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
@@ -604,12 +610,19 @@ class Artifact:
     def aliases(self, aliases: List[str]) -> None:
         """Set the aliases associated with this artifact."""
         self._ensure_logged("aliases")
+        self._aliases = validate_aliases(aliases)
 
-        if any(char in alias for alias in aliases for char in ["/", ":"]):
-            raise ValueError(
-                "Aliases must not contain any of the following characters: /, :"
-            )
-        self._aliases = aliases
+    @property
+    def tags(self) -> List[str]:
+        """List of one or more tags assigned to this artifact version."""
+        self._ensure_logged("tags")
+        return self._tags
+
+    @tags.setter
+    def tags(self, tags: List[str]) -> None:
+        """Set the tags associated with this artifact."""
+        self._ensure_logged("tags")
+        self._tags = validate_tags(tags)
 
     @property
     def distributed_id(self) -> Optional[str]:
@@ -823,49 +836,53 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        query_template = """
-            query ArtifactByIDShort($id: ID!) {
-                artifact(id: $id) {
-                    artifactSequence {
-                        project {
+        fields = InternalApi().server_artifact_introspection()
+
+        supports_ttl = "ttlIsInherited" in fields
+        ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
+        ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
+
+        supports_tags = "tags" in fields
+        tags = "tags {name}" if supports_tags else ""
+
+        query_template = f"""
+            query ArtifactByIDShort($id: ID!) {{
+                artifact(id: $id) {{
+                    artifactSequence {{
+                        project {{
                             entityName
                             name
-                        }
+                        }}
                         name
-                    }
+                    }}
                     versionIndex
-                    ttlDurationSeconds
-                    ttlIsInherited
-                    aliases {
-                        artifactCollection {
-                            project {
+                    {ttl_duration_seconds}
+                    {ttl_is_inherited}
+                    aliases {{
+                        artifactCollection {{
+                            project {{
                                 entityName
                                 name
-                            }
+                            }}
                             name
-                        }
+                        }}
                         alias
-                    }
+                    }}
+                    {tags!s}
                     state
-                    currentManifest {
-                        file {
+                    currentManifest {{
+                        file {{
                             directUrl
-                        }
-                    }
+                        }}
+                    }}
                     commitHash
                     fileCount
                     createdAt
                     updatedAt
-                }
-            }
+                }}
+            }}
         """
 
-        fields = InternalApi().server_artifact_introspection()
-        if "ttlIsInherited" not in fields:
-            query_template = query_template.replace("ttlDurationSeconds", "").replace(
-                "ttlIsInherited",
-                "",
-            )
         query = gql(query_template)
 
         assert self._client is not None
@@ -908,6 +925,7 @@ class Artifact:
             and alias["artifactCollection"]["name"] == self._name.split(":")[0]
             and not util.alias_is_version_index(alias["alias"])
         ]
+        self._tags = [tag_obj["name"] for tag_obj in attrs.get("tags", [])]
         self._state = ArtifactState(attrs["state"])
         self._load_manifest(attrs["currentManifest"]["file"]["directUrl"])
         self._commit_hash = attrs["commitHash"]
@@ -936,7 +954,7 @@ class Artifact:
         if response.get("AddAliasesInputInfoType"):  # wandb backend version >= 0.13.0
             aliases_to_add = set(self._aliases) - set(self._saved_aliases)
             aliases_to_delete = set(self._saved_aliases) - set(self._aliases)
-            if len(aliases_to_add) > 0:
+            if aliases_to_add:
                 add_mutation = gql(
                     """
                     mutation addAliases(
@@ -967,7 +985,7 @@ class Artifact:
                         ],
                     },
                 )
-            if len(aliases_to_delete) > 0:
+            if aliases_to_delete:
                 delete_mutation = gql(
                     """
                     mutation deleteAliases(
@@ -1010,10 +1028,12 @@ class Artifact:
 
         mutation_template = """
             mutation updateArtifact(
-                $artifactID: ID!,
-                $description: String,
-                $metadata: JSONString,
+                $artifactID: ID!
+                $description: String
+                $metadata: JSONString
                 _TTL_DURATION_SECONDS_TYPE_
+                _TAGS_TO_ADD_TYPE_
+                _TAGS_TO_DELETE_TYPE_
                 $aliases: [ArtifactAliasInput!]
             ) {
                 updateArtifact(
@@ -1022,6 +1042,8 @@ class Artifact:
                         description: $description,
                         metadata: $metadata,
                         _TTL_DURATION_SECONDS_VALUE_
+                        _TAGS_TO_ADD_VALUE_
+                        _TAGS_TO_DELETE_VALUE_
                         aliases: $aliases
                     }
                 ) {
@@ -1036,14 +1058,16 @@ class Artifact:
         if "ttlIsInherited" in fields:
             mutation_template = (
                 mutation_template.replace(
-                    "_TTL_DURATION_SECONDS_TYPE_", "$ttlDurationSeconds: Int64,"
+                    "_TTL_DURATION_SECONDS_TYPE_",
+                    "$ttlDurationSeconds: Int64",
                 )
                 .replace(
                     "_TTL_DURATION_SECONDS_VALUE_",
-                    "ttlDurationSeconds: $ttlDurationSeconds,",
+                    "ttlDurationSeconds: $ttlDurationSeconds",
                 )
                 .replace(
-                    "_TTL_DURATION_SECONDS_FIELDS_", "ttlDurationSeconds ttlIsInherited"
+                    "_TTL_DURATION_SECONDS_FIELDS_",
+                    "ttlDurationSeconds ttlIsInherited",
                 )
             )
         else:
@@ -1053,12 +1077,34 @@ class Artifact:
                 )
             mutation_template = (
                 mutation_template.replace("_TTL_DURATION_SECONDS_TYPE_", "")
-                .replace(
-                    "_TTL_DURATION_SECONDS_VALUE_",
-                    "",
-                )
+                .replace("_TTL_DURATION_SECONDS_VALUE_", "")
                 .replace("_TTL_DURATION_SECONDS_FIELDS_", "")
             )
+
+        tags_to_add = validate_tags(set(self._tags) - set(self._saved_tags))
+        tags_to_delete = validate_tags(set(self._saved_tags) - set(self._tags))
+        if "tags" in fields:
+            mutation_template = (
+                mutation_template.replace(
+                    "_TAGS_TO_ADD_TYPE_", "$tagsToAdd: [TagInput!]"
+                )
+                .replace("_TAGS_TO_DELETE_TYPE_", "$tagsToDelete: [TagInput!]")
+                .replace("_TAGS_TO_ADD_VALUE_", "tagsToAdd: $tagsToAdd")
+                .replace("_TAGS_TO_DELETE_VALUE_", "tagsToDelete: $tagsToDelete")
+            )
+        else:
+            if tags_to_add or tags_to_delete:
+                termwarn(
+                    "Server not compatible with Artifact tags. "
+                    "To use Artifact tags, please upgrade the server to v0.85 or higher."
+                )
+            mutation_template = (
+                mutation_template.replace("_TAGS_TO_ADD_TYPE_", "")
+                .replace("_TAGS_TO_DELETE_TYPE_", "")
+                .replace("_TAGS_TO_ADD_VALUE_", "")
+                .replace("_TAGS_TO_DELETE_VALUE_", "")
+            )
+
         mutation = gql(mutation_template)
         assert self._client is not None
 
@@ -1071,6 +1117,8 @@ class Artifact:
                 "metadata": util.json_dumps_safer(self.metadata),
                 "ttlDurationSeconds": ttl_duration_input,
                 "aliases": aliases,
+                "tagsToAdd": [{"tagName": tag_name} for tag_name in tags_to_add],
+                "tagsToDelete": [{"tagName": tag_name} for tag_name in tags_to_delete],
             },
         )
         attrs = response["updateArtifact"]["artifact"]
@@ -2316,6 +2364,7 @@ class Artifact:
                     }
                     alias
                 }
+                _MAYBE_TAGS_
                 state
                 commitHash
                 fileCount
@@ -2324,9 +2373,15 @@ class Artifact:
             }
         """
         if "ttlIsInherited" not in fields:
-            return fragment.replace("ttlDurationSeconds", "").replace(
+            fragment = fragment.replace("ttlDurationSeconds", "").replace(
                 "ttlIsInherited", ""
             )
+
+        if "tags" in fields:
+            fragment = fragment.replace("_MAYBE_TAGS_", "tags {name}")
+        else:
+            fragment = fragment.replace("_MAYBE_TAGS_", "")
+
         return fragment
 
     def _ttl_duration_seconds_to_gql(self) -> Optional[int]:

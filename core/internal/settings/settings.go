@@ -244,3 +244,14 @@ func (s *Settings) GetResumeFrom() *spb.RunMoment {
 func (s *Settings) GetForkFrom() *spb.RunMoment {
 	return s.Proto.ForkFrom
 }
+
+// File path to supply a jwt for authentication
+func (s *Settings) GetIdentityTokenFile() string {
+	return s.Proto.IdentityTokenFile.GetValue()
+}
+
+// Checks whether console capture is enabled. If it is, stdout and stderr
+// will be captured and sent to W&B.
+func (s *Settings) IsConsoleCaptureEnabled() bool {
+	return s.Proto.Console.GetValue() != "off"
+}
