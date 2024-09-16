@@ -31,7 +31,7 @@ class Program
             //         project: "csharp"
             //     )
             // );
-            // await run2.Log(new Dictionary<string, object> { { "loss", 0.3 } });
+            // await run2.Log(new Dictionary<string, object> { { "loss", 0.1 } });
             // await run2.Finish();
         }
     }

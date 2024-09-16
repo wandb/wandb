@@ -241,6 +241,22 @@ def functional_tests(session: nox.Session):
     )
 
 
+@nox.session(python=_SUPPORTED_PYTHONS)
+def experimental_tests(session: nox.Session):
+    """Runs functional tests of experimental clients in different languages using pytest."""
+    install_wandb(session)
+    install_timed(
+        session,
+        "-r",
+        "requirements_test.txt",
+    )
+
+    run_pytest(
+        session,
+        paths=(session.posargs or ["tests/system_tests/test_experimental"]),
+    )
+
+
 @nox.session(python=False, name="build-rust")
 def build_rust(session: nox.Session) -> None:
     """Builds the wandb-core wheel with maturin."""

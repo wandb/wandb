@@ -27,12 +27,12 @@ namespace Wandb
         {
             Lib.RandomStringGenerator generator = new();
 
-            ApiKey = apiKey ?? "";
-            BaseUrl = baseUrl ?? "https://api.wandb.ai";
+            ApiKey = apiKey ?? Environment.GetEnvironmentVariable("WANDB_API_KEY") ?? "";
+            BaseUrl = baseUrl ?? Environment.GetEnvironmentVariable("WANDB_BASE_URL") ?? "https://api.wandb.ai";
             DisplayName = displayName ?? "";
             Entity = entity ?? "";
             Mode = mode ?? "online";
-            Project = project ?? "uncategorized";
+            Project = project ?? Environment.GetEnvironmentVariable("WANDB_PROJECT") ?? "uncategorized";
             RunId = runId ?? generator.GenerateRandomString(8);
 
             StartDatetime = DateTime.UtcNow;
