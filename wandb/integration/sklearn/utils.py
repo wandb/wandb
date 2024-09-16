@@ -61,7 +61,7 @@ def test_types(**kwargs):
                     list,
                 ),
             ):
-                wandb.termerror("%s is not an array. Please try again." % (k))
+                wandb.termerror(f"{k} is not an array. Please try again.")
                 test_passed = False
         # check for classifier types
         if k == "model":
@@ -69,20 +69,20 @@ def test_types(**kwargs):
                 not sklearn.base.is_regressor(v)
             ):
                 wandb.termerror(
-                    "%s is not a classifier or regressor. Please try again." % (k)
+                    f"{k} is not a classifier or regressor. Please try again."
                 )
                 test_passed = False
         elif k == "clf" or k == "binary_clf":
             if not (sklearn.base.is_classifier(v)):
-                wandb.termerror("%s is not a classifier. Please try again." % (k))
+                wandb.termerror(f"{k} is not a classifier. Please try again.")
                 test_passed = False
         elif k == "regressor":
             if not sklearn.base.is_regressor(v):
-                wandb.termerror("%s is not a regressor. Please try again." % (k))
+                wandb.termerror(f"{k} is not a regressor. Please try again.")
                 test_passed = False
         elif k == "clusterer":
             if not (getattr(v, "_estimator_type", None) == "clusterer"):
-                wandb.termerror("%s is not a clusterer. Please try again." % (k))
+                wandb.termerror(f"{k} is not a clusterer. Please try again.")
                 test_passed = False
     return test_passed
 
@@ -129,7 +129,7 @@ def test_missing(**kwargs):
     for k, v in kwargs.items():
         # Missing/empty params/datapoint arrays
         if v is None:
-            wandb.termerror("%s is None. Please try again." % (k))
+            wandb.termerror(f"{k} is None. Please try again.")
             test_passed = False
         if (k == "X") or (k == "X_test"):
             if isinstance(v, scipy.sparse.csr.csr_matrix):
@@ -168,8 +168,8 @@ def test_missing(**kwargs):
                 )
             if non_nums > 0:
                 wandb.termerror(
-                    "%s contains values that are not numbers. Please vectorize, label encode or one hot encode %s and call the plotting function again."
-                    % (k, k)
+                    f"{k} contains values that are not numbers. Please vectorize, label encode or one hot encode {k} "
+                    "and call the plotting function again."
                 )
                 test_passed = False
     return test_passed

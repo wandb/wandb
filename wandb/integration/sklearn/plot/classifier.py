@@ -7,7 +7,7 @@ from sklearn import naive_bayes
 
 import wandb
 import wandb.plot
-from wandb.sklearn import calculate, utils
+from wandb.integration.sklearn import calculate, utils
 
 from . import shared
 
@@ -17,8 +17,8 @@ simplefilter(action="ignore", category=FutureWarning)
 
 def classifier(
     model,
-    X_train,
-    X_test,
+    X_train,  # noqa: N803
+    X_test,  # noqa: N803
     y_train,
     y_test,
     y_pred,
@@ -77,7 +77,7 @@ def classifier(
     )
     ```
     """
-    wandb.termlog("\nPlotting %s." % model_name)
+    wandb.termlog(f"\nPlotting {model_name}.")
 
     if not isinstance(model, naive_bayes.MultinomialNB):
         feature_importances(model, feature_names)
@@ -280,7 +280,7 @@ def class_proportions(y_train=None, y_test=None, labels=None):
         wandb.log({"class_proportions": class_proportions_chart})
 
 
-def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):
+def calibration_curve(clf=None, X=None, y=None, clf_name="Classifier"):  # noqa: N803
     """Log a plot depicting how well-calibrated the predicted probabilities of a classifier are.
 
     Also suggests how to calibrate an uncalibrated classifier. Compares estimated predicted
