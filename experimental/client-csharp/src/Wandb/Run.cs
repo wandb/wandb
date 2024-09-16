@@ -43,6 +43,7 @@ namespace Wandb
             await _interface.InformInit(Settings).ConfigureAwait(false);
             // TODO: get timeout from settings
             Result deliverRunResult = await _interface.DeliverRun(this, 30000).ConfigureAwait(false);
+            Console.WriteLine(deliverRunResult);
             if (deliverRunResult.RunResult == null)
             {
                 throw new Exception("Failed to deliver run");
@@ -60,10 +61,14 @@ namespace Wandb
             Settings.DisplayName = runResult.Run.DisplayName;
             // TODO: get timeout from settings
             Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
+
             if (result.Response == null)
             {
                 throw new Exception("Failed to deliver run start");
             }
+
+            // TODO: update the config
+
             PrintRunURL();
         }
 

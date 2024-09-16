@@ -133,6 +133,7 @@ namespace Wandb.Internal
             {
                 metricDefinition.Options.Hidden = true;
             }
+            Console.WriteLine(summary);
             if (summary.HasValue)
             {
                 if (summary == SummaryType.None)

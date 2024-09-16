@@ -3,6 +3,13 @@ using System.Text;
 
 namespace Wandb
 {
+    public enum ResumeOption
+    {
+        Must,
+        Allow,
+        Never
+    }
+
     public class Settings
     {
         public string ApiKey { get; set; }
@@ -11,9 +18,22 @@ namespace Wandb
         public string Entity { get; set; }
         public string Mode { get; }
         public string Project { get; set; }
+        public ResumeOption? Resume { get; set; }
         public string RunId { get; }
 
         public DateTime StartDatetime { get; set; }
+
+        public string ResumeOptionToString()
+        {
+            if (!Resume.HasValue)
+            {
+                return null;
+            }
+            else
+            {
+                return Resume.Value.ToString().ToLowerInvariant();
+            }
+        }
 
         public Settings(
             string? apiKey = null,
@@ -22,6 +42,7 @@ namespace Wandb
             string? entity = null,
             string? mode = null,
             string? project = null,
+            ResumeOption? resume = null,
             string? runId = null
             )
         {
@@ -33,6 +54,7 @@ namespace Wandb
             Entity = entity ?? "";
             Mode = mode ?? "online";
             Project = project ?? Environment.GetEnvironmentVariable("WANDB_PROJECT") ?? "uncategorized";
+            Resume = resume;
             RunId = runId ?? generator.GenerateRandomString(8);
 
             StartDatetime = DateTime.UtcNow;
@@ -70,6 +92,7 @@ namespace Wandb
                 Mode = Mode,
                 Offline = IsOffline,
                 Project = Project,
+                Resume = ResumeOptionToString(),
                 RunId = RunId,
                 RunMode = RunMode,
                 RunName = DisplayName,
@@ -103,6 +126,7 @@ namespace Wandb
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Project: {Project ?? "Not set"}");
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Is Offline: {IsOffline}");
             sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Run Mode: {RunMode}");
+            sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Resume: {ResumeOptionToString() ?? "Not set"}");
             // TODO: these make it look like there's an error lol
             // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Wandb Dir: {WandbDir}");
             // sb.AppendLine(System.Globalization.CultureInfo.InvariantCulture, $"  Sync Dir: {SyncDir}");

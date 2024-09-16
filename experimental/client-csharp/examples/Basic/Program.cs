@@ -25,14 +25,16 @@ class Program
 
             await run1.Finish();
 
-            // Another run
-            // var run2 = await session.Init(
-            //     settings: new Settings(
-            //         project: "csharp"
-            //     )
-            // );
-            // await run2.Log(new Dictionary<string, object> { { "loss", 0.1 } });
-            // await run2.Finish();
+            // Resume run1:
+            var run2 = await session.Init(
+                settings: new Settings(
+                    project: "csharp",
+                    resume: ResumeOption.Must,
+                    runId: run1.Settings.RunId
+                )
+            );
+            await run2.Log(new Dictionary<string, object> { { "loss", 0.1 }, { "recall", 0.99 }, { "epoch", 4 } });
+            await run2.Finish();
         }
     }
 }
