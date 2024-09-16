@@ -30,7 +30,8 @@ func processHistograms(
 			fmt.Errorf(
 				"tensorboard: expected histograms value to be a Tensor"+
 					" or HistogramProto but its type is %T",
-				value))
+				value),
+			"tag", tag)
 	}
 }
 
@@ -44,7 +45,8 @@ func processHistogramsTensor(
 	tensor, err := tensorFromProto(tensorValue)
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to parse tensor: %v", err))
+			fmt.Errorf("tensorboard: failed to parse tensor: %v", err),
+			"tag", tag)
 		return
 	}
 
@@ -54,7 +56,8 @@ func processHistogramsTensor(
 	if err1 != nil || err2 != nil || err3 != nil {
 		logger.CaptureError(
 			fmt.Errorf("tensorboard: couldn't read histograms row: %v",
-				errors.Join(err1, err2, err3)))
+				errors.Join(err1, err2, err3)),
+			"tag", tag)
 		return
 	}
 
@@ -146,7 +149,8 @@ func emitHistogram(
 
 		if err != nil {
 			logger.CaptureError(
-				fmt.Errorf("tensorboard: error rebinning histogram: %v", err))
+				fmt.Errorf("tensorboard: error rebinning histogram: %v", err),
+				"tag", tag)
 			return
 		}
 	}
@@ -157,7 +161,8 @@ func emitHistogram(
 	}.HistoryValueJSON()
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf("tensorboard: error serializing histogram: %v", err))
+			fmt.Errorf("tensorboard: error serializing histogram: %v", err),
+			"tag", tag)
 		return
 	}
 
