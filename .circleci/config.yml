@@ -202,6 +202,25 @@ commands:
             $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m
 
+  install_extras:
+    description: "Install dependencies for extra tests"
+    parameters:
+      enabled:
+        description: "Whether to install extra dependencies"
+        type: boolean
+        default: false
+    steps:
+      - when:
+        condition: <<parameters.install_extras>>
+        steps:
+          - run:
+              name: Install extra dependencies
+              command: |
+                wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+                chmod +x dotnet-install.sh
+                ./dotnet-install.sh --version latest
+              no_output_timeout: 5m
+
   setup_gcloud:
     parameters:
       container_registry:
@@ -259,16 +278,8 @@ jobs:
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg
       - install_go
       - install_rust
-      - when:
-        condition: <<parameters.install_extras>>
-        steps:
-          - run:
-              name: Install extra dependencies
-              command: |
-                wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
-                chmod +x dotnet-install.sh
-                ./dotnet-install.sh --version latest
-              no_output_timeout: 2m
+      - install_extras:
+          enabled: <<parameters.install_extras>>
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
@@ -429,43 +440,6 @@ jobs:
             python -m pip install -U pip nox requests uv
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
-
-  slack_notify:
-    parameters:
-      message:
-        type: string
-        default: ":runner:"
-      execute:
-        type: boolean
-        default: true
-    docker:
-      - image: "cimg/base:stable"
-    steps:
-      - when:
-          condition: << parameters.execute >>
-          steps:
-            - slack/notify:
-                custom: |
-                  {
-                    "blocks": [
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "plain_text",
-                            "text": "<< parameters.message >>",
-                            "emoji": true
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                event: always
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-      # this is to make sure `steps` is not empty
-      - run:
-          name: Print message to stdout
-          command: echo << parameters.message >>
 
 workflows:
   main:
