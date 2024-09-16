@@ -1,5 +1,3 @@
-from unittest.mock import Mock
-
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.interface.interface import InterfaceBase
 
