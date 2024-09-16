@@ -94,15 +94,13 @@ func emitImage(
 	image, err := wbvalue.ImageFromData(width, height, encodedData)
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf("tensorboard: failed to read image: %v", err),
-			"tag", tag)
+			fmt.Errorf("tensorboard: failed to read image: %v", err))
 		return
 	}
 
 	err = emitter.EmitImage(pathtree.PathOf(tag), image)
 	if err != nil {
 		logger.CaptureError(
-			fmt.Errorf(
-				"tensorboard: couldn't emit image: %v", err))
+			fmt.Errorf("tensorboard: couldn't emit image: %v", err))
 	}
 }

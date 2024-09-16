@@ -319,7 +319,7 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 
 	// update sentry tags
 	// add attrs from settings:
-	nc.stream.logger.SetTags(observability.Tags{
+	nc.stream.logger.SetGlobalTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
 	})
 	// TODO: remove this once we have a better observability setup
