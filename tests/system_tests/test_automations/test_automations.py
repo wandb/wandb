@@ -1,5 +1,4 @@
 from pytest import fixture, mark
-
 from wandb import Artifact
 from wandb.apis.public import ArtifactCollection
 from wandb.sdk import automations

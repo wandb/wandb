@@ -14,7 +14,6 @@ from hypothesis.strategies import (
 )
 from more_itertools import only
 from pytest import mark
-
 from wandb.sdk.automations.expr.logic import And, Or
 from wandb.sdk.automations.expr.op import FieldFilter
 
