@@ -50,6 +50,7 @@ type Params struct {
 	ConsoleOutputFile paths.RelativePath
 
 	// FilesDir is the directory in which to write the console output file.
+	// Note this is actually the root directory for all run files.
 	FilesDir string
 
 	// EnableCapture indicates whether to capture console output.
@@ -100,8 +101,6 @@ func New(params Params) *Sender {
 					err,
 				))
 		}
-	} else {
-		fileWriter = nil
 	}
 
 	writer := NewDebouncedWriter(
