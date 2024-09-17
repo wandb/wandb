@@ -32,7 +32,7 @@ def watch(
     Args:
         models: (torch.Module) The model to hook, can be a tuple
         criterion: (torch.F) An optional loss value being optimized
-        log: (str) One of "gradients", "parameters", "all", or None
+        log: (Optional[Literal["gradients", "parameters", "all"]]) One of "gradients", "parameters", "all", or None
         log_freq: (int) log gradients and parameters every N batches
         idx: (int) an index to be used when calling wandb.watch on multiple models
         log_graph: (boolean) log graph topology

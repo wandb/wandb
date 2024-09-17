@@ -49,6 +49,7 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
+    "watch",
 )
 
 import os
@@ -242,4 +243,15 @@ def link_model(
     aliases: Optional[List[str]] = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
+    ...
+
+def watch(
+    models,
+    criterion=None,
+    log: Optional[Literal["gradients", "parameters", "all"]] = "gradients",
+    log_freq: int = 1000,
+    idx: Optional[int] = None,
+    log_graph: bool = False,
+) -> Graph:
+    """<sdk/wandb_watch.py::watch>"""
     ...

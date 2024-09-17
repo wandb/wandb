@@ -241,4 +241,5 @@ __all__ = (
     "use_model",
     "link_model",
     "define_metric",
+    "watch",
 )
