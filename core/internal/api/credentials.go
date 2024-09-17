@@ -21,6 +21,9 @@ type CredentialProvider interface {
 	Apply(req *http.Request) error
 }
 
+// NewCredentialProvider creates a new credential provider based on the SDK
+// settings. Settings for JWT authentication are prioritized above API key
+// authentication
 func NewCredentialProvider(
 	settings *settings.Settings,
 ) (CredentialProvider, error) {
@@ -32,10 +35,15 @@ func NewCredentialProvider(
 
 var _ CredentialProvider = &apiKeyCredentialProvider{}
 
+// APIKeyCredentialProvider implements a credentials provider that authenticates
+// requests using an API Key passed via HTTP Basic Authentication.
 type apiKeyCredentialProvider struct {
+	// The W&B API key
 	apiKey string
 }
 
+// NewAPIKeyCredentialProvider ensures an API key exists and creates a new
+// APIKeyCredentialProvider if so
 func NewAPIKeyCredentialProvider(
 	settings *settings.Settings,
 ) (CredentialProvider, error) {
@@ -48,6 +56,8 @@ func NewAPIKeyCredentialProvider(
 	}, nil
 }
 
+// Apply supplies the API key via the Authorization header to the request.
+// The API key is supplied as the password, while the username field is left empty.
 func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 	req.Header.Set(
 		"Authorization",
@@ -70,20 +80,38 @@ func NewOAuth2CredentialProvider(
 	}, nil
 }
 
+// OAuth2CredentialProvider implements a credentials provider that exchanges a JWT
+// for an access token via an authorization server. The access token is then used
+// to authenticate API requests by including it in the Authorization header as a
+// Bearer token.
+//
+// The JWT is supplied via a file path that is passed in as an environment
+// variable. Once the token is received, it is persisted in the credentials file
+// along with its expiration. The expiration is checked each time the access
+// token is used, and refreshed if it is at or near expiration.
 type oauth2CredentialProvider struct {
-	baseURL               string
+	// The URL of the W&B API
+	baseURL string
+
+	// The file path to the JWT
 	identityTokenFilePath string
-	credentialsFilePath   string
-	token                 tokenInfo
+
+	// The file path to the access token and its metadata
+	credentialsFilePath string
+
+	// The access token and its metadata
+	token tokenInfo
 
 	mu *sync.Mutex
 }
 
-type expiresAt time.Time
+// ExpiresAt is a custom type representing a time.Time value. It is used to handle
+// expiration times in a specific string format when serializing/deserializing JSON data.
+type ExpiresAt time.Time
 
 const expiresAtLayout = "2006-01-02 15:04:05"
 
-func (e *expiresAt) UnmarshalJSON(data []byte) error {
+func (e *ExpiresAt) UnmarshalJSON(data []byte) error {
 	var timeString string
 	if err := json.Unmarshal(data, &timeString); err != nil {
 		return err
@@ -94,28 +122,36 @@ func (e *expiresAt) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	*e = expiresAt(parsedTime)
+	*e = ExpiresAt(parsedTime)
 	return nil
 }
 
-func (e expiresAt) MarshalJSON() ([]byte, error) {
+func (e ExpiresAt) MarshalJSON() ([]byte, error) {
 	formattedTime := time.Time(e).Format(expiresAtLayout)
 	return json.Marshal(formattedTime)
 }
 
 type tokenInfo struct {
-	ExpiresAt   expiresAt `json:"expires_at"`
-	AccessToken string    `json:"access_token"`
+	// The time at which the token will expire
+	ExpiresAt ExpiresAt `json:"expires_at"`
+
+	// The access token to use for authentication
+	AccessToken string `json:"access_token"`
 }
 
 func (c *tokenInfo) IsTokenExpiring() bool {
 	return time.Until(time.Time(c.ExpiresAt)) <= time.Minute*5
 }
 
-type credentialsFile struct {
+// CredentialsFile is used when serializing/deserializing JSON data from the
+// credentials file
+type CredentialsFile struct {
 	Credentials map[string]tokenInfo `json:"credentials"`
 }
 
+// Apply checks if the access token is expiring, and fetches a new one if so.
+// It then supplies the access token to the request via the Authorization header
+// as a Bearer token
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 	if c.token.IsTokenExpiring() {
 		if err := c.loadCredentials(); err != nil {
@@ -147,17 +183,21 @@ func (c *oauth2CredentialProvider) loadCredentials() error {
 }
 
 // loadCredentialsFromFile loads the access token from the credentials file. If
-// the access token does not exist for the give base url, it fetches a new one
-// from the server, and saves it to the credentials file
+// the access token does not exist for the given base url, or the token is
+// expiring, it fetches a new one from the server, and saves it to the credentials file
 func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 	file, err := os.ReadFile(c.credentialsFilePath)
 	if err != nil {
 		return fmt.Errorf("failed to read credentials file: %v", err)
 	}
 
-	var credsFile credentialsFile
+	var credsFile CredentialsFile
 	if err := json.Unmarshal(file, &credsFile); err != nil {
 		return fmt.Errorf("failed to read credentials file: %v", err)
+	}
+
+	if credsFile.Credentials == nil {
+		credsFile.Credentials = make(map[string]tokenInfo)
 	}
 
 	creds, ok := credsFile.Credentials[c.baseURL]
@@ -167,11 +207,8 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 		if err != nil {
 			return err
 		}
-		if credsFile.Credentials == nil {
-			credsFile.Credentials = make(map[string]tokenInfo)
-		}
 		credsFile.Credentials[c.baseURL] = *newCreds
-		updatedFile, err := json.MarshalIndent(creds, "", "  ")
+		updatedFile, err := json.MarshalIndent(credsFile, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to update credentials file: %v", err)
 		}
@@ -187,15 +224,15 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 	return nil
 }
 
-// writeCredentialsFile obtains an access token from the server and writes it to
-// the credentials file
+// writeCredentialsFile obtains an access token from the server and saves it
+// to a credentials file
 func (c *oauth2CredentialProvider) writeCredentialsFile() error {
 	token, err := c.createAccessToken()
 	if err != nil {
 		return err
 	}
 
-	data := credentialsFile{
+	data := CredentialsFile{
 		Credentials: map[string]tokenInfo{
 			c.baseURL: *token,
 		},
@@ -214,7 +251,9 @@ func (c *oauth2CredentialProvider) writeCredentialsFile() error {
 	return nil
 }
 
-// createAccessToken exchanges an identity token for an access token from the server.
+// createAccessToken reads the identity token from a file and exchanges it for
+// an access token from the authorization server using the JWT Bearer flow defined
+// in OAuth 2.0. The access token is then returned with its expiration time.
 func (c *oauth2CredentialProvider) createAccessToken() (*tokenInfo, error) {
 	token, err := os.ReadFile(c.identityTokenFilePath)
 	if err != nil {
@@ -246,16 +285,18 @@ func (c *oauth2CredentialProvider) createAccessToken() (*tokenInfo, error) {
 
 	var tokenResponse struct {
 		AccessToken string `json:"access_token"`
-		ExpiresIn   int64  `json:"expires_in"`
+		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
 		return nil, fmt.Errorf("invalid response from auth server: %v", err)
 	}
 
-	expiration := time.Unix(tokenResponse.ExpiresIn, 0)
+	// calculate the time at which the token will expire from the expires_in seconds
+	// from the response
+	expiresAt := time.Now().UTC().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second)
 
 	return &tokenInfo{
 		AccessToken: tokenResponse.AccessToken,
-		ExpiresAt:   expiresAt(expiration),
+		ExpiresAt:   ExpiresAt(expiresAt),
 	}, nil
 }
