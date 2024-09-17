@@ -6,6 +6,9 @@ namespace Wandb.Internal
 {
     using WandbInternal;
 
+    /// <summary>
+    /// Provides functionality to communicate with the Wandb server over TCP.
+    /// </summary>
     public class WandbTcpClient : IDisposable
     {
         private readonly TcpClient _tcpClient;
@@ -14,6 +17,9 @@ namespace Wandb.Internal
         private Task? _receiveTask;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> _pendingRequests;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="WandbTcpClient"/> class.
+        /// </summary>
         public WandbTcpClient()
         {
             _tcpClient = new TcpClient();
@@ -21,6 +27,12 @@ namespace Wandb.Internal
             _pendingRequests = new ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>>();
         }
 
+        /// <summary>
+        /// Connects to the specified host and port.
+        /// </summary>
+        /// <param name="host">The hostname or IP address to connect to.</param>
+        /// <param name="port">The port number to connect to.</param>
+        /// <exception cref="SocketException">Thrown when a socket error occurs during connection.</exception>
         public void Connect(string host, int port)
         {
             _tcpClient.Connect(host, port);
@@ -28,6 +40,20 @@ namespace Wandb.Internal
             _receiveTask = Task.Run(() => ReceiveLoopAsync(_cancellationTokenSource.Token));
         }
 
+        /// <summary>
+        /// Sends a <see cref="ServerRequest"/> message asynchronously and optionally waits for a response.
+        /// </summary>
+        /// <param name="message">The message to send.</param>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. If zero or less, does not wait for a response.
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="ServerResponse"/>
+        /// if a response is received within the timeout period; otherwise, <c>null</c>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown when the <paramref name="message"/> is <c>null</c>.</exception>
+        /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+        /// <exception cref="TimeoutException">Thrown when the response is not received within the timeout period.</exception>
         public async Task<ServerResponse?> SendAsync(ServerRequest message, int timeoutMilliseconds = 0)
         {
             ArgumentNullException.ThrowIfNull(message);
@@ -85,6 +111,11 @@ namespace Wandb.Internal
             }
         }
 
+        /// <summary>
+        /// Continuously reads messages from the network stream until cancellation is requested.
+        /// </summary>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+        /// <returns>A task that represents the asynchronous receive loop operation.</returns>
         private async Task ReceiveLoopAsync(CancellationToken cancellationToken)
         {
             try
@@ -104,6 +135,16 @@ namespace Wandb.Internal
             }
         }
 
+        /// <summary>
+        /// Reads a single <see cref="ServerResponse"/> message from the network stream.
+        /// </summary>
+        /// <param name="cancellationToken">A token to monitor for cancellation requests.</param>
+        /// <returns>
+        /// A task representing the asynchronous read operation. The task result contains the <see cref="ServerResponse"/>
+        /// read from the stream, or <c>null</c> if the connection is closed.
+        /// </returns>
+        /// <exception cref="InvalidOperationException">Thrown when the client is not connected.</exception>
+        /// <exception cref="InvalidDataException">Thrown when the message format is invalid.</exception>
         private async Task<ServerResponse?> ReadMessageAsync(CancellationToken cancellationToken)
         {
             byte[] header = new byte[5];
@@ -151,6 +192,10 @@ namespace Wandb.Internal
             return message;
         }
 
+        /// <summary>
+        /// Processes a received <see cref="ServerResponse"/> message by completing the corresponding request task.
+        /// </summary>
+        /// <param name="message">The message to process.</param>
         private void ProcessReceivedMessage(ServerResponse message)
         {
             // TODO: This must exist in the message, but need to gracefully handle it if it doesn't
@@ -167,9 +212,16 @@ namespace Wandb.Internal
             }
         }
 
+        /// <summary>
+        /// Packs raw data into the protocol format by adding a header.
+        /// </summary>
+        /// <param name="data">The data to pack.</param>
+        /// <returns>The packed data with the protocol header.</returns>
         private static byte[] Pack(byte[] data)
         {
+            // Packet format: header + data
             byte[] packet = new byte[1 + 4 + data.Length];
+            // Header format: "W" (1 byte) + data length (4 bytes)
             packet[0] = (byte)'W';
             byte[] lengthBytes = BitConverter.GetBytes((uint)data.Length);
             Array.Copy(lengthBytes, 0, packet, 1, 4);
@@ -177,6 +229,9 @@ namespace Wandb.Internal
             return packet;
         }
 
+        /// <summary>
+        /// Releases all resources used by the <see cref="WandbTcpClient"/>.
+        /// </summary>
         public void Dispose()
         {
             _cancellationTokenSource.Cancel();

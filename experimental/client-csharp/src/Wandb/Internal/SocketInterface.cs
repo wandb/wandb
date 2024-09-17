@@ -5,11 +5,20 @@ using WandbInternal;
 
 namespace Wandb.Internal
 {
+    /// <summary>
+    /// Provides an interface for communication over a socket connection with wandb-core.
+    /// </summary>
     public class SocketInterface : IDisposable
     {
         private readonly WandbTcpClient _client;
         private readonly string _streamId;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="SocketInterface"/> class.
+        /// </summary>
+        /// <param name="port">The port to connect to.</param>
+        /// <param name="streamId">The stream identifier.</param>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="streamId"/> is <c>null</c>.</exception>
         public SocketInterface(int port, string streamId)
         {
             _client = new WandbTcpClient();
@@ -17,6 +26,17 @@ namespace Wandb.Internal
             _streamId = streamId ?? throw new ArgumentNullException(nameof(streamId));
         }
 
+        /// <summary>
+        /// Delivers a Run record to wandb-core.
+        /// </summary>
+        /// <param name="run">The Run record to deliver.</param>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
         public async Task<Result> DeliverRun(Run run, int timeoutMilliseconds = 0)
         {
             ArgumentNullException.ThrowIfNull(run);
@@ -32,6 +52,17 @@ namespace Wandb.Internal
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Delivers a run start request to the server.
+        /// </summary>
+        /// <param name="run">The run information to start.</param>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
         public async Task<Result> DeliverRunStart(Run run, int timeoutMilliseconds = 0)
         {
             ArgumentNullException.ThrowIfNull(run);
@@ -59,6 +90,16 @@ namespace Wandb.Internal
         }
 
 
+        /// <summary>
+        /// Delivers a run exit record to the server.
+        /// </summary>
+        /// <param name="exitCode">The exit code of the run. Defaults to 0.</param>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
+        /// </returns>
         public async Task<Result> DelieverExit(int exitCode = 0, int timeoutMilliseconds = 0)
         {
             var record = new Record
@@ -71,6 +112,18 @@ namespace Wandb.Internal
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Delivers a record to wandb-core and waits for a response.
+        /// </summary>
+        /// <param name="record">The record to deliver.</param>
+        /// <param name="timeoutMilliseconds">
+        /// The timeout in milliseconds to wait for a response. Defaults to 0 (no timeout).
+        /// </param>
+        /// <returns>
+        /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
+        /// </returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="record"/> is <c>null</c>.</exception>
+        /// <exception cref="TimeoutException">Thrown if the request times out.</exception>
         public async Task<Result> Deliver(Record record, int timeoutMilliseconds = 0)
         {
             ArgumentNullException.ThrowIfNull(record);
@@ -93,6 +146,12 @@ namespace Wandb.Internal
             return response.ResultCommunicate;
         }
 
+        /// <summary>
+        /// Publishes partial history data to wandb-core.
+        /// </summary>
+        /// <param name="data">A dictionary containing the history data to publish.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="data"/> is <c>null</c>.</exception>
         public async Task PublishPartialHistory(Dictionary<string, object> data)
         {
             ArgumentNullException.ThrowIfNull(data);
@@ -117,6 +176,14 @@ namespace Wandb.Internal
             await Publish(record).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Publishes a metric definition to wandb-core.
+        /// </summary>
+        /// <param name="name">The name of the metric.</param>
+        /// <param name="stepMetric">The name of the step metric.</param>
+        /// <param name="summary">The summary type for the metric.</param>
+        /// <param name="hidden">Indicates whether the metric is hidden.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task PublishMetricDefinition(
             string name,
             string stepMetric,
@@ -157,6 +224,12 @@ namespace Wandb.Internal
             await Publish(record).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Publishes a configuration item to wandb-core.
+        /// </summary>
+        /// <param name="key">The key of the configuration item.</param>
+        /// <param name="value">The value of the configuration item.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
         public async Task PublishConfig(string key, object value)
         {
             var config = new ConfigRecord();
@@ -172,6 +245,12 @@ namespace Wandb.Internal
             await Publish(record).ConfigureAwait(false);
         }
 
+        /// <summary>
+        /// Publishes a record to the server without waiting for a response.
+        /// </summary>
+        /// <param name="record">The record to publish.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        /// <exception cref="ArgumentNullException">Thrown if <paramref name="record"/> is <c>null</c>.</exception>
         public async Task Publish(Record record)
         {
             ArgumentNullException.ThrowIfNull(record);
