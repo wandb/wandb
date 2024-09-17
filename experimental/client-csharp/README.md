@@ -68,6 +68,10 @@ class Program
 }
 ```
 
+## Prerequisites
+
+Before building and running this example, ensure that .NET is installed on your machine. For detailed installation instructions, visit the official [Microsoft .NET installation guide](https://learn.microsoft.com/en-us/dotnet/core/install/).
+
 ## Building and Running the Example
 
 To build and run the example, you can use the following script:

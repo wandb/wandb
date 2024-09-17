@@ -100,7 +100,7 @@ namespace Wandb.Internal
         /// <returns>
         /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
         /// </returns>
-        public async Task<Result> DelieverExit(int exitCode = 0, int timeoutMilliseconds = 0)
+        public async Task<Result> DeliverExit(int exitCode = 0, int timeoutMilliseconds = 0)
         {
             var record = new Record
             {
