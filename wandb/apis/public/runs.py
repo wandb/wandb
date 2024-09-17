@@ -28,7 +28,6 @@ from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
-    from wandb.sdk.artifacts.artifact import Artifact
 
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
@@ -91,7 +90,7 @@ class Runs(Paginator):
 
     def __init__(
         self,
-        client: RetryingClient,
+        client: "RetryingClient",
         entity: str,
         project: str,
         filters: Optional[Dict[str, Any]] = None,
@@ -297,7 +296,7 @@ class Run(Attrs):
 
     def __init__(
         self,
-        client: RetryingClient,
+        client: "RetryingClient",
         entity: str,
         project: str,
         run_id: str,
@@ -797,7 +796,7 @@ class Run(Attrs):
     @normalize_exceptions
     def log_artifact(
         self,
-        artifact: "Artifact",
+        artifact: wandb.Artifact,
         aliases: Optional[Collection[str]] = None,
         tags: Optional[Collection[str]] = None,
     ):
