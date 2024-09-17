@@ -54,13 +54,13 @@ If it is not supported for your platform, you will see an error if you try to st
 
 ### Disabling `wandb-core`
 
-If you need to revert to the previous SDK backend while using `wandb < 0.18.0`, you can do so by following one of these steps:
+If you need to revert to the previous SDK backend while using `wandb >= 0.18.0`, you can do so by following one of these steps:
 
 **Option 1**: Modify your script Add the following line to your script:
 ```python
 wandb.require("legacy-service")
 ```
-**Option 2**: Set an environment variable Alternatively, set the environment variable WANDB__REQUIRE_LEGACY_SERVICE to TRUE:
+**Option 2**: Alternatively, set the environment variable WANDB__REQUIRE_LEGACY_SERVICE to TRUE:
 
 ```shell
 export WANDB__REQUIRE_LEGACY_SERVICE=TRUE
