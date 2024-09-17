@@ -16,9 +16,9 @@
 
 ## Introduction
 
-`wandb-core` is a new and improved backend for the W&B SDK that is more performant, versatile, and robust. `wandb-core` is enabled by default with `wandb>=0.18.0`.
+`wandb-core` is a new and improved backend for the W&B SDK that is more performant, versatile, and robust. `wandb-core` is enabled by default with `wandb>=0.18.0`
 
-**`wandb-core` enables:**
+** `wandb-core` enables:**
 
 * 🚀 **Logging performance:** Experience up to 88% performance improvements when logging with multiple processes.
 * 🤏 **Reduced resource consumption:** Lower memory footprint allows you to run more experiments on your machines.
@@ -57,12 +57,12 @@ If it is not supported for your platform, you will see an error if you try to st
 If you need to revert to the previous SDK backend while using `wandb < 0.18.0`, you can do so by following one of these steps:
 
 **Option 1**: Modify your script Add the following line to your script:
-```python
-wandb.require("legacy-service")
 ```
+wandb.require("legacy-service")
+````
 **Option 2**: Set an environment variable Alternatively, set the environment variable WANDB__REQUIRE_LEGACY_SERVICE to TRUE:
 
-```shell
+```
 export WANDB__REQUIRE_LEGACY_SERVICE=TRUE
 ```
 **Note:**
