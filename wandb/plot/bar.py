@@ -1,10 +1,13 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import wandb
+from .viz import custom_chart
+
+if TYPE_CHECKING:
+    import wandb
 
 
 def bar(
-    table: wandb.Table,
+    table: "wandb.Table",
     label: str,
     value: str,
     title: Optional[str] = None,
@@ -33,7 +36,7 @@ def bar(
         wandb.log({'bar-plot1': wandb.plot.bar(table, "class", "acc")})
         ```
     """
-    return wandb.plot_table(
+    return custom_chart(
         "wandb/bar/v0",
         table,
         {"label": label, "value": value},
