@@ -1554,9 +1554,13 @@ def _is_databricks() -> bool:
     return False
 
 
-def _is_py_or_dockerfile(path: str) -> bool:
+def _is_py_requirements_or_dockerfile(path: str) -> bool:
     file = os.path.basename(path)
-    return file.endswith(".py") or file.startswith("Dockerfile")
+    return (
+        file.endswith(".py")
+        or file.startswith("Dockerfile")
+        or file == "requirements.txt"
+    )
 
 
 def check_windows_valid_filename(path: Union[int, str]) -> bool:
@@ -1884,7 +1888,14 @@ def working_set() -> Iterable[InstalledDistribution]:
         from importlib_metadata import distributions  # type: ignore
 
     for d in distributions():
-        yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
+        try:
+            # In some distributions, the "Name" attribute may not be present,
+            # which can raise a KeyError. To handle this, we catch the exception
+            # and skip those distributions.
+            # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
+            yield InstalledDistribution(key=d.name, version=d.version)
+        except KeyError:
+            pass
 
 
 def parse_version(version: str) -> "packaging.version.Version":

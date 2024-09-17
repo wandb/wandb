@@ -40,7 +40,7 @@ func NewDefaultFileTransfer(
 }
 
 // Upload uploads a file to the server
-func (ft *DefaultFileTransfer) Upload(task *Task) error {
+func (ft *DefaultFileTransfer) Upload(task *DefaultUploadTask) error {
 	ft.logger.Debug("default file transfer: uploading file", "path", task.Path, "url", task.Url)
 
 	// open the file for reading and defer closing it
@@ -147,7 +147,7 @@ func (ft *DefaultFileTransfer) Upload(task *Task) error {
 }
 
 // Download downloads a file from the server
-func (ft *DefaultFileTransfer) Download(task *Task) error {
+func (ft *DefaultFileTransfer) Download(task *DefaultDownloadTask) error {
 	ft.logger.Debug("default file transfer: downloading file", "path", task.Path, "url", task.Url)
 	dir := path.Dir(task.Path)
 

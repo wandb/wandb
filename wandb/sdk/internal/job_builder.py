@@ -430,10 +430,12 @@ class JobBuilder:
         build_context: Optional[str] = None,
         dockerfile: Optional[str] = None,
         requirements_file: Optional[str] = None,
+        base_image: Optional[str] = None,
     ) -> Optional[Artifact]:
         """Build a job artifact from the current run.
 
         Arguments:
+            api (Api): The API object to use to create the job artifact.
             build_context (Optional[str]): Path within the job source code to
                 the image build context. Saved as part of the job for future
                 builds.
@@ -441,6 +443,7 @@ class JobBuilder:
                 Dockerfile. Saved as part of the job for future builds.
             requirements_file (Optional[str]): An absolute path to a requirements
                 file usually requirements.frozen.txt or environment.frozen.yml
+            base_image (Optional[str]): The base image used to run the job code.
 
         Returns:
             Optional[Artifact]: The job artifact if it was successfully built,
@@ -482,8 +485,6 @@ class JobBuilder:
                 "warn",
             )
             return None
-        metadata["dockerfile"] = dockerfile
-        metadata["build_context"] = build_context
 
         runtime: Optional[str] = metadata.get("python")
         # can't build a job without a python version
@@ -535,6 +536,8 @@ class JobBuilder:
             source["build_context"] = build_context  # type: ignore[typeddict-item]
         if dockerfile:
             source["dockerfile"] = dockerfile  # type: ignore[typeddict-item]
+        if base_image:
+            source["base_image"] = base_image  # type: ignore[typeddict-item]
 
         # Pop any keys that are initialized to None. The current TypedDict
         # system for source dicts requires all keys to be present, but we

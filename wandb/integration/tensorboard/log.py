@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util
+from wandb.plot.viz import custom_chart
 from wandb.sdk.lib import telemetry
-from wandb.viz import custom_chart
 
 if TYPE_CHECKING:
     import numpy as np
@@ -54,9 +54,6 @@ def make_ndarray(tensor: Any) -> Optional["np.ndarray"]:
 def namespaced_tag(tag: str, namespace: str = "") -> str:
     if not namespace:
         return tag
-    elif tag in namespace:
-        # This happens with tensorboardX
-        return namespace
     else:
         return namespace + "/" + tag
 

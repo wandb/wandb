@@ -4,6 +4,8 @@ package wandb_internal;
 
 import "google/protobuf/wrappers.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 message ListStringValue {
   repeated string value = 1;
 }
@@ -41,9 +43,9 @@ message RunMoment {
 //
 // Some fields such as `run_id` only make sense at the run level.
 //
-// Next ID: 173
+// Next ID: 175
 message Settings {
-  reserved 12, 94;
+  reserved 12, 36, 94, 136, 137;
 
   // The W&B API key.
   //
@@ -80,6 +82,21 @@ message Settings {
   // Filename to use for internal logs.
   google.protobuf.StringValue log_internal = 86;
 
+  // Defines the type of console capture to be applied. Possible values are:
+  //
+  // "off" - Disables console capture.
+  //
+  // "redirect" - Redirects low-level file descriptors for capturing output.
+  //
+  // "wrap" - Overrides the write methods of sys.stdout/sys.stderr. Will be
+  // mapped to either "wrap_raw" or "wrap_emu" based on the state of the system.
+  //
+  // "wrap_raw" - Same as "wrap" but captures raw output directly instead of
+  // through an emulator.
+  //
+  // "wrap_emu" - Same as "wrap" but captures output through an emulator.
+  google.protobuf.StringValue console = 60;
+
   // Absolute path to the local directory where this run's files are stored.
   google.protobuf.StringValue files_dir = 70;
 
@@ -89,8 +106,8 @@ message Settings {
   // Disable check for latest version of wandb, from pypi.
   google.protobuf.BoolValue _disable_update_check = 165;
 
-  // Indicate whether wandb-core is to be used.
-  google.protobuf.BoolValue _require_core = 36;
+  // Explicitly require wandb-core to not be used.
+  google.protobuf.BoolValue _require_legacy_service = 173;
 
   // Path to file containing an identity token for authentication.
   google.protobuf.StringValue identity_token_file = 170;
@@ -171,6 +188,7 @@ message Settings {
   google.protobuf.DoubleValue _service_wait = 39;
   google.protobuf.StringValue _start_datetime = 40;
   google.protobuf.Int32Value _stats_pid = 42;
+  google.protobuf.DoubleValue _stats_sampling_interval = 174;
   google.protobuf.DoubleValue _stats_sample_rate_seconds = 43;
   google.protobuf.Int32Value _stats_samples_to_average = 44;
   google.protobuf.BoolValue _stats_join_assets = 45;
@@ -187,7 +205,6 @@ message Settings {
   google.protobuf.StringValue base_url = 57;
   google.protobuf.StringValue code_dir = 58;
   ListStringValue config_paths = 59;
-  google.protobuf.StringValue console = 60;
   google.protobuf.StringValue deployment = 61;
   google.protobuf.BoolValue disable_code = 62;
   google.protobuf.BoolValue disable_git = 63;
@@ -255,8 +272,6 @@ message Settings {
   google.protobuf.StringValue sync_dir = 133;
   google.protobuf.StringValue sync_file = 134;
   google.protobuf.StringValue sync_symlink_latest = 135;
-  google.protobuf.Int32Value system_sample = 136;
-  google.protobuf.Int32Value system_sample_seconds = 137;
   google.protobuf.BoolValue table_raise_on_max_row_limit_exceeded = 138;
   google.protobuf.StringValue timespec = 139;
   google.protobuf.StringValue tmp_dir = 140;

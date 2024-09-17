@@ -660,7 +660,11 @@ class HandleManager:
         self._dispatch_record(record)
 
     def handle_request_check_version(self, record: Record) -> None:
-        self._dispatch_record(record)
+        if self._settings._offline:
+            result = proto_util._result_from_record(record)
+            self._respond_result(result)
+        else:
+            self._dispatch_record(record)
 
     def handle_request_attach(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
@@ -745,8 +749,6 @@ class HandleManager:
         self._respond_result(result)
 
     def handle_request_status(self, record: Record) -> None:
-        # TODO(mempressure): do something better?
-        assert record.control.req_resp
         result = proto_util._result_from_record(record)
         self._respond_result(result)
 

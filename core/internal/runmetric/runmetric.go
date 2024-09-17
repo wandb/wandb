@@ -8,7 +8,7 @@ import (
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runsummary"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type MetricHandler struct {
@@ -34,7 +34,7 @@ func (mh *MetricHandler) Exists(key string) bool {
 }
 
 // ProcessRecord updates metric definitions.
-func (mh *MetricHandler) ProcessRecord(record *service.MetricRecord) error {
+func (mh *MetricHandler) ProcessRecord(record *spb.MetricRecord) error {
 	if len(record.StepMetric) > 0 {
 		if _, ok := mh.latestStep[record.StepMetric]; !ok {
 			mh.latestStep[record.StepMetric] = 0
@@ -96,7 +96,7 @@ func (mh *MetricHandler) UpdateSummary(
 // Returns any new metrics that were created.
 func (mh *MetricHandler) UpdateMetrics(
 	history *runhistory.RunHistory,
-) []*service.MetricRecord {
+) []*spb.MetricRecord {
 	for key := range mh.latestStep {
 		if len(key) == 0 {
 			continue
@@ -156,8 +156,8 @@ func (mh *MetricHandler) InsertStepMetrics(
 // glob metrics to the history.
 func (mh *MetricHandler) createGlobMetrics(
 	history *runhistory.RunHistory,
-) []*service.MetricRecord {
-	var newMetrics []*service.MetricRecord
+) []*spb.MetricRecord {
+	var newMetrics []*spb.MetricRecord
 
 	history.ForEachKey(func(path pathtree.TreePath) bool {
 		key := strings.Join(path.Labels(), ".")

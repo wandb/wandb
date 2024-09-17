@@ -22,11 +22,13 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 // TBHandler saves TensorBoard data with the run.
@@ -42,7 +44,7 @@ type TBHandler struct {
 	// wg is done after all work is done.
 	wg sync.WaitGroup
 
-	outChan       chan<- *service.Record
+	extraWork     runwork.ExtraWork
 	logger        *observability.CoreLogger
 	settings      *settings.Settings
 	hostname      string
@@ -69,7 +71,7 @@ type TBHandler struct {
 }
 
 type Params struct {
-	OutputRecords chan<- *service.Record
+	runwork.ExtraWork
 
 	Logger   *observability.CoreLogger
 	Settings *settings.Settings
@@ -84,7 +86,7 @@ func NewTBHandler(params Params) *TBHandler {
 	}
 
 	tb := &TBHandler{
-		outChan:       params.OutputRecords,
+		extraWork:     params.ExtraWork,
 		logger:        params.Logger,
 		settings:      params.Settings,
 		hostname:      params.Hostname,
@@ -100,7 +102,7 @@ func NewTBHandler(params Params) *TBHandler {
 }
 
 // Handle begins processing the events in a TensorBoard logs directory.
-func (tb *TBHandler) Handle(record *service.TBRecord) error {
+func (tb *TBHandler) Handle(record *spb.TBRecord) error {
 	// Make log_dir absolute.
 	maybeLogDir, err := paths.Absolute(record.LogDir)
 	if err != nil {
@@ -166,10 +168,12 @@ func (tb *TBHandler) startStream(
 		// We may have to wait a short time for the root directory if
 		// it is not set explicitly.
 		var rootDir paths.AbsolutePath
+		var namespace string
 		if explicitRootDir != nil {
 			rootDir = *explicitRootDir
+			namespace = tb.getNamespace(logDir, rootDir)
 		} else {
-			inferredRootDir, err := tb.inferRootDir()
+			inferredRootDir, inferredNamespace, err := tb.inferRootDirAndNamespace(logDir)
 
 			if err != nil {
 				tb.logger.CaptureError(
@@ -182,17 +186,13 @@ func (tb *TBHandler) startStream(
 			}
 
 			rootDir = *inferredRootDir
+			namespace = inferredNamespace
 		}
 
 		stream.Start()
 		tb.startWG.Done()
 
-		tb.watch(
-			stream,
-			tb.getNamespace(logDir, rootDir),
-			rootDir,
-			shouldSave,
-		)
+		tb.watch(stream, namespace, rootDir, shouldSave)
 	}()
 }
 
@@ -241,25 +241,10 @@ func (tb *TBHandler) updateRootDirFromLogDir(
 	tb.trackedDirs = append(tb.trackedDirs, newLogDir)
 
 	if len(tb.trackedDirs) > 1 {
-		longestPrefix := string(tb.trackedDirs[0])
+		rootDir, err := paths.LongestCommonPrefix(tb.trackedDirs)
 
-		for _, path := range tb.trackedDirs[1:] {
-			pathRunes := []rune(string(path))
-
-			for i, char := range longestPrefix {
-				if char != pathRunes[i] {
-					longestPrefix = longestPrefix[:i]
-					break
-				}
-			}
-		}
-
-		rootDir, err := paths.Absolute(longestPrefix)
 		if err != nil {
-			return fmt.Errorf(
-				"tensorboard: error while inferring root dir: %v",
-				err,
-			)
+			return fmt.Errorf("tensorboard: %v", err)
 		}
 
 		tb.rootDir = rootDir
@@ -269,10 +254,14 @@ func (tb *TBHandler) updateRootDirFromLogDir(
 	return nil
 }
 
-// inferRootDir blocks until rootDir is set.
+// inferRootDirAndNamespace blocks until rootDir is set, then uses
+// it to infer a namespace for the given log directory.
 //
-// After a timeout, this just returns the current working directory.
-func (tb *TBHandler) inferRootDir() (*paths.AbsolutePath, error) {
+// After a timeout, this just returns the current working directory
+// and an empty namespace.
+func (tb *TBHandler) inferRootDirAndNamespace(
+	logDir paths.AbsolutePath,
+) (*paths.AbsolutePath, string, error) {
 	resultChan := make(chan paths.AbsolutePath, 1)
 	go func() {
 		tb.rootDirCond.L.Lock()
@@ -294,9 +283,27 @@ func (tb *TBHandler) inferRootDir() (*paths.AbsolutePath, error) {
 	// then we just default to the current working directory as a root.
 	select {
 	case result := <-resultChan:
-		return &result, nil
+		namespace := tb.getNamespace(logDir, result)
+
+		tb.logger.Info(
+			"tensorboard: inferred root directory",
+			"rootDir", string(result),
+			"logDir", string(logDir),
+			"namespace", namespace)
+
+		return &result, namespace, nil
+
 	case <-time.After(10 * time.Second):
-		return paths.CWD()
+		tb.logger.Info(
+			"tensorboard: no root directory after 10 seconds," +
+				" using working directory")
+
+		cwd, err := paths.CWD()
+		if err != nil {
+			return nil, "", fmt.Errorf("error getting working directory: %v", err)
+		}
+
+		return cwd, "", nil
 	}
 }
 
@@ -313,25 +320,9 @@ func (tb *TBHandler) convertToRunHistory(
 			"namespace", namespace,
 		)
 
-		if request := converter.ConvertNext(event, tb.logger); request != nil {
-			tb.sendHistoryRequest(request)
-		}
-	}
-}
-
-func (tb *TBHandler) sendHistoryRequest(request *service.PartialHistoryRequest) {
-	tb.outChan <- &service.Record{
-		RecordType: &service.Record_Request{
-			Request: &service.Request{
-				RequestType: &service.Request_PartialHistory{
-					PartialHistory: request,
-				},
-			},
-		},
-
-		// Don't persist the record to the transaction log---
-		// the data already exists in tfevents files.
-		Control: &service.Control{Local: true},
+		emitter := NewTFEmitter(tb.settings)
+		converter.ConvertNext(emitter, event, tb.logger)
+		emitter.Emit(tb.extraWork)
 	}
 }
 
@@ -398,15 +389,17 @@ func (tb *TBHandler) saveFile(path, rootDir paths.AbsolutePath) {
 	}
 
 	// Write a record indicating that the file should be uploaded.
-	tb.outChan <- &service.Record{
-		RecordType: &service.Record_Files{
-			Files: &service.FilesRecord{
-				Files: []*service.FilesItem{
-					{Policy: service.FilesItem_END, Path: string(relPath)},
+	tb.extraWork.AddWork(
+		runwork.WorkFromRecord(
+			&spb.Record{
+				RecordType: &spb.Record_Files{
+					Files: &spb.FilesRecord{
+						Files: []*spb.FilesItem{
+							{Policy: spb.FilesItem_END, Path: string(relPath)},
+						},
+					},
 				},
-			},
-		},
-	}
+			}))
 }
 
 // getNamespace computes the namespace corresponding to a log directory.

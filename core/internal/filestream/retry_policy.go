@@ -63,6 +63,8 @@ func RetryPolicy(
 		return false, nil
 	case http.StatusRequestEntityTooLarge: // don't retry on 413 Content Too Large
 		return false, nil
+	case http.StatusUnprocessableEntity: // don't retry on 422 Unprocessable Content
+		return false, nil
 	case http.StatusNotImplemented: // don't retry on 501 not implemented
 		return false, nil
 	}

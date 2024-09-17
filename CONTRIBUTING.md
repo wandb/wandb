@@ -30,7 +30,7 @@ Please make sure to update the ToC when you update this page!
     + [Adding URLs](#adding-urls)
     + [Deprecating features](#deprecating-features)
       - [Marking a feature as deprecated](#marking-a-feature-as-deprecated)
-  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core-)
+  * [Modifying GraphQL Schema in `wandb-core`](#modifying-graphql-schema-in--wandb-core)
 - [Testing](#testing)
   * [Using pytest](#using-pytest)
 
@@ -140,17 +140,13 @@ Examples can be found in the section below.
 
 | Type     | Name                        | Description                                                                                  | User-facing? |
 |----------|-----------------------------|----------------------------------------------------------------------------------------------|--------------|
-| feat     | ✨ Feature                   | A pull request that adds new functionality that directly impacts users                       | Yes          |
-| fix      | 🐛 Fix                      | A pull request that fixes a bug                                                              | Yes          |
-| docs     | 📚 Documentation            | Documentation changes only                                                                   | Maybe        |
-| style    | 💎 Style                    | Changes that do not affect the meaning of the code (e.g. linting or adding type annotations) | No           |
-| refactor | 📦 Code Refactor            | A code change that neither fixes a bug nor adds a feature                                    | No           |
-| perf     | 🚀 Performance Improvements | A code change that improves performance                                                      | No           |
-| test     | 🚨 Tests                    | Adding new or missing tests or correcting existing tests                                     | No           |
-| build    | 🛠 Builds                   | Changes that affect the build system (e.g. protobuf) or external dependencies                | Maybe        |
-| ci       | ⚙️ Continuous Integrations  | Changes to our CI configuration files and scripts                                            | No           |
-| chore    | ♻️ Chores                   | Other changes that don't modify source code files.                                           | No           |
-| revert   | 🗑 Reverts                  | Reverts a previous commit                                                                    | Maybe        |
+| feat     | ✨ Feature                  | Changes that add new functionality that directly impacts users                               | Yes          |
+| fix      | 🐛 Fix                      | Changes that fix existing issues                                                             | Yes          |
+| refactor | 💎 Code Refactor            | A code change that neither fixes a bug nor adds a new feature                                | No           |
+| docs     | 📜 Documentation            | Documentation changes only                                                                   | Maybe        |
+| style    | 💅 Style                    | Changes that do not affect the meaning of the code (e.g. linting)                            | Maybe        |
+| chore    | ⚙️ Chores                    | Changes that do not modify source code (e.g. CI configuration files, build scripts)          | No           |
+| revert   | ♻️ Reverts                   | Reverts a previous commit                                                                    | Maybe        |
 | security | 🔒 Security                 | Security fix/feature                                                                         | Maybe        |
 
 #### Scopes
@@ -159,12 +155,9 @@ Which part of the codebase does this change impact? Only certain scopes are perm
 
 | Scope        | Name                     | Description                                             |
 |--------------|--------------------------|---------------------------------------------------------|
-| sdk          | Software Development Kit | Generic SDK changes or if can't define a narrower scope |
-| cli          | Command-Line Interface   | Generic CLI changes                                     |
-| public-api   | Public API               | Public API changes                                      |
+| sdk          | Software Development Kit | Changes that don't fall under the other scopes|
 | integrations | Integrations             | Changes related to third-party integrations             |
 | artifacts    | Artifacts                | Changes related to Artifacts                            |
-| media        | Media Types              | Changes related to Media types                          |
 | sweeps       | Sweeps                   | Changes related to Sweeps                               |
 | launch       | Launch                   | Changes related to Launch                               |
 
@@ -180,7 +173,7 @@ If the feature or fix does not directly impact users, consider using a different
 
 ✅ **Good Examples**
 
-- `feat(media): add support for RDKit Molecules`
+- `feat(sdk): add support for RDKit Molecules`
 
     It is clear to the user what the change introduces to our product.
 
@@ -218,7 +211,7 @@ pip install -U nox uv
 
 ### Setting up Go
 
-Install Go version `1.22.6` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
+Install Go version `1.23.1` following the instructions [here](https://go.dev/doc/install) or using your package manager, for example:
 ```shell
 brew install go@1.22
 ```

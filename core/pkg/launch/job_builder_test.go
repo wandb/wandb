@@ -3,7 +3,6 @@ package launch_test
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -13,7 +12,7 @@ import (
 	"github.com/wandb/wandb/core/internal/runconfig"
 	. "github.com/wandb/wandb/core/pkg/launch"
 	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
@@ -94,7 +93,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -155,7 +154,7 @@ func TestJobBuilderRepo(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project:      toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:       toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:        toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -206,18 +205,18 @@ func TestJobBuilderArtifact(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifactRecord := &service.ArtifactRecord{
+		artifactRecord := &spb.ArtifactRecord{
 			Name: "testArtifact",
 			Type: "code",
 		}
-		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		jobBuilder.HandleLogArtifactResult(&spb.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
 		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
@@ -268,7 +267,7 @@ func TestJobBuilderArtifact(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project:      toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:       toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:        toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -277,11 +276,11 @@ func TestJobBuilderArtifact(t *testing.T) {
 			XJupyterRoot: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
-		artifactRecord := &service.ArtifactRecord{
+		artifactRecord := &spb.ArtifactRecord{
 			Name: "testArtifact",
 			Type: "code",
 		}
-		jobBuilder.HandleLogArtifactResult(&service.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
+		jobBuilder.HandleLogArtifactResult(&spb.LogArtifactResponse{ArtifactId: "testArtifactId"}, artifactRecord)
 		artifact, err := jobBuilder.Build(ctx, gql, nil)
 		assert.Nil(t, err)
 		assert.Equal(t, "job-testArtifact", artifact.Name)
@@ -323,7 +322,7 @@ func TestJobBuilderImage(t *testing.T) {
 		writeWandbMetadata(t, fdir, metadata)
 
 		defer os.RemoveAll(fdir)
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -359,7 +358,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 	t.Run("Disabled", func(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -377,7 +376,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		ctx := context.Background()
 		gql := gqlmock.NewMockClient()
 		fdir := filepath.Join(os.TempDir(), "test")
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -394,7 +393,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 		assert.Nil(t, err)
 		writeRequirements(t, fdir)
 
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 
@@ -417,7 +416,7 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 
 		defer os.RemoveAll(fdir)
 
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			FilesDir: toWrapperPb(fdir).(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -429,26 +428,26 @@ func TestJobBuilderDisabledOrMissingFiles(t *testing.T) {
 
 func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 	t.Run("HandleUseArtifactRecord repo type", func(t *testing.T) {
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			Project: toWrapperPb("testProject").(*wrapperspb.StringValue),
 			Entity:  toWrapperPb("testEntity").(*wrapperspb.StringValue),
 			RunId:   toWrapperPb("testRunId").(*wrapperspb.StringValue),
 		}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
+		artifactRecord := &spb.Record{
+			RecordType: &spb.Record_UseArtifact{
+				UseArtifact: &spb.UseArtifactRecord{
 					Id:   "testID",
 					Type: "job",
 					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
+					Partial: &spb.PartialJobArtifact{
 						JobName: "job-testJobNameImage",
-						SourceInfo: &service.JobSource{
+						SourceInfo: &spb.JobSource{
 							SourceType: "repo",
 							Runtime:    "3.11.2",
-							Source: &service.Source{
-								Git: &service.GitSource{
+							Source: &spb.Source{
+								Git: &spb.GitSource{
 									Entrypoint: []string{"a", "b"},
-									GitInfo: &service.GitInfo{
+									GitInfo: &spb.GitInfo{
 										Commit: "1234567890",
 										Remote: "example.com",
 									},
@@ -467,10 +466,10 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 	})
 
 	t.Run("HandleUseArtifactRecord disabled when use non partial artifact job", func(t *testing.T) {
-		settings := &service.Settings{}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
+		settings := &spb.Settings{}
+		artifactRecord := &spb.Record{
+			RecordType: &spb.Record_UseArtifact{
+				UseArtifact: &spb.UseArtifactRecord{
 					Id:      "testID",
 					Type:    "job",
 					Name:    "partialArtifact",
@@ -485,20 +484,20 @@ func TestJobBuilderHandleUseArtifactRecord(t *testing.T) {
 	})
 
 	t.Run("HandleUseArtifactRecord disables job builder when handling partial job with no name", func(t *testing.T) {
-		settings := &service.Settings{}
-		artifactRecord := &service.Record{
-			RecordType: &service.Record_UseArtifact{
-				UseArtifact: &service.UseArtifactRecord{
+		settings := &spb.Settings{}
+		artifactRecord := &spb.Record{
+			RecordType: &spb.Record_UseArtifact{
+				UseArtifact: &spb.UseArtifactRecord{
 					Id:   "testID",
 					Type: "job",
 					Name: "partialArtifact",
-					Partial: &service.PartialJobArtifact{
+					Partial: &spb.PartialJobArtifact{
 						JobName: "",
-						SourceInfo: &service.JobSource{
+						SourceInfo: &spb.JobSource{
 							SourceType: "image",
 							Runtime:    "3.11.2",
-							Source: &service.Source{
-								Image: &service.ImageSource{
+							Source: &spb.Source{
+								Image: &spb.ImageSource{
 									Image: "testImage:v0",
 								},
 							},
@@ -519,7 +518,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		noRepoIngredientsError := "no repo job ingredients found, but source type set to repo"
 		commit := "1234567890"
 		remote := "example.com"
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
 			},
@@ -566,7 +565,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 	t.Run("GetSourceType job type specified artifact", func(t *testing.T) {
 		sourceType := ArtifactSourceType
 		noArtifactIngredientsError := "no artifact job ingredients found, but source type set to artifact"
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
 			},
@@ -616,7 +615,7 @@ func TestJobBuilderGetSourceType(t *testing.T) {
 		sourceType := ImageSourceType
 		imageName := "testImage"
 		noImageIngredientsError := "no image job ingredients found, but source type set to image"
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			JobSource: &wrapperspb.StringValue{
 				Value: string(sourceType),
 			},
@@ -667,7 +666,7 @@ func TestUtilFunctions(t *testing.T) {
 
 	})
 	t.Run("handlePathsAboveRoot works when notebook started above git root", func(t *testing.T) {
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/jupyterRoot").(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -676,7 +675,7 @@ func TestUtilFunctions(t *testing.T) {
 		assert.Equal(t, "a/notebook.ipynb", path)
 	})
 	t.Run("handlePathsAboveRoot works when notebook started below git root", func(t *testing.T) {
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/gitRoot/jupyterRoot").(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -686,7 +685,7 @@ func TestUtilFunctions(t *testing.T) {
 	})
 
 	t.Run("handlePathsAboveRoot works when notebook started at git root", func(t *testing.T) {
-		settings := &service.Settings{
+		settings := &spb.Settings{
 			XJupyterRoot: toWrapperPb("/path/to/gitRoot").(*wrapperspb.StringValue),
 		}
 		jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
@@ -720,7 +719,7 @@ func TestWandbConfigParameters(t *testing.T) {
 	writeWandbMetadata(t, fdir, metadata)
 
 	defer os.RemoveAll(fdir)
-	settings := &service.Settings{
+	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -740,12 +739,12 @@ func TestWandbConfigParameters(t *testing.T) {
 			},
 		},
 	))
-	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
-		InputSource: &service.JobInputSource{
-			Source: &service.JobInputSource_RunConfig{},
+	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
+		InputSource: &spb.JobInputSource{
+			Source: &spb.JobInputSource_RunConfig{},
 		},
-		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
-		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
+		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, nil)
 	assert.Nil(t, err)
@@ -807,7 +806,7 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 	writeWandbMetadata(t, fdir, metadata)
 
 	defer os.RemoveAll(fdir)
-	settings := &service.Settings{
+	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -843,12 +842,12 @@ func TestWandbConfigParametersWithInputSchema(t *testing.T) {
 			},
 		},
 	})
-	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
-		InputSource: &service.JobInputSource{
-			Source: &service.JobInputSource_RunConfig{},
+	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
+		InputSource: &spb.JobInputSource{
+			Source: &spb.JobInputSource_RunConfig{},
 		},
-		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
-		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
+		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3", "key4"}}},
+		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4", "key6"}}},
 		InputSchema:  string(inputSchema),
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, nil)
@@ -904,7 +903,7 @@ func TestConfigFileParameters(t *testing.T) {
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
 	defer os.RemoveAll(fdir)
-	settings := &service.Settings{
+	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -912,16 +911,16 @@ func TestConfigFileParameters(t *testing.T) {
 	}
 	jobBuilder := NewJobBuilder(settings, observability.NewNoOpLogger(), true)
 
-	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
-		InputSource: &service.JobInputSource{
-			Source: &service.JobInputSource_File{
-				File: &service.JobInputSource_ConfigFileSource{
+	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
+		InputSource: &spb.JobInputSource{
+			Source: &spb.JobInputSource_File{
+				File: &spb.JobInputSource_ConfigFileSource{
 					Path: "config.yaml",
 				},
 			},
 		},
-		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
-		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4"}}},
+		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
+		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4"}}},
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, nil)
 
@@ -929,7 +928,6 @@ func TestConfigFileParameters(t *testing.T) {
 	var artifactMetadata map[string]interface{}
 	err = json.Unmarshal([]byte(artifact.Metadata), &artifactMetadata)
 	inputs := artifactMetadata["input_types"].(map[string]interface{})
-	fmt.Println(inputs)
 	files := inputs["files"].(map[string]interface{})
 	assert.Nil(t, err)
 	assert.Equal(t, map[string]interface{}{
@@ -982,7 +980,7 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 	yamlContents := "key1: value1\nkey2: value2\nkey3:\n  key4:\n    key6: value6\n    key7: value7\n  key5: value5\n"
 	writeFile(t, configDir, "config.yaml", yamlContents)
 	defer os.RemoveAll(fdir)
-	settings := &service.Settings{
+	settings := &spb.Settings{
 		Project:  toWrapperPb("testProject").(*wrapperspb.StringValue),
 		Entity:   toWrapperPb("testEntity").(*wrapperspb.StringValue),
 		RunId:    toWrapperPb("testRunId").(*wrapperspb.StringValue),
@@ -1006,16 +1004,16 @@ func TestConfigFileParametersWithInputSchema(t *testing.T) {
 			},
 		},
 	})
-	jobBuilder.HandleJobInputRequest(&service.JobInputRequest{
-		InputSource: &service.JobInputSource{
-			Source: &service.JobInputSource_File{
-				File: &service.JobInputSource_ConfigFileSource{
+	jobBuilder.HandleJobInputRequest(&spb.JobInputRequest{
+		InputSource: &spb.JobInputSource{
+			Source: &spb.JobInputSource_File{
+				File: &spb.JobInputSource_ConfigFileSource{
 					Path: "config.yaml",
 				},
 			},
 		},
-		IncludePaths: []*service.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
-		ExcludePaths: []*service.JobInputPath{{Path: []string{"key3", "key4"}}},
+		IncludePaths: []*spb.JobInputPath{{Path: []string{"key1"}}, {Path: []string{"key3"}}},
+		ExcludePaths: []*spb.JobInputPath{{Path: []string{"key3", "key4"}}},
 		InputSchema:  string(inputSchema),
 	})
 	artifact, err := jobBuilder.Build(ctx, gql, nil)

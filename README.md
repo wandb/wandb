@@ -3,7 +3,7 @@
   <img src="./assets/logo-light.svg#gh-light-mode-only" width="600" alt="Weights & Biases" />
 </p>
 
-<p align='center'>
+<p align="center">
 <a href="https://pypi.python.org/pypi/wandb"><img src="https://img.shields.io/pypi/v/wandb" /></a>
 <a href="https://anaconda.org/conda-forge/wandb"><img src="https://img.shields.io/conda/vn/conda-forge/wandb" /></a>
 <a href="https://circleci.com/gh/wandb/wandb"><img src="https://img.shields.io/circleci/build/github/wandb/wandb/main" /></a>
@@ -13,7 +13,7 @@
 <a href="https://colab.research.google.com/github/wandb/examples/blob/master/colabs/intro/Intro_to_Weights_%26_Biases.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" /></a>
 </p>
 
-Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a free account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for a W&B account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
 <br>
 
@@ -87,7 +87,7 @@ See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_mediu
 
 Get started with W&B in four steps:
 
-1. First, sign up for a [free W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
+1. First, sign up for a [W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
 
 2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
 
@@ -117,7 +117,10 @@ config.learning_rate = 0.01
 
 # Log metrics over time to visualize performance with wandb.log
 for i in range(10):
-    run.log({"loss": loss})
+    run.log({"loss": ...})
+
+# Mark the run as finished, and finish uploading all data
+run.finish()
 ```
 
 That's it! Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
@@ -590,7 +593,7 @@ Explore example Colab Notebooks at [wandb/examples GitHub repository](https://gi
 
 # Contribution guidelines
 
-Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com .
+Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
 
 &nbsp;
 

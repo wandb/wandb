@@ -56,7 +56,7 @@ class TypeRegistry:
         # but will be ultimately treated as a None. Ignoring type since
         # mypy does not trust that py_obj is a float by the time it is
         # passed to isnan.
-        if py_obj.__class__ == float and math.isnan(py_obj):  # type: ignore
+        if py_obj.__class__ is float and math.isnan(py_obj):  # type: ignore
             return NoneType()
 
         # TODO: generalize this to handle other config input types
@@ -134,7 +134,7 @@ def _params_obj_to_json_obj(
     artifact: t.Optional["Artifact"] = None,
 ) -> t.Any:
     """Helper method."""
-    if params_obj.__class__ == dict:
+    if params_obj.__class__ is dict:
         return {
             key: _params_obj_to_json_obj(params_obj[key], artifact)
             for key in params_obj
@@ -151,7 +151,7 @@ def _json_obj_to_params_obj(
     json_obj: t.Any, artifact: t.Optional["Artifact"] = None
 ) -> t.Any:
     """Helper method."""
-    if json_obj.__class__ == dict:
+    if json_obj.__class__ is dict:
         if "wb_type" in json_obj:
             return TypeRegistry.type_from_dict(json_obj, artifact)
         else:
@@ -159,7 +159,7 @@ def _json_obj_to_params_obj(
                 key: _json_obj_to_params_obj(json_obj[key], artifact)
                 for key in json_obj
             }
-    elif json_obj.__class__ == list:
+    elif json_obj.__class__ is list:
         return [_json_obj_to_params_obj(item, artifact) for item in json_obj]
     else:
         return json_obj
@@ -533,7 +533,7 @@ class UnionType(Type):
         self,
         allowed_types: t.Optional[t.Sequence[ConvertibleToType]] = None,
     ):
-        assert allowed_types is None or (allowed_types.__class__ == list)
+        assert allowed_types is None or (allowed_types.__class__ is list)
         if allowed_types is None:
             wb_types = []
         else:

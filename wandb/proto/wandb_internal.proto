@@ -7,6 +7,8 @@ import "google/protobuf/timestamp.proto";
 import "wandb/proto/wandb_base.proto";
 import "wandb/proto/wandb_telemetry.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 /*
  * Record: Persistent on disk data (BE CAREFUL)
  * Result: responses from Record requests
@@ -440,6 +442,7 @@ message ArtifactRecord {
   string sequence_client_id = 16;
   string base_id = 17;
   int64 ttl_duration_seconds = 18;
+  repeated string tags = 19;
   bool incremental_beta1 = 100;
   _RecordInfo _info = 200;
 }
@@ -1162,6 +1165,8 @@ message GpuAppleInfo {
 message GpuNvidiaInfo {
   string name = 1;
   uint64 memory_total = 2;
+  uint32 cuda_cores = 3;
+  string architecture = 4;
 }
 
 message GpuAmdInfo {
@@ -1178,6 +1183,13 @@ message GpuAmdInfo {
   string sku = 11;
   string sclk_range = 12;
   string mclk_range = 13;
+}
+
+message TrainiumInfo {
+  string name = 1;
+  string vendor = 2;
+  uint32 neuron_device_count = 3;
+  uint32 neuroncore_per_device_count = 4;
 }
 
 message MetadataRequest {
@@ -1211,6 +1223,7 @@ message MetadataRequest {
   repeated GpuAmdInfo gpu_amd = 28 [json_name = "gpu_amd"];
   map<string, string> slurm = 29;
   string cuda_version = 30;
+  TrainiumInfo trainium = 31;
 }
 
 message PythonPackagesRequest {

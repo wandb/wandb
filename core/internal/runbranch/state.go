@@ -5,7 +5,7 @@ import (
 
 	"github.com/wandb/simplejsonext"
 	"github.com/wandb/wandb/core/internal/filestream"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 type RunPath struct {
@@ -14,9 +14,15 @@ type RunPath struct {
 	RunID   string
 }
 
+type BranchPoint struct {
+	RunID       string
+	MetricName  string
+	MetricValue float64
+}
+
 type BranchError struct {
 	Err      error
-	Response *service.ErrorInfo
+	Response *spb.ErrorInfo
 }
 
 func (re BranchError) Error() string {
@@ -41,15 +47,16 @@ type RunParams struct {
 	Summary map[string]any
 
 	Resumed bool
+	Forked  bool
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
-	Intialized bool
+	Initialized bool
 }
 
-func (r *RunParams) Proto() *service.RunRecord {
+func (r *RunParams) Proto() *spb.RunRecord {
 
-	proto := &service.RunRecord{}
+	proto := &spb.RunRecord{}
 
 	// update runID if it exists
 	if r.RunID != "" {
@@ -91,12 +98,22 @@ func (r *RunParams) Proto() *service.RunRecord {
 		proto.SweepId = r.SweepID
 	}
 
+	// update the resumption status
+	if r.Resumed {
+		proto.Resumed = true
+	}
+
+	// update the forked status
+	if r.Forked {
+		proto.Forked = true
+	}
+
 	// update the config
 	if len(r.Config) > 0 {
-		config := service.ConfigRecord{}
+		config := spb.ConfigRecord{}
 		for key, value := range r.Config {
 			valueJson, _ := simplejsonext.MarshalToString(value)
-			config.Update = append(config.Update, &service.ConfigItem{
+			config.Update = append(config.Update, &spb.ConfigItem{
 				Key:       key,
 				ValueJson: valueJson,
 			})
@@ -106,10 +123,10 @@ func (r *RunParams) Proto() *service.RunRecord {
 
 	// update the summary
 	if len(r.Summary) > 0 {
-		summary := service.SummaryRecord{}
+		summary := spb.SummaryRecord{}
 		for key, value := range r.Summary {
 			valueJson, _ := simplejsonext.MarshalToString(value)
-			summary.Update = append(summary.Update, &service.SummaryItem{
+			summary.Update = append(summary.Update, &spb.SummaryItem{
 				Key:       key,
 				ValueJson: valueJson,
 			})
@@ -223,6 +240,17 @@ func (r *RunParams) Merge(other *RunParams) {
 	if other.Resumed {
 		r.Resumed = true
 	}
+
+	if other.Forked {
+		r.Forked = true
+	}
+
+}
+
+func (r *RunParams) Clone() *RunParams {
+	clone := &RunParams{}
+	clone.Merge(r)
+	return clone
 }
 
 func NewRunParams() *RunParams {

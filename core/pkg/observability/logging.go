@@ -38,7 +38,7 @@ const LevelFatal = slog.Level(12)
 
 type CoreLogger struct {
 	*slog.Logger
-	tags             Tags
+	globalTags       Tags
 	captureException func(err error, tags map[string]string)
 	captureMessage   func(msg string, tags map[string]string)
 	reraise          func(err interface{}, tags map[string]string)
@@ -66,7 +66,7 @@ func WithReraise(f func(err interface{}, tags map[string]string)) CoreLoggerOpti
 
 func WithTags(tags Tags) CoreLoggerOption {
 	return func(cl *CoreLogger) {
-		cl.tags = tags
+		cl.globalTags = tags
 	}
 }
 
@@ -78,8 +78,8 @@ func NewCoreLogger(logger *slog.Logger, opts ...CoreLoggerOption) *CoreLogger {
 	}
 
 	var args []interface{}
-	for tag := range cl.tags {
-		args = append(args, slog.String(tag, cl.tags[tag]))
+	for tag := range cl.globalTags {
+		args = append(args, slog.String(tag, cl.globalTags[tag]))
 	}
 	cl.Logger = logger.With(args...)
 	return cl
@@ -88,15 +88,30 @@ func NewCoreLogger(logger *slog.Logger, opts ...CoreLoggerOption) *CoreLogger {
 func (cl *CoreLogger) tagsWithArgs(args ...any) Tags {
 	tags := NewTags(args...)
 	// add tags from logger:
-	for k, v := range cl.tags {
+	for k, v := range cl.globalTags {
 		tags[k] = v
 	}
 	return tags
 }
 
-func (cl *CoreLogger) SetTags(tags Tags) {
+// SetGlobalTags updates tags that are shared by all loggers related to this
+// one, including its parent and descendants.
+//
+// Note that these tags take precedence over tags set by With().
+func (cl *CoreLogger) SetGlobalTags(tags Tags) {
 	for tag := range tags {
-		cl.tags[tag] = tags[tag]
+		cl.globalTags[tag] = tags[tag]
+	}
+}
+
+// With returns a derived logger that includes the given tags in each message.
+func (cl *CoreLogger) With(args ...any) *CoreLogger {
+	return &CoreLogger{
+		Logger:           cl.Logger.With(args...),
+		globalTags:       cl.globalTags,
+		captureException: cl.captureException,
+		captureMessage:   cl.captureMessage,
+		reraise:          cl.reraise,
 	}
 }
 
@@ -153,7 +168,7 @@ func (cl *CoreLogger) Reraise(args ...any) {
 
 // GetTags returns the tags associated with the logger.
 func (cl *CoreLogger) GetTags() Tags {
-	return cl.tags
+	return cl.globalTags
 }
 
 // GetLogger returns the underlying slog.Logger.
