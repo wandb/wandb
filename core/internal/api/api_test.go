@@ -149,10 +149,27 @@ func (s *RecordingServer) Requests() []RequestCopy {
 	return slices.Clone(s.requests)
 }
 
+type RecordingServerOption func(*RecordingServerConfig)
+
+type RecordingServerConfig struct {
+	handlerFunc http.HandlerFunc
+}
+
+func WithHandlerFunc(handler http.HandlerFunc) RecordingServerOption {
+	return func(rs *RecordingServerConfig) {
+		rs.handlerFunc = handler
+	}
+}
+
 // Returns a server that records all requests made to it.
-func NewRecordingServer() *RecordingServer {
+func NewRecordingServer(opts ...RecordingServerOption) *RecordingServer {
 	rs := &RecordingServer{
 		requests: make([]RequestCopy, 0),
+	}
+
+	rsConfig := &RecordingServerConfig{}
+	for _, opt := range opts {
+		opt(rsConfig)
 	}
 
 	rs.Server = httptest.NewServer(http.HandlerFunc(
@@ -170,7 +187,11 @@ func NewRecordingServer() *RecordingServer {
 					Header: r.Header,
 				})
 
-			_, _ = w.Write([]byte("OK"))
+			if rsConfig.handlerFunc != nil {
+				rsConfig.handlerFunc(w, r)
+			} else {
+				_, _ = w.Write([]byte("OK"))
+			}
 		}),
 	)
 
@@ -238,6 +259,7 @@ func TestNewClientWithRetry(t *testing.T) {
 		func(w http.ResponseWriter, r *http.Request) {
 			serverCallCount++
 			if serverCallCount == 1 {
+				// induce a retry by returning a 500 error
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte("Internal Server Error"))
 				return
