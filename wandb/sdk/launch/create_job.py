@@ -105,6 +105,46 @@ def create_job(
     return artifact_job
 
 
+def _validate_inputs(name: Optional[str], runtime: Optional[str]) -> bool:
+    if name and name != make_artifact_name_safe(name):
+        wandb.termerror(
+            f"Artifact names may only contain alphanumeric characters, dashes, underscores, and dots. Did you mean: {make_artifact_name_safe(name)}"
+        )
+        return False
+
+    if runtime is not None and not re.match(r"^3\.\d+$", runtime):
+        wandb.termerror(
+            f"Runtime (-r, --runtime) must be a minor version of Python 3, "
+            f"e.g. 3.9 or 3.10, received {runtime}"
+        )
+        return False
+    return True
+
+
+def _prepare_paths_and_context(
+    path: str,
+    job_type: str,
+    entrypoint: Optional[str],
+    build_context: Optional[str],
+    git_hash: Optional[str],
+) -> Tuple[str, str, bool, str, Optional[str], str]:
+    slurm = True if entrypoint and "sbatch " in entrypoint else False
+    path, entrypoint, slurm, new_build_context, hash, root_dir = _job_args_from_path(
+        path, job_type, slurm, entrypoint, build_context
+    )
+    if build_context is None:
+        wandb.termlog(
+            f"Script will be run from {new_build_context}, pass --build_context . to override"
+        )
+        build_context = new_build_context
+    if git_hash is None:
+        git_hash = hash
+        if git_hash is not None:
+            wandb.termlog(f"Using git ref {git_hash}, use --git-hash to override")
+
+    return path, entrypoint, slurm, build_context, git_hash, root_dir
+
+
 def _create_job(
     api: Api,
     job_type: str,
@@ -122,38 +162,15 @@ def _create_job(
 ) -> Tuple[Optional[Artifact], str, List[str]]:
     wandb.termlog(f"Creating launch job of type: {job_type}...")
 
-    if name and name != make_artifact_name_safe(name):
-        wandb.termerror(
-            f"Artifact names may only contain alphanumeric characters, dashes, underscores, and dots. Did you mean: {make_artifact_name_safe(name)}"
-        )
+    if not _validate_inputs(name, runtime):
         return None, "", []
 
-    if runtime is not None:
-        if not re.match(r"^3\.\d+$", runtime):
-            wandb.termerror(
-                f"Runtime (-r, --runtime) must be a minor version of Python 3, "
-                f"e.g. 3.9 or 3.10, received {runtime}"
-            )
-            return None, "", []
-
-    local_repo = not (path.startswith("git@") or path.startswith("http"))
-
-    root = os.getcwd()
-    slurm = True if entrypoint and "sbatch " in entrypoint else False
-    path, entrypoint, slurm, new_build_context, hash, root_dir = _job_args_from_path(
-        path, job_type, slurm, entrypoint, build_context
+    path, entrypoint, slurm, build_context, git_hash, root_dir = (
+        _prepare_paths_and_context(path, job_type, entrypoint, build_context, git_hash)
     )
-    if build_context is None:
-        wandb.termlog(
-            f"Script will be run from {new_build_context}, pass --build_context . to override"
-        )
-        build_context = new_build_context
+    root = os.getcwd()
     if root_dir is not None:
         root = root_dir
-    if git_hash is None:
-        git_hash = hash
-        if git_hash is not None:
-            wandb.termlog(f"Using git ref {git_hash}, use --git-hash to override")
 
     aliases = aliases or []
     tempdir = tempfile.TemporaryDirectory()
@@ -184,6 +201,7 @@ def _create_job(
     # TODO: for now we're only handling conda environments for slurm jobs when created
     # from a local repo or directory.  We can likely add support for pip virtualenvs
     # or add more general support for conda environments in the future
+    local_repo = not (path.startswith("git@") or path.startswith("http"))
     if job_type != "image" and slurm and local_repo:
         frozen_requirements_file = _create_frozen_requirements(
             tempdir, requirements_file

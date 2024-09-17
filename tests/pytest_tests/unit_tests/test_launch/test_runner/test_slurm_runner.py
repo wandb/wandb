@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from wandb.sdk.launch._project_spec import EntryPoint, LaunchProject
-from wandb.sdk.launch.runner.slurm_monitor import SlurmJob
 from wandb.sdk.launch.runner.slurm_runner import SlurmRunner, SlurmSubmittedRun
 
 

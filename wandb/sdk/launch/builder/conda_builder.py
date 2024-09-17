@@ -147,7 +147,7 @@ class CondaBuilder(AbstractBuilder):
         # found = False
         # srun_index = -1
         with open(entrypoint_path) as f:
-            for i, line in enumerate(f):
+            for line in f:
                 if "conda activate" in line:
                     # found = True
                     source_lines.append(
