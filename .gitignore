@@ -48,3 +48,4 @@ wandb/proto_check/
 .yea-requirements.txt
 .yeadoc/
 logs/
+.aider*

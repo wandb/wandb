@@ -1671,6 +1671,15 @@ class Settings(SettingsData):
             if not setting.startswith(env_prefix):
                 continue
 
+            # TODO (slurm): not sure we should have this here, but YOLO
+            # We don't set run id on non-rank0 nodes if we're running on slurm from a launch agent
+            if (
+                setting == "WANDB_RUN_ID"
+                and environ.get("SLURM_PROCID", "0") != "0"
+                and environ.get("WANDB_LAUNCH") is not None
+            ):
+                continue
+
             if setting in special_env_var_names:
                 key = special_env_var_names[setting]
             else:

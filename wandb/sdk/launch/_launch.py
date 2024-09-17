@@ -65,7 +65,6 @@ def resolve_agent_config(  # noqa: C901
     """Resolve the agent config.
 
     Arguments:
-        api (Api): The api.
         entity (str): The entity.
         max_jobs (int): The max number of jobs.
         queues (Tuple[str]): The queues.
@@ -111,6 +110,7 @@ def resolve_agent_config(  # noqa: C901
         resolved_config.update({"entity": entity})
     if max_jobs is not None:
         resolved_config.update({"max_jobs": int(max_jobs)})
+    # TODO (slurm): verify all queues are slurm queues
     if queues:
         resolved_config.update({"queues": list(queues)})
     if verbosity:
@@ -219,8 +219,12 @@ async def _launch(
     runner_config: Dict[str, Any] = {}
     runner_config[PROJECT_SYNCHRONOUS] = synchronous
 
-    config = launch_config or {}
-    environment_config, build_config, registry_config = construct_agent_configs(config)
+    environment_config, build_config, registry_config = construct_agent_configs(
+        launch_config
+    )
+    # TODO (slurm): this is weird here and may bite us if we support images in slurm
+    if resource == "slurm":
+        build_config["type"] = "conda"
     environment = loader.environment_from_config(environment_config)
     if environment is not None and not isinstance(environment, LocalEnvironment):
         await environment.verify()

@@ -1405,8 +1405,8 @@ def launch_sweep(
     "-r",
     metavar="BACKEND",
     default=None,
-    help="""Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex'.
-    This is now a required parameter if pushing to a queue with no resource configuration.
+    help="""Execution resource to use for run. Supported values: 'local-process', 'local-container', 'kubernetes', 'sagemaker', 'gcp-vertex',
+    or 'slurm'.  This is now a required parameter if pushing to a queue with no resource configuration.
     If passed in, will override the resource value passed in using a config file.""",
 )
 @click.option(
@@ -1527,8 +1527,8 @@ def launch(
     arguments can be overridden using the args option, or specifying those arguments in
     the config's 'overrides' key, 'args' field as a list of strings.
 
-    Running `wandb launch [URI]` will launch the run directly. To add the run to a
-    queue, run `wandb launch [URI] --queue [optional queuename]`.
+    Running `wandb launch -u [URI]` will launch the run directly. To add the run to a
+    queue, run `wandb launch -u [URI] --queue [optional queuename]`.
     """
     logger.info(
         f"=== Launch called with kwargs {locals()} CLI Version: {wandb.__version__}==="
@@ -1536,6 +1536,7 @@ def launch(
     from wandb.sdk.launch._launch import _launch
     from wandb.sdk.launch.create_job import _create_job
     from wandb.sdk.launch.utils import _is_git_uri
+    from wandb.sdk.lib.gitlib import GitRepo
 
     api = _get_cling_api()
     wandb._sentry.configure_scope(process_context="launch_cli")
@@ -1560,9 +1561,6 @@ def launch(
     else:
         resource_args = {}
 
-    if entry_point is not None:
-        entry_point = shlex.split(entry_point)
-
     if config is not None:
         config = util.load_json_yaml_dict(config)
         if config is None:
@@ -1584,23 +1582,25 @@ def launch(
 
     # If URI was provided, we need to create a job from it.
     if uri:
-        if entry_point is None:
-            raise LaunchError(
-                "Cannot provide a uri without an entry point. Please provide an "
-                "entry point with --entry-point or -E."
-            )
+        # TODO: verify the entry point exists
         if job is not None:
             raise LaunchError("Cannot provide both a uri and a job name.")
-        job_type = (
-            "git" if _is_git_uri(uri) else "code"
-        )  # TODO: Add support for local URIs with git.
+        job_type = "git" if _is_git_uri(uri) else "code"
+        if job_type == "code" and os.path.exists(uri):
+            repo = GitRepo(os.path.dirname(uri))
+            if repo.root_dir:
+                job_type = "git"
+        # TODO (slurm): should we auto detect resource = "slurm" here?
         if entity is None:
             entity = launch_utils.get_default_entity(api, config)
+        # TODO (slurm):  this is a much better command line experience, probably belongs somewhere else
+        if job_name is None and resource == "slurm":
+            job_name = os.path.basename(os.getcwd())
         artifact, _, _ = _create_job(
             api,
             job_type,
             uri,
-            entrypoint=" ".join(entry_point),
+            entrypoint=entry_point,
             git_hash=git_version,
             name=job_name,
             project=project,
@@ -1986,13 +1986,13 @@ def describe(job):
     "-g",
     "git_hash",
     type=str,
-    help="Commit reference to use as the source for git jobs",
+    help="Commit reference to use as the source for git jobs, defaults to current branch or HEAD",
 )
 @click.option(
     "--runtime",
     "-r",
     type=str,
-    help="Python runtime to execute the job",
+    help="Python runtime to execute the job, defaults to the current version in your environment",
 )
 @click.option(
     "--build-context",
@@ -2031,9 +2031,11 @@ def create(
 
     Jobs can be of three types, git, code, or image.
 
-    git: A git source, with an entrypoint either in the path or provided explicitly pointing to the main python executable.
-    code: A code path, containing a requirements.txt file.
-    image: A docker image.
+    path should be one of the following:
+
+       - git: A code path in a git repo or a git remote url, with an entrypoint either in the path or provided explicitly pointing to the main python executable.
+       - code: A code path, containing a conda.yml or requirements.txt file.
+       - image: A docker image.
     """
     from wandb.sdk.launch.create_job import _create_job
 
@@ -2049,12 +2051,6 @@ def create(
     if not project:
         wandb.termerror("No project provided, use --project or set WANDB_PROJECT")
         return
-
-    if entrypoint is None and job_type in ["git", "code"]:
-        wandb.termwarn(
-            f"No entrypoint provided for {job_type} job, defaulting to main.py"
-        )
-        entrypoint = "main.py"
 
     artifact, action, aliases = _create_job(
         api=api,

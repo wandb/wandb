@@ -4,6 +4,8 @@ import logging
 import os
 import pathlib
 import shlex
+import subprocess
+import sys
 from typing import Any, Dict, List, Tuple
 
 from dockerpycreds.utils import find_executable  # type: ignore
@@ -45,6 +47,31 @@ async def validate_docker_installation() -> None:
             "Ensure Docker is installed as per the instructions "
             "at https://docs.docker.com/install/overview/."
         )
+
+
+def validate_conda_installation() -> None:
+    """Verify conda is installed on host machine."""
+    current_shell_is_conda = os.path.exists(os.path.join(sys.prefix, "conda-meta"))
+    if not current_shell_is_conda:
+        raise ExecutionError(
+            "Could not find conda executable. "
+            "Ensure conda is installed as per the instructions "
+            "at https://docs.anaconda.com/miniconda/miniconda-install/."
+        )
+
+
+def list_conda_envs():
+    try:
+        result = subprocess.run(
+            ["conda", "env", "list"], stdout=subprocess.PIPE, text=True
+        )
+        envs = result.stdout.splitlines()
+        env_names = [
+            line.split()[0] for line in envs if line and not line.startswith("#")
+        ]
+        return env_names
+    except subprocess.CalledProcessError:
+        return []
 
 
 def join(split_command: List[str]) -> str:

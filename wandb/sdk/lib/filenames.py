@@ -3,6 +3,9 @@ from typing import Callable, Generator, Union
 
 WANDB_DIRS = ("wandb", ".wandb")
 
+FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
+FROZEN_CONDA_FNAME = "conda.frozen.yml"
+
 CONFIG_FNAME = "config.yaml"
 OUTPUT_FNAME = "output.log"
 DIFF_FNAME = "diff.patch"

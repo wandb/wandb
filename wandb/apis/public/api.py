@@ -366,9 +366,10 @@ class Api:
             "kubernetes",
             "sagemaker",
             "gcp-vertex",
+            "slurm",
         ]:
             raise ValueError(
-                "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
+                "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', 'slurm', or 'gcp-vertex'"
             )
 
         if prioritization_mode:

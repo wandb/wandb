@@ -708,6 +708,13 @@ class LaunchAgent:
         project.fetch_and_validate_project()
         self._internal_logger.info("Fetching resource...")
         resource = launch_spec.get("resource") or "local-container"
+        if project.slurm and resource != "slurm":
+            raise LaunchError(
+                f"This agent only supports slurm jobs, received: {resource}"
+            )
+        elif project.slurm:
+            # TODO (slurm): wire this through in a better way
+            default_config["builder"] = {"type": "conda"}
         backend_config: Dict[str, Any] = {
             PROJECT_SYNCHRONOUS: False,  # agent always runs async
         }
@@ -732,6 +739,7 @@ class LaunchAgent:
             or project.job_base_image
             or isinstance(backend, LocalProcessRunner)
         ):
+            self._internal_logger.info("Building environment...")
             assert entrypoint is not None
             image_uri = await builder.build_image(project, entrypoint, job_tracker)
 
@@ -826,6 +834,7 @@ class LaunchAgent:
             for warning in status.messages:
                 if warning not in self._known_warnings:
                     self._known_warnings.append(warning)
+                    # TODO (slurm): detect when we're in slurm vs kubernetes and set the stage
                     success = self._api.update_run_queue_item_warning(
                         job_tracker.run_queue_item_id,
                         warning,

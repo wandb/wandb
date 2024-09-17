@@ -1,10 +1,12 @@
 """Public API: jobs."""
 
+import hashlib
 import json
 import os
 import shutil
 import sys
 import time
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
 
 if sys.version_info >= (3, 8):
@@ -28,6 +30,7 @@ from wandb.sdk.launch.utils import (
     apply_patch,
     convert_jupyter_notebook_to_script,
 )
+from wandb.sdk.lib.filenames import FROZEN_CONDA_FNAME, FROZEN_REQUIREMENTS_FNAME
 
 if TYPE_CHECKING:
     from wandb.apis.public import Api, RetryingClient
@@ -68,7 +71,15 @@ class Job:
         self._base_image = source_info.get("base_image")
         self._args = source_info.get("args")
         self._partial = self._job_info.get("_partial", False)
-        self._requirements_file = os.path.join(self._fpath, "requirements.frozen.txt")
+        self._requirements_file = os.path.join(self._fpath, FROZEN_REQUIREMENTS_FNAME)
+        self._conda_file = os.path.join(self._fpath, FROZEN_CONDA_FNAME)
+        # could get this from the manifest, but this is cleaner
+        if os.path.exists(self._conda_file):
+            self._env_hash = hashlib.md5(
+                Path(self._conda_file).read_bytes()
+            ).hexdigest()
+        else:
+            self._env_hash = None
         self._input_types = TypeRegistry.type_from_dict(
             self._job_info.get("input_types")
         )
@@ -85,6 +96,10 @@ class Job:
     @property
     def name(self):
         return self._name
+
+    @property
+    def env_hash(self) -> Optional[str]:
+        return self._env_hash
 
     def _set_configure_launch_project(self, func):
         self.configure_launch_project = func
@@ -121,8 +136,12 @@ class Job:
         if os.path.exists(os.path.join(self._fpath, "diff.patch")):
             with open(os.path.join(self._fpath, "diff.patch")) as f:
                 apply_patch(f.read(), launch_project.project_dir)
-        shutil.copy(self._requirements_file, launch_project.project_dir)
+        if os.path.exists(self._conda_file):
+            shutil.copy(self._conda_file, launch_project.project_dir)
+        if os.path.exists(self._requirements_file):
+            shutil.copy(self._requirements_file, launch_project.project_dir)
         launch_project.python_version = self._job_info.get("runtime")
+        launch_project.slurm = self._job_info.get("slurm")
         if self._notebook_job:
             self._configure_launch_project_notebook(launch_project)
         else:
@@ -142,7 +161,11 @@ class Job:
 
         code_artifact = self._get_code_artifact(artifact_string)
         launch_project.python_version = self._job_info.get("runtime")
-        shutil.copy(self._requirements_file, launch_project.project_dir)
+        launch_project.slurm = self._job_info.get("slurm")
+        if os.path.exists(self._conda_file):
+            shutil.copy(self._conda_file, launch_project.project_dir)
+        if os.path.exists(self._requirements_file):
+            shutil.copy(self._requirements_file, launch_project.project_dir)
 
         code_artifact.download(launch_project.project_dir)
 

@@ -7,11 +7,19 @@ import re
 import sys
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional, Tuple, Union
 
+from numpy import require
+
 import wandb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.data_types._dtypes import TypeRegistry
 from wandb.sdk.internal.internal_api import Api
-from wandb.sdk.lib.filenames import DIFF_FNAME, METADATA_FNAME, REQUIREMENTS_FNAME
+from wandb.sdk.lib.filenames import (
+    DIFF_FNAME,
+    FROZEN_CONDA_FNAME,
+    FROZEN_REQUIREMENTS_FNAME,
+    METADATA_FNAME,
+    REQUIREMENTS_FNAME,
+)
 from wandb.util import make_artifact_name_safe
 
 from .settings_static import SettingsStatic
@@ -26,7 +34,7 @@ _logger = logging.getLogger(__name__)
 if TYPE_CHECKING:
     from wandb.proto.wandb_internal_pb2 import ArtifactRecord
 
-FROZEN_REQUIREMENTS_FNAME = "requirements.frozen.txt"
+CONDA_FNAME = "environment.yml"
 JOB_FNAME = "wandb-job.json"
 JOB_ARTIFACT_TYPE = "job"
 
@@ -423,6 +431,7 @@ class JobBuilder:
         api: Api,
         build_context: Optional[str] = None,
         dockerfile: Optional[str] = None,
+        requirements_file: Optional[str] = None,
     ) -> Optional[Artifact]:
         """Build a job artifact from the current run.
 
@@ -432,6 +441,8 @@ class JobBuilder:
                 builds.
             dockerfile (Optional[str]): Path within the build context the
                 Dockerfile. Saved as part of the job for future builds.
+            requirements_file (Optional[str]): An absolute path to a requirements
+                file usually requirements.frozen.txt or environment.frozen.yml
 
         Returns:
             Optional[Artifact]: The job artifact if it was successfully built,
@@ -452,11 +463,17 @@ class JobBuilder:
             )
             return None
 
-        if not os.path.exists(
-            os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME)
-        ):
+        # This case is for wandb runs that store pip freeze in requirements.txt
+        # for jobs created from the cli, we pass in the absolute path to the
+        # requirements file which could be a conda environment.yml
+        if requirements_file is None:
+            requirements_file = os.path.join(
+                self._settings.files_dir, REQUIREMENTS_FNAME
+            )
+        req_basename = os.path.basename(requirements_file)
+        if not os.path.exists(requirements_file):
             self._log_if_verbose(
-                "No requirements.txt found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
+                f"No {req_basename} found, not creating job artifact. See https://docs.wandb.ai/guides/launch/create-job",
                 "warn",
             )
             return None
@@ -536,6 +553,9 @@ class JobBuilder:
             "output_types": output_types,
             "runtime": runtime,
         }
+        # TODO: decide if we want to do this a better way
+        if metadata.get("slurm"):
+            source_info["slurm"] = metadata["slurm"]
 
         assert source_info is not None
         assert name is not None
@@ -546,11 +566,15 @@ class JobBuilder:
         with artifact.new_file("wandb-job.json") as f:
             f.write(json.dumps(source_info, indent=4))
 
+        # TODO: this isn't quite right, these requirements aren't necessarily frozen
         artifact.add_file(
-            os.path.join(self._settings.files_dir, REQUIREMENTS_FNAME),
-            name=FROZEN_REQUIREMENTS_FNAME,
+            requirements_file,
+            name=FROZEN_CONDA_FNAME
+            if os.path.basename(requirements_file).endswith(".yml")
+            else FROZEN_REQUIREMENTS_FNAME,
         )
 
+        # TODO: cli code jobs don't currently have a diff but could, and what about upstream?
         if source_type == "repo":
             # add diff
             if os.path.exists(os.path.join(self._settings.files_dir, DIFF_FNAME)):
