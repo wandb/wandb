@@ -6,7 +6,7 @@ import sys
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Collection, Dict, List, Mapping, Optional
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -794,13 +794,20 @@ class Run(Attrs):
             raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
 
     @normalize_exceptions
-    def log_artifact(self, artifact, aliases=None):
+    def log_artifact(
+        self,
+        artifact: "wandb.Artifact",
+        aliases: Optional[Collection[str]] = None,
+        tags: Optional[Collection[str]] = None,
+    ):
         """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
-                `wandb.Api().artifact(name)`
-            aliases (list, optional): Aliases to apply to this artifact
+                `wandb.Api().artifact(name)`.
+            aliases (list, optional): Aliases to apply to this artifact.
+            tags: (list, optional) Tags to apply to this artifact, if any.
+
         Returns:
             A `Artifact` object.
         """
@@ -825,7 +832,11 @@ class Run(Attrs):
 
         artifact_collection_name = artifact.source_name.split(":")[0]
         api.create_artifact(
-            artifact.type, artifact_collection_name, artifact.digest, aliases=aliases
+            artifact.type,
+            artifact_collection_name,
+            artifact.digest,
+            aliases=aliases,
+            tags=tags,
         )
         return artifact
 
