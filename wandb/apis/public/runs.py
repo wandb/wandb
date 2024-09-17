@@ -1,7 +1,5 @@
 """Public API: runs."""
 
-from __future__ import annotations
-
 import json
 import os
 import sys
@@ -799,7 +797,7 @@ class Run(Attrs):
     @normalize_exceptions
     def log_artifact(
         self,
-        artifact: Artifact,
+        artifact: "Artifact",
         aliases: Optional[Collection[str]] = None,
         tags: Optional[Collection[str]] = None,
     ):
