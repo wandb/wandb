@@ -56,7 +56,7 @@ If it is not supported for your platform, you will see an error if you try to st
 
 If you need to revert to the previous SDK backend while using `wandb >= 0.18.0`, you can do so by following one of these steps:
 
-**Option 1**: Modify your script Add the following line to your script:
+**Option 1**: Add the following line to your script:
 ```python
 wandb.require("legacy-service")
 ```
