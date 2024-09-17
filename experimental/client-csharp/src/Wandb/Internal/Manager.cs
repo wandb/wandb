@@ -40,8 +40,8 @@ namespace Wandb.Internal
                     FileName = "wandb-core",
                     Arguments = $"--port-filename {_portFilePath} --pid {Environment.ProcessId} --serve-sock",
                     UseShellExecute = false,
-                    RedirectStandardOutput = false,  // FIXME:
-                    RedirectStandardError = false  // FIXME:
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false
                 }
             };
 
