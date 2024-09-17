@@ -796,7 +796,7 @@ class Run(Attrs):
     @normalize_exceptions
     def log_artifact(
         self,
-        artifact: wandb.Artifact,
+        artifact: "wandb.Artifact",
         aliases: Optional[Collection[str]] = None,
         tags: Optional[Collection[str]] = None,
     ):
