@@ -202,6 +202,27 @@ commands:
             $HOME/.cargo/bin/cargo --version
           no_output_timeout: 1m
 
+  install_extras:
+    description: "Install dependencies for extra tests"
+    parameters:
+      enabled:
+        description: "Whether to install extra dependencies"
+        type: boolean
+        default: false
+    steps:
+      - when:
+          condition:
+            equal: [<< parameters.enabled >>, true]
+          steps:
+            - run:
+                name: Install .NET SDK for the C# client tests
+                command: |
+                  wget https://dot.net/v1/dotnet-install.sh -O dotnet-install.sh
+                  chmod +x dotnet-install.sh
+                  ./dotnet-install.sh --version latest
+                  echo 'export PATH="$HOME/.dotnet:$PATH"' >> "$BASH_ENV"
+                no_output_timeout: 5m
+
   setup_gcloud:
     parameters:
       container_registry:
@@ -240,6 +261,10 @@ jobs:
       server_image_tag:
         default: << pipeline.parameters.server_image_tag >>
         type: string
+      install_extras:
+        description: "Install extra dependencies"
+        default: false
+        type: boolean
 
     parallelism: <<parameters.parallelism>>
     executor:
@@ -255,6 +280,8 @@ jobs:
           command: apt-get update && apt-get install -y libsndfile1 ffmpeg
       - install_go
       - install_rust
+      - install_extras:
+          enabled: <<parameters.install_extras>>
       - run-nox-tests:
           codecov_flags: <<parameters.codecov_flags>>
           python: <<parameters.python>>
@@ -416,43 +443,6 @@ jobs:
             nox -s local-testcontainer-registry
           no_output_timeout: 5m
 
-  slack_notify:
-    parameters:
-      message:
-        type: string
-        default: ":runner:"
-      execute:
-        type: boolean
-        default: true
-    docker:
-      - image: "cimg/base:stable"
-    steps:
-      - when:
-          condition: << parameters.execute >>
-          steps:
-            - slack/notify:
-                custom: |
-                  {
-                    "blocks": [
-                      {
-                        "type": "section",
-                        "fields": [
-                          {
-                            "type": "plain_text",
-                            "text": "<< parameters.message >>",
-                            "emoji": true
-                          }
-                        ]
-                      }
-                    ]
-                  }
-                event: always
-                channel: $SLACK_SDK_NIGHTLY_CI_CHANNEL
-      # this is to make sure `steps` is not empty
-      - run:
-          name: Print message to stdout
-          command: echo << parameters.message >>
-
 workflows:
   main:
     jobs:
@@ -587,6 +577,27 @@ workflows:
           matrix:
             parameters:
               python: ["3.12"]
+
+      #
+      # Functional tests of experimental clients with pytest on Linux
+      #
+      - nox-tests-linux:
+          name: experimental-tests-linux-<<matrix.python>>
+          session: experimental_tests
+          codecov_flags: func
+          parallelism: 1
+          executor_name: local-testcontainer
+          install_extras: true
+
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
+
+          matrix:
+            parameters:
+              python: ["3.12"]
+
       #
       # W&B Importer tests on Linux, using 2 real wandb servers
       #
