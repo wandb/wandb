@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.18.1] - 2024-09-16
+
 ### Fixed
 
 - Allow all users to read cache files when core is enabled @moredatarequired in https://github.com/wandb/wandb/pull/8362
