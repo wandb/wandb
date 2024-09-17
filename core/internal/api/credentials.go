@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/settings"
@@ -65,6 +66,7 @@ func NewOAuth2CredentialProvider(
 		baseURL:               settings.GetBaseURL(),
 		identityTokenFilePath: settings.GetIdentityTokenFile(),
 		credentialsFilePath:   settings.GetCredentialsFile(),
+		mu:                    &sync.Mutex{},
 	}, nil
 }
 
@@ -73,16 +75,45 @@ type oauth2CredentialProvider struct {
 	identityTokenFilePath string
 	credentialsFilePath   string
 	token                 tokenInfo
+
+	mu *sync.Mutex
+}
+
+type expiresAt time.Time
+
+const expiresAtLayout = "2006-01-02 15:04:05"
+
+func (e *expiresAt) UnmarshalJSON(data []byte) error {
+	var timeString string
+	if err := json.Unmarshal(data, &timeString); err != nil {
+		return err
+	}
+
+	parsedTime, err := time.Parse(expiresAtLayout, timeString)
+	if err != nil {
+		return err
+	}
+
+	*e = expiresAt(parsedTime)
+	return nil
+}
+
+func (e expiresAt) MarshalJSON() ([]byte, error) {
+	formattedTime := time.Time(e).Format(expiresAtLayout)
+	return json.Marshal(formattedTime)
 }
 
 type tokenInfo struct {
-	ExpiresIn   float64 `json:"expires_in"`
-	AccessToken string  `json:"access_token"`
+	ExpiresAt   expiresAt `json:"expires_at"`
+	AccessToken string    `json:"access_token"`
 }
 
 func (c *tokenInfo) IsTokenExpiring() bool {
-	expiresAt := time.Now().UTC().Add(time.Second * time.Duration(c.ExpiresIn))
-	return time.Until(expiresAt) <= time.Minute*5
+	return time.Until(time.Time(c.ExpiresAt)) <= time.Minute*5
+}
+
+type credentialsFile struct {
+	Credentials map[string]tokenInfo `json:"credentials"`
 }
 
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
@@ -101,6 +132,9 @@ func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 // loadCredentials attempts to load an access token from the credentials file.
 // If the credentials file does not exist, it creates it.
 func (c *oauth2CredentialProvider) loadCredentials() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	_, err := os.Stat(c.credentialsFilePath)
 	if os.IsNotExist(err) {
 		err = c.writeCredentialsFile()
@@ -110,10 +144,6 @@ func (c *oauth2CredentialProvider) loadCredentials() error {
 	}
 
 	return c.loadCredentialsFromFile()
-}
-
-type credentialsFile struct {
-	Credentials map[string]tokenInfo `json:"credentials"`
 }
 
 // loadCredentialsFromFile loads the access token from the credentials file. If
@@ -136,6 +166,9 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 		newCreds, err := c.createAccessToken()
 		if err != nil {
 			return err
+		}
+		if credsFile.Credentials == nil {
+			credsFile.Credentials = make(map[string]tokenInfo)
 		}
 		credsFile.Credentials[c.baseURL] = *newCreds
 		updatedFile, err := json.MarshalIndent(creds, "", "  ")
@@ -206,15 +239,23 @@ func (c *oauth2CredentialProvider) createAccessToken() (*tokenInfo, error) {
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to retrieve access token: %v", err)
 		}
 		return nil, fmt.Errorf("failed to retrieve access token: %s", string(body))
 	}
 
-	var tokenInfo tokenInfo
-	if err := json.NewDecoder(resp.Body).Decode(&tokenInfo); err != nil {
-		return nil, err
+	var tokenResponse struct {
+		AccessToken string `json:"access_token"`
+		ExpiresIn   int64  `json:"expires_in"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
+		return nil, fmt.Errorf("invalid response from auth server: %v", err)
 	}
 
-	return &tokenInfo, nil
+	expiration := time.Unix(tokenResponse.ExpiresIn, 0)
+
+	return &tokenInfo{
+		AccessToken: tokenResponse.AccessToken,
+		ExpiresAt:   expiresAt(expiration),
+	}, nil
 }
