@@ -60,7 +60,6 @@ If you need to revert to the previous SDK backend while using `wandb >= 0.18.0`,
 ```python
 wandb.require("legacy-service")
 ```
-
 **Option 2**: Alternatively, set the environment variable WANDB__REQUIRE_LEGACY_SERVICE to TRUE:
 
 ```shell
