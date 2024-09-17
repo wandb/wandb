@@ -1,4 +1,3 @@
-using System.Text.Json;
 using WandbInternal;
 using Wandb.Internal;
 
@@ -39,14 +38,11 @@ namespace Wandb
     public class Run : IDisposable
     {
         private readonly SocketInterface _interface;
+
         /// <summary>
         /// The settings for the run.
         /// </summary>
         public Settings Settings { get; private set; }
-        /// <summary>
-        /// The configuration for the run.
-        /// </summary>
-        public Config Config { get; private set; }
 
         /// <summary>
         /// The internal step at which the run starts.
@@ -64,21 +60,16 @@ namespace Wandb
             _interface = @interface;
 
             Settings = settings;
-
-            Config = new Config();
-            // Subscribe to ConfigUpdated event
-            Config.ConfigUpdated += OnConfigUpdated;
         }
 
         /// <summary>
-        /// Callback method invoked when the configuration is updated.
+        /// Updates the configuration of the run.
         /// </summary>
-        /// <param name="key">The key of the configuration item.</param>
-        /// <param name="value">The new value of the configuration item.</param>
-        private async void OnConfigUpdated(string key, object value)
+        /// <param name="update">A dictionary containing the updated configuration.</param>
+        public async Task UpdateConfig(Dictionary<string, object> update)
         {
             // Handle the updated configuration
-            await _interface.PublishConfig(key, value).ConfigureAwait(false); // Example method in SocketInterface
+            await _interface.PublishConfig(update).ConfigureAwait(false);
         }
 
         /// <summary>
@@ -237,8 +228,6 @@ namespace Wandb
         public void Dispose()
         {
             _interface.Dispose();
-            // Unsubscribe to avoid memory leaks
-            Config.ConfigUpdated -= OnConfigUpdated;
         }
     }
 }

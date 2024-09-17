@@ -6,7 +6,7 @@ This is an experimental C# client for [Weights & Biases](https://wandb.ai/), the
 
 - **Session Management**: Initialize and manage sessions using the `Session` class.
 - **Run Tracking**: Start, resume, and finish runs with the `Run` class.
-- **Configuration Management**: Define and update configurations during a run.
+- **Configuration Management**: Update configurations during a run.
 - **Metric Logging**: Define metrics with custom summary statistics and log data points.
 - **Resume Functionality**: Resume previous runs and continue logging data.
 
@@ -33,7 +33,7 @@ class Program
             );
 
             // Define configuration and metrics:
-            run1.Config["batch_size"] = 64;
+            await run1.UpdateConfig(new Dictionary<string, object> { { "batch_size", 64 } });
             await run1.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
             await run1.DefineMetric("loss", "epoch", SummaryType.Min);
 
@@ -49,12 +49,12 @@ class Program
             var run2 = await session.Init(
                 settings: new Settings(
                     project: "csharp",
-                    resume: ResumeOption.Must,
+                    resume: ResumeOption.Allow, // resume if exists, or create a new run
                     runId: run1.Settings.RunId
                 )
             );
             // Update configuration:
-            run2.Config["learning_rate"] = 3e-4;
+            await run2.UpdateConfig(new Dictionary<string, object> { { "learning_rate", 3e-4 } });
             await run2.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
             await run2.DefineMetric("loss", "epoch", SummaryType.Min);
 

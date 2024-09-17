@@ -225,19 +225,27 @@ namespace Wandb.Internal
         }
 
         /// <summary>
-        /// Publishes a configuration item to wandb-core.
+        /// Publishes a configuration update to wandb-core.
         /// </summary>
-        /// <param name="key">The key of the configuration item.</param>
-        /// <param name="value">The value of the configuration item.</param>
+        /// <param name="update">A dictionary containing the configuration update.</param>
         /// <returns>A task representing the asynchronous operation.</returns>
-        public async Task PublishConfig(string key, object value)
+        public async Task PublishConfig(Dictionary<string, object> update)
         {
-            var config = new ConfigRecord();
-            config.Update.Add(new ConfigItem
+            if (update == null || update.Count == 0)
             {
-                Key = key,
-                ValueJson = JsonSerializer.Serialize(value)
-            });
+                return;
+            }
+
+            var config = new ConfigRecord();
+            foreach (var (key, value) in update)
+            {
+                config.Update.Add(new ConfigItem
+                {
+                    Key = key,
+                    ValueJson = JsonSerializer.Serialize(value)
+                });
+            }
+
             var record = new Record
             {
                 Config = config
