@@ -300,7 +300,7 @@ def graphql_codegen_schema_change(session: nox.Session) -> None:
     against the schema that already supports it.
     """
     session.run(
-        "./core/scripts/generate-graphql.sh",
+        "./core/api/graphql/generate-graphql.sh",
         "--schema-change",
         external=True,
     )
