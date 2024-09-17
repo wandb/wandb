@@ -173,7 +173,7 @@ If the feature or fix does not directly impact users, consider using a different
 
 ✅ **Good Examples**
 
-- `feat(media): add support for RDKit Molecules`
+- `feat(sdk): add support for RDKit Molecules`
 
     It is clear to the user what the change introduces to our product.
 
