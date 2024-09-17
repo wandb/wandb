@@ -641,6 +641,7 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 	err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
+		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
 	result := &spb.Result{
