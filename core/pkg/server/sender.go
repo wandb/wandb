@@ -193,7 +193,8 @@ func NewSender(
 
 		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
 			ConsoleOutputFile:     outputFileName,
-			Settings:              params.Settings,
+			FilesDir:              params.Settings.GetFilesDir(),
+			EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
 			Logger:                params.Logger,
 			RunfilesUploaderOrNil: params.RunfilesUploader,
 			FileStreamOrNil:       params.FileStream,
