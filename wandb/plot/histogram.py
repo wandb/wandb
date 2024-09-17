@@ -1,10 +1,13 @@
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
-import wandb
+from wandb.plot.viz import custom_chart
+
+if TYPE_CHECKING:
+    import wandb
 
 
 def histogram(
-    table: wandb.Table,
+    table: "wandb.Table",
     value: str,
     title: Optional[str] = None,
     split_table: Optional[bool] = False,
@@ -27,7 +30,7 @@ def histogram(
         wandb.log({'histogram-plot1': wandb.plot.histogram(table, "height")})
         ```
     """
-    return wandb.plot_table(
+    return custom_chart(
         "wandb/histogram/v0",
         table,
         {"value": value},
