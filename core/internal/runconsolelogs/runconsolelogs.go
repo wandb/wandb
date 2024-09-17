@@ -11,7 +11,6 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
-	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -46,10 +45,18 @@ type Sender struct {
 }
 
 type Params struct {
+	// ConsoleOutputFile is the run file path to which to write captured
+	// console messages.
 	ConsoleOutputFile paths.RelativePath
 
-	Settings *settings.Settings
-	Logger   *observability.CoreLogger
+	// FilesDir is the directory in which to write the console output file.
+	// Note this is actually the root directory for all run files.
+	FilesDir string
+
+	// EnableCapture indicates whether to capture console output.
+	EnableCapture bool
+
+	Logger *observability.CoreLogger
 
 	RunfilesUploaderOrNil runfiles.Uploader
 
@@ -63,10 +70,7 @@ type Params struct {
 }
 
 func New(params Params) *Sender {
-	switch {
-	case params.Settings == nil:
-		panic("runconsolelogs: Settings is nil")
-	case params.Logger == nil:
+	if params.Logger == nil {
 		panic("runconsolelogs: Logger is nil")
 	}
 
@@ -79,20 +83,24 @@ func New(params Params) *Sender {
 		fsWriter = &filestreamWriter{FileStream: params.FileStreamOrNil}
 	}
 
-	fileWriter, err := NewOutputFileWriter(
-		filepath.Join(
-			params.Settings.GetFilesDir(),
-			string(params.ConsoleOutputFile),
-		),
-		params.Logger,
-	)
+	var fileWriter *outputFileWriter
+	if params.EnableCapture {
+		var err error
+		fileWriter, err = NewOutputFileWriter(
+			filepath.Join(
+				params.FilesDir,
+				string(params.ConsoleOutputFile),
+			),
+			params.Logger,
+		)
 
-	if err != nil {
-		params.Logger.CaptureError(
-			fmt.Errorf(
-				"runconsolelogs: cannot write to file: %v",
-				err,
-			))
+		if err != nil {
+			params.Logger.CaptureError(
+				fmt.Errorf(
+					"runconsolelogs: cannot write to file: %v",
+					err,
+				))
+		}
 	}
 
 	writer := NewDebouncedWriter(
@@ -138,7 +146,7 @@ func New(params Params) *Sender {
 		writer:                writer,
 		logger:                params.Logger,
 		runfilesUploaderOrNil: params.RunfilesUploaderOrNil,
-		captureEnabled:        params.Settings.IsConsoleCaptureEnabled(),
+		captureEnabled:        params.EnableCapture,
 	}
 }
 
