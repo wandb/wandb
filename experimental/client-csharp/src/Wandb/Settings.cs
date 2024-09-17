@@ -145,6 +145,7 @@ namespace Wandb
             Mode = mode ?? "online";
             Project = project ?? Environment.GetEnvironmentVariable("WANDB_PROJECT") ?? "uncategorized";
             Resume = resume;
+            // TODO: consider using the default GUID library instead
             RunId = runId ?? Environment.GetEnvironmentVariable("WANDB_RUN_ID") ?? generator.GenerateRandomString(8);
             ServiceWait = serviceWait;
             InitTimeout = initTimeout;

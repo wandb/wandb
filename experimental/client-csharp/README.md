@@ -74,7 +74,7 @@ Before building and running this example, ensure that .NET is installed on your 
 
 ## Building and Running the Example
 
-To build and run the example, you can use the following script:
+To build and run the example, you can use the following script (located in `examples/Basic/build_and_run.sh`):
 
 ```bash
 #!/bin/bash
