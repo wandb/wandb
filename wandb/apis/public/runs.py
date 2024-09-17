@@ -1,12 +1,14 @@
 """Public API: runs."""
 
+from __future__ import annotations
+
 import json
 import os
 import sys
 import tempfile
 import time
 import urllib
-from typing import TYPE_CHECKING, Any, Dict, List, Mapping, Optional
+from typing import TYPE_CHECKING, Any, Collection, Dict, List, Mapping, Optional
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -28,6 +30,7 @@ from wandb.sdk.lib.paths import LogicalPath
 
 if TYPE_CHECKING:
     from wandb.apis.public import RetryingClient
+    from wandb.sdk.artifacts.artifact import Artifact
 
 WANDB_INTERNAL_KEYS = {"_wandb", "wandb_version"}
 
@@ -90,7 +93,7 @@ class Runs(Paginator):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
         filters: Optional[Dict[str, Any]] = None,
@@ -296,7 +299,7 @@ class Run(Attrs):
 
     def __init__(
         self,
-        client: "RetryingClient",
+        client: RetryingClient,
         entity: str,
         project: str,
         run_id: str,
@@ -794,13 +797,20 @@ class Run(Attrs):
             raise ValueError("You must pass a wandb.Api().artifact() to use_artifact")
 
     @normalize_exceptions
-    def log_artifact(self, artifact, aliases=None):
+    def log_artifact(
+        self,
+        artifact: Artifact,
+        aliases: Optional[Collection[str]] = None,
+        tags: Optional[Collection[str]] = None,
+    ):
         """Declare an artifact as output of a run.
 
         Arguments:
             artifact (`Artifact`): An artifact returned from
-                `wandb.Api().artifact(name)`
-            aliases (list, optional): Aliases to apply to this artifact
+                `wandb.Api().artifact(name)`.
+            aliases (list, optional): Aliases to apply to this artifact.
+            tags: (list, optional) Tags to apply to this artifact, if any.
+
         Returns:
             A `Artifact` object.
         """
@@ -825,7 +835,11 @@ class Run(Attrs):
 
         artifact_collection_name = artifact.source_name.split(":")[0]
         api.create_artifact(
-            artifact.type, artifact_collection_name, artifact.digest, aliases=aliases
+            artifact.type,
+            artifact_collection_name,
+            artifact.digest,
+            aliases=aliases,
+            tags=tags,
         )
         return artifact
 
