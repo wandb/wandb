@@ -229,6 +229,7 @@ func (o *OpenMetrics) Sample() (map[string]any, error) {
 	var parser expfmt.TextParser
 	metricFamilies, err := parser.TextToMetricFamilies(resp.Body)
 	if err != nil {
+		o.logger.Error("monitor: openmetrics: error parsing metrics", "error", err)
 		return nil, err
 	}
 
