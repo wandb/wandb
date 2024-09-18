@@ -1,6 +1,4 @@
-"""
-See: https://www.mongodb.com/docs/manual/reference/operator/aggregation/#window-operators.
-"""
+"""See: https://www.mongodb.com/docs/manual/reference/operator/aggregation/#window-operators."""
 
 
 # TODO: Decide whether we need this

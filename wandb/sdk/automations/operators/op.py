@@ -7,12 +7,12 @@ from itertools import chain
 from typing import TYPE_CHECKING, Any, Union
 
 from more_itertools import always_iterable
-from pydantic import GetCoreSchemaHandler, RootModel, Tag
+from pydantic import GetCoreSchemaHandler, RootModel
 from pydantic._internal import _repr
 from pydantic.main import IncEx
 from pydantic_core import CoreSchema
 from pydantic_core.core_schema import no_info_after_validator_function, str_schema
-from typing_extensions import Annotated, Literal
+from typing_extensions import Literal
 
 from wandb.sdk.automations.operators.base import Op
 from wandb.sdk.automations.operators.comparison import (

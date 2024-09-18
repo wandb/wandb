@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, LiteralString, TypeAlias
 
-from pydantic import Base64Str, Field, Json
+from pydantic import Field, Json
 from typing_extensions import Annotated, TypeVar
 
 IntId = Annotated[int, Field()]

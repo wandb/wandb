@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from enum import StrEnum, global_enum
-from typing import Any, ClassVar, Literal, NoReturn, TypeAlias, Union
+from typing import Any, Literal, NoReturn, TypeAlias, Union
 
-from pydantic import ConfigDict, Field, Json
+from pydantic import Field, Json
 from pydantic._internal import _repr
 from typing_extensions import Annotated, Final, Self
 
@@ -12,14 +12,7 @@ from wandb.sdk.automations._utils import jsonify
 from wandb.sdk.automations.actions import NewAction
 from wandb.sdk.automations.base import Base
 from wandb.sdk.automations.operators.logic import And, Or
-from wandb.sdk.automations.operators.op import (
-    AnyExpr,
-    FieldFilter,
-    on_field,
-    or_,
-    and_,
-    regex,
-)
+from wandb.sdk.automations.operators.op import AnyExpr, FieldFilter, and_, on_field, or_
 from wandb.sdk.automations.scopes import ArtifactCollectionScope, ProjectScope
 
 

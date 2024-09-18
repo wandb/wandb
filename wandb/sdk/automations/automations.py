@@ -2,12 +2,11 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import Field, Json
+from pydantic import Field
 
 from wandb.sdk.automations._typing import Base64Id
 from wandb.sdk.automations._utils import UserInfo, jsonify
 from wandb.sdk.automations.actions import (
-    ActionType,
     AnyAction,
     AnyNewAction,
     NewActionConfig,
@@ -19,15 +18,9 @@ from wandb.sdk.automations.actions import (
     NewWebhookConfig,
 )
 from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.events import (
-    AnyEvent,
-    AnyNewEvent,
-    EventFilter,
-    EventTrigger,
-    EventType,
-)
+from wandb.sdk.automations.events import AnyEvent, AnyNewEvent
 from wandb.sdk.automations.schemas_gen import CreateFilterTriggerInput
-from wandb.sdk.automations.scopes import AnyScope, ScopeType
+from wandb.sdk.automations.scopes import AnyScope
 
 
 class Automation(Base):

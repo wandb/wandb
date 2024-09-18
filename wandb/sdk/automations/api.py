@@ -6,14 +6,10 @@ from itertools import chain
 from operator import attrgetter, itemgetter
 from typing import TYPE_CHECKING, Iterator
 
-import rich
-from rich.pretty import pretty_repr
-
 # from gql import Client, gql
 from pydantic import TypeAdapter
-from rich.repr import rich_repr
+from rich.pretty import pretty_repr
 from rich.table import Table
-
 from wandb_gql import Client, gql
 
 from wandb import Api
@@ -26,8 +22,8 @@ from wandb.sdk.automations.events import NewEventAndAction
 from wandb.sdk.automations.schemas_gen import Project
 
 if TYPE_CHECKING:
-    from wandb.sdk.automations.events import EventType
     from wandb.sdk.automations.actions import ActionType
+    from wandb.sdk.automations.events import EventType
     from wandb.sdk.automations.scopes import ScopeType
 
 _AUTOMATIONS_QUERY = gql(
@@ -251,7 +247,7 @@ def _gql_client() -> Iterator[Client]:
 
 class AutomationsList(list[Automation]):
     def table(self) -> Table:
-        from wandb.sdk.automations import scopes, events, actions
+        from wandb.sdk.automations import events, scopes
 
         table = Table(
             title="Automations",
@@ -310,7 +306,7 @@ def get_all(
     scope: str | ScopeType | None = None,
     user: str | None = None,
 ) -> Iterator[Automation]:
-    from wandb.sdk.automations import ScopeType, EventType, ActionType
+    from wandb.sdk.automations import ActionType, EventType, ScopeType
 
     scope_type = None if (scope is None) else ScopeType(scope)
     event_type = None if (event is None) else EventType(event)

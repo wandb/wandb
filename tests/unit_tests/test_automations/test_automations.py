@@ -1,13 +1,8 @@
-from base64 import b64encode
-
-from pytest import fixture
 from pydantic import Base64Encoder
-
+from pytest import fixture
 from wandb.sdk import automations
 from wandb.sdk.automations import NewAutomation, Severity, actions, events, scopes
-from wandb.sdk.automations.schemas_gen import (
-    CreateFilterTriggerInput,
-)
+from wandb.sdk.automations.schemas_gen import CreateFilterTriggerInput
 
 fake_artifact_collection = scopes.ArtifactCollectionScope(
     id=Base64Encoder.encode(b"fake-collection-id")

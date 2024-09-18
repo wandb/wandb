@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from datetime import datetime
 from enum import StrEnum, global_enum
-from typing import ClassVar, TypeAlias
+from typing import TypeAlias
 
-from pydantic import AnyUrl, ConfigDict, Field, Json, SecretStr
-from typing_extensions import Annotated, Literal, Self, TypeVar, TypedDict
+from pydantic import AnyUrl, Field, Json, SecretStr
+from typing_extensions import Annotated, Literal, TypedDict
 
 from wandb.sdk.automations._typing import Base64Id, JsonDict, Typename
 from wandb.sdk.automations.base import Base
@@ -128,15 +128,18 @@ class NewWebhook(NewAction):
     request_payload: JsonDict
 
 
-NewQueueJobConfig = TypedDict(
-    "NewQueueJobConfig", {"queue_job_action_input": NewQueueJob}
-)
-NewNotificationConfig = TypedDict(
-    "NewNotificationConfig", {"notification_action_input": NewNotification}
-)
-NewWebhookConfig = TypedDict(
-    "NewWebhookConfig", {"generic_webhook_action_input": NewWebhook}
-)
+class NewQueueJobConfig(TypedDict):
+    queue_job_action_input: NewQueueJob
+
+
+class NewNotificationConfig(TypedDict):
+    notification_action_input: NewNotification
+
+
+class NewWebhookConfig(TypedDict):
+    generic_webhook_action_input: NewWebhook
+
+
 NewActionConfig = NewQueueJobConfig | NewNotificationConfig | NewWebhookConfig
 
 AnyNewAction = Annotated[

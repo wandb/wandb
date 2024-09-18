@@ -7,7 +7,6 @@ from typing import Any, Iterable, Iterator, Literal, Mapping
 
 from pydantic import TypeAdapter, field_validator
 from pydantic_core import to_json
-
 from wandb_gql import gql
 
 from wandb import Api

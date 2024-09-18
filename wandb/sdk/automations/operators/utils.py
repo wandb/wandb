@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 def get_op_discriminator_value(obj: dict | Op) -> str:
     from wandb.sdk.automations.operators.base import Op
-    from wandb.sdk.automations.operators.op import FieldFilter
 
     match obj:
         case dict() if obj and (key := first(obj.keys())).startswith("$"):

@@ -5,7 +5,7 @@ from wandb.sdk.automations import actions, automations, events, operators, scope
 from .actions import ActionType, Severity
 from .api import create, define, delete, get_all
 from .automations import NewAutomation
-from .events import EventType, EventTrigger
+from .events import EventTrigger, EventType
 from .scopes import ScopeType
 
 
