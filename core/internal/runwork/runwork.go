@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/wandb/wandb/core/pkg/observability"
 )
@@ -142,13 +143,28 @@ func (rw *runWork) AddWorkOrCancel(
 	// until we exit and decrement addWorkCount---so internalWork
 	// is guaranteed to not be closed until this method returns.
 
-	select {
-	case <-rw.closed:
-		// Here, Close() must have been called, so we should drop the record.
-		rw.logger.CaptureError(errRecordAfterClose, "work", work)
+	start := time.Now()
+	for {
+		select {
+		// Detect deadlocks and hangs that prevent internalWork
+		// from flushing.
+		case <-time.After(10 * time.Minute):
+			rw.logger.CaptureWarn(
+				"runwork: taking a long time",
+				"seconds", time.Since(start).Seconds(),
+			)
 
-	case <-cancel:
-	case rw.internalWork <- work:
+		case <-rw.closed:
+			// Here, Close() must have been called, so we should drop the record.
+			rw.logger.CaptureError(errRecordAfterClose, "work", work)
+			return
+
+		case <-cancel:
+			return
+
+		case rw.internalWork <- work:
+			return
+		}
 	}
 }
 
