@@ -15,7 +15,7 @@ import wandb
 from .lib import telemetry
 
 if TYPE_CHECKING:
-    import torch
+    import torch  # type: ignore [import-not-found]
 
 logger = logging.getLogger("wandb")
 

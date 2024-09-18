@@ -93,7 +93,7 @@ from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
 if TYPE_CHECKING:
-    import torch
+    import torch  # type: ignore [import-not-found]
 
 __version__: str = "0.18.2.dev1"
 
