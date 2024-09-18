@@ -45,8 +45,8 @@ type Backend struct {
 	// user. There's no guarantee that all logs are made at the Debug level.
 	logger *slog.Logger
 
-	// API key for backend requests.
-	apiKey string
+	// Credentials to apply for backend requests.
+	credentialProvider CredentialProvider
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -131,8 +131,8 @@ type BackendOptions struct {
 	// Logger for HTTP operations.
 	Logger *slog.Logger
 
-	// W&B API key.
-	APIKey string
+	// Credentials to apply on every request.
+	CredentialProvider CredentialProvider
 }
 
 // Creates a [Backend].
@@ -141,9 +141,9 @@ type BackendOptions struct {
 // including a final slash. Example "http://localhost:8080".
 func New(opts BackendOptions) *Backend {
 	return &Backend{
-		baseURL: opts.BaseURL,
-		logger:  opts.Logger,
-		apiKey:  opts.APIKey,
+		baseURL:            opts.BaseURL,
+		logger:             opts.Logger,
+		credentialProvider: opts.CredentialProvider,
 	}
 }
 
