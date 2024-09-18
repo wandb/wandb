@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import dataclasses
 import os
-from typing import Optional
 
 from wandb import env
 
@@ -8,7 +9,7 @@ _CURRENT_VERSION = "2"
 _SUPPORTED_TRANSPORTS = "tcp"
 
 
-def get_service_token() -> "Optional[ServiceToken]":
+def get_service_token() -> ServiceToken | None:
     """Reads the token from environment variables.
 
     Returns:
