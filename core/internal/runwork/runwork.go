@@ -167,6 +167,14 @@ func (rw *runWork) AddWorkOrCancel(
 			return
 
 		case rw.internalWork <- work:
+			if i > 0 {
+				rw.logger.CaptureInfo(
+					"runwork: succeeded after taking longer than expected",
+					"seconds", time.Since(start).Seconds(),
+					"work", work.DebugInfo(),
+				)
+			}
+
 			return
 		}
 	}

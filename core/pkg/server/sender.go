@@ -258,6 +258,14 @@ outerLoop:
 		for i := 0; ; i++ {
 			select {
 			case <-hangDetectionOutChan:
+				if i > 0 {
+					s.logger.CaptureInfo(
+						"sender: succeeded after taking longer than expected",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+
 				continue outerLoop
 
 			case <-time.After(30 * time.Minute):
@@ -685,7 +693,7 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 	err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
-		s.logger.CaptureError(err)
+		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
 	result := &spb.Result{
