@@ -164,7 +164,10 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 						}
 						versionId, ok := entry.Extra["versionID"]
 						if ok {
-							task.VersionId = versionId
+							err := task.SetVersionID(versionId)
+							if err != nil {
+								return fmt.Errorf("error setting version id: %v", err)
+							}
 						}
 
 						task.OnComplete = func() {

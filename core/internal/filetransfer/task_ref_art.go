@@ -97,6 +97,21 @@ func (t *ReferenceArtifactDownloadTask) HasSingleFile() bool { return t.Digest !
 
 func (t *ReferenceArtifactDownloadTask) ShouldCheckDigest() bool { return t.Digest != t.Reference }
 
+func (t *ReferenceArtifactDownloadTask) SetVersionID(val any) error {
+	switch val.(type) {
+	case string, int64, float64:
+		t.VersionId = val
+	default:
+		return fmt.Errorf("reference artifact task: error setting version id of unexpected type: %v", val)
+	}
+	return nil
+}
+
+func (t *ReferenceArtifactDownloadTask) VersionIDNumber() (int64, bool) {
+	floatVal, ok := t.VersionId.(float64)
+	return int64(floatVal), ok
+}
+
 func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
 	uriParts, err := url.Parse(ref)
 	switch {

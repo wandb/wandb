@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"cloud.google.com/go/storage"
@@ -81,7 +82,7 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	)
 
 	// Parse the reference path to get the scheme, bucket, and object
-	bucketName, objectPathPrefix, err := parseReference(task.Reference)
+	bucketName, rootObjectName, err := parseReference(task.Reference)
 	if err != nil {
 		return formatDownloadError("error parsing reference", err)
 	}
@@ -90,21 +91,21 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	var objectNames []string
 
 	if task.HasSingleFile() {
-		objectNames = []string{objectPathPrefix}
+		objectNames = []string{rootObjectName}
 	} else {
-		objectNames, err = ft.listObjectNamesWithPrefix(bucket, objectPathPrefix)
+		objectNames, err = ft.listObjectNamesWithPrefix(bucket, rootObjectName)
 		if err != nil {
 			return formatDownloadError(
 				fmt.Sprintf(
 					"error getting objects in bucket %s under prefix %s",
-					bucketName, objectPathPrefix,
+					bucketName, rootObjectName,
 				),
 				err,
 			)
 		}
 	}
 
-	return ft.downloadFiles(bucket, task, objectNames)
+	return ft.downloadFiles(bucket, rootObjectName, task, objectNames)
 }
 
 // listObjectNamesWithPrefix returns a list of names of all the objects
@@ -114,8 +115,7 @@ func (ft *GCSFileTransfer) listObjectNamesWithPrefix(
 	prefix string,
 ) ([]string, error) {
 	var objectNames []string
-	query := &storage.Query{Prefix: prefix}
-	it := bucket.Objects(ft.ctx, query)
+	it := bucket.Objects(ft.ctx, &storage.Query{Prefix: prefix})
 	for {
 		objAttrs, err := it.Next()
 		if err == iterator.Done {
@@ -132,15 +132,10 @@ func (ft *GCSFileTransfer) listObjectNamesWithPrefix(
 // downloadFiles concurrently gets and downloads all objects with the specified names
 func (ft *GCSFileTransfer) downloadFiles(
 	bucket *storage.BucketHandle,
+	rootObjectName string,
 	task *ReferenceArtifactDownloadTask,
 	objectNames []string,
 ) error {
-	// Parse the reference path to get the objectPathPrefix, for constructing the download path
-	_, objectPathPrefix, err := parseReference(task.Reference)
-	if err != nil {
-		return formatDownloadError("error parsing reference", err)
-	}
-
 	var g errgroup.Group
 	g.SetLimit(maxWorkers)
 	for _, name := range objectNames {
@@ -151,7 +146,7 @@ func (ft *GCSFileTransfer) downloadFiles(
 				if errors.Is(err, ErrObjectIsDirectory) {
 					ft.logger.Debug(
 						"GCSFileTransfer: Download: skipping reference because it seems to be a folder",
-						"reference", task.Reference,
+						"bucket", bucket.BucketName(),
 						"object", objectName,
 					)
 					return nil
@@ -169,17 +164,13 @@ func (ft *GCSFileTransfer) downloadFiles(
 				)
 				return formatDownloadError("", err)
 			}
-			localPath := getDownloadFilePath(objectName, objectPathPrefix, task.PathOrPrefix)
+			objectRelativePath, _ := strings.CutPrefix(objectName, rootObjectName)
+			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
 			return ft.downloadFile(object, localPath)
 		})
 	}
 
-	// Wait for all of the go routines to complete and return an error
-	// if any errored out
-	if err := g.Wait(); err != nil {
-		return err
-	}
-	return nil
+	return g.Wait()
 }
 
 // downloadFile downloads the contents of object into a file at path localPath.
@@ -278,13 +269,9 @@ func (ft *GCSFileTransfer) getObject(
 	task *ReferenceArtifactDownloadTask,
 	key string,
 ) (*storage.ObjectHandle, error) {
+	versionId, ok := task.VersionIDNumber()
 	object := bucket.Object(key)
-	if task.VersionId != nil {
-		versionId, err := safeConvertToInt64(task.VersionId)
-		if err != nil {
-			err := fmt.Errorf("failed to convert VersionId: %v", err)
-			return nil, err
-		}
+	if ok {
 		object = object.Generation(versionId)
 	}
 	return object, nil
@@ -304,26 +291,6 @@ func parseReference(reference string) (string, string, error) {
 	bucketName := uriParts.Host
 	objectName := strings.TrimPrefix(uriParts.Path, "/")
 	return bucketName, objectName, nil
-}
-
-// getDownloadFilePath returns the file path to download the file to.
-//
-// We expect the base file path to already have the prefix appended to it, so
-// we remove any part of the object name that is already contained in the base
-// file path before appending it.
-func getDownloadFilePath(objectName string, prefix string, baseFilePath string) string {
-	ext, _ := strings.CutPrefix(objectName, prefix)
-	localPath := baseFilePath + ext
-	return localPath
-}
-
-// safeConvertToInt64 attempts to convert an interface{} to an int64 value.
-func safeConvertToInt64(value interface{}) (int64, error) {
-	floatVal, ok := value.(float64)
-	if !ok {
-		return 0, fmt.Errorf("value is not a float64: %v", value)
-	}
-	return int64(floatVal), nil
 }
 
 func formatDownloadError(context string, err error) error {
