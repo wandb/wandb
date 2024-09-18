@@ -16,6 +16,8 @@ namespace Wandb.Internal
         private readonly CancellationTokenSource _cancellationTokenSource;
         private Task? _receiveTask;
         private readonly ConcurrentDictionary<string, TaskCompletionSource<ServerResponse>> _pendingRequests;
+        private readonly SemaphoreSlim _writeSemaphore = new(1, 1);
+
 
         /// <summary>
         /// Initializes a new instance of the <see cref="WandbTcpClient"/> class.
@@ -83,7 +85,17 @@ namespace Wandb.Internal
             {
                 throw new InvalidOperationException("Not connected.");
             }
-            await _networkStream.WriteAsync(packet).ConfigureAwait(false);
+
+            // Wait for the semaphore before writing
+            await _writeSemaphore.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await _networkStream.WriteAsync(packet).ConfigureAwait(false);
+            }
+            finally
+            {
+                _writeSemaphore.Release();
+            }
 
             // Don't wait for a response if timeout is <= 0
             if (timeoutMilliseconds <= 0)
