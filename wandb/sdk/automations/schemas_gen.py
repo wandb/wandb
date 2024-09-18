@@ -11,11 +11,16 @@ from datetime import datetime, timedelta
 from enum import Enum
 from typing import Literal, TypeAlias, Union
 
-from pydantic import Field, Json
+from pydantic import ConfigDict, Field, Json, with_config
 from typing_extensions import Annotated
 
 from wandb.sdk.automations._typing import Base64Id
-from wandb.sdk.automations.base import Base
+from wandb.sdk.automations.base import Base as _Base
+
+
+class Base(_Base):
+    model_config = ConfigDict(extra="ignore")
+
 
 Boolean: TypeAlias = bool
 """

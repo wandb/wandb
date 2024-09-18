@@ -14,8 +14,8 @@ from hypothesis.strategies import (
 )
 from more_itertools import only
 from pytest import mark
-from wandb.sdk.automations.expr.logic import And, Or
-from wandb.sdk.automations.expr.op import FieldFilter
+from wandb.sdk.automations.operators.logic import And, Or
+from wandb.sdk.automations.operators.op import FieldFilter
 
 # ------------------------------------------------------------------------------
 # Search strategies for hypothesis

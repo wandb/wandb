@@ -7,15 +7,15 @@ from itertools import chain
 from typing import TYPE_CHECKING, Any, Union
 
 from more_itertools import always_iterable
-from pydantic import GetCoreSchemaHandler, RootModel
+from pydantic import GetCoreSchemaHandler, RootModel, Tag
 from pydantic._internal import _repr
 from pydantic.main import IncEx
 from pydantic_core import CoreSchema
 from pydantic_core.core_schema import no_info_after_validator_function, str_schema
-from typing_extensions import Literal
+from typing_extensions import Annotated, Literal
 
-from wandb.sdk.automations.expr.base import Op
-from wandb.sdk.automations.expr.comparison import (
+from wandb.sdk.automations.operators.base import Op
+from wandb.sdk.automations.operators.comparison import (
     AnyComparisonOp,
     Eq,
     Gt,
@@ -26,16 +26,19 @@ from wandb.sdk.automations.expr.comparison import (
     Ne,
     Nin,
 )
-from wandb.sdk.automations.expr.evaluation import AnyEvaluationOp
-from wandb.sdk.automations.expr.logic import And, AnyLogicalOp, Nor, Not, Or
+from wandb.sdk.automations.operators.evaluation import AnyEvaluationOp, Regex
+from wandb.sdk.automations.operators.logic import And, AnyLogicalOp, Nor, Not, Or
 
 if TYPE_CHECKING:
-    from wandb.sdk.automations.expr.comparison import ValueT
+    from wandb.sdk.automations.operators.comparison import ValueT
 
 
 # ------------------------------------------------------------------------------
 class ExpressionField(str):
     """A field name in a MongoDB query expression that identifies which field the criteria is evaluated on."""
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
     @classmethod
     def __get_pydantic_core_schema__(
@@ -79,6 +82,9 @@ class ExpressionField(str):
 
     def not_in(self, values: Iterable[ValueT]) -> FieldFilter:
         return FieldFilter.model_validate({self: Nin(vals=values)})
+
+    def regex_match(self, pattern: str) -> FieldFilter:
+        return FieldFilter.model_validate({self: Regex(regex=pattern)})
 
     # ------------------------------------------------------------------------------
     def __lt__(self, value: ValueT) -> FieldFilter:
@@ -191,14 +197,14 @@ AnyExpr = Union[
 
 # ------------------------------------------------------------------------------
 # Convenience functions to make constructing/composing operators less verbose and tedious
-def all_of(*exprs: AnyExpr | Iterable[AnyExpr]) -> And:
-    all_exprs = chain.from_iterable(always_iterable(x, base_type=Op) for x in exprs)
-    return And(exprs=all_exprs)
-
-
-def any_of(*exprs: AnyExpr | Iterable[AnyExpr]) -> Or:
+def or_(*exprs: AnyExpr | Iterable[AnyExpr]) -> Or:
     all_exprs = chain.from_iterable(always_iterable(x, base_type=Op) for x in exprs)
     return Or(exprs=all_exprs)
+
+
+def and_(*exprs: AnyExpr | Iterable[AnyExpr]) -> And:
+    all_exprs = chain.from_iterable(always_iterable(x, base_type=Op) for x in exprs)
+    return And(exprs=all_exprs)
 
 
 def none_of(*exprs: AnyExpr | Iterable[AnyExpr]) -> Nor:
@@ -232,6 +238,11 @@ def eq(val: ValueT) -> Eq:
 
 def ne(val: ValueT) -> Ne:
     return Ne(val=val)
+
+
+# ------------------------------------------------------------------------------
+def regex(pattern: str) -> Regex:
+    return Regex(regex=pattern)
 
 
 # ------------------------------------------------------------------------------

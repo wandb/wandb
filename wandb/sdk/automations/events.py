@@ -1,16 +1,26 @@
 from __future__ import annotations
 
 from enum import StrEnum, global_enum
-from typing import ClassVar, Literal, NoReturn, TypeAlias, Union
+from typing import Any, ClassVar, Literal, NoReturn, TypeAlias, Union
 
 from pydantic import ConfigDict, Field, Json
-from typing_extensions import Annotated
+from pydantic._internal import _repr
+from typing_extensions import Annotated, Final, Self
 
-from wandb.sdk.automations._typing import TypenameField
-from wandb.sdk.automations.actions import NewActionInput
+from wandb.sdk.automations._typing import Typename
+from wandb.sdk.automations._utils import jsonify
+from wandb.sdk.automations.actions import NewAction
 from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.expr.op import AnyExpr, FieldFilter, all_of, any_of
-from wandb.sdk.automations.generated.schema_gen import ArtifactCollection, Project
+from wandb.sdk.automations.operators.logic import And, Or
+from wandb.sdk.automations.operators.op import (
+    AnyExpr,
+    FieldFilter,
+    on_field,
+    or_,
+    and_,
+    regex,
+)
+from wandb.sdk.automations.scopes import ArtifactCollectionScope, ProjectScope
 
 
 # Legacy names
@@ -33,58 +43,95 @@ class EventFilter(Base):
 
 
 class Event(Base):
-    typename__: TypenameField[Literal["FilterEventTriggeringCondition"]]
+    typename__: Typename[Literal["FilterEventTriggeringCondition"]]
     event_type: EventType
     filter: Json[EventFilter]
+
+    def __repr_name__(self) -> str:
+        return str(self.event_type)
+
+    def __repr_args__(self) -> _repr.ReprArgs:
+        inner_expr = self.filter.filter
+        while isinstance(inner_expr, (Or, And)) and len(inner_expr.exprs) <= 1:
+            if not inner_expr.exprs:
+                inner_expr = None
+                break
+            else:
+                inner_expr = inner_expr.exprs[0]
+        yield "filter", inner_expr
 
 
 # TODO: This is a WIP Triggers on run metrics
 class RunMetricEvent(Base):
-    typename__: TypenameField[Literal["RunMetricTriggeringCondition"]]
+    typename__: Typename[Literal["RunMetricTriggeringCondition"]]
     event_type: str  # TODO: TBD
 
     run_filter: Json[EventFilter]
     metric_filter: Json[FieldFilter]
 
 
-class NewEventInput(Base):
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True,
-    )
-
-    scope: ArtifactCollection | Project
+class EventTrigger(Base):
     event_type: EventType
+    # scope: ArtifactCollection | Project
+    scope: ArtifactCollectionScope | ProjectScope
     filter: Json[EventFilter]
 
     # TODO: Deprecate this
-    def link_action(self, action: NewActionInput) -> NewEventAndAction:
-        if isinstance(action, NewActionInput):
+    def link_action(self, action: NewAction) -> NewEventAndAction:
+        if isinstance(action, NewAction):
             return self, action
         raise TypeError(
-            f"Expected an instance of {NewActionInput.__name__!r}, got: {type(action).__qualname__!r}"
+            f"Expected an instance of {NewAction.__name__!r}, got: {type(action).__qualname__!r}"
         )
 
-    def __rshift__(self, other: NewActionInput) -> NewEventAndAction:
+    def __rshift__(self, other: NewAction) -> NewEventAndAction:
         """Connect this event to an action using, e.g. `event >> action`."""
         return self.link_action(other)
 
-    def __gt__(self, other: NewActionInput) -> NoReturn:
+    def __gt__(self, other: NewAction) -> NoReturn:
         """Let's not get too ahead of ourselves here, no overloading the comparison operators."""
         raise RuntimeError("Did you mean to use the '>>' operator?")
 
 
-NewEventAndAction: TypeAlias = tuple[NewEventInput, NewActionInput]
+NewEventAndAction: TypeAlias = tuple[EventTrigger, NewAction]
+
+_DEFAULT_EMPTY_FILTER: Final[str] = jsonify(EventFilter(filter=jsonify(or_(and_()))))
 
 
-class NewLinkArtifact(NewEventInput):
-    _LINK_ARTIFACT_EVENT_FILTER: ClassVar[EventFilter] = EventFilter(
-        filter=any_of(all_of()).model_dump_json()
-    ).model_dump_json()
-
-    scope: ArtifactCollection
+class LinkArtifact(EventTrigger):
+    """A new artifact is linked to a collection."""
 
     event_type: Literal[EventType.LINK_ARTIFACT] = LINK_ARTIFACT
-    filter: Json[EventFilter] = _LINK_ARTIFACT_EVENT_FILTER
+
+    scope: ArtifactCollectionScope | ProjectScope
+    filter: Json[EventFilter] = Field(default_factory=lambda: _DEFAULT_EMPTY_FILTER)
+
+
+class AddArtifactAlias(EventTrigger):
+    """A new alias is assigned to an artifact."""
+
+    event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = ADD_ARTIFACT_ALIAS
+
+    scope: ArtifactCollectionScope | ProjectScope
+    filter: Json[EventFilter]
+
+    @classmethod
+    def from_pattern(cls, alias: str, **kwargs: Any) -> Self:
+        return cls(
+            **kwargs,
+            filter=jsonify(
+                EventFilter(filter=jsonify(on_field("alias").regex_match(alias))),
+            ),
+        )
+
+
+class CreateArtifact(EventTrigger):
+    """A new artifact is created."""
+
+    event_type: Literal[EventType.CREATE_ARTIFACT] = CREATE_ARTIFACT
+
+    scope: ArtifactCollectionScope | ProjectScope
+    filter: Json[EventFilter] = _DEFAULT_EMPTY_FILTER
 
 
 # ------------------------------------------------------------------------------
@@ -96,4 +143,10 @@ AnyEvent = Annotated[
         # RunMetricEvent,
     ],
     Field(alias="triggeringCondition"),
+]
+
+
+AnyNewEvent = Annotated[
+    Union[LinkArtifact | AddArtifactAlias, CreateArtifact],
+    Field(discriminator="event_type"),
 ]

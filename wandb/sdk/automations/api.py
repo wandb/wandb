@@ -1,33 +1,33 @@
 from __future__ import annotations
 
+from collections import deque
 from contextlib import contextmanager
 from itertools import chain
-from operator import itemgetter
+from operator import attrgetter, itemgetter
 from typing import TYPE_CHECKING, Iterator
+
+import rich
+from rich.pretty import pretty_repr
 
 # from gql import Client, gql
 from pydantic import TypeAdapter
+from rich.repr import rich_repr
+from rich.table import Table
+
 from wandb_gql import Client, gql
 
 from wandb import Api
-from wandb.sdk.automations.actions import (
-    ActionType,
-    NewNotificationActionInput,
-    NewNotificationConfig,
-    NewQueueJobActionInput,
-    NewQueueJobConfig,
-    NewWebhookActionInput,
-    NewWebhookConfig,
-)
 from wandb.sdk.automations.automations import (
     Automation,
     DeletedAutomation,
     NewAutomation,
 )
 from wandb.sdk.automations.events import NewEventAndAction
-from wandb.sdk.automations.generated.schema_gen import ArtifactCollection, Project
+from wandb.sdk.automations.schemas_gen import Project
 
 if TYPE_CHECKING:
+    from wandb.sdk.automations.events import EventType
+    from wandb.sdk.automations.actions import ActionType
     from wandb.sdk.automations.scopes import ScopeType
 
 _AUTOMATIONS_QUERY = gql(
@@ -249,13 +249,83 @@ def _gql_client() -> Iterator[Client]:
     yield Api().client
 
 
+class AutomationsList(list[Automation]):
+    def table(self) -> Table:
+        from wandb.sdk.automations import scopes, events, actions
+
+        table = Table(
+            title="Automations",
+            title_justify="left",
+            width=300,
+            show_lines=True,
+        )
+
+        displayed_names = deque()
+        for name, info in Automation.model_fields.items():
+            if info.repr:
+                displayed_names.append(name)
+                if name.casefold() == "name":
+                    table.add_column(name, max_width=10, no_wrap=True)
+                elif name.casefold() == "description":
+                    table.add_column(name, max_width=20)
+                elif name.casefold() in {"scope", "event", "action"}:
+                    table.add_column(name, max_width=30)
+                elif name.casefold() == "enabled":
+                    table.add_column(name, max_width=5)
+                else:
+                    table.add_column(name)
+
+        get_fields = attrgetter(*displayed_names)
+        for auto in self:
+            table.add_row(
+                *(
+                    obj
+                    if isinstance(obj, str)
+                    else repr(obj)
+                    if isinstance(
+                        obj,
+                        (
+                            scopes.BaseScope,
+                            events.Event,
+                            # actions.QueueJobAction,
+                            # actions.NotificationAction,
+                            # actions.WebhookAction,
+                        ),
+                    )
+                    else pretty_repr(obj, max_depth=2, indent_size=1, max_length=2)
+                    for obj in get_fields(auto)
+                )
+            )
+
+        return table
+
+
 _AutomationsListAdapter = TypeAdapter(list[Automation])
 
 
-def fetch(
-    scope_type: str | ScopeType | None = None,
+def get_all(
+    *,
+    event: str | EventType | None = None,
+    action: str | ActionType | None = None,
+    scope: str | ScopeType | None = None,
     user: str | None = None,
 ) -> Iterator[Automation]:
+    from wandb.sdk.automations import ScopeType, EventType, ActionType
+
+    scope_type = None if (scope is None) else ScopeType(scope)
+    event_type = None if (event is None) else EventType(event)
+    action_type = None if (action is None) else ActionType(action)
+
+    def _should_keep(automation: Automation) -> bool:
+        return (
+            ((user is None) or (automation.created_by.username == user))
+            and ((scope_type is None) or (automation.scope.scope_type is scope_type))
+            and ((event_type is None) or (automation.event.event_type is event_type))
+            and (
+                (action_type is None) or (automation.action.action_type is action_type)
+            )
+        )
+
     from wandb.sdk.automations.scopes import ScopeType
 
     with _gql_client() as client:
@@ -271,30 +341,16 @@ def fetch(
         )
         edges = chain.from_iterable(entity["projects"]["edges"] for entity in entities)
         projects = (edge["node"] for edge in edges)
-        for proj in projects:
-            for auto in _AutomationsListAdapter.validate_python(proj["triggers"]):
-                if ((user is None) or (auto.created_by.username == user)) and (
-                    (scope_type is None)
-                    or (auto.scope.scope_type is ScopeType(scope_type))
-                ):
-                    yield auto
-
-
-def create(
-    new_automation: NewAutomation | None = None,
-    # /,
-    # *,
-    # event: EventInput | None = None,
-    # action: ActionInput | None = None,
-    # name: str,
-    # description: str | None = None,
-    # enabled: bool = True,
-) -> NewAutomation:
-    with _gql_client() as client:
-        data = client.execute(
-            _CREATE_AUTOMATION,
-            variable_values=new_automation.model_dump(mode="json"),
+        triggers = chain.from_iterable(proj["triggers"] for proj in projects)
+        return AutomationsList(
+            filter(_should_keep, _AutomationsListAdapter.validate_python(triggers))
         )
+
+
+def create(automation: NewAutomation) -> Automation:
+    with _gql_client() as client:
+        variable_values = automation.model_dump()
+        data = client.execute(_CREATE_AUTOMATION, variable_values=variable_values)
         return Automation.model_validate(data["trigger"])
 
 
@@ -305,64 +361,26 @@ def define(
     description: str | None,
     enabled: bool = True,
 ):
-    from wandb.sdk.automations.scopes import ScopeType
-
     event, action = event_and_action
-
-    match scope := event.scope:
-        case ArtifactCollection() as coll:
-            scope_type = ScopeType.ARTIFACT_COLLECTION
-            scope_id = coll.id
-        case Project() as proj:
-            scope_type = ScopeType.PROJECT
-            scope_id = _project_id(proj)
-        case _:
-            raise TypeError(
-                f"Invalid scope object of type {type(scope).__name__!r}: {scope!r}"
-            )
-
-    match action:
-        case NewQueueJobActionInput():
-            action_type = ActionType.QUEUE_JOB
-            action_config = NewQueueJobConfig(queue_job_action_input=action)
-        case NewNotificationActionInput():
-            action_type = ActionType.NOTIFICATION
-            action_config = NewNotificationConfig(notification_action_input=action)
-        case NewWebhookActionInput():
-            action_type = ActionType.GENERIC_WEBHOOK
-            action_config = NewWebhookConfig(generic_webhook_action_input=action)
-        case _:
-            raise TypeError(
-                f"Unknown action type {type(action).__name__!r}: {action!r}"
-            )
-
     return NewAutomation(
         name=name,
         description=description,
         enabled=enabled,
-        # ------------------------------------------------------------------------------
-        scope_type=scope_type,
-        scope_id=scope_id,
-        # ------------------------------------------------------------------------------
-        triggering_event_type=event.event_type,
-        event_filter=event.filter,
-        # ------------------------------------------------------------------------------
-        triggered_action_type=action_type,
-        triggered_action_config=action_config,
+        scope=event.scope,
+        event=event,
+        action=action,
     )
 
 
 def _project_id(proj: Project) -> str:
     """Get the ID of the given project."""
     with _gql_client() as client:
-        project_data = client.execute(
-            _PROJECT_ID_BY_NAMES,
-            variable_values={
-                "name": proj.name,
-                "entityName": proj.entity,
-            },
-        )
-        return project_data["project"]["id"]
+        variable_values = {
+            "name": proj.name,
+            "entityName": proj.entity,
+        }
+        data = client.execute(_PROJECT_ID_BY_NAMES, variable_values=variable_values)
+        return data["project"]["id"]
 
 
 def delete(id_or_automation: str | Automation) -> DeletedAutomation:

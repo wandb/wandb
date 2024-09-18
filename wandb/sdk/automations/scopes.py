@@ -6,9 +6,10 @@ from enum import StrEnum, global_enum
 from typing import Literal
 
 from pydantic import Field
+from pydantic._internal import _repr
 from typing_extensions import Annotated
 
-from wandb.sdk.automations._typing import Base64Id, TypenameField
+from wandb.sdk.automations._typing import Base64Id, Typename
 from wandb.sdk.automations.base import Base
 
 
@@ -25,28 +26,35 @@ PROJECT = ScopeType.PROJECT
 class BaseScope(Base):
     """Base class for automation scopes."""
 
-    scope_type: ScopeType
+    scope_type: ScopeType = Field(repr=False)
 
     def __repr_name__(self) -> str:
         return self.scope_type.value
 
+    def __repr_args__(self) -> _repr.ReprArgs:
+        if hasattr(self, "name"):
+            yield "name", self.name
 
-class ArtifactCollectionScope(Base):
-    scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.ARTIFACT_COLLECTION
 
-    typename__: TypenameField[Literal["ArtifactSequence", "ArtifactPortfolio"]]
+class ArtifactCollectionScope(BaseScope):
+    scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ARTIFACT_COLLECTION
+
+    typename__: Typename[
+        Literal["ArtifactSequence", "ArtifactPortfolio", "ArtifactCollection"]
+    ] = "ArtifactCollection"
     id: Base64Id
-    name: str
+    name: str | None = None
 
 
-class ProjectScope(Base):
-    scope_type: Literal[ScopeType.ARTIFACT_COLLECTION] = ScopeType.PROJECT
+class ProjectScope(BaseScope):
+    scope_type: Literal[ScopeType.PROJECT] = PROJECT
 
-    typename__: TypenameField[Literal["Project"]]
+    typename__: Typename[Literal["Project"]] = "Project"
     id: Base64Id
-    name: str
+    name: str | None = None
 
 
+# AnyScope = ArtifactCollectionScope | ProjectScope
 AnyScope = Annotated[
     ArtifactCollectionScope | ProjectScope,
     Field(discriminator="typename__"),

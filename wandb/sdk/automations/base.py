@@ -8,11 +8,13 @@ from typing_extensions import override
 
 default_model_config: Final[ConfigDict] = ConfigDict(
     validate_assignment=True,
+    validate_default=True,
     extra="forbid",
     alias_generator=to_camel,
     populate_by_name=True,
     use_enum_values=True,
     use_attribute_docstrings=True,
+    from_attributes=True,
 )
 
 

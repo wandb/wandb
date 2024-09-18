@@ -1,23 +1,23 @@
 from typing import Any
 
-from wandb.sdk.automations import actions, automations, events, expr, scopes
+from wandb.sdk.automations import actions, automations, events, operators, scopes
 
 from .actions import ActionType, Severity
-from .api import create, define, delete, fetch
+from .api import create, define, delete, get_all
 from .automations import NewAutomation
-from .events import EventType, NewEventInput
+from .events import EventType, EventTrigger
 from .scopes import ScopeType
 
 
-def on(event_type: EventType, obj: Any) -> NewEventInput:
-    match event_type:
+def on(event: EventType, scope: Any, **kwargs) -> EventTrigger:
+    match event:
         case events.LINK_ARTIFACT:
-            return events.NewLinkArtifact(scope=obj)
+            return events.LinkArtifact(scope=scope)
         case events.ADD_ARTIFACT_ALIAS:
-            raise NotImplementedError
+            return events.AddArtifactAlias.from_pattern(scope=scope, **kwargs)
         case events.CREATE_ARTIFACT:
-            raise NotImplementedError
+            return events.CreateArtifact(scope=scope, **kwargs)
         case _:
             raise NotImplementedError(
-                f"Unrecognized or unsupported event type ({event_type!r}) on {obj!r}"
+                f"Unsupported event type ({event!r}) on {scope!r}"
             )

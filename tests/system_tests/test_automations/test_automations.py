@@ -3,8 +3,8 @@ from wandb import Artifact
 from wandb.apis.public import ArtifactCollection
 from wandb.sdk import automations
 from wandb.sdk.automations import NewAutomation
-from wandb.sdk.automations.actions import NewNotificationActionInput, Severity
-from wandb.sdk.automations.events import NewLinkArtifact
+from wandb.sdk.automations.actions import NewNotification, Severity
+from wandb.sdk.automations.events import LinkArtifact
 
 
 @fixture
@@ -48,7 +48,7 @@ def artifact_collection(api, collection_name, artifact) -> ArtifactCollection:
     reason="Getting: 'wandb.errors.UsageError: api_key not configured (no-tty). call wandb.login(key=[your_api_key])'"
 )
 def test_list_automations(mock_client, user):
-    triggers = list(automations.fetch())
+    triggers = list(automations.get_all())
     assert triggers == []
 
 
@@ -56,8 +56,8 @@ def test_list_automations(mock_client, user):
     reason="Getting: 'wandb.errors.UsageError: api_key not configured (no-tty). call wandb.login(key=[your_api_key])'"
 )
 def test_define_automation(mock_client, artifact, artifact_collection):
-    event = NewLinkArtifact(scope=artifact_collection)
-    action = NewNotificationActionInput(
+    event = LinkArtifact(scope=artifact_collection)
+    action = NewNotification(
         integration_id="SW50ZWdyYXRpb246MTA1NTc=\\n",
         title="It's done!",
         message="Programmatic API test successful!",

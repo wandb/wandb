@@ -6,8 +6,8 @@ from pydantic import Discriminator, Field, Tag
 from pydantic._internal import _repr
 from typing_extensions import Annotated
 
-from wandb.sdk.automations.expr.base import Op
-from wandb.sdk.automations.expr.utils import get_op_discriminator_value
+from wandb.sdk.automations.operators.base import Op
+from wandb.sdk.automations.operators.utils import get_op_discriminator_value
 
 #: Placeholder - TODO: make these variadic depending on compared field/expression
 ValueT = TypeVar("ValueT", str, int, float)

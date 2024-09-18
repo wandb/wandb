@@ -6,11 +6,11 @@ from pydantic import Discriminator, Field, Tag, field_validator
 from pydantic._internal import _repr
 from typing_extensions import Annotated
 
-from wandb.sdk.automations.expr.base import Op
-from wandb.sdk.automations.expr.utils import get_op_discriminator_value
+from wandb.sdk.automations.operators.base import Op
+from wandb.sdk.automations.operators.utils import get_op_discriminator_value
 
 if TYPE_CHECKING:
-    from wandb.sdk.automations.expr.op import AnyExpr
+    from wandb.sdk.automations.operators.op import AnyExpr
 
 
 NOT = "$not"

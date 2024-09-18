@@ -1,15 +1,18 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from functools import partial
 from textwrap import dedent
 from typing import Any, Iterable, Iterator, Literal, Mapping
 
 from pydantic import TypeAdapter, field_validator
+from pydantic_core import to_json
+
 from wandb_gql import gql
 
 from wandb import Api
 from wandb.apis.public import RetryingClient
-from wandb.sdk.automations._typing import Base64Id, TypenameField
+from wandb.sdk.automations._typing import Base64Id, Typename
 from wandb.sdk.automations.base import Base
 
 
@@ -23,13 +26,13 @@ class OrgType(StrEnum):
 
 
 class ProjectInfo(Base):
-    typename__: TypenameField[Literal["Project"]]
+    typename__: Typename[Literal["Project"]]
     id: Base64Id
     name: str
 
 
 class EntityInfo(Base):
-    typename__: TypenameField[Literal["Entity"]]
+    typename__: Typename[Literal["Entity"]]
     id: Base64Id
     name: str
     projects: list[ProjectInfo]
@@ -43,7 +46,7 @@ class EntityInfo(Base):
 
 
 class OrgInfo(Base):
-    typename__: TypenameField[Literal["Organization"]]
+    typename__: Typename[Literal["Organization"]]
     id: Base64Id
     name: str
     org_type: OrgType
@@ -138,3 +141,4 @@ _FETCH_ORGS_ENTITIES_PROJECTS = gql(
     }
     """
 )
+jsonify = partial(to_json, by_alias=True, round_trip=True)
