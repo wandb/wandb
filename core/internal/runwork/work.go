@@ -1,6 +1,10 @@
 package runwork
 
-import spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+import (
+	"fmt"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+)
 
 // Work is a task in the Handler->Sender pipeline.
 //
@@ -35,6 +39,10 @@ type Work interface {
 	//
 	// If this is a Record proto, the given function is called.
 	Process(func(*spb.Record))
+
+	// DebugInfo returns a short string describing the work
+	// that can be logged for debugging.
+	DebugInfo() string
 }
 
 // WorkRecord is a Record proto for the Handler->Sender pipeline.
@@ -90,4 +98,18 @@ func (wr WorkRecord) BypassOfflineMode() bool {
 
 func (wr WorkRecord) Process(fn func(*spb.Record)) {
 	fn(wr.Record)
+}
+
+func (wr WorkRecord) DebugInfo() string {
+	var recordType string
+	switch x := wr.Record.RecordType.(type) {
+	case *spb.Record_Request:
+		recordType = fmt.Sprintf("%T", x.Request.RequestType)
+	default:
+		recordType = fmt.Sprintf("%T", x)
+	}
+
+	return fmt.Sprintf(
+		"WorkRecord(%s); Control(%v)",
+		recordType, wr.Record.GetControl())
 }
