@@ -3,7 +3,7 @@ name: 🐛 Bug Report (wandb python package)
 description: Use this template to report a bug in the wandb python package.
 title: "[Bug]: "
 labels:
-  - "a:cli"
+  - "a:sdk"
   - "ty:bug"
 
 body:
