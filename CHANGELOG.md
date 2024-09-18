@@ -26,6 +26,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Changed
 
+- Remove sentry logging for sendLinkArtifact (@ibindlish in https://github.com/wandb/wandb/pull/8422)
 - Default to capturing requirements.txt in Run.log_code (@KyleGoyette in https://github.com/wandb/wandb/pull/7864)
 
 ## [0.18.0] - 2024-09-11
