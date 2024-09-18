@@ -92,6 +92,11 @@ namespace Wandb.Internal
             {
                 await _networkStream.WriteAsync(packet).ConfigureAwait(false);
             }
+            catch (IOException ex)
+            {
+                // TODO: Handle disconnection or write errors?
+                throw new InvalidOperationException("Failed to write to the network stream.", ex);
+            }
             finally
             {
                 _writeSemaphore.Release();
