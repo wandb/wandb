@@ -140,7 +140,7 @@ func NewStream(
 
 	s := &Stream{
 		runWork:      runWork,
-		logger:       streamLogger(settings, sentryClient),
+		logger:       logger,
 		settings:     settings,
 		sentryClient: sentryClient,
 	}
