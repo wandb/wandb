@@ -2194,9 +2194,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            manager = self._wl and self._wl._get_manager()
-            if manager:
-                manager._inform_finish(run_id=self._run_id)
+            service = self._wl and self._wl.service
+            if service:
+                service.inform_finish(run_id=self._run_id)
 
         finally:
             module.unset_globals()
@@ -2459,8 +2459,8 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        manager = self._wl and self._wl._get_manager()
-        if not manager:
+        service = self._wl and self._wl.service
+        if not service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())
