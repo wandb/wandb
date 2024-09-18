@@ -343,11 +343,6 @@ def _stop_backend(
         record = handle.wait(timeout=30)
         assert record
 
-        server_info_handle = _internal_sender.deliver_request_server_info()
-        result = server_info_handle.wait(timeout=30)
-        assert result
-        # collect_responses.server_info_resp = result.response.server_info_response
-
         _internal_sender.join()
         for t in threads:
             t.join()
