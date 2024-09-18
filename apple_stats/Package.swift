@@ -9,7 +9,7 @@ import PackageDescription
 let package = Package(
     name: "apple",
     platforms: [
-        .macOS(.v10_14) // Set your minimum deployment target
+        .macOS(.v11) // Minimum deployment target
     ],
     products: [
         .executable(name: "AppleStats", targets: ["AppleStats"])

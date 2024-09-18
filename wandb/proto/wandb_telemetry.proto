@@ -4,6 +4,8 @@ package wandb_internal;
 
 import "wandb/proto/wandb_base.proto";
 
+option go_package = "core/pkg/service_go_proto";
+
 /*
  * Telemetry
  */
@@ -255,6 +257,9 @@ message Deprecated {
   bool run_disabled = 16;  // wandb.sdk.lib.disabled.RunDisabled used
 
   bool keras_callback = 17;  // wandb.integration.keras.WandbCallback used
+
+  // wandb.run.define_metric() called with summary="best" and goal="maximize/minimize"
+  bool run__define_metric_best_goal = 18;
 }
 
 message Issues {

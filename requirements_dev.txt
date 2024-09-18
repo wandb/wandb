@@ -41,6 +41,10 @@ lightgbm
 mlflow
 urllib3
 docker
+catboost
+openai
+gymnasium
+stable_baselines3
 
 responses
 prometheus_client

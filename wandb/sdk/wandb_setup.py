@@ -18,6 +18,7 @@ import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
+from wandb.sdk.lib import import_hooks
 
 from . import wandb_settings
 from .lib import config_util, server, tracelog
@@ -247,7 +248,7 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             print("frozen, could be trouble")
 
     def _setup(self) -> None:
-        if not self._settings._disable_service:
+        if not self._settings._noop and not self._settings._disable_service:
             from wandb.sdk.lib import service_connection
 
             self._connection = service_connection.connect_to_service(self._settings)
@@ -271,6 +272,8 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                     self._config = config_dict
 
     def _teardown(self, exit_code: Optional[int] = None) -> None:
+        import_hooks.unregister_all_post_import_hooks()
+
         if not self._connection:
             return
 

@@ -9,10 +9,14 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 
+from __future__ import annotations
+
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
+    "login",
     "save",
     "sweep",
     "controller",
@@ -33,6 +37,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",
@@ -45,10 +51,21 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
+    "watch",
 )
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
@@ -75,7 +92,10 @@ from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
-__version__: str = "0.17.8.dev1"
+if TYPE_CHECKING:
+    import torch  # type: ignore [import-not-found]
+
+__version__: str = "0.18.2.dev1"
 
 run: Optional[Run] = None
 config = wandb_config.Config
@@ -143,7 +163,7 @@ def setup(
 
             # Optional: Explicitly shut down the backend
             wandb.teardown()
-    ```
+        ```
     """
     ...
 
@@ -339,6 +359,7 @@ def init(
             mode if a user isn't logged in to W&B. (default: `False`)
         sync_tensorboard: (bool, optional) Synchronize wandb logs from tensorboard or
             tensorboardX and save the relevant events file. (default: `False`)
+        tensorboard: (bool, optional) Alias for `sync_tensorboard`, deprecated.
         monitor_gym: (bool, optional) Automatically log videos of environment when
             using OpenAI Gym. (default: `False`)
             See [our guide to this integration](https://docs.wandb.com/guides/integrations/openai-gym).
@@ -352,6 +373,12 @@ def init(
             a moment in a previous run to fork a new run from. Creates a new run that picks up
             logging history from the specified run at the specified moment. The target run must
             be in the current project. Example: `fork_from="my-run-id?_step=1234"`.
+        resume_from: (str, optional) A string with the format {run_id}?_step={step} describing
+            a moment in a previous run to resume a run from. This allows users to truncate
+            the history logged to a run at an intermediate step and resume logging from that step.
+            It uses run forking under the hood. The target run must be in the
+            current project. Example: `resume_from="my-run-id?_step=1234"`.
+        settings: (dict, wandb.Settings, optional) Settings to use for this run. (default: None)
 
     Examples:
     ### Set where the run is logged
@@ -389,7 +416,56 @@ def init(
         KeyboardInterrupt: if user interrupts the run.
 
     Returns:
-    A `Run` object.
+        A `Run` object.
+    """
+    ...
+
+def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+    """Mark a run as finished, and finish uploading all data.
+
+    This is used when creating multiple runs in the same process.
+    We automatically call this method when your script exits.
+
+    Arguments:
+        exit_code: Set to something other than 0 to mark a run as failed
+        quiet: Set to true to minimize log output
+    """
+    ...
+
+def login(
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
+    verify: bool = False,
+) -> bool:
+    """Set up W&B login credentials.
+
+    By default, this will only store credentials locally without
+    verifying them with the W&B server. To verify credentials, pass
+    `verify=True`.
+
+    Arguments:
+        anonymous: (string, optional) Can be "must", "allow", or "never".
+            If set to "must", always log a user in anonymously. If set to
+            "allow", only create an anonymous user if the user
+            isn't already logged in. If set to "never", never log a
+            user anonymously. Default set to "never".
+        key: (string, optional) The API key to use.
+        relogin: (bool, optional) If true, will re-prompt for API key.
+        host: (string, optional) The host to connect to.
+        force: (bool, optional) If true, will force a relogin.
+        timeout: (int, optional) Number of seconds to wait for user input.
+        verify: (bool) Verify the credentials with the W&B server.
+
+    Returns:
+        bool: if key is configured
+
+    Raises:
+        AuthenticationError - if api_key fails verification with the server
+        UsageError - if api_key cannot be configured and no tty
     """
     ...
 
@@ -623,7 +699,7 @@ def log(
 
     Raises:
         wandb.Error: if called before `wandb.init`
-    ValueError: if invalid data is passed
+        ValueError: if invalid data is passed
     """
     ...
 
@@ -677,7 +753,7 @@ def save(
     Returns:
         Paths to the symlinks created for the matched files.
 
-    For historical reasons, this may return a boolean in legacy code.
+        For historical reasons, this may return a boolean in legacy code.
     """
     ...
 
@@ -714,7 +790,7 @@ def sweep(
       prior_runs: The run IDs of existing runs to add to this sweep.
 
     Returns:
-    sweep_id: str. A unique identifier for the sweep.
+      sweep_id: str. A unique identifier for the sweep.
     """
     ...
 
@@ -734,7 +810,7 @@ def controller(
         print(tuner.sweep_id)
         tuner.configure_search(...)
         tuner.configure_stopping(...)
-    ```
+        ```
     """
     ...
 
@@ -764,7 +840,7 @@ def agent(
         project: The name of the project where W&B runs created from
             the sweep are sent to. If the project is not specified, the
             run is sent to a project labeled "Uncategorized".
-    count: The number of sweep config trials to try.
+        count: The number of sweep config trials to try.
     """
     ...
 
@@ -801,7 +877,67 @@ def define_metric(
             previous calls.
 
     Returns:
-    An object that represents this call but can otherwise be discarded.
+        An object that represents this call but can otherwise be discarded.
+    """
+    ...
+
+def log_artifact(
+    artifact_or_path: Union[Artifact, StrPath],
+    name: Optional[str] = None,
+    type: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+) -> Artifact:
+    """Declare an artifact as an output of a run.
+
+    Arguments:
+        artifact_or_path: (str or Artifact) A path to the contents of this artifact,
+            can be in the following forms:
+                - `/local/directory`
+                - `/local/directory/file.txt`
+                - `s3://bucket/path`
+            You can also pass an Artifact object created by calling
+            `wandb.Artifact`.
+        name: (str, optional) An artifact name. Valid names can be in the following forms:
+                - name:version
+                - name:alias
+                - digest
+            This will default to the basename of the path prepended with the current
+            run id  if not specified.
+        type: (str) The type of artifact to log, examples include `dataset`, `model`
+        aliases: (list, optional) Aliases to apply to this artifact,
+            defaults to `["latest"]`
+        tags: (list, optional) Tags to apply to this artifact, if any.
+
+    Returns:
+        An `Artifact` object.
+    """
+    ...
+
+def use_artifact(
+    artifact_or_name: Union[str, Artifact],
+    type: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+    use_as: Optional[str] = None,
+) -> Artifact:
+    """Declare an artifact as an input to a run.
+
+    Call `download` or `file` on the returned object to get the contents locally.
+
+    Arguments:
+        artifact_or_name: (str or Artifact) An artifact name.
+            May be prefixed with entity/project/. Valid names
+            can be in the following forms:
+                - name:version
+                - name:alias
+            You can also pass an Artifact object created by calling `wandb.Artifact`
+        type: (str, optional) The type of artifact to use.
+        aliases: (list, optional) Aliases to apply to this artifact
+        use_as: (string, optional) Optional string indicating what purpose the artifact was used with.
+                                   Will be shown in UI.
+
+    Returns:
+        An `Artifact` object.
     """
     ...
 
@@ -847,7 +983,7 @@ def log_model(
         ValueError: if name has invalid special characters
 
     Returns:
-    None
+        None
     """
     ...
 
@@ -888,7 +1024,7 @@ def use_model(name: str) -> FilePathStr:
         AssertionError: if model artifact 'name' is of a type that does not contain the substring 'model'.
 
     Returns:
-    path: (str) path to downloaded model artifact file(s).
+        path: (str) path to downloaded model artifact file(s).
     """
     ...
 
@@ -920,7 +1056,7 @@ def link_model(
         registered_model_name: (str) - the name of the registered model that the model is to be linked to.
             A registered model is a collection of model versions linked to the model registry, typically representing a
             team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+        name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
             default to the basename of the path prepended with the current run id  if not specified.
         aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
             inside the registered model.
@@ -959,6 +1095,45 @@ def link_model(
         ValueError: if name has invalid special characters
 
     Returns:
-    None
+        None
+    """
+    ...
+
+def watch(
+    models: torch.nn.Module | Sequence[torch.nn.Module],
+    criterion: torch.F | None = None,
+    log: Literal["gradients", "parameters", "all"] | None = "gradients",
+    log_freq: int = 1000,
+    idx: int | None = None,
+    log_graph: bool = False,
+) -> Graph:
+    """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
+
+    This function can track parameters, gradients, or both during training. It should be
+    extended to support arbitrary machine learning models in the future.
+
+    Args:
+        models (Union[torch.nn.Module, Sequence[torch.nn.Module]]):
+            A single model or a sequence of models to be monitored.
+        criterion (Optional[torch.F]):
+            The loss function being optimized (optional).
+        log (Optional[Literal["gradients", "parameters", "all"]]):
+            Specifies whether to log "gradients", "parameters", or "all".
+            Set to None to disable logging. (default="gradients")
+        log_freq (int):
+            Frequency (in batches) to log gradients and parameters. (default=1000)
+        idx (Optional[int]):
+            Index used when tracking multiple models with `wandb.watch`. (default=None)
+         log_graph (bool):
+            Whether to log the model's computational graph. (default=False)
+
+    Returns:
+        wandb.Graph:
+            The graph object, which will be populated after the first backward pass.
+
+    Raises:
+        ValueError:
+            If `wandb.init` has not been called or if any of the models are not instances
+            of `torch.nn.Module`.
     """
     ...

@@ -21,10 +21,10 @@ dependencies = [
     # One such dependency is docker-pycreds, where the latest release is 0.4.0
     # which was released in 2018.
     "setuptools",
-    "protobuf>=3.12.0,!=4.21.0,<6; python_version < '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.15.0,!=4.21.0,<6; python_version == '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<6; python_version > '3.9' and sys_platform == 'linux'",
-    "protobuf>=3.19.0,!=4.21.0,<6; sys_platform != 'linux'",
+    "protobuf>=3.12.0,!=4.21.0,!=5.28.0,<6; python_version < '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.15.0,!=4.21.0,!=5.28.0,<6; python_version == '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; python_version > '3.9' and sys_platform == 'linux'",
+    "protobuf>=3.19.0,!=4.21.0,!=5.28.0,<6; sys_platform != 'linux'",
     "PyYAML",
     "setproctitle",
     "platformdirs",
@@ -116,20 +116,27 @@ markers = [
     "multiclass",
     "wandb_args",
     "flaky",
-    "wandb_core_failure(feature): test failures with wandb-core, grouped by feature",
+    "skip_wandb_core(feature): skip tests that fail on wandb-core, gropued by feature",
     "wandb_core_only: tests for features only available with wandb-core",
 ]
 timeout = 60
 log_format = "%(asctime)s %(levelname)s %(message)s"
 log_date_format = "%Y-%m-%d %H:%M:%S"
-testpaths = "tests"
 filterwarnings = ["ignore::DeprecationWarning", "error:ResourceWarning"]
+testpaths = "tests"
+# The testpaths setting is ignored by VSCode's usage of pytest --collect-only,
+# causing it to execute files named test_*.py while trying to do pytest
+# discovery. Some of these files, in particular old "yea" tests, execute
+# code at the top-level.
 norecursedirs = [
+    # Custom directories to ignore:
     "vendor",
     "wandb/vendor",
-    "build/",
-    "tests/functional_tests",
-    "tests/standalone_tests",
+    "landfill",
+    # Standard directories to ignore:
+    ".*",
+    "build",
+    "dist",
 ]
 
 [tool.coverage.paths]
@@ -148,7 +155,12 @@ ignore_errors = true
 
 
 [tool.ruff]
-extend-exclude = ["wandb/__init__.py", "wandb/vendor/**", "wandb/proto/**"]
+extend-exclude = [
+    "landfill/**",
+    "wandb/__init__.py",
+    "wandb/vendor/**",
+    "wandb/proto/**",
+]
 target-version = "py37"
 
 [tool.ruff.lint]
@@ -212,9 +224,7 @@ ignore-decorators = [
 # Don't require docstrings on test functions.
 "tests/**" = ["D"]
 
-"tests/pytest_tests/unit_tests_old/**" = ["B", "C", "E", "F", "N", "UP026"]
-"tests/functional_tests/fastai/t1_v1.py" = ["F405"]
-"tests/functional_tests/metaflow/**" = ["N806"]
+"landfill/**" = ["F405", "N806", "D415"]
 
 
 [tool.mypy]
@@ -233,11 +243,9 @@ ignore_errors = false
 
 [[tool.mypy.overrides]]
 module = [
-    "wandb.testing.*",
     "wandb.integration.*",
     "wandb.apis.*",
     "wandb.proto.*",
-    "wandb.sklearn.*",
     "wandb.beta.*",
     "wandb.sdk.wandb_login",
     "wandb.cli.*",

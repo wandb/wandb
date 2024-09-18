@@ -29,6 +29,9 @@ const (
 // It handles the incoming messages from the client
 // and passes them to the stream
 type Connection struct {
+	// streamMux maps stream IDs to active streams (i.e. runs)
+	streamMux *StreamMux
+
 	// ctx is the context for the connection
 	ctx context.Context
 
@@ -63,6 +66,7 @@ type Connection struct {
 
 // NewConnection creates a new connection
 func NewConnection(
+	streamMux *StreamMux,
 	ctx context.Context,
 	cancel context.CancelFunc,
 	conn net.Conn,
@@ -71,6 +75,7 @@ func NewConnection(
 ) *Connection {
 
 	nc := &Connection{
+		streamMux:    streamMux,
 		ctx:          ctx,
 		cancel:       cancel,
 		conn:         conn,
@@ -263,25 +268,23 @@ func (nc *Connection) handleServerRequest() {
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
-	err := settings.EnsureAPIKey()
-	if err != nil {
-		slog.Error(
-			"connection: couldn't get API key",
-			"err", err,
-			"id", nc.id,
-		)
-		panic(err)
-	}
-
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
-	nc.stream = NewStream(nc.commit, settings, nc.sentryClient)
+	// if we are in offline mode, we don't want to send any data to sentry
+	var sentryClient *sentry_ext.Client
+	if settings.IsOffline() {
+		sentryClient = sentry_ext.New(sentry_ext.Params{DSN: ""})
+	} else {
+		sentryClient = nc.sentryClient
+	}
+
+	nc.stream = NewStream(nc.commit, settings, sentryClient)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)
 
-	if err := streamMux.AddStream(streamId, nc.stream); err != nil {
+	if err := nc.streamMux.AddStream(streamId, nc.stream); err != nil {
 		slog.Error("connection init failed, stream already exists", "streamId", streamId, "id", nc.id)
 		// TODO: should we Close the stream?
 		return
@@ -298,7 +301,7 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 
 	// update sentry tags
 	// add attrs from settings:
-	nc.stream.logger.SetTags(observability.Tags{
+	nc.stream.logger.SetGlobalTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
 	})
 	// TODO: remove this once we have a better observability setup
@@ -313,7 +316,7 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Debug("handle record received", "streamId", streamId, "id", nc.id)
 	var err error
-	nc.stream, err = streamMux.GetStream(streamId)
+	nc.stream, err = nc.streamMux.GetStream(streamId)
 	if err != nil {
 		slog.Error("handleInformAttach: stream not found", "streamId", streamId, "id", nc.id)
 	} else {
@@ -359,7 +362,7 @@ func (nc *Connection) handleInformRecord(msg *spb.Record) {
 func (nc *Connection) handleInformFinish(msg *spb.ServerInformFinishRequest) {
 	streamId := msg.XInfo.StreamId
 	slog.Info("handle finish received", "streamId", streamId, "id", nc.id)
-	if stream, err := streamMux.RemoveStream(streamId); err != nil {
+	if stream, err := nc.streamMux.RemoveStream(streamId); err != nil {
 		slog.Error("handleInformFinish:", "err", err, "streamId", streamId, "id", nc.id)
 	} else {
 		stream.Close()
@@ -374,5 +377,5 @@ func (nc *Connection) handleInformTeardown(teardown *spb.ServerInformTeardownReq
 	nc.cancel()
 
 	// Wait for all streams to complete.
-	streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
+	nc.streamMux.FinishAndCloseAllStreams(teardown.ExitCode)
 }

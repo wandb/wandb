@@ -26,12 +26,12 @@ type Uploader interface {
 	// UploadNow asynchronously uploads a run file.
 	//
 	// The path is relative to the run's file directory.
-	UploadNow(path paths.RelativePath)
+	UploadNow(path paths.RelativePath, category filetransfer.RunFileKind)
 
 	// UploadAtEnd marks a file to be uploaded at the end of the run.
 	//
 	// The path is relative to the run's file directory.
-	UploadAtEnd(path paths.RelativePath)
+	UploadAtEnd(path paths.RelativePath, category filetransfer.RunFileKind)
 
 	// UploadRemaining asynchronously uploads all files that should be
 	// uploaded at the end of the run.

@@ -1,4 +1,4 @@
-//go:build linux && !libwandb_core
+//go:build linux
 
 package monitor
 
@@ -50,10 +50,10 @@ func isRunning(cmd *exec.Cmd) bool {
 
 type GPUNvidia struct {
 	name             string
-	sample           map[string]any   // latest reading from nvidia_gpu_stats command
-	metrics          map[string][]any // all readings
-	pid              int32            // pid of the process to monitor
-	samplingInterval float64          // sampling interval in seconds
+	sample           map[string]any // latest reading from nvidia_gpu_stats command
+	pid              int32          // pid of the process to monitor
+	samplingInterval float64        // sampling interval in seconds
+	lastTimestamp    float64        // last reported timestamp
 	mutex            sync.RWMutex
 	cmd              *exec.Cmd
 	logger           *observability.CoreLogger
@@ -63,7 +63,6 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 	g := &GPUNvidia{
 		name:             "gpu",
 		sample:           map[string]any{},
-		metrics:          map[string][]any{},
 		pid:              pid,
 		samplingInterval: samplingInterval,
 		logger:           logger,
@@ -95,7 +94,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error getting stdout pipe: %v for command: %v", g.name, err, g.cmd),
 		)
-		return g
+		return nil
 	}
 
 	if err := g.cmd.Start(); err != nil {
@@ -103,7 +102,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
 		)
-		return g
+		return nil
 	}
 
 	// read and process nvidia_gpu_stats output in a separate goroutine.
@@ -140,64 +139,41 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 
 func (g *GPUNvidia) Name() string { return g.name }
 
-func (g *GPUNvidia) SampleMetrics() error {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
+func (g *GPUNvidia) Sample() (map[string]any, error) {
 	if !isRunning(g.cmd) {
 		// do not log error if the command is not running
-		return nil
+		return nil, nil
 	}
 
 	// do not sample if the last timestamp is the same
 	currentTimestamp, ok := g.sample["_timestamp"]
 	if !ok {
-		return nil
-	}
-	lastTimestamps, ok := g.metrics["_timestamp"]
-	if ok && len(lastTimestamps) > 0 && lastTimestamps[len(lastTimestamps)-1] == currentTimestamp {
-		return nil
+		return nil, nil
 	}
 
-	for key, value := range g.sample {
-		g.metrics[key] = append(g.metrics[key], value)
+	if g.lastTimestamp == currentTimestamp {
+		return nil, nil
 	}
 
-	return nil
-}
+	if _, ok := currentTimestamp.(float64); !ok {
+		return nil, fmt.Errorf("invalid timestamp: %v", currentTimestamp)
+	}
+	g.lastTimestamp = currentTimestamp.(float64)
 
-func (g *GPUNvidia) AggregateMetrics() map[string]float64 {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
+	metrics := make(map[string]any)
 
-	aggregates := make(map[string]float64)
-	for metric, samples := range g.metrics {
+	for metric, value := range g.sample {
 		// skip metrics that start with "_", some of which are internal metrics
 		// TODO: other metrics lack aggregation on the frontend; could be added in the future.
 		if strings.HasPrefix(metric, "_") {
 			continue
 		}
-		if len(samples) > 0 {
-			// can cast to float64? then calculate average and store
-			if _, ok := samples[0].(float64); ok {
-				floatSamples := make([]float64, len(samples))
-				for i, v := range samples {
-					if f, ok := v.(float64); ok {
-						floatSamples[i] = f
-					}
-				}
-				aggregates[metric] = Average(floatSamples)
-			}
+		if value, ok := value.(float64); ok {
+			metrics[metric] = value
 		}
 	}
-	return aggregates
-}
 
-func (g *GPUNvidia) ClearMetrics() {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	g.metrics = map[string][]any{}
+	return metrics, nil
 }
 
 func (g *GPUNvidia) IsAvailable() bool {
@@ -222,15 +198,19 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 		return nil
 	}
 
-	// wait for the first sample
+	// Wait for the first sample, but no more than 5 seconds
+	startTime := time.Now()
 	for {
 		g.mutex.RLock()
 		_, ok := g.sample["_gpu.count"]
 		g.mutex.RUnlock()
 		if ok {
-			break
+			break // Successfully got a sample
 		}
-		// sleep for a while
+		if time.Since(startTime) > 5*time.Second {
+			// just give up if we don't get a sample in 5 seconds
+			return nil
+		}
 		time.Sleep(100 * time.Millisecond)
 	}
 

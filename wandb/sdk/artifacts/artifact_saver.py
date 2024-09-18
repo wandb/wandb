@@ -71,6 +71,7 @@ class ArtifactSaver:
         ttl_duration_seconds: Optional[int] = None,
         description: Optional[str] = None,
         aliases: Optional[Sequence[str]] = None,
+        tags: Optional[Sequence[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
@@ -87,6 +88,7 @@ class ArtifactSaver:
             ttl_duration_seconds,
             description,
             aliases,
+            tags,
             use_after_commit,
             incremental,
             history_step,
@@ -105,6 +107,7 @@ class ArtifactSaver:
         ttl_duration_seconds: Optional[int] = None,
         description: Optional[str] = None,
         aliases: Optional[Sequence[str]] = None,
+        tags: Optional[Sequence[str]] = None,
         use_after_commit: bool = False,
         incremental: bool = False,
         history_step: Optional[int] = None,
@@ -114,6 +117,8 @@ class ArtifactSaver:
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})
 
+        tag_specs = [{"tagName": tag} for tag in tags or []]
+
         """Returns the server artifact."""
         self._server_artifact, latest = self._api.create_artifact(
             type,
@@ -122,6 +127,7 @@ class ArtifactSaver:
             metadata=metadata,
             ttl_duration_seconds=ttl_duration_seconds,
             aliases=alias_specs,
+            tags=tag_specs,
             description=description,
             is_user_created=self._is_user_created,
             distributed_id=distributed_id,

@@ -43,12 +43,13 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
+from wandb.integration.torch import wandb_torch
+from wandb.plot.viz import CustomChart, Visualize, custom_chart
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
     Result,
     RunRecord,
-    ServerInfoResponse,
 )
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.internal import job_builder
@@ -61,14 +62,14 @@ from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    _is_py_or_dockerfile,
+    _is_py_requirements_or_dockerfile,
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
 )
-from wandb.viz import CustomChart, Visualize, custom_chart
 
 from . import wandb_config, wandb_metric, wandb_summary
+from .artifacts._validators import validate_aliases, validate_tags
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
@@ -104,7 +105,6 @@ if TYPE_CHECKING:
     import wandb.sdk.backend.backend
     import wandb.sdk.interface.interface_queue
     from wandb.proto.wandb_internal_pb2 import (
-        CheckVersionResponse,
         GetSummaryResponse,
         InternalMessagesResponse,
         SampledHistoryResponse,
@@ -560,12 +560,10 @@ class Run:
 
     _run_status_checker: Optional[RunStatusChecker]
 
-    _check_version: Optional["CheckVersionResponse"]
     _sampled_history: Optional["SampledHistoryResponse"]
     _final_summary: Optional["GetSummaryResponse"]
     _poll_exit_handle: Optional[MailboxHandle]
     _poll_exit_response: Optional[PollExitResponse]
-    _server_info_response: Optional[ServerInfoResponse]
     _internal_messages_response: Optional["InternalMessagesResponse"]
 
     _stdout_slave_fd: Optional[int]
@@ -623,7 +621,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None  # type: ignore
+        self._torch_history: Optional[wandb_torch.TorchHistory] = None  # type: ignore
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -668,11 +666,9 @@ class Run:
         # Created when the run "starts".
         self._run_status_checker = None
 
-        self._check_version = None
         self._sampled_history = None
         self._final_summary = None
         self._poll_exit_response = None
-        self._server_info_response = None
         self._internal_messages_response = None
         self._poll_exit_handle = None
 
@@ -926,9 +922,9 @@ class Run:
         self.__dict__.update(state)
 
     @property
-    def _torch(self) -> "wandb.wandb_torch.TorchHistory":  # type: ignore
+    def _torch(self) -> "wandb_torch.TorchHistory":  # type: ignore
         if self._torch_history is None:
-            self._torch_history = wandb.wandb_torch.TorchHistory()  # type: ignore
+            self._torch_history = wandb_torch.TorchHistory()  # type: ignore
         return self._torch_history
 
     @property
@@ -1151,7 +1147,7 @@ class Run:
         name: Optional[str] = None,
         include_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
-        ] = _is_py_or_dockerfile,
+        ] = _is_py_requirements_or_dockerfile,
         exclude_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
         ] = filenames.exclude_wandb_fn,
@@ -1654,7 +1650,8 @@ class Run:
             if os.getpid() != self._init_pid or self._is_attached:
                 wandb.termwarn(
                     "Note that setting step in multiprocessing can result in data loss. "
-                    "Please log your step values as a metric such as 'global_step'",
+                    "Please use `run.define_metric(...)` to define a custom metric "
+                    "to log your step values.",
                     repeat=False,
                 )
             # if step is passed in when tensorboard_sync is used we honor the step passed
@@ -1662,8 +1659,9 @@ class Run:
             # this history later on in publish_history()
             if len(wandb.patched["tensorboard"]) > 0:
                 wandb.termwarn(
-                    "Step cannot be set when using syncing with tensorboard. "
-                    "Please log your step values as a metric such as 'global_step'",
+                    "Step cannot be set when using tensorboard syncing. "
+                    "Please use `run.define_metric(...)` to define a custom metric "
+                    "to log your step values.",
                     repeat=False,
                 )
             if step > self._step:
@@ -2450,8 +2448,6 @@ class Run:
             sampled_history=self._sampled_history,
             final_summary=self._final_summary,
             poll_exit_response=self._poll_exit_response,
-            server_info_response=self._server_info_response,
-            check_version_response=self._check_version,
             internal_messages_response=self._internal_messages_response,
             reporter=self._reporter,
             quiet=self._quiet,
@@ -2673,25 +2669,6 @@ class Run:
 
         assert self._backend and self._backend.interface
 
-        if not self._settings._disable_update_check:
-            logger.info("communicating current version")
-            version_handle = self._backend.interface.deliver_check_version(
-                current_version=wandb.__version__
-            )
-            version_result = version_handle.wait(timeout=10)
-            if not version_result:
-                version_handle.abandon()
-            else:
-                self._check_version = version_result.response.check_version_response
-                logger.info("got version response %s", self._check_version)
-
-        # get the server info before starting the defer state machine as
-        # it will stop communication with the server
-        server_info_handle = self._backend.interface.deliver_request_server_info()
-        result = server_info_handle.wait(timeout=-1)
-        assert result
-        self._server_info_response = result.response.server_info_response
-
         exit_handle = self._backend.interface.deliver_exit(self._exit_code)
         exit_handle.add_probe(on_probe=self._on_probe_exit)
 
@@ -2782,6 +2759,14 @@ class Run:
             deprecate.deprecate(
                 deprecate.Deprecated.run__define_metric_copy,
                 "define_metric(summary='copy') is deprecated and will be removed.",
+                self,
+            )
+
+        if (summary and "best" in summary) or goal is not None:
+            deprecate.deprecate(
+                deprecate.Deprecated.run__define_metric_best_goal,
+                "define_metric(summary='best', goal=...) is deprecated and will be removed. "
+                "Use define_metric(summary='min') or define_metric(summary='max') instead.",
                 self,
             )
 
@@ -3101,6 +3086,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
     ) -> Artifact:
         """Declare an artifact as an output of a run.
 
@@ -3121,12 +3107,17 @@ class Run:
             type: (str) The type of artifact to log, examples include `dataset`, `model`
             aliases: (list, optional) Aliases to apply to this artifact,
                 defaults to `["latest"]`
+            tags: (list, optional) Tags to apply to this artifact, if any.
 
         Returns:
             An `Artifact` object.
         """
         return self._log_artifact(
-            artifact_or_path, name=name, type=type, aliases=aliases
+            artifact_or_path,
+            name=name,
+            type=type,
+            aliases=aliases,
+            tags=tags,
         )
 
     @_run_decorator._noop_on_finish()
@@ -3243,6 +3234,7 @@ class Run:
         name: Optional[str] = None,
         type: Optional[str] = None,
         aliases: Optional[List[str]] = None,
+        tags: Optional[List[str]] = None,
         distributed_id: Optional[str] = None,
         finalize: bool = True,
         is_user_created: bool = False,
@@ -3253,13 +3245,17 @@ class Run:
             wandb.termwarn(
                 "Artifacts logged anonymously cannot be claimed and expire after 7 days."
             )
+
         if not finalize and distributed_id is None:
             raise TypeError("Must provide distributed_id if artifact is not finalize")
+
         if aliases is not None:
-            if any(invalid in alias for alias in aliases for invalid in ["/", ":"]):
-                raise ValueError(
-                    "Aliases must not contain any of the following characters: /, :"
-                )
+            aliases = validate_aliases(aliases)
+
+        # Check if artifact tags are supported
+        if tags is not None:
+            tags = validate_tags(tags)
+
         artifact, aliases = self._prepare_artifact(
             artifact_or_path, name, type, aliases
         )
@@ -3271,6 +3267,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    tags,
                     self.step,
                     finalize=finalize,
                     is_user_created=is_user_created,
@@ -3282,6 +3279,7 @@ class Run:
                     self,
                     artifact,
                     aliases,
+                    tags,
                     finalize=finalize,
                     is_user_created=is_user_created,
                     use_after_commit=use_after_commit,
@@ -3291,6 +3289,7 @@ class Run:
                 self,
                 artifact,
                 aliases,
+                tags,
                 finalize=finalize,
                 is_user_created=is_user_created,
                 use_after_commit=use_after_commit,
@@ -3364,6 +3363,7 @@ class Run:
                 "You must pass an instance of wandb.Artifact or a "
                 "valid file path to log_artifact"
             )
+
         artifact.finalize()
         return artifact, _resolve_aliases(aliases)
 
@@ -3502,7 +3502,7 @@ class Run:
             registered_model_name: (str) - the name of the registered model that the model is to be linked to.
                 A registered model is a collection of model versions linked to the model registry, typically representing a
                 team's specific ML Task. The entity that this registered model belongs to will be derived from the run
-                name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
+            name: (str, optional) - the name of the model artifact that files in 'path' will be logged to. This will
                 default to the basename of the path prepended with the current run id  if not specified.
             aliases: (List[str], optional) - alias(es) that will only be applied on this linked artifact
                 inside the registered model.
@@ -3687,27 +3687,6 @@ class Run:
         Run._header_run_info(settings=settings, printer=printer)
 
     @staticmethod
-    def _header_version_check_info(
-        check_version: Optional["CheckVersionResponse"] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if not check_version or settings._offline:
-            return
-
-        if check_version.delete_message:
-            printer.display(check_version.delete_message, level="error")
-        elif check_version.yank_message:
-            printer.display(check_version.yank_message, level="warn")
-
-        printer.display(
-            check_version.upgrade_message,
-            off=not check_version.upgrade_message,
-            level="warn",
-        )
-
-    @staticmethod
     def _header_wandb_version_info(
         *,
         settings: "Settings",
@@ -3820,8 +3799,6 @@ class Run:
         sampled_history: Optional["SampledHistoryResponse"] = None,
         final_summary: Optional["GetSummaryResponse"] = None,
         poll_exit_response: Optional[PollExitResponse] = None,
-        server_info_response: Optional[ServerInfoResponse] = None,
-        check_version_response: Optional["CheckVersionResponse"] = None,
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
         reporter: Optional[Reporter] = None,
         quiet: Optional[bool] = None,
@@ -3844,19 +3821,7 @@ class Run:
             printer=printer,
         )
         Run._footer_log_dir_info(quiet=quiet, settings=settings, printer=printer)
-        Run._footer_version_check_info(
-            check_version=check_version_response,
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
-        )
         Run._footer_notify_wandb_core(
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
-        )
-        Run._footer_local_warn(
-            server_info_response=server_info_response,
             quiet=quiet,
             settings=settings,
             printer=printer,
@@ -3869,12 +3834,6 @@ class Run:
         )
         Run._footer_reporter_warn_err(
             reporter=reporter, quiet=quiet, settings=settings, printer=printer
-        )
-        Run._footer_server_messages(
-            server_info_response=server_info_response,
-            quiet=quiet,
-            settings=settings,
-            printer=printer,
         )
 
     # fixme: Temporary hack until we move to rich which allows multiple spinners
@@ -4131,33 +4090,6 @@ class Run:
             printer.display(printer.panel(panel))
 
     @staticmethod
-    def _footer_local_warn(
-        server_info_response: Optional[ServerInfoResponse] = None,
-        quiet: Optional[bool] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if settings._offline:
-            return
-
-        if not server_info_response or not server_info_response.local_info:
-            return
-
-        if settings.is_local:
-            local_info = server_info_response.local_info
-            latest_version, out_of_date = local_info.version, local_info.out_of_date
-            if out_of_date:
-                printer.display(
-                    f"Upgrade to the {latest_version} version of W&B Server to get the latest features. "
-                    f"Learn more: {printer.link(wburls.get('upgrade_server'))}",
-                    level="warn",
-                )
-
-    @staticmethod
     def _footer_internal_messages(
         internal_messages_response: Optional["InternalMessagesResponse"] = None,
         quiet: Optional[bool] = None,
@@ -4175,58 +4107,6 @@ class Run:
             printer.display(message, level="warn")
 
     @staticmethod
-    def _footer_server_messages(
-        server_info_response: Optional[ServerInfoResponse] = None,
-        quiet: Optional[bool] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if settings.disable_hints:
-            return
-
-        if server_info_response and server_info_response.server_messages:
-            for message in server_info_response.server_messages.item:
-                printer.display(
-                    message.html_text if printer._html else message.utf_text,
-                    default_text=message.plain_text,
-                    level=message.level,
-                    off=message.type.lower() != "footer",
-                )
-
-    @staticmethod
-    def _footer_version_check_info(
-        check_version: Optional["CheckVersionResponse"] = None,
-        quiet: Optional[bool] = None,
-        *,
-        settings: "Settings",
-        printer: Union["PrinterTerm", "PrinterJupyter"],
-    ) -> None:
-        if not check_version:
-            return
-
-        if settings._offline:
-            return
-
-        if (quiet or settings.quiet) or settings.silent:
-            return
-
-        if check_version.delete_message:
-            printer.display(check_version.delete_message, level="error")
-        elif check_version.yank_message:
-            printer.display(check_version.yank_message, level="warn")
-
-        # only display upgrade message if packages are bad
-        if check_version.upgrade_message:
-            printer.display(
-                check_version.upgrade_message,
-                level="warn",
-            )
-
-    @staticmethod
     def _footer_notify_wandb_core(
         *,
         quiet: Optional[bool] = None,
@@ -4234,13 +4114,13 @@ class Run:
         printer: Union["PrinterTerm", "PrinterJupyter"],
     ) -> None:
         """Prints a message advertising the upcoming core release."""
-        if quiet or settings._require_core:
+        if quiet or not settings._require_legacy_service:
             return
 
         printer.display(
-            "The new W&B backend becomes opt-out in version 0.18.0;"
-            ' try it out with `wandb.require("core")`!'
-            " See https://wandb.me/wandb-core for more information.",
+            "The legacy backend is deprecated. In future versions, `wandb-core` will become "
+            "the sole backend service, and the `wandb.require('legacy-service')` flag will be removed. "
+            "For more information, visit https://wandb.me/wandb-core",
             level="warn",
         )
 

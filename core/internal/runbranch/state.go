@@ -51,7 +51,7 @@ type RunParams struct {
 
 	FileStreamOffset filestream.FileStreamOffsetMap
 
-	Intialized bool
+	Initialized bool
 }
 
 func (r *RunParams) Proto() *spb.RunRecord {
@@ -96,6 +96,16 @@ func (r *RunParams) Proto() *spb.RunRecord {
 	// update SweepID if it exists
 	if r.SweepID != "" {
 		proto.SweepId = r.SweepID
+	}
+
+	// update the resumption status
+	if r.Resumed {
+		proto.Resumed = true
+	}
+
+	// update the forked status
+	if r.Forked {
+		proto.Forked = true
 	}
 
 	// update the config

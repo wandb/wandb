@@ -11,11 +11,57 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Fixed
+
+- Update the signature and docstring of `wandb.api.public.runs.Run.log_artifact()` to support artifact tags like `Run` instances returned by `wandb.init()`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8414)
+- Add docstring for `wandb.watch` to support auto-complete (@kptkin in https://github.com/wandb/wandb/pull/8425)
+
+## [0.18.1] - 2024-09-16
+
+### Fixed
+
+- Allow all users to read cache files when core is enabled (@moredatarequired in https://github.com/wandb/wandb/pull/8362)
+- Infinite scalars logged in TensorBoard are uploaded successfully rather than skipped (@timoffex in https://github.com/wandb/wandb/pull/8380)
+- Properly respect `WANDB_ERROR_REPORTING=false`.  This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
+
+### Changed
+
+- Default to capturing requirements.txt in Run.log_code (@KyleGoyette in https://github.com/wandb/wandb/pull/7864)
+
+## [0.18.0] - 2024-09-11
+
+### Added
+
+- Add support for artifact tags, via `Artifact.tags` and `Run.log_artifact()` (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8085)
+
+### Fixed
+
+- Detect the notebook name in VS Code's built-in jupyter server (@dmitryduev in https://github.com/wandb/wandb/pull/8311)
+
+### Changed
+
+- The new "core" backend, previously activated using wandb.require("core"), is now used by default. To revert to the legacy behavior,
+add `wandb.require("legacy-service")` at the beginning of your script. Note: In the upcoming minor release, the option
+to disable this new behavior will be removed (@kptkin in https://github.com/wandb/wandb/pull/7777)
+
+## [0.17.9] - 2024-09-05
+
+### Changed
+
+- Changed the default system metrics sampling interval to 10 seconds without averaging, while allowing custom intervals via `wandb.init(settings=wandb.Settings(_stats_sampling_interval=...))` (@dmitryduev in https://github.com/wandb/wandb/pull/8208)
+
+### Deprecated
+
+- `define_metric(summary='best', goal=...)` is deprecated and soon will be removed, use `define_metric(summary='min')` or `define_metric(summary='min')` instead (@kptkin in https://github.com/wandb/wandb/pull/8219)
+
+## [0.17.8] - 2024-08-28
+
 ### Added
 
 - Capture SM (Streaming Multiprocessor), memory, and graphics clock speed (MHz), (un)corrected error counts, fan speed (%), and encoder utilization for Nvidia GPU devices when using core (@dmitryduev in https://github.com/wandb/wandb/pull/8144)
 - Allow iterating over `wandb.Config` like a dictionary (@fsherry in https://github.com/wandb/wandb/pull/8129)
 - PR curves, images and histograms are supported when using TensorBoard with core enabled (@timoffex in https://github.com/wandb/wandb/pull/8181, https://github.com/wandb/wandb/pull/8188, https://github.com/wandb/wandb/pull/8189)
+- Added `wandb.require("legacy-service")` as the opt-out analog of `wandb.require("core")` (@timoffex in https://github.com/wandb/wandb/pull/8201)
 
 ### Fixed
 

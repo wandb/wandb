@@ -1,4 +1,4 @@
-"""Builds the AppleStats Swift binary for monitoring system metrics on macOS."""
+"""Builds the AppleStats Swift binary for monitoring system metrics on arm64 macOS."""
 
 import pathlib
 import subprocess
@@ -9,7 +9,7 @@ class AppleStatsBuildError(Exception):
 
 
 def build_applestats(output_path: pathlib.PurePath) -> None:
-    """Builds the AppleStats universal Swift binary.
+    """Builds the AppleStats Swift binary for arm64.
 
     NOTE: Swift creates a cache in a directory called ".build/" which speeds
     up subsequent builds but can cause issues when changing the commands here.
@@ -21,30 +21,19 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
     """
     source_path = pathlib.Path("./apple_stats")
 
-    def arch_output_path(arch: str) -> pathlib.Path:
-        return (
-            source_path  # (break line for readability)
-            / ".build"
-            / f"{arch}-apple-macosx"
-            / "release"
-            / "AppleStats"
-        )
-
-    base_cmd = [
+    cmd = [
         "swift",
         "build",
         "--configuration",
         "release",
         "-Xswiftc",
         "-cross-module-optimization",
+        "--arch",
+        "arm64",
     ]
 
-    cmd_x86_64 = base_cmd + ["--arch", "x86_64"]
-    cmd_arm64 = base_cmd + ["--arch", "arm64"]
-
     try:
-        subprocess.check_call(cmd_x86_64, cwd=source_path)
-        subprocess.check_call(cmd_arm64, cwd=source_path)
+        subprocess.check_call(cmd, cwd=source_path)
     except subprocess.CalledProcessError as e:
         raise AppleStatsBuildError(
             "Failed to build the `apple_stats` Swift binary. If you didn't"
@@ -58,13 +47,11 @@ def build_applestats(output_path: pathlib.PurePath) -> None:
             " package that doesn't collect Apple system metrics."
         ) from e
 
-    subprocess.check_call(
-        [
-            "lipo",
-            "-create",
-            arch_output_path("x86_64"),
-            arch_output_path("arm64"),
-            "-output",
-            str(output_path),
-        ]
+    built_binary = (
+        source_path  # break line for readability
+        / ".build"
+        / "arm64-apple-macosx"
+        / "release"
+        / "AppleStats"
     )
+    subprocess.check_call(["cp", str(built_binary), str(output_path)])

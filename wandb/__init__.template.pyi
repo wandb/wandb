@@ -9,10 +9,14 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 
+from __future__ import annotations
+
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
+    "login",
     "save",
     "sweep",
     "controller",
@@ -33,6 +37,8 @@ __all__ = (
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",
@@ -45,10 +51,21 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
+    "watch",
 )
 
 import os
-from typing import Any, Callable, Dict, List, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
@@ -75,7 +92,10 @@ from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
-__version__: str = "0.17.8.dev1"
+if TYPE_CHECKING:
+    import torch  # type: ignore [import-not-found]
+
+__version__: str = "0.18.2.dev1"
 
 run: Optional[Run] = None
 config = wandb_config.Config
@@ -126,6 +146,22 @@ def init(
     settings: Union[Settings, Dict[str, Any], None] = None,
 ) -> Run:
     """<sdk/wandb_init.py::init>"""
+    ...
+
+def finish(exit_code: Optional[int] = None, quiet: Optional[bool] = None) -> None:
+    """<sdk/wandb_run.py::finish>"""
+    ...
+
+def login(
+    anonymous: Optional[Literal["must", "allow", "never"]] = None,
+    key: Optional[str] = None,
+    relogin: Optional[bool] = None,
+    host: Optional[str] = None,
+    force: Optional[bool] = None,
+    timeout: Optional[int] = None,
+    verify: bool = False,
+) -> bool:
+    """<sdk/wandb_login.py::login>"""
     ...
 
 def log(
@@ -184,6 +220,25 @@ def define_metric(
     """<sdk/wandb_run.py::Run::define_metric>"""
     ...
 
+def log_artifact(
+    artifact_or_path: Union[Artifact, StrPath],
+    name: Optional[str] = None,
+    type: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+    tags: Optional[List[str]] = None,
+) -> Artifact:
+    """<sdk/wandb_run.py::Run::log_artifact>"""
+    ...
+
+def use_artifact(
+    artifact_or_name: Union[str, Artifact],
+    type: Optional[str] = None,
+    aliases: Optional[List[str]] = None,
+    use_as: Optional[str] = None,
+) -> Artifact:
+    """<sdk/wandb_run.py::Run::use_artifact>"""
+    ...
+
 def log_model(
     path: StrPath,
     name: Optional[str] = None,
@@ -203,4 +258,15 @@ def link_model(
     aliases: Optional[List[str]] = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
+    ...
+
+def watch(
+    models: torch.nn.Module | Sequence[torch.nn.Module],
+    criterion: torch.F | None = None,
+    log: Literal["gradients", "parameters", "all"] | None = "gradients",
+    log_freq: int = 1000,
+    idx: int | None = None,
+    log_graph: bool = False,
+) -> Graph:
+    """<sdk/wandb_watch.py::watch>"""
     ...

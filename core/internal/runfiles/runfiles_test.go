@@ -213,7 +213,10 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
-			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
+			uploader.UploadNow(
+				rel(t, filepath.Join("subdir", "test.txt")),
+				filetransfer.RunFileKindOther,
+			)
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 1)
@@ -224,7 +227,10 @@ func TestUploader(t *testing.T) {
 		func(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 
-			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
+			uploader.UploadNow(
+				rel(t, filepath.Join("subdir", "test.txt")),
+				filetransfer.RunFileKindOther,
+			)
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -236,7 +242,10 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/xyz/file.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "xyz", "file.txt"))
 
-			uploader.UploadNow(rel(t, filepath.Join("subdir", "xyz", "file.txt")))
+			uploader.UploadNow(
+				rel(t, filepath.Join("subdir", "xyz", "file.txt")),
+				filetransfer.RunFileKindOther,
+			)
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -248,7 +257,10 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
-			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
+			uploader.UploadNow(
+				rel(t, filepath.Join("subdir", "test.txt")),
+				filetransfer.RunFileKindOther,
+			)
 			uploader.Finish()
 
 			assert.Len(t, fakeFileTransfer.Tasks(), 0)
@@ -260,7 +272,10 @@ func TestUploader(t *testing.T) {
 			stubCreateRunFilesOneFile(mockGQLClient, "subdir/test.txt")
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test.txt"))
 
-			uploader.UploadNow(rel(t, filepath.Join("subdir", "test.txt")))
+			uploader.UploadNow(
+				rel(t, filepath.Join("subdir", "test.txt")),
+				filetransfer.RunFileKindOther,
+			)
 			uploader.Finish()
 
 			assert.Equal(t,
@@ -280,9 +295,9 @@ func TestUploader(t *testing.T) {
 
 			// Act 1: trigger two uploads.
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
-			uploader.UploadNow("test.txt")
+			uploader.UploadNow("test.txt", filetransfer.RunFileKindOther)
 			stubCreateRunFilesOneFile(mockGQLClient, "test.txt")
-			uploader.UploadNow("test.txt")
+			uploader.UploadNow("test.txt", filetransfer.RunFileKindOther)
 			uploader.(UploaderTesting).FlushSchedulingForTest()
 
 			// Assert 1: only one upload task should happen at a time.
@@ -327,9 +342,9 @@ func TestUploader(t *testing.T) {
 				}`,
 			)
 
-			uploader.UploadNow("test1.txt")
-			uploader.UploadNow("test2.txt")
-			uploader.UploadNow("test2.txt")
+			uploader.UploadNow("test1.txt", filetransfer.RunFileKindOther)
+			uploader.UploadNow("test2.txt", filetransfer.RunFileKindOther)
+			uploader.UploadNow("test2.txt", filetransfer.RunFileKindOther)
 			batchDelay.SetZero()
 			uploader.Finish()
 
@@ -344,8 +359,8 @@ func TestUploader(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "file2.txt"))
 
 			// This tries to upload 2 files, but GraphQL returns 1 file.
-			uploader.UploadAtEnd("file1.txt")
-			uploader.UploadAtEnd("file2.txt")
+			uploader.UploadAtEnd("file1.txt", filetransfer.RunFileKindOther)
+			uploader.UploadAtEnd("file2.txt", filetransfer.RunFileKindOther)
 			uploader.UploadRemaining()
 			uploader.Finish()
 
@@ -377,8 +392,11 @@ func TestUploader(t *testing.T) {
 			writeEmptyFile(t, filepath.Join(filesDir, "test-file1"))
 			writeEmptyFile(t, filepath.Join(filesDir, "subdir", "test-file2"))
 
-			uploader.UploadAtEnd("test-file1")
-			uploader.UploadAtEnd(rel(t, filepath.Join("subdir", "test-file2")))
+			uploader.UploadAtEnd("test-file1", filetransfer.RunFileKindOther)
+			uploader.UploadAtEnd(
+				rel(t, filepath.Join("subdir", "test-file2")),
+				filetransfer.RunFileKindOther,
+			)
 			uploader.UploadRemaining()
 			uploader.Finish()
 

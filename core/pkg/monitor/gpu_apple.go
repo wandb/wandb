@@ -1,54 +1,72 @@
+//go:build darwin
+
 package monitor
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sync"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// getExecPath returns the path to the apple_gpu_stats program.
+//
+// The apple_gpu_stats program is expected to be in the same directory as the
+// wandb-core executable. It is built as a part of the wandb library build
+// process and included for the MacOS platform.
 func getExecPath() (string, error) {
 	ex, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
 	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "apple_gpu_stats")
+	execPath := filepath.Join(exDirPath, "apple_gpu_stats")
 
-	if _, err := os.Stat(exPath); os.IsNotExist(err) {
+	if _, err := os.Stat(execPath); os.IsNotExist(err) {
 		return "", err
 	}
-	return exPath, nil
+	return execPath, nil
 }
 
+// GPUApple is a monitor for Apple Arm devices.
+//
+// Uses the apple_gpu_stats program to get device stats.
 type GPUApple struct {
 	name        string
-	metrics     map[string][]float64
-	mutex       sync.RWMutex
 	isAvailable bool
-	exPath      string
+	ExecPath    string
 }
 
 func NewGPUApple() *GPUApple {
-	gpu := &GPUApple{
-		name:    "gpu",
-		metrics: map[string][]float64{},
+	gpu := &GPUApple{name: "gpu"}
+
+	execPath, err := getExecPath()
+	if err != nil {
+		return nil
 	}
 
-	if exPath, err := getExecPath(); err == nil {
-		gpu.isAvailable = true
-		gpu.exPath = exPath
-	}
+	gpu.isAvailable = true
+	gpu.ExecPath = execPath
 
 	return gpu
 }
 
+// parseStats runs the apple_gpu_stats program and parses the output.
+//
+// The output is expected to be a JSON object with the following keys:
+//   - gpuPower: GPU + Neural Engine Total Power (W)
+//   - systemPower: System Power (W)
+//   - recoveryCount: Recovery Count
+//   - utilization: GPU utilization (%)
+//   - allocatedSystemMemory: Memory allocated (bytes)
+//   - inUseSystemMemory: Memory in use (bytes)
+//   - m1Gpu1, m1Gpu2, m1Gpu3, m1Gpu4, m2Gpu1, m2Gpu2,
+//     m3Gpu1, m3Gpu2, m3Gpu3, m3Gpu4, m3Gpu5, m3Gpu6,
+//     m3Gpu7, m3Gpu8: temperature sensor readings (C)
 func (g *GPUApple) parseStats() (map[string]any, error) {
-	rawStats, err := exec.Command(g.exPath).Output()
+	rawStats, err := exec.Command(g.ExecPath).Output()
 	if err != nil {
 		return nil, err
 	}
@@ -65,51 +83,43 @@ func (g *GPUApple) parseStats() (map[string]any, error) {
 func (g *GPUApple) Name() string { return g.name }
 
 //gocyclo:ignore
-func (g *GPUApple) SampleMetrics() error {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
+func (g *GPUApple) Sample() (map[string]any, error) {
 	stats, err := g.parseStats()
 	if err != nil {
-		return err
+		return nil, err
 	}
-	// TODO: add more metrics to g.metrics,
-	//  such as render or tiler utilization
+	// TODO: add more metrics, such as render or tiler utilization
+
+	metrics := make(map[string]any)
 
 	// GPU + Neural Engine Total Power (W)
 	if powerUsage, ok := queryMapNumber(stats, "gpuPower"); ok {
-		key := fmt.Sprintf("gpu.%d.powerWatts", 0)
-		g.metrics[key] = append(g.metrics[key], powerUsage)
+		metrics["gpu.0.powerWatts"] = powerUsage
 	}
 
 	// System Power (W)
 	if systemPower, ok := queryMapNumber(stats, "systemPower"); ok {
-		key := "system.powerWatts"
-		g.metrics[key] = append(g.metrics[key], systemPower)
+		metrics["system.powerWatts"] = systemPower
 	}
 
 	// recover count
 	if recoveryCount, ok := queryMapNumber(stats, "recoveryCount"); ok {
-		key := "gpu.0.recoveryCount"
-		g.metrics[key] = append(g.metrics[key], recoveryCount)
+		metrics["gpu.0.recoveryCount"] = recoveryCount
 	}
 
 	// gpu utilization (%)
 	if gpuUtilization, ok := queryMapNumber(stats, "utilization"); ok {
-		key := fmt.Sprintf("gpu.%d.gpu", 0)
-		g.metrics[key] = append(g.metrics[key], gpuUtilization)
+		metrics["gpu.0.gpu"] = gpuUtilization
 	}
 
 	// memory allocated (bytes)
 	if allocatedMemory, ok := queryMapNumber(stats, "allocatedSystemMemory"); ok {
-		key := fmt.Sprintf("gpu.%d.memoryAllocatedBytes", 0)
-		g.metrics[key] = append(g.metrics[key], allocatedMemory)
+		metrics["gpu.0.memoryAllocatedBytes"] = allocatedMemory
 	}
 
 	// memory in use (bytes)
 	if inUseMemory, ok := queryMapNumber(stats, "inUseSystemMemory"); ok {
-		key := fmt.Sprintf("gpu.%d.memoryUsed", 0)
-		g.metrics[key] = append(g.metrics[key], inUseMemory)
+		metrics["gpu.0.memoryUsed"] = inUseMemory
 	}
 
 	// temperature (C)
@@ -143,34 +153,10 @@ func (g *GPUApple) SampleMetrics() error {
 	}
 
 	if nMeasurements > 0 {
-		key := fmt.Sprintf("gpu.%d.temp", 0)
-		g.metrics[key] = append(
-			g.metrics[key],
-			temperature/float64(nMeasurements),
-		)
+		metrics["gpu.0.temp"] = temperature / float64(nMeasurements)
 	}
 
-	return nil
-}
-
-func (g *GPUApple) AggregateMetrics() map[string]float64 {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	aggregates := make(map[string]float64)
-	for metric, samples := range g.metrics {
-		if len(samples) > 0 {
-			aggregates[metric] = Average(samples)
-		}
-	}
-	return aggregates
-}
-
-func (g *GPUApple) ClearMetrics() {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	clear(g.metrics)
+	return metrics, nil
 }
 
 func (g *GPUApple) IsAvailable() bool {

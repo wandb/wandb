@@ -15,7 +15,7 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import core_debug, core_error_reporting_enabled, is_require_core
+from wandb.env import core_debug, error_reporting_enabled, is_require_legacy_service
 from wandb.errors import Error, WandbCoreNotAvailableError
 from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
@@ -145,13 +145,10 @@ class _Service:
 
             executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
-            # Add coverage collection if needed
-            if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
-                exec_cmd_list += ["coverage", "run", "-m"]
 
             service_args = []
 
-            if is_require_core():
+            if not is_require_legacy_service():
                 try:
                     core_path = get_core_path()
                 except WandbCoreNotAvailableError as e:
@@ -159,7 +156,7 @@ class _Service:
 
                 service_args.extend([core_path])
 
-                if not core_error_reporting_enabled(default="True"):
+                if not error_reporting_enabled():
                     service_args.append("--no-observability")
 
                 if core_debug(default="False"):

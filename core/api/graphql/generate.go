@@ -1,3 +1,3 @@
 package server
 
-//go:generate ../../scripts/generate-graphql.sh
+//go:generate ./generate-graphql.sh

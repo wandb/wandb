@@ -1242,6 +1242,7 @@ class ArtifactRecord(google.protobuf.message.Message):
     SEQUENCE_CLIENT_ID_FIELD_NUMBER: builtins.int
     BASE_ID_FIELD_NUMBER: builtins.int
     TTL_DURATION_SECONDS_FIELD_NUMBER: builtins.int
+    TAGS_FIELD_NUMBER: builtins.int
     INCREMENTAL_BETA1_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     run_id: builtins.str
@@ -1264,6 +1265,8 @@ class ArtifactRecord(google.protobuf.message.Message):
     sequence_client_id: builtins.str
     base_id: builtins.str
     ttl_duration_seconds: builtins.int
+    @property
+    def tags(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
     incremental_beta1: builtins.bool
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
@@ -1288,11 +1291,12 @@ class ArtifactRecord(google.protobuf.message.Message):
         sequence_client_id: builtins.str = ...,
         base_id: builtins.str = ...,
         ttl_duration_seconds: builtins.int = ...,
+        tags: collections.abc.Iterable[builtins.str] | None = ...,
         incremental_beta1: builtins.bool = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info", "manifest", b"manifest"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "aliases", b"aliases", "base_id", b"base_id", "client_id", b"client_id", "description", b"description", "digest", b"digest", "distributed_id", b"distributed_id", "entity", b"entity", "finalize", b"finalize", "incremental_beta1", b"incremental_beta1", "manifest", b"manifest", "metadata", b"metadata", "name", b"name", "project", b"project", "run_id", b"run_id", "sequence_client_id", b"sequence_client_id", "ttl_duration_seconds", b"ttl_duration_seconds", "type", b"type", "use_after_commit", b"use_after_commit", "user_created", b"user_created"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "aliases", b"aliases", "base_id", b"base_id", "client_id", b"client_id", "description", b"description", "digest", b"digest", "distributed_id", b"distributed_id", "entity", b"entity", "finalize", b"finalize", "incremental_beta1", b"incremental_beta1", "manifest", b"manifest", "metadata", b"metadata", "name", b"name", "project", b"project", "run_id", b"run_id", "sequence_client_id", b"sequence_client_id", "tags", b"tags", "ttl_duration_seconds", b"ttl_duration_seconds", "type", b"type", "use_after_commit", b"use_after_commit", "user_created", b"user_created"]) -> None: ...
 
 global___ArtifactRecord = ArtifactRecord
 
@@ -3634,6 +3638,29 @@ class GpuAmdInfo(google.protobuf.message.Message):
 
 global___GpuAmdInfo = GpuAmdInfo
 
+class TrainiumInfo(google.protobuf.message.Message):
+    DESCRIPTOR: google.protobuf.descriptor.Descriptor
+
+    NAME_FIELD_NUMBER: builtins.int
+    VENDOR_FIELD_NUMBER: builtins.int
+    NEURON_DEVICE_COUNT_FIELD_NUMBER: builtins.int
+    NEURONCORE_PER_DEVICE_COUNT_FIELD_NUMBER: builtins.int
+    name: builtins.str
+    vendor: builtins.str
+    neuron_device_count: builtins.int
+    neuroncore_per_device_count: builtins.int
+    def __init__(
+        self,
+        *,
+        name: builtins.str = ...,
+        vendor: builtins.str = ...,
+        neuron_device_count: builtins.int = ...,
+        neuroncore_per_device_count: builtins.int = ...,
+    ) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["name", b"name", "neuron_device_count", b"neuron_device_count", "neuroncore_per_device_count", b"neuroncore_per_device_count", "vendor", b"vendor"]) -> None: ...
+
+global___TrainiumInfo = TrainiumInfo
+
 class MetadataRequest(google.protobuf.message.Message):
     DESCRIPTOR: google.protobuf.descriptor.Descriptor
 
@@ -3699,6 +3726,7 @@ class MetadataRequest(google.protobuf.message.Message):
     GPU_AMD_FIELD_NUMBER: builtins.int
     SLURM_FIELD_NUMBER: builtins.int
     CUDA_VERSION_FIELD_NUMBER: builtins.int
+    TRAINIUM_FIELD_NUMBER: builtins.int
     os: builtins.str
     python: builtins.str
     @property
@@ -3740,6 +3768,8 @@ class MetadataRequest(google.protobuf.message.Message):
     @property
     def slurm(self) -> google.protobuf.internal.containers.ScalarMap[builtins.str, builtins.str]: ...
     cuda_version: builtins.str
+    @property
+    def trainium(self) -> global___TrainiumInfo: ...
     def __init__(
         self,
         *,
@@ -3773,9 +3803,10 @@ class MetadataRequest(google.protobuf.message.Message):
         gpu_amd: collections.abc.Iterable[global___GpuAmdInfo] | None = ...,
         slurm: collections.abc.Mapping[builtins.str, builtins.str] | None = ...,
         cuda_version: builtins.str = ...,
+        trainium: global___TrainiumInfo | None = ...,
     ) -> None: ...
-    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "username", b"username"]) -> None: ...
+    def HasField(self, field_name: typing_extensions.Literal["cpu", b"cpu", "git", b"git", "gpu_apple", b"gpu_apple", "heartbeatAt", b"heartbeatAt", "memory", b"memory", "startedAt", b"startedAt", "trainium", b"trainium"]) -> builtins.bool: ...
+    def ClearField(self, field_name: typing_extensions.Literal["args", b"args", "code_path", b"code_path", "code_path_local", b"code_path_local", "colab", b"colab", "cpu", b"cpu", "cpu_count", b"cpu_count", "cpu_count_logical", b"cpu_count_logical", "cuda", b"cuda", "cuda_version", b"cuda_version", "disk", b"disk", "docker", b"docker", "email", b"email", "executable", b"executable", "git", b"git", "gpu_amd", b"gpu_amd", "gpu_apple", b"gpu_apple", "gpu_count", b"gpu_count", "gpu_nvidia", b"gpu_nvidia", "gpu_type", b"gpu_type", "heartbeatAt", b"heartbeatAt", "host", b"host", "memory", b"memory", "os", b"os", "program", b"program", "python", b"python", "root", b"root", "slurm", b"slurm", "startedAt", b"startedAt", "state", b"state", "trainium", b"trainium", "username", b"username"]) -> None: ...
 
 global___MetadataRequest = MetadataRequest
 

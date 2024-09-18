@@ -15,7 +15,7 @@ repos:
   #   - id: clippy
   #     args: ['--manifest-path=experimental/client-rust/Cargo.toml', '--all', '--']
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: "v0.5.7"
+    rev: "v0.6.4"
     hooks:
       - id: ruff
         args: [ --fix]
@@ -46,10 +46,10 @@ repos:
         name: check-added-large-files
       - id: check-shebang-scripts-are-executable
         name: check-shebang-scripts-are-executable
-        exclude: ^(wandb/|tests/)
+        exclude: ^(wandb/|tests/|landfill/)
       - id: check-executables-have-shebangs
         name: check-executables-have-shebangs
-        exclude: ^(wandb/|tests/)
+        exclude: ^(wandb/|tests/|landfill/)
       - id: check-symlinks
         name: check-symlinks
       - id: check-toml

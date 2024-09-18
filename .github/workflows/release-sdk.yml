@@ -131,7 +131,7 @@ jobs:
             delocate-wheel \
               --require-archs {delocate_archs} \
               --ignore-missing-dependencies \
-              --require-target-macos-version 10.14 \
+              --require-target-macos-version 11 \
               -w {dest_dir} \
               -v {wheel}
 
@@ -259,7 +259,7 @@ jobs:
 
   verify-test-pypi:
     needs: test-pypi-publish
-    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_core && 'with core' || '' }}
+    name: Smoke-test on ${{ matrix.os }} ${{ matrix.use_legacy_service && '' || 'with core' }}
 
     runs-on: ${{ matrix.os }}
     timeout-minutes: 5
@@ -270,7 +270,7 @@ jobs:
           - ubuntu-20.04
           - windows-2019
           - macos-14
-        use_core: [false, true]
+        use_legacy_service: [false, true]
 
     steps:
       - name: Setup Python
@@ -288,7 +288,7 @@ jobs:
       - name: Smoke-test wandb
         shell: bash
         run: |
-          WANDB__REQUIRE_CORE=${{ matrix.use_core }} \
+          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -297,6 +297,10 @@ jobs:
     name: Smoke-test sdist
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    strategy:
+      fail-fast: false
+      matrix:
+        use_legacy_service: [false, true]
 
     steps:
       - name: Set up Python
@@ -314,17 +318,10 @@ jobs:
             --extra-index-url https://test.pypi.org/simple/ \
             wandb==${{ github.event.inputs.version }}
 
-      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=false)
+      - name: Smoke-test wandb ${{ matrix.use_legacy_service && '' || 'with core' }}
         shell: bash
         run: |
-          WANDB__REQUIRE_CORE=false \
-          WANDB_MODE=offline \
-          python -c "import wandb; run = wandb.init(); run.finish()"
-
-      - name: Smoke-test wandb (WANDB__REQUIRE_CORE=true)
-        shell: bash
-        run: |
-          WANDB__REQUIRE_CORE=true \
+          WANDB__REQUIRE_LEGACY_SERVICE=${{ matrix.use_legacy_service }} \
           WANDB_MODE=offline \
           python -c "import wandb; run = wandb.init(); run.finish()"
 
@@ -350,6 +347,48 @@ jobs:
         with:
           password: ${{ secrets.PYPI_TOKEN }}
 
+  create-dev-branch:
+    name: Create dev branch and PR
+    needs: pypi-publish
+    runs-on: ubuntu-latest
+    if: ${{ inputs.update-changelog && !inputs.dry-run }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install bump2version
+        run: pip install bump2version
+
+      - name: Setup git config
+        run: |
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+
+      - name: Create and switch to dev branch
+        run: |
+          IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
+          new_version="${major}.${minor}.$((patch + 1)).dev1"
+          git checkout -b bump-${new_version}
+          bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${new_version}
+          git commit -am "chore(sdk): bump version to ${new_version}"
+          git push -u origin bump-${new_version}
+
+      - name: Create Pull Request
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
+          new_version="${major}.${minor}.$((patch + 1)).dev1"
+          gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
+
+
   publish-release-notes:
     name: Publish Release Notes
     needs: pypi-publish
@@ -369,7 +408,7 @@ jobs:
         run: |
           echo "## What's Changed" > release_notes.md
           awk '/## \[${{ github.event.inputs.version }}\]/{flag=1;next}/## \[/{flag=0}flag' CHANGELOG.md >> release_notes.md
-      - name: Draft Release
+      - name: Create Release Notes
         uses: softprops/action-gh-release@v2
         with:
           name: v${{ github.event.inputs.version }}
@@ -396,7 +435,7 @@ jobs:
           python -m pip install wandb==${{ github.event.inputs.version }}
       - name: Post to Slack
         id: slack
-        uses: slackapi/slack-github-action@v1.24.0
+        uses: slackapi/slack-github-action@v1.27.0
         with:
           # Slack channel id, channel name, or user id to post message.
           # See also: https://api.slack.com/methods/chat.postMessage#channels

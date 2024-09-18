@@ -48,7 +48,9 @@ func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan c
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&spb.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
+		RunId:   &wrapperspb.StringValue{Value: "run1"},
+		Console: &wrapperspb.StringValue{Value: "off"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(
@@ -290,148 +292,85 @@ func TestSendUseArtifact(t *testing.T) {
 
 // Verify that arguments are properly passed through to graphql
 func TestSendArtifact(t *testing.T) {
-	mockGQL := gqlmock.NewMockClient()
-	mockGQL.StubMatchOnce(
-		gqlmock.WithOpName("CreateArtifact"),
-		validCreateArtifactResponse,
-	)
-	sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
-
-	// 1. When both clientId and serverId are sent, serverId is used
-	artifact := &spb.Record{
-		RecordType: &spb.Record_Artifact{
-			Artifact: &spb.ArtifactRecord{
-				RunId:   "test-run-id",
-				Project: "test-project",
-				Entity:  "test-entity",
-				Type:    "test-type",
-				Name:    "test-artifact",
-				Digest:  "test-digest",
-				Aliases: []string{"latest"},
-				Manifest: &spb.ArtifactManifest{
-					Version:       1,
-					StoragePolicy: "wandb-storage-policy-v1",
-					Contents: []*spb.ArtifactManifestEntry{{
-						Path:      "test1",
-						Digest:    "test1-digest",
-						Size:      1,
-						LocalPath: "/test/local/path",
-					},
-					},
-				},
-				Finalize:         true,
-				ClientId:         "client-id",
-				SequenceClientId: "sequence-client-id",
-			}},
-	}
-
-	sender.SendRecord(artifact)
-
-	requests := mockGQL.AllRequests()
-	assert.Len(t, requests, 1)
-	gqlmock.AssertRequest(t,
-		gqlmock.WithVariables(
-			gqlmock.GQLVar("entityName", gomock.Eq("test-entity")),
-		),
-		requests[0])
-}
-
-func TestSendRequestCheckVersion(t *testing.T) {
 	tests := []struct {
-		name             string
-		currentVersion   string
-		mockResponse     string
-		mockError        error
-		expectedResponse *spb.Response
+		name string
+		tags []string
 	}{
 		{
-			name:             "Empty current version",
-			currentVersion:   "",
-			expectedResponse: &spb.Response{},
+			name: "Received non-empty tags",
+			tags: []string{"test-tag1", "test-tag2"},
 		},
 		{
-			name:             "Server info is nil",
-			currentVersion:   "0.10.0",
-			mockResponse:     `{"serverInfo": null}`,
-			expectedResponse: &spb.Response{},
-		},
-		{
-			name:           "Current version is less than max version",
-			currentVersion: "0.9.0",
-			mockResponse:   `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
-			expectedResponse: &spb.Response{
-				ResponseType: &spb.Response_CheckVersionResponse{
-					CheckVersionResponse: &spb.CheckVersionResponse{
-						UpgradeMessage: "There is a new version of wandb available. Please upgrade to wandb==0.10.0",
-					},
-				},
-			},
-		},
-		{
-			name:             "Current version is equal to max version",
-			currentVersion:   "0.10.0",
-			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
-			expectedResponse: &spb.Response{},
-		},
-		{
-			name:             "Current version is dev version and is more than max version",
-			currentVersion:   "0.11.0.dev1",
-			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
-			expectedResponse: &spb.Response{},
-		},
-		{
-			name:             "Current version is greater than max version",
-			currentVersion:   "0.11.0",
-			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": "0.10.0"}}}`,
-			expectedResponse: &spb.Response{},
-		},
-		{
-			name:             "Server client version no max version",
-			currentVersion:   "0.10.0",
-			mockResponse:     `{"serverInfo": {"cliVersionInfo": {}}}`,
-			expectedResponse: &spb.Response{},
-		},
-		{
-			name:             "Server client version is not a map",
-			currentVersion:   "0.10.0",
-			mockResponse:     `{"serverInfo": {"cliVersionInfo":null}}`,
-			expectedResponse: &spb.Response{},
-		},
-		{
-			name:             "Server client max version is not a string",
-			currentVersion:   "0.10.0",
-			mockResponse:     `{"serverInfo": {"cliVersionInfo": {"max_cli_version": 10}}}`,
-			expectedResponse: &spb.Response{},
+			name: "Received empty tags",
+			tags: []string{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockGQL := gqlmock.NewMockClient()
-			outChan := make(chan *spb.Result, 1)
-			sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
 
-			record := &spb.Record{
-				RecordType: &spb.Record_Request{
-					Request: &spb.Request{
-						RequestType: &spb.Request_CheckVersion{
-							CheckVersion: &spb.CheckVersionRequest{
-								CurrentVersion: tt.currentVersion,
+			mockGQL := gqlmock.NewMockClient()
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("InputFields"),
+				`{"TypeInfo": {"inputFields": [{"name": "tags"}]}}`,
+			)
+			mockGQL.StubMatchOnce(
+				gqlmock.WithOpName("CreateArtifact"),
+				validCreateArtifactResponse,
+			)
+			sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
+
+			// 1. When both clientId and serverId are sent, serverId is used
+			artifact := &spb.Record{
+				RecordType: &spb.Record_Artifact{
+					Artifact: &spb.ArtifactRecord{
+						RunId:   "test-run-id",
+						Project: "test-project",
+						Entity:  "test-entity",
+						Type:    "test-type",
+						Name:    "test-artifact",
+						Digest:  "test-digest",
+						Aliases: []string{"latest"},
+						Tags:    tt.tags,
+						Manifest: &spb.ArtifactManifest{
+							Version:       1,
+							StoragePolicy: "wandb-storage-policy-v1",
+							Contents: []*spb.ArtifactManifestEntry{{
+								Path:      "test1",
+								Digest:    "test1-digest",
+								Size:      1,
+								LocalPath: "/test/local/path",
+							},
 							},
 						},
-					},
-				},
-				Control: &spb.Control{
-					MailboxSlot: "junk",
-				},
+						Finalize:         true,
+						ClientId:         "client-id",
+						SequenceClientId: "sequence-client-id",
+					}},
 			}
 
-			mockGQL.StubMatchOnce(
-				gqlmock.WithOpName("ServerInfo"),
-				tt.mockResponse,
-			)
-			sender.SendRecord(record)
-			result := <-outChan
-			assert.Equal(t, tt.expectedResponse, result.GetResponse())
+			sender.SendRecord(artifact)
+
+			requests := mockGQL.AllRequests()
+			assert.LessOrEqual(t, len(requests), 2)
+
+			// We may have had an introspection request to check for server compatibility, but
+			// CreateArtifact should still be the last request
+			createArtifactRequest := requests[len(requests)-1]
+
+			// Tags should only have been included in the request if the server supports it
+			var expectedTagsValue gomock.Matcher
+			if len(tt.tags) > 0 {
+				expectedTagsValue = gomock.Len(len(tt.tags))
+			} else {
+				expectedTagsValue = gomock.Nil()
+			}
+
+			gqlmock.AssertRequest(t,
+				gqlmock.WithVariables(
+					gqlmock.GQLVar("input.entityName", gomock.Eq("test-entity")),
+					gqlmock.GQLVar("input.tags", expectedTagsValue),
+				),
+				createArtifactRequest)
 		})
 	}
 }

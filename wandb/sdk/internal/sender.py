@@ -42,7 +42,6 @@ from wandb.sdk.internal import (
     file_stream,
     internal_api,
     sender_config,
-    update,
 )
 from wandb.sdk.internal.file_pusher import FilePusher
 from wandb.sdk.internal.job_builder import JobBuilder
@@ -51,7 +50,6 @@ from wandb.sdk.lib import (
     config_util,
     filenames,
     filesystem,
-    printer,
     proto_util,
     redirect,
     telemetry,
@@ -483,25 +481,6 @@ class SendManager:
         # make sure that we always update writer for every sended read request
         self._maybe_report_status(always=True)
 
-    def send_request_check_version(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-        current_version = (
-            record.request.check_version.current_version or wandb.__version__
-        )
-        messages = update.check_available(current_version)
-        if messages:
-            upgrade_message = messages.get("upgrade_message")
-            if upgrade_message:
-                result.response.check_version_response.upgrade_message = upgrade_message
-            yank_message = messages.get("yank_message")
-            if yank_message:
-                result.response.check_version_response.yank_message = yank_message
-            delete_message = messages.get("delete_message")
-            if delete_message:
-                result.response.check_version_response.delete_message = delete_message
-        self._respond_result(result)
-
     def send_request_stop_status(self, record: "Record") -> None:
         result = proto_util._result_from_record(record)
         status_resp = result.response.stop_status_response
@@ -722,28 +701,6 @@ class SendManager:
             result.response.poll_exit_response.done = True
             result.response.poll_exit_response.exit_result.CopyFrom(self._exit_result)
 
-        self._respond_result(result)
-
-    def send_request_server_info(self, record: "Record") -> None:
-        assert record.control.req_resp or record.control.mailbox_slot
-        result = proto_util._result_from_record(record)
-
-        result.response.server_info_response.local_info.CopyFrom(self.get_local_info())
-        for message in self._server_messages:
-            # guard against the case the message level returns malformed from server
-            message_level = str(message.get("messageLevel"))
-            message_level_sanitized = int(
-                printer.INFO if not message_level.isdigit() else message_level
-            )
-            result.response.server_info_response.server_messages.item.append(
-                wandb_internal_pb2.ServerMessage(
-                    utf_text=message.get("utfText", ""),
-                    plain_text=message.get("plainText", ""),
-                    html_text=message.get("htmlText", ""),
-                    type=message.get("messageType", ""),
-                    level=message_level_sanitized,
-                )
-            )
         self._respond_result(result)
 
     def _setup_resume(
@@ -1589,6 +1546,7 @@ class SendManager:
             ttl_duration_seconds=artifact.ttl_duration_seconds or None,
             description=artifact.description or None,
             aliases=artifact.aliases,
+            tags=artifact.tags,
             use_after_commit=artifact.use_after_commit,
             distributed_id=artifact.distributed_id,
             finalize=artifact.finalize,

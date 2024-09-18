@@ -1,20 +1,19 @@
-//go:build linux && !libwandb_core
+//go:build linux
 
 package monitor
 
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/exec"
 	"strings"
-	"sync"
 
+	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-// TODO: this is a port of the python code
+// TODO: this is a port of the python code.
 // should eventually switch to https://github.com/amd/go_amd_smi
 
 const rocmSMICmd string = "/usr/bin/rocm-smi"
@@ -35,16 +34,15 @@ type InfoDict map[string]interface{}
 
 type GPUAMD struct {
 	name                string
-	metrics             map[string][]float64
+	logger              *observability.CoreLogger
 	GetROCMSMIStatsFunc func() (InfoDict, error)
 	IsAvailableFunc     func() bool
-	mutex               sync.RWMutex
 }
 
-func NewGPUAMD() *GPUAMD {
+func NewGPUAMD(logger *observability.CoreLogger) *GPUAMD {
 	g := &GPUAMD{
-		name:    "gpu",
-		metrics: make(map[string][]float64),
+		name:   "gpu",
+		logger: logger,
 		// this is done this way to be able to mock the function in tests
 		GetROCMSMIStatsFunc: getROCMSMIStats,
 	}
@@ -74,6 +72,7 @@ func (g *GPUAMD) IsAvailable() bool {
 		return false
 	}
 
+	// See inspired by https://github.com/ROCm/rocm_smi_lib/blob/5d2cd0c2715ae45b8f9cfe1e777c6c2cd52fb601/python_smi_tools/rocm_smi.py#L71C1-L81C17
 	isDriverInitialized := false
 	fileContent, err := os.ReadFile("/sys/module/amdgpu/initstate")
 	if err == nil && strings.Contains(string(fileContent), "live") {
@@ -91,12 +90,11 @@ func (g *GPUAMD) IsAvailable() bool {
 	return isDriverInitialized && canReadRocmSmi
 }
 
-func (g *GPUAMD) getCards() map[int]Stats {
+func (g *GPUAMD) getCards() (map[int]Stats, error) {
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
-		log.Printf("Error getting ROCm SMI stats: %v", err)
-		return nil
+		return nil, err
 	}
 
 	cards := make(map[int]Stats)
@@ -111,14 +109,14 @@ func (g *GPUAMD) getCards() map[int]Stats {
 			}
 			cardStats, ok := value.(map[string]interface{})
 			if !ok {
-				log.Printf("Type assertion failed for key %s", key)
+				g.logger.CaptureError(fmt.Errorf("gpuamd: type assertion failed for key %s", key))
 				continue
 			}
 			stats := g.ParseStats(cardStats)
 			cards[cardID] = stats
 		}
 	}
-	return cards
+	return cards, nil
 }
 
 //gocyclo:ignore
@@ -129,7 +127,7 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 
 	rawStats, err := g.GetROCMSMIStatsFunc()
 	if err != nil {
-		log.Printf("Error getting ROCm SMI stats: %v", err)
+		g.logger.CaptureError(fmt.Errorf("gpuamd: error getting ROCm SMI stats: %v", err))
 		return nil
 	}
 
@@ -145,7 +143,7 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 			}
 			stats, ok := value.(map[string]interface{})
 			if !ok {
-				log.Printf("Type assertion failed for key %s", key)
+				g.logger.CaptureError(fmt.Errorf("gpuamd: type assertion failed for key %s", key))
 				continue
 			}
 			cards[cardID] = stats
@@ -212,13 +210,6 @@ func (g *GPUAMD) Probe() *spb.MetadataRequest {
 	}
 
 	return &info
-}
-
-func (g *GPUAMD) Samples() map[string][]float64 {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	return g.metrics
 }
 
 func getROCMSMIStats() (InfoDict, error) {
@@ -291,44 +282,25 @@ func (g *GPUAMD) ParseStats(stats map[string]interface{}) Stats {
 	return parsedStats
 }
 
-func (g *GPUAMD) SampleMetrics() error {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	cards := g.getCards()
+func (g *GPUAMD) Sample() (map[string]any, error) {
+	metrics := make(map[string]any)
+	cards, err := g.getCards()
+	if err != nil {
+		err = fmt.Errorf("gpuamd: error getting ROCm SMI stats: %v", err)
+		return nil, err
+	}
 
 	for gpu_id, stats := range cards {
 		for statKey, value := range stats {
-			formattedKey := fmt.Sprintf("%s.%d.%s", g.name, gpu_id, statKey)
-			g.metrics[formattedKey] = append(g.metrics[formattedKey], value)
+			metrics[fmt.Sprintf("%s.%d.%s", g.name, gpu_id, statKey)] = value
 		}
 	}
 
-	return nil
+	return metrics, nil
 }
 
 func parseFloat(s string) (float64, error) {
 	var f float64
 	_, err := fmt.Sscanf(s, "%f", &f)
 	return f, err
-}
-
-func (g *GPUAMD) ClearMetrics() {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	g.metrics = make(map[string][]float64)
-}
-
-func (g *GPUAMD) AggregateMetrics() map[string]float64 {
-	g.mutex.Lock()
-	defer g.mutex.Unlock()
-
-	aggregates := make(map[string]float64)
-	for metric, samples := range g.metrics {
-		if len(samples) > 0 {
-			aggregates[metric] = Average(samples)
-		}
-	}
-	return aggregates
 }

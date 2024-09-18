@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
@@ -13,7 +14,7 @@ import (
 )
 
 func makeHandler(
-	inChan, fwdChan chan *spb.Record,
+	inChan, fwdChan chan runwork.Work,
 	outChan chan *spb.Result,
 	commit string,
 ) *server.Handler {
@@ -46,9 +47,9 @@ func makeFlushRecord() *spb.Record {
 	record := &spb.Record{
 		RecordType: &spb.Record_Request{
 			Request: &spb.Request{
-				RequestType: &spb.Request_Defer{
-					Defer: &spb.DeferRequest{
-						State: spb.DeferRequest_FLUSH_PARTIAL_HISTORY,
+				RequestType: &spb.Request_PartialHistory{
+					PartialHistory: &spb.PartialHistoryRequest{
+						Action: &spb.HistoryAction{Flush: true},
 					},
 				},
 			},
@@ -130,14 +131,6 @@ func makeOutput(record *spb.Record) data {
 			items: items,
 			step:  history.Step.Num,
 		}
-	case *spb.Record_Request:
-		state := x.Request.GetDefer().GetState()
-		if state != spb.DeferRequest_FLUSH_PARTIAL_HISTORY {
-			return data{}
-		}
-		return data{
-			flush: true,
-		}
 	default:
 		return data{}
 	}
@@ -184,9 +177,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 1,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -215,9 +205,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key2": "3",
 					},
 					step: 0,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -254,9 +241,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 1,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -286,9 +270,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -309,6 +290,10 @@ func TestHandlePartialHistory(t *testing.T) {
 					step:  1,
 					flush: false,
 				},
+				{
+					step:  1,
+					flush: true,
+				},
 			},
 			expected: []data{
 				{
@@ -323,9 +308,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key2": "3",
 					},
 					step: 1,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -347,6 +329,10 @@ func TestHandlePartialHistory(t *testing.T) {
 					step:  0,
 					flush: false,
 				},
+				{
+					step:  0,
+					flush: true,
+				},
 			},
 			expected: []data{
 				{
@@ -355,9 +341,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key2": "2",
 					},
 					step: 0,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -379,6 +362,10 @@ func TestHandlePartialHistory(t *testing.T) {
 					step:  1,
 					flush: false,
 				},
+				{
+					step:  1,
+					flush: true,
+				},
 			},
 			expected: []data{
 				{
@@ -393,9 +380,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key2": "3",
 					},
 					step: 1,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -417,6 +401,10 @@ func TestHandlePartialHistory(t *testing.T) {
 					step:  0,
 					flush: false,
 				},
+				{
+					step:  0,
+					flush: true,
+				},
 			},
 			expected: []data{
 				{
@@ -425,9 +413,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key2": "3",
 					},
 					step: 0,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -464,9 +449,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 1,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -488,6 +470,10 @@ func TestHandlePartialHistory(t *testing.T) {
 					stepNil: true,
 					flush:   false,
 				},
+				{
+					stepNil: true,
+					flush:   true,
+				},
 			},
 			expected: []data{
 				{
@@ -503,9 +489,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key2": "3",
 					},
 					step: 1,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -540,9 +523,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 1,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -569,9 +549,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "2",
 					},
 					step: 1,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -606,9 +583,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 2,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -635,9 +609,6 @@ func TestHandlePartialHistory(t *testing.T) {
 						"key1": "2",
 					},
 					step: 1,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -672,9 +643,6 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 1,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 		{
@@ -702,30 +670,27 @@ func TestHandlePartialHistory(t *testing.T) {
 					},
 					step: 0,
 				},
-				{
-					flush: true,
-				},
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan *spb.Record, server.BufferSize)
-			fwdChan := make(chan *spb.Record, server.BufferSize)
+			inChan := make(chan runwork.Work, server.BufferSize)
+			fwdChan := make(chan runwork.Work, server.BufferSize)
 			outChan := make(chan *spb.Result, server.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makePartialHistoryRecord(d)
-				inChan <- record
+				inChan <- runwork.WorkRecord{Record: record}
 			}
 
-			inChan <- makeFlushRecord()
+			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
 
 			for i, d := range tc.expected {
-				record := <-fwdChan
+				record := (<-fwdChan).(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				assert.Equal(t, d.step, actual.step, "wrong step in record %d", i)
 				for k, v := range d.items {
@@ -756,6 +721,10 @@ func TestHandleHistory(t *testing.T) {
 					},
 					step: 1,
 				},
+				{
+					step:  1,
+					flush: true,
+				},
 			},
 			expected: []data{
 				{
@@ -774,9 +743,6 @@ func TestHandleHistory(t *testing.T) {
 						"_runtime": "0.000000",
 					},
 					step: 1,
-				},
-				{
-					flush: true,
 				},
 			},
 		},
@@ -810,21 +776,21 @@ func TestHandleHistory(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			inChan := make(chan *spb.Record, server.BufferSize)
-			fwdChan := make(chan *spb.Record, server.BufferSize)
+			inChan := make(chan runwork.Work, server.BufferSize)
+			fwdChan := make(chan runwork.Work, server.BufferSize)
 			outChan := make(chan *spb.Result, server.BufferSize)
 
 			makeHandler(inChan, fwdChan, outChan, "" /*commit*/)
 
 			for _, d := range tc.input {
 				record := makeHistoryRecord(d)
-				inChan <- record
+				inChan <- runwork.WorkRecord{Record: record}
 			}
 
-			inChan <- makeFlushRecord()
+			inChan <- runwork.WorkRecord{Record: makeFlushRecord()}
 
 			for _, d := range tc.expected {
-				record := <-fwdChan
+				record := (<-fwdChan).(runwork.WorkRecord).Record
 				actual := makeOutput(record)
 				if actual.step != d.step {
 					t.Errorf("expected step %v, got %v", d.step, actual.step)
@@ -844,8 +810,8 @@ func TestHandleHistory(t *testing.T) {
 }
 
 func TestHandleHeader(t *testing.T) {
-	inChan := make(chan *spb.Record, 1)
-	fwdChan := make(chan *spb.Record, 1)
+	inChan := make(chan runwork.Work, 1)
+	fwdChan := make(chan runwork.Work, 1)
 	outChan := make(chan *spb.Result, 1)
 
 	sha := "2a7314df06ab73a741dcb7bc5ecb50cda150b077"
@@ -857,9 +823,9 @@ func TestHandleHeader(t *testing.T) {
 			Header: &spb.HeaderRecord{},
 		},
 	}
-	inChan <- record
+	inChan <- runwork.WorkRecord{Record: record}
 
-	record = <-fwdChan
+	record = (<-fwdChan).(runwork.WorkRecord).Record
 
 	versionInfo := fmt.Sprintf("%s+%s", version.Version, sha)
 	assert.Equal(t, versionInfo, record.GetHeader().GetVersionInfo().GetProducer(), "wrong version info")
