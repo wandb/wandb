@@ -144,15 +144,19 @@ func (rw *runWork) AddWorkOrCancel(
 	// is guaranteed to not be closed until this method returns.
 
 	start := time.Now()
-	for {
+	for i := 0; ; i++ {
 		select {
 		// Detect deadlocks and hangs that prevent internalWork
 		// from flushing.
 		case <-time.After(10 * time.Minute):
-			rw.logger.CaptureWarn(
-				"runwork: taking a long time",
-				"seconds", time.Since(start).Seconds(),
-			)
+			// Stop warning after the first hour to minimize spam.
+			if i < 6 {
+				rw.logger.CaptureWarn(
+					"runwork: taking a long time",
+					"seconds", time.Since(start).Seconds(),
+					"work", work.DebugInfo(),
+				)
+			}
 
 		case <-rw.closed:
 			// Here, Close() must have been called, so we should drop the record.
