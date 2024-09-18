@@ -58,11 +58,12 @@ impl NvidiaGpu {
 
     /// Get child process IDs for a given parent PID.
     fn get_child_pids(&self, pid: i32, sys: &System) -> Vec<i32> {
-        sys.processes()
-            .values()
-            .filter(|process| process.parent() == Some(Pid::from(pid as usize)))
-            .map(|process| process.pid().as_u32() as i32)
-            .collect()
+        // sys.processes()
+        //     .values()
+        //     .filter(|process| process.parent() == Some(Pid::from(pid as usize)))
+        //     .map(|process| process.pid().as_u32() as i32)
+        //     .collect()
+        vec![]
     }
 
     /// Samples GPU metrics using NVML.
