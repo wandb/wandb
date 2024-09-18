@@ -6,6 +6,8 @@ from itertools import chain
 from operator import attrgetter, itemgetter
 from typing import TYPE_CHECKING, Iterator
 
+from more_itertools import one
+
 # from gql import Client, gql
 from pydantic import TypeAdapter
 from rich.pretty import pretty_repr
@@ -19,7 +21,7 @@ from wandb.sdk.automations.automations import (
     NewAutomation,
 )
 from wandb.sdk.automations.events import NewEventAndAction
-from wandb.sdk.automations.schemas_gen import Project
+from wandb.sdk.automations import schemas_gen as gen
 
 if TYPE_CHECKING:
     from wandb.sdk.automations.actions import ActionType
@@ -240,6 +242,30 @@ _PROJECT_ID_BY_NAMES = gql(
 )
 
 
+_QUERY_SLACK_INTEGRATIONS = gql(
+    """
+    query Viewer {
+        viewer {
+            userEntity {
+                integrations {
+                    edges {
+                        node {
+                            id
+                            ... on SlackIntegration {
+                                id
+                                teamName
+                                channelName
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    """
+)
+
+
 @contextmanager
 def _gql_client() -> Iterator[Client]:
     yield Api().client
@@ -345,9 +371,9 @@ def get_all(
 
 def create(automation: NewAutomation) -> Automation:
     with _gql_client() as client:
-        variable_values = automation.model_dump()
+        variable_values = automation.to_create_payload().model_dump()
         data = client.execute(_CREATE_AUTOMATION, variable_values=variable_values)
-        return Automation.model_validate(data["trigger"])
+        return Automation.model_validate(data["createFilterTrigger"]["trigger"])
 
 
 def define(
@@ -368,7 +394,7 @@ def define(
     )
 
 
-def _project_id(proj: Project) -> str:
+def _project_id(proj: gen.Project) -> str:
     """Get the ID of the given project."""
     with _gql_client() as client:
         variable_values = {
@@ -377,6 +403,37 @@ def _project_id(proj: Project) -> str:
         }
         data = client.execute(_PROJECT_ID_BY_NAMES, variable_values=variable_values)
         return data["project"]["id"]
+
+
+class _TooMany(ValueError):
+    pass
+
+
+class _TooFew(ValueError):
+    pass
+
+
+def _slack_integration() -> gen.SlackIntegration:
+    with _gql_client() as client:
+        data = client.execute(_QUERY_SLACK_INTEGRATIONS)
+        edges = data["viewer"]["userEntity"]["integrations"]["edges"]
+        slack_integrations = [
+            gen.SlackIntegration.model_validate(edge["node"]) for edge in edges
+        ]
+        try:
+            return one(
+                slack_integrations,
+                too_short=_TooFew,
+                too_long=_TooMany,
+            )
+        except _TooFew:
+            raise RuntimeError(
+                f"No slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
+            )
+        except _TooMany:
+            raise RuntimeError(
+                f"Found multiple ({len(slack_integrations)}) Slack integrations: {slack_integrations!r}"
+            )
 
 
 def delete(id_or_automation: str | Automation) -> DeletedAutomation:

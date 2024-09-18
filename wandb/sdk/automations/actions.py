@@ -3,9 +3,9 @@ from __future__ import annotations
 from abc import ABC
 from datetime import datetime
 from enum import StrEnum, global_enum
-from typing import TypeAlias
+from typing import Any, TypeAlias
 
-from pydantic import AnyUrl, Field, Json, SecretStr
+from pydantic import AnyUrl, Field, Json, SecretStr, field_validator
 from typing_extensions import Annotated, Literal, TypedDict
 
 from wandb.sdk.automations._typing import Base64Id, JsonDict, Typename
@@ -113,10 +113,20 @@ class NewNotification(NewAction):
 
     action_type: Literal[ActionType.NOTIFICATION] = NOTIFICATION
 
-    integration_id: Base64Id = Field(alias="integrationID")
+    integration_id: Base64Id = Field(None, alias="integrationID")
     title: str
     message: str
     severity: Severity
+
+    @field_validator("integration_id", mode="before")
+    @classmethod
+    def _get_integration_id(cls, v: Any) -> Any:
+        if v is None:
+            from wandb.sdk.automations.api import _slack_integration
+
+            current_integration = _slack_integration()
+            return current_integration.id
+        return v
 
 
 class NewWebhook(NewAction):
