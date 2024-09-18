@@ -14,7 +14,7 @@ import (
 	"github.com/wandb/wandb/core/internal/settings"
 )
 
-// CredentialProvider adds Credentials to HTTP requests.
+// CredentialProvider adds credentials to HTTP requests.
 type CredentialProvider interface {
 	// Apply sets the appropriate authorization headers or parameters on the
 	// HTTP request.
