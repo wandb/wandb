@@ -1,12 +1,3 @@
-from .errors import (
-    AuthenticationError,
-    CommError,
-    Error,
-    UnsupportedError,
-    UsageError,
-    WandbCoreNotAvailableError,
-)
-
 __all__ = (
     "Error",
     "CommError",
@@ -14,4 +5,13 @@ __all__ = (
     "UsageError",
     "UnsupportedError",
     "WandbCoreNotAvailableError",
+)
+
+from .errors import (
+    AuthenticationError,
+    CommError,
+    Error,
+    UnsupportedError,
+    UsageError,
+    WandbCoreNotAvailableError,
 )
