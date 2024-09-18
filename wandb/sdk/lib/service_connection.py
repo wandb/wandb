@@ -116,6 +116,7 @@ class ServiceConnection:
         """
         self._client = client
         self._proc = proc
+        self._torn_down = False
         self._cleanup = cleanup
 
     def make_interface(self, mailbox: Mailbox) -> InterfaceBase:
@@ -165,7 +166,7 @@ class ServiceConnection:
         self._client.send(inform_start=request)
 
     def teardown(self, exit_code: int) -> int:
-        """Shuts down down the service process and returns its exit code.
+        """Shuts down the service process and returns its exit code.
 
         This may only be called once.
 
@@ -180,6 +181,9 @@ class ServiceConnection:
             raise WandbServiceNotOwnedError(
                 "Cannot tear down service started by different process",
             )
+
+        assert not self._torn_down
+        self._torn_down = True
 
         if self._cleanup:
             self._cleanup()
