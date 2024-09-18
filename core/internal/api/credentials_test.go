@@ -219,6 +219,9 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 	errGroup.Go(func() error {
 		return credentialProvider.Apply(req)
 	})
+	errGroup.Go(func() error {
+		return credentialProvider.Apply(req)
+	})
 
 	err = errGroup.Wait()
 	require.NoError(t, err)
