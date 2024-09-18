@@ -891,20 +891,6 @@ class InterfaceBase:
     def _deliver_attach(self, status: pb.AttachRequest) -> MailboxHandle:
         raise NotImplementedError
 
-    def deliver_check_version(
-        self, current_version: Optional[str] = None
-    ) -> MailboxHandle:
-        check_version = pb.CheckVersionRequest()
-        if current_version:
-            check_version.current_version = current_version
-        return self._deliver_check_version(check_version)
-
-    @abstractmethod
-    def _deliver_check_version(
-        self, check_version: pb.CheckVersionRequest
-    ) -> MailboxHandle:
-        raise NotImplementedError
-
     def deliver_stop_status(self) -> MailboxHandle:
         status = pb.StopStatusRequest()
         return self._deliver_stop_status(status)
@@ -963,16 +949,6 @@ class InterfaceBase:
 
     @abstractmethod
     def _deliver_poll_exit(self, poll_exit: pb.PollExitRequest) -> MailboxHandle:
-        raise NotImplementedError
-
-    def deliver_request_server_info(self) -> MailboxHandle:
-        server_info = pb.ServerInfoRequest()
-        return self._deliver_request_server_info(server_info)
-
-    @abstractmethod
-    def _deliver_request_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> MailboxHandle:
         raise NotImplementedError
 
     def deliver_request_sampled_history(self) -> MailboxHandle:
