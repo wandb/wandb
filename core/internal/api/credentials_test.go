@@ -95,18 +95,14 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	file, err := os.ReadFile(credentialsFile)
 	require.NoError(t, err)
 
-	var data struct {
-		Credentials map[string]struct {
-			ExpiresAt   api.ExpiresAt `json:"expires_at"`
-			AccessToken string        `json:"access_token"`
-		} `json:"credentials"`
-	}
+	var data api.CredentialsFile
 	err = json.Unmarshal(file, &data)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(data.Credentials))
 	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
-	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour), time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
+	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour),
+		time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
 }
 
 func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
@@ -133,7 +129,14 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	// if the token is going to expire in 3 minutes, it should be refreshed
 	expiration := time.Now().UTC().Add(time.Minute * 3).Format("2006-01-02 15:04:05")
 	// write expired access token to file
-	_, err = credsFile.Write([]byte(`{"credentials": {"` + server.URL + `": {"access_token": "test", "expires_in": "` + expiration + `"}}}`))
+	_, err = credsFile.Write([]byte(`{
+		"credentials":{
+			"` + server.URL + `":{
+				"access_token": "test",
+				"expires_in": "` + expiration + `"
+			}
+		}
+	}`))
 	require.NoError(t, err)
 	require.NoError(t, credsFile.Close())
 
@@ -156,18 +159,14 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	file, err := os.ReadFile(credsFile.Name())
 	require.NoError(t, err)
 
-	var data struct {
-		Credentials map[string]struct {
-			ExpiresAt   api.ExpiresAt `json:"expires_at"`
-			AccessToken string        `json:"access_token"`
-		} `json:"credentials"`
-	}
+	var data api.CredentialsFile
 	err = json.Unmarshal(file, &data)
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, len(data.Credentials))
 	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
-	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour), time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
+	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour),
+		time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
 }
 
 func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
@@ -193,7 +192,14 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 
 	expiration := time.Now().UTC().Add(time.Minute * -3).Format("2006-01-02 15:04:05")
 	// write expired access token to file
-	_, err = credsFile.Write([]byte(`{"credentials": {"` + server.URL + `": {"access_token": "test", "expires_in": "` + expiration + `"}}}`))
+	_, err = credsFile.Write([]byte(`{
+		"credentials": {
+			"` + server.URL + `":{
+				"access_token": "test",
+				"expires_in": "` + expiration + `"
+			}
+		}
+	}`))
 	require.NoError(t, err)
 	require.NoError(t, credsFile.Close())
 
@@ -240,7 +246,14 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	defer os.Remove(credsFile.Name())
 
 	// write credentials for other base url to credentials file
-	_, err = credsFile.Write([]byte(`{"credentials": {"https://api.wandb.ai": {"access_token": "test", "expires_in": "2024-08-19 15:55:42"}}}`))
+	_, err = credsFile.Write([]byte(`{
+	   "credentials":{
+		  "https://api.wandb.ai":{
+			 "access_token":"test",
+			 "expires_in":"2024-08-19 15:55:42"
+		  }
+	   }
+	}`))
 	require.NoError(t, err)
 	require.NoError(t, credsFile.Close())
 
@@ -268,12 +281,7 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	file, err := os.ReadFile(credsFile.Name())
 	require.NoError(t, err)
 
-	var data struct {
-		Credentials map[string]struct {
-			ExpiresAt   api.ExpiresAt `json:"expires_at"`
-			AccessToken string        `json:"access_token"`
-		} `json:"credentials"`
-	}
+	var data api.CredentialsFile
 	err = json.Unmarshal(file, &data)
 	require.NoError(t, err)
 
@@ -284,5 +292,6 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 
 	assert.ElementsMatch(t, []string{"https://api.wandb.ai", server.URL}, urls)
 	assert.Equal(t, token, data.Credentials[server.URL].AccessToken)
-	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour), time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
+	assert.Equal(t, time.Now().UTC().Add(expiresIn).Round(time.Hour),
+		time.Time(data.Credentials[server.URL].ExpiresAt).Round(time.Hour))
 }

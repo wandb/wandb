@@ -35,8 +35,6 @@ func NewCredentialProvider(
 
 var _ CredentialProvider = &apiKeyCredentialProvider{}
 
-// APIKeyCredentialProvider implements a credentials provider that authenticates
-// requests using an API Key passed via HTTP Basic Authentication.
 type apiKeyCredentialProvider struct {
 	// The W&B API key
 	apiKey string
@@ -56,8 +54,9 @@ func NewAPIKeyCredentialProvider(
 	}, nil
 }
 
-// Apply supplies the API key via the Authorization header to the request.
-// The API key is supplied as the password, while the username field is left empty.
+// Apply supplies the API key via the Authorization header to the request using
+// HTTP Basic Authentication. The API key is supplied as the password, while
+// the username field is left empty.
 func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 	req.Header.Set(
 		"Authorization",
@@ -69,6 +68,15 @@ func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 
 var _ CredentialProvider = &oauth2CredentialProvider{}
 
+// OAuth2CredentialProvider creates a credentials provider that exchanges a JWT
+// for an access token via an authorization server. The access token is then used
+// to authenticate API requests.
+//
+// The JWT is supplied via a file path that is passed in as an environment
+// variable. When the OAuth2CredentialProvider is applied, it exchanges the JWT
+// for an access token. Once the token is received, it is saved to the
+// credentials file along with its expiration. The expiration is checked each
+// time the access token is used, and refreshed if it is at or near expiration.
 func NewOAuth2CredentialProvider(
 	settings *settings.Settings,
 ) (CredentialProvider, error) {
@@ -80,15 +88,6 @@ func NewOAuth2CredentialProvider(
 	}, nil
 }
 
-// OAuth2CredentialProvider implements a credentials provider that exchanges a JWT
-// for an access token via an authorization server. The access token is then used
-// to authenticate API requests by including it in the Authorization header as a
-// Bearer token.
-//
-// The JWT is supplied via a file path that is passed in as an environment
-// variable. Once the token is received, it is persisted in the credentials file
-// along with its expiration. The expiration is checked each time the access
-// token is used, and refreshed if it is at or near expiration.
 type oauth2CredentialProvider struct {
 	// The URL of the W&B API
 	baseURL string

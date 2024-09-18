@@ -89,7 +89,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 
 func TestDo_NotToWandb_NoAuth(t *testing.T) {
 	server := NewRecordingServer()
-	clientSettings := wbsettings.From(&spb.Settings{
+	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
 	})
@@ -102,7 +102,7 @@ func TestDo_NotToWandb_NoAuth(t *testing.T) {
 			bytes.NewBufferString("test body"),
 		)
 
-		_, err := newClient(t, clientSettings, api.ClientOptions{}).
+		_, err := newClient(t, settings, api.ClientOptions{}).
 			Do(req)
 
 		assert.NoError(t, err)
@@ -123,8 +123,10 @@ func newClient(
 	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
-	backend := api.New(api.BackendOptions{BaseURL: baseURL,
-		CredentialProvider: credentialProvider})
+	backend := api.New(api.BackendOptions{
+		BaseURL:            baseURL,
+		CredentialProvider: credentialProvider,
+	})
 	return backend.NewClient(opts)
 }
 
@@ -210,9 +212,10 @@ func TestNewClientWithProxy(t *testing.T) {
 
 	proxyParsedURL, _ := url.Parse(testServer.URL)
 
-	credentialProvider, err := api.NewCredentialProvider(wbsettings.From(&spb.Settings{
+	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
-	}))
+	})
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
