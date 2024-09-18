@@ -9,6 +9,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 
+from __future__ import annotations
+
 __all__ = (
     "__version__",
     "init",
@@ -49,10 +51,21 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
+    "watch",
 )
 
 import os
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
 from wandb.analytics import Sentry as _Sentry
 from wandb.apis import InternalApi, PublicApi
@@ -78,6 +91,9 @@ from wandb.sdk.lib.paths import FilePathStr, StrPath
 from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
+
+if TYPE_CHECKING:
+    import torch  # type: ignore [import-not-found]
 
 __version__: str = "0.18.2.dev1"
 
@@ -1080,5 +1096,44 @@ def link_model(
 
     Returns:
         None
+    """
+    ...
+
+def watch(
+    models: torch.nn.Module | Sequence[torch.nn.Module],
+    criterion: torch.F | None = None,
+    log: Literal["gradients", "parameters", "all"] | None = "gradients",
+    log_freq: int = 1000,
+    idx: int | None = None,
+    log_graph: bool = False,
+) -> Graph:
+    """Hooks into the given PyTorch model(s) to monitor gradients and the model's computational graph.
+
+    This function can track parameters, gradients, or both during training. It should be
+    extended to support arbitrary machine learning models in the future.
+
+    Args:
+        models (Union[torch.nn.Module, Sequence[torch.nn.Module]]):
+            A single model or a sequence of models to be monitored.
+        criterion (Optional[torch.F]):
+            The loss function being optimized (optional).
+        log (Optional[Literal["gradients", "parameters", "all"]]):
+            Specifies whether to log "gradients", "parameters", or "all".
+            Set to None to disable logging. (default="gradients")
+        log_freq (int):
+            Frequency (in batches) to log gradients and parameters. (default=1000)
+        idx (Optional[int]):
+            Index used when tracking multiple models with `wandb.watch`. (default=None)
+         log_graph (bool):
+            Whether to log the model's computational graph. (default=False)
+
+    Returns:
+        wandb.Graph:
+            The graph object, which will be populated after the first backward pass.
+
+    Raises:
+        ValueError:
+            If `wandb.init` has not been called or if any of the models are not instances
+            of `torch.nn.Module`.
     """
     ...
