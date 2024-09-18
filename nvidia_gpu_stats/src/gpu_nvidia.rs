@@ -39,9 +39,9 @@ impl NvidiaGpu {
     }
 
     /// Check if a GPU is being used by a specific process or its children.
-    fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
+    fn gpu_in_use_by_process(&self, device: &Device, pid: i32, sys: &System) -> bool {
         let our_pids: Vec<i32> = std::iter::once(pid)
-            .chain(self.get_child_pids(pid))
+            .chain(self.get_child_pids(pid, sys))
             .collect();
 
         let compute_processes = device.running_compute_processes().unwrap_or_default();
@@ -57,10 +57,7 @@ impl NvidiaGpu {
     }
 
     /// Get child process IDs for a given parent PID.
-    fn get_child_pids(&self, pid: i32) -> Vec<i32> {
-        let mut sys = System::new_all();
-        sys.refresh_all();
-
+    fn get_child_pids(&self, pid: i32, sys: &System) -> Vec<i32> {
         sys.processes()
             .values()
             .filter(|process| process.parent() == Some(Pid::from(pid as usize)))
@@ -132,7 +129,12 @@ impl NvidiaGpu {
     /// let mut metrics = Metrics::new();
     /// nvidia_gpu.sample_metrics(&mut metrics, 1234).unwrap();
     /// ```
-    pub fn sample_metrics(&self, metrics: &mut Metrics, pid: i32) -> Result<(), NvmlError> {
+    pub fn sample_metrics(
+        &self,
+        metrics: &mut Metrics,
+        pid: i32,
+        sys: &System,
+    ) -> Result<(), NvmlError> {
         metrics.add_metric("cuda_version", &*self.cuda_version);
         metrics.add_metric("_gpu.count", self.device_count);
 
@@ -144,7 +146,7 @@ impl NvidiaGpu {
                 }
             };
 
-            let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
+            let gpu_in_use = self.gpu_in_use_by_process(&device, pid, sys);
 
             if let Ok(utilization) = device.utilization_rates() {
                 metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
