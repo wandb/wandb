@@ -82,6 +82,9 @@ def _start_and_connect_service(
         port=port,
     )
 
+    hooks = ExitHooks()
+    hooks.hook()
+
     def teardown_atexit():
         conn.teardown(hooks.exit_code)
 
@@ -91,8 +94,6 @@ def _start_and_connect_service(
         cleanup=lambda: atexit.unregister(teardown_atexit),
     )
 
-    hooks = ExitHooks()
-    hooks.hook()
     atexit.register(teardown_atexit)
 
     return conn
