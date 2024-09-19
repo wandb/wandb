@@ -45,11 +45,11 @@ impl Default for GpuMetricAvailability {
             enforced_power_limit: true,
             sm_clock: true,
             mem_clock: true,
-            graphics_clock: false, // TODO: questionable utility, but expensive to retrieve
+            graphics_clock: false, // TODO: questionable utility, expensive to retrieve
             corrected_memory_errors: true,
             uncorrected_memory_errors: true,
             fan_speed: true,
-            encoder_utilization: true,
+            encoder_utilization: false, // TODO: questionable utility, expensive to retrieve
             link_gen: true,
             link_speed: true,
             link_width: true,
