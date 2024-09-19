@@ -2,7 +2,7 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use procfs::process::{ProcError, Process};
+use procfs::process::all_processes;
 use std::io;
 
 /// Static information about a GPU.
