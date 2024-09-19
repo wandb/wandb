@@ -205,8 +205,11 @@ impl NvidiaGpu {
                 self.gpu_static_info[di as usize].architecture.as_str(),
             );
 
-            // Collect dynamic metrics for the GPU
-            let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
+            // Collect dynamic metrics for the GPU if pid != 0
+            let gpu_in_use = match pid {
+                0 => false,
+                _ => self.gpu_in_use_by_process(&device, pid),
+            };
 
             if let Ok(utilization) = device.utilization_rates() {
                 metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
@@ -282,9 +285,11 @@ impl NvidiaGpu {
                 metrics.add_metric(&format!("gpu.{}.memoryClock", di), mem_clock);
             }
 
-            if let Ok(graphics_clock) = device.clock_info(Clock::Graphics) {
-                metrics.add_metric(&format!("gpu.{}.graphicsClock", di), graphics_clock);
-            }
+            // TODO: not sure if this is useful, so commenting out for now
+            // as it takes a long time to retrieve
+            // if let Ok(graphics_clock) = device.clock_info(Clock::Graphics) {
+            //     metrics.add_metric(&format!("gpu.{}.graphicsClock", di), graphics_clock);
+            // }
 
             if let Ok(corrected_memory_errors) = device.memory_error_counter(
                 nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
