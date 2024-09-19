@@ -804,6 +804,10 @@ class _WandbInit:
                     "`resume` will be ignored since W&B syncing is set to `offline`. "
                     f"Starting a new run with run id {run.id}."
                 )
+            if self.kwargs.get("tags"):
+                if any(len(item) < 1 or len(item) > 64 for item in self.kwargs["tags"]):
+                    raise UsageError(f"Invalid tag(s): {[item for item in self.kwargs['tags'] if len(item) < 1 or len(item) > 64]}. Tags must be between 1 and 64 characters.")
+
         error: Optional[wandb.errors.Error] = None
 
         timeout = self.settings.init_timeout
