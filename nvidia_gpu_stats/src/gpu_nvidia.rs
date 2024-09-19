@@ -13,11 +13,58 @@ struct GpuStaticInfo {
     architecture: String,
 }
 
+/// Tracks the availability of GPU metrics for the current system.
+#[derive(Clone)]
+struct GpuMetricAvailability {
+    utilization: bool,
+    memory_info: bool,
+    temperature: bool,
+    power_usage: bool,
+    enforced_power_limit: bool,
+    sm_clock: bool,
+    mem_clock: bool,
+    graphics_clock: bool,
+    corrected_memory_errors: bool,
+    uncorrected_memory_errors: bool,
+    fan_speed: bool,
+    encoder_utilization: bool,
+    link_gen: bool,
+    link_speed: bool,
+    link_width: bool,
+    max_link_gen: bool,
+    max_link_width: bool,
+}
+
+impl Default for GpuMetricAvailability {
+    fn default() -> Self {
+        Self {
+            utilization: true,
+            memory_info: true,
+            temperature: true,
+            power_usage: true,
+            enforced_power_limit: true,
+            sm_clock: true,
+            mem_clock: true,
+            graphics_clock: false, // TODO: questionable utility, but expensive to retrieve
+            corrected_memory_errors: true,
+            uncorrected_memory_errors: true,
+            fan_speed: true,
+            encoder_utilization: true,
+            link_gen: true,
+            link_speed: true,
+            link_width: true,
+            max_link_gen: true,
+            max_link_width: true,
+        }
+    }
+}
+
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
     device_count: u32,
     gpu_static_info: Vec<GpuStaticInfo>,
+    gpu_metric_availability: Vec<GpuMetricAvailability>,
 }
 
 impl NvidiaGpu {
@@ -60,6 +107,9 @@ impl NvidiaGpu {
             gpu_static_info.push(static_info);
         }
 
+        // Initialize metric availability with default (all true)
+        let gpu_metric_availability = vec![GpuMetricAvailability::default(); device_count as usize];
+
         Ok(NvidiaGpu {
             nvml,
             cuda_version: format!(
@@ -69,6 +119,7 @@ impl NvidiaGpu {
             ),
             device_count,
             gpu_static_info,
+            gpu_metric_availability,
         })
     }
 
@@ -175,7 +226,7 @@ impl NvidiaGpu {
     /// let mut metrics = Metrics::new();
     /// nvidia_gpu.sample_metrics(&mut metrics, 1234).unwrap();
     /// ```
-    pub fn sample_metrics(&self, metrics: &mut Metrics, pid: i32) -> Result<(), NvmlError> {
+    pub fn sample_metrics(&mut self, metrics: &mut Metrics, pid: i32) -> Result<(), NvmlError> {
         metrics.add_metric("cuda_version", &*self.cuda_version);
         metrics.add_metric("_gpu.count", self.device_count);
 
@@ -211,137 +262,281 @@ impl NvidiaGpu {
                 _ => self.gpu_in_use_by_process(&device, pid),
             };
 
-            if let Ok(utilization) = device.utilization_rates() {
-                metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
-                metrics.add_metric(&format!("gpu.{}.memory", di), utilization.memory);
+            let availability = &mut self.gpu_metric_availability[di as usize];
 
-                if gpu_in_use {
-                    metrics.add_metric(&format!("gpu.process.{}.gpu", di), utilization.gpu);
-                    metrics.add_metric(&format!("gpu.process.{}.memory", di), utilization.memory);
-                }
-            }
+            // Utilization
+            if availability.utilization {
+                match device.utilization_rates() {
+                    Ok(utilization) => {
+                        metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
+                        metrics.add_metric(&format!("gpu.{}.memory", di), utilization.memory);
 
-            if let Ok(memory_info) = device.memory_info() {
-                metrics.add_metric(&format!("_gpu.{}.memoryTotal", di), memory_info.total);
-                let memory_allocated = (memory_info.used as f64 / memory_info.total as f64) * 100.0;
-                metrics.add_metric(&format!("gpu.{}.memoryAllocated", di), memory_allocated);
-                metrics.add_metric(
-                    &format!("gpu.{}.memoryAllocatedBytes", di),
-                    memory_info.used,
-                );
-
-                if gpu_in_use {
-                    metrics.add_metric(
-                        &format!("gpu.process.{}.memoryAllocated", di),
-                        memory_allocated,
-                    );
-                    metrics.add_metric(
-                        &format!("gpu.process.{}.memoryAllocatedBytes", di),
-                        memory_info.used,
-                    );
-                }
-            }
-
-            if let Ok(temperature) = device.temperature(TemperatureSensor::Gpu) {
-                metrics.add_metric(&format!("gpu.{}.temp", di), temperature);
-                if gpu_in_use {
-                    metrics.add_metric(&format!("gpu.process.{}.temp", di), temperature);
-                }
-            }
-
-            if let Ok(power_usage) = device.power_usage() {
-                let power_usage = power_usage as f64 / 1000.0;
-                metrics.add_metric(&format!("gpu.{}.powerWatts", di), power_usage);
-                if gpu_in_use {
-                    metrics.add_metric(&format!("gpu.process.{}.powerWatts", di), power_usage);
-                }
-
-                if let Ok(power_limit) = device.enforced_power_limit() {
-                    let power_limit = power_limit as f64 / 1000.0;
-                    metrics.add_metric(&format!("gpu.{}.enforcedPowerLimitWatts", di), power_limit);
-                    let power_percent = (power_usage / power_limit) * 100.0;
-                    metrics.add_metric(&format!("gpu.{}.powerPercent", di), power_percent);
-
-                    if gpu_in_use {
-                        metrics.add_metric(
-                            &format!("gpu.process.{}.enforcedPowerLimitWatts", di),
-                            power_limit,
-                        );
-                        metrics
-                            .add_metric(&format!("gpu.process.{}.powerPercent", di), power_percent);
+                        if gpu_in_use {
+                            metrics.add_metric(&format!("gpu.process.{}.gpu", di), utilization.gpu);
+                            metrics.add_metric(
+                                &format!("gpu.process.{}.memory", di),
+                                utilization.memory,
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        availability.utilization = false;
                     }
                 }
             }
 
-            // Additional metrics. These may not be available on all devices.
-            // Underscorred metrics are not reported to the backend, but could be useful for debugging
-            // and may be added in the future.
+            // Memory Info
+            if availability.memory_info {
+                match device.memory_info() {
+                    Ok(memory_info) => {
+                        metrics.add_metric(&format!("_gpu.{}.memoryTotal", di), memory_info.total);
+                        let memory_allocated =
+                            (memory_info.used as f64 / memory_info.total as f64) * 100.0;
+                        metrics
+                            .add_metric(&format!("gpu.{}.memoryAllocated", di), memory_allocated);
+                        metrics.add_metric(
+                            &format!("gpu.{}.memoryAllocatedBytes", di),
+                            memory_info.used,
+                        );
 
-            if let Ok(sm_clock) = device.clock_info(Clock::SM) {
-                metrics.add_metric(&format!("gpu.{}.smClock", di), sm_clock);
+                        if gpu_in_use {
+                            metrics.add_metric(
+                                &format!("gpu.process.{}.memoryAllocated", di),
+                                memory_allocated,
+                            );
+                            metrics.add_metric(
+                                &format!("gpu.process.{}.memoryAllocatedBytes", di),
+                                memory_info.used,
+                            );
+                        }
+                    }
+                    Err(_) => {
+                        availability.memory_info = false;
+                    }
+                }
             }
 
-            if let Ok(mem_clock) = device.clock_info(Clock::Memory) {
-                metrics.add_metric(&format!("gpu.{}.memoryClock", di), mem_clock);
+            // Temperature
+            if availability.temperature {
+                match device.temperature(TemperatureSensor::Gpu) {
+                    Ok(temperature) => {
+                        metrics.add_metric(&format!("gpu.{}.temp", di), temperature);
+                        if gpu_in_use {
+                            metrics.add_metric(&format!("gpu.process.{}.temp", di), temperature);
+                        }
+                    }
+                    Err(_) => {
+                        availability.temperature = false;
+                    }
+                }
             }
 
-            // TODO: not sure if this is useful, so commenting out for now
-            // as it takes a long time to retrieve
-            // if let Ok(graphics_clock) = device.clock_info(Clock::Graphics) {
-            //     metrics.add_metric(&format!("gpu.{}.graphicsClock", di), graphics_clock);
-            // }
+            // Power Usage and Enforced Power Limit
+            if availability.power_usage {
+                match device.power_usage() {
+                    Ok(power_usage) => {
+                        let power_usage = power_usage as f64 / 1000.0;
+                        metrics.add_metric(&format!("gpu.{}.powerWatts", di), power_usage);
+                        if gpu_in_use {
+                            metrics
+                                .add_metric(&format!("gpu.process.{}.powerWatts", di), power_usage);
+                        }
 
-            if let Ok(corrected_memory_errors) = device.memory_error_counter(
-                nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
-                nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
-                nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
-            ) {
-                metrics.add_metric(
-                    &format!("gpu.{}.correctedMemoryErrors", di),
-                    corrected_memory_errors,
-                );
+                        if availability.enforced_power_limit {
+                            match device.enforced_power_limit() {
+                                Ok(power_limit) => {
+                                    let power_limit = power_limit as f64 / 1000.0;
+                                    metrics.add_metric(
+                                        &format!("gpu.{}.enforcedPowerLimitWatts", di),
+                                        power_limit,
+                                    );
+                                    let power_percent = (power_usage / power_limit) * 100.0;
+                                    metrics.add_metric(
+                                        &format!("gpu.{}.powerPercent", di),
+                                        power_percent,
+                                    );
+
+                                    if gpu_in_use {
+                                        metrics.add_metric(
+                                            &format!("gpu.process.{}.enforcedPowerLimitWatts", di),
+                                            power_limit,
+                                        );
+                                        metrics.add_metric(
+                                            &format!("gpu.process.{}.powerPercent", di),
+                                            power_percent,
+                                        );
+                                    }
+                                }
+                                Err(_) => {
+                                    availability.enforced_power_limit = false;
+                                }
+                            }
+                        }
+                    }
+                    Err(_) => {
+                        availability.power_usage = false;
+                    }
+                }
             }
 
-            if let Ok(uncorrected_memory_errors) = device.memory_error_counter(
-                nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
-                nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
-                nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
-            ) {
-                metrics.add_metric(
-                    &format!("gpu.{}.uncorrectedMemoryErrors", di),
-                    uncorrected_memory_errors,
-                );
+            // SM Clock
+            if availability.sm_clock {
+                match device.clock_info(Clock::SM) {
+                    Ok(sm_clock) => {
+                        metrics.add_metric(&format!("gpu.{}.smClock", di), sm_clock);
+                    }
+                    Err(_) => {
+                        availability.sm_clock = false;
+                    }
+                }
             }
 
-            if let Ok(fan_speed) = device.fan_speed(0) {
-                metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
+            // Memory Clock
+            if availability.mem_clock {
+                match device.clock_info(Clock::Memory) {
+                    Ok(mem_clock) => {
+                        metrics.add_metric(&format!("gpu.{}.memoryClock", di), mem_clock);
+                    }
+                    Err(_) => {
+                        availability.mem_clock = false;
+                    }
+                }
             }
 
-            if let Ok(encoder_util) = device.encoder_utilization() {
-                metrics.add_metric(
-                    &format!("gpu.{}.encoderUtilization", di),
-                    encoder_util.utilization,
-                );
+            // Graphics Clock
+            if availability.graphics_clock {
+                match device.clock_info(Clock::Graphics) {
+                    Ok(graphics_clock) => {
+                        metrics.add_metric(&format!("gpu.{}.graphicsClock", di), graphics_clock);
+                    }
+                    Err(_) => {
+                        availability.graphics_clock = false;
+                    }
+                }
             }
 
-            if let Ok(link_gen) = device.current_pcie_link_gen() {
-                metrics.add_metric(&format!("_gpu.{}.pcieLinkGen", di), link_gen);
+            // Corrected Memory Errors
+            if availability.corrected_memory_errors {
+                match device.memory_error_counter(
+                    nvml_wrapper::enum_wrappers::device::MemoryError::Corrected,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
+                ) {
+                    Ok(errors) => {
+                        metrics.add_metric(&format!("gpu.{}.correctedMemoryErrors", di), errors);
+                    }
+                    Err(_) => {
+                        availability.corrected_memory_errors = false;
+                    }
+                }
             }
 
-            if let Ok(link_speed) = device.pcie_link_speed().map(u64::from).map(|x| x * 1000000) {
-                metrics.add_metric(&format!("_gpu.{}.pcieLinkSpeed", di), link_speed);
+            // Uncorrected Memory Errors
+            if availability.uncorrected_memory_errors {
+                match device.memory_error_counter(
+                    nvml_wrapper::enum_wrappers::device::MemoryError::Uncorrected,
+                    nvml_wrapper::enum_wrappers::device::EccCounter::Aggregate,
+                    nvml_wrapper::enum_wrappers::device::MemoryLocation::Device,
+                ) {
+                    Ok(errors) => {
+                        metrics.add_metric(&format!("gpu.{}.uncorrectedMemoryErrors", di), errors);
+                    }
+                    Err(_) => {
+                        availability.uncorrected_memory_errors = false;
+                    }
+                }
             }
 
-            if let Ok(link_width) = device.current_pcie_link_width() {
-                metrics.add_metric(&format!("_gpu.{}.pcieLinkWidth", di), link_width);
+            // Fan Speed
+            if availability.fan_speed {
+                match device.fan_speed(0) {
+                    Ok(fan_speed) => {
+                        metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
+                    }
+                    Err(_) => {
+                        availability.fan_speed = false;
+                    }
+                }
             }
 
-            if let Ok(max_link_gen) = device.max_pcie_link_gen() {
-                metrics.add_metric(&format!("_gpu.{}.maxPcieLinkGen", di), max_link_gen);
+            // Encoder Utilization
+            if availability.encoder_utilization {
+                match device.encoder_utilization() {
+                    Ok(encoder_util) => {
+                        metrics.add_metric(
+                            &format!("gpu.{}.encoderUtilization", di),
+                            encoder_util.utilization,
+                        );
+                    }
+                    Err(_) => {
+                        availability.encoder_utilization = false;
+                    }
+                }
             }
 
-            if let Ok(max_link_width) = device.max_pcie_link_width() {
-                metrics.add_metric(&format!("_gpu.{}.maxPcieLinkWidth", di), max_link_width);
+            // PCIe Link Generation
+            if availability.link_gen {
+                match device.current_pcie_link_gen() {
+                    Ok(link_gen) => {
+                        metrics.add_metric(&format!("_gpu.{}.pcieLinkGen", di), link_gen);
+                    }
+                    Err(_) => {
+                        availability.link_gen = false;
+                    }
+                }
+            }
+
+            // PCIe Link Speed
+            if availability.link_speed {
+                match device
+                    .pcie_link_speed()
+                    .map(u64::from)
+                    .map(|x| x * 1_000_000)
+                {
+                    Ok(link_speed) => {
+                        metrics.add_metric(&format!("_gpu.{}.pcieLinkSpeed", di), link_speed);
+                    }
+                    Err(_) => {
+                        availability.link_speed = false;
+                    }
+                }
+            }
+
+            // PCIe Link Width
+            if availability.link_width {
+                match device.current_pcie_link_width() {
+                    Ok(link_width) => {
+                        metrics.add_metric(&format!("_gpu.{}.pcieLinkWidth", di), link_width);
+                    }
+                    Err(_) => {
+                        availability.link_width = false;
+                    }
+                }
+            }
+
+            // Max PCIe Link Generation
+            if availability.max_link_gen {
+                match device.max_pcie_link_gen() {
+                    Ok(max_link_gen) => {
+                        metrics.add_metric(&format!("_gpu.{}.maxPcieLinkGen", di), max_link_gen);
+                    }
+                    Err(_) => {
+                        availability.max_link_gen = false;
+                    }
+                }
+            }
+
+            // Max PCIe Link Width
+            if availability.max_link_width {
+                match device.max_pcie_link_width() {
+                    Ok(max_link_width) => {
+                        metrics
+                            .add_metric(&format!("_gpu.{}.maxPcieLinkWidth", di), max_link_width);
+                    }
+                    Err(_) => {
+                        availability.max_link_width = false;
+                    }
+                }
             }
         }
 
