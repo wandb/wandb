@@ -23,14 +23,19 @@ var commit string
 
 func main() {
 	// Flags to control the server
-	portFilename := flag.String("port-filename", "port_file.txt", "filename for port to communicate with client")
-	pid := flag.Int("pid", 0, "pid of the process to communicate with")
-	enableDebugLogging := flag.Bool("debug", false, "enable debug logging")
-	disableAnalytics := flag.Bool("no-observability", false, "turn off observability")
-	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false, "enable OS pid shutdown")
-	_ = flag.String("trace", "", "file name to write trace output to")
+	portFilename := flag.String("port-filename", "port_file.txt",
+		"Specifies the filename where the server will write the port number it listens on for client connections.")
+	pid := flag.Int("pid", 0,
+		"Specifies the process ID (PID) of the external process that spins up this service.")
+	enableDebugLogging := flag.Bool("debug", false,
+		"Enables debug logging to provide detailed logs for troubleshooting.")
+	disableAnalytics := flag.Bool("no-observability", false,
+		"Disables observability features such as metrics and logging analytics.")
+	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false,
+		"Enables automatic server shutdown when the external process identified by the PID terminates.")
 	// TODO: remove these flags, they are here for backward compatibility
-	_ = flag.Bool("serve-sock", false, "use sockets")
+	_ = flag.Bool("serve-sock", false,
+		"Legacy flag for backward compatibility. Use sockets for communication. (Deprecated)")
 
 	flag.Parse()
 

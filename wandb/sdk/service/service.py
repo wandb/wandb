@@ -162,10 +162,6 @@ class _Service:
                 if core_debug(default="False"):
                     service_args.append("--debug")
 
-                trace_filename = os.environ.get("_WANDB_TRACE")
-                if trace_filename is not None:
-                    service_args.extend(["--trace", trace_filename])
-
                 exec_cmd_list = []
                 termlog(
                     "Using wandb-core as the SDK backend."
