@@ -757,12 +757,18 @@ class Artifacts(Paginator):
         filters: Optional[Mapping[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
+        tags: Optional[List[str]] = None,
     ):
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
         self.project = project
         self.filters = {"state": "COMMITTED"} if filters is None else filters
+        if tags is not None:
+            if len(tags) == 1:
+                self.filters["tags.name"] = tags[0]
+            else:
+                self.filters["$and"] = self.filters.get("$and", []) + [{"tags.name": tag} for tag in tags]
         self.order = order
         variables = {
             "project": self.project,

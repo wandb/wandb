@@ -996,7 +996,11 @@ class Api:
 
     @normalize_exceptions
     def artifacts(
-        self, type_name: str, name: str, per_page: Optional[int] = 50
+        self,
+        type_name: str,
+        name: str,
+        per_page: Optional[int] = 50,
+        tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
 
@@ -1005,13 +1009,20 @@ class Api:
             name: (str) An artifact collection name. May be prefixed with entity/project.
             per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
+            tags: (list[str], optional) Only return artifacts with all of these tags.
 
         Returns:
             An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
         return public.Artifacts(
-            self.client, entity, project, collection_name, type_name, per_page=per_page
+            self.client,
+            entity,
+            project,
+            collection_name,
+            type_name,
+            per_page=per_page,
+            tags=tags,
         )
 
     @normalize_exceptions
