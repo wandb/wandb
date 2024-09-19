@@ -88,8 +88,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
-        // sys.refresh_processes(ProcessesToUpdate::All);
-
         let sampling_start = Instant::now();
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
