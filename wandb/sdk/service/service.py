@@ -177,7 +177,6 @@ class _Service:
                 "--pid",
                 pid,
             ]
-            service_args.append("--serve-sock")
 
             if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
                 _ = get_module(

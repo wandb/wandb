@@ -20,7 +20,6 @@ class WandbServer:
     _pid: Optional[int]
     _sock_port: Optional[int]
     _debug: bool
-    _serve_sock: bool
     _sock_server: Optional[SocketServer]
     _startup_debug_enabled: bool
 
@@ -31,14 +30,12 @@ class WandbServer:
         address: Optional[str] = None,
         pid: Optional[int] = None,
         debug: bool = True,
-        serve_sock: bool = False,
     ) -> None:
         self._sock_port = sock_port
         self._port_fname = port_fname
         self._address = address
         self._pid = pid
         self._debug = debug
-        self._serve_sock = serve_sock
         self._sock_server = None
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
@@ -109,7 +106,7 @@ class WandbServer:
         self._setup_tracelog()
         mux = StreamMux()
         self._startup_debug_print("before_network")
-        sock_port = self._start_sock(mux=mux) if self._serve_sock else None
+        sock_port = self._start_sock(mux=mux)
         self._startup_debug_print("after_network")
         self._inform_used_ports(sock_port=sock_port)
         self._startup_debug_print("after_inform")
