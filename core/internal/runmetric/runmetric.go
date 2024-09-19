@@ -2,6 +2,7 @@ package runmetric
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -82,7 +83,8 @@ func (mh *MetricHandler) UpdateSummary(
 	if len(name) == 0 {
 		return
 	}
-	parts := strings.Split(name, ".")
+
+	parts := mh.splitEscapedDottedMetricName(name)
 	path := pathtree.PathOf(parts[0], parts[1:]...)
 
 	summary.ConfigureMetric(path, metric.NoSummary, metric.SummaryTypes)
@@ -199,4 +201,17 @@ func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
 	}
 
 	return definedMetric{}, false
+}
+
+func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []string {
+	// Match any period character that is not preceded by a backslash.
+	re := regexp.MustCompile(`.*?[^\\](\.|$)`)
+	parts := re.FindAllString(metricName, -1)
+
+	// Replace any escaped periods with a single period, to clean up the way the strings are displayed.
+	for i, ele := range parts {
+		parts[i] = strings.ReplaceAll(strings.Trim(ele, "."), `\.`, ".")
+	}
+
+	return parts
 }

@@ -418,7 +418,6 @@ def test_metric_nested_mult(relay_server, wandb_init):
     assert metrics[0] == {"1": "this.that", "7": [1, 2], "6": [3]}
 
 
-@pytest.mark.skip_wandb_core(feature="define_metric")
 def test_metric_dotted(relay_server, wandb_init):
     """Escape dots in metric definitions."""
     with relay_server() as relay:
