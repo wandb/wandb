@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
 	"log/slog"
+	"os"
 
 	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -24,7 +26,8 @@ var commit string
 func main() {
 	// Flags to control the server
 	portFilename := flag.String("port-filename", "port_file.txt",
-		"Specifies the filename where the server will write the port number it listens on for client connections.")
+		"Specifies the filename where the server will write the port number it uses to "+
+			"communicate with clients.")
 	pid := flag.Int("pid", 0,
 		"Specifies the process ID (PID) of the external process that spins up this service.")
 	enableDebugLogging := flag.Bool("debug", false,
@@ -36,6 +39,17 @@ func main() {
 	// TODO: remove these flags, they are here for backward compatibility
 	_ = flag.Bool("serve-sock", false,
 		"Legacy flag for backward compatibility. Use sockets for communication. (Deprecated)")
+
+	// Custom usage function to add a header, version, and commit info
+	flag.Usage = func() {
+		fmt.Fprintf(os.Stderr, "============================================\n")
+		fmt.Fprintf(os.Stderr, "      WANDB Core Service Configuration      \n")
+		fmt.Fprintf(os.Stderr, "============================================\n")
+		fmt.Fprintf(os.Stderr, "Version: %s\n", version.Version)
+		fmt.Fprintf(os.Stderr, "Commit SHA: %s\n\n", commit)
+		fmt.Fprintf(os.Stderr, "Use the following flags to configure the wandb sdk service:\n\n")
+		flag.PrintDefaults() // Print the default help for all flags
+	}
 
 	flag.Parse()
 
