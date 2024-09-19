@@ -214,7 +214,8 @@ impl NvidiaGpu {
             );
 
             // Collect dynamic metrics for the GPU
-            let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
+            // let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
+            let gpu_in_use = false;
 
             if let Ok(utilization) = device.utilization_rates() {
                 metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
