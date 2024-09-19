@@ -85,6 +85,10 @@ func (t *ReferenceArtifactDownloadTask) String() string {
 }
 func (t *ReferenceArtifactDownloadTask) SetError(err error) { t.Err = err }
 
+func (t *ReferenceArtifactDownloadTask) HasSingleFile() bool { return t.Digest != t.Reference }
+
+func (t *ReferenceArtifactDownloadTask) ShouldCheckDigest() bool { return t.Digest != t.Reference }
+
 func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
 	uriParts, err := url.Parse(ref)
 	switch {
@@ -92,6 +96,11 @@ func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTr
 		return nil, err
 	case uriParts.Scheme == "gs":
 		return fts.GCS, nil
+	case uriParts.Scheme == "s3":
+		if fts.S3 == nil {
+			return nil, fmt.Errorf("reference artifact task: s3 client could not be instantiated")
+		}
+		return fts.S3, nil
 	default:
 		return nil, fmt.Errorf("reference artifact task: unknown reference type: %s", ref)
 	}

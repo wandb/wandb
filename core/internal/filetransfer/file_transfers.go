@@ -20,6 +20,7 @@ type FileTransfers struct {
 	// Default makes an HTTP request to the destination URL with the file contents.
 	Default FileTransfer
 	GCS     ReferenceArtifactFileTransfer
+	S3      ReferenceArtifactFileTransfer
 }
 
 // NewFileTransfers creates a new fileTransfers
@@ -28,10 +29,20 @@ func NewFileTransfers(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
+	filetransfers := &FileTransfers{}
+
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
+	filetransfers.Default = defaultFileTransfer
+
 	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
-	return &FileTransfers{
-		Default: defaultFileTransfer,
-		GCS:     gcsFileTransfer,
+	filetransfers.GCS = gcsFileTransfer
+
+	s3FileTransfer, err := NewS3FileTransfer(nil, logger, fileTransferStats)
+	if err == nil {
+		filetransfers.S3 = s3FileTransfer
+	} else {
+		logger.CaptureError(err)
 	}
+
+	return filetransfers
 }
