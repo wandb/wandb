@@ -757,12 +757,14 @@ class Artifacts(Paginator):
         filters: Optional[Mapping[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
+        tags: Optional[List[str]] = None,
     ):
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
         self.project = project
         self.filters = {"state": "COMMITTED"} if filters is None else filters
+        self.tags = tags
         self.order = order
         variables = {
             "project": self.project,
@@ -837,7 +839,7 @@ class Artifacts(Paginator):
     def convert_objects(self):
         if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
             return []
-        return [
+        artifacts = (
             wandb.Artifact._from_attrs(
                 self.entity,
                 self.project,
@@ -848,7 +850,15 @@ class Artifacts(Paginator):
             for a in self.last_response["project"]["artifactType"][
                 "artifactCollection"
             ]["artifacts"]["edges"]
-        ]
+        )
+        if self.tags:
+            required_tags = set(self.tags)
+            artifacts = (
+                artifact
+                for artifact in artifacts
+                if required_tags.issubset(artifact.tags)
+            )
+        return list(artifacts)
 
 
 class RunArtifacts(Paginator):
