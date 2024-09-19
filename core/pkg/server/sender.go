@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -214,7 +215,13 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
+	hangDetectionInChan := make(chan runwork.Work, 32)
+	hangDetectionOutChan := make(chan struct{}, 32)
+	go s.warnOnLongOperations(hangDetectionInChan, hangDetectionOutChan)
+
 	for work := range allWork {
+		hangDetectionInChan <- work
+
 		s.logger.Debug(
 			"sender: got work",
 			"work", work,
@@ -226,9 +233,53 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
+
+		hangDetectionOutChan <- struct{}{}
 	}
+
+	close(hangDetectionInChan)
+	close(hangDetectionOutChan)
+
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
+}
+
+// warnOnLongOperations logs a warning for each message received
+// on the first channel for which no message is received on the second
+// channel within some time.
+func (s *Sender) warnOnLongOperations(
+	hangDetectionInChan <-chan runwork.Work,
+	hangDetectionOutChan <-chan struct{},
+) {
+outerLoop:
+	for work := range hangDetectionInChan {
+		start := time.Now()
+
+		for i := 0; ; i++ {
+			select {
+			case <-hangDetectionOutChan:
+				if i > 0 {
+					s.logger.CaptureInfo(
+						"sender: succeeded after taking longer than expected",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+
+				continue outerLoop
+
+			case <-time.After(30 * time.Minute):
+				if i < 6 {
+					s.logger.CaptureWarn(
+						"sender: taking a long time",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+			}
+		}
+	}
+
 }
 
 func (s *Sender) Close() {
@@ -642,7 +693,7 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 	err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
-		s.logger.CaptureError(err)
+		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
 	result := &spb.Result{
