@@ -2,12 +2,23 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use sysinfo::{Pid, System};
+use procfs::process::Process;
+use std::io;
+
+/// Static information about a GPU.
+#[derive(Default)]
+struct GpuStaticInfo {
+    name: String,
+    brand: String,
+    cuda_cores: u32,
+    architecture: String,
+}
 
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
     device_count: u32,
+    gpu_static_info: Vec<GpuStaticInfo>,
 }
 
 impl NvidiaGpu {
@@ -27,6 +38,29 @@ impl NvidiaGpu {
         );
         let device_count = nvml.device_count()?;
 
+        // Collect static information about each GPU
+        let mut gpu_static_info = Vec::new();
+        for di in 0..device_count {
+            let device = nvml.device_by_index(di)?;
+
+            let mut static_info = GpuStaticInfo::default();
+
+            if let Ok(name) = device.name() {
+                static_info.name = name;
+            }
+            if let Ok(brand) = device.brand() {
+                static_info.brand = format!("{:?}", brand);
+            }
+            if let Ok(cuda_cores) = device.num_cores() {
+                static_info.cuda_cores = cuda_cores;
+            }
+            if let Ok(architecture) = device.architecture() {
+                static_info.architecture = format!("{:?}", architecture);
+            }
+
+            gpu_static_info.push(static_info);
+        }
+
         Ok(NvidiaGpu {
             nvml,
             cuda_version: format!(
@@ -35,14 +69,16 @@ impl NvidiaGpu {
                 nvml_wrapper::cuda_driver_version_minor(cuda_version)
             ),
             device_count,
+            gpu_static_info,
         })
     }
 
     /// Check if a GPU is being used by a specific process or its children.
-    fn gpu_in_use_by_process(&self, device: &Device, pid: i32, sys: &System) -> bool {
-        let our_pids: Vec<i32> = std::iter::once(pid)
-            .chain(self.get_child_pids(pid, sys))
-            .collect();
+    fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
+        let mut our_pids = vec![pid];
+        if let Ok(child_pids) = self.get_child_pids(pid) {
+            our_pids.extend(child_pids);
+        }
 
         let compute_processes = device.running_compute_processes().unwrap_or_default();
         let graphics_processes = device.running_graphics_processes().unwrap_or_default();
@@ -57,13 +93,18 @@ impl NvidiaGpu {
     }
 
     /// Get child process IDs for a given parent PID.
-    fn get_child_pids(&self, pid: i32, sys: &System) -> Vec<i32> {
-        // sys.processes()
-        //     .values()
-        //     .filter(|process| process.parent() == Some(Pid::from(pid as usize)))
-        //     .map(|process| process.pid().as_u32() as i32)
-        //     .collect()
-        vec![]
+    fn get_child_pids(&self, pid: i32) -> io::Result<Vec<i32>> {
+        let process = Process::new(pid)?;
+        let task = process.task(pid)?;
+        let path = task.root.join("children");
+
+        let contents = std::fs::read_to_string(path)?;
+        let child_pids = contents
+            .split_whitespace()
+            .filter_map(|s| s.parse::<i32>().ok())
+            .collect();
+
+        Ok(child_pids)
     }
 
     /// Samples GPU metrics using NVML.
@@ -130,12 +171,7 @@ impl NvidiaGpu {
     /// let mut metrics = Metrics::new();
     /// nvidia_gpu.sample_metrics(&mut metrics, 1234).unwrap();
     /// ```
-    pub fn sample_metrics(
-        &self,
-        metrics: &mut Metrics,
-        pid: i32,
-        sys: &System,
-    ) -> Result<(), NvmlError> {
+    pub fn sample_metrics(&self, metrics: &mut Metrics, pid: i32) -> Result<(), NvmlError> {
         metrics.add_metric("cuda_version", &*self.cuda_version);
         metrics.add_metric("_gpu.count", self.device_count);
 
@@ -147,7 +183,26 @@ impl NvidiaGpu {
                 }
             };
 
-            let gpu_in_use = self.gpu_in_use_by_process(&device, pid, sys);
+            // Populate static information about the GPU
+            metrics.add_metric(
+                &format!("gpu.{}.name", di),
+                self.gpu_static_info[di as usize].name.as_str(),
+            );
+            metrics.add_metric(
+                &format!("_gpu.{}.brand", di),
+                self.gpu_static_info[di as usize].brand.as_str(),
+            );
+            metrics.add_metric(
+                &format!("_gpu.{}.cudaCores", di),
+                self.gpu_static_info[di as usize].cuda_cores,
+            );
+            metrics.add_metric(
+                &format!("_gpu.{}.architecture", di),
+                self.gpu_static_info[di as usize].architecture.as_str(),
+            );
+
+            // Collect dynamic metrics for the GPU
+            let gpu_in_use = self.gpu_in_use_by_process(&device, pid);
 
             if let Ok(utilization) = device.utilization_rates() {
                 metrics.add_metric(&format!("gpu.{}.gpu", di), utilization.gpu);
@@ -211,10 +266,6 @@ impl NvidiaGpu {
                 }
             }
 
-            if let Ok(name) = device.name() {
-                metrics.add_metric(&format!("_gpu.{}.name", di), name);
-            }
-
             // Additional metrics. These may not be available on all devices.
             // Underscorred metrics are not reported to the backend, but could be useful for debugging
             // and may be added in the future.
@@ -253,10 +304,6 @@ impl NvidiaGpu {
                 );
             }
 
-            if let Ok(brand) = device.brand() {
-                metrics.add_metric(&format!("_gpu.{}.brand", di), format!("{:?}", brand));
-            }
-
             if let Ok(fan_speed) = device.fan_speed(0) {
                 metrics.add_metric(&format!("gpu.{}.fanSpeed", di), fan_speed);
             }
@@ -286,17 +333,6 @@ impl NvidiaGpu {
 
             if let Ok(max_link_width) = device.max_pcie_link_width() {
                 metrics.add_metric(&format!("_gpu.{}.maxPcieLinkWidth", di), max_link_width);
-            }
-
-            if let Ok(cuda_cores) = device.num_cores() {
-                metrics.add_metric(&format!("_gpu.{}.cudaCores", di), cuda_cores);
-            }
-
-            if let Ok(architecture) = device.architecture() {
-                metrics.add_metric(
-                    &format!("_gpu.{}.architecture", di),
-                    format!("{:?}", architecture),
-                );
             }
         }
 

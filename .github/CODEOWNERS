@@ -10,6 +10,9 @@
 /MANIFEST.in @wandb/sdk-team
 # wandb-core backend. TODO: relax after initial roll-out
 /core/ @wandb/sdk-team
+# system metrics
+/nvidia_gpu_stats/ @wandb/sdk-team
+/apple_stats/ @wandb/sdk-team
 # CircleCI configuration
 /.circleci @wandb/sdk-team
 # GitHub configuration

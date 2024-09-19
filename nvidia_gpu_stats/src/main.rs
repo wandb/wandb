@@ -9,7 +9,6 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use sysinfo::{ProcessesToUpdate, System};
 
 mod gpu_nvidia;
 mod metrics;
@@ -87,9 +86,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Error cache to minimize duplicate error messages sent to Sentry
     let mut error_cache: HashSet<String> = HashSet::new();
 
-    // Initialize system metrics
-    let mut sys = System::new();
-
     // Main sampling loop. Will run until the parent process is no longer alive or a signal is received.
     while running.load(Ordering::Relaxed) {
         // sys.refresh_processes(ProcessesToUpdate::All);
@@ -102,7 +98,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         // Sample GPU metrics
         let mut metrics = Metrics::new();
-        if let Err(e) = nvidia_gpu.sample_metrics(&mut metrics, args.pid, &sys) {
+        if let Err(e) = nvidia_gpu.sample_metrics(&mut metrics, args.pid) {
             let error_message = e.to_string();
             if !error_cache.contains(&error_message) {
                 error_cache.insert(error_message);
