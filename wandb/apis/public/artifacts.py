@@ -768,7 +768,9 @@ class Artifacts(Paginator):
             if len(tags) == 1:
                 self.filters["tags.name"] = tags[0]
             else:
-                self.filters["$and"] = self.filters.get("$and", []) + [{"tags.name": tag} for tag in tags]
+                self.filters["$and"] = self.filters.get("$and", []) + [
+                    {"tags.name": tag} for tag in tags
+                ]
         self.order = order
         variables = {
             "project": self.project,
