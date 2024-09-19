@@ -12,14 +12,7 @@ from wandb.sdk.automations._utils import jsonify
 from wandb.sdk.automations.actions import NewAction
 from wandb.sdk.automations.base import Base
 from wandb.sdk.automations.operators.logic import And, Or
-from wandb.sdk.automations.operators.op import (
-    AnyExpr,
-    AnyOp,
-    FieldFilter,
-    and_,
-    on_field,
-    or_,
-)
+from wandb.sdk.automations.operators.op import AnyExpr, FieldFilter, and_, on_field, or_
 from wandb.sdk.automations.scopes import ArtifactCollectionScope, ProjectScope
 
 

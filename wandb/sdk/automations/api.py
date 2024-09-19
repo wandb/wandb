@@ -16,13 +16,13 @@ from rich.table import Table
 from wandb_gql import Client, gql
 
 from wandb import Api
+from wandb.sdk.automations import schemas_gen as gen
 from wandb.sdk.automations.automations import (
     Automation,
     DeletedAutomation,
     NewAutomation,
 )
 from wandb.sdk.automations.events import NewEventAndAction
-from wandb.sdk.automations import schemas_gen as gen
 
 if TYPE_CHECKING:
     from wandb.sdk.automations.actions import ActionType
@@ -405,11 +405,11 @@ def _project_id(proj: gen.Project) -> str:
         return data["project"]["id"]
 
 
-class _TooMany(ValueError):
+class _TooManyError(ValueError):
     pass
 
 
-class _TooFew(ValueError):
+class _TooFewError(ValueError):
     pass
 
 
@@ -428,7 +428,7 @@ def _slack_integration() -> gen.SlackIntegration:
             )
         except _TooFew:
             raise RuntimeError(
-                f"No slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
+                "No slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
             )
         except _TooMany:
             raise RuntimeError(
