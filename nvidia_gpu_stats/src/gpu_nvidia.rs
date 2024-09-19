@@ -2,7 +2,7 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use procfs::process::Process;
+use procfs::process::{ProcError, Process};
 use std::io;
 
 /// Static information about a GPU.
@@ -93,17 +93,10 @@ impl NvidiaGpu {
     }
 
     /// Get child process IDs for a given parent PID.
-    fn get_child_pids(&self, pid: i32) -> io::Result<Vec<i32>> {
+    fn get_child_pids(&self, pid: i32) -> Result<Vec<i32>, ProcError> {
         let process = Process::new(pid)?;
-        let task = process.task(pid)?;
-        let path = task.root.join("children");
-
-        let contents = std::fs::read_to_string(path)?;
-        let child_pids = contents
-            .split_whitespace()
-            .filter_map(|s| s.parse::<i32>().ok())
-            .collect();
-
+        let children = process.children()?;
+        let child_pids = children.into_iter().map(|child| child.pid).collect();
         Ok(child_pids)
     }
 
