@@ -94,9 +94,13 @@ impl NvidiaGpu {
 
     /// Get child process IDs for a given parent PID.
     fn get_child_pids(&self, pid: i32) -> Result<Vec<i32>, ProcError> {
-        let process = Process::new(pid)?;
-        let children = process.children()?;
-        let child_pids = children.into_iter().map(|child| child.pid).collect();
+        let processes = all_processes().unwrap();
+        let mut child_pids = Vec::new();
+        for process in processes {
+            if process.stat.ppid == pid {
+                child_pids.push(process.stat.pid);
+            }
+        }
         Ok(child_pids)
     }
 
