@@ -17,6 +17,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Add docstring for `wandb.watch` to support auto-complete (@kptkin in https://github.com/wandb/wandb/pull/8425)
 - Fix glob matching in define metric to work with logged keys containing `/` (@KyleGoyette in https://github.com/wandb/wandb/pull/8434)
 
+### Added
+
+- Add `tags` parameter to `wandb.Api.artifacts()` to filter artifacts by tag. (@moredatarequired in https://github.com/wandb/wandb/pull/8440)
+
 ## [0.18.1] - 2024-09-16
 
 ### Fixed
