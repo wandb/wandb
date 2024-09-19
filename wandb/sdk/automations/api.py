@@ -423,14 +423,14 @@ def _slack_integration() -> gen.SlackIntegration:
         try:
             return one(
                 slack_integrations,
-                too_short=_TooFew,
-                too_long=_TooMany,
+                too_short=_TooFewError,
+                too_long=_TooManyError,
             )
-        except _TooFew:
+        except _TooFewError:
             raise RuntimeError(
                 "No slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
             )
-        except _TooMany:
+        except _TooManyError:
             raise RuntimeError(
                 f"Found multiple ({len(slack_integrations)}) Slack integrations: {slack_integrations!r}"
             )
