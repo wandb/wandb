@@ -2,8 +2,7 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use procfs::process::all_processes;
-use procfs::ProcResult;
+use std::fs::read_to_string;
 
 /// Static information about a GPU.
 #[derive(Default)]
@@ -93,30 +92,23 @@ impl NvidiaGpu {
     }
 
     /// Get child process IDs for a given parent PID.
-    fn get_child_pids(&self, parent_pid: i32) -> ProcResult<Vec<i32>> {
-        let mut child_pids = Vec::new();
+    fn get_child_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
+        let mut descendant_pids = Vec::new();
+        let mut stack = vec![parent_pid];
 
-        // Iterate over all processes
-        for process_result in all_processes()? {
-            // Handle any errors in obtaining the process
-            let process = match process_result {
-                Ok(process) => process,
-                Err(_) => continue, // Skip processes that we cannot access
-            };
-
-            // Get the stat information for the process
-            let stat = match process.stat() {
-                Ok(stat) => stat,
-                Err(_) => continue, // Skip if we can't get stat info
-            };
-
-            // Check if the parent PID matches
-            if stat.ppid == parent_pid {
-                child_pids.push(process.pid);
+        while let Some(pid) = stack.pop() {
+            let children_path = format!("/proc/{}/task/{}/children", pid, pid);
+            if let Ok(contents) = read_to_string(&children_path) {
+                let child_pids: Vec<i32> = contents
+                    .split_whitespace()
+                    .filter_map(|s| s.parse::<i32>().ok())
+                    .collect();
+                stack.extend(&child_pids);
+                descendant_pids.extend(child_pids);
             }
         }
 
-        Ok(child_pids)
+        Ok(descendant_pids)
     }
 
     /// Samples GPU metrics using NVML.
