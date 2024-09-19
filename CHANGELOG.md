@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Added
+
+- Add `upsert_run_queue` method to `wandb.Api`. (@bcsherma in https://github.com/wandb/wandb/pull/8348)
+
 ### Fixed
 
 - Update the signature and docstring of `wandb.api.public.runs.Run.log_artifact()` to support artifact tags like `Run` instances returned by `wandb.init()`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8414)
@@ -72,6 +76,7 @@ to disable this new behavior will be removed (@kptkin in https://github.com/wand
 - Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ### Deprecated
+
 - Ability to disable the service process (`WANDB__DISABLE_SERVICE`) is deprecated and will be removed in the next minor release (@kptkin in https://github.com/wandb/wandb/pull/8193)
 
 ## [0.17.7] - 2024-08-15

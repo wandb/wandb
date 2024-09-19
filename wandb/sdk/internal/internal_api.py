@@ -53,6 +53,8 @@ from .progress import Progress
 
 logger = logging.getLogger(__name__)
 
+LAUNCH_DEFAULT_PROJECT = "model-registry"
+
 if TYPE_CHECKING:
     if sys.version_info >= (3, 8):
         from typing import Literal, TypedDict
@@ -673,6 +675,11 @@ class Api:
             self.server_create_run_queue_supports_drc,
             self.server_create_run_queue_supports_priority,
         )
+
+    @normalize_exceptions
+    def upsert_run_queue_introspection(self) -> bool:
+        _, _, mutations = self.server_info_introspection()
+        return "upsertRunQueue" in mutations
 
     @normalize_exceptions
     def push_to_run_queue_introspection(self) -> Tuple[bool, bool]:
@@ -1579,6 +1586,70 @@ class Api:
             "createRunQueue"
         ]
         return result
+
+    @normalize_exceptions
+    def upsert_run_queue(
+        self,
+        queue_name: str,
+        entity: str,
+        resource_type: str,
+        resource_config: dict,
+        project: str = LAUNCH_DEFAULT_PROJECT,
+        prioritization_mode: Optional[str] = None,
+        template_variables: Optional[dict] = None,
+        external_links: Optional[dict] = None,
+    ) -> Optional[Dict[str, Any]]:
+        if not self.upsert_run_queue_introspection():
+            raise UnsupportedError(
+                "upserting run queues is not supported by this version of "
+                "wandb server. Consider updating to the latest version."
+            )
+        query = gql(
+            """
+            mutation upsertRunQueue(
+                $entityName: String!
+                $projectName: String!
+                $queueName: String!
+                $resourceType: String!
+                $resourceConfig: JSONString!
+                $templateVariables: JSONString
+                $prioritizationMode: RunQueuePrioritizationMode
+                $externalLinks: JSONString
+                $clientMutationId: String
+            ) {
+                upsertRunQueue(
+                    input: {
+                        entityName: $entityName
+                        projectName: $projectName
+                        queueName: $queueName
+                        resourceType: $resourceType
+                        resourceConfig: $resourceConfig
+                        templateVariables: $templateVariables
+                        prioritizationMode: $prioritizationMode
+                        externalLinks: $externalLinks
+                        clientMutationId: $clientMutationId
+                    }
+                ) {
+                    success
+                    configSchemaValidationErrors
+                }
+            }
+            """
+        )
+        variable_values = {
+            "entityName": entity,
+            "projectName": project,
+            "queueName": queue_name,
+            "resourceType": resource_type,
+            "resourceConfig": json.dumps(resource_config),
+            "templateVariables": (
+                json.dumps(template_variables) if template_variables else None
+            ),
+            "prioritizationMode": prioritization_mode,
+            "externalLinks": json.dumps(external_links) if external_links else None,
+        }
+        result: Dict[str, Any] = self.gql(query, variable_values)
+        return result["upsertRunQueue"]
 
     @normalize_exceptions
     def push_to_run_queue_by_name(
