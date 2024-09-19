@@ -3,7 +3,7 @@ use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
 use procfs::process::all_processes;
-use std::io;
+use procfs::ProcResult;
 
 /// Static information about a GPU.
 #[derive(Default)]
@@ -93,16 +93,29 @@ impl NvidiaGpu {
     }
 
     /// Get child process IDs for a given parent PID.
-    fn get_child_pids(&self, pid: i32) -> procfs::ProcResult<Vec<i32>> {
-        let child_pids = all_processes()?
-            .filter_map(|process| {
-                if process.stat.ppid == pid {
-                    Some(process.pid)
-                } else {
-                    None
-                }
-            })
-            .collect();
+    fn get_child_pids(&self, parent_pid: i32) -> ProcResult<Vec<i32>> {
+        let mut child_pids = Vec::new();
+
+        // Iterate over all processes
+        for process_result in all_processes()? {
+            // Handle any errors in obtaining the process
+            let process = match process_result {
+                Ok(process) => process,
+                Err(_) => continue, // Skip processes that we cannot access
+            };
+
+            // Get the stat information for the process
+            let stat = match process.stat() {
+                Ok(stat) => stat,
+                Err(_) => continue, // Skip if we can't get stat info
+            };
+
+            // Check if the parent PID matches
+            if stat.ppid == parent_pid {
+                child_pids.push(process.pid);
+            }
+        }
+
         Ok(child_pids)
     }
 
