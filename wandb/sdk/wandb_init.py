@@ -806,7 +806,9 @@ class _WandbInit:
                 )
             if self.kwargs.get("tags"):
                 if any(len(item) < 1 or len(item) > 64 for item in self.kwargs["tags"]):
-                    raise UsageError(f"Invalid tag(s): {[item for item in self.kwargs['tags'] if len(item) < 1 or len(item) > 64]}. Tags must be between 1 and 64 characters.")
+                    raise UsageError(
+                        f"Invalid tag(s): {[item for item in self.kwargs['tags'] if len(item) < 1 or len(item) > 64]}. Tags must be between 1 and 64 characters."
+                    )
 
         error: Optional[wandb.errors.Error] = None
 
