@@ -187,10 +187,8 @@ func (mh *MetricHandler) createGlobMetrics(
 // a glob metric, and otherwise returns nil.
 func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
 	for glob, metric := range mh.globMetrics {
-		// filepath doesn't match wildcards if the user has specified a section
-		// using `/` in the logged value. So, we can't use filepath.Match here.
-		// since globs can only be used as a suffix, we can just remove the
-		//  wild card, then check if the key starts with the glob
+		// since globs can only be used as a suffix, and we only support wildcard
+		// we can just remove the wild card, then check if the key starts with the glob
 		trimmedGlob := strings.TrimSuffix(glob, "*")
 		match := strings.HasPrefix(key, trimmedGlob)
 		if !match {
