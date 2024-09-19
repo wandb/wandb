@@ -116,7 +116,7 @@ automations = [
     "pydantic>=2.0,<3",
     "pydantic-settings",
     "typing-extensions>=4.13.0,<5",
-    "rich",
+    "rich[jupyter]",
 ]
 
 [tool.pytest.ini_options]
