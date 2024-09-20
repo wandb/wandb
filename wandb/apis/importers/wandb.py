@@ -849,6 +849,7 @@ class WandbImporter:
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
+        max_workers: Optional[int] = None,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         logger.info("START: Importing reports")
@@ -867,7 +868,7 @@ class WandbImporter:
             self._import_report(report, namespace=namespace)
             logger.debug(f"Finished importing {report=}, {namespace=}")
 
-        for_each(_import_report_wrapped, reports)
+        for_each(_import_report_wrapped, reports, max_workers=max_workers)
 
         logger.info("END: Importing reports")
 
@@ -946,6 +947,7 @@ class WandbImporter:
         reports: bool = True,
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
+        max_workers: int = None,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         logger.info(f"START: Importing all, {runs=}, {artifacts=}, {reports=}")
@@ -954,12 +956,14 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
+                max_workers=max_workers
             )
 
         if reports:
             self.import_reports(
                 namespaces=namespaces,
                 remapping=remapping,
+                max_workers=max_workers
             )
 
         if artifacts:
@@ -967,6 +971,7 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
+                max_workers=max_workers
             )
 
         logger.info("END: Importing all")
