@@ -2,6 +2,7 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
+use std::collections::HashSet;
 use std::fs::read_to_string;
 
 /// Static information about a GPU.
@@ -123,11 +124,11 @@ impl NvidiaGpu {
         })
     }
 
-    /// Check if a GPU is being used by a specific process or its children.
+    /// Check if a GPU is being used by a specific process or its descendants.
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
-        let mut our_pids = vec![pid];
-        if let Ok(child_pids) = self.get_child_pids(pid) {
-            our_pids.extend(child_pids);
+        let mut our_pids = Vec::new();
+        if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
+            our_pids.extend(descendant_pids);
         }
 
         let compute_processes = device.running_compute_processes().unwrap_or_default();
@@ -142,20 +143,31 @@ impl NvidiaGpu {
         our_pids.iter().any(|&p| device_pids.contains(&p))
     }
 
-    /// Get child process IDs for a given parent PID.
-    fn get_child_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
+    /// Get descendant process IDs for a given parent PID.
+    fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
         let mut descendant_pids = Vec::new();
+        let mut visited_pids = HashSet::new();
         let mut stack = vec![parent_pid];
 
         while let Some(pid) = stack.pop() {
+            // Skip if we've already visited this PID
+            if !visited_pids.insert(pid) {
+                continue;
+            }
+
             let children_path = format!("/proc/{}/task/{}/children", pid, pid);
-            if let Ok(contents) = read_to_string(&children_path) {
-                let child_pids: Vec<i32> = contents
-                    .split_whitespace()
-                    .filter_map(|s| s.parse::<i32>().ok())
-                    .collect();
-                stack.extend(&child_pids);
-                descendant_pids.extend(child_pids);
+            match read_to_string(&children_path) {
+                Ok(contents) => {
+                    let child_pids: Vec<i32> = contents
+                        .split_whitespace()
+                        .filter_map(|s| s.parse::<i32>().ok())
+                        .collect();
+                    stack.extend(&child_pids);
+                    descendant_pids.extend(&child_pids);
+                }
+                Err(_) => {
+                    continue; // Skip to the next PID
+                }
             }
         }
 
