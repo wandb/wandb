@@ -256,6 +256,8 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 
 		cudaCores := fmt.Sprintf("_gpu.%d.cudaCores", di)
 		if v, ok := g.sample[cudaCores]; ok {
+			// cudaCores defaults to 0 if the corresponding NVML query fails
+			// in nvidia_gpu_stats
 			if v, ok := v.(float64); ok && v > 0 {
 				gpuInfo.CudaCores = uint32(v)
 			}
