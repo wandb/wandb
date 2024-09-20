@@ -837,8 +837,8 @@ class Artifacts(Paginator):
             return None
 
     def convert_objects(self):
-        if self.last_response["project"]["artifactType"]["artifactCollection"] is None:
-            return []
+        collection = self.last_response["project"]["artifactType"]["artifactCollection"]
+        artifact_edges = collection.get("artifacts", {}).get("edges", [])
         artifacts = (
             wandb.Artifact._from_attrs(
                 self.entity,
@@ -847,18 +847,12 @@ class Artifacts(Paginator):
                 a["node"],
                 self.client,
             )
-            for a in self.last_response["project"]["artifactType"][
-                "artifactCollection"
-            ]["artifacts"]["edges"]
+            for a in artifact_edges
         )
-        if self.tags:
-            required_tags = set(self.tags)
-            artifacts = (
-                artifact
-                for artifact in artifacts
-                if required_tags.issubset(artifact.tags)
-            )
-        return list(artifacts)
+        required_tags = set(self.tags or [])
+        return [
+            artifact for artifact in artifacts if required_tags.issubset(artifact.tags)
+        ]
 
 
 class RunArtifacts(Paginator):
