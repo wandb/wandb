@@ -152,10 +152,7 @@ func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
 	}()
 
 	select {
-	case err := <-done:
-		if err != nil {
-			g.logger.CaptureError(fmt.Errorf("monitor: %v: error waiting for process to exit: %v", g.name, err))
-		}
+	case <-done:
 	case <-time.After(timeout):
 		// Timeout occurred
 		g.logger.CaptureError(fmt.Errorf("monitor: %v: timeout waiting for process to exit", g.name))
@@ -214,9 +211,7 @@ func (g *GPUNvidia) Close() {
 		return
 	}
 	// send signal to the process to exit
-	if err := g.cmd.Process.Signal(os.Kill); err != nil {
-		g.logger.Error("monitor: %v: error sending signal to process: %v", g.name, err)
-	}
+	_ = g.cmd.Process.Signal(os.Kill)
 	// We must ensure that the command is waited for to avoid zombie processes.
 	g.waitWithTimeout(5 * time.Second)
 }
