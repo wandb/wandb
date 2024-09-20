@@ -67,7 +67,8 @@ from typing import (
     Union,
 )
 
-from wandb.apis import PublicApi
+from wandb.analytics import Sentry
+from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
     Audio,
     Graph,
@@ -100,6 +101,11 @@ run: Run | None
 config: wandb_config.Config
 summary: wandb_summary.Summary
 Api: PublicApi
+
+# private attributes
+_sentry: Sentry
+api: InternalApi
+patched: Dict[str, List[Callable]]
 
 def setup(
     settings: Optional[Settings] = None,
