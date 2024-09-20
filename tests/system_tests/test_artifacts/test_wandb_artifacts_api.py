@@ -241,6 +241,46 @@ def test_log_artifact_with_invalid_tags(tmp_path, user, wandb_init, api, invalid
             run.log_artifact(artifact, tags=invalid_tags)
 
 
+def test_retrieve_artifacts_by_tags(user, wandb_init):
+    project = "test"
+    artifact_name = "test-artifact"
+    artifact_type = "test-type"
+
+    with wandb_init(entity=user, project=project) as run:
+        for i in range(10):
+            artifact = wandb.Artifact(name=artifact_name, type=artifact_type)
+            with artifact.new_file(f"{i}.txt", "w") as f:
+                f.write("testing")
+            run.log_artifact(artifact)
+
+    artifact_name = f"{user}/{project}/{artifact_name}"
+
+    for logged_artifact in Api().artifacts(type_name=artifact_type, name=artifact_name):
+        version = int(logged_artifact.version.strip("v"))
+        if version in [2, 3, 5, 7]:
+            logged_artifact.tags.append("prime")
+        if version % 3 == 0:
+            logged_artifact.tags.append("fizz")
+        if version % 5 == 0:
+            logged_artifact.tags.append("buzz")
+        logged_artifact.save()
+
+    # Retrieve all artifacts with a given tag.
+    artifacts = Api().artifacts(
+        type_name=artifact_type, name=artifact_name, tags=["prime"]
+    )
+    retrieved_artifacts = list(artifacts)
+    assert len(retrieved_artifacts) == 4
+
+    # Retrieve only the artifacts that match multiple tags.
+    artifacts = Api().artifacts(
+        type_name=artifact_type, name=artifact_name, tags=["fizz", "prime"]
+    )
+    retrieved_artifacts = list(artifacts)
+    assert len(retrieved_artifacts) == 1
+    assert retrieved_artifacts[0].version == "v3"
+
+
 def test_update_aliases_on_artifact(user, wandb_init):
     project = "test"
     run = wandb_init(entity=user, project=project)
