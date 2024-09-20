@@ -2,7 +2,6 @@ package runmetric
 
 import (
 	"errors"
-	"regexp"
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -204,13 +203,38 @@ func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
 }
 
 func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []string {
-	// Match any period character that is not preceded by a backslash.
-	re := regexp.MustCompile(`.*?[^\\](\.|$)`)
-	parts := re.FindAllString(metricName, -1)
+	parts := []string{}
+	sb := strings.Builder{}
 
-	// Replace any escaped periods with a single period, to clean up the way the strings are displayed.
-	for i, ele := range parts {
-		parts[i] = strings.ReplaceAll(strings.Trim(ele, "."), `\.`, ".")
+	isEscaped := false
+	for i := 0; i < len(metricName); i++ {
+		switch isEscaped {
+		case true:
+			switch metricName[i] {
+			// When the current character is a dot, and it has not been escaped then we want to split the metric name.
+			case '.':
+				parts = append(parts, sb.String())
+				sb.Reset()
+				// When we come across a backslash set isEscaped flag to true to see if next character is a dot.
+			case '\\':
+				isEscaped = true
+			default:
+				sb.WriteByte(metricName[i])
+			}
+		case false:
+			switch metricName[i] {
+			case '.':
+				sb.WriteByte('.')
+			default:
+				sb.WriteByte('\\')
+				sb.WriteByte(metricName[i])
+			}
+			isEscaped = false
+		}
+	}
+
+	if sb.Len() > 0 {
+		parts = append(parts, sb.String())
 	}
 
 	return parts

@@ -423,18 +423,18 @@ def test_metric_dotted(relay_server, wandb_init):
     with relay_server() as relay:
         run = wandb_init()
         run_id = run.id
-        run.define_metric("this\\.that", summary="min")
-        run.log({"this.that": 3})
-        run.log({"this.that": 2})
-        run.log({"this.that": 4})
+        run.define_metric("test\\this\\.that", summary="min")
+        run.log({"test\\this.that": 3})
+        run.log({"test\\this.that": 2})
+        run.log({"test\\this.that": 4})
         run.finish()
 
     summary = relay.context.get_run_summary(run_id)
     metrics = relay.context.get_run_metrics(run_id)
 
-    assert summary["this.that"] == {"min": 2}
+    assert summary["test\\this.that"] == {"min": 2}
     assert len(metrics) == 1
-    assert metrics[0] == {"1": "this\\.that", "7": [1], "6": [3]}
+    assert metrics[0] == {"1": "test\\this\\.that", "7": [1], "6": [3]}
 
 
 def test_metric_nested_glob(relay_server, wandb_init):
