@@ -67,7 +67,7 @@ from typing import (
     Union,
 )
 
-from wandb.analytics import Sentry as _Sentry
+from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
     Audio,
@@ -97,15 +97,15 @@ if TYPE_CHECKING:
 
 __version__: str = "0.18.2.dev1"
 
-run: Optional[Run] = None
-config = wandb_config.Config
-summary = wandb_summary.Summary
-Api = PublicApi
-api = InternalApi()
-_sentry = _Sentry()
+run: Run | None
+config: wandb_config.Config
+summary: wandb_summary.Summary
+Api: PublicApi
 
-# record of patched libraries
-patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore
+# private attributes
+_sentry: Sentry
+api: InternalApi
+patched: Dict[str, List[Callable]]
 
 def setup(
     settings: Optional[Settings] = None,
@@ -199,7 +199,7 @@ def init(
     allow_val_change: Optional[bool] = None,
     resume: Optional[Union[bool, str]] = None,
     force: Optional[bool] = None,
-    tensorboard: Optional[bool] = None,  # alias for sync_tensorboard
+    tensorboard: Optional[bool] = None,
     sync_tensorboard: Optional[bool] = None,
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
