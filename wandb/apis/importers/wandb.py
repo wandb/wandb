@@ -51,7 +51,7 @@ DST_ART_PATH = "./artifacts/dst"
 
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 if os.getenv("WANDB_IMPORTER_ENABLE_RICH_LOGGING"):
     from rich.logging import RichHandler
