@@ -208,8 +208,7 @@ func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []strin
 
 	isEscaped := false
 	for i := 0; i < len(metricName); i++ {
-		switch isEscaped {
-		case false:
+		if !isEscaped {
 			switch metricName[i] {
 			// When the current character is a dot, and it has not been escaped then we want to split the metric name.
 			case '.':
@@ -221,7 +220,7 @@ func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []strin
 			default:
 				sb.WriteByte(metricName[i])
 			}
-		case true:
+		} else {
 			switch metricName[i] {
 			case '.':
 				sb.WriteByte('.')
