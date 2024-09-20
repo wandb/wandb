@@ -15,8 +15,8 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.plot.viz import custom_chart
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.viz import custom_chart
 from wandb.sdk.wandb_init import init as real_wandb_init
 
 

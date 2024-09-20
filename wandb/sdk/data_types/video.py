@@ -34,7 +34,7 @@ def write_gif_with_image_io(
 ) -> None:
     imageio = util.get_module(
         "imageio",
-        required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
+        required='wandb.Video requires imageio when passing raw data. Install with "pip install wandb[media]"',
     )
 
     writer = imageio.save(filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0)
@@ -130,7 +130,7 @@ class Video(BatchableMedia):
     def encode(self) -> None:
         mpy = util.get_module(
             "moviepy.editor",
-            required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"',
+            required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
         )
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
