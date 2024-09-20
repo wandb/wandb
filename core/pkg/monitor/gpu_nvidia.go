@@ -1,4 +1,4 @@
-//go:build linux
+//go:bu ild linux
 
 package monitor
 
@@ -57,6 +57,7 @@ type GPUNvidia struct {
 	mutex            sync.RWMutex
 	cmd              *exec.Cmd
 	logger           *observability.CoreLogger
+	waitOnce         sync.Once
 }
 
 func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
@@ -129,12 +130,36 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 			g.mutex.Unlock()
 		}
 
-		if err := scanner.Err(); err != nil {
-			return
-		}
+		// If we reach here, the scanner has finished reading from the pipe
+		// and the command has exited. We must ensure that the command is waited
+		// for to avoid zombie processes.
+		g.waitWithTimeout(5 * time.Second)
 	}()
 
 	return g
+}
+
+// waitWithTimeout waits for the process to exit, but times out after the given duration.
+func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
+	// Channel to receive the result of cmd.Wait()
+	done := make(chan error, 1)
+
+	// Wait for the process to exit
+	go func() {
+		g.waitOnce.Do(func() {
+			done <- g.cmd.Wait()
+		})
+	}()
+
+	select {
+	case err := <-done:
+		if err != nil {
+			g.logger.CaptureError(fmt.Errorf("monitor: %v: error waiting for process to exit: %v", g.name, err))
+		}
+	case <-time.After(timeout):
+		// Timeout occurred
+		g.logger.CaptureError(fmt.Errorf("monitor: %v: timeout waiting for process to exit", g.name))
+	}
 }
 
 func (g *GPUNvidia) Name() string { return g.name }
@@ -185,12 +210,15 @@ func (g *GPUNvidia) IsAvailable() bool {
 }
 
 func (g *GPUNvidia) Close() {
-	// send signal to close
-	if g.IsAvailable() {
-		if err := g.cmd.Process.Signal(os.Kill); err != nil {
-			return
-		}
+	if !g.IsAvailable() {
+		return
 	}
+	// send signal to the process to exit
+	if err := g.cmd.Process.Signal(os.Kill); err != nil {
+		g.logger.Error("monitor: %v: error sending signal to process: %v", g.name, err)
+	}
+	// We must ensure that the command is waited for to avoid zombie processes.
+	g.waitWithTimeout(5 * time.Second)
 }
 
 func (g *GPUNvidia) Probe() *spb.MetadataRequest {
