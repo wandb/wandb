@@ -36,9 +36,6 @@ func main() {
 		"Disables observability features such as metrics and logging analytics.")
 	enableOsPidShutdown := flag.Bool("os-pid-shutdown", false,
 		"Enables automatic server shutdown when the external process identified by the PID terminates.")
-	// TODO: remove these flags, they are here for backward compatibility
-	_ = flag.Bool("serve-sock", false,
-		"Legacy flag for backward compatibility. Use sockets for communication. (Deprecated)")
 
 	// Custom usage function to add a header, version, and commit info
 	flag.Usage = func() {
