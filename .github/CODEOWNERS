@@ -3,6 +3,9 @@
 # Changing public interfaces
 /tests/unit_tests/test_library_public.py @wandb/sdk-team
 /wandb/__init__.py @wandb/sdk-team
+# Updating type hints
+/wandb/__init__.template.pyi @wandb/sdk-team
+/wandb/__init__.pyi @wandb/sdk-team
 # Packaging and releasing-related files
 /pyproject.toml @wandb/sdk-team
 /setup.py @wandb/sdk-team
