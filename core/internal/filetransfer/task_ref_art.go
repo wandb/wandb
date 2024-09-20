@@ -89,6 +89,11 @@ func (t *ReferenceArtifactDownloadTask) HasSingleFile() bool { return t.Digest !
 
 func (t *ReferenceArtifactDownloadTask) ShouldCheckDigest() bool { return t.Digest != t.Reference }
 
+func (t *ReferenceArtifactDownloadTask) VersionIDString() (string, bool) {
+	strVersionId, ok := t.VersionId.(string)
+	return strVersionId, ok
+}
+
 func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
 	uriParts, err := url.Parse(ref)
 	switch {
