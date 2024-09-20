@@ -8,31 +8,31 @@ import (
 )
 
 // GPUNvidia is a dummy implementation of the Asset interface for Nvidia GPUs.
-// type GPUNvidia struct {
-// 	name             string
-// 	pid              int32
-// 	samplingInterval float64
-// 	logger           *observability.CoreLogger
-// }
+type GPUNvidia struct {
+	name             string
+	pid              int32
+	samplingInterval float64
+	logger           *observability.CoreLogger
+}
 
-// func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
-// 	return &GPUNvidia{
-// 		name:             "gpu",
-// 		pid:              pid,
-// 		samplingInterval: samplingInterval,
-// 		logger:           logger,
-// 	}
-// }
+func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
+	return &GPUNvidia{
+		name:             "gpu",
+		pid:              pid,
+		samplingInterval: samplingInterval,
+		logger:           logger,
+	}
+}
 
-// func (g *GPUNvidia) Name() string { return g.name }
+func (g *GPUNvidia) Name() string { return g.name }
 
-// func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
+func (g *GPUNvidia) Sample() (map[string]any, error) { return nil, nil }
 
-// func (g *GPUNvidia) IsAvailable() bool { return false }
+func (g *GPUNvidia) IsAvailable() bool { return false }
 
-// func (g *GPUNvidia) Probe() *spb.MetadataRequest {
-// 	return nil
-// }
+func (g *GPUNvidia) Probe() *spb.MetadataRequest {
+	return nil
+}
 
 // GPUAMD is a dummy implementation of the Asset interface for AMD GPUs.
 type GPUAMD struct {

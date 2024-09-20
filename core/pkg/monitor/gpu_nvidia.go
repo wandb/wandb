@@ -1,4 +1,4 @@
-//go:bu ild linux
+//go:build linux
 
 package monitor
 
