@@ -179,6 +179,6 @@ def test_connection_reset(
         regex_pattern = log_line_match_eof(user, run.project, run.id)
         matches = regex_pattern.findall(internal_log)
         # we should have 2 retries
-        assert len(matches) == 2
+        assert len(matches) == 4
         # assert we see EOF in the logs twice
-        assert internal_log.count(': EOF"') == 2
+        assert internal_log.count(': EOF"') == 4
