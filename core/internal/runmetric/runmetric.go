@@ -82,7 +82,8 @@ func (mh *MetricHandler) UpdateSummary(
 	if len(name) == 0 {
 		return
 	}
-	parts := strings.Split(name, ".")
+
+	parts := mh.splitEscapedDottedMetricName(name)
 	path := pathtree.PathOf(parts[0], parts[1:]...)
 
 	summary.ConfigureMetric(path, metric.NoSummary, metric.SummaryTypes)
@@ -199,4 +200,41 @@ func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
 	}
 
 	return definedMetric{}, false
+}
+
+func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []string {
+	parts := []string{}
+	sb := strings.Builder{}
+
+	isEscaped := false
+	for i := 0; i < len(metricName); i++ {
+		if !isEscaped {
+			switch metricName[i] {
+			// When the current character is a dot, and it has not been escaped then we want to split the metric name.
+			case '.':
+				parts = append(parts, sb.String())
+				sb.Reset()
+				// When we come across a backslash set isEscaped flag to true to see if next character is a dot.
+			case '\\':
+				isEscaped = true
+			default:
+				sb.WriteByte(metricName[i])
+			}
+		} else {
+			switch metricName[i] {
+			case '.':
+				sb.WriteByte('.')
+			default:
+				sb.WriteByte('\\')
+				sb.WriteByte(metricName[i])
+			}
+			isEscaped = false
+		}
+	}
+
+	if sb.Len() > 0 {
+		parts = append(parts, sb.String())
+	}
+
+	return parts
 }
