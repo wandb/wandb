@@ -970,7 +970,7 @@ def _attach(
     if run is None:
         run = Run(settings=settings)
     else:
-        run._init()
+        run._init(settings=settings)
     run._set_library(_wl)
     run._set_backend(backend)
     backend._hack_set_run(run)
