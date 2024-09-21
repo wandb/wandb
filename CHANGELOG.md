@@ -20,6 +20,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Update the signature and docstring of `wandb.api.public.runs.Run.log_artifact()` to support artifact tags like `Run` instances returned by `wandb.init()`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8414)
 - Add docstring for `wandb.watch` to support auto-complete (@kptkin in https://github.com/wandb/wandb/pull/8425)
 - Fix glob matching in define metric to work with logged keys containing `/` (@KyleGoyette in https://github.com/wandb/wandb/pull/8434)
+- Allow `a\.b` syntax in run.define_metric to refer to a dotted metric name (@jacobromero in https://github.com/wandb/wandb/pull/8445)
 
 ### Added
 
