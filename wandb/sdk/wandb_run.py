@@ -594,7 +594,7 @@ class Run:
         self._init_pid = os.getpid()
 
         if settings._noop:
-            # TODO: properly handle setting for disable settings
+            # TODO: properly handle setting for disabled mode
             self._settings = settings
             return
 
