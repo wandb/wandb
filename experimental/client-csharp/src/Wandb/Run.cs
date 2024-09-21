@@ -1,3 +1,4 @@
+using Serilog;
 using WandbInternal;
 using Wandb.Internal;
 
@@ -51,15 +52,31 @@ namespace Wandb
         public int StartingStep { get; private set; }
 
         /// <summary>
+        ///  The logger for the run.
+        /// </summary>
+        private readonly ILogger _logger;
+
+        /// <summary>
         /// Initializes a new instance of the <see cref="Run"/> class.
         /// </summary>
         /// <param name="interface">The socket interface for communication.</param>
         /// <param name="settings">The settings for the run.</param>
-        internal Run(SocketInterface @interface, Settings settings)
+        internal Run(SocketInterface @interface, Settings settings, ILogger? logger = null)
         {
             _interface = @interface;
 
             Settings = settings;
+
+            _logger = logger ?? new LoggerConfiguration()
+            .MinimumLevel.Debug()
+            .WriteTo.File(
+                settings.LogUser,
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
+            )
+            .CreateLogger();
+            Console.WriteLine("Run created {0}", settings.LogUser);
+
+            _logger.Information("Run created");
         }
 
         /// <summary>
@@ -162,6 +179,8 @@ namespace Wandb
             await _interface.InformFinish().ConfigureAwait(false);
             PrintRunURL();
             PrintRunDir();
+
+            _logger.Information("Run finished");
         }
 
         /// <summary>
@@ -228,6 +247,12 @@ namespace Wandb
         public void Dispose()
         {
             _interface.Dispose();
+
+            // Ensure all log entries are flushed before disposing the session
+            if (_logger is Serilog.Core.Logger logger)
+            {
+                logger.Dispose();  // Flushes and disposes the logger if it's the Serilog implementation
+            }
         }
     }
 }
