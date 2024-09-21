@@ -8,16 +8,16 @@
     <WandbCoreDir>$(MSBuildProjectDirectory)/wandb-core</WandbCoreDir>
     <GoSrcDir>$(MSBuildProjectDirectory)/../../../../core</GoSrcDir>
   </PropertyGroup>
-    <PropertyGroup>
+  <PropertyGroup>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
     <AnalysisMode>AllEnabledByDefault</AnalysisMode>
   </PropertyGroup>
   <ItemGroup>
-      <Protobuf Include="$(MSBuildProjectDirectory)/../../../../wandb/proto/*.proto" ProtoRoot="$(MSBuildProjectDirectory)/../../../../">
-        <OutputDir>$(ProjectDir)Generated</OutputDir>
-        <CompileOutputs>true</CompileOutputs>
-        <GrpcServices>None</GrpcServices>
-      </Protobuf>
+    <Protobuf Include="$(MSBuildProjectDirectory)/../../../../wandb/proto/*.proto" ProtoRoot="$(MSBuildProjectDirectory)/../../../../">
+      <OutputDir>$(ProjectDir)Generated</OutputDir>
+      <CompileOutputs>true</CompileOutputs>
+      <GrpcServices>None</GrpcServices>
+    </Protobuf>
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Google.Protobuf" Version="3.28.0" />
@@ -47,8 +47,11 @@
     <PropertyGroup>
       <GoBinaryPath Condition="'$(OS)' == 'Windows_NT'">wandb-core.exe</GoBinaryPath>
       <GoBinaryPath Condition="'$(OS)' != 'Windows_NT'">wandb-core</GoBinaryPath>
+      <LdFlags>-s -w</LdFlags>
+      <GoBinaryOutputPath>$([System.IO.Path]::Combine('$(MSBuildProjectDirectory)', '$(GoBinaryPath)'))</GoBinaryOutputPath>
+      <MainGoFile>$([System.IO.Path]::Combine('cmd', 'wandb-core', 'main.go'))</MainGoFile>
     </PropertyGroup>
-    <Exec Command="go build -ldflags='-s -w' -mod=vendor -o $(MSBuildProjectDirectory)/$(GoBinaryPath) cmd/wandb-core/main.go" WorkingDirectory="$(GoSrcDir)"/>
+    <Exec Command="go build -ldflags=&quot;$(LdFlags)&quot; -mod=vendor -o &quot;$(GoBinaryOutputPath)&quot; &quot;$(MainGoFile)&quot;" WorkingDirectory="$(GoSrcDir)" />
     <ItemGroup>
       <None Include="$(GoBinaryPath)">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
