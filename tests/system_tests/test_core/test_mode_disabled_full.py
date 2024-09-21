@@ -15,7 +15,6 @@ def test_disabled_noop(wandb_init):
 
 
 def test_disabled_dir(wandb_init):
-    wandb.setup()  # need to do it before we mock tempfile.gettempdir (for service)
     tmp_dir = "/tmp/dir"
     with mock.patch("tempfile.gettempdir", lambda: tmp_dir):
         run = wandb_init(mode="disabled")
