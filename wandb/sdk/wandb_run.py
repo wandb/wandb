@@ -594,6 +594,8 @@ class Run:
         self._init_pid = os.getpid()
 
         if settings._noop:
+            # TODO: properly handle setting for disable settings
+            self._settings = settings
             return
 
         self._init(
@@ -605,13 +607,12 @@ class Run:
 
     def _init(
         self,
-        settings: Optional[Settings] = None,
+        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        if settings:
-            self._settings = settings
+        self._settings = settings
 
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
