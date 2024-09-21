@@ -500,12 +500,12 @@ workflows:
           codecov_flags: unit
           parallelism: 4
 
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
-          #       - /^release-.*/
-          #       - /^.*-ci-win$/
+          filters:
+            branches:
+              only:
+                - main
+                - /^release-.*/
+                - /^.*-ci-win$/
 
           matrix:
             parameters:
