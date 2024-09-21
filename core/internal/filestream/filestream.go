@@ -20,6 +20,7 @@ const (
 	SummaryFileName          = "wandb-summary.json"
 	OutputFileName           = "output.log"
 	defaultHeartbeatInterval = 30 * time.Second
+	DefaultTransmitInterval  = 15 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//

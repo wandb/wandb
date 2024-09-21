@@ -309,11 +309,12 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 				continue // nothing to do
 			}
 			ts := timestamppb.Now()
-			// Also store aggregated metrics in the buffer if we have one
+
+			// Push metrics to the buffer
 			if sm.buffer != nil {
 				for k, v := range metrics {
 					if v, ok := v.(float64); ok {
-						sm.buffer.push(k, ts, v)
+						sm.buffer.Push(k, ts, v)
 					}
 				}
 			}
@@ -331,13 +332,14 @@ func (sm *SystemMonitor) Monitor(asset Asset) {
 }
 
 // GetBuffer returns the current buffer of collected metrics.
-func (sm *SystemMonitor) GetBuffer() map[string]List {
+//
+// The buffer is a map of metric names to a slice of measurements - a list of
+// (timestamp, value) pairs.
+func (sm *SystemMonitor) GetBuffer() map[string][]Measurement {
 	if sm == nil || sm.buffer == nil {
 		return nil
 	}
-	sm.buffer.mutex.Lock()
-	defer sm.buffer.mutex.Unlock()
-	return sm.buffer.elements
+	return sm.buffer.GetMeasurements()
 }
 
 // Finish stops the monitoring process and performs necessary cleanup.

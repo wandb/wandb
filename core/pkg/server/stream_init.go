@@ -181,7 +181,11 @@ func NewFileStream(
 		Logger:            logger,
 		Printer:           printer,
 		ApiClient:         fileStreamRetryClient,
-		TransmitRateLimit: rate.NewLimiter(rate.Every(15*time.Second), 1),
+		TransmitRateLimit: rate.NewLimiter(rate.Every(filestream.DefaultTransmitInterval), 1),
+	}
+
+	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
+		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
 	return filestream.NewFileStream(params)

@@ -6,56 +6,78 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+// Measurement represents a single metric measurement with a timestamp and value.
 type Measurement struct {
-	// timestamp of the measurement
 	Timestamp *timestamppb.Timestamp
-	// value of the measurement
-	Value float64
+	Value     float64
 }
 
-type List struct {
-	// slice of tuples of (timestamp, value)
+// Measurements holds a thread-safe list of Measurement objects with a maximum size.
+type Measurements struct {
 	elements []Measurement
 	maxSize  int32
+	mutex    sync.Mutex
 }
 
-func (l *List) Append(element Measurement) {
-	if (l.maxSize > 0) && (len(l.elements) >= int(l.maxSize)) {
-		l.elements = l.elements[1:] // Drop the oldest element
+// Append adds a new Measurement to the list, maintaining the maxSize constraint.
+func (m *Measurements) Append(element Measurement) {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	if m.maxSize > 0 && int32(len(m.elements)) >= m.maxSize {
+		// Drop the oldest element
+		m.elements = m.elements[1:]
 	}
-	l.elements = append(l.elements, element) // Add the new element
+	m.elements = append(m.elements, element)
 }
 
-func (l *List) GetElements() []Measurement {
-	return l.elements
+// Elements returns a copy of the measurements in the list.
+func (m *Measurements) Elements() []Measurement {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+	elementsCopy := make([]Measurement, len(m.elements))
+	copy(elementsCopy, m.elements)
+	return elementsCopy
 }
 
-// Buffer is the in-memory metrics buffer for the system monitor
+// Buffer is the in-memory metrics buffer for the system monitor.
 type Buffer struct {
-	elements map[string]List
+	elements map[string]*Measurements
 	mutex    sync.RWMutex
 	maxSize  int32
 }
 
+// NewBuffer creates a new Buffer with the specified maximum size for each metric's measurements.
 func NewBuffer(maxSize int32) *Buffer {
 	return &Buffer{
-		elements: make(map[string]List),
+		elements: make(map[string]*Measurements),
 		maxSize:  maxSize,
 	}
 }
 
-func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
+// Push adds a new measurement to the buffer for the given metric name.
+func (mb *Buffer) Push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
 	mb.mutex.Lock()
 	defer mb.mutex.Unlock()
-	buf, ok := mb.elements[metricName]
+	m, ok := mb.elements[metricName]
 	if !ok {
-		mb.elements[metricName] = List{
+		m = &Measurements{
 			maxSize: mb.maxSize,
 		}
+		mb.elements[metricName] = m
 	}
-	buf.Append(Measurement{
+	m.Append(Measurement{
 		Timestamp: timeStamp,
 		Value:     metricValue,
 	})
-	mb.elements[metricName] = buf
+}
+
+// GetMeasurements retrieves the measurements for the specified metric name.
+func (mb *Buffer) GetMeasurements() map[string][]Measurement {
+	mb.mutex.RLock()
+	defer mb.mutex.RUnlock()
+	allMeasurements := make(map[string][]Measurement, len(mb.elements))
+	for metricName, measurements := range mb.elements {
+		allMeasurements[metricName] = measurements.Elements()
+	}
+	return allMeasurements
 }
