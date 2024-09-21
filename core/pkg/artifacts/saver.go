@@ -17,6 +17,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
@@ -454,7 +455,7 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 		}
 		partsInfo = append(partsInfo, gql.UploadPartsInput{
 			PartNumber: partNumber,
-			HexMD5:     utils.ComputeHexMD5(buffer[:bytesRead]),
+			HexMD5:     hashencode.ComputeHexMD5(buffer[:bytesRead]),
 		})
 		partNumber++
 	}
@@ -493,7 +494,7 @@ func (as *ArtifactSaver) uploadMultipart(
 		task.Offset = int64(i) * chunkSize
 		remainingSize := statInfo.Size() - task.Offset
 		task.Size = min(remainingSize, chunkSize)
-		b64md5, err := utils.HexToB64(partData[i].HexMD5)
+		b64md5, err := hashencode.HexToB64(partData[i].HexMD5)
 		if err != nil {
 			return uploadResult{name: fileInfo.name, err: err}
 		}
@@ -610,7 +611,7 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 				serverId = response.ClientIDMapping.ServerID
 				cache[clientId] = serverId
 			}
-			serverIdHex, err := utils.B64ToHex(serverId)
+			serverIdHex, err := hashencode.B64ToHex(serverId)
 			if err != nil {
 				return err
 			}
