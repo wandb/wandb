@@ -26,6 +26,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Add `tags` parameter to `wandb.Api.artifacts()` to filter artifacts by tag. (@moredatarequired in https://github.com/wandb/wandb/pull/8441)
 
+### Changed
+
+- Clean up and modernize type hints in `wandb.sdk.artifacts.*` modules, following PEPs [563](https://peps.python.org/pep-0563/), [585](https://peps.python.org/pep-0585/), and [604](https://peps.python.org/pep-0604/) (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8338)
+
 ## [0.18.1] - 2024-09-16
 
 ### Fixed
