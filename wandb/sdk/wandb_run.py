@@ -44,6 +44,7 @@ from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
 from wandb.integration.torch import wandb_torch
+from wandb.plot.viz import CustomChart, Visualize, custom_chart
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -57,7 +58,6 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
-from wandb.sdk.lib.viz import CustomChart, Visualize, custom_chart
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
@@ -592,12 +592,14 @@ class Run:
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._settings = settings
 
         if settings._noop:
+            # TODO: properly handle setting for disabled mode
+            self._settings = settings
             return
 
         self._init(
+            settings=settings,
             config=config,
             sweep_config=sweep_config,
             launch_config=launch_config,
@@ -605,10 +607,13 @@ class Run:
 
     def _init(
         self,
+        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        self._settings = settings
+
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
@@ -2194,9 +2199,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            manager = self._wl and self._wl._get_manager()
-            if manager:
-                manager._inform_finish(run_id=self._run_id)
+            service = self._wl and self._wl.service
+            if service:
+                service.inform_finish(run_id=self._run_id)
 
         finally:
             module.unset_globals()
@@ -2459,8 +2464,8 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        manager = self._wl and self._wl._get_manager()
-        if not manager:
+        service = self._wl and self._wl.service
+        if not service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())

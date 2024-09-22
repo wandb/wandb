@@ -275,7 +275,6 @@ def login(key, host, cloud, relogin, anonymously, verify, no_offline=False):
 @click.option("--address", default=None, help="The address to bind service.")
 @click.option("--pid", default=None, type=int, help="The parent process id to monitor.")
 @click.option("--debug", is_flag=True, help="log debug info")
-@click.option("--serve-sock", is_flag=True, help="use socket mode")
 @display_error
 def service(
     sock_port=None,
@@ -283,7 +282,6 @@ def service(
     address=None,
     pid=None,
     debug=False,
-    serve_sock=False,
 ):
     from wandb.sdk.service.server import WandbServer
 
@@ -293,7 +291,6 @@ def service(
         address=address,
         pid=pid,
         debug=debug,
-        serve_sock=serve_sock,
     )
     server.serve()
 
