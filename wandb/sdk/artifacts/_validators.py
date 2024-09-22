@@ -57,26 +57,36 @@ DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
 
 
 def ensure_logged(method: DecoratedF) -> DecoratedF:
-    """Decorator to ensure that a method can only be called on logged artifacts."""
-    qualname = method.__qualname__
+    """
+    Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
+
+    If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
+    """
+    # For clarity, use the qualified (full) name of the method
+    full_attr_name = method.__qualname__
 
     @wraps(method)
     def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self.is_draft():
-            raise ArtifactNotLoggedError(qualname=qualname, obj=self)
+            raise ArtifactNotLoggedError(full_name=full_attr_name, obj=self)
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)
 
 
 def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
-    """Decorator to ensure that a method can only be called if the artifact has not been finalized."""
-    qualname = method.__qualname__
+    """
+    Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
+
+    If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
+    """
+    # For clarity, use the qualified (full) name of the method
+    full_attr_name = method.__qualname__
 
     @wraps(method)
     def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self._final:
-            raise ArtifactFinalizedError(qualname=qualname, obj=self)
+            raise ArtifactFinalizedError(full_name=full_attr_name, obj=self)
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)
