@@ -19,8 +19,10 @@ import (
 
 const (
 	defaultSamplingInterval = 10.0 * time.Second
+)
 
-	// State definitions for the system monitor
+// State definitions for the SystemMonitor.
+const (
 	StateStopped int32 = iota
 	StateRunning
 	StatePaused
