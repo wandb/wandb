@@ -12,7 +12,7 @@ import (
 
 func newTestSystemMonitor() *monitor.SystemMonitor {
 	settings := &spb.Settings{}
-	return monitor.New(
+	return monitor.NewSystemMonitor(
 		observability.NewNoOpLogger(),
 		settings,
 		runworktest.New(),
