@@ -14,9 +14,11 @@ if TYPE_CHECKING:
 
 
 class SockClientClosedError(Exception):
-    """Socket has been closed."""
+    """Raised on operations on a closed socket."""
 
-    pass
+
+class SockClientTimeoutError(Exception):
+    """Raised if the server didn't respond before the timeout."""
 
 
 class SockBuffer:
@@ -182,8 +184,10 @@ class SockClient:
         # it should be relatively stable.
         # This pass would be solved as part of the fix in https://wandb.atlassian.net/browse/WB-8709
         response = self.read_server_response(timeout=1)
+
         if response is None:
-            raise Exception("No response")
+            raise SockClientTimeoutError("No response after 1 second.")
+
         return response
 
     def send(
