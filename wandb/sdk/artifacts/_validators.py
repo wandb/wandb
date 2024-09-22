@@ -57,8 +57,7 @@ DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
 
 
 def ensure_logged(method: DecoratedF) -> DecoratedF:
-    """
-    Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
+    """Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
 
     If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
     """
@@ -75,8 +74,7 @@ def ensure_logged(method: DecoratedF) -> DecoratedF:
 
 
 def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
-    """
-    Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
+    """Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
 
     If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
     """
