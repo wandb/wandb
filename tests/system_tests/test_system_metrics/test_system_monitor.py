@@ -6,8 +6,7 @@ def test_run_system_metrics(wandb_init, relay_server, test_settings):
         run = wandb_init(
             settings=test_settings(
                 dict(
-                    _stats_sample_rate_seconds=1,
-                    _stats_samples_to_average=1,
+                    _stats_sampling_interval=1,
                     _stats_buffer_size=100,
                 )
             ),

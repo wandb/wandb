@@ -37,12 +37,19 @@ func NewBackend(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: failed to parse base URL: %v", err))
+			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
 	}
+
+	credentialProvider, err := api.NewCredentialProvider(settings)
+	if err != nil {
+		logger.CaptureFatalAndPanic(
+			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
+	}
+
 	return api.New(api.BackendOptions{
-		BaseURL: baseURL,
-		Logger:  logger.Logger,
-		APIKey:  settings.GetAPIKey(),
+		BaseURL:            baseURL,
+		Logger:             logger.Logger,
+		CredentialProvider: credentialProvider,
 	})
 }
 
@@ -226,9 +233,11 @@ func NewFileTransferManager(
 	}
 
 	return filetransfer.NewFileTransferManager(
-		filetransfer.WithLogger(logger),
-		filetransfer.WithFileTransfers(fileTransfers),
-		filetransfer.WithFileTransferStats(fileTransferStats),
+		filetransfer.FileTransferManagerOptions{
+			Logger:            logger,
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
 	)
 }
 

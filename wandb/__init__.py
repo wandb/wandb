@@ -8,7 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.18.1.dev1"
+__version__ = "0.18.2.dev1"
 
 from typing import Optional
 
@@ -76,8 +76,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-from wandb.sdk.lib.viz import visualize
-from wandb import plot
+from wandb.plot.viz import visualize
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
@@ -242,4 +241,5 @@ __all__ = (
     "use_model",
     "link_model",
     "define_metric",
+    "watch",
 )

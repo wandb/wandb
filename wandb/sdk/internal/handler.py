@@ -659,13 +659,6 @@ class HandleManager:
     def handle_footer(self, record: Record) -> None:
         self._dispatch_record(record)
 
-    def handle_request_check_version(self, record: Record) -> None:
-        if self._settings._offline:
-            result = proto_util._result_from_record(record)
-            self._respond_result(result)
-        else:
-            self._dispatch_record(record)
-
     def handle_request_attach(self, record: Record) -> None:
         result = proto_util._result_from_record(record)
         attach_id = record.request.attach.attach_id
@@ -861,9 +854,6 @@ class HandleManager:
                 item.values_float.extend(values)
             result.response.sampled_history_response.item.append(item)
         self._respond_result(result)
-
-    def handle_request_server_info(self, record: Record) -> None:
-        self._dispatch_record(record, always_send=True)
 
     def handle_request_keepalive(self, record: Record) -> None:
         """Handle a keepalive request.
