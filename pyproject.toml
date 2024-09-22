@@ -166,7 +166,7 @@ extend-exclude = [
 target-version = "py37"
 
 [tool.ruff.lint]
-select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP", "FA"]
+select = ["F", "E", "W", "B", "I", "N", "D", "C90", "UP"]
 ignore = [
     "B904",
     "E501",
