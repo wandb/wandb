@@ -115,8 +115,6 @@ func NewFileStream(params FileStreamParams) FileStream {
 		panic("filestream: nil logger")
 	case params.Printer == nil:
 		panic("filestream: nil printer")
-	case params.TransmitRateLimit == nil:
-		panic("filestream: nil rate limit")
 	}
 
 	fs := &fileStream{
