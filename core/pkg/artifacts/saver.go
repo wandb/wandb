@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -46,17 +47,23 @@ func NewArtifactSaver(
 	}
 }
 
+type ArtifactSaveResult struct {
+	ArtifactID string
+	Err        error
+}
+
 // Save asynchronously uploads an artifact.
 //
-// The onResult callback is always executed with the result
-// in the uploading goroutine.
+// This returns a channel to which the operation result is eventually
+// pushed. The channel is guaranteed to receive exactly one value and
+// then close.
 func (as *ArtifactSaver) Save(
 	ctx context.Context,
 	artifact *spb.ArtifactRecord,
 	historyStep int64,
 	stagingDir string,
-	onResult func(artifactID string, err error),
-) {
+) chan ArtifactSaveResult {
+	resultChan := make(chan ArtifactSaveResult, 1)
 	saveCtx := &ArtifactSaveContext{
 		ctx:                 ctx,
 		logger:              as.logger,
@@ -73,8 +80,15 @@ func (as *ArtifactSaver) Save(
 	go func() {
 		defer as.wg.Done()
 		artifactID, err := saveCtx.Save()
-		onResult(artifactID, err)
+
+		resultChan <- ArtifactSaveResult{
+			ArtifactID: artifactID,
+			Err:        err,
+		}
+		close(resultChan)
 	}()
+
+	return resultChan
 }
 
 // Finish blocks until all upload operations complete.
@@ -198,9 +212,11 @@ func getInputFields(ctx context.Context, client graphql.Client, typeName string)
 	return fieldNames, nil
 }
 
+type createArtifactManifest = gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest
+
 func (as *ArtifactSaveContext) createManifest(
 	artifactId string, baseArtifactId *string, manifestDigest string, includeUpload bool,
-) (attrs gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest, rerr error) {
+) (attrs createArtifactManifest, rerr error) {
 	manifestType := gql.ArtifactManifestTypeFull
 	manifestFilename := "wandb_manifest.json"
 	if as.artifact.IncrementalBeta1 {
@@ -225,8 +241,12 @@ func (as *ArtifactSaveContext) createManifest(
 		includeUpload,
 	)
 	if err != nil {
-		return gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest{}, err
+		return createArtifactManifest{}, err
 	}
+	if response.GetCreateArtifactManifest() == nil {
+		return createArtifactManifest{}, errors.New("nil createArtifactManifest")
+	}
+
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
@@ -663,14 +683,18 @@ func (as *ArtifactSaveContext) resolveClientIDReferences(manifest *Manifest) err
 
 func (as *ArtifactSaveContext) uploadManifest(
 	manifestFile string,
-	uploadUrl *string,
+	uploadURL *string,
 	uploadHeaders []string,
 ) error {
-	resultChan := make(chan *filetransfer.DefaultUploadTask)
+	if uploadURL == nil {
+		return errors.New("nil uploadURL")
+	}
+
+	resultChan := make(chan *filetransfer.DefaultUploadTask, 1)
 	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     manifestFile,
-		Url:      *uploadUrl,
+		Url:      *uploadURL,
 		Headers:  uploadHeaders,
 	}
 	task.OnComplete = func() { resultChan <- task }

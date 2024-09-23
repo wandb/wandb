@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
@@ -101,6 +102,9 @@ type Sender struct {
 
 	// artifactsSaver manages artifact uploads
 	artifactsSaver *artifacts.ArtifactSaver
+
+	// artifactWG is a wait group for artifact-related goroutines
+	artifactWG sync.WaitGroup
 
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
@@ -546,18 +550,21 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 
-	s.artifactsSaver.Save(
+	resultChan := s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
 		artifact,
 		0,
 		"",
-		func(artifactID string, err error) {
-			if err != nil {
-				s.logger.CaptureError(
-					fmt.Errorf("sender: failed to save job artifact: %v", err))
-			}
-		},
 	)
+	s.artifactWG.Add(1)
+	go func() {
+		defer s.artifactWG.Done()
+		result := <-resultChan
+		if result.Err != nil {
+			s.logger.CaptureError(
+				fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
+		}
+	}()
 }
 
 func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
@@ -612,13 +619,16 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 		// Order matters: we must stop watching files first, since that pushes
 		// updates to the runfiles uploader. The uploader creates file upload
 		// tasks, so it must be flushed before we close the file transfer
-		// manager.
+		// manager. Similarly, the artifact uploader must be flushed before
+		// the file transfer manager is closed.
 		go func() {
 			defer s.logger.Reraise()
 			s.fileWatcher.Finish()
 			if s.fileTransferManager != nil {
 				s.runfilesUploader.UploadRemaining()
 				s.runfilesUploader.Finish()
+				s.artifactsSaver.Finish()
+				s.artifactWG.Wait()
 				s.fileTransferManager.Close()
 			}
 			request.State++
@@ -1428,51 +1438,60 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
-	s.artifactsSaver.Save(
+	resultChan := s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
 		msg,
 		0,
 		"",
-		func(artifactID string, err error) {
-			if err != nil {
-				s.logger.CaptureError(
-					fmt.Errorf("sender: failed to log artifact: %v", err),
-					"artifactID", artifactID)
-			}
-		},
 	)
+
+	s.artifactWG.Add(1)
+	go func() {
+		defer s.artifactWG.Done()
+		result := <-resultChan
+		if result.Err != nil {
+			s.logger.CaptureError(
+				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
+				"artifactID", result.ArtifactID)
+		}
+	}()
 }
 
 func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifactRequest) {
-	s.artifactsSaver.Save(
+	resultChan := s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
 		msg.Artifact,
 		msg.HistoryStep,
 		msg.StagingDir,
-		func(artifactID string, err error) {
-			var response spb.LogArtifactResponse
-
-			if err != nil {
-				response.ErrorMessage = err.Error()
-			} else {
-				response.ArtifactId = artifactID
-			}
-
-			if msg.Artifact.GetType() == "code" {
-				s.jobBuilder.SetRunCodeArtifact(
-					response.ArtifactId,
-					msg.Artifact.GetName(),
-				)
-			}
-
-			s.respond(record,
-				&spb.Response{
-					ResponseType: &spb.Response_LogArtifactResponse{
-						LogArtifactResponse: &response,
-					},
-				})
-		},
 	)
+
+	s.artifactWG.Add(1)
+	go func() {
+		defer s.artifactWG.Done()
+
+		var response spb.LogArtifactResponse
+
+		result := <-resultChan
+		if result.Err != nil {
+			response.ErrorMessage = result.Err.Error()
+		} else {
+			response.ArtifactId = result.ArtifactID
+		}
+
+		if msg.Artifact.GetType() == "code" {
+			s.jobBuilder.SetRunCodeArtifact(
+				response.ArtifactId,
+				msg.Artifact.GetName(),
+			)
+		}
+
+		s.respond(record,
+			&spb.Response{
+				ResponseType: &spb.Response_LogArtifactResponse{
+					LogArtifactResponse: &response,
+				},
+			})
+	}()
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.DownloadArtifactRequest) {
