@@ -8,11 +8,11 @@ import (
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/wbvalue"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // Emitter modifies the run with data from a TF event.
@@ -313,7 +313,7 @@ func runRelativePath(
 	maybeRunFilePath, err := paths.Relative(
 		filepath.Join(
 			subdir,
-			fmt.Sprintf("%s%s", utils.ShortID(32), ext)),
+			fmt.Sprintf("%s%s", randomid.GenerateUniqueID(32), ext)),
 	)
 
 	if err != nil {
