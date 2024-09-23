@@ -233,9 +233,11 @@ func NewFileTransferManager(
 	}
 
 	return filetransfer.NewFileTransferManager(
-		filetransfer.WithLogger(logger),
-		filetransfer.WithFileTransfers(fileTransfers),
-		filetransfer.WithFileTransferStats(fileTransferStats),
+		filetransfer.FileTransferManagerOptions{
+			Logger:            logger,
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
 	)
 }
 

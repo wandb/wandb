@@ -38,7 +38,7 @@ namespace Wandb.Internal
                 StartInfo = new ProcessStartInfo
                 {
                     FileName = "wandb-core",
-                    Arguments = $"--port-filename {_portFilePath} --pid {Environment.ProcessId} --serve-sock",
+                    Arguments = $"--port-filename {_portFilePath} --pid {Environment.ProcessId}",
                     UseShellExecute = false,
                     RedirectStandardOutput = false,
                     RedirectStandardError = false
