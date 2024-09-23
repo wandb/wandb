@@ -32,6 +32,7 @@ from typing import (
 import click
 import requests
 import yaml
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -3464,7 +3465,10 @@ class Api:
         entity: str,
         project: str,
         aliases: Sequence[str],
+        organization: str,
     ) -> Dict[str, Any]:
+        wandb.termwarn("*** INTERNAL WE IN THE LINK ARTIFACT")
+        print("*** INTERNAL WE IN THE LINK ARTIFACT")
         template = """
                 mutation LinkArtifact(
                     $artifactPortfolioName: String!,
@@ -3485,6 +3489,22 @@ class Api:
                     }
             """
 
+        org_entity = ""
+        if is_artifact_registry_project(project):
+            org_fields = self.server_organization_introspection()
+            if "orgEntity" not in org_fields:
+                raise ValueError(
+                    """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
+                    Please upgrade your server"""
+                )
+            # Fetch the org_entity and org name that we are expecting. Note: this is making assumption that
+            org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+            if organization:
+                if organization != org_name and organization != org_entity:
+                    raise ValueError(
+                        f"Input wrong organization: {organization} for registry: {project}/{portfolio_name}"
+                    )
+
         def replace(a: str, b: str) -> None:
             nonlocal template
             template = template.replace(a, b)
@@ -3496,11 +3516,13 @@ class Api:
             replace("ID_TYPE", "$clientID: ID")
             replace("ID_VALUE", "clientID: $clientID")
 
+        print("********* ", org_entity)
+        wandb.termwarn("***** org_entity: ", org_entity)
         variable_values = {
             "clientID": client_id,
             "artifactID": server_id,
             "artifactPortfolioName": portfolio_name,
-            "entityName": entity,
+            "entityName": org_entity or entity,
             "projectName": project,
             "aliases": [
                 {"alias": alias, "artifactCollectionName": portfolio_name}
@@ -3512,6 +3534,37 @@ class Api:
         response = self.gql(mutation, variable_values=variable_values)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
+
+    def fetch_org_entity_from_entity(self, entity: str) -> tuple[str, str]:
+        query = gql(
+            """
+            query FetchOrgEntityFromEntity(
+                $entityName: String!,
+            ) {
+                entity(name: $entityName) {
+                    organization {
+                        name
+                        orgEntity {
+                            name
+                        }
+                    }
+                }
+            }
+            """
+        )
+        response = self.gql(
+            query,
+            variable_values={
+                "entityName": entity,
+            },
+        )
+        print(response)
+        org = response.get("organization")
+        if not org or not org.get("orgEntity"):
+            raise ValueError(
+                f"Registry organization not found for entity '{entity}'"
+            )  # TODO: please use valid path
+        return org["orgEntity"]["name"] or "", org["name"] or ""
 
     def use_artifact(
         self,
@@ -3579,6 +3632,27 @@ class Api:
             artifact: Dict[str, Any] = response["useArtifact"]["artifact"]
             return artifact
         return None
+
+    def server_organization_introspection(self) -> List:
+        query_string = """
+            query ProbeServerOrganization {
+                OrganizationInfoType: __type(name:"Organization") {
+                    fields {
+                        name
+                    }
+                }
+            }
+        """
+
+        if self.server_organization_fields_info is None:
+            query = gql(query_string)
+            res = self.gql(query)
+            input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
+            self.server_artifact_fields_info = [
+                field["name"] for field in input_fields if "name" in field
+            ]
+
+        return self.server_organization_fields_info
 
     def create_artifact_type(
         self,

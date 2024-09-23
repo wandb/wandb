@@ -52,6 +52,7 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts.artifact import Artifact
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -2951,6 +2952,10 @@ class Run:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
             if not self._settings._offline:
+                organization = ""
+                if is_artifact_registry_project(project):
+                    organization = entity
+                    entity = ""
                 handle = self._backend.interface.deliver_link_artifact(
                     self,
                     artifact,
@@ -2958,6 +2963,7 @@ class Run:
                     aliases,
                     entity,
                     project,
+                    organization,
                 )
                 if artifact._ttl_duration_seconds is not None:
                     wandb.termwarn(

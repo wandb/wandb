@@ -1,0 +1,10 @@
+query FetchOrgEntityFromEntity($entityName: String!) {
+    entity(name: $entityName) {
+        organization {
+            name
+            orgEntity {
+                name
+            }
+        }
+    }
+}

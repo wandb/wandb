@@ -8,6 +8,7 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
+from contextlib import suppress
 import gzip
 import logging
 import os
@@ -33,7 +34,9 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
+from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.staging import get_staging_dir
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
@@ -390,6 +393,7 @@ class InterfaceBase:
         aliases: Iterable[str],
         entity: Optional[str] = None,
         project: Optional[str] = None,
+        organization: Optional[str] = None,
     ) -> MailboxHandle:
         link_artifact = pb.LinkArtifactRequest()
         if artifact.is_draft():
@@ -397,7 +401,17 @@ class InterfaceBase:
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
-        link_artifact.portfolio_entity = entity or run.entity
+
+        if is_artifact_registry_project(project or ""):
+            # in a registry linking, the entity field is only used to help fetch the org entity
+            # if an artifact is logged, fetch the source entity of the artifact to have source of truth for org entity
+            with suppress(ArtifactNotLoggedError):
+                link_artifact.portfolio_entity = artifact.source_entity
+
+        if not link_artifact.portfolio_entity:
+            link_artifact.portfolio_entity = entity or run.entity
+
+        link_artifact.portfolio_organization = organization
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
 

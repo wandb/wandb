@@ -101,7 +101,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 
 	// Check which fields are actually supported on the input
-	inputFieldNames, err := getInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
+	inputFieldNames, err := utils.GetInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
@@ -140,23 +140,6 @@ func (as *ArtifactSaver) createArtifact() (
 		return gql.CreatedArtifactArtifact{}, err
 	}
 	return response.GetCreateArtifact().GetArtifact(), nil
-}
-
-func getInputFields(ctx context.Context, client graphql.Client, typeName string) ([]string, error) {
-	response, err := gql.InputFields(ctx, client, typeName)
-	if err != nil {
-		return nil, err
-	}
-	typeInfo := response.GetTypeInfo()
-	if typeInfo == nil {
-		return nil, fmt.Errorf("unable to verify allowed fields for %s", typeName)
-	}
-	fields := typeInfo.GetInputFields()
-	fieldNames := make([]string, len(fields))
-	for i, field := range fields {
-		fieldNames[i] = field.GetName()
-	}
-	return fieldNames, nil
 }
 
 func (as *ArtifactSaver) createManifest(

@@ -1437,6 +1437,7 @@ class LinkArtifactRequest(google.protobuf.message.Message):
     PORTFOLIO_ENTITY_FIELD_NUMBER: builtins.int
     PORTFOLIO_PROJECT_FIELD_NUMBER: builtins.int
     PORTFOLIO_ALIASES_FIELD_NUMBER: builtins.int
+    PORTFOLIO_ORGANIZATION_FIELD_NUMBER: builtins.int
     _INFO_FIELD_NUMBER: builtins.int
     client_id: builtins.str
     server_id: builtins.str
@@ -1445,6 +1446,7 @@ class LinkArtifactRequest(google.protobuf.message.Message):
     portfolio_project: builtins.str
     @property
     def portfolio_aliases(self) -> google.protobuf.internal.containers.RepeatedScalarFieldContainer[builtins.str]: ...
+    portfolio_organization: builtins.str
     @property
     def _info(self) -> wandb.proto.wandb_base_pb2._RecordInfo: ...
     def __init__(
@@ -1456,10 +1458,11 @@ class LinkArtifactRequest(google.protobuf.message.Message):
         portfolio_entity: builtins.str = ...,
         portfolio_project: builtins.str = ...,
         portfolio_aliases: collections.abc.Iterable[builtins.str] | None = ...,
+        portfolio_organization: builtins.str = ...,
         _info: wandb.proto.wandb_base_pb2._RecordInfo | None = ...,
     ) -> None: ...
     def HasField(self, field_name: typing_extensions.Literal["_info", b"_info"]) -> builtins.bool: ...
-    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
+    def ClearField(self, field_name: typing_extensions.Literal["_info", b"_info", "client_id", b"client_id", "portfolio_aliases", b"portfolio_aliases", "portfolio_entity", b"portfolio_entity", "portfolio_name", b"portfolio_name", "portfolio_organization", b"portfolio_organization", "portfolio_project", b"portfolio_project", "server_id", b"server_id"]) -> None: ...
 
 global___LinkArtifactRequest = LinkArtifactRequest
 

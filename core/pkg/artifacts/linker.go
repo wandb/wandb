@@ -3,12 +3,14 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"slices"
 
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
+	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ArtifactLinker struct {
@@ -24,7 +26,19 @@ func (al *ArtifactLinker) Link() error {
 	portfolioName := al.LinkArtifact.PortfolioName
 	portfolioEntity := al.LinkArtifact.PortfolioEntity
 	portfolioProject := al.LinkArtifact.PortfolioProject
+	organization := al.LinkArtifact.PortfolioOrganization
 	var portfolioAliases []gql.ArtifactAliasInput
+
+	if utils.IsArtifactRegistryProject(portfolioProject) {
+		orgFieldNames, err := utils.GetInputFields(al.Ctx, al.GraphqlClient, "Organization")
+		if err != nil {
+			return err
+		}
+		if slices.Contains(orgFieldNames, "orgEntity") {
+			// Fetch org entity and org name to confirm user inputted correct
+
+		}
+	}
 
 	for _, alias := range al.LinkArtifact.PortfolioAliases {
 		portfolioAliases = append(portfolioAliases,
