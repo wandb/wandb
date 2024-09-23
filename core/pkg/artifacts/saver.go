@@ -30,8 +30,6 @@ type ArtifactSaver struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
-
-	wg sync.WaitGroup
 }
 
 func NewArtifactSaver(
@@ -76,9 +74,7 @@ func (as *ArtifactSaver) Save(
 		maxActiveBatches:    5,
 	}
 
-	as.wg.Add(1)
 	go func() {
-		defer as.wg.Done()
 		artifactID, err := saveCtx.Save()
 
 		resultChan <- ArtifactSaveResult{
@@ -89,11 +85,6 @@ func (as *ArtifactSaver) Save(
 	}()
 
 	return resultChan
-}
-
-// Finish blocks until all upload operations complete.
-func (as *ArtifactSaver) Finish() {
-	as.wg.Wait()
 }
 
 // ArtifactSaveContext is a save operation for one artifact.

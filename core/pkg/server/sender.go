@@ -627,7 +627,6 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 			if s.fileTransferManager != nil {
 				s.runfilesUploader.UploadRemaining()
 				s.runfilesUploader.Finish()
-				s.artifactsSaver.Finish()
 				s.artifactWG.Wait()
 				s.fileTransferManager.Close()
 			}
