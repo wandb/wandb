@@ -16,6 +16,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/pathtree"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runhistory"
 	"github.com/wandb/wandb/core/internal/runmetric"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -142,7 +143,7 @@ func NewHandler(
 		terminalPrinter:   params.TerminalPrinter,
 		logger:            params.Logger,
 		settings:          params.Settings,
-		clientID:          utils.ShortID(32),
+		clientID:          randomid.GenerateUniqueID(32),
 		fwdChan:           params.FwdChan,
 		outChan:           params.OutChan,
 		mailbox:           params.Mailbox,

@@ -1,5 +1,7 @@
 """Artifact class."""
 
+from __future__ import annotations
+
 import atexit
 import concurrent.futures
 import contextlib
@@ -17,21 +19,7 @@ from copy import copy
 from datetime import datetime, timedelta
 from functools import partial
 from pathlib import PurePosixPath
-from typing import (
-    IO,
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    Union,
-    cast,
-)
+from typing import IO, TYPE_CHECKING, Any, Dict, Iterator, Sequence, Type, cast
 
 from wandb.sdk.artifacts.storage_handlers.gcs_handler import _GCSIsADirectoryError
 
@@ -130,10 +118,10 @@ class Artifact:
         self,
         name: str,
         type: str,
-        description: Optional[str] = None,
-        metadata: Optional[Dict[str, Any]] = None,
+        description: str | None = None,
+        metadata: dict[str, Any] | None = None,
         incremental: bool = False,
-        use_as: Optional[str] = None,
+        use_as: str | None = None,
     ) -> None:
         if not re.match(r"^[a-zA-Z0-9_\-.]+$", name):
             raise ValueError(
@@ -149,55 +137,53 @@ class Artifact:
             termwarn("Using experimental arg `incremental`")
 
         # Internal.
-        self._client: Optional[RetryingClient] = None
+        self._client: RetryingClient | None = None
 
         storage_policy_cls = StoragePolicy.lookup_by_name(WANDB_STORAGE_POLICY)
         layout = StorageLayout.V1 if env.get_use_v1_artifacts() else StorageLayout.V2
         policy_config = {"storageLayout": layout}
         self._storage_policy = storage_policy_cls.from_config(config=policy_config)
 
-        self._tmp_dir: Optional[tempfile.TemporaryDirectory] = None
-        self._added_objs: Dict[
-            int, Tuple[data_types.WBValue, ArtifactManifestEntry]
-        ] = {}
-        self._added_local_paths: Dict[str, ArtifactManifestEntry] = {}
-        self._save_future: Optional[MessageFuture] = None
-        self._download_roots: Set[str] = set()
+        self._tmp_dir: tempfile.TemporaryDirectory | None = None
+        self._added_objs: dict[int, tuple[WBValue, ArtifactManifestEntry]] = {}
+        self._added_local_paths: dict[str, ArtifactManifestEntry] = {}
+        self._save_future: MessageFuture | None = None
+        self._download_roots: set[str] = set()
         # Set by new_draft(), otherwise the latest artifact will be used as the base.
-        self._base_id: Optional[str] = None
+        self._base_id: str | None = None
         # Properties.
-        self._id: Optional[str] = None
+        self._id: str | None = None
         self._client_id: str = runid.generate_id(128)
         self._sequence_client_id: str = runid.generate_id(128)
-        self._entity: Optional[str] = None
-        self._project: Optional[str] = None
+        self._entity: str | None = None
+        self._project: str | None = None
         self._name: str = name  # includes version after saving
-        self._version: Optional[str] = None
-        self._source_entity: Optional[str] = None
-        self._source_project: Optional[str] = None
+        self._version: str | None = None
+        self._source_entity: str | None = None
+        self._source_project: str | None = None
         self._source_name: str = name  # includes version after saving
-        self._source_version: Optional[str] = None
+        self._source_version: str | None = None
         self._type: str = type
-        self._description: Optional[str] = description
+        self._description: str | None = description
         self._metadata: dict = self._normalize_metadata(metadata)
-        self._ttl_duration_seconds: Optional[int] = None
+        self._ttl_duration_seconds: int | None = None
         self._ttl_is_inherited: bool = True
         self._ttl_changed: bool = False
-        self._aliases: List[str] = []
-        self._saved_aliases: List[str] = []
-        self._tags: List[str] = []
-        self._saved_tags: List[str] = []
-        self._distributed_id: Optional[str] = None
+        self._aliases: list[str] = []
+        self._saved_aliases: list[str] = []
+        self._tags: list[str] = []
+        self._saved_tags: list[str] = []
+        self._distributed_id: str | None = None
         self._incremental: bool = incremental
-        self._use_as: Optional[str] = use_as
+        self._use_as: str | None = use_as
         self._state: ArtifactState = ArtifactState.PENDING
-        self._manifest: Optional[ArtifactManifest] = ArtifactManifestV1(
+        self._manifest: ArtifactManifest | None = ArtifactManifestV1(
             self._storage_policy
         )
-        self._commit_hash: Optional[str] = None
-        self._file_count: Optional[int] = None
-        self._created_at: Optional[str] = None
-        self._updated_at: Optional[str] = None
+        self._commit_hash: str | None = None
+        self._file_count: int | None = None
+        self._created_at: str | None = None
+        self._updated_at: str | None = None
         self._final: bool = False
 
         # Cache.
@@ -207,7 +193,7 @@ class Artifact:
         return f"<Artifact {self.id or self.name}>"
 
     @classmethod
-    def _from_id(cls, artifact_id: str, client: RetryingClient) -> Optional["Artifact"]:
+    def _from_id(cls, artifact_id: str, client: RetryingClient) -> Artifact | None:
         artifact = artifact_instance_cache.get(artifact_id)
         if artifact is not None:
             return artifact
@@ -246,7 +232,7 @@ class Artifact:
     @classmethod
     def _from_name(
         cls, entity: str, project: str, name: str, client: RetryingClient
-    ) -> "Artifact":
+    ) -> Artifact:
         query = gql(
             """
             query ArtifactByName(
@@ -285,9 +271,9 @@ class Artifact:
         entity: str,
         project: str,
         name: str,
-        attrs: Dict[str, Any],
+        attrs: dict[str, Any],
         client: RetryingClient,
-    ) -> "Artifact":
+    ) -> Artifact:
         # Placeholder is required to skip validation.
         artifact = cls("placeholder", type="placeholder")
         artifact._client = client
@@ -354,7 +340,7 @@ class Artifact:
         return artifact
 
     @ensure_logged
-    def new_draft(self) -> "Artifact":
+    def new_draft(self) -> Artifact:
         """Create a new draft artifact with the same content as this committed artifact.
 
         The artifact returned can be extended or modified and logged as a new version.
@@ -389,7 +375,7 @@ class Artifact:
     # Properties (Python Class managed attributes).
 
     @property
-    def id(self) -> Optional[str]:
+    def id(self) -> str | None:
         """The artifact's ID."""
         if self.is_draft():
             return None
@@ -500,12 +486,12 @@ class Artifact:
         return self._type
 
     @property
-    def description(self) -> Optional[str]:
+    def description(self) -> str | None:
         """A description of the artifact."""
         return self._description
 
     @description.setter
-    def description(self, description: Optional[str]) -> None:
+    def description(self, description: str | None) -> None:
         """Set the description of the artifact.
 
         For model or dataset Artifacts, add documentation for your
@@ -540,7 +526,7 @@ class Artifact:
         self._metadata = self._normalize_metadata(metadata)
 
     @property
-    def ttl(self) -> Union[timedelta, None]:
+    def ttl(self) -> timedelta | None:
         """The time-to-live (TTL) policy of an artifact.
 
         Artifacts are deleted shortly after a TTL policy's duration passes.
@@ -560,7 +546,7 @@ class Artifact:
         return timedelta(seconds=self._ttl_duration_seconds)
 
     @ttl.setter
-    def ttl(self, ttl: Union[timedelta, ArtifactTTL, None]) -> None:
+    def ttl(self, ttl: timedelta | ArtifactTTL | None) -> None:
         """The time-to-live (TTL) policy of an artifact.
 
         Artifacts are deleted shortly after a TTL policy's duration passes.
@@ -596,7 +582,7 @@ class Artifact:
 
     @property
     @ensure_logged
-    def aliases(self) -> List[str]:
+    def aliases(self) -> list[str]:
         """List of one or more semantically-friendly references or identifying "nicknames" assigned to an artifact version.
 
         Aliases are mutable references that you can programmatically reference.
@@ -608,28 +594,28 @@ class Artifact:
 
     @aliases.setter
     @ensure_logged
-    def aliases(self, aliases: List[str]) -> None:
+    def aliases(self, aliases: list[str]) -> None:
         """Set the aliases associated with this artifact."""
         self._aliases = validate_aliases(aliases)
 
     @property
     @ensure_logged
-    def tags(self) -> List[str]:
+    def tags(self) -> list[str]:
         """List of one or more tags assigned to this artifact version."""
         return self._tags
 
     @tags.setter
     @ensure_logged
-    def tags(self, tags: List[str]) -> None:
+    def tags(self, tags: list[str]) -> None:
         """Set the tags associated with this artifact."""
         self._tags = validate_tags(tags)
 
     @property
-    def distributed_id(self) -> Optional[str]:
+    def distributed_id(self) -> str | None:
         return self._distributed_id
 
     @distributed_id.setter
-    def distributed_id(self, distributed_id: Optional[str]) -> None:
+    def distributed_id(self, distributed_id: str | None) -> None:
         self._distributed_id = distributed_id
 
     @property
@@ -637,7 +623,7 @@ class Artifact:
         return self._incremental
 
     @property
-    def use_as(self) -> Optional[str]:
+    def use_as(self) -> str | None:
         return self._use_as
 
     @property
@@ -759,8 +745,8 @@ class Artifact:
 
     def save(
         self,
-        project: Optional[str] = None,
-        settings: Optional["wandb.sdk.wandb_settings.Settings"] = None,
+        project: str | None = None,
+        settings: wandb.Settings | None = None,
     ) -> None:
         """Persist any changes made to the artifact.
 
@@ -799,12 +785,12 @@ class Artifact:
             wandb.run.log_artifact(self)
 
     def _set_save_future(
-        self, save_future: "MessageFuture", client: RetryingClient
+        self, save_future: MessageFuture, client: RetryingClient
     ) -> None:
         self._save_future = save_future
         self._client = client
 
-    def wait(self, timeout: Optional[int] = None) -> "Artifact":
+    def wait(self, timeout: int | None = None) -> Artifact:
         """If needed, wait for this artifact to finish logging.
 
         Arguments:
@@ -1126,7 +1112,7 @@ class Artifact:
 
     # Adding, removing, getting entries.
 
-    def __getitem__(self, name: str) -> Optional[data_types.WBValue]:
+    def __getitem__(self, name: str) -> WBValue | None:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -1140,7 +1126,7 @@ class Artifact:
         """
         return self.get(name)
 
-    def __setitem__(self, name: str, item: data_types.WBValue) -> ArtifactManifestEntry:
+    def __setitem__(self, name: str, item: WBValue) -> ArtifactManifestEntry:
         """Add `item` to the artifact at path `name`.
 
         Arguments:
@@ -1159,8 +1145,8 @@ class Artifact:
     @contextlib.contextmanager
     @ensure_not_finalized
     def new_file(
-        self, name: str, mode: str = "w", encoding: Optional[str] = None
-    ) -> Generator[IO, None, None]:
+        self, name: str, mode: str = "w", encoding: str | None = None
+    ) -> Iterator[IO]:
         """Open a new temporary file and add it to the artifact.
 
         Arguments:
@@ -1199,10 +1185,10 @@ class Artifact:
     def add_file(
         self,
         local_path: str,
-        name: Optional[str] = None,
-        is_tmp: Optional[bool] = False,
-        skip_cache: Optional[bool] = False,
-        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+        name: str | None = None,
+        is_tmp: bool | None = False,
+        skip_cache: bool | None = False,
+        policy: Literal["mutable", "immutable"] | None = "mutable",
     ) -> ArtifactManifestEntry:
         """Add a local file to the artifact.
 
@@ -1245,9 +1231,9 @@ class Artifact:
     def add_dir(
         self,
         local_path: str,
-        name: Optional[str] = None,
-        skip_cache: Optional[bool] = False,
-        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+        name: str | None = None,
+        skip_cache: bool | None = False,
+        policy: Literal["mutable", "immutable"] | None = "mutable",
     ) -> None:
         """Add a local directory to the artifact.
 
@@ -1286,7 +1272,7 @@ class Artifact:
                     logical_path = os.path.join(name, logical_path)
                 paths.append((logical_path, physical_path))
 
-        def add_manifest_file(log_phy_path: Tuple[str, str]) -> None:
+        def add_manifest_file(log_phy_path: tuple[str, str]) -> None:
             logical_path, physical_path = log_phy_path
             self._add_local_file(
                 name=logical_path,
@@ -1306,10 +1292,10 @@ class Artifact:
     @ensure_not_finalized
     def add_reference(
         self,
-        uri: Union[ArtifactManifestEntry, str],
-        name: Optional[StrPath] = None,
+        uri: ArtifactManifestEntry | str,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         """Add a reference denoted by a URI to the artifact.
 
@@ -1387,7 +1373,7 @@ class Artifact:
         return manifest_entries
 
     @ensure_not_finalized
-    def add(self, obj: data_types.WBValue, name: StrPath) -> ArtifactManifestEntry:
+    def add(self, obj: WBValue, name: StrPath) -> ArtifactManifestEntry:
         """Add wandb.WBValue `obj` to the artifact.
 
         Arguments:
@@ -1489,9 +1475,9 @@ class Artifact:
         self,
         name: StrPath,
         path: StrPath,
-        digest: Optional[B64MD5] = None,
-        skip_cache: Optional[bool] = False,
-        policy: Optional[Literal["mutable", "immutable"]] = "mutable",
+        digest: B64MD5 | None = None,
+        skip_cache: bool | None = False,
+        policy: Literal["mutable", "immutable"] | None = "mutable",
     ) -> ArtifactManifestEntry:
         policy = policy or "mutable"
         if policy not in ["mutable", "immutable"]:
@@ -1519,7 +1505,7 @@ class Artifact:
         return entry
 
     @ensure_not_finalized
-    def remove(self, item: Union[StrPath, "ArtifactManifestEntry"]) -> None:
+    def remove(self, item: StrPath | ArtifactManifestEntry) -> None:
         """Remove an item from the artifact.
 
         Arguments:
@@ -1578,7 +1564,7 @@ class Artifact:
         return entry
 
     @ensure_logged
-    def get(self, name: str) -> Optional[data_types.WBValue]:
+    def get(self, name: str) -> WBValue | None:
         """Get the WBValue object located at the artifact relative `name`.
 
         Arguments:
@@ -1624,7 +1610,7 @@ class Artifact:
         result._set_artifact_source(self, name)
         return result
 
-    def get_added_local_path_name(self, local_path: str) -> Optional[str]:
+    def get_added_local_path_name(self, local_path: str) -> str | None:
         """Get the artifact relative name of a file added by a local filesystem path.
 
         Arguments:
@@ -1640,7 +1626,7 @@ class Artifact:
 
     def _get_obj_entry(
         self, name: str
-    ) -> Tuple[Optional["ArtifactManifestEntry"], Optional[Type[WBValue]]]:
+    ) -> tuple[ArtifactManifestEntry, Type[WBValue]] | tuple[None, None]:  # noqa: UP006  # `type` shadows `Artifact.type`
         """Return an object entry by name, handling any type suffixes.
 
         When objects are added with `.add(obj, name)`, the name is typically changed to
@@ -1663,10 +1649,10 @@ class Artifact:
     @ensure_logged
     def download(
         self,
-        root: Optional[StrPath] = None,
+        root: StrPath | None = None,
         allow_missing_references: bool = False,
-        skip_cache: Optional[bool] = None,
-        path_prefix: Optional[StrPath] = None,
+        skip_cache: bool | None = None,
+        path_prefix: StrPath | None = None,
     ) -> FilePathStr:
         """Download the contents of the artifact to the specified root directory.
 
@@ -1718,7 +1704,7 @@ class Artifact:
         root: str,
         allow_missing_references: bool = False,
         skip_cache: bool = False,
-        path_prefix: Optional[StrPath] = None,
+        path_prefix: StrPath | None = None,
     ) -> FilePathStr:
         import pathlib
 
@@ -1793,8 +1779,8 @@ class Artifact:
         self,
         root: str,
         allow_missing_references: bool = False,
-        skip_cache: Optional[bool] = None,
-        path_prefix: Optional[StrPath] = None,
+        skip_cache: bool | None = None,
+        path_prefix: StrPath | None = None,
     ) -> FilePathStr:
         nfiles = len(self.manifest.entries)
         size = sum(e.size or 0 for e in self.manifest.entries.values())
@@ -1811,9 +1797,9 @@ class Artifact:
 
         def _download_entry(
             entry: ArtifactManifestEntry,
-            api_key: Optional[str],
-            cookies: Optional[Dict],
-            headers: Optional[Dict],
+            api_key: str | None,
+            cookies: dict | None,
+            headers: dict | None,
         ) -> None:
             _thread_local_api_settings.api_key = api_key
             _thread_local_api_settings.cookies = cookies
@@ -1884,9 +1870,7 @@ class Artifact:
         retry_timedelta=timedelta(minutes=3),
         retryable_exceptions=(requests.RequestException),
     )
-    def _fetch_file_urls(
-        self, cursor: Optional[str], per_page: Optional[int] = 5000
-    ) -> Any:
+    def _fetch_file_urls(self, cursor: str | None, per_page: int | None = 5000) -> Any:
         query = gql(
             """
             query ArtifactFileURLs($id: ID!, $cursor: String, $perPage: Int) {
@@ -1916,7 +1900,7 @@ class Artifact:
         return response["artifact"]["files"]
 
     @ensure_logged
-    def checkout(self, root: Optional[str] = None) -> str:
+    def checkout(self, root: str | None = None) -> str:
         """Replace the specified root directory with the contents of the artifact.
 
         WARNING: This will delete all files in `root` that are not included in the
@@ -1946,7 +1930,7 @@ class Artifact:
         return self.download(root=root)
 
     @ensure_logged
-    def verify(self, root: Optional[str] = None) -> None:
+    def verify(self, root: str | None = None) -> None:
         """Verify that the contents of an artifact match the manifest.
 
         All files in the directory are checksummed and the checksums are then
@@ -1986,7 +1970,7 @@ class Artifact:
             print("Warning: skipped verification of {} refs".format(ref_count))
 
     @ensure_logged
-    def file(self, root: Optional[str] = None) -> StrPath:
+    def file(self, root: str | None = None) -> StrPath:
         """Download a single file artifact to the directory you specify with `root`.
 
         Arguments:
@@ -2013,7 +1997,7 @@ class Artifact:
 
     @ensure_logged
     def files(
-        self, names: Optional[List[str]] = None, per_page: int = 50
+        self, names: list[str] | None = None, per_page: int = 50
     ) -> ArtifactFiles:
         """Iterate over all files stored in this artifact.
 
@@ -2042,7 +2026,7 @@ class Artifact:
     def _add_download_root(self, dir_path: str) -> None:
         self._download_roots.add(os.path.abspath(dir_path))
 
-    def _local_path_to_name(self, file_path: str) -> Optional[str]:
+    def _local_path_to_name(self, file_path: str) -> str | None:
         """Convert a local file path to a path entry in the artifact."""
         abs_file_path = os.path.abspath(file_path)
         abs_file_parts = abs_file_path.split(os.sep)
@@ -2100,7 +2084,7 @@ class Artifact:
         )
 
     @normalize_exceptions
-    def link(self, target_path: str, aliases: Optional[List[str]] = None) -> None:
+    def link(self, target_path: str, aliases: list[str] | None = None) -> None:
         """Link this artifact to a portfolio (a promoted collection of artifacts).
 
         Arguments:
@@ -2171,7 +2155,7 @@ class Artifact:
         )
 
     @ensure_logged
-    def used_by(self) -> List[Run]:
+    def used_by(self) -> list[Run]:
         """Get a list of the runs that have used this artifact.
 
         Returns:
@@ -2217,7 +2201,7 @@ class Artifact:
         ]
 
     @ensure_logged
-    def logged_by(self) -> Optional[Run]:
+    def logged_by(self) -> Run | None:
         """Get the W&B run that originally logged the artifact.
 
         Returns:
@@ -2261,7 +2245,7 @@ class Artifact:
         )
 
     @ensure_logged
-    def json_encode(self) -> Dict[str, Any]:
+    def json_encode(self) -> dict[str, Any]:
         """Returns the artifact encoded to the JSON format.
 
         Returns:
@@ -2272,7 +2256,7 @@ class Artifact:
     @staticmethod
     def _expected_type(
         entity_name: str, project_name: str, name: str, client: RetryingClient
-    ) -> Optional[str]:
+    ) -> str | None:
         """Returns the expected type for a given artifact name and project."""
         query = gql(
             """
@@ -2307,7 +2291,7 @@ class Artifact:
         ).get("name")
 
     @staticmethod
-    def _normalize_metadata(metadata: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _normalize_metadata(metadata: dict[str, Any] | None) -> dict[str, Any]:
         if metadata is None:
             return {}
         if not isinstance(metadata, dict):
@@ -2374,7 +2358,7 @@ class Artifact:
 
         return fragment
 
-    def _ttl_duration_seconds_to_gql(self) -> Optional[int]:
+    def _ttl_duration_seconds_to_gql(self) -> int | None:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value
         # otherwise use ttl_status to indicate the backend INHERIT(-1) or DISABLED(-2) when the TTL is None
         # When ttl_change = None its a no op since nothing changed
@@ -2388,8 +2372,8 @@ class Artifact:
         return self._ttl_duration_seconds or DISABLED
 
     def _ttl_duration_seconds_from_gql(
-        self, gql_ttl_duration_seconds: Optional[int]
-    ) -> Optional[int]:
+        self, gql_ttl_duration_seconds: int | None
+    ) -> int | None:
         # If gql_ttl_duration_seconds is not positive, its indicating that TTL is DISABLED(-2)
         # gql_ttl_duration_seconds only returns None if the server is not compatible with setting Artifact TTLs
         if gql_ttl_duration_seconds and gql_ttl_duration_seconds > 0:

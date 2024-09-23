@@ -2950,6 +2950,10 @@ class Run:
         if self._backend and self._backend.interface:
             if artifact.is_draft() and not artifact._is_draft_save_started():
                 artifact = self._log_artifact(artifact)
+
+            # Wait until the artifact is committed before trying to link it.
+            artifact.wait()
+
             if not self._settings._offline:
                 handle = self._backend.interface.deliver_link_artifact(
                     self,

@@ -1,11 +1,13 @@
 """Artifact saver."""
 
+from __future__ import annotations
+
 import concurrent.futures
 import json
 import os
 import sys
 import tempfile
-from typing import TYPE_CHECKING, Awaitable, Dict, Optional, Sequence
+from typing import TYPE_CHECKING, Awaitable, Sequence
 
 import wandb
 import wandb.filesync.step_prepare
@@ -27,26 +29,26 @@ if TYPE_CHECKING:
 
     class SaveFn(Protocol):
         def __call__(
-            self, entry: "ArtifactManifestEntry", progress_callback: "ProgressFn"
+            self, entry: ArtifactManifestEntry, progress_callback: ProgressFn
         ) -> bool:
             pass
 
     class SaveFnAsync(Protocol):
         def __call__(
-            self, entry: "ArtifactManifestEntry", progress_callback: "ProgressFn"
+            self, entry: ArtifactManifestEntry, progress_callback: ProgressFn
         ) -> Awaitable[bool]:
             pass
 
 
 class ArtifactSaver:
-    _server_artifact: Optional[Dict]  # TODO better define this dict
+    _server_artifact: dict | None  # TODO better define this dict
 
     def __init__(
         self,
-        api: "InternalApi",
+        api: InternalApi,
         digest: str,
-        manifest_json: Dict,
-        file_pusher: "FilePusher",
+        manifest_json: dict,
+        file_pusher: FilePusher,
         is_user_created: bool = False,
     ) -> None:
         self._api = api
@@ -65,18 +67,18 @@ class ArtifactSaver:
         name: str,
         client_id: str,
         sequence_client_id: str,
-        distributed_id: Optional[str] = None,
+        distributed_id: str | None = None,
         finalize: bool = True,
-        metadata: Optional[Dict] = None,
-        ttl_duration_seconds: Optional[int] = None,
-        description: Optional[str] = None,
-        aliases: Optional[Sequence[str]] = None,
-        tags: Optional[Sequence[str]] = None,
+        metadata: dict | None = None,
+        ttl_duration_seconds: int | None = None,
+        description: str | None = None,
+        aliases: Sequence[str] | None = None,
+        tags: Sequence[str] | None = None,
         use_after_commit: bool = False,
         incremental: bool = False,
-        history_step: Optional[int] = None,
-        base_id: Optional[str] = None,
-    ) -> Optional[Dict]:
+        history_step: int | None = None,
+        base_id: str | None = None,
+    ) -> dict | None:
         return self._save_internal(
             type,
             name,
@@ -101,18 +103,18 @@ class ArtifactSaver:
         name: str,
         client_id: str,
         sequence_client_id: str,
-        distributed_id: Optional[str] = None,
+        distributed_id: str | None = None,
         finalize: bool = True,
-        metadata: Optional[Dict] = None,
-        ttl_duration_seconds: Optional[int] = None,
-        description: Optional[str] = None,
-        aliases: Optional[Sequence[str]] = None,
-        tags: Optional[Sequence[str]] = None,
+        metadata: dict | None = None,
+        ttl_duration_seconds: int | None = None,
+        description: str | None = None,
+        aliases: Sequence[str] | None = None,
+        tags: Sequence[str] | None = None,
         use_after_commit: bool = False,
         incremental: bool = False,
-        history_step: Optional[int] = None,
-        base_id: Optional[str] = None,
-    ) -> Optional[Dict]:
+        history_step: int | None = None,
+        base_id: str | None = None,
+    ) -> dict | None:
         alias_specs = []
         for alias in aliases or []:
             alias_specs.append({"artifactCollectionName": name, "alias": alias})

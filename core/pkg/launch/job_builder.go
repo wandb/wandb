@@ -15,6 +15,7 @@ import (
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/observability"
@@ -635,8 +636,8 @@ func (j *JobBuilder) Build(
 		Type:             "job",
 		Aliases:          append(j.aliases, "latest"),
 		Finalize:         true,
-		ClientId:         utils.GenerateAlphanumericSequence(128),
-		SequenceClientId: utils.GenerateAlphanumericSequence(128),
+		ClientId:         randomid.GenerateAlphanumericSequence(128),
+		SequenceClientId: randomid.GenerateAlphanumericSequence(128),
 		UseAfterCommit:   true,
 		UserCreated:      true,
 	}
