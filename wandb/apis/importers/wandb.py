@@ -946,6 +946,7 @@ class WandbImporter:
         reports: bool = True,
         namespaces: Optional[Iterable[Namespace]] = None,
         incremental: bool = True,
+        parallel: bool = True,
         max_workers: int = None,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
@@ -955,7 +956,8 @@ class WandbImporter:
                 namespaces=namespaces,
                 incremental=incremental,
                 remapping=remapping,
-                max_workers=max_workers
+                max_workers=max_workers,
+                parallel=parallel
             )
 
         if reports:
