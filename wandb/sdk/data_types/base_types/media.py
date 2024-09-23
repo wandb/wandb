@@ -19,8 +19,8 @@ from .wb_value import WBValue
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np
 
-    from wandb.sdk.wandb_run import Run as LocalRun
     from wandb.sdk.artifacts.artifact import Artifact
+    from wandb.sdk.wandb_run import Run as LocalRun
 
 
 SYS_PLATFORM = platform.system()
