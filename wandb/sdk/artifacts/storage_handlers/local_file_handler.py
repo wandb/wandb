@@ -1,9 +1,11 @@
 """Local file storage handler."""
 
+from __future__ import annotations
+
 import os
 import shutil
 import time
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult
 
 from wandb import util
@@ -22,7 +24,7 @@ if TYPE_CHECKING:
 class LocalFileHandler(StorageHandler):
     """Handles file:// references."""
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self, scheme: str | None = None) -> None:
         """Track files or directories on a local filesystem.
 
         Expand directories to create an entry for each file contained.
@@ -30,14 +32,14 @@ class LocalFileHandler(StorageHandler):
         self._scheme = scheme or "file"
         self._cache = get_artifact_file_cache()
 
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         if manifest_entry.ref is None:
             raise ValueError(f"Cannot add path with no ref: {manifest_entry.path}")
         local_path = util.local_file_uri_to_path(str(manifest_entry.ref))
@@ -69,11 +71,11 @@ class LocalFileHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         local_path = util.local_file_uri_to_path(path)
         max_objects = max_objects or DEFAULT_MAX_OBJECTS
