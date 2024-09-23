@@ -23,7 +23,67 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
+// ArtifactSaver manages artifact uploads.
 type ArtifactSaver struct {
+	logger              *observability.CoreLogger
+	graphqlClient       graphql.Client
+	fileTransferManager filetransfer.FileTransferManager
+	fileCache           Cache
+
+	wg sync.WaitGroup
+}
+
+func NewArtifactSaver(
+	logger *observability.CoreLogger,
+	graphqlClient graphql.Client,
+	fileTransferManager filetransfer.FileTransferManager,
+) *ArtifactSaver {
+	return &ArtifactSaver{
+		logger:              logger,
+		graphqlClient:       graphqlClient,
+		fileTransferManager: fileTransferManager,
+		fileCache:           NewFileCache(UserCacheDir()),
+	}
+}
+
+// Save asynchronously uploads an artifact.
+//
+// The onResult callback is always executed with the result
+// in the uploading goroutine.
+func (as *ArtifactSaver) Save(
+	ctx context.Context,
+	artifact *spb.ArtifactRecord,
+	historyStep int64,
+	stagingDir string,
+	onResult func(artifactID string, err error),
+) {
+	saveCtx := &ArtifactSaveContext{
+		ctx:                 ctx,
+		logger:              as.logger,
+		graphqlClient:       as.graphqlClient,
+		fileTransferManager: as.fileTransferManager,
+		fileCache:           as.fileCache,
+		artifact:            artifact,
+		historyStep:         historyStep,
+		stagingDir:          stagingDir,
+		maxActiveBatches:    5,
+	}
+
+	as.wg.Add(1)
+	go func() {
+		defer as.wg.Done()
+		artifactID, err := saveCtx.Save()
+		onResult(artifactID, err)
+	}()
+}
+
+// Finish blocks until all upload operations complete.
+func (as *ArtifactSaver) Finish() {
+	as.wg.Wait()
+}
+
+// ArtifactSaveContext is a save operation for one artifact.
+type ArtifactSaveContext struct {
 	// Resources.
 	ctx                 context.Context
 	logger              *observability.CoreLogger
@@ -60,29 +120,7 @@ type uploadResult struct {
 	err  error
 }
 
-func NewArtifactSaver(
-	ctx context.Context,
-	logger *observability.CoreLogger,
-	graphQLClient graphql.Client,
-	uploadManager filetransfer.FileTransferManager,
-	artifact *spb.ArtifactRecord,
-	historyStep int64,
-	stagingDir string,
-) ArtifactSaver {
-	return ArtifactSaver{
-		ctx:                 ctx,
-		logger:              logger,
-		graphqlClient:       graphQLClient,
-		fileTransferManager: uploadManager,
-		fileCache:           NewFileCache(UserCacheDir()),
-		artifact:            artifact,
-		historyStep:         historyStep,
-		stagingDir:          stagingDir,
-		maxActiveBatches:    5,
-	}
-}
-
-func (as *ArtifactSaver) createArtifact() (
+func (as *ArtifactSaveContext) createArtifact() (
 	attrs gql.CreatedArtifactArtifact,
 	rerr error,
 ) {
@@ -160,7 +198,7 @@ func getInputFields(ctx context.Context, client graphql.Client, typeName string)
 	return fieldNames, nil
 }
 
-func (as *ArtifactSaver) createManifest(
+func (as *ArtifactSaveContext) createManifest(
 	artifactId string, baseArtifactId *string, manifestDigest string, includeUpload bool,
 ) (attrs gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest, rerr error) {
 	manifestType := gql.ArtifactManifestTypeFull
@@ -192,7 +230,7 @@ func (as *ArtifactSaver) createManifest(
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) updateManifest(
+func (as *ArtifactSaveContext) updateManifest(
 	artifactManifestId string, manifestDigest string,
 ) (attrs updateArtifactManifestAttrs, rerr error) {
 	response, err := gql.UpdateArtifactManifest(
@@ -212,7 +250,7 @@ func (as *ArtifactSaver) updateManifest(
 	return response.GetUpdateArtifactManifest().ArtifactManifest, nil
 }
 
-func (as *ArtifactSaver) upsertManifest(
+func (as *ArtifactSaveContext) upsertManifest(
 	artifactId string, baseArtifactId *string, artifactManifestId string, manifestDigest string,
 ) (uploadUrl *string, uploadHeaders []string, rerr error) {
 	if as.artifact.IncrementalBeta1 || as.artifact.DistributedId != "" {
@@ -230,7 +268,7 @@ func (as *ArtifactSaver) upsertManifest(
 	}
 }
 
-func (as *ArtifactSaver) uploadFiles(
+func (as *ArtifactSaveContext) uploadFiles(
 	artifactID string,
 	manifest *Manifest,
 	manifestID string,
@@ -282,7 +320,7 @@ func (as *ArtifactSaver) uploadFiles(
 	return nil
 }
 
-func (as *ArtifactSaver) processFiles(
+func (as *ArtifactSaveContext) processFiles(
 	manifest *Manifest, namedFileSpecs map[string]gql.CreateArtifactFileSpecInput,
 ) (map[string]gql.CreateArtifactFileSpecInput, error) {
 	// Channels to get responses from the batch url retrievers.
@@ -350,7 +388,7 @@ func (as *ArtifactSaver) processFiles(
 
 // batchFileDataRetriever takes a batch of file specs, requests upload URLs for each file,
 // assembles the info needed for the next step, and feeds them into an output channel.
-func (as *ArtifactSaver) batchFileDataRetriever(
+func (as *ArtifactSaveContext) batchFileDataRetriever(
 	batch []gql.CreateArtifactFileSpecInput,
 	resultChan chan<- serverFileResponse,
 	errorChan chan<- error,
@@ -383,14 +421,14 @@ func (as *ArtifactSaver) batchFileDataRetriever(
 	}
 }
 
-func (as *ArtifactSaver) nextBatch(
+func (as *ArtifactSaveContext) nextBatch(
 	fileSpecs []gql.CreateArtifactFileSpecInput,
 ) ([]gql.CreateArtifactFileSpecInput, []gql.CreateArtifactFileSpecInput) {
 	batchSize := min(as.batchSize(), len(fileSpecs))
 	return fileSpecs[:batchSize], fileSpecs[batchSize:]
 }
 
-func (as *ArtifactSaver) batchSize() int {
+func (as *ArtifactSaveContext) batchSize() int {
 	// We want to keep the number of pending uploads under the concurrency limit until
 	// we know how fast they upload.
 	minBatchSize := filetransfer.DefaultConcurrencyLimit / as.maxActiveBatches
@@ -462,7 +500,7 @@ func multiPartRequest(path string) ([]gql.UploadPartsInput, error) {
 	return partsInfo, nil
 }
 
-func (as *ArtifactSaver) uploadMultipart(
+func (as *ArtifactSaveContext) uploadMultipart(
 	path string,
 	fileInfo serverFileResponse,
 	partData []gql.UploadPartsInput,
@@ -577,7 +615,7 @@ func getChunkSize(fileSize int64) int64 {
 	return chunkSize
 }
 
-func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {
+func (as *ArtifactSaveContext) cacheEntry(entry ManifestEntry) {
 	if entry.SkipCache {
 		return
 	}
@@ -590,7 +628,7 @@ func (as *ArtifactSaver) cacheEntry(entry ManifestEntry) {
 	}()
 }
 
-func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
+func (as *ArtifactSaveContext) resolveClientIDReferences(manifest *Manifest) error {
 	cache := map[string]string{}
 	for name, entry := range manifest.Contents {
 		if entry.Ref != nil && strings.HasPrefix(*entry.Ref, "wandb-client-artifact:") {
@@ -623,7 +661,7 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 	return nil
 }
 
-func (as *ArtifactSaver) uploadManifest(
+func (as *ArtifactSaveContext) uploadManifest(
 	manifestFile string,
 	uploadUrl *string,
 	uploadHeaders []string,
@@ -642,7 +680,7 @@ func (as *ArtifactSaver) uploadManifest(
 	return task.Err
 }
 
-func (as *ArtifactSaver) commitArtifact(artifactID string) error {
+func (as *ArtifactSaveContext) commitArtifact(artifactID string) error {
 	_, err := gql.CommitArtifact(
 		as.ctx,
 		as.graphqlClient,
@@ -651,7 +689,7 @@ func (as *ArtifactSaver) commitArtifact(artifactID string) error {
 	return err
 }
 
-func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
+func (as *ArtifactSaveContext) deleteStagingFiles(manifest *Manifest) {
 	for _, entry := range manifest.Contents {
 		if entry.LocalPath != nil && strings.HasPrefix(*entry.LocalPath, as.stagingDir) {
 			// We intentionally ignore errors below.
@@ -661,7 +699,8 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
-func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
+// Save performs the upload operation, blocking until it completes.
+func (as *ArtifactSaveContext) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
 	if err != nil {
 		return "", err

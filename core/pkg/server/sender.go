@@ -99,6 +99,9 @@ type Sender struct {
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
 
+	// artifactsSaver manages artifact uploads
+	artifactsSaver *artifacts.ArtifactSaver
+
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
 
@@ -174,13 +177,18 @@ func NewSender(
 		fileTransferStats:   params.FileTransferStats,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
-		tbHandler:           params.TBHandler,
-		networkPeeker:       params.Peeker,
-		graphqlClient:       params.GraphqlClient,
-		mailbox:             params.Mailbox,
-		runSummary:          params.RunSummary,
-		outChan:             params.OutChan,
-		startState:          runbranch.NewRunParams(),
+		artifactsSaver: artifacts.NewArtifactSaver(
+			params.Logger,
+			params.GraphqlClient,
+			params.FileTransferManager,
+		),
+		tbHandler:     params.TBHandler,
+		networkPeeker: params.Peeker,
+		graphqlClient: params.GraphqlClient,
+		mailbox:       params.Mailbox,
+		runSummary:    params.RunSummary,
+		outChan:       params.OutChan,
+		startState:    runbranch.NewRunParams(),
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
@@ -537,20 +545,19 @@ func (s *Sender) sendJobFlush() {
 		s.logger.Info("sender: sendDefer: no job artifact to save")
 		return
 	}
-	saver := artifacts.NewArtifactSaver(
+
+	s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
 		artifact,
 		0,
 		"",
+		func(artifactID string, err error) {
+			if err != nil {
+				s.logger.CaptureError(
+					fmt.Errorf("sender: failed to save job artifact: %v", err))
+			}
+		},
 	)
-	if _, err = saver.Save(); err != nil {
-		s.logger.Error(
-			"sender: sendDefer: failed to save job artifact", "error", err,
-		)
-	}
 }
 
 func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
@@ -1421,48 +1428,51 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
-	saver := artifacts.NewArtifactSaver(
+	s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
 		msg,
 		0,
 		"",
+		func(artifactID string, err error) {
+			if err != nil {
+				s.logger.CaptureError(
+					fmt.Errorf("sender: failed to log artifact: %v", err),
+					"artifactID", artifactID)
+			}
+		},
 	)
-	artifactID, err := saver.Save()
-	if err != nil {
-		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
-		s.logger.Error("sender: sendArtifact:", "error", err)
-		return
-	}
 }
 
 func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifactRequest) {
-	var response spb.LogArtifactResponse
-	saver := artifacts.NewArtifactSaver(
+	s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
 		msg.Artifact,
 		msg.HistoryStep,
 		msg.StagingDir,
-	)
-	artifactID, err := saver.Save()
-	if err != nil {
-		response.ErrorMessage = err.Error()
-	} else {
-		response.ArtifactId = artifactID
-	}
+		func(artifactID string, err error) {
+			var response spb.LogArtifactResponse
 
-	s.jobBuilder.HandleLogArtifactResult(&response, msg.Artifact)
-	s.respond(record,
-		&spb.Response{
-			ResponseType: &spb.Response_LogArtifactResponse{
-				LogArtifactResponse: &response,
-			},
-		})
+			if err != nil {
+				response.ErrorMessage = err.Error()
+			} else {
+				response.ArtifactId = artifactID
+			}
+
+			if msg.Artifact.GetType() == "code" {
+				s.jobBuilder.SetRunCodeArtifact(
+					response.ArtifactId,
+					msg.Artifact.GetName(),
+				)
+			}
+
+			s.respond(record,
+				&spb.Response{
+					ResponseType: &spb.Response_LogArtifactResponse{
+						LogArtifactResponse: &response,
+					},
+				})
+		},
+	)
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.DownloadArtifactRequest) {
