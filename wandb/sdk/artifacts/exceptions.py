@@ -35,10 +35,10 @@ class ArtifactStatusError(AttributeError):
 class ArtifactNotLoggedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes only available after logging."""
 
-    def __init__(self, qualname: str, obj: ArtifactT):
-        *_, name = qualname.split(".")
+    def __init__(self, fullname: str, obj: ArtifactT):
+        *_, name = fullname.split(".")
         msg = (
-            f"{qualname!r} used prior to logging artifact or while in offline mode. "
+            f"{fullname!r} used prior to logging artifact or while in offline mode. "
             f"Call {type(obj).wait.__qualname__}() before accessing logged artifact properties."
         )
         super().__init__(msg=msg, name=name, obj=obj)
@@ -47,9 +47,9 @@ class ArtifactNotLoggedError(ArtifactStatusError):
 class ArtifactFinalizedError(ArtifactStatusError):
     """Raised for Artifact methods or attributes that can't be changed after logging."""
 
-    def __init__(self, qualname: str, obj: ArtifactT):
-        *_, name = qualname.split(".")
-        msg = f"{qualname!r} used on logged artifact. Can't modify finalized artifact."
+    def __init__(self, fullname: str, obj: ArtifactT):
+        *_, name = fullname.split(".")
+        msg = f"{fullname!r} used on logged artifact. Can't modify finalized artifact."
         super().__init__(msg=msg, name=name, obj=obj)
 
 
