@@ -8,7 +8,7 @@ import (
 	"time"
 
 	poller "github.com/radovskyb/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
 )
 
