@@ -421,6 +421,121 @@ class Api:
             _default_resource_config=config,
         )
 
+    def upsert_run_queue(
+        self,
+        name: str,
+        resource_config: dict,
+        resource_type: "public.RunQueueResourceType",
+        entity: Optional[str] = None,
+        template_variables: Optional[dict] = None,
+        external_links: Optional[dict] = None,
+        prioritization_mode: Optional["public.RunQueuePrioritizationMode"] = None,
+    ):
+        """Upsert a run queue (launch).
+
+        Arguments:
+            name: (str) Name of the queue to create
+            entity: (str) Optional name of the entity to create the queue. If None, will use the configured or default entity.
+            resource_config: (dict) Optional default resource configuration to be used for the queue. Use handlebars (eg. "{{var}}") to specify template variables.
+            resource_type: (str) Type of resource to be used for the queue. One of "local-container", "local-process", "kubernetes", "sagemaker", or "gcp-vertex".
+            template_variables: (dict) A dictionary of template variable schemas to be used with the config. Expected format of:
+                {
+                    "var-name": {
+                        "schema": {
+                            "type": ("string", "number", or "integer"),
+                            "default": (optional value),
+                            "minimum": (optional minimum),
+                            "maximum": (optional maximum),
+                            "enum": [..."(options)"]
+                        }
+                    }
+                }
+            external_links: (dict) Optional dictionary of external links to be used with the queue. Expected format of:
+                {
+                    "name": "url"
+                }
+            prioritization_mode: (str) Optional version of prioritization to use. Either "V0" or None
+
+        Returns:
+            The upserted `RunQueue`.
+
+        Raises:
+            ValueError if any of the parameters are invalid
+            wandb.Error on wandb API errors
+        """
+        if entity is None:
+            entity = self.settings["entity"] or self.default_entity
+            if entity is None:
+                raise ValueError(
+                    "entity must be passed as a parameter, or set in settings"
+                )
+
+        if len(name) == 0:
+            raise ValueError("name must be non-empty")
+        if len(name) > 64:
+            raise ValueError("name must be less than 64 characters")
+
+        prioritization_mode = prioritization_mode or "DISABLED"
+        prioritization_mode = prioritization_mode.upper()
+        if prioritization_mode not in ["V0", "DISABLED"]:
+            raise ValueError(
+                "prioritization_mode must be 'V0' or 'DISABLED' if present"
+            )
+
+        if resource_type not in [
+            "local-container",
+            "local-process",
+            "kubernetes",
+            "sagemaker",
+            "gcp-vertex",
+        ]:
+            raise ValueError(
+                "resource_type must be one of 'local-container', 'local-process', 'kubernetes', 'sagemaker', or 'gcp-vertex'"
+            )
+
+        self.create_project(LAUNCH_DEFAULT_PROJECT, entity)
+        api = InternalApi(
+            default_settings={
+                "entity": entity,
+                "project": self.project(LAUNCH_DEFAULT_PROJECT),
+            },
+            retry_timedelta=RETRY_TIMEDELTA,
+        )
+        # User provides external_links as a dict with name: url format
+        # but backend stores it as a list of dicts with url and label keys.
+        external_links = external_links or {}
+        external_links = {
+            "links": [
+                {
+                    "label": key,
+                    "url": value,
+                }
+                for key, value in external_links.items()
+            ]
+        }
+        upsert_run_queue_result = api.upsert_run_queue(
+            name,
+            entity,
+            resource_type,
+            {"resource_args": {resource_type: resource_config}},
+            template_variables=template_variables,
+            external_links=external_links,
+            prioritization_mode=prioritization_mode,
+        )
+        if not upsert_run_queue_result["success"]:
+            raise wandb.Error("failed to create run queue")
+        schema_errors = (
+            upsert_run_queue_result.get("configSchemaValidationErrors") or []
+        )
+        for error in schema_errors:
+            wandb.termwarn(f"resource config validation: {error}")
+
+        return public.RunQueue(
+            client=self.client,
+            name=name,
+            entity=entity,
+        )
+
     def create_user(self, email, admin=False):
         """Create a new user.
 
@@ -996,7 +1111,11 @@ class Api:
 
     @normalize_exceptions
     def artifacts(
-        self, type_name: str, name: str, per_page: Optional[int] = 50
+        self,
+        type_name: str,
+        name: str,
+        per_page: Optional[int] = 50,
+        tags: Optional[List[str]] = None,
     ) -> "public.Artifacts":
         """Return an `Artifacts` collection from the given parameters.
 
@@ -1005,13 +1124,20 @@ class Api:
             name: (str) An artifact collection name. May be prefixed with entity/project.
             per_page: (int, optional) Sets the page size for query pagination.  None will use the default size.
                 Usually there is no reason to change this.
+            tags: (list[str], optional) Only return artifacts with all of these tags.
 
         Returns:
             An iterable `Artifacts` object.
         """
         entity, project, collection_name = self._parse_artifact_path(name)
         return public.Artifacts(
-            self.client, entity, project, collection_name, type_name, per_page=per_page
+            self.client,
+            entity,
+            project,
+            collection_name,
+            type_name,
+            per_page=per_page,
+            tags=tags,
         )
 
     @normalize_exceptions

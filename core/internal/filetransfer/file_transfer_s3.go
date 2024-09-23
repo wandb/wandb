@@ -18,7 +18,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var maxWorkers int = 1000
+var maxS3Workers int = 1000
 
 const S3MinLargeFileSize int64 = 2 << 30
 
@@ -62,32 +62,32 @@ func NewS3FileTransfer(
 
 // Upload uploads a file to the server
 func (ft *S3FileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
-	ft.logger.Debug("S3 file transfer: uploading file", "path", task.Path)
+	ft.logger.Debug("S3 file transfer: uploading file", "path", task.PathOrPrefix)
 
 	return nil
 }
 
 // Download downloads a file from the server
 func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
-	ft.logger.Debug("s3 file transfer: downloading file", "path", task.Path, "ref", task.Reference)
+	ft.logger.Debug("s3 file transfer: downloading file", "path", task.PathOrPrefix, "ref", task.Reference)
 
 	// Parse the reference path to get the scheme, bucket, and object
-	bucketName, rootObjectName, err := parseReference(task.Reference)
+	bucketName, rootObjectName, err := parseS3Reference(task.Reference)
 	if err != nil {
-		return formatDownloadError("error parsing reference", err)
+		return formatS3DownloadError("error parsing reference", err)
 	}
 
 	var getObjectInputs []*s3.GetObjectInput
 	if task.HasSingleFile() {
 		getObjInput, err := ft.getObjectInputFromTask(bucketName, rootObjectName, task)
 		if err != nil {
-			return formatDownloadError("error constructing object input", err)
+			return formatS3DownloadError("error constructing object input", err)
 		}
 		getObjectInputs = []*s3.GetObjectInput{getObjInput}
 	} else {
 		getObjectInputs, err = ft.listObjectsWithPrefix(bucketName, rootObjectName)
 		if err != nil {
-			return formatDownloadError(
+			return formatS3DownloadError(
 				fmt.Sprintf(
 					"error getting objects in bucket %s under prefix %s",
 					bucketName, rootObjectName,
@@ -96,7 +96,7 @@ func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 			)
 		}
 	}
-	return ft.downloadFiles(bucketName, rootObjectName, getObjectInputs, task.Path)
+	return ft.downloadFiles(bucketName, rootObjectName, getObjectInputs, task.PathOrPrefix)
 }
 
 // getObjectFromTask finds the s3 object that matches the versionId and
@@ -124,7 +124,7 @@ func (ft *S3FileTransfer) getObjectInputFromTask(
 
 	objAttrs, err := ft.client.GetObjectAttributes(ft.ctx, getObjAttrsInput)
 	if err != nil {
-		return nil, formatDownloadError("error getting object attributes", err)
+		return nil, formatS3DownloadError("error getting object attributes", err)
 	}
 
 	// If the ETag doesn't match what we have stored, try to find the correct version
@@ -135,11 +135,11 @@ func (ft *S3FileTransfer) getObjectInputFromTask(
 			task.Digest,
 		)
 		if task.VersionId != nil {
-			return nil, formatDownloadError("", digestMismatchError)
+			return nil, formatS3DownloadError("", digestMismatchError)
 		}
 		getObjInput, ok = ft.getCorrectObjectVersion(bucketName, objectName, task.Digest, getObjInput)
 		if !ok {
-			return nil, formatDownloadError("", digestMismatchError)
+			return nil, formatS3DownloadError("", digestMismatchError)
 		}
 	}
 	return getObjInput, nil
@@ -160,7 +160,7 @@ func (ft *S3FileTransfer) listObjectsWithPrefix(
 	for isTruncated {
 		output, err := ft.client.ListObjectsV2(ft.ctx, params)
 		if err != nil {
-			return nil, formatDownloadError("error when retrieving objects", err)
+			return nil, formatS3DownloadError("error when retrieving objects", err)
 		}
 
 		for _, object := range output.Contents {
@@ -220,7 +220,7 @@ func (ft *S3FileTransfer) downloadFiles(
 	basePath string,
 ) error {
 	g := new(errgroup.Group)
-	g.SetLimit(maxWorkers)
+	g.SetLimit(maxS3Workers)
 	for _, input := range getObjectInputs {
 		// TODO: deal with rate limiting- add exponential backoff?
 		getObjectInput := input // for closure in goroutine
@@ -229,7 +229,7 @@ func (ft *S3FileTransfer) downloadFiles(
 			localPath := filepath.Join(basePath, filepath.FromSlash(objectRelativePath))
 			err := ft.downloadFile(getObjectInput, localPath)
 			if err != nil {
-				return formatDownloadError("error downloading file", err)
+				return formatS3DownloadError("error downloading file", err)
 			}
 			return nil
 		})
@@ -245,12 +245,12 @@ func (ft *S3FileTransfer) downloadFile(
 ) error {
 	object, err := ft.client.GetObject(ft.ctx, getObjInput)
 	if err != nil {
-		return formatDownloadError("error getting object while downloading", err)
+		return formatS3DownloadError("error getting object while downloading", err)
 	}
 	defer object.Body.Close()
 	body, err := io.ReadAll(object.Body)
 	if err != nil {
-		return formatDownloadError("error reading object body while downloading", err)
+		return formatS3DownloadError("error reading object body while downloading", err)
 	}
 
 	return writeToFile(localPath, body)
@@ -261,21 +261,21 @@ func writeToFile(localPath string, body []byte) error {
 	dir := path.Dir(localPath)
 
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return formatDownloadError("error trying to create local file", err)
+		return formatS3DownloadError("error trying to create local file", err)
 	}
 
 	file, err := os.Create(localPath)
 	if err != nil {
-		return formatDownloadError("error creating local file", err)
+		return formatS3DownloadError("error creating local file", err)
 	}
 	defer file.Close()
 	_, err = file.Write(body)
 	return err
 }
 
-// parseReference parses the reference path and returns the bucket name and
+// parseS3Reference parses the reference path and returns the bucket name and
 // object name.
-func parseReference(reference string) (string, string, error) {
+func parseS3Reference(reference string) (string, string, error) {
 	uriParts, err := url.Parse(reference)
 	if err != nil {
 		return "", "", err
@@ -289,7 +289,7 @@ func parseReference(reference string) (string, string, error) {
 	return bucketName, objectName, nil
 }
 
-func formatDownloadError(context string, err error) error {
+func formatS3DownloadError(context string, err error) error {
 	return fmt.Errorf("S3FileTransfer: Download: %s: %v", context, err)
 }
 

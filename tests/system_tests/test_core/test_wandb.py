@@ -15,8 +15,8 @@ from unittest import mock
 
 import pytest
 import wandb
+from wandb.plot.viz import custom_chart
 from wandb.sdk.lib import filesystem
-from wandb.sdk.lib.viz import custom_chart
 from wandb.sdk.wandb_init import init as real_wandb_init
 
 
@@ -263,10 +263,19 @@ def test_run_jobtype(wandb_init):
         assert run.job_type == "job1"
 
 
-def test_run_resumed(wandb_init):
+def test_run_not_resumed(wandb_init):
     run = wandb_init()
     run.finish()
     assert run.resumed is False
+
+
+def test_run_resumed(wandb_init):
+    run = wandb_init()
+    run.finish()
+
+    run = wandb_init(id=run.id, resume="must")
+    assert run.resumed is True
+    run.finish()
 
 
 def test_run_sweepid(wandb_init):

@@ -490,12 +490,6 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(attach=attach)
         return self._deliver_record(record)
 
-    def _deliver_check_version(
-        self, check_version: pb.CheckVersionRequest
-    ) -> MailboxHandle:
-        record = self._make_request(check_version=check_version)
-        return self._deliver_record(record)
-
     def _deliver_network_status(
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle:
@@ -506,12 +500,6 @@ class InterfaceShared(InterfaceBase):
         self, internal_message: pb.InternalMessagesRequest
     ) -> MailboxHandle:
         record = self._make_request(internal_messages=internal_message)
-        return self._deliver_record(record)
-
-    def _deliver_request_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> MailboxHandle:
-        record = self._make_request(server_info=server_info)
         return self._deliver_record(record)
 
     def _deliver_request_sampled_history(

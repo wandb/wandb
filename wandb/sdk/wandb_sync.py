@@ -37,11 +37,17 @@ def _sync(
     if append:
         settings.resume.value = "allow"
 
-    manager = wl._get_manager()
-    manager._inform_init(settings=settings, run_id=stream_id)
+    service = wl.service
+    assert service
+
+    service.inform_init(settings=settings, run_id=stream_id)
 
     mailbox = Mailbox()
-    backend = Backend(settings=wl.settings, manager=manager, mailbox=mailbox)
+    backend = Backend(
+        settings=wl.settings,
+        service=service,
+        mailbox=mailbox,
+    )
     backend.ensure_launched()
 
     assert backend.interface

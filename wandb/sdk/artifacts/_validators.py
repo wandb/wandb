@@ -1,15 +1,22 @@
-"""Internal validation helper functions that are specific to artifacts."""
+"""Internal validation utilities that are specific to artifacts."""
 
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING, Hashable, TypeVar
+from functools import wraps
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, cast
+
+from wandb.sdk.artifacts.exceptions import (
+    ArtifactFinalizedError,
+    ArtifactNotLoggedError,
+)
 
 if TYPE_CHECKING:
     from typing import Collection
 
+    from wandb.sdk.artifacts.artifact import Artifact
 
-HashableT = TypeVar("HashableT", bound=Hashable)
+    ArtifactT = TypeVar("ArtifactT", bound=Artifact)
 
 
 def validate_aliases(aliases: Collection[str]) -> list[str]:
@@ -43,3 +50,41 @@ def validate_tags(tags: Collection[str]) -> list[str]:
             "Tags must only contain alphanumeric characters separated by hyphens, underscores, and/or spaces."
         )
     return list(dict.fromkeys(tags))
+
+
+DecoratedF = TypeVar("DecoratedF", bound=Callable[..., Any])
+"""Type hint for a decorated function that'll preserve its signature (e.g. for arg autocompletion in IDEs)."""
+
+
+def ensure_logged(method: DecoratedF) -> DecoratedF:
+    """Decorator to ensure that an Artifact method can only be called if the artifact has been logged.
+
+    If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
+    """
+    # For clarity, use the qualified (full) name of the method
+    method_fullname = method.__qualname__
+
+    @wraps(method)
+    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
+        if self.is_draft():
+            raise ArtifactNotLoggedError(fullname=method_fullname, obj=self)
+        return method(self, *args, **kwargs)
+
+    return cast(DecoratedF, wrapper)
+
+
+def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
+    """Decorator to ensure that an `Artifact` method can only be called if the artifact isn't finalized.
+
+    If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
+    """
+    # For clarity, use the qualified (full) name of the method
+    method_fullname = method.__qualname__
+
+    @wraps(method)
+    def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
+        if self._final:
+            raise ArtifactFinalizedError(fullname=method_fullname, obj=self)
+        return method(self, *args, **kwargs)
+
+    return cast(DecoratedF, wrapper)

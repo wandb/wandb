@@ -204,6 +204,9 @@ class Api:
     def create_run_queue(self, *args, **kwargs):
         return self.api.create_run_queue(*args, **kwargs)
 
+    def upsert_run_queue(self, *args, **kwargs):
+        return self.api.upsert_run_queue(*args, **kwargs)
+
     def update_launch_agent_status(self, *args, **kwargs):
         return self.api.update_launch_agent_status(*args, **kwargs)
 

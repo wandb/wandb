@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+
+	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
 func FileExists(path string) (bool, error) {
@@ -72,6 +74,6 @@ func WriteJsonToFileWithDigest(data any) (filename string, digest string, size i
 		size = stat.Size()
 	}
 
-	digest = ComputeB64MD5(dataJSON)
+	digest = hashencode.ComputeB64MD5(dataJSON)
 	return
 }

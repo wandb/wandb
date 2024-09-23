@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -192,11 +193,12 @@ func NewSender(
 		),
 
 		consoleLogsSender: runconsolelogs.New(runconsolelogs.Params{
-			ConsoleOutputFile: outputFileName,
-			Settings:          params.Settings,
-			Logger:            params.Logger,
-			ExtraWork:         runWork,
-			FileStreamOrNil:   params.FileStream,
+			ConsoleOutputFile:     outputFileName,
+			FilesDir:              params.Settings.GetFilesDir(),
+			EnableCapture:         params.Settings.IsConsoleCaptureEnabled(),
+			Logger:                params.Logger,
+			RunfilesUploaderOrNil: params.RunfilesUploader,
+			FileStreamOrNil:       params.FileStream,
 		}),
 	}
 
@@ -213,7 +215,13 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
+	hangDetectionInChan := make(chan runwork.Work, 32)
+	hangDetectionOutChan := make(chan struct{}, 32)
+	go s.warnOnLongOperations(hangDetectionInChan, hangDetectionOutChan)
+
 	for work := range allWork {
+		hangDetectionInChan <- work
+
 		s.logger.Debug(
 			"sender: got work",
 			"work", work,
@@ -225,9 +233,53 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
+
+		hangDetectionOutChan <- struct{}{}
 	}
+
+	close(hangDetectionInChan)
+	close(hangDetectionOutChan)
+
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
+}
+
+// warnOnLongOperations logs a warning for each message received
+// on the first channel for which no message is received on the second
+// channel within some time.
+func (s *Sender) warnOnLongOperations(
+	hangDetectionInChan <-chan runwork.Work,
+	hangDetectionOutChan <-chan struct{},
+) {
+outerLoop:
+	for work := range hangDetectionInChan {
+		start := time.Now()
+
+		for i := 0; ; i++ {
+			select {
+			case <-hangDetectionOutChan:
+				if i > 0 {
+					s.logger.CaptureInfo(
+						"sender: succeeded after taking longer than expected",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+
+				continue outerLoop
+
+			case <-time.After(30 * time.Minute):
+				if i < 6 {
+					s.logger.CaptureWarn(
+						"sender: taking a long time",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+			}
+		}
+	}
+
 }
 
 func (s *Sender) Close() {
@@ -395,7 +447,7 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 // updateSettings updates the settings from the run record upon a run start
 // with the information from the server
 func (s *Sender) updateSettings() {
-	if s.settings == nil || !s.startState.Intialized {
+	if s.settings == nil || !s.startState.Initialized {
 		return
 	}
 
@@ -641,7 +693,7 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 	err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
-		s.logger.CaptureError(err)
+		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
 	result := &spb.Result{
@@ -675,16 +727,16 @@ func (s *Sender) updateConfigPrivate() {
 }
 
 // Serializes the run configuration to send to the backend.
-func (s *Sender) serializeConfig(format runconfig.Format) (string, error) {
+func (s *Sender) serializeConfig(format runconfig.Format) ([]byte, error) {
 	serializedConfig, err := s.runConfig.Serialize(format)
 
 	if err != nil {
 		err = fmt.Errorf("failed to marshal config: %s", err)
 		s.logger.Error("sender: serializeConfig", "error", err)
-		return "", err
+		return nil, err
 	}
 
-	return string(serializedConfig), nil
+	return serializedConfig, nil
 }
 
 func (s *Sender) sendForkRun(record *spb.Record, run *spb.RunRecord) {
@@ -874,8 +926,7 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 	proto.Merge(s.telemetry, run.Telemetry)
 	s.updateConfigPrivate()
 
-	if !s.startState.Intialized {
-		s.startState.Intialized = true
+	if !s.startState.Initialized {
 
 		// update the run state with the initial run record
 		s.startState.Merge(&runbranch.RunParams{
@@ -905,19 +956,18 @@ func (s *Sender) sendRun(record *spb.Record, run *spb.RunRecord) {
 				)
 			}
 			s.logger.Error("sender: sendRun: user provided more than one of resume, rewind, or fork")
-			return
 		case isResume != "":
 			s.sendResumeRun(record, runClone)
-			return
 		case isRewind != nil:
 			s.sendRewindRun(record, runClone)
-			return
 		case isFork != nil:
 			s.sendForkRun(record, runClone)
-			return
 		default:
-			// no branching, just send the run
+			s.upsertRun(record, runClone)
 		}
+		// mark the run state as initialized after the initial run upsert
+		s.startState.Initialized = true
+		return
 	}
 
 	s.upsertRun(record, runClone)
@@ -952,7 +1002,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		// if this times out, we mark the run as done as there is
 		// no need to proceed with it
 		ctx = s.mailbox.Add(ctx, s.runWork.SetDone, mailboxSlot)
-	} else if !s.startState.Intialized {
+	} else if !s.startState.Initialized {
 		// this should never happen:
 		// the initial run upsert record should have a mailbox slot set by the client
 		s.logger.CaptureFatalAndPanic(
@@ -961,6 +1011,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	}
 
 	config, _ := s.serializeConfig(runconfig.FormatJson)
+	configStr := string(config)
 
 	var commit, repo string
 	git := run.GetGit()
@@ -983,7 +1034,7 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		utils.NilIfZero(run.DisplayName), // displayName
 		utils.NilIfZero(run.Notes),       // notes
 		utils.NilIfZero(commit),          // commit
-		&config,                          // config
+		&configStr,                       // config
 		utils.NilIfZero(run.Host),        // host
 		nil,                              // debug
 		utils.NilIfZero(program),         // program
@@ -1016,7 +1067,9 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	// manage the state of the run
 	if data == nil || data.GetUpsertBucket() == nil || data.GetUpsertBucket().GetBucket() == nil {
 		s.logger.Error("sender: upsertRun: upsert bucket response is empty")
-	} else {
+	} else if !s.startState.Initialized {
+		// only update the state once on the initial run upsert, the subsequent
+		// updates are fire-and-forget
 
 		bucket := data.GetUpsertBucket().GetBucket()
 
@@ -1105,7 +1158,7 @@ func (s *Sender) upsertConfig() {
 	if s.graphqlClient == nil {
 		return
 	}
-	if !s.startState.Intialized {
+	if !s.startState.Initialized {
 		s.logger.Error("sender: upsertConfig: RunRecord is nil")
 		return
 	}
@@ -1116,9 +1169,10 @@ func (s *Sender) upsertConfig() {
 		s.logger.Error("sender: upsertConfig: failed to serialize config", "error", err)
 		return
 	}
-	if config == "" {
+	if len(config) == 0 {
 		return
 	}
+	configStr := string(config)
 
 	ctx := context.WithValue(
 		s.runWork.BeforeEndCtx(),
@@ -1137,7 +1191,7 @@ func (s *Sender) upsertConfig() {
 		nil,                                   // displayName
 		nil,                                   // notes
 		nil,                                   // commit
-		&config,                               // config
+		&configStr,                            // config
 		nil,                                   // host
 		nil,                                   // debug
 		nil,                                   // program
@@ -1154,67 +1208,81 @@ func (s *Sender) upsertConfig() {
 }
 
 func (s *Sender) uploadSummaryFile() {
-	if s.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
+	if s.runfilesUploader == nil {
 		return
 	}
 
 	summary, err := s.runSummary.Serialize()
 	if err != nil {
-		s.logger.Error("sender: uploadSummaryFile: failed to serialize summary", "error", err)
-		return
-	}
-	summaryFile := filepath.Join(s.settings.GetFilesDir().GetValue(), SummaryFileName)
-	if err := os.WriteFile(summaryFile, summary, 0644); err != nil {
-		s.logger.Error("sender: uploadSummaryFile: failed to write summary file", "error", err)
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run summary: %v", err))
 		return
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: SummaryFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
+	if err := s.scheduleFileUpload(
+		summary,
+		SummaryFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run summary: %v", err))
 	}
-	s.fwdRecord(record)
 }
 
 func (s *Sender) uploadConfigFile() {
-	if s.settings.GetXSync().GetValue() {
-		// if sync is enabled, we don't need to do all this
+	if s.runfilesUploader == nil {
 		return
 	}
 
 	config, err := s.serializeConfig(runconfig.FormatYaml)
 	if err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to serialize config", "error", err)
-		return
-	}
-	configFile := filepath.Join(s.settings.GetFilesDir().GetValue(), ConfigFileName)
-	if err := os.WriteFile(configFile, []byte(config), 0644); err != nil {
-		s.logger.Error("sender: writeAndSendConfigFile: failed to write config file", "error", err)
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to serialize run config: %v", err))
 		return
 	}
 
-	record := &spb.Record{
-		RecordType: &spb.Record_Files{
-			Files: &spb.FilesRecord{
-				Files: []*spb.FilesItem{
-					{
-						Path: ConfigFileName,
-						Type: spb.FilesItem_WANDB,
-					},
-				},
-			},
-		},
+	if err := s.scheduleFileUpload(
+		config,
+		ConfigFileName,
+		filetransfer.RunFileKindWandb,
+	); err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to upload run config: %v", err))
 	}
-	s.fwdRecord(record)
+}
+
+// scheduleFileUpload creates and uploads a run file.
+//
+// The file is created in the run's files directory and uploaded
+// asynchronously.
+func (s *Sender) scheduleFileUpload(
+	content []byte,
+	runPathStr string,
+	fileKind filetransfer.RunFileKind,
+) error {
+	if s.runfilesUploader == nil {
+		return errors.New("runfilesUploader is nil")
+	}
+
+	maybeRunPath, err := paths.Relative(runPathStr)
+	if err != nil {
+		return err
+	}
+	runPath := *maybeRunPath
+
+	if err = os.WriteFile(
+		filepath.Join(
+			s.settings.GetFilesDir().GetValue(),
+			string(runPath),
+		),
+		content,
+		0644,
+	); err != nil {
+		return err
+	}
+
+	s.runfilesUploader.UploadNow(runPath, fileKind)
+	return nil
 }
 
 // sendConfig sends a config record to the server via an upsertBucket mutation
@@ -1267,7 +1335,7 @@ func (s *Sender) sendAlert(_ *spb.Record, alert *spb.AlertRecord) {
 		return
 	}
 
-	if !s.startState.Intialized {
+	if !s.startState.Initialized {
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendAlert: RunRecord not set"))
 	}
@@ -1446,7 +1514,7 @@ func (s *Sender) sendRequestSync(record *spb.Record, request *spb.SyncRequest) {
 			}
 
 			var url string
-			if !s.startState.Intialized {
+			if !s.startState.Initialized {
 				baseUrl := s.settings.GetBaseUrl().GetValue()
 				baseUrl = strings.Replace(baseUrl, "api.", "", 1)
 				url = fmt.Sprintf("%s/%s/%s/runs/%s",

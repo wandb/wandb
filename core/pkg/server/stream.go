@@ -124,7 +124,7 @@ func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) 
 	if settings.GetSweepURL() != "" {
 		tags["sweep_url"] = settings.GetSweepURL()
 	}
-	logger.SetTags(tags)
+	logger.SetGlobalTags(tags)
 
 	return logger
 }
@@ -140,7 +140,7 @@ func NewStream(
 
 	s := &Stream{
 		runWork:      runWork,
-		logger:       streamLogger(settings, sentryClient),
+		logger:       logger,
 		settings:     settings,
 		sentryClient: sentryClient,
 	}

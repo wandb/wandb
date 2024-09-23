@@ -34,8 +34,12 @@ func NewFileTransfers(
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
 	filetransfers.Default = defaultFileTransfer
 
-	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
-	filetransfers.GCS = gcsFileTransfer
+	gcsFileTransfer, err := NewGCSFileTransfer(nil, logger, fileTransferStats)
+	if err == nil {
+		filetransfers.GCS = gcsFileTransfer
+	} else {
+		logger.CaptureError(err)
+	}
 
 	s3FileTransfer, err := NewS3FileTransfer(nil, logger, fileTransferStats)
 	if err == nil {

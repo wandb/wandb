@@ -10,10 +10,12 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
-const defaultDirPermissions = 0700 // read/write/execute for owner only.
+const defaultDirPermissions = 0777  // read/write/execute for all users.
+const defaultFilePermissions = 0666 // read/write for all users.
 
 type Cache interface {
 	AddFile(path string) (string, error)
@@ -126,7 +128,7 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 		cachePath = c.etagPath(*entry.Ref, entry.Digest)
 	} else {
 		// If the digest is an MD5 hash, check to see if we already have the file.
-		b64md5, err := utils.ComputeFileB64MD5(dst)
+		b64md5, err := hashencode.ComputeFileB64MD5(dst)
 		if err == nil && b64md5 == entry.Digest {
 			return true
 		}
@@ -149,12 +151,12 @@ func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	if entry.Ref != nil {
 		return false
 	}
-	b64md5, err := utils.ComputeFileB64MD5(dst)
+	b64md5, err := hashencode.ComputeFileB64MD5(dst)
 	return err == nil && b64md5 == entry.Digest
 }
 
 func (c *FileCache) md5Path(b64md5 string) (string, error) {
-	hexHash, err := utils.B64ToHex(b64md5)
+	hexHash, err := hashencode.B64ToHex(b64md5)
 	if err != nil {
 		return "", err
 	}
@@ -162,10 +164,10 @@ func (c *FileCache) md5Path(b64md5 string) (string, error) {
 }
 
 func (c *FileCache) etagPath(ref, etag string) string {
-	byteHash := utils.ComputeSHA256([]byte(ref))
-	etagHash := utils.ComputeSHA256([]byte(etag))
+	byteHash := hashencode.ComputeSHA256([]byte(ref))
+	etagHash := hashencode.ComputeSHA256([]byte(etag))
 	byteHash = append(byteHash, etagHash...)
-	hexhash := hex.EncodeToString(utils.ComputeSHA256(byteHash))
+	hexhash := hex.EncodeToString(hashencode.ComputeSHA256(byteHash))
 	return filepath.Join(c.root, "obj", "etag", hexhash[:2], hexhash[2:])
 }
 
@@ -200,6 +202,9 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	}
 	tmpFile.Close()
 	if err := os.Rename(tmpFile.Name(), dstPath); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(dstPath, defaultFilePermissions); err != nil {
 		return "", err
 	}
 	return b64md5, nil
