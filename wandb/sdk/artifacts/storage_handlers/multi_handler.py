@@ -1,6 +1,8 @@
 """Multi storage handler."""
 
-from typing import TYPE_CHECKING, List, Optional, Sequence, Union
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import urlparse
 
 from wandb.sdk.artifacts.storage_handler import StorageHandler
@@ -12,17 +14,17 @@ if TYPE_CHECKING:
 
 
 class MultiHandler(StorageHandler):
-    _handlers: List[StorageHandler]
+    _handlers: list[StorageHandler]
 
     def __init__(
         self,
-        handlers: Optional[List[StorageHandler]] = None,
-        default_handler: Optional[StorageHandler] = None,
+        handlers: list[StorageHandler] | None = None,
+        default_handler: StorageHandler | None = None,
     ) -> None:
         self._handlers = handlers or []
         self._default_handler = default_handler
 
-    def _get_handler(self, url: Union[FilePathStr, URIStr]) -> StorageHandler:
+    def _get_handler(self, url: FilePathStr | URIStr) -> StorageHandler:
         parsed_url = urlparse(url)
         for handler in self._handlers:
             if handler.can_handle(parsed_url):
@@ -33,21 +35,21 @@ class MultiHandler(StorageHandler):
 
     def load_path(
         self,
-        manifest_entry: "ArtifactManifestEntry",
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         assert manifest_entry.ref is not None
         handler = self._get_handler(manifest_entry.ref)
         return handler.load_path(manifest_entry, local=local)
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: str | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence["ArtifactManifestEntry"]:
+        max_objects: int | None = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         handler = self._get_handler(path)
         return handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
