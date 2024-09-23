@@ -609,7 +609,11 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 			s.fwdRequestDefer(request)
 		}()
 	case spb.DeferRequest_FLUSH_JOB:
+		// Wait for artifacts operations to complete here to detect
+		// code artifacts.
+		s.artifactWG.Wait()
 		s.sendJobFlush()
+
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_DIR:
@@ -627,7 +631,6 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 			if s.fileTransferManager != nil {
 				s.runfilesUploader.UploadRemaining()
 				s.runfilesUploader.Finish()
-				s.artifactWG.Wait()
 				s.fileTransferManager.Close()
 			}
 			request.State++

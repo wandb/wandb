@@ -4,6 +4,7 @@ package launch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -159,8 +160,9 @@ type JobSourceMetadata struct {
 }
 
 type ArtifactInfoForJob struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	IsSet bool
+	ID    string
+	Name  string
 }
 
 type JobBuilder struct {
@@ -173,7 +175,7 @@ type JobBuilder struct {
 	Disable  bool
 	settings *spb.Settings
 
-	runCodeArtifact   *ArtifactInfoForJob
+	runCodeArtifact   ArtifactInfoForJob
 	runCodeArtifactMu sync.Mutex
 
 	aliases               []string
@@ -362,7 +364,7 @@ func (j *JobBuilder) hasRepoJobIngredients(metadata RunMetadata) bool {
 func (j *JobBuilder) hasArtifactJobIngredients() bool {
 	j.runCodeArtifactMu.Lock()
 	defer j.runCodeArtifactMu.Unlock()
-	return j.runCodeArtifact != nil
+	return j.runCodeArtifact.IsSet
 }
 
 func (j *JobBuilder) hasImageJobIngredients(metadata RunMetadata) bool {
@@ -478,15 +480,22 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 	}
 
 	j.runCodeArtifactMu.Lock()
-	defer j.runCodeArtifactMu.Unlock()
+	if !j.runCodeArtifact.IsSet {
+		j.runCodeArtifactMu.Unlock()
+		return nil, nil, errors.New("no runCodeArtifact")
+	}
+
+	runCodeArtifactID := j.runCodeArtifact.ID
+	runCodeArtifactName := j.runCodeArtifact.Name
+	j.runCodeArtifactMu.Unlock()
 
 	// TODO: update executable to a method that supports pex
 	source := &ArtifactSource{
-		Artifact:   "wandb-artifact://_id/" + j.runCodeArtifact.ID,
+		Artifact:   "wandb-artifact://_id/" + runCodeArtifactID,
 		Notebook:   j.isNotebookRun,
 		Entrypoint: entrypoint,
 	}
-	name := j.makeJobName(j.runCodeArtifact.Name)
+	name := j.makeJobName(runCodeArtifactName)
 
 	return source, &name, nil
 }
@@ -775,9 +784,10 @@ func (j *JobBuilder) SetRunCodeArtifact(id, name string) {
 
 	j.runCodeArtifactMu.Lock()
 	defer j.runCodeArtifactMu.Unlock()
-	j.runCodeArtifact = &ArtifactInfoForJob{
-		ID:   id,
-		Name: name,
+	j.runCodeArtifact = ArtifactInfoForJob{
+		IsSet: true,
+		ID:    id,
+		Name:  name,
 	}
 }
 
