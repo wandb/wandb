@@ -36,14 +36,6 @@ const validLinkArtifactResponse = `{
 	"linkArtifact": { "versionIndex": 0 }
 }`
 
-const validCreateArtifactResponse = `{
-	"createArtifact": {
-		"artifact": {
-			"id": "artifact-id"
-		}
-	}
-}`
-
 func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan chan *spb.Result) *server.Sender {
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
