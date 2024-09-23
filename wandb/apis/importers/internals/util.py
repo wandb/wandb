@@ -1,5 +1,6 @@
 import logging
 import sys
+import threading
 import traceback
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -58,8 +59,10 @@ def parallelize(
                 raise e
 
     results = []
-    with ThreadPoolExecutor(max_workers) as exc:
+    with ThreadPoolExecutor(max_workers=max_workers) as exc:
         futures = {exc.submit(safe_func, x, *args, **kwargs): x for x in iterable}
+        active_threads = threading.enumerate()
+        logger.info(f"Active threads: {len(active_threads)}")
         for future in as_completed(futures):
             results.append(future.result())
     return results

@@ -17,10 +17,10 @@ import filelock
 import polars as pl
 import requests
 import urllib3
-import wandb_workspaces.reports.v1 as wr
+import wandb_workspaces.reports.v2 as wr
 import yaml
 from wandb_gql import gql
-from wandb_workspaces.reports.v1 import Report
+from wandb_workspaces.reports.v2 import Report
 
 import wandb
 from wandb.apis.public import ArtifactCollection, Run
@@ -405,7 +405,7 @@ class WandbImporter:
         }
 
         # Send run with base config
-        logger.debug(f"Importing run, {run=}")
+        logger.info(f"Importing run, {run=}")
         internal.send_run(
             run,
             overrides=namespace.send_manager_overrides,
@@ -738,7 +738,7 @@ class WandbImporter:
 
         logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
-            wr.report.UPSERT_VIEW,
+            wr.Report(),
             variable_values={
                 "id": None,  # Is there any benefit for this to be the same as default report?
                 "name": name,
@@ -747,7 +747,7 @@ class WandbImporter:
                 "description": description,
                 "displayName": title,
                 "type": "runs",
-                "spec": json.dumps(report.spec),
+                "spec": json.dumps(report._spec),
             },
         )
 
@@ -836,11 +836,11 @@ class WandbImporter:
                 summary=summary,
                 terminal_output=terminal_output,
             )
-
             logger.debug(f"Importing {run=}, {namespace=}, {config=}")
             self._import_run(run, namespace=namespace, config=config)
             logger.debug(f"Finished importing {run=}, {namespace=}, {config=}")
 
+        logger.info(f"Threads to execute: , {max_workers=}")
         for_each(_import_run_wrapped, runs, max_workers=max_workers, parallel=parallel)
         logger.info("END: Importing runs")
 
@@ -849,7 +849,6 @@ class WandbImporter:
         *,
         namespaces: Optional[Iterable[Namespace]] = None,
         limit: Optional[int] = None,
-        max_workers: Optional[int] = None,
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ):
         logger.info("START: Importing reports")
@@ -868,7 +867,7 @@ class WandbImporter:
             self._import_report(report, namespace=namespace)
             logger.debug(f"Finished importing {report=}, {namespace=}")
 
-        for_each(_import_report_wrapped, reports, max_workers=max_workers)
+        for_each(_import_report_wrapped, reports)
 
         logger.info("END: Importing reports")
 
@@ -962,8 +961,7 @@ class WandbImporter:
         if reports:
             self.import_reports(
                 namespaces=namespaces,
-                remapping=remapping,
-                max_workers=max_workers
+                remapping=remapping
             )
 
         if artifacts:
