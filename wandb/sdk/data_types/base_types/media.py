@@ -19,9 +19,8 @@ from .wb_value import WBValue
 if TYPE_CHECKING:  # pragma: no cover
     import numpy as np
 
+    from wandb.sdk.wandb_run import Run as LocalRun
     from wandb.sdk.artifacts.artifact import Artifact
-
-    from ...wandb_run import Run as LocalRun
 
 
 SYS_PLATFORM = platform.system()
@@ -195,15 +194,16 @@ class Media(WBValue):
 
             return json_obj
 
-        elif isinstance(run_or_artifact, wandb.Artifact):
+        if isinstance(run_or_artifact, wandb.Artifact):
             json_obj = {"_type": self._log_type}
 
             if self.file_is_set():
-                # The following two assertions are guaranteed to pass
+                # The following two assumptions are guaranteed to pass
                 # by definition of the call above, but are needed for
                 # mypy to understand that these are strings below.
-                assert isinstance(self._path, str)
-                assert isinstance(self._sha256, str)
+                self._path = cast(str, self._path)
+                self._sha256 = cast(str, self._sha256)
+
                 artifact = run_or_artifact  # Checks if the concrete image has already been added to this artifact
                 name = artifact.get_added_local_path_name(self._path)
                 if name is None:
@@ -231,8 +231,8 @@ class Media(WBValue):
                             name = name.lstrip(os.sep)
 
                         # Add this image as a reference
-                        path = artifact_source.artifact.get_entry(name)
-                        artifact.add_reference(path.ref_url(), name=name)
+                        entry = artifact_source.artifact.get_entry(name)
+                        artifact.add_reference(entry.ref_url(), name=name)
                     elif isinstance(self, (Audio, Image)) and self.path_is_reference(
                         self._path
                     ):
@@ -248,11 +248,11 @@ class Media(WBValue):
                     "path": name,
                     "sha256": self._sha256,
                 }
-                return json_obj
-            else:
-                raise TypeError(
-                    f"Expected {LocalRun.__name__!r} or {Artifact.__name__!r}, got: {type(run_or_artifact)!r}"
-                )
+            return json_obj
+        else:
+            raise TypeError(
+                f"Expected {Run.__name__!r} or {wandb.Artifact.__name__!r}, got: {type(run_or_artifact)!r}"
+            )
 
     @classmethod
     def from_json(cls: type[Media], json_obj: dict, source_artifact: Artifact) -> Media:
