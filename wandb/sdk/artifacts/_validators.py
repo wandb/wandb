@@ -62,12 +62,12 @@ def ensure_logged(method: DecoratedF) -> DecoratedF:
     If the method is called on an artifact that's not logged, `ArtifactNotLoggedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    full_attr_name = method.__qualname__
+    method_fullname = method.__qualname__
 
     @wraps(method)
     def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self.is_draft():
-            raise ArtifactNotLoggedError(full_name=full_attr_name, obj=self)
+            raise ArtifactNotLoggedError(fullname=method_fullname, obj=self)
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)
@@ -79,12 +79,12 @@ def ensure_not_finalized(method: DecoratedF) -> DecoratedF:
     If the method is called on an artifact that's not logged, `ArtifactFinalizedError` is raised.
     """
     # For clarity, use the qualified (full) name of the method
-    full_attr_name = method.__qualname__
+    method_fullname = method.__qualname__
 
     @wraps(method)
     def wrapper(self: ArtifactT, *args: Any, **kwargs: Any) -> Any:
         if self._final:
-            raise ArtifactFinalizedError(full_name=full_attr_name, obj=self)
+            raise ArtifactFinalizedError(fullname=method_fullname, obj=self)
         return method(self, *args, **kwargs)
 
     return cast(DecoratedF, wrapper)

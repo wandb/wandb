@@ -7,8 +7,8 @@ import (
 	"image"
 	"path/filepath"
 
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/pkg/utils"
 
 	// Import image codecs.
 	//
@@ -72,7 +72,7 @@ func (img Image) HistoryValueJSON(filePath paths.RelativePath) (string, error) {
 	bytes, err := json.Marshal(map[string]any{
 		"_type":  "image-file",
 		"path":   filepath.ToSlash(string(filePath)),
-		"sha256": utils.ComputeSHA256(img.EncodedData),
+		"sha256": hashencode.ComputeSHA256(img.EncodedData),
 		"format": "png",
 		"size":   len(img.EncodedData),
 		"width":  img.Width,
