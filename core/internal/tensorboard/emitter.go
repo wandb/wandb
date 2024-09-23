@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/runwork"
@@ -237,7 +238,7 @@ func (e *tfEmitter) EmitTable(
 
 	historyJSON, err := table.HistoryValueJSON(
 		runRelativePath,
-		string(utils.ComputeSHA256(content)),
+		string(hashencode.ComputeSHA256(content)),
 		len(content),
 	)
 	if err != nil {
