@@ -109,7 +109,11 @@ func (t *ReferenceArtifactDownloadTask) SetVersionID(val any) error {
 
 func (t *ReferenceArtifactDownloadTask) VersionIDNumber() (int64, bool) {
 	floatVal, ok := t.VersionId.(float64)
-	return int64(floatVal), ok
+	if ok {
+		return int64(floatVal), ok
+	}
+	intVal, ok := t.VersionId.(int64)
+	return intVal, ok
 }
 
 func getStorageProvider(ref string, fts *FileTransfers) (ReferenceArtifactFileTransfer, error) {
