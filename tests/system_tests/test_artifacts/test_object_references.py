@@ -289,7 +289,7 @@ def _b64_to_hex_id(id_string):
 
 
 # Artifact1.add_reference(artifact_URL) => recursive reference
-def test_artifact_add_reference_via_url(user, cleanup):
+def test_artifact_add_reference_via_url(user, wandb_init, cleanup):
     """Test adding a reference to an artifact via a URL.
 
     This test creates three artifacts. The middle artifact references the first
@@ -321,13 +321,13 @@ def test_artifact_add_reference_via_url(user, cleanup):
         file.write(file_text)
 
     # Create an artifact with such file stored
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact(upstream_artifact_name, "database")
         artifact.add_file(upstream_local_file_path, upstream_artifact_file_path)
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
         artifact.add_reference(
@@ -337,7 +337,7 @@ def test_artifact_add_reference_via_url(user, cleanup):
         run.log_artifact(artifact)
 
     # Create a downstream artifact that is referencing the middle's reference
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
         artifact.add_reference(
@@ -353,7 +353,7 @@ def test_artifact_add_reference_via_url(user, cleanup):
         shutil.rmtree("artifacts")
 
     # Finally, use the artifact (download it) and enforce that the file is where we want it!
-    with wandb.init() as run:
+    with wandb_init() as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
         with open(os.path.join(downstream_path, downstream_artifact_file_path)) as file:
@@ -361,7 +361,7 @@ def test_artifact_add_reference_via_url(user, cleanup):
 
 
 # # Artifact1.add_reference(artifact2.get_entry(file_name))
-def test_add_reference_via_artifact_entry(user, cleanup):
+def test_add_reference_via_artifact_entry(user, wandb_init, cleanup):
     """Test adding a reference to an artifact via an ArtifactEntry.
 
     This test is the same as test_artifact_add_reference_via_url, but rather than
@@ -391,13 +391,13 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         file.write(file_text)
 
     # Create an artifact with such file stored
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact(upstream_artifact_name, "database")
         artifact.add_file(upstream_local_file_path, upstream_artifact_file_path)
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact(middle_artifact_name, "database")
         upstream_artifact = run.use_artifact(upstream_artifact_name + ":latest")
         artifact.add_reference(
@@ -407,7 +407,7 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         run.log_artifact(artifact)
 
     # Create a downstream artifact that is referencing the middle's reference
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact(downstream_artifact_name, "database")
         middle_artifact = run.use_artifact(middle_artifact_name + ":latest")
         artifact.add_reference(
@@ -423,7 +423,7 @@ def test_add_reference_via_artifact_entry(user, cleanup):
         shutil.rmtree("artifacts")
 
     # Finally, use the artifact (download it) and enforce that the file is where we want it!
-    with wandb.init() as run:
+    with wandb_init() as run:
         downstream_artifact = run.use_artifact(downstream_artifact_name + ":latest")
         downstream_path = downstream_artifact.download()
         downstream_path = (
@@ -437,13 +437,13 @@ def test_add_reference_via_artifact_entry(user, cleanup):
 
 
 # # Artifact1.get(MEDIA_NAME) => media obj
-def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handler):
+def test_get_artifact_obj_by_name(user, wandb_init, cleanup, anon_storage_handlers):
     """Test the ability to instantiate a wandb Media object from the name of the object.
 
     This is the logical inverse of Artifact.add(name).
     """
     # TODO: test more robustly for every Media type, nested objects (eg. Table -> Image), and references.
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("A2", "database")
         image = _make_wandb_image()
         table = _make_wandb_table()
@@ -451,7 +451,7 @@ def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handl
         artifact.add(table, "T1")
         run.log_artifact(artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = run.use_artifact("A2:latest")
         actual_image = artifact.get("I1")
         assert actual_image == image
@@ -465,16 +465,16 @@ def test_get_artifact_obj_by_name(user, cleanup, anon_s3_handler, anon_gcs_handl
 
 
 # # Artifact1.add(artifact2.get(MEDIA_NAME))
-def test_adding_artifact_by_object(user, cleanup):
+def test_adding_artifact_by_object(user, wandb_init, cleanup):
     """Test adding wandb Media objects to an artifact by passing the object itself."""
     # Create an artifact with such file stored
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("upstream_media", "database")
         artifact.add(_make_wandb_image(), "I1")
         run.log_artifact(artifact)
 
     # Create an middle artifact with such file referenced (notice no need to download)
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("downstream_media", "database")
         upstream_artifact = run.use_artifact("upstream_media:latest")
         artifact.add(upstream_artifact.get("I1"), "T2")
@@ -483,48 +483,48 @@ def test_adding_artifact_by_object(user, cleanup):
     if os.path.isdir("artifacts"):
         shutil.rmtree("artifacts")
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         downstream_artifact = run.use_artifact("downstream_media:latest")
         downstream_path = downstream_artifact.download()  # noqa: F841
         # assert os.path.islink(os.path.join(downstream_path, "T2.image-file.json"))
         assert downstream_artifact.get("T2") == _make_wandb_image()
 
 
-def test_image_reference_artifact(user, cleanup):
-    with wandb.init() as run:
+def test_image_reference_artifact(user, wandb_init, cleanup):
+    with wandb_init() as run:
         artifact = wandb.Artifact("image_data", "data")
         image = _make_wandb_image()
         artifact.add(image, "image")
         run.log_artifact(artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_1 = run.use_artifact("image_data:latest")
         artifact = wandb.Artifact("reference_data", "data")
         artifact.add(artifact_1.get("image"), "image_2")
         run.log_artifact(artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_2 = run.use_artifact("reference_data:latest")
         artifact_2.download()
         # assert os.path.islink(os.path.join(artifact_2._default_root(), "image_2.image-file.json"))
 
 
-def test_nested_reference_artifact(user, cleanup):
-    with wandb.init() as run:
+def test_nested_reference_artifact(user, wandb_init, cleanup):
+    with wandb_init() as run:
         artifact = wandb.Artifact("image_data", "data")
         image = _make_wandb_image()
         artifact.add(image, "image")
         run.log_artifact(artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_1 = run.use_artifact("image_data:latest")
         artifact = wandb.Artifact("reference_data", "data")
         table = wandb.Table(["image"], [[artifact_1.get("image")]])
         artifact.add(table, "table_2")
         run.log_artifact(artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_3 = run.use_artifact("reference_data:latest")
         table_2 = artifact_3.get("table_2")
         # assert os.path.islink(os.path.join(artifact_3._default_root(), "media", "images", "test.png"))
@@ -534,15 +534,15 @@ def test_nested_reference_artifact(user, cleanup):
 
 
 def test_table_slice_reference_artifact(
-    user, cleanup, anon_s3_handler, anon_gcs_handler
+    user, wandb_init, cleanup, anon_storage_handlers
 ):
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("table_data", "data")
         table = _make_wandb_table()
         artifact.add(table, "table")
         run.log_artifact(artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_1 = run.use_artifact("table_data:latest")
         t1 = artifact_1.get("table")
         artifact = wandb.Artifact("intermediate_data", "data")
@@ -552,7 +552,7 @@ def test_table_slice_reference_artifact(
         artifact.add(i2, "table2")
         run.log_artifact(artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_2 = run.use_artifact("intermediate_data:latest")
         i1 = artifact_2.get("table1")
         i2 = artifact_2.get("table2")
@@ -564,7 +564,7 @@ def test_table_slice_reference_artifact(
         run.log_artifact(artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_3 = run.use_artifact("reference_data:latest")
         table1 = artifact_3.get("table1")
         table2 = artifact_3.get("table2")
@@ -588,24 +588,50 @@ def test_table_slice_reference_artifact(
     assert_eq_data(t1.data[1:], table2.data)
 
 
-# General helper function which will perform the following:
-#   Add the object to an artifact
-#       Validate that "getting" this asset returns an object that is equal to the first
-#   Add a reference to this asset in an intermediate artifact
-#       Validate that "getting" this reference asset returns an object that is equal to the first
-#       Validate that the symbolic links are proper
-#   Add a reference to the intermediate reference in yet a third artifact
-#       Validate that "getting" this new reference asset returns an object that is equal to the first
-#       Validate that the intermediate object is not downloaded - there are no "leftover" assets (eg. classes.json)
-#       Validate that the symbolic links are proper
-def assert_media_obj_referential_equality(obj):
-    with wandb.init() as run:
+@pytest.mark.parametrize(
+    "obj",
+    [
+        pytest.param(_make_wandb_table(), id="test_table_refs"),
+        pytest.param(_make_wandb_image(), id="test_image_refs"),
+        pytest.param(_make_point_cloud(), id="test_point_cloud_refs"),
+        pytest.param(_make_bokeh(), id="test_bokeh_refs"),
+        pytest.param(_make_html(), id="test_html_refs"),
+        pytest.param(_make_video(), id="test_video_refs"),
+        pytest.param(_make_wandb_joinedtable(), id="test_joined_table_refs"),
+        pytest.param(
+            aud_ref_https, marks=pytest.mark.timeout(60), id="test_audio_refs_https"
+        ),
+        pytest.param(
+            aud_ref_s3, marks=pytest.mark.timeout(60), id="test_audio_refs_s3"
+        ),
+        pytest.param(
+            aud_ref_gs, marks=pytest.mark.timeout(60), id="test_audio_refs_gs"
+        ),
+    ],
+)
+def test_media_obj_referential_equality(
+    user, wandb_init, cleanup, anon_storage_handlers, obj
+):
+    """
+    Perform the following actions and check the subsequent expectations described below.
+
+      - Add the object to an artifact
+        - Validate that "getting" this asset returns an object that is equal to the first
+      - Add a reference to this asset in an intermediate artifact
+        - Validate that "getting" this reference asset returns an object that is equal to the first
+        - Validate that the symbolic links are proper
+      - Add a reference to the intermediate reference in yet a third artifact
+        - Validate that "getting" this new reference asset returns an object that is equal to the first
+        - Validate that the intermediate object is not downloaded - there are no "leftover" assets (eg. classes.json)
+        - Validate that the symbolic links are proper
+    """
+    with wandb_init() as run:
         orig_artifact = wandb.Artifact("orig_artifact", "database")
         orig_artifact.add(obj, "obj")
         run.log_artifact(orig_artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         orig_artifact_ref = run.use_artifact("orig_artifact:latest")
         orig_dir = orig_artifact_ref._default_root()
         obj1 = orig_artifact_ref.get("obj")
@@ -618,7 +644,7 @@ def assert_media_obj_referential_equality(obj):
     target_path = os.path.join(orig_dir, "obj." + type(obj)._log_type + ".json")
     assert os.path.isfile(target_path)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         orig_artifact_ref = run.use_artifact("orig_artifact:latest")
         mid_artifact = wandb.Artifact("mid_artifact", "database")
         mid_obj = orig_artifact_ref.get("obj")
@@ -626,7 +652,7 @@ def assert_media_obj_referential_equality(obj):
         run.log_artifact(mid_artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         mid_artifact_ref = run.use_artifact("mid_artifact:latest")
         mid_dir = mid_artifact_ref._default_root()
         obj2 = mid_artifact_ref.get("obj2")
@@ -641,7 +667,7 @@ def assert_media_obj_referential_equality(obj):
     # assert os.path.islink(start_path)
     # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         mid_artifact_ref = run.use_artifact("mid_artifact:latest")
         down_artifact = wandb.Artifact("down_artifact", "database")
         down_obj = mid_artifact_ref.get("obj2")
@@ -649,7 +675,7 @@ def assert_media_obj_referential_equality(obj):
         run.log_artifact(down_artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         down_artifact_ref = run.use_artifact("down_artifact:latest")
         down_dir = down_artifact_ref._default_root()  # noqa: F841
         obj3 = down_artifact_ref.get("obj3")
@@ -666,43 +692,43 @@ def assert_media_obj_referential_equality(obj):
     # assert os.path.abspath(os.readlink(start_path)) == os.path.abspath(target_path)
 
 
-def test_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(_make_wandb_table())
+# def test_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
+#     test_media_obj_referential_equality(_make_wandb_table())
+#
+#
+# def test_image_refs(user, cleanup):
+#     test_media_obj_referential_equality(_make_wandb_image())
+#
+#
+# def test_point_cloud_refs(user, cleanup):
+#     test_media_obj_referential_equality(_make_point_cloud())
+#
+#
+# def test_bokeh_refs(user, cleanup):
+#     test_media_obj_referential_equality(_make_bokeh())
+#
+#
+# def test_html_refs(user, cleanup):
+#     test_media_obj_referential_equality(_make_html())
+#
+#
+# def test_video_refs(user, cleanup):
+#     test_media_obj_referential_equality(_make_video())
+#
+#
+# def test_joined_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
+#     test_media_obj_referential_equality(_make_wandb_joinedtable())
+#
+#
+# @pytest.mark.timeout(3 * 60)
+# def test_audio_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
+#     # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
+#     test_media_obj_referential_equality(aud_ref_https)
+#     test_media_obj_referential_equality(aud_ref_s3)
+#     test_media_obj_referential_equality(aud_ref_gs)
 
 
-def test_image_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_wandb_image())
-
-
-def test_point_cloud_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_point_cloud())
-
-
-def test_bokeh_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_bokeh())
-
-
-def test_html_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_html())
-
-
-def test_video_refs(user, cleanup):
-    assert_media_obj_referential_equality(_make_video())
-
-
-def test_joined_table_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    assert_media_obj_referential_equality(_make_wandb_joinedtable())
-
-
-@pytest.mark.timeout(3 * 60)
-def test_audio_refs(user, cleanup, anon_s3_handler, anon_gcs_handler):
-    # assert_media_obj_referential_equality(_make_wandb_audio(440, "four forty"))
-    assert_media_obj_referential_equality(aud_ref_https)
-    assert_media_obj_referential_equality(aud_ref_s3)
-    assert_media_obj_referential_equality(aud_ref_gs)
-
-
-def test_joined_table_referential(user, cleanup):
+def test_joined_table_referential(wandb_init, user, cleanup):
     src_image_1 = _make_wandb_image()
     src_image_2 = _make_wandb_image()
     src_image_3 = _make_wandb_image()
@@ -711,12 +737,12 @@ def test_joined_table_referential(user, cleanup):
     src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
     src_jt_1 = wandb.JoinedTable(src_table_1, src_table_2, "id")
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         orig_artifact = wandb.Artifact("art1", "database")
         orig_artifact.add(src_jt_1, "src_jt_1")
         run.log_artifact(orig_artifact)
 
-    with wandb.init() as run:
+    with wandb_init() as run:
         art1 = run.use_artifact("art1:latest")
         src_jt_1 = art1.get("src_jt_1")
         src_jt_2 = wandb.JoinedTable(src_jt_1._table1, src_jt_1._table2, "id")
@@ -725,21 +751,21 @@ def test_joined_table_referential(user, cleanup):
         run.log_artifact(art2)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         art2 = run.use_artifact("art2:latest")
         src_jt_2 = art2.get("src_jt_2")
         src_jt_1._eq_debug(src_jt_2, True)
         assert src_jt_1 == src_jt_2
 
 
-def test_joined_table_add_by_path(user, cleanup):
+def test_joined_table_add_by_path(user, wandb_init, cleanup):
     src_image_1 = _make_wandb_image()
     src_image_2 = _make_wandb_image()
     src_image_3 = _make_wandb_image()
     src_image_4 = _make_wandb_image()
     src_table_1 = wandb.Table(["id", "image"], [[1, src_image_1], [2, src_image_2]])
     src_table_2 = wandb.Table(["id", "image"], [[1, src_image_3], [2, src_image_4]])
-    with wandb.init() as run:
+    with wandb_init() as run:
         tables = wandb.Artifact("tables", "database")
         tables.add(src_table_1, "src_table_1")
         tables.add(src_table_2, "src_table_2")
@@ -762,7 +788,7 @@ def test_joined_table_add_by_path(user, cleanup):
         run.log_artifact(tables)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         tables_2 = wandb.Artifact("tables_2", "database")
         upstream = run.use_artifact("tables:latest")
 
@@ -774,7 +800,7 @@ def test_joined_table_add_by_path(user, cleanup):
         run.log_artifact(tables_2)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         tables_2 = run.use_artifact("tables_2:latest")
         jt_2 = tables_2.get("jt")
         assert (
@@ -785,14 +811,14 @@ def test_joined_table_add_by_path(user, cleanup):
         )
 
 
-def test_image_reference_with_preferred_path(user, cleanup):
+def test_image_reference_with_preferred_path(user, wandb_init, cleanup):
     assets_path = os.path.join(
         os.path.dirname(os.path.realpath(__file__)), os.pardir, os.pardir, "assets"
     )
     orig_im_path = os.path.join(assets_path, "test.png")
     orig_im_path_2 = os.path.join(assets_path, "test2.png")
     desired_artifact_path = "images/sample.png"
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = wandb.Artifact("artifact_1", type="test_artifact")
         # manually add the image to a desired path
         artifact.add_file(orig_im_path, desired_artifact_path)
@@ -808,7 +834,7 @@ def test_image_reference_with_preferred_path(user, cleanup):
         run.log_artifact(artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_1 = run.use_artifact("artifact_1:latest")
         original_table = artifact_1.get("table")
 
@@ -824,14 +850,14 @@ def test_image_reference_with_preferred_path(user, cleanup):
         run.log_artifact(artifact)
 
     _cleanup()
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact_2 = run.use_artifact("artifact_2:latest")
         artifact_2.download()
 
     # This test just checks that all this logic does not fail
 
 
-def test_simple_partition_table(user, cleanup):
+def test_simple_partition_table(user, wandb_init, cleanup):
     table_name = "dataset"
     table_parts_dir = "dataset_parts"
     artifact_name = "simple_dataset"
@@ -840,7 +866,7 @@ def test_simple_partition_table(user, cleanup):
     data = []
 
     # Add Data
-    run = wandb.init()
+    run = wandb_init()
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     for i in range(5):
         row = [i, i * i, 2**i]
@@ -853,14 +879,14 @@ def test_simple_partition_table(user, cleanup):
     run.finish()
 
     # test
-    run = wandb.init()
+    run = wandb_init()
     partition_table = run.use_artifact(f"{artifact_name}:latest").get(table_name)
     for ndx, row in partition_table.iterrows():
         assert row == data[ndx]
     run.finish()
 
 
-def test_distributed_artifact_simple(user, cleanup):
+def test_distributed_artifact_simple(user, wandb_init, cleanup):
     # table_name = "dataset"
     artifact_name = f"simple_dist_dataset_{round(time.time())}"
     group_name = f"test_group_{np.random.rand()}"
@@ -871,7 +897,7 @@ def test_distributed_artifact_simple(user, cleanup):
 
     # Add Data
     for i in range(count):
-        run = wandb.init(group=group_name)
+        run = wandb_init(group=group_name)
         artifact = wandb.Artifact(artifact_name, type=artifact_type)
         image = wandb.Image(np.random.randint(0, 255, (10, 10)))
         path = f"image_{i}"
@@ -884,14 +910,14 @@ def test_distributed_artifact_simple(user, cleanup):
     # TODO: Should we try to use_artifact in some way before it is finished?
 
     # Finish
-    run = wandb.init(group=group_name)
+    run = wandb_init(group=group_name)
     artifact = wandb.Artifact(artifact_name, type=artifact_type)
     # artifact.add_file("./test.py")
     run.finish_artifact(artifact)
     run.finish()
 
     # test
-    with wandb.init() as run:
+    with wandb_init() as run:
         artifact = run.use_artifact(f"{artifact_name}:latest")
     assert len(artifact.manifest.entries.keys()) == count * 2
     # for image, path in zip(images, image_paths):
@@ -905,8 +931,8 @@ def cleanup():
 
 
 def _cleanup():
-    if os.path.isdir("wandb"):
-        shutil.rmtree("wandb")
+    # if os.path.isdir("wandb"):
+    #     shutil.rmtree("wandb")
     if os.path.isdir("artifacts"):
         shutil.rmtree("artifacts")
     if os.path.isdir("upstream"):
@@ -914,8 +940,10 @@ def _cleanup():
 
 
 @pytest.fixture
-def anon_s3_handler():
-    def init_boto(self):
+def anon_storage_handlers(monkeypatch):
+    """Patched storage handlers with anonymous/unsigned clients for testing."""
+
+    def init_boto_anon(self):
         if self._s3 is not None:
             return self._s3
         self._botocore = botocore
@@ -924,21 +952,32 @@ def anon_s3_handler():
         )
         return self._s3
 
-    original = S3Handler.init_boto
-    S3Handler.init_boto = init_boto
-    yield
-    S3Handler.init_boto = original
-
-
-@pytest.fixture
-def anon_gcs_handler():
-    def init_gcs(self):
+    def init_gcs_anon(self):
         if self._client is not None:
             return self._client
         self._client = google.cloud.storage.Client.create_anonymous_client()
         return self._client
 
-    original = GCSHandler.init_gcs
-    GCSHandler.init_gcs = init_gcs
+    monkeypatch.setattr(S3Handler, "init_boto", init_boto_anon)
+    monkeypatch.setattr(GCSHandler, "init_gcs", init_gcs_anon)
+
     yield
-    GCSHandler.init_gcs = original
+
+    # original = S3Handler.init_boto
+    # S3Handler.init_boto = init_boto_anon
+    # yield
+    # S3Handler.init_boto = original
+
+
+# @pytest.fixture
+# def anon_gcs_handler():
+#     def init_gcs_anon(self):
+#         if self._client is not None:
+#             return self._client
+#         self._client = google.cloud.storage.Client.create_anonymous_client()
+#         return self._client
+#
+#     original = GCSHandler.init_gcs
+#     GCSHandler.init_gcs = init_gcs_anon
+#     yield
+#     GCSHandler.init_gcs = original
