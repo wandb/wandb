@@ -43,6 +43,8 @@ from wandb.apis import internal, public
 from wandb.apis.internal import Api
 from wandb.apis.public import Api as PublicApi
 from wandb.errors import CommError
+from wandb.integration.torch import wandb_torch
+from wandb.plot.viz import CustomChart, Visualize, custom_chart
 from wandb.proto.wandb_internal_pb2 import (
     MetricRecord,
     PollExitResponse,
@@ -56,12 +58,11 @@ from wandb.sdk.lib.import_hooks import (
     unregister_post_import_hook,
 )
 from wandb.sdk.lib.paths import FilePathStr, LogicalPath, StrPath
-from wandb.sdk.lib.viz import CustomChart, Visualize, custom_chart
 from wandb.util import (
     _is_artifact_object,
     _is_artifact_string,
     _is_artifact_version_weave_dict,
-    _is_py_or_dockerfile,
+    _is_py_requirements_or_dockerfile,
     _resolve_aliases,
     add_import_hook,
     parse_artifact_string,
@@ -591,12 +592,14 @@ class Run:
     ) -> None:
         # pid is set, so we know if this run object was initialized by this process
         self._init_pid = os.getpid()
-        self._settings = settings
 
         if settings._noop:
+            # TODO: properly handle setting for disabled mode
+            self._settings = settings
             return
 
         self._init(
+            settings=settings,
             config=config,
             sweep_config=sweep_config,
             launch_config=launch_config,
@@ -604,10 +607,13 @@ class Run:
 
     def _init(
         self,
+        settings: Settings,
         config: Optional[Dict[str, Any]] = None,
         sweep_config: Optional[Dict[str, Any]] = None,
         launch_config: Optional[Dict[str, Any]] = None,
     ) -> None:
+        self._settings = settings
+
         self._config = wandb_config.Config()
         self._config._set_callback(self._config_callback)
         self._config._set_artifact_callback(self._config_artifact_callback)
@@ -620,7 +626,7 @@ class Run:
         )
         self.summary._set_update_callback(self._summary_update_callback)
         self._step = 0
-        self._torch_history: Optional[wandb.wandb_torch.TorchHistory] = None  # type: ignore
+        self._torch_history: Optional[wandb_torch.TorchHistory] = None  # type: ignore
 
         # todo: eventually would be nice to make this configurable using self._settings._start_time
         #  need to test (jhr): if you set start time to 2 days ago and run a test for 15 minutes,
@@ -921,9 +927,9 @@ class Run:
         self.__dict__.update(state)
 
     @property
-    def _torch(self) -> "wandb.wandb_torch.TorchHistory":  # type: ignore
+    def _torch(self) -> "wandb_torch.TorchHistory":  # type: ignore
         if self._torch_history is None:
-            self._torch_history = wandb.wandb_torch.TorchHistory()  # type: ignore
+            self._torch_history = wandb_torch.TorchHistory()  # type: ignore
         return self._torch_history
 
     @property
@@ -1146,7 +1152,7 @@ class Run:
         name: Optional[str] = None,
         include_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
-        ] = _is_py_or_dockerfile,
+        ] = _is_py_requirements_or_dockerfile,
         exclude_fn: Union[
             Callable[[str, str], bool], Callable[[str], bool]
         ] = filenames.exclude_wandb_fn,
@@ -2193,9 +2199,9 @@ class Run:
             # Inform the service that we're done sending messages for this run.
             #
             # TODO: Why not do this in _atexit_cleanup()?
-            manager = self._wl and self._wl._get_manager()
-            if manager:
-                manager._inform_finish(run_id=self._run_id)
+            service = self._wl and self._wl.service
+            if service:
+                service.inform_finish(run_id=self._run_id)
 
         finally:
             module.unset_globals()
@@ -2458,8 +2464,8 @@ class Run:
         logger.info("atexit reg")
         self._hooks = ExitHooks()
 
-        manager = self._wl and self._wl._get_manager()
-        if not manager:
+        service = self._wl and self._wl.service
+        if not service:
             self._hooks.hook()
             # NB: manager will perform atexit hook like behavior for outstanding runs
             atexit.register(lambda: self._atexit_cleanup())

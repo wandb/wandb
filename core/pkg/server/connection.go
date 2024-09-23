@@ -268,24 +268,6 @@ func (nc *Connection) handleServerRequest() {
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
-	tokenFile := settings.GetIdentityTokenFile()
-	if tokenFile != "" {
-		panic("Identity federation via the wandb sdk is temporarily unavailable in wandb-core, or version 0.18.0 " +
-			"or later. Support for this feature will be reintroduced in an upcoming release. To continue using this " +
-			"feature, please downgrade to version 0.17.9 or lower using the following command: pip install " +
-			"wandb==0.17.9. Thank you for your patience.")
-	}
-
-	err := settings.EnsureAPIKey()
-	if err != nil {
-		slog.Error(
-			"connection: couldn't get API key",
-			"err", err,
-			"id", nc.id,
-		)
-		panic(err)
-	}
-
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
@@ -319,7 +301,7 @@ func (nc *Connection) handleInformStart(msg *spb.ServerInformStartRequest) {
 
 	// update sentry tags
 	// add attrs from settings:
-	nc.stream.logger.SetTags(observability.Tags{
+	nc.stream.logger.SetGlobalTags(observability.Tags{
 		"run_url": nc.stream.settings.GetRunURL(),
 	})
 	// TODO: remove this once we have a better observability setup

@@ -9,6 +9,8 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
 
+from __future__ import annotations
+
 __all__ = (
     "__version__",
     "init",
@@ -49,12 +51,23 @@ __all__ = (
     "Artifact",
     "Settings",
     "teardown",
+    "watch",
 )
 
 import os
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Union
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Dict,
+    List,
+    Literal,
+    Optional,
+    Sequence,
+    Union,
+)
 
-from wandb.analytics import Sentry as _Sentry
+from wandb.analytics import Sentry
 from wandb.apis import InternalApi, PublicApi
 from wandb.data_types import (
     Audio,
@@ -79,17 +92,20 @@ from wandb.sdk.wandb_run import Run
 from wandb.sdk.wandb_setup import _WandbSetup
 from wandb.wandb_controller import _WandbController
 
-__version__: str = "0.18.1.dev1"
+if TYPE_CHECKING:
+    import torch  # type: ignore [import-not-found]
 
-run: Optional[Run] = None
-config = wandb_config.Config
-summary = wandb_summary.Summary
-Api = PublicApi
-api = InternalApi()
-_sentry = _Sentry()
+__version__: str = "0.18.2.dev1"
 
-# record of patched libraries
-patched = {"tensorboard": [], "keras": [], "gym": []}  # type: ignore
+run: Run | None
+config: wandb_config.Config
+summary: wandb_summary.Summary
+Api: PublicApi
+
+# private attributes
+_sentry: Sentry
+api: InternalApi
+patched: Dict[str, List[Callable]]
 
 def setup(
     settings: Optional[Settings] = None,
@@ -120,7 +136,7 @@ def init(
     allow_val_change: Optional[bool] = None,
     resume: Optional[Union[bool, str]] = None,
     force: Optional[bool] = None,
-    tensorboard: Optional[bool] = None,  # alias for sync_tensorboard
+    tensorboard: Optional[bool] = None,
     sync_tensorboard: Optional[bool] = None,
     monitor_gym: Optional[bool] = None,
     save_code: Optional[bool] = None,
@@ -242,4 +258,15 @@ def link_model(
     aliases: Optional[List[str]] = None,
 ) -> None:
     """<sdk/wandb_run.py::Run::link_model>"""
+    ...
+
+def watch(
+    models: torch.nn.Module | Sequence[torch.nn.Module],
+    criterion: torch.F | None = None,
+    log: Literal["gradients", "parameters", "all"] | None = "gradients",
+    log_freq: int = 1000,
+    idx: int | None = None,
+    log_graph: bool = False,
+) -> Graph:
+    """<sdk/wandb_watch.py::watch>"""
     ...

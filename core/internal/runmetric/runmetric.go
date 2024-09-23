@@ -2,7 +2,6 @@ package runmetric
 
 import (
 	"errors"
-	"path/filepath"
 	"strings"
 
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -83,7 +82,8 @@ func (mh *MetricHandler) UpdateSummary(
 	if len(name) == 0 {
 		return
 	}
-	parts := strings.Split(name, ".")
+
+	parts := mh.splitEscapedDottedMetricName(name)
 	path := pathtree.PathOf(parts[0], parts[1:]...)
 
 	summary.ConfigureMetric(path, metric.NoSummary, metric.SummaryTypes)
@@ -188,9 +188,11 @@ func (mh *MetricHandler) createGlobMetrics(
 // a glob metric, and otherwise returns nil.
 func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
 	for glob, metric := range mh.globMetrics {
-		match, err := filepath.Match(glob, key)
-
-		if err != nil || !match {
+		// since globs can only be used as a suffix, and we only support wildcard
+		// we can just remove the wild card, then check if the key starts with the glob
+		trimmedGlob := strings.TrimSuffix(glob, "*")
+		match := strings.HasPrefix(key, trimmedGlob)
+		if !match {
 			continue
 		}
 
@@ -198,4 +200,41 @@ func (mh *MetricHandler) matchGlobMetric(key string) (definedMetric, bool) {
 	}
 
 	return definedMetric{}, false
+}
+
+func (mh *MetricHandler) splitEscapedDottedMetricName(metricName string) []string {
+	parts := []string{}
+	sb := strings.Builder{}
+
+	isEscaped := false
+	for i := 0; i < len(metricName); i++ {
+		if !isEscaped {
+			switch metricName[i] {
+			// When the current character is a dot, and it has not been escaped then we want to split the metric name.
+			case '.':
+				parts = append(parts, sb.String())
+				sb.Reset()
+				// When we come across a backslash set isEscaped flag to true to see if next character is a dot.
+			case '\\':
+				isEscaped = true
+			default:
+				sb.WriteByte(metricName[i])
+			}
+		} else {
+			switch metricName[i] {
+			case '.':
+				sb.WriteByte('.')
+			default:
+				sb.WriteByte('\\')
+				sb.WriteByte(metricName[i])
+			}
+			isEscaped = false
+		}
+	}
+
+	if sb.Len() > 0 {
+		parts = append(parts, sb.String())
+	}
+
+	return parts
 }

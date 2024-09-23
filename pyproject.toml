@@ -68,6 +68,8 @@ azure = ["azure-identity", "azure-storage-blob"]
 media = [
     "numpy",
     "moviepy",
+    # imageio is a dependency of moviepy but incase that changes we also pin it here
+    "imageio",
     "pillow",
     "bokeh",
     "soundfile",
@@ -246,7 +248,6 @@ module = [
     "wandb.integration.*",
     "wandb.apis.*",
     "wandb.proto.*",
-    "wandb.sklearn.*",
     "wandb.beta.*",
     "wandb.sdk.wandb_login",
     "wandb.cli.*",

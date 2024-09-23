@@ -13,7 +13,8 @@ import (
 	"github.com/wandb/wandb/core/pkg/utils"
 )
 
-const defaultDirPermissions = 0700 // read/write/execute for owner only.
+const defaultDirPermissions = 0777  // read/write/execute for all users.
+const defaultFilePermissions = 0666 // read/write for all users.
 
 type Cache interface {
 	AddFile(path string) (string, error)
@@ -200,6 +201,9 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	}
 	tmpFile.Close()
 	if err := os.Rename(tmpFile.Name(), dstPath); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(dstPath, defaultFilePermissions); err != nil {
 		return "", err
 	}
 	return b64md5, nil

@@ -5,8 +5,8 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
 import wandb.util
+from wandb.plot.viz import custom_chart
 from wandb.sdk.lib import telemetry
-from wandb.sdk.lib.viz import custom_chart
 
 if TYPE_CHECKING:
     import numpy as np

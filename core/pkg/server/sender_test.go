@@ -48,7 +48,9 @@ func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan c
 	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
 	settings := wbsettings.From(&spb.Settings{
-		RunId: &wrapperspb.StringValue{Value: "run1"},
+		RunId:   &wrapperspb.StringValue{Value: "run1"},
+		Console: &wrapperspb.StringValue{Value: "off"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
 	})
 	backend := server.NewBackend(logger, settings)
 	fileStream := server.NewFileStream(
