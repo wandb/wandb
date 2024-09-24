@@ -20,6 +20,7 @@ const (
 	SummaryFileName          = "wandb-summary.json"
 	OutputFileName           = "output.log"
 	defaultHeartbeatInterval = 30 * time.Second
+	defaultTransmitInterval  = 15 * time.Second
 
 	// Maximum line length for filestream jsonl files, imposed by the back-end.
 	//
@@ -114,25 +115,27 @@ func NewFileStream(params FileStreamParams) FileStream {
 		panic("filestream: nil logger")
 	case params.Printer == nil:
 		panic("filestream: nil printer")
-	case params.TransmitRateLimit == nil:
-		panic("filestream: nil rate limit")
 	}
 
 	fs := &fileStream{
-		settings:          params.Settings,
-		logger:            params.Logger,
-		printer:           params.Printer,
-		apiClient:         params.ApiClient,
-		processChan:       make(chan Update, BufferSize),
-		feedbackWait:      &sync.WaitGroup{},
-		transmitRateLimit: params.TransmitRateLimit,
-		deadChanOnce:      &sync.Once{},
-		deadChan:          make(chan struct{}),
+		settings:     params.Settings,
+		logger:       params.Logger,
+		printer:      params.Printer,
+		apiClient:    params.ApiClient,
+		processChan:  make(chan Update, BufferSize),
+		feedbackWait: &sync.WaitGroup{},
+		deadChanOnce: &sync.Once{},
+		deadChan:     make(chan struct{}),
 	}
 
 	fs.heartbeatStopwatch = params.HeartbeatStopwatch
 	if fs.heartbeatStopwatch == nil {
 		fs.heartbeatStopwatch = waiting.NewStopwatch(defaultHeartbeatInterval)
+	}
+
+	fs.transmitRateLimit = params.TransmitRateLimit
+	if fs.transmitRateLimit == nil {
+		fs.transmitRateLimit = rate.NewLimiter(rate.Every(defaultTransmitInterval), 1)
 	}
 
 	return fs

@@ -796,10 +796,10 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 	}
 
 	for key, samples := range sm {
-		buffer := make([]*spb.SystemMetricSample, 0, len(samples.GetElements()))
+		buffer := make([]*spb.SystemMetricSample, 0, len(samples))
 
 		// convert samples to buffer:
-		for _, sample := range samples.GetElements() {
+		for _, sample := range samples {
 			buffer = append(buffer, &spb.SystemMetricSample{
 				Timestamp: sample.Timestamp,
 				Value:     float32(sample.Value),
