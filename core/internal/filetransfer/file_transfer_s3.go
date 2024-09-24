@@ -20,8 +20,6 @@ import (
 var maxS3Workers int = 500
 var s3Scheme string = "s3"
 
-const S3MinLargeFileSize int64 = 2 << 30
-
 // S3FileTransfer uploads or downloads files to/from s3
 type S3FileTransfer struct {
 	// client is the HTTP client for the file transfer
