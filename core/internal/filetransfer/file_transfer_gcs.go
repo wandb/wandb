@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
 	"path"
 	"path/filepath"
@@ -38,7 +37,8 @@ type GCSFileTransfer struct {
 	ctx context.Context
 }
 
-const maxWorkers int = 1000
+const maxGSWorkers int = 1000
+const gcsScheme string = "gs"
 
 var ErrObjectIsDirectory = errors.New("object is a directory and cannot be downloaded")
 
@@ -82,9 +82,9 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	)
 
 	// Parse the reference path to get the scheme, bucket, and object
-	bucketName, rootObjectName, err := parseReference(task.Reference)
+	bucketName, rootObjectName, err := parseCloudReference(task.Reference, gcsScheme)
 	if err != nil {
-		return formatDownloadError("error parsing reference", err)
+		return ft.formatDownloadError("error parsing reference", err)
 	}
 	bucket := ft.client.Bucket(bucketName)
 
@@ -95,7 +95,7 @@ func (ft *GCSFileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 	} else {
 		objectNames, err = ft.listObjectNamesWithPrefix(bucket, rootObjectName)
 		if err != nil {
-			return formatDownloadError(
+			return ft.formatDownloadError(
 				fmt.Sprintf(
 					"error getting objects in bucket %s under prefix %s",
 					bucketName, rootObjectName,
@@ -137,7 +137,7 @@ func (ft *GCSFileTransfer) downloadFiles(
 	objectNames []string,
 ) error {
 	var g errgroup.Group
-	g.SetLimit(maxWorkers)
+	g.SetLimit(maxGSWorkers)
 	for _, name := range objectNames {
 		objectName := name // for closure in the goroutine
 		g.Go(func() error {
@@ -151,7 +151,7 @@ func (ft *GCSFileTransfer) downloadFiles(
 					)
 					return nil
 				}
-				return formatDownloadError(
+				return ft.formatDownloadError(
 					fmt.Sprintf("error getting object %s", objectName),
 					err,
 				)
@@ -162,7 +162,7 @@ func (ft *GCSFileTransfer) downloadFiles(
 					objAttrs.Etag,
 					task.Digest,
 				)
-				return formatDownloadError("", err)
+				return ft.formatDownloadError("", err)
 			}
 			objectRelativePath, _ := strings.CutPrefix(objectName, rootObjectName)
 			localPath := filepath.Join(task.PathOrPrefix, filepath.FromSlash(objectRelativePath))
@@ -180,14 +180,14 @@ func (ft *GCSFileTransfer) downloadFile(
 ) (err error) {
 	r, err := object.NewReader(ft.ctx)
 	if err != nil {
-		return formatDownloadError("error creating reader", err)
+		return ft.formatDownloadError("error creating reader", err)
 	}
 	defer r.Close()
 
 	// Check if the directory exists, and create it if it doesn't
 	dir := path.Dir(localPath)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return formatDownloadError(
+		return ft.formatDownloadError(
 			fmt.Sprintf("error creating download directory %s", dir),
 			err,
 		)
@@ -196,7 +196,7 @@ func (ft *GCSFileTransfer) downloadFile(
 	// open the file for writing and defer closing it
 	file, err := os.Create(localPath)
 	if err != nil {
-		return formatDownloadError(
+		return ft.formatDownloadError(
 			fmt.Sprintf("error creating download file %s", localPath),
 			err,
 		)
@@ -211,7 +211,7 @@ func (ft *GCSFileTransfer) downloadFile(
 
 	_, err = io.Copy(file, r)
 	if err != nil {
-		return formatDownloadError(
+		return ft.formatDownloadError(
 			fmt.Sprintf("error copying file %s", localPath),
 			err,
 		)
@@ -277,22 +277,6 @@ func (ft *GCSFileTransfer) getObject(
 	return object, nil
 }
 
-// parseReference parses the reference path and returns the bucket name and
-// object name.
-func parseReference(reference string) (string, string, error) {
-	uriParts, err := url.Parse(reference)
-	if err != nil {
-		return "", "", err
-	}
-	if uriParts.Scheme != "gs" {
-		err := fmt.Errorf("invalid gsutil URI %s", reference)
-		return "", "", err
-	}
-	bucketName := uriParts.Host
-	objectName := strings.TrimPrefix(uriParts.Path, "/")
-	return bucketName, objectName, nil
-}
-
-func formatDownloadError(context string, err error) error {
+func (ft *GCSFileTransfer) formatDownloadError(context string, err error) error {
 	return fmt.Errorf("GCSFileTransfer: Download: %s: %v", context, err)
 }
