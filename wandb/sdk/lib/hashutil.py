@@ -53,7 +53,7 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
 
 
 _KB: int = 1_024
-_CHUNKSIZE: int = 512 * _KB
+_CHUNKSIZE: int = 128 * _KB
 """Chunk size (in bytes) for iteratively reading from file, if needed."""
 
 
