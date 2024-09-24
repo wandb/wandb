@@ -137,7 +137,7 @@ namespace Wandb
         /// <returns>A task that represents the asynchronous operation.</returns>
         public async Task DefineMetric(
             string name,
-            string stepMetric,
+            string? stepMetric = null,
             SummaryType? summary = null,
             bool? hidden = false
         )

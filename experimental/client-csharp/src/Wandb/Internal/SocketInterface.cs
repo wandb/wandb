@@ -186,7 +186,7 @@ namespace Wandb.Internal
         /// <returns>A task representing the asynchronous operation.</returns>
         public async Task PublishMetricDefinition(
             string name,
-            string stepMetric,
+            string? stepMetric,
             SummaryType? summary,
             bool? hidden
         )
@@ -194,10 +194,13 @@ namespace Wandb.Internal
             var metricDefinition = new MetricRecord
             {
                 Name = name,
-                StepMetric = stepMetric,
                 Options = new MetricOptions { },
                 Summary = new MetricSummary { }
             };
+            if (stepMetric != null)
+            {
+                metricDefinition.StepMetric = stepMetric;
+            }
             if (hidden == true)
             {
                 metricDefinition.Options.Hidden = true;
