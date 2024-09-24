@@ -596,6 +596,7 @@ message Request {
     SyncRequest sync = 76;
     JobInputRequest job_input = 77;
     LinkArtifactRequest link_artifact = 78;
+    LastHistoryLineRequest last_history_line = 79;
     TestInjectRequest test_inject = 1000;
   }
 }
@@ -715,6 +716,13 @@ message SystemMetricsBuffer {
 
 message GetSystemMetricsResponse {
   map<string, SystemMetricsBuffer> system_metrics = 1;
+}
+
+/*
+ * LastHistoryLineRequest: request the last line of history
+ */
+message LastHistoryLineRequest {
+  _RequestInfo _info = 200;
 }
 
 /*
