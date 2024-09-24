@@ -35,7 +35,8 @@ type mockS3File struct {
 
 var file1v0 = mockS3File{
 	"s3://bucket/file1.txt",
-	"bucket", "file1.txt",
+	"bucket",
+	"file1.txt",
 	"0",
 	"0",
 	[]byte("v0"),
@@ -207,6 +208,19 @@ func TestS3FileTransfer_Download(t *testing.T) {
 				Reference:    file1v0.Reference,
 				Digest:       file1v0.ETag,
 				Size:         100,
+				VersionId:    file1v0.VersionId,
+			},
+			contentExpected: file1v0.Content,
+			wantErr:         false,
+		},
+		{
+			name: "Finds correct version when versionId not passed in",
+			task: &filetransfer.ReferenceArtifactDownloadTask{
+				FileKind:     filetransfer.RunFileKindArtifact,
+				PathOrPrefix: file1v0.Key,
+				Reference:    file1v0.Reference,
+				Digest:       file1v0.ETag,
+				Size:         100,
 			},
 			contentExpected: file1v0.Content,
 			wantErr:         false,
@@ -284,5 +298,4 @@ func TestS3FileTransfer_Download(t *testing.T) {
 	println(content)
 	assert.NoError(t, err)
 	assert.Equal(t, file2.Content, content)
-
 }
