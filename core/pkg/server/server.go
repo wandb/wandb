@@ -8,7 +8,6 @@ import (
 	"net"
 	"os"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/sentry_ext"
@@ -19,14 +18,13 @@ const (
 	IntervalCheckParentPidMilliseconds = 100
 )
 
-var defaultLoggerPath atomic.Value
-
 type ServerParams struct {
 	ListenIPAddress string
 	PortFilename    string
 	ParentPid       int
 	SentryClient    *sentry_ext.Client
 	Commit          string
+	LoggerPath      string
 }
 
 // Server is the core server
@@ -53,6 +51,9 @@ type Server struct {
 
 	// commit is the W&B Git commit hash
 	commit string
+
+	// loggerPath is the default logger path
+	loggerPath string
 }
 
 // NewServer creates a new server
@@ -79,6 +80,7 @@ func NewServer(
 		parentPid:    params.ParentPid,
 		sentryClient: params.SentryClient,
 		commit:       params.Commit,
+		loggerPath:   params.LoggerPath,
 	}
 
 	port := s.listener.Addr().(*net.TCPAddr).Port
@@ -103,13 +105,6 @@ func (s *Server) exitWhenParentIsGone() {
 	// The user process has exited, so there's no need to sync
 	// uncommitted data, and we can quit immediately.
 	os.Exit(1)
-}
-
-func (s *Server) SetDefaultLoggerPath(path string) {
-	if path == "" {
-		return
-	}
-	defaultLoggerPath.Store(path)
 }
 
 func (s *Server) Serve() {
@@ -164,6 +159,7 @@ func (s *Server) serve() {
 					conn,
 					s.sentryClient,
 					s.commit,
+					s.loggerPath,
 				).HandleConnection()
 
 				s.wg.Done()

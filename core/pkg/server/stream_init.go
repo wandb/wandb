@@ -177,11 +177,14 @@ func NewFileStream(
 	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
-		Settings:          settings,
-		Logger:            logger,
-		Printer:           printer,
-		ApiClient:         fileStreamRetryClient,
-		TransmitRateLimit: rate.NewLimiter(rate.Every(15*time.Second), 1),
+		Settings:  settings,
+		Logger:    logger,
+		Printer:   printer,
+		ApiClient: fileStreamRetryClient,
+	}
+
+	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
+		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
 	return filestream.NewFileStream(params)

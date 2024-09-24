@@ -1,4 +1,4 @@
-package utils
+package nullify
 
 func NilIfZero[T comparable](x T) *T {
 	var zero T
