@@ -88,9 +88,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def from_json(
-        cls: Type["WBValue"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "WBValue":
+    def from_json(cls, json_obj: dict, source_artifact: "Artifact") -> "WBValue":
         """Deserialize a `json_obj` into it's class representation.
 
         If additional resources were stored in the `run_or_artifact` artifact during the

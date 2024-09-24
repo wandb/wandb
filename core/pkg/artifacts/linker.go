@@ -8,7 +8,7 @@ import (
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"github.com/wandb/wandb/core/pkg/utils"
 )

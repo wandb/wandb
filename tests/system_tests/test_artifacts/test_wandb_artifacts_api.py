@@ -265,7 +265,7 @@ def test_retrieve_artifacts_by_tags(user, wandb_init, server_supports_artifact_t
 
     # Retrieve all artifacts with a given tag.
     artifacts = Api().artifacts(
-        type_name=artifact_type, name=artifact_name, tags=["fizz"]
+        type_name=artifact_type, name=artifact_name, tags="fizz"
     )
     retrieved_artifacts = list(artifacts)
     if server_supports_artifact_tags:
