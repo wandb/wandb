@@ -24,7 +24,6 @@ import (
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/utils"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -210,7 +209,7 @@ func NewStream(
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
@@ -341,9 +340,9 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	if s.settings.IsOffline() {
-		utils.PrintFooterOffline(s.settings.Proto)
+		PrintFooterOffline(s.settings.Proto)
 	} else {
 		run := s.handler.GetRun()
-		utils.PrintFooterOnline(run, s.settings.Proto)
+		PrintFooterOnline(run, s.settings.Proto)
 	}
 }
