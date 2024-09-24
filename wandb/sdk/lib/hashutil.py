@@ -3,7 +3,6 @@ import hashlib
 import mmap
 import os
 import sys
-from pathlib import Path
 from typing import NewType, Union
 
 from wandb.sdk.lib.paths import StrPath
@@ -48,24 +47,29 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
-_CHUNKSIZE: int = 1_024 * 1_024
-"""Files larger than this size (bytes) should be read in chunks to conserve memory."""
+_MIN_CHUNKED_FILESIZE: int = 1_024 * 1_024
+"""Files larger than this size (bytes) should be read via chunks or mmap for hashing to conserve memory."""
+
+_CHUNKSIZE: int = _MIN_CHUNKED_FILESIZE // 2
 
 
 def _md5_file_hasher(*paths: StrPath) -> "hashlib._Hash":
     md5_hash = _md5()
 
-    for path in sorted(Path(p) for p in paths):
-        with path.open("rb") as f:
-            if os.stat(f.fileno()).st_size <= _CHUNKSIZE:
+    # Note: str paths (instead of pathlib.Path objs) slightly improve perf here.
+    for path in sorted(map(str, paths)):
+        with open(path, "rb") as f:
+            fileno = f.fileno()
+            if os.stat(fileno).st_size <= _MIN_CHUNKED_FILESIZE:
                 md5_hash.update(f.read())
             else:
                 try:
-                    with mmap.mmap(
-                        f.fileno(), length=0, access=mmap.ACCESS_READ
-                    ) as mview:
+                    with mmap.mmap(fileno, length=0, access=mmap.ACCESS_READ) as mview:
                         md5_hash.update(mview)
                 except OSError:
+                    # This occurs if mmap is called on a file on a different/mounted filesystem,
+                    # so we'll fall back on a less performant implementation.
+
                     # Note: At the time of implementation, the walrus operator `:=`
                     # is avoided to maintain support for users on python 3.7.
                     # Consider revisiting once 3.7 support is no longer needed.
