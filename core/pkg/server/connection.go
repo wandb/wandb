@@ -249,6 +249,8 @@ func (nc *Connection) handleServerRequest() {
 			nc.handleInformFinish(x.InformFinish)
 		case *spb.ServerRequest_InformTeardown:
 			nc.handleInformTeardown(x.InformTeardown)
+		case *spb.ServerRequest_InformSync:
+			nc.handleInformSync(x.InformSync)
 		case nil:
 			slog.Error("ServerRequestType is nil", "id", nc.id)
 			panic("ServerRequestType is nil")
@@ -333,6 +335,14 @@ func (nc *Connection) handleInformAttach(msg *spb.ServerInformAttachRequest) {
 		}
 		nc.Respond(resp)
 	}
+}
+
+// handleInformSync is called when the client sends an InformSync message
+// this is used to sync the client with the server state
+// this is not implemented yet
+func (nc *Connection) handleInformSync(msg *spb.ServerInformSyncRequest) {
+	slog.Info("connection: sync", "id", nc.id)
+	panic("not implemented")
 }
 
 // handleInformRecord is called when the client sends a record message
