@@ -10,8 +10,8 @@ import (
 
 	"google.golang.org/protobuf/proto"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runwork"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"

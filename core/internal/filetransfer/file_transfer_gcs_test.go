@@ -5,7 +5,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/wandb/wandb/core/internal/filetransfer"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type mockGCSClient struct {

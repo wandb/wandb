@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"golang.org/x/time/rate"
 )
 

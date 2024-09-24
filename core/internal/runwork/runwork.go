@@ -12,7 +12,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 var errRecordAfterClose = errors.New("runwork: ignoring record after close")

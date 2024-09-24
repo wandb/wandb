@@ -11,9 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/pkg/observability"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
