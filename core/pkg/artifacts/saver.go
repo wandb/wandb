@@ -32,6 +32,8 @@ type ArtifactSaver struct {
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
 
+	// uploadsByName ensures that uploads for the same artifact name happen
+	// serially, so that version numbers are assigned deterministically.
 	uploadsByName *namedgoroutines.Operation[*ArtifactSaveContext]
 }
 
