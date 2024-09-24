@@ -139,6 +139,9 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	if gpu := NewGPUApple(); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
+	if tpu := NewTPU(); tpu != nil {
+		sm.assets = append(sm.assets, tpu)
+	}
 	if slurm := NewSLURM(); slurm != nil {
 		sm.assets = append(sm.assets, slurm)
 	}
