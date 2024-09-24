@@ -1,7 +1,6 @@
 import base64
 import hashlib
 from pathlib import Path
-from typing import Optional
 
 import pytest
 from hypothesis import example, given
