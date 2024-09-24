@@ -687,6 +687,48 @@ type CreatedArtifactArtifactArtifactSequenceLatestArtifact struct {
 // GetId returns CreatedArtifactArtifactArtifactSequenceLatestArtifact.Id, and is useful for accessing the field via an interface.
 func (v *CreatedArtifactArtifactArtifactSequenceLatestArtifact) GetId() string { return v.Id }
 
+// FetchOrgEntityFromEntityEntity includes the requested fields of the GraphQL type Entity.
+type FetchOrgEntityFromEntityEntity struct {
+	Organization *FetchOrgEntityFromEntityEntityOrganization `json:"organization"`
+}
+
+// GetOrganization returns FetchOrgEntityFromEntityEntity.Organization, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntity) GetOrganization() *FetchOrgEntityFromEntityEntityOrganization {
+	return v.Organization
+}
+
+// FetchOrgEntityFromEntityEntityOrganization includes the requested fields of the GraphQL type Organization.
+type FetchOrgEntityFromEntityEntityOrganization struct {
+	Name      string                                               `json:"name"`
+	OrgEntity *FetchOrgEntityFromEntityEntityOrganizationOrgEntity `json:"orgEntity"`
+}
+
+// GetName returns FetchOrgEntityFromEntityEntityOrganization.Name, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntityOrganization) GetName() string { return v.Name }
+
+// GetOrgEntity returns FetchOrgEntityFromEntityEntityOrganization.OrgEntity, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntityOrganization) GetOrgEntity() *FetchOrgEntityFromEntityEntityOrganizationOrgEntity {
+	return v.OrgEntity
+}
+
+// FetchOrgEntityFromEntityEntityOrganizationOrgEntity includes the requested fields of the GraphQL type Entity.
+type FetchOrgEntityFromEntityEntityOrganizationOrgEntity struct {
+	Name string `json:"name"`
+}
+
+// GetName returns FetchOrgEntityFromEntityEntityOrganizationOrgEntity.Name, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityEntityOrganizationOrgEntity) GetName() string { return v.Name }
+
+// FetchOrgEntityFromEntityResponse is returned by FetchOrgEntityFromEntity on success.
+type FetchOrgEntityFromEntityResponse struct {
+	Entity *FetchOrgEntityFromEntityEntity `json:"entity"`
+}
+
+// GetEntity returns FetchOrgEntityFromEntityResponse.Entity, and is useful for accessing the field via an interface.
+func (v *FetchOrgEntityFromEntityResponse) GetEntity() *FetchOrgEntityFromEntityEntity {
+	return v.Entity
+}
+
 // InputFieldsResponse is returned by InputFields on success.
 type InputFieldsResponse struct {
 	TypeInfo *InputFieldsTypeInfoType `json:"TypeInfo"`
@@ -1013,6 +1055,30 @@ func (v *TagInput) GetTagName() string { return v.TagName }
 
 // GetAttributes returns TagInput.Attributes, and is useful for accessing the field via an interface.
 func (v *TagInput) GetAttributes() *string { return v.Attributes }
+
+// TypeFieldsResponse is returned by TypeFields on success.
+type TypeFieldsResponse struct {
+	TypeInfo *TypeFieldsTypeInfoType `json:"TypeInfo"`
+}
+
+// GetTypeInfo returns TypeFieldsResponse.TypeInfo, and is useful for accessing the field via an interface.
+func (v *TypeFieldsResponse) GetTypeInfo() *TypeFieldsTypeInfoType { return v.TypeInfo }
+
+// TypeFieldsTypeInfoType includes the requested fields of the GraphQL type __Type.
+type TypeFieldsTypeInfoType struct {
+	Fields []TypeFieldsTypeInfoTypeFieldsField `json:"fields"`
+}
+
+// GetFields returns TypeFieldsTypeInfoType.Fields, and is useful for accessing the field via an interface.
+func (v *TypeFieldsTypeInfoType) GetFields() []TypeFieldsTypeInfoTypeFieldsField { return v.Fields }
+
+// TypeFieldsTypeInfoTypeFieldsField includes the requested fields of the GraphQL type __Field.
+type TypeFieldsTypeInfoTypeFieldsField struct {
+	Name string `json:"name"`
+}
+
+// GetName returns TypeFieldsTypeInfoTypeFieldsField.Name, and is useful for accessing the field via an interface.
+func (v *TypeFieldsTypeInfoTypeFieldsField) GetName() string { return v.Name }
 
 // UpdateArtifactManifestResponse is returned by UpdateArtifactManifest on success.
 type UpdateArtifactManifestResponse struct {
@@ -1451,6 +1517,14 @@ func (v *__CreateRunFilesInput) GetRun() string { return v.Run }
 // GetFiles returns __CreateRunFilesInput.Files, and is useful for accessing the field via an interface.
 func (v *__CreateRunFilesInput) GetFiles() []string { return v.Files }
 
+// __FetchOrgEntityFromEntityInput is used internally by genqlient
+type __FetchOrgEntityFromEntityInput struct {
+	EntityName string `json:"entityName"`
+}
+
+// GetEntityName returns __FetchOrgEntityFromEntityInput.EntityName, and is useful for accessing the field via an interface.
+func (v *__FetchOrgEntityFromEntityInput) GetEntityName() string { return v.EntityName }
+
 // __InputFieldsInput is used internally by genqlient
 type __InputFieldsInput struct {
 	TypeName string `json:"typeName"`
@@ -1574,6 +1648,14 @@ func (v *__RunStoppedStatusInput) GetProjectName() *string { return v.ProjectNam
 
 // GetRunId returns __RunStoppedStatusInput.RunId, and is useful for accessing the field via an interface.
 func (v *__RunStoppedStatusInput) GetRunId() string { return v.RunId }
+
+// __TypeFieldsInput is used internally by genqlient
+type __TypeFieldsInput struct {
+	TypeName string `json:"typeName"`
+}
+
+// GetTypeName returns __TypeFieldsInput.TypeName, and is useful for accessing the field via an interface.
+func (v *__TypeFieldsInput) GetTypeName() string { return v.TypeName }
 
 // __UpdateArtifactInput is used internally by genqlient
 type __UpdateArtifactInput struct {
@@ -2120,6 +2202,46 @@ func CreateRunFiles(
 	return &data_, err_
 }
 
+// The query or mutation executed by FetchOrgEntityFromEntity.
+const FetchOrgEntityFromEntity_Operation = `
+query FetchOrgEntityFromEntity ($entityName: String!) {
+	entity(name: $entityName) {
+		organization {
+			name
+			orgEntity {
+				name
+			}
+		}
+	}
+}
+`
+
+func FetchOrgEntityFromEntity(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	entityName string,
+) (*FetchOrgEntityFromEntityResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "FetchOrgEntityFromEntity",
+		Query:  FetchOrgEntityFromEntity_Operation,
+		Variables: &__FetchOrgEntityFromEntityInput{
+			EntityName: entityName,
+		},
+	}
+	var err_ error
+
+	var data_ FetchOrgEntityFromEntityResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
 // The query or mutation executed by InputFields.
 const InputFields_Operation = `
 query InputFields ($typeName: String!) {
@@ -2432,6 +2554,43 @@ func ServerInfo(
 	var err_ error
 
 	var data_ ServerInfoResponse
+	resp_ := &graphql.Response{Data: &data_}
+
+	err_ = client_.MakeRequest(
+		ctx_,
+		req_,
+		resp_,
+	)
+
+	return &data_, err_
+}
+
+// The query or mutation executed by TypeFields.
+const TypeFields_Operation = `
+query TypeFields ($typeName: String!) {
+	TypeInfo: __type(name: $typeName) {
+		fields {
+			name
+		}
+	}
+}
+`
+
+func TypeFields(
+	ctx_ context.Context,
+	client_ graphql.Client,
+	typeName string,
+) (*TypeFieldsResponse, error) {
+	req_ := &graphql.Request{
+		OpName: "TypeFields",
+		Query:  TypeFields_Operation,
+		Variables: &__TypeFieldsInput{
+			TypeName: typeName,
+		},
+	}
+	var err_ error
+
+	var data_ TypeFieldsResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

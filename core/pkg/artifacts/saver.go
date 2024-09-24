@@ -101,7 +101,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 
 	// Check which fields are actually supported on the input
-	inputFieldNames, err := utils.GetInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
+	inputFieldNames, err := utils.GetGraphQLInputFields(as.Ctx, as.GraphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}

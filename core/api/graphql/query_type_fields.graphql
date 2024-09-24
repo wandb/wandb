@@ -1,0 +1,9 @@
+query TypeFields (
+    $typeName: String!
+) {
+    TypeInfo: __type(name: $typeName) {
+        fields {
+            name
+        }
+    }
+}
