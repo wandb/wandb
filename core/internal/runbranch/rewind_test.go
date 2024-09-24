@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/runbranch"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type RewindResponse struct {
@@ -103,10 +103,10 @@ func TestRewindApplyChangesWithResponse(t *testing.T) {
 				RewoundRun: RewoundRun{
 					ID:               "storageid",
 					Name:             "runid",
-					DisplayName:      utils.NilIfZero("rewound"),
-					SweepName:        utils.NilIfZero("sweep"),
-					HistoryLineCount: utils.NilIfZero(10),
-					Config:           utils.NilIfZero(`{"lr": {"value": 0.001}}`),
+					DisplayName:      nullify.NilIfZero("rewound"),
+					SweepName:        nullify.NilIfZero("sweep"),
+					HistoryLineCount: nullify.NilIfZero(10),
+					Config:           nullify.NilIfZero(`{"lr": {"value": 0.001}}`),
 				},
 			},
 		},
@@ -188,7 +188,7 @@ func TestRewindApplyChangesInvalidConfig(t *testing.T) {
 				RewoundRun: RewoundRun{
 					ID:     "",
 					Name:   "",
-					Config: utils.NilIfZero("invalid"),
+					Config: nullify.NilIfZero("invalid"),
 				},
 			},
 		},
@@ -226,7 +226,7 @@ func TestRewindApplyChangesInvalidTypeConfig(t *testing.T) {
 				RewoundRun: RewoundRun{
 					ID:     "",
 					Name:   "",
-					Config: utils.NilIfZero(`"invalid"`),
+					Config: nullify.NilIfZero(`"invalid"`),
 				},
 			},
 		},
@@ -265,7 +265,7 @@ func TestRewindApplyChangesConfigNoValue(t *testing.T) {
 				RewoundRun: RewoundRun{
 					ID:     "",
 					Name:   "",
-					Config: utils.NilIfZero(`{"lr": 0.0001}`),
+					Config: nullify.NilIfZero(`{"lr": 0.0001}`),
 				},
 			},
 		},

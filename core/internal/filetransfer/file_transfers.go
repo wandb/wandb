@@ -2,7 +2,7 @@ package filetransfer
 
 import (
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type FileTransfer interface {

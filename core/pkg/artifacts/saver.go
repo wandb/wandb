@@ -18,9 +18,9 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ArtifactSaver struct {
@@ -124,14 +124,14 @@ func (as *ArtifactSaver) createArtifact() (
 		RunName:                   runId,
 		Digest:                    as.artifact.Digest,
 		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
-		Description:               utils.NilIfZero(as.artifact.Description),
+		Description:               nullify.NilIfZero(as.artifact.Description),
 		Aliases:                   aliases,
 		Tags:                      tags,
-		Metadata:                  utils.NilIfZero(as.artifact.Metadata),
-		TtlDurationSeconds:        utils.NilIfZero(as.artifact.TtlDurationSeconds),
-		HistoryStep:               utils.NilIfZero(as.historyStep),
+		Metadata:                  nullify.NilIfZero(as.artifact.Metadata),
+		TtlDurationSeconds:        nullify.NilIfZero(as.artifact.TtlDurationSeconds),
+		HistoryStep:               nullify.NilIfZero(as.historyStep),
 		EnableDigestDeduplication: true,
-		DistributedID:             utils.NilIfZero(as.artifact.DistributedId),
+		DistributedID:             nullify.NilIfZero(as.artifact.DistributedId),
 		ClientID:                  as.artifact.ClientId,
 		SequenceClientID:          as.artifact.SequenceClientId,
 	}

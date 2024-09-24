@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/wandb/wandb/core/internal/hashencode"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 func setupTestEnvironment(t *testing.T) (*FileCache, func()) {
@@ -48,9 +47,7 @@ func TestFileCache_Write(t *testing.T) {
 	path, err := cache.md5Path(expectedMd5)
 	require.NoError(t, err)
 	require.NotNil(t, path)
-	exists, err := utils.FileExists(path)
-	require.NoError(t, err)
-	require.True(t, exists)
+	assert.FileExists(t, path)
 	readData, err := os.ReadFile(path)
 	require.NoError(t, err)
 	assert.Equal(t, data, readData)

@@ -19,6 +19,8 @@ class Program
             await run1.UpdateConfig(new Dictionary<string, object> { { "batch_size", 64 } });
             await run1.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
             await run1.DefineMetric("loss", "epoch", SummaryType.Min);
+            // hide the epoch metric from the UI:
+            await run1.DefineMetric("epoch", hidden: true);
 
             // Log metrics:
             await run1.Log(new Dictionary<string, object> { { "loss", 0.5 }, { "recall", 0.8 }, { "epoch", 1 } });
@@ -40,6 +42,7 @@ class Program
             await run2.UpdateConfig(new Dictionary<string, object> { { "learning_rate", 3e-4 } });
             await run2.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
             await run2.DefineMetric("loss", "epoch", SummaryType.Min);
+            await run2.DefineMetric("epoch", hidden: true);
 
             // Log more metrics:
             await run2.Log(new Dictionary<string, object> { { "loss", 0.1 }, { "recall", 0.99 }, { "epoch", 4 } });

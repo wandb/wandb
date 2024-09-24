@@ -21,6 +21,8 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
@@ -35,8 +37,6 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/launch"
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/utils"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -1023,27 +1023,27 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	program := s.settings.GetProgram().GetValue()
 
 	data, err := gql.UpsertBucket(
-		ctx,                              // ctx
-		s.graphqlClient,                  // client
-		nil,                              // id
-		&run.RunId,                       // name
-		utils.NilIfZero(run.Project),     // project
-		utils.NilIfZero(run.Entity),      // entity
-		utils.NilIfZero(run.RunGroup),    // groupName
-		nil,                              // description
-		utils.NilIfZero(run.DisplayName), // displayName
-		utils.NilIfZero(run.Notes),       // notes
-		utils.NilIfZero(commit),          // commit
-		&configStr,                       // config
-		utils.NilIfZero(run.Host),        // host
-		nil,                              // debug
-		utils.NilIfZero(program),         // program
-		utils.NilIfZero(repo),            // repo
-		utils.NilIfZero(run.JobType),     // jobType
-		nil,                              // state
-		utils.NilIfZero(run.SweepId),     // sweep
-		run.Tags,                         // tags []string,
-		nil,                              // summaryMetrics
+		ctx,                                // ctx
+		s.graphqlClient,                    // client
+		nil,                                // id
+		&run.RunId,                         // name
+		nullify.NilIfZero(run.Project),     // project
+		nullify.NilIfZero(run.Entity),      // entity
+		nullify.NilIfZero(run.RunGroup),    // groupName
+		nil,                                // description
+		nullify.NilIfZero(run.DisplayName), // displayName
+		nullify.NilIfZero(run.Notes),       // notes
+		nullify.NilIfZero(commit),          // commit
+		&configStr,                         // config
+		nullify.NilIfZero(run.Host),        // host
+		nil,                                // debug
+		nullify.NilIfZero(program),         // program
+		nullify.NilIfZero(repo),            // repo
+		nullify.NilIfZero(run.JobType),     // jobType
+		nil,                                // state
+		nullify.NilIfZero(run.SweepId),     // sweep
+		run.Tags,                           // tags []string,
+		nil,                                // summaryMetrics
 	)
 
 	if err != nil {
@@ -1084,15 +1084,15 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		}
 
 		fileStreamOffset := make(fs.FileStreamOffsetMap)
-		fileStreamOffset[fs.HistoryChunk] = utils.ZeroIfNil(bucket.GetHistoryLineCount())
+		fileStreamOffset[fs.HistoryChunk] = nullify.ZeroIfNil(bucket.GetHistoryLineCount())
 
 		params := &runbranch.RunParams{
 			StorageID:        bucket.GetId(),
-			Entity:           utils.ZeroIfNil(&entityName),
-			Project:          utils.ZeroIfNil(&projectName),
+			Entity:           nullify.ZeroIfNil(&entityName),
+			Project:          nullify.ZeroIfNil(&projectName),
 			RunID:            bucket.GetName(),
-			DisplayName:      utils.ZeroIfNil(bucket.GetDisplayName()),
-			SweepID:          utils.ZeroIfNil(bucket.GetSweepName()),
+			DisplayName:      nullify.ZeroIfNil(bucket.GetDisplayName()),
+			SweepID:          nullify.ZeroIfNil(bucket.GetSweepName()),
 			FileStreamOffset: fileStreamOffset,
 		}
 
@@ -1180,27 +1180,27 @@ func (s *Sender) upsertConfig() {
 		clients.UpsertBucketRetryPolicy,
 	)
 	_, err = gql.UpsertBucket(
-		ctx,                                   // ctx
-		s.graphqlClient,                       // client
-		nil,                                   // id
-		&s.startState.RunID,                   // name
-		utils.NilIfZero(s.startState.Project), // project
-		utils.NilIfZero(s.startState.Entity),  // entity
-		nil,                                   // groupName
-		nil,                                   // description
-		nil,                                   // displayName
-		nil,                                   // notes
-		nil,                                   // commit
-		&configStr,                            // config
-		nil,                                   // host
-		nil,                                   // debug
-		nil,                                   // program
-		nil,                                   // repo
-		nil,                                   // jobType
-		nil,                                   // state
-		nil,                                   // sweep
-		nil,                                   // tags []string,
-		nil,                                   // summaryMetrics
+		ctx,                                     // ctx
+		s.graphqlClient,                         // client
+		nil,                                     // id
+		&s.startState.RunID,                     // name
+		nullify.NilIfZero(s.startState.Project), // project
+		nullify.NilIfZero(s.startState.Entity),  // entity
+		nil,                                     // groupName
+		nil,                                     // description
+		nil,                                     // displayName
+		nil,                                     // notes
+		nil,                                     // commit
+		&configStr,                              // config
+		nil,                                     // host
+		nil,                                     // debug
+		nil,                                     // program
+		nil,                                     // repo
+		nil,                                     // jobType
+		nil,                                     // state
+		nil,                                     // sweep
+		nil,                                     // tags []string,
+		nil,                                     // summaryMetrics
 	)
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
@@ -1595,7 +1595,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 				RunShouldStop: false,
 			}
 		default:
-			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			stopped := nullify.ZeroIfNil(response.GetProject().GetRun().GetStopped())
 			stopResponse = &spb.StopStatusResponse{
 				RunShouldStop: stopped,
 			}

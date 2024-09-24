@@ -1,6 +1,8 @@
 """Artifact manifest."""
 
-from typing import TYPE_CHECKING, Dict, List, Mapping, Optional
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Mapping
 
 from wandb.sdk.internal.internal_api import Api as InternalApi
 from wandb.sdk.lib.hashutil import HexMD5
@@ -11,12 +13,12 @@ if TYPE_CHECKING:
 
 
 class ArtifactManifest:
-    entries: Dict[str, "ArtifactManifestEntry"]
+    entries: dict[str, ArtifactManifestEntry]
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: Dict, api: Optional[InternalApi] = None
-    ) -> "ArtifactManifest":
+        cls, manifest_json: dict, api: InternalApi | None = None
+    ) -> ArtifactManifest:
         if "version" not in manifest_json:
             raise ValueError("Invalid manifest format. Must contain version field.")
         version = manifest_json["version"]
@@ -31,8 +33,8 @@ class ArtifactManifest:
 
     def __init__(
         self,
-        storage_policy: "StoragePolicy",
-        entries: Optional[Mapping[str, "ArtifactManifestEntry"]] = None,
+        storage_policy: StoragePolicy,
+        entries: Mapping[str, ArtifactManifestEntry] | None = None,
     ) -> None:
         self.storage_policy = storage_policy
         self.entries = dict(entries) if entries else {}
@@ -40,13 +42,13 @@ class ArtifactManifest:
     def __len__(self) -> int:
         return len(self.entries)
 
-    def to_manifest_json(self) -> Dict:
+    def to_manifest_json(self) -> dict:
         raise NotImplementedError
 
     def digest(self) -> HexMD5:
         raise NotImplementedError
 
-    def add_entry(self, entry: "ArtifactManifestEntry") -> None:
+    def add_entry(self, entry: ArtifactManifestEntry) -> None:
         if (
             entry.path in self.entries
             and entry.digest != self.entries[entry.path].digest
@@ -54,15 +56,15 @@ class ArtifactManifest:
             raise ValueError("Cannot add the same path twice: {}".format(entry.path))
         self.entries[entry.path] = entry
 
-    def remove_entry(self, entry: "ArtifactManifestEntry") -> None:
+    def remove_entry(self, entry: ArtifactManifestEntry) -> None:
         if entry.path not in self.entries:
             raise FileNotFoundError(f"Cannot remove missing entry: '{entry.path}'")
         del self.entries[entry.path]
 
-    def get_entry_by_path(self, path: str) -> Optional["ArtifactManifestEntry"]:
+    def get_entry_by_path(self, path: str) -> ArtifactManifestEntry | None:
         return self.entries.get(path)
 
-    def get_entries_in_directory(self, directory: str) -> List["ArtifactManifestEntry"]:
+    def get_entries_in_directory(self, directory: str) -> list[ArtifactManifestEntry]:
         return [
             self.entries[entry_key]
             for entry_key in self.entries
