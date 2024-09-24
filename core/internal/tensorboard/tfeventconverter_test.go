@@ -27,6 +27,14 @@ const testPNG2x4 = "" +
 	"\x01\x00\x00\x00\x00" + // buncha other stuff
 	"\x8C\x94\xD3\x94" // CRC-32 of "IHDR" and the chunk data
 
+const testGif1x1 = "" +
+	// GIF header
+	"GIF89a" +
+	// Gif size (1x1)
+	"\x01\x00\x01\x00" +
+	// random Gif data
+	"\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
 func scalarValue(tag string, plugin string, value float32) *tbproto.Summary_Value {
 	return &tbproto.Summary_Value{
 		Tag: tag,
@@ -396,6 +404,33 @@ func TestConvertImage(t *testing.T) {
 					Height:      4,
 					EncodedData: []byte(testPNG2x4),
 					Format:      "png",
+				},
+			},
+		},
+		emitter.EmitImageCalls)
+}
+
+func TestConvertGif(t *testing.T) {
+	converter := tensorboard.TFEventConverter{Namespace: "train"}
+
+	emitter := &mockEmitter{}
+	converter.ConvertNext(
+		emitter,
+		summaryEvent(123, 0.345,
+			tensorValueStrings("test_gif", "images",
+				"1", "1", testGif1x1)),
+		observability.NewNoOpLogger(),
+	)
+
+	assert.Equal(t,
+		[]mockEmitter_EmitImage{
+			{
+				Key: pathtree.PathOf("train/test_gif"),
+				Image: wbvalue.Image{
+					Width:       1,
+					Height:      1,
+					EncodedData: []byte(testGif1x1),
+					Format:      "gif",
 				},
 			},
 		},
