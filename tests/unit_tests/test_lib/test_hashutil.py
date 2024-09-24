@@ -95,9 +95,8 @@ def test_md5_file_hex_three_files(data1, text, data2):
 @pytest.mark.parametrize(
     "filesize",
     [
-        1024,
-        8192,
-        2 * 1024 * 1024,
+        512,  # Smaller than chunking threshold
+        2 * 1024 * 1024,  # Larger than chunking threshold
     ],
 )
 def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFilesystem):
