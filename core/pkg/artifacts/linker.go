@@ -34,7 +34,8 @@ func (al *ArtifactLinker) Link() error {
 		if err != nil {
 			return err
 		}
-		if slices.Contains(orgFieldNames, "orgEntity") {
+		switch {
+		case slices.Contains(orgFieldNames, "orgEntity"):
 			response, err := gql.FetchOrgEntityFromEntity(
 				al.Ctx,
 				al.GraphqlClient,
@@ -52,11 +53,11 @@ func (al *ArtifactLinker) Link() error {
 				return fmt.Errorf("Wrong organization: %s for registry: %s", organization, portfolioProject)
 			}
 			portfolioEntity = response.Entity.Organization.OrgEntity.Name
-		} else if organization == "" {
+		case organization == "":
 			// User is trying to shorthand path but server isn't upgraded to handle it
 			// TODO: good error message
 			return fmt.Errorf("Upgrade server to about xx to shorthand Registry path")
-		} else {
+		default:
 			// Use traditional registry path with org entity if server doesn't support it
 			portfolioEntity = organization
 		}

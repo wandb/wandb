@@ -8,13 +8,13 @@ InterfaceRelay: Responses are routed to a relay queue (not matching uuids)
 
 """
 
-from contextlib import suppress
 import gzip
 import logging
 import os
 import sys
 import time
 from abc import abstractmethod
+from contextlib import suppress
 from pathlib import Path
 from secrets import token_hex
 from typing import (

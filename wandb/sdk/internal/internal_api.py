@@ -32,7 +32,6 @@ from typing import (
 import click
 import requests
 import yaml
-from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb_gql import Client, gql
 from wandb_gql.client import RetryError
 
@@ -42,6 +41,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
+from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
