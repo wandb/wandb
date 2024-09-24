@@ -10,7 +10,7 @@ from typing import TYPE_CHECKING, NewType
 from wandb.sdk.lib.paths import StrPath
 
 if TYPE_CHECKING:
-    import _hashlib
+    import _hashlib  # type: ignore[import-not-found]
 
 ETag = NewType("ETag", str)
 HexMD5 = NewType("HexMD5", str)
