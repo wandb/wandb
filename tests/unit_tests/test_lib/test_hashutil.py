@@ -15,21 +15,6 @@ def test_md5_string():
     assert hashutil.md5_string("foo") == "rL0Y20zC+Fzt72VPzMSk2A=="
 
 
-def write_file(
-    filename: str,
-    mode: str,
-    content,
-    encoding: Optional[str] = None,
-) -> None:
-    with open(filename, mode, encoding=encoding) as f:
-        f.write(content)
-
-
-def read_file(filename: str, mode: str) -> bytes:
-    with open(filename, mode) as f:
-        return f.read()
-
-
 @given(st.binary())
 def test_hex_to_b64_id(data):
     hex_str = data.hex()
@@ -61,7 +46,7 @@ def test_md5_file_b64_no_files():
 
 @given(st.binary())
 def test_md5_file_hex_single_file(data):
-    write_file("binfile", "wb", data)
+    Path("binfile").write_bytes(data)
     assert hashlib.md5(data).hexdigest() == hashutil.md5_file_hex("binfile")
 
 
@@ -69,10 +54,10 @@ def test_md5_file_hex_single_file(data):
 @example(b"g", "", b"\xb6DZ")
 @example(b"\x1b\xb7", "¬\U000f0c9a", b"\xb7\xb7")
 def test_md5_file_b64_three_files(data1, text, data2):
-    write_file("a.bin", "wb", data1)
-    write_file("b.txt", "w", text, encoding="utf-8")
-    write_file("c.bin", "wb", data2)
-    data = data1 + read_file("b.txt", "rb") + data2
+    Path("a.bin").write_bytes(data1)
+    Path("b.txt").write_text(text, encoding="utf-8")
+    Path("c.bin").write_bytes(data2)
+    data = data1 + Path("b.txt").read_bytes() + data2
     # Intentionally provide the paths out of order (check sorting).
     path_hash = hashutil.md5_file_b64("c.bin", "a.bin", "b.txt")
     b64hash = base64.b64encode(hashlib.md5(data).digest()).decode("ascii")
@@ -83,10 +68,10 @@ def test_md5_file_b64_three_files(data1, text, data2):
 @example(b"g", "", b"\xb6DZ")
 @example(b"\x1b\xb7", "¬\U000f0c9a", b"\xb7\xb7")
 def test_md5_file_hex_three_files(data1, text, data2):
-    write_file("a.bin", "wb", data1)
-    write_file("b.txt", "w", text, encoding="utf-8")
-    write_file("c.bin", "wb", data2)
-    data = data1 + read_file("b.txt", "rb") + data2
+    Path("a.bin").write_bytes(data1)
+    Path("b.txt").write_text(text, encoding="utf-8")
+    Path("c.bin").write_bytes(data2)
+    data = data1 + Path("b.txt").read_bytes() + data2
     # Intentionally provide the paths out of order (check sorting).
     path_hash = hashutil.md5_file_hex("c.bin", "a.bin", "b.txt")
     assert hashlib.md5(data).hexdigest() == path_hash
@@ -114,6 +99,7 @@ def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFiles
     content_chunk = b"data"  # short repeated bytestring for testing
     n_chunks = filesize // len(content_chunk)
 
+    # Simultaneously write the file and calculate the expected hash in chunks to conserve memory
     expected_md5 = hashlib.md5()
     with fpath_large.open("wb") as f:
         for _ in range(n_chunks):
