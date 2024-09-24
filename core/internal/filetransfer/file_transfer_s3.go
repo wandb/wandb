@@ -42,7 +42,17 @@ func NewS3FileTransfer(
 ) (*S3FileTransfer, error) {
 	ctx := context.TODO()
 	if client == nil {
-		cfg, err := config.LoadDefaultConfig(ctx)
+		var awsConfigOptions [](func(*config.LoadOptions) error)
+		if awsProfile := os.Getenv("AWS_PROFILE"); awsProfile != "" {
+			awsConfigOptions = append(
+				awsConfigOptions,
+				config.WithSharedConfigProfile(awsProfile),
+			)
+		}
+		if awsRegion := os.Getenv("AWS_REGION"); awsRegion != "" {
+			awsConfigOptions = append(awsConfigOptions, config.WithRegion(awsRegion))
+		}
+		cfg, err := config.LoadDefaultConfig(ctx, awsConfigOptions...)
 		if err != nil {
 			return nil, err
 		}
