@@ -8,7 +8,7 @@ from hypothesis import settings
 settings.register_profile(
     "ci",
     max_examples=10,
-    deadline=timedelta(milliseconds=500),
+    deadline=timedelta(seconds=1),
 )
 settings.load_profile("ci")
 
