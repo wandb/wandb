@@ -9,11 +9,11 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/mailbox"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
@@ -584,7 +584,7 @@ func (h *Handler) handleCodeSave() {
 	}
 	savedProgram := filepath.Join(codeDir, programRelative)
 	if _, err := os.Stat(savedProgram); err != nil {
-		if err = utils.CopyFile(programAbsolute, savedProgram); err != nil {
+		if err = fileutil.CopyFile(programAbsolute, savedProgram); err != nil {
 			return
 		}
 	}

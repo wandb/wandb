@@ -13,7 +13,6 @@ import (
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type Manifest struct {
@@ -161,7 +160,7 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 }
 
 func (m *Manifest) WriteToFile() (filename string, digest string, size int64, rerr error) {
-	return utils.WriteJsonToFileWithDigest(m)
+	return WriteJSONToTempFileWithMetadata(m)
 }
 
 func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {
