@@ -1,9 +1,12 @@
 import base64
 import hashlib
+from pathlib import Path
 from typing import Optional
 
+import pytest
 from hypothesis import example, given
 from hypothesis import strategies as st
+from pyfakefs.fake_filesystem import FakeFilesystem
 from wandb.sdk.lib import hashutil
 
 
@@ -87,3 +90,39 @@ def test_md5_file_hex_three_files(data1, text, data2):
     # Intentionally provide the paths out of order (check sorting).
     path_hash = hashutil.md5_file_hex("c.bin", "a.bin", "b.txt")
     assert hashlib.md5(data).hexdigest() == path_hash
+
+
+@pytest.mark.parametrize(
+    "filesize",
+    [
+        1024,
+        8192,
+        2 * 1024 * 1024,
+    ],
+)
+def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFilesystem):
+    # Some setup we have to do to get this test to play well with `pyfakefs`.
+    # Note: Cast to str looks redundant but is intentional (for python<=3.10).
+    # https://pytest-pyfakefs.readthedocs.io/en/latest/troubleshooting.html#pathlib-path-objects-created-outside-of-tests
+    mount_dir = Path(str(tmp_path)) / "mount"
+
+    # Simulate filepaths on the mounted filesystem
+    fs.create_dir(mount_dir)
+    fs.add_mount_point(str(mount_dir))
+
+    fpath_large = mount_dir / "large.bin"
+
+    content_chunk = b"data"  # short repeated bytestring for testing
+    n_chunks = filesize // len(content_chunk)
+
+    expected_md5 = hashlib.md5()
+    with fpath_large.open("wb") as f:
+        for _ in range(n_chunks):
+            f.write(content_chunk)
+            expected_md5.update(content_chunk)
+
+    expected_b64_hash = base64.b64encode(expected_md5.digest()).decode("ascii")
+    expected_hex_hash = expected_md5.hexdigest()
+
+    assert expected_b64_hash == hashutil.md5_file_b64(fpath_large)
+    assert expected_hex_hash == hashutil.md5_file_hex(fpath_large)

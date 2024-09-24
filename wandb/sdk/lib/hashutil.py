@@ -1,6 +1,5 @@
 import base64
 import hashlib
-import mmap
 import os
 import sys
 from pathlib import Path
@@ -48,15 +47,25 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
+_MIN_CHUNKED_FILESIZE: int = 1_024 * 1_024
+"""Files larger than this size (bytes) should be read in chunks to conserve memory."""
+
+_CHUNKSIZE: int = _MIN_CHUNKED_FILESIZE // 128
+
+
 def _md5_file_hasher(*paths: StrPath) -> "hashlib._Hash":
     md5_hash = _md5()
 
     for path in sorted(Path(p) for p in paths):
         with path.open("rb") as f:
-            if os.stat(f.fileno()).st_size <= 1024 * 1024:
+            if os.stat(f.fileno()).st_size <= _MIN_CHUNKED_FILESIZE:
                 md5_hash.update(f.read())
             else:
-                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
-                    md5_hash.update(mview)
-
+                # Note: At the time of implementation, the walrus operator `:=`
+                # is avoided to maintain support for users on python 3.7.
+                # Consider revisiting once 3.7 support is no longer needed.
+                chunk = f.read(_CHUNKSIZE)
+                while chunk:
+                    md5_hash.update(chunk)
+                    chunk = f.read(_CHUNKSIZE)
     return md5_hash
