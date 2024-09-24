@@ -13,6 +13,7 @@ import (
 	// Import image codecs.
 	//
 	// NOTE: These imports are used for their side-effects.
+	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
 )
@@ -73,7 +74,7 @@ func (img Image) HistoryValueJSON(filePath paths.RelativePath) (string, error) {
 		"_type":  "image-file",
 		"path":   filepath.ToSlash(string(filePath)),
 		"sha256": hashencode.ComputeSHA256(img.EncodedData),
-		"format": "png",
+		"format": img.Format,
 		"size":   len(img.EncodedData),
 		"width":  img.Width,
 		"height": img.Height,
