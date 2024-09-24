@@ -435,6 +435,8 @@ func (s *Sender) sendRequest(record *spb.Record, request *spb.Request) {
 		s.sendRequestStopStatus(record, x.StopStatus)
 	case *spb.Request_JobInput:
 		s.sendRequestJobInput(x.JobInput)
+	case *spb.Request_LastHistoryLine:
+		s.sendRequestLastHistoryLine(record, x.LastHistoryLine)
 	case nil:
 		s.logger.CaptureFatalAndPanic(
 			errors.New("sender: sendRequest: nil RequestType"))
@@ -1661,4 +1663,14 @@ func (s *Sender) sendRequestJobInput(request *spb.JobInputRequest) {
 		return
 	}
 	s.jobBuilder.HandleJobInputRequest(request)
+}
+
+func (s *Sender) sendRequestLastHistoryLine(_ *spb.Record, request *spb.LastHistoryLineRequest) {
+	data, err := gql.RunHistoryTail(s.runWork.BeforeEndCtx(), s.graphqlClient, &s.startState.Project, &s.startState.Entity, s.startState.RunID)
+	if err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: sendRequestLastHistoryLine: failed to get run history: %v", err))
+		return
+	}
+	fmt.Println(data)
 }
