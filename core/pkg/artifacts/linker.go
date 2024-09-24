@@ -8,9 +8,9 @@ import (
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/gqlprobe"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ArtifactLinker struct {
@@ -29,8 +29,8 @@ func (al *ArtifactLinker) Link() error {
 	organization := al.LinkArtifact.PortfolioOrganization
 	var portfolioAliases []gql.ArtifactAliasInput
 
-	if utils.IsArtifactRegistryProject(portfolioProject) {
-		orgFieldNames, err := utils.GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
+	if IsArtifactRegistryProject(portfolioProject) {
+		orgFieldNames, err := gqlprobe.GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
 		if err != nil {
 			return err
 		}

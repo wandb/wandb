@@ -17,11 +17,11 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/gqlprobe"
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ArtifactSaver struct {
@@ -103,7 +103,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 
 	// Check which fields are actually supported on the input
-	inputFieldNames, err := utils.GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
+	inputFieldNames, err := gqlprobe.GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
