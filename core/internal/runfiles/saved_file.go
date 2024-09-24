@@ -5,8 +5,8 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // savedFile is a file in the run's files directory.

@@ -7,9 +7,9 @@ import (
 	"os"
 	"slices"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"google.golang.org/protobuf/proto"
 )
 
