@@ -21,43 +21,14 @@ const (
 	defaultSamplingInterval = 10.0 * time.Second
 )
 
-func makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
-	statsItems := make([]*spb.StatsItem, 0, len(stats))
-	for k, v := range stats {
-		jsonData, err := json.Marshal(v)
-		if err != nil {
-			continue
-		}
-		statsItems = append(statsItems, &spb.StatsItem{
-			Key:       k,
-			ValueJson: string(jsonData),
-		})
-	}
+// State definitions for the SystemMonitor.
+const (
+	StateStopped int32 = iota
+	StateRunning
+	StatePaused
+)
 
-	return &spb.Record{
-		RecordType: &spb.Record_Stats{
-			Stats: &spb.StatsRecord{
-				StatsType: spb.StatsRecord_SYSTEM,
-				Timestamp: timeStamp,
-				Item:      statsItems,
-			},
-		},
-		Control: &spb.Control{AlwaysSend: true},
-	}
-}
-
-func makeMetadataRecord(metadata *spb.MetadataRequest) *spb.Record {
-	return &spb.Record{
-		RecordType: &spb.Record_Request{
-			Request: &spb.Request{
-				RequestType: &spb.Request_Metadata{
-					Metadata: metadata,
-				},
-			},
-		},
-	}
-}
-
+// Asset defines the interface for system assets to be monitored.
 type Asset interface {
 	Name() string
 	Sample() (map[string]any, error)
@@ -65,6 +36,7 @@ type Asset interface {
 	Probe() *spb.MetadataRequest
 }
 
+// SystemMonitor is responsible for monitoring system metrics across various assets.
 type SystemMonitor struct {
 	// The context for the system monitor
 	ctx    context.Context
@@ -95,49 +67,51 @@ type SystemMonitor struct {
 	logger *observability.CoreLogger
 }
 
-func New(
+// NewSystemMonitor initializes and returns a new SystemMonitor instance.
+//
+// It sets up assets based on provided settings and configures the metrics buffer.
+func NewSystemMonitor(
 	logger *observability.CoreLogger,
 	settings *spb.Settings,
 	extraWork runwork.ExtraWork,
 ) *SystemMonitor {
-	sbs := settings.XStatsBufferSize.GetValue()
-	var buffer *Buffer
-	// if buffer size is 0, don't create a buffer.
-	// a positive buffer size limits the number of metrics that are kept in memory.
-	// a value of -1 indicates that all sampled metrics will be kept in memory.
-	if sbs != 0 {
-		buffer = NewBuffer(sbs)
-	}
-
 	ctx, cancel := context.WithCancel(context.Background())
-	systemMonitor := &SystemMonitor{
+	sm := &SystemMonitor{
 		ctx:              ctx,
 		cancel:           cancel,
 		wg:               sync.WaitGroup{},
 		settings:         settings,
 		logger:           logger,
 		extraWork:        extraWork,
-		buffer:           buffer,
 		samplingInterval: defaultSamplingInterval,
 	}
 
-	// TODO: rename the setting...should be SamplingIntervalSeconds
+	bufferSize := settings.XStatsBufferSize.GetValue()
+	// Initialize the buffer if a buffer size is provided.
+	// A positive buffer size N indicates that only the last N samples will be kept in memory.
+	// A value of -1 indicates that all sampled metrics will be kept in memory.
+	if bufferSize != 0 {
+		sm.buffer = NewBuffer(bufferSize)
+	}
+
 	if si := settings.XStatsSamplingInterval; si != nil {
-		systemMonitor.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
+		sm.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
 	}
+	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-	systemMonitor.logger.Debug(
-		fmt.Sprintf(
-			"monitor: sampling interval: %v",
-			systemMonitor.samplingInterval,
-		),
-	)
-
-	// if stats are disabled, return early
+	// Early return if stats collection is disabled
 	if settings.XDisableStats.GetValue() {
-		return systemMonitor
+		return sm
 	}
 
+	// Initialize the assets to monitor
+	sm.InitializeAssets(settings)
+
+	return sm
+}
+
+// initializeAssets sets up the assets to be monitored based on the provided settings.
+func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	pid := settings.XStatsPid.GetValue()
 	diskPaths := settings.XStatsDiskPaths.GetValue()
 	samplingInterval := settings.XStatsSamplingInterval.GetValue()
@@ -145,44 +119,81 @@ func New(
 
 	// assets to be monitored.
 	if cpu := NewCPU(pid); cpu != nil {
-		systemMonitor.assets = append(systemMonitor.assets, cpu)
+		sm.assets = append(sm.assets, cpu)
 	}
 	if disk := NewDisk(diskPaths); disk != nil {
-		systemMonitor.assets = append(systemMonitor.assets, disk)
+		sm.assets = append(sm.assets, disk)
 	}
 	if memory := NewMemory(pid); memory != nil {
-		systemMonitor.assets = append(systemMonitor.assets, memory)
+		sm.assets = append(sm.assets, memory)
 	}
 	if network := NewNetwork(); network != nil {
-		systemMonitor.assets = append(systemMonitor.assets, network)
+		sm.assets = append(sm.assets, network)
 	}
-	if gpu := NewGPUNvidia(logger, pid, samplingInterval); gpu != nil {
-		systemMonitor.assets = append(systemMonitor.assets, gpu)
+	if gpu := NewGPUNvidia(sm.logger, pid, samplingInterval); gpu != nil {
+		sm.assets = append(sm.assets, gpu)
 	}
-	if gpu := NewGPUAMD(logger); gpu != nil {
-		systemMonitor.assets = append(systemMonitor.assets, gpu)
+	if gpu := NewGPUAMD(sm.logger); gpu != nil {
+		sm.assets = append(sm.assets, gpu)
 	}
 	if gpu := NewGPUApple(); gpu != nil {
-		systemMonitor.assets = append(systemMonitor.assets, gpu)
+		sm.assets = append(sm.assets, gpu)
 	}
 	if slurm := NewSLURM(); slurm != nil {
-		systemMonitor.assets = append(systemMonitor.assets, slurm)
+		sm.assets = append(sm.assets, slurm)
 	}
-	if trainium := NewTrainium(logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
-		systemMonitor.assets = append(systemMonitor.assets, trainium)
+	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
+		sm.assets = append(sm.assets, trainium)
 	}
 
 	// OpenMetrics endpoints to monitor.
 	if endpoints := settings.XStatsOpenMetricsEndpoints.GetValue(); endpoints != nil {
 		for name, url := range endpoints {
 			filters := settings.XStatsOpenMetricsFilters
-			if om := NewOpenMetrics(logger, name, url, filters, nil); om != nil {
-				systemMonitor.assets = append(systemMonitor.assets, om)
+			if om := NewOpenMetrics(sm.logger, name, url, filters, nil); om != nil {
+				sm.assets = append(sm.assets, om)
 			}
 		}
 	}
+}
 
-	return systemMonitor
+// makeStatsRecord constructs a StatsRecord protobuf message from the provided stats map and timestamp.
+func makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
+	statsItems := make([]*spb.StatsItem, 0, len(stats))
+	for k, v := range stats {
+		jsonData, err := json.Marshal(v)
+		if err != nil {
+			continue
+		}
+		statsItems = append(statsItems, &spb.StatsItem{
+			Key:       k,
+			ValueJson: string(jsonData),
+		})
+	}
+
+	return &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: &spb.StatsRecord{
+				StatsType: spb.StatsRecord_SYSTEM,
+				Timestamp: timeStamp,
+				Item:      statsItems,
+			},
+		},
+		Control: &spb.Control{AlwaysSend: true},
+	}
+}
+
+// makeMetadataRecord constructs a MetadataRecord protobuf message from the provided MetadataRequest.
+func makeMetadataRecord(metadata *spb.MetadataRequest) *spb.Record {
+	return &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_Metadata{
+					Metadata: metadata,
+				},
+			},
+		},
+	}
 }
 
 // GetState returns the current state of the SystemMonitor.
@@ -190,7 +201,7 @@ func (sm *SystemMonitor) GetState() int32 {
 	return sm.state.Load()
 }
 
-// probe gathers system information from all assets.
+// probe gathers system information from all assets and merges their metadata.
 func (sm *SystemMonitor) probe() *spb.MetadataRequest {
 	systemInfo := spb.MetadataRequest{}
 	for _, asset := range sm.assets {
@@ -202,15 +213,9 @@ func (sm *SystemMonitor) probe() *spb.MetadataRequest {
 	return &systemInfo
 }
 
-const (
-	StateStopped int32 = iota
-	StateRunning
-	StatePaused
-)
-
-// Start begins the monitoring process for all assets and probes the system information.
+// Start begins the monitoring process for all assets and probes system information.
 //
-// Only a stopped monitor can be started. It's safe to call multiple times.
+// It is safe to call Start multiple times; only a stopped monitor will initiate.
 func (sm *SystemMonitor) Start() {
 	if sm == nil {
 		return
@@ -224,7 +229,7 @@ func (sm *SystemMonitor) Start() {
 	// start monitoring the assets
 	for _, asset := range sm.assets {
 		sm.wg.Add(1)
-		go sm.Monitor(asset)
+		go sm.monitorAsset(asset)
 	}
 
 	// probe the asset information
@@ -261,11 +266,11 @@ func (sm *SystemMonitor) Resume() {
 	}
 }
 
-// Monitor starts the monitoring process for a single asset.
+// monitorAsset handles the monitoring loop for a single asset.
 //
 // It handles sampling, aggregation, and reporting of metrics
 // and is meant to run in its own goroutine.
-func (sm *SystemMonitor) Monitor(asset Asset) {
+func (sm *SystemMonitor) monitorAsset(asset Asset) {
 	if asset == nil || !asset.IsAvailable() {
 		sm.wg.Done()
 		return
