@@ -13,7 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
 )
 
