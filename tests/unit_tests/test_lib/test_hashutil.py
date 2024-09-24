@@ -44,6 +44,7 @@ def test_md5_file_b64_no_files():
 
 
 @given(st.binary())
+@example(b"\x89\xf3\xa2\xe1\xda")
 def test_md5_file_hex_single_file(data):
     Path("binfile").write_bytes(data)
     assert hashlib.md5(data).hexdigest() == hashutil.md5_file_hex("binfile")
