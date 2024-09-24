@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import _hashlib
 import base64
 import hashlib
 import mmap
