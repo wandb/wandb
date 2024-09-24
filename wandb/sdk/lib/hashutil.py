@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import _hashlib
 import base64
 import hashlib
 import mmap
 import os
 import sys
-from typing import NewType, TYPE_CHECKING, Union
-import _hashlib
+from typing import TYPE_CHECKING, NewType
 
 from wandb.sdk.lib.paths import StrPath
 
@@ -38,7 +38,7 @@ def b64_to_hex_id(string: B64MD5) -> HexMD5:
     return HexMD5(base64.standard_b64decode(string).hex())
 
 
-def hex_to_b64_id(encoded_string: Union[str, bytes]) -> B64MD5:
+def hex_to_b64_id(encoded_string: str | bytes) -> B64MD5:
     if isinstance(encoded_string, bytes):
         encoded_string = encoded_string.decode("utf-8")
     as_str = bytes.fromhex(encoded_string)
@@ -53,8 +53,8 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
-_kB: int = 1_024
-_CHUNKSIZE: int = 512 * _kB
+_KB: int = 1_024
+_CHUNKSIZE: int = 512 * _KB
 """Chunk size (in bytes) for iteratively reading from file, if needed."""
 
 
