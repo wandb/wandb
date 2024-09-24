@@ -54,12 +54,18 @@ def test_md5_file_hex_single_file(data):
 @example(b"g", "", b"\xb6DZ")
 @example(b"\x1b\xb7", "¬\U000f0c9a", b"\xb7\xb7")
 def test_md5_file_b64_three_files(data1, text, data2):
-    Path("a.bin").write_bytes(data1)
-    Path("b.txt").write_text(text, encoding="utf-8")
-    Path("c.bin").write_bytes(data2)
-    data = data1 + Path("b.txt").read_bytes() + data2
+    fpath_a = Path("a.bin")
+    fpath_b = Path("b.txt")
+    fpath_c = Path("c.bin")
+
+    fpath_a.write_bytes(data1)
+    fpath_b.write_text(text, encoding="utf-8")
+    fpath_c.write_bytes(data2)
+
+    data = data1 + fpath_b.read_bytes() + data2
+
     # Intentionally provide the paths out of order (check sorting).
-    path_hash = hashutil.md5_file_b64("c.bin", "a.bin", "b.txt")
+    path_hash = hashutil.md5_file_b64(fpath_c, fpath_a, fpath_b)
     b64hash = base64.b64encode(hashlib.md5(data).digest()).decode("ascii")
     assert b64hash == path_hash
 
@@ -68,12 +74,18 @@ def test_md5_file_b64_three_files(data1, text, data2):
 @example(b"g", "", b"\xb6DZ")
 @example(b"\x1b\xb7", "¬\U000f0c9a", b"\xb7\xb7")
 def test_md5_file_hex_three_files(data1, text, data2):
-    Path("a.bin").write_bytes(data1)
-    Path("b.txt").write_text(text, encoding="utf-8")
-    Path("c.bin").write_bytes(data2)
-    data = data1 + Path("b.txt").read_bytes() + data2
+    fpath_a = Path("a.bin")
+    fpath_b = Path("b.txt")
+    fpath_c = Path("c.bin")
+
+    fpath_a.write_bytes(data1)
+    fpath_b.write_text(text, encoding="utf-8")
+    fpath_c.write_bytes(data2)
+
+    data = data1 + fpath_b.read_bytes() + data2
+
     # Intentionally provide the paths out of order (check sorting).
-    path_hash = hashutil.md5_file_hex("c.bin", "a.bin", "b.txt")
+    path_hash = hashutil.md5_file_hex(fpath_c, fpath_a, fpath_b)
     assert hashlib.md5(data).hexdigest() == path_hash
 
 
