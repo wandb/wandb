@@ -63,11 +63,14 @@ type Stream struct {
 	sentryClient *sentry_ext.Client
 }
 
-func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) *observability.CoreLogger {
+func streamLogger(
+	settings *settings.Settings,
+	sentryClient *sentry_ext.Client,
+	loggerPath string,
+) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := defaultLoggerPath.Load(); path != nil {
-		path := path.(string)
+	if path := loggerPath; path != "" {
 		// check path exists
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			err := os.Symlink(path, targetPath)
@@ -133,8 +136,9 @@ func NewStream(
 	commit string,
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
+	loggerPath string,
 ) *Stream {
-	logger := streamLogger(settings, sentryClient)
+	logger := streamLogger(settings, sentryClient, loggerPath)
 	runWork := runwork.New(BufferSize, logger)
 
 	s := &Stream{
