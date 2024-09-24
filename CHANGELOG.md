@@ -24,6 +24,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Allow `a\.b` syntax in run.define_metric to refer to a dotted metric name (@jacobromero in https://github.com/wandb/wandb/pull/8445)
 - `run.log_artifact()` no longer blocks other data uploads until the artifact upload finishes (@timoffex in https://github.com/wandb/wandb/pull/8466)
   - NOTE: Not fixed if using `wandb.require("legacy-service")`
+- Fix Unknown image format error when uploading a gif through tensorboard. (@jacobromero in https://github.com/wandb/wandb/pull/8476)
 
 ### Changed
 

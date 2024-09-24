@@ -10,7 +10,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/hashencode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -43,7 +42,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, data any) error {
-	filename, digest, size, err := utils.WriteJsonToFileWithDigest(data)
+	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data)
 	if err != nil {
 		return err
 	}

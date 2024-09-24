@@ -19,9 +19,10 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/namedgoroutines"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 // ArtifactSaver manages artifact uploads.
@@ -30,6 +31,8 @@ type ArtifactSaver struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
+
+	uploadsByName *namedgoroutines.Operation[*ArtifactSaveContext]
 }
 
 func NewArtifactSaver(
@@ -42,6 +45,17 @@ func NewArtifactSaver(
 		graphqlClient:       graphqlClient,
 		fileTransferManager: fileTransferManager,
 		fileCache:           NewFileCache(UserCacheDir()),
+		uploadsByName: namedgoroutines.New(
+			32,
+			func(saveCtx *ArtifactSaveContext) {
+				artifactID, err := saveCtx.Save()
+				saveCtx.resultChan <- ArtifactSaveResult{
+					ArtifactID: artifactID,
+					Err:        err,
+				}
+				close(saveCtx.resultChan)
+			},
+		),
 	}
 }
 
@@ -60,29 +74,24 @@ func (as *ArtifactSaver) Save(
 	artifact *spb.ArtifactRecord,
 	historyStep int64,
 	stagingDir string,
-) chan ArtifactSaveResult {
+) <-chan ArtifactSaveResult {
 	resultChan := make(chan ArtifactSaveResult, 1)
-	saveCtx := &ArtifactSaveContext{
-		ctx:                 ctx,
-		logger:              as.logger,
-		graphqlClient:       as.graphqlClient,
-		fileTransferManager: as.fileTransferManager,
-		fileCache:           as.fileCache,
-		artifact:            artifact,
-		historyStep:         historyStep,
-		stagingDir:          stagingDir,
-		maxActiveBatches:    5,
-	}
 
-	go func() {
-		artifactID, err := saveCtx.Save()
-
-		resultChan <- ArtifactSaveResult{
-			ArtifactID: artifactID,
-			Err:        err,
-		}
-		close(resultChan)
-	}()
+	as.uploadsByName.Go(
+		artifact.Name,
+		&ArtifactSaveContext{
+			ctx:                 ctx,
+			logger:              as.logger,
+			graphqlClient:       as.graphqlClient,
+			fileTransferManager: as.fileTransferManager,
+			fileCache:           as.fileCache,
+			artifact:            artifact,
+			historyStep:         historyStep,
+			stagingDir:          stagingDir,
+			maxActiveBatches:    5,
+			resultChan:          resultChan,
+		},
+	)
 
 	return resultChan
 }
@@ -95,6 +104,8 @@ type ArtifactSaveContext struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
+	resultChan          chan<- ArtifactSaveResult
+
 	// Input.
 	artifact         *spb.ArtifactRecord
 	historyStep      int64
@@ -167,14 +178,14 @@ func (as *ArtifactSaveContext) createArtifact() (
 		RunName:                   runId,
 		Digest:                    as.artifact.Digest,
 		DigestAlgorithm:           gql.ArtifactDigestAlgorithmManifestMd5,
-		Description:               utils.NilIfZero(as.artifact.Description),
+		Description:               nullify.NilIfZero(as.artifact.Description),
 		Aliases:                   aliases,
 		Tags:                      tags,
-		Metadata:                  utils.NilIfZero(as.artifact.Metadata),
-		TtlDurationSeconds:        utils.NilIfZero(as.artifact.TtlDurationSeconds),
-		HistoryStep:               utils.NilIfZero(as.historyStep),
+		Metadata:                  nullify.NilIfZero(as.artifact.Metadata),
+		TtlDurationSeconds:        nullify.NilIfZero(as.artifact.TtlDurationSeconds),
+		HistoryStep:               nullify.NilIfZero(as.historyStep),
 		EnableDigestDeduplication: true,
-		DistributedID:             utils.NilIfZero(as.artifact.DistributedId),
+		DistributedID:             nullify.NilIfZero(as.artifact.DistributedId),
 		ClientID:                  as.artifact.ClientId,
 		SequenceClientID:          as.artifact.SequenceClientId,
 	}

@@ -11,9 +11,9 @@ import (
 	"os"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type Manifest struct {
@@ -73,10 +73,10 @@ func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
 		}
 		manifest.Contents[entry.Path] = ManifestEntry{
 			Digest:          entry.Digest,
-			Ref:             utils.NilIfZero(entry.Ref),
+			Ref:             nullify.NilIfZero(entry.Ref),
 			Size:            entry.Size,
-			LocalPath:       utils.NilIfZero(entry.LocalPath),
-			BirthArtifactID: utils.NilIfZero(entry.BirthArtifactId),
+			LocalPath:       nullify.NilIfZero(entry.LocalPath),
+			BirthArtifactID: nullify.NilIfZero(entry.BirthArtifactId),
 			SkipCache:       entry.SkipCache,
 			Extra:           extra,
 		}
@@ -165,7 +165,7 @@ func ManifestContentsFromFile(path string) (map[string]ManifestEntry, error) {
 }
 
 func (m *Manifest) WriteToFile() (filename string, digest string, size int64, rerr error) {
-	return utils.WriteJsonToFileWithDigest(m)
+	return WriteJSONToTempFileWithMetadata(m)
 }
 
 func (m *Manifest) GetManifestEntryFromArtifactFilePath(path string) (ManifestEntry, error) {

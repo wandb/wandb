@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runhistory"
@@ -24,7 +25,6 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/timer"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/pkg/observability"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -584,7 +584,7 @@ func (h *Handler) handleCodeSave() {
 	}
 	savedProgram := filepath.Join(codeDir, programRelative)
 	if _, err := os.Stat(savedProgram); err != nil {
-		if err = utils.CopyFile(programAbsolute, savedProgram); err != nil {
+		if err = fileutil.CopyFile(programAbsolute, savedProgram); err != nil {
 			return
 		}
 	}
@@ -796,10 +796,10 @@ func (h *Handler) handleRequestGetSystemMetrics(record *spb.Record) {
 	}
 
 	for key, samples := range sm {
-		buffer := make([]*spb.SystemMetricSample, 0, len(samples.GetElements()))
+		buffer := make([]*spb.SystemMetricSample, 0, len(samples))
 
 		// convert samples to buffer:
-		for _, sample := range samples.GetElements() {
+		for _, sample := range samples {
 			buffer = append(buffer, &spb.SystemMetricSample{
 				Timestamp: sample.Timestamp,
 				Value:     float32(sample.Value),

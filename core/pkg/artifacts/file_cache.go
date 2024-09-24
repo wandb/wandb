@@ -10,8 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/hashencode"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const defaultDirPermissions = 0777  // read/write/execute for all users.
@@ -82,7 +82,7 @@ func (c *FileCache) Link(b64md5, ref, etag string) error {
 	if err != nil {
 		return err
 	}
-	if exists, _ := utils.FileExists(md5Path); !exists {
+	if exists, _ := fileutil.FileExists(md5Path); !exists {
 		return fmt.Errorf("no cache file with digest %s", b64md5)
 	}
 	etagPath := c.etagPath(ref, etag)
@@ -137,7 +137,7 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 			return false
 		}
 	}
-	return utils.CopyFile(cachePath, dst) == nil
+	return fileutil.CopyFile(cachePath, dst) == nil
 }
 
 // RestoreTo returns true if the file exists at the destination and its hash matches the digest.
@@ -194,7 +194,7 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if exists, _ := utils.FileExists(dstPath); exists {
+	if exists, _ := fileutil.FileExists(dstPath); exists {
 		return b64md5, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dstPath), defaultDirPermissions); err != nil {
