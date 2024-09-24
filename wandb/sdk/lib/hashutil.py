@@ -1,18 +1,24 @@
+from __future__ import annotations
+
 import base64
 import hashlib
 import mmap
 import os
 import sys
-from typing import NewType, Union
+from typing import NewType, TYPE_CHECKING, Union
+import _hashlib
 
 from wandb.sdk.lib.paths import StrPath
+
+if TYPE_CHECKING:
+    import _hashlib
 
 ETag = NewType("ETag", str)
 HexMD5 = NewType("HexMD5", str)
 B64MD5 = NewType("B64MD5", str)
 
 
-def _md5(data: bytes = b"") -> "hashlib._Hash":
+def _md5(data: bytes = b"") -> _hashlib.HASH:
     """Allow FIPS-compliant md5 hash when supported."""
     if sys.version_info >= (3, 9):
         return hashlib.md5(data, usedforsecurity=False)
@@ -24,7 +30,7 @@ def md5_string(string: str) -> B64MD5:
     return _b64_from_hasher(_md5(string.encode("utf-8")))
 
 
-def _b64_from_hasher(hasher: "hashlib._Hash") -> B64MD5:
+def _b64_from_hasher(hasher: _hashlib.HASH) -> B64MD5:
     return B64MD5(base64.b64encode(hasher.digest()).decode("ascii"))
 
 
@@ -47,34 +53,35 @@ def md5_file_hex(*paths: StrPath) -> HexMD5:
     return HexMD5(_md5_file_hasher(*paths).hexdigest())
 
 
-_MIN_CHUNKED_FILESIZE: int = 1_024 * 1_024
-"""Files larger than this size (bytes) should be read via chunks or mmap for hashing to conserve memory."""
+_kB: int = 1_024
+_CHUNKSIZE: int = 512 * _kB
+"""Chunk size (in bytes) for iteratively reading from file, if needed."""
 
-_CHUNKSIZE: int = _MIN_CHUNKED_FILESIZE // 2
 
-
-def _md5_file_hasher(*paths: StrPath) -> "hashlib._Hash":
+def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
     md5_hash = _md5()
 
-    # Note: str paths (instead of pathlib.Path objs) slightly improve perf here.
+    # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
     for path in sorted(map(str, paths)):
         with open(path, "rb") as f:
             fileno = f.fileno()
-            if os.stat(fileno).st_size <= _MIN_CHUNKED_FILESIZE:
-                md5_hash.update(f.read())
-            else:
-                try:
-                    with mmap.mmap(fileno, length=0, access=mmap.ACCESS_READ) as mview:
-                        md5_hash.update(mview)
-                except OSError:
-                    # This occurs if mmap is called on a file on a different/mounted filesystem,
-                    # so we'll fall back on a less performant implementation.
 
-                    # Note: At the time of implementation, the walrus operator `:=`
-                    # is avoided to maintain support for users on python 3.7.
-                    # Consider revisiting once 3.7 support is no longer needed.
+            # Don't bother with empty files, mmap fails on them anyway.
+            if not os.stat(fileno).st_size:
+                continue
+
+            try:
+                with mmap.mmap(fileno, length=0, access=mmap.ACCESS_READ) as mview:
+                    md5_hash.update(mview)
+            except OSError:
+                # This occurs if the mmap-ed file is on a different/mounted filesystem,
+                # so we'll fall back on a less performant implementation.
+
+                # Note: At the time of implementation, the walrus operator `:=`
+                # is avoided to maintain support for users on python 3.7.
+                # Consider revisiting once 3.7 support is no longer needed.
+                chunk = f.read(_CHUNKSIZE)
+                while chunk:
+                    md5_hash.update(chunk)
                     chunk = f.read(_CHUNKSIZE)
-                    while chunk:
-                        md5_hash.update(chunk)
-                        chunk = f.read(_CHUNKSIZE)
     return md5_hash
