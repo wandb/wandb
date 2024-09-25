@@ -839,30 +839,6 @@ func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetId() stri
 // GetName returns RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity.Name, and is useful for accessing the field via an interface.
 func (v *RewindRunRewindRunRewindRunPayloadRewoundRunProjectEntity) GetName() string { return v.Name }
 
-// RunHistoryTailProject includes the requested fields of the GraphQL type Project.
-type RunHistoryTailProject struct {
-	Run *RunHistoryTailProjectRun `json:"run"`
-}
-
-// GetRun returns RunHistoryTailProject.Run, and is useful for accessing the field via an interface.
-func (v *RunHistoryTailProject) GetRun() *RunHistoryTailProjectRun { return v.Run }
-
-// RunHistoryTailProjectRun includes the requested fields of the GraphQL type Run.
-type RunHistoryTailProjectRun struct {
-	HistoryTail *string `json:"historyTail"`
-}
-
-// GetHistoryTail returns RunHistoryTailProjectRun.HistoryTail, and is useful for accessing the field via an interface.
-func (v *RunHistoryTailProjectRun) GetHistoryTail() *string { return v.HistoryTail }
-
-// RunHistoryTailResponse is returned by RunHistoryTail on success.
-type RunHistoryTailResponse struct {
-	Project *RunHistoryTailProject `json:"project"`
-}
-
-// GetProject returns RunHistoryTailResponse.Project, and is useful for accessing the field via an interface.
-func (v *RunHistoryTailResponse) GetProject() *RunHistoryTailProject { return v.Project }
-
 // RunResumeStatusModelProject includes the requested fields of the GraphQL type Project.
 type RunResumeStatusModelProject struct {
 	Id     string                                `json:"id"`
@@ -1566,22 +1542,6 @@ func (v *__RewindRunInput) GetMetricName() string { return v.MetricName }
 
 // GetMetricValue returns __RewindRunInput.MetricValue, and is useful for accessing the field via an interface.
 func (v *__RewindRunInput) GetMetricValue() float64 { return v.MetricValue }
-
-// __RunHistoryTailInput is used internally by genqlient
-type __RunHistoryTailInput struct {
-	Project *string `json:"project"`
-	Entity  *string `json:"entity"`
-	Name    string  `json:"name"`
-}
-
-// GetProject returns __RunHistoryTailInput.Project, and is useful for accessing the field via an interface.
-func (v *__RunHistoryTailInput) GetProject() *string { return v.Project }
-
-// GetEntity returns __RunHistoryTailInput.Entity, and is useful for accessing the field via an interface.
-func (v *__RunHistoryTailInput) GetEntity() *string { return v.Entity }
-
-// GetName returns __RunHistoryTailInput.Name, and is useful for accessing the field via an interface.
-func (v *__RunHistoryTailInput) GetName() string { return v.Name }
 
 // __RunResumeStatusInput is used internally by genqlient
 type __RunResumeStatusInput struct {
@@ -2337,47 +2297,6 @@ func RewindRun(
 	var err_ error
 
 	var data_ RewindRunResponse
-	resp_ := &graphql.Response{Data: &data_}
-
-	err_ = client_.MakeRequest(
-		ctx_,
-		req_,
-		resp_,
-	)
-
-	return &data_, err_
-}
-
-// The query or mutation executed by RunHistoryTail.
-const RunHistoryTail_Operation = `
-query RunHistoryTail ($project: String, $entity: String, $name: String!) {
-	project(name: $project, entityName: $entity) {
-		run(name: $name) {
-			historyTail
-		}
-	}
-}
-`
-
-func RunHistoryTail(
-	ctx_ context.Context,
-	client_ graphql.Client,
-	project *string,
-	entity *string,
-	name string,
-) (*RunHistoryTailResponse, error) {
-	req_ := &graphql.Request{
-		OpName: "RunHistoryTail",
-		Query:  RunHistoryTail_Operation,
-		Variables: &__RunHistoryTailInput{
-			Project: project,
-			Entity:  entity,
-			Name:    name,
-		},
-	}
-	var err_ error
-
-	var data_ RunHistoryTailResponse
 	resp_ := &graphql.Response{Data: &data_}
 
 	err_ = client_.MakeRequest(

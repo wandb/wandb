@@ -343,8 +343,6 @@ func (h *Handler) handleRequest(record *spb.Record) {
 		h.handleRequestSenderRead(record)
 	case *spb.Request_JobInput:
 		h.handleRequestJobInput(record)
-	case *spb.Request_LastHistoryLine:
-		h.handleRequestLastHistoryLine(record)
 	case nil:
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handler: handleRequest: request type is nil"))
@@ -481,12 +479,6 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handleRunStart: failed to clone run"))
 	}
-
-	// save summary if it exists
-	if run.GetSummary() != nil {
-		h.handleSummary(run.GetSummary())
-	}
-
 	h.fwdRecord(record)
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader
@@ -845,10 +837,6 @@ func (h *Handler) handleRequestSenderRead(record *spb.Record) {
 }
 
 func (h *Handler) handleRequestJobInput(record *spb.Record) {
-	h.fwdRecord(record)
-}
-
-func (h *Handler) handleRequestLastHistoryLine(record *spb.Record) {
 	h.fwdRecord(record)
 }
 

@@ -1,7 +1,0 @@
-query RunHistoryTail($project: String, $entity: String, $name: String!) {
-    project(name: $project, entityName: $entity) {
-        run(name: $name) {
-            historyTail
-        }
-    }
-}
