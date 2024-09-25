@@ -82,7 +82,7 @@ jobs:
       ##################################################
       # Go 1.22 is required for building the wheels on MacOS 10.x.
       #
-      # Manually replace the version in the go.mod file and run `go mod tidy`.
+      # See https://github.com/golang/go/issues/64207.
       ##################################################
       - name: Downgrade Go version
         run: |
@@ -97,7 +97,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: core/go.mod
-          cache-dependency-path: core/go.sum
 
       ##################################################
       # All platforms: create wheels
@@ -109,8 +108,8 @@ jobs:
            output-dir: dist
         env:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_BUILD: cp*-macosx*
-          CIBW_SKIP: cp36-* pp*
+          CIBW_BUILD: cp*-macosx* pp*-macosx*
+          CIBW_SKIP: cp36-*
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 
           # Work around https://github.com/matthew-brett/delocate/issues/204
