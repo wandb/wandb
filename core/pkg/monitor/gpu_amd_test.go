@@ -46,7 +46,7 @@ func TestGPUAMD_ParseStatsROCM6(t *testing.T) {
 	gpu := monitor.NewGPUAMD(logger)
 	stats := map[string]interface{}{
 		"GPU use (%)":                        "10",
-		"GPU Memory Allocated (VRAM%)":     "20",
+		"GPU Memory Allocated (VRAM%)":       "20",
 		"Temperature (Sensor memory) (C)":    "43.0",
 		"Average Graphics Package Power (W)": "89.0",
 		"Max Graphics Package Power (W)":     "560.0",
