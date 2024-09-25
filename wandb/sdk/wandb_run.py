@@ -20,11 +20,11 @@ from datetime import datetime, timedelta, timezone
 from enum import IntEnum
 from types import TracebackType
 from typing import (
-    Collection,
-    Deque,
     TYPE_CHECKING,
     Any,
     Callable,
+    Collection,
+    Deque,
     Dict,
     List,
     NamedTuple,
