@@ -15,7 +15,7 @@ dependencies = [
     "GitPython>=1.0.0,!=3.1.29", # CVE-2022-24439
     "requests>=2.0.0,<3",
     "psutil>=5.0.0",
-    "sentry-sdk>=1.0.0",
+    "sentry-sdk>=2.0.0",
     "docker-pycreds>=0.4.0",
     # setuptools is needed for distutils in dependencies after Python 3.12 :(
     # One such dependency is docker-pycreds, where the latest release is 0.4.0

@@ -16,6 +16,7 @@ else:
     from typing_extensions import Literal
 
 import sentry_sdk  # type: ignore
+import sentry_sdk.scope  # type: ignore
 import sentry_sdk.utils  # type: ignore
 
 import wandb
@@ -59,7 +60,7 @@ class Sentry:
 
         self.dsn = os.environ.get(wandb.env.SENTRY_DSN, SENTRY_DEFAULT_DSN)
 
-        self.hub: Optional[sentry_sdk.hub.Hub] = None
+        self.scope: Optional[sentry_sdk.scope.Scope] = None
 
         # ensure we always end the Sentry session
         atexit.register(self.end_session)
@@ -87,7 +88,8 @@ class Sentry:
             environment=self.environment,
             release=wandb.__version__,
         )
-        self.hub = sentry_sdk.Hub(client)
+        self.scope = sentry_sdk.get_current_scope().fork()
+        self.scope.set_client(client)
 
     @_safe_noop
     def message(self, message: str, repeat: bool = True) -> None:
@@ -95,7 +97,8 @@ class Sentry:
         if not repeat and message in self._sent_messages:
             return
         self._sent_messages.add(message)
-        self.hub.capture_message(message)  # type: ignore
+        with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
+            sentry_sdk.capture_message(message)  # type: ignore
 
     @_safe_noop
     def exception(
@@ -123,11 +126,12 @@ class Sentry:
 
         event, hint = sentry_sdk.utils.event_from_exception(
             exc_info,
-            client_options=self.hub.client.options,  # type: ignore
+            client_options=self.scope.get_client().options,  # type: ignore
             mechanism={"type": "generic", "handled": handled},
         )
         try:
-            self.hub.capture_event(event, hint=hint)  # type: ignore
+            with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
+                sentry_sdk.capture_event(event, hint=hint)  # type: ignore
         except Exception:
             pass
 
@@ -136,7 +140,7 @@ class Sentry:
         status = status or ("crashed" if not handled else "errored")  # type: ignore
         self.mark_session(status=status)
 
-        client, _ = self.hub._stack[-1]  # type: ignore
+        client = self.scope.get_client()
         if client is not None:
             client.flush()
 
@@ -157,33 +161,28 @@ class Sentry:
     @_safe_noop
     def start_session(self) -> None:
         """Start a new session."""
-        assert self.hub is not None
         # get the current client and scope
-        _, scope = self.hub._stack[-1]
-        session = scope._session
+        session = self.scope._session
 
         # if there's no session, start one
         if session is None:
-            self.hub.start_session()
+            self.scope.start_session()
 
     @_safe_noop
     def end_session(self) -> None:
         """End the current session."""
-        assert self.hub is not None
         # get the current client and scope
-        client, scope = self.hub._stack[-1]
-        session = scope._session
+        client = self.scope.get_client()
+        session = self.scope._session
 
         if session is not None and client is not None:
-            self.hub.end_session()
+            self.scope.end_session()
             client.flush()
 
     @_safe_noop
     def mark_session(self, status: Optional["SessionStatus"] = None) -> None:
         """Mark the current session with a status."""
-        assert self.hub is not None
-        _, scope = self.hub._stack[-1]
-        session = scope._session
+        session = self.scope._session
 
         if session is not None:
             session.update(status=status)
@@ -201,7 +200,6 @@ class Sentry:
         all events sent from this thread. It also tries to start a session
         if one doesn't already exist for this thread.
         """
-        assert self.hub is not None
         settings_tags = (
             "entity",
             "project",
@@ -215,51 +213,50 @@ class Sentry:
             "launch",
         )
 
-        with self.hub.configure_scope() as scope:
-            scope.set_tag("platform", wandb.util.get_platform_name())
+        self.scope.set_tag("platform", wandb.util.get_platform_name())
 
-            # set context
-            if process_context:
-                scope.set_tag("process_context", process_context)
+        # set context
+        if process_context:
+            self.scope.set_tag("process_context", process_context)
 
-            # apply settings tags
-            if tags is None:
-                return None
+        # apply settings tags
+        if tags is None:
+            return None
 
-            for tag in settings_tags:
-                val = tags.get(tag, None)
-                if val not in (None, ""):
-                    scope.set_tag(tag, val)
+        for tag in settings_tags:
+            val = tags.get(tag, None)
+            if val not in (None, ""):
+                self.scope.set_tag(tag, val)
 
-            if tags.get("_colab", None):
-                python_runtime = "colab"
-            elif tags.get("_jupyter", None):
-                python_runtime = "jupyter"
-            elif tags.get("_ipython", None):
-                python_runtime = "ipython"
-            else:
-                python_runtime = "python"
-            scope.set_tag("python_runtime", python_runtime)
+        if tags.get("_colab", None):
+            python_runtime = "colab"
+        elif tags.get("_jupyter", None):
+            python_runtime = "jupyter"
+        elif tags.get("_ipython", None):
+            python_runtime = "ipython"
+        else:
+            python_runtime = "python"
+        self.scope.set_tag("python_runtime", python_runtime)
 
-            # Construct run_url and sweep_url given run_id and sweep_id
-            for obj in ("run", "sweep"):
-                obj_id, obj_url = f"{obj}_id", f"{obj}_url"
-                if tags.get(obj_url, None):
-                    continue
+        # Construct run_url and sweep_url given run_id and sweep_id
+        for obj in ("run", "sweep"):
+            obj_id, obj_url = f"{obj}_id", f"{obj}_url"
+            if tags.get(obj_url, None):
+                continue
 
-                try:
-                    app_url = wandb.util.app_url(tags["base_url"])  # type: ignore
-                    entity, project = (quote(tags[k]) for k in ("entity", "project"))  # type: ignore
-                    scope.set_tag(
-                        obj_url,
-                        f"{app_url}/{entity}/{project}/{obj}s/{tags[obj_id]}",
-                    )
-                except Exception:
-                    pass
+            try:
+                app_url = wandb.util.app_url(tags["base_url"])  # type: ignore
+                entity, project = (quote(tags[k]) for k in ("entity", "project"))  # type: ignore
+                self.scope.set_tag(
+                    obj_url,
+                    f"{app_url}/{entity}/{project}/{obj}s/{tags[obj_id]}",
+                )
+            except Exception:
+                pass
 
-            email = tags.get("email")
-            if email:
-                scope.user = {"email": email}  # noqa
+        email = tags.get("email")
+        if email:
+            self.scope.user = {"email": email}  # noqa
 
         # todo: add back the option to pass general tags see: c645f625d1c1a3db4a6b0e2aa8e924fee101904c (wandb/util.py)
 
