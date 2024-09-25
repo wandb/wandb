@@ -63,9 +63,15 @@ namespace Wandb.Internal
         /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
         /// </returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
-        public async Task<Result> DeliverRunStart(Run run, int timeoutMilliseconds = 0)
+        public async Task<Result> DeliverRunStart(
+            Run run,
+            SummaryRecord summary,
+            int timeoutMilliseconds = 0
+        )
         {
             ArgumentNullException.ThrowIfNull(run);
+
+            Console.WriteLine(summary);
 
             var record = new Record
             {
@@ -82,8 +88,21 @@ namespace Wandb.Internal
                             Resumed = run.Settings.Resumed,
                             StartTime = Timestamp.FromDateTime(run.Settings.StartDatetime.ToUniversalTime()),
                             StartingStep = run.StartingStep,
+                            Summary = summary
                         }
                     },
+                }
+            };
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
+        }
+
+        public async Task<Result> DeliverGetSummary(int timeoutMilliseconds = 0)
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    GetSummary = new GetSummaryRequest { }
                 }
             };
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);

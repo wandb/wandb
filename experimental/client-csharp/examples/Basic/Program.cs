@@ -38,6 +38,10 @@ class Program
                     runId: run1.Settings.RunId
                 )
             );
+
+            // Get the run's summary:
+            var summary = await run2.GetSummary();
+
             // Update configuration:
             await run2.UpdateConfig(new Dictionary<string, object> { { "learning_rate", 3e-4 } });
             await run2.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);

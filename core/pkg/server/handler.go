@@ -479,6 +479,12 @@ func (h *Handler) handleRequestRunStart(record *spb.Record, request *spb.RunStar
 		h.logger.CaptureFatalAndPanic(
 			errors.New("handleRunStart: failed to clone run"))
 	}
+
+	// save summary if it exists
+	if run.GetSummary() != nil {
+		h.handleSummary(run.GetSummary())
+	}
+
 	h.fwdRecord(record)
 	// NOTE: once this request arrives in the sender,
 	// the latter will start its filestream and uploader

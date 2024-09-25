@@ -93,6 +93,8 @@ namespace Wandb
                 throw new Exception(runResult.Error.Message);
             }
 
+            // Console.WriteLine(runResult);
+
             // save project, entity, display name, and resume status to settings
             Settings.Project = runResult.Run.Project;
             Settings.Entity = runResult.Run.Entity;
@@ -104,7 +106,7 @@ namespace Wandb
             // TODO: save config to the run for local access
             // Console.WriteLine(runResult.Run.Config);
 
-            Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
+            Result result = await _interface.DeliverRunStart(this, runResult.Run.Summary, 30000).ConfigureAwait(false);
 
             if (result.Response == null)
             {
@@ -143,6 +145,20 @@ namespace Wandb
         )
         {
             await _interface.PublishMetricDefinition(name, stepMetric, summary, hidden).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets the run's summary.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<Dictionary<string, object>?> GetSummary()
+        {
+            var timeoutMs = 10000;  // TODO: make this configurable
+            var summary = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
+
+            Console.WriteLine(summary);
+
+            return null;
         }
 
         /// <summary>
