@@ -92,7 +92,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 		expectedLen int
 	}{
 		{getROCMSMIStatsROCM5Mock, 10},
-		{getROCMSMIStatsROCM6Mock, 4},
+		{getROCMSMIStatsROCM6Mock, 7},
 	}
 
 	for _, tc := range testCases {
