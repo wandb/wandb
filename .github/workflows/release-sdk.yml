@@ -131,7 +131,7 @@ jobs:
             delocate-wheel \
               --require-archs {delocate_archs} \
               --ignore-missing-dependencies \
-              --require-target-macos-version 11 \
+              --require-target-macos-version 10.14 \
               -w {dest_dir} \
               -v {wheel}
 
