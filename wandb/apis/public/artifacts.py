@@ -3,7 +3,7 @@
 import json
 import re
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, List, Literal, Mapping, Optional, Sequence, Union
 
 from wandb_gql import Client, gql
 
@@ -857,7 +857,11 @@ class Artifacts(Paginator):
 
 class RunArtifacts(Paginator):
     def __init__(
-        self, client: Client, run: "Run", mode="logged", per_page: Optional[int] = 50
+        self,
+        client: Client,
+        run: "Run",
+        mode: Literal["logged", "used"] = "logged",
+        per_page: Optional[int] = 50,
     ):
         artifact_fragment = wandb.Artifact._get_gql_artifact_fragment()
         query_name = "RunOutputArtifacts" if mode == "logged" else "RunInputArtifacts"
@@ -888,13 +892,11 @@ class RunArtifacts(Paginator):
             {artifact_fragment}
             """
         )
-
         variable_values = {
             "entity": run.entity,
             "project": run.project,
             "runName": run.id,
         }
-
         super().__init__(client, variable_values, per_page)
 
     @property
