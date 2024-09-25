@@ -14,6 +14,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Added
 
 - Add `upsert_run_queue` method to `wandb.Api`. (@bcsherma in https://github.com/wandb/wandb/pull/8348)
+- Add `tags` parameter to `wandb.Api.artifacts()` to filter artifacts by tag. (@moredatarequired in https://github.com/wandb/wandb/pull/8441)
 
 ### Fixed
 
@@ -24,9 +25,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fix Unknown image format error when uploading a gif through tensorboard. (@jacobromero in https://github.com/wandb/wandb/pull/8476)
 - Fix `OSError` from calling `Artifact.add_file` with file paths on mounted filesystems (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8473)
 
-### Added
+### Changed
 
-- Add `tags` parameter to `wandb.Api.artifacts()` to filter artifacts by tag. (@moredatarequired in https://github.com/wandb/wandb/pull/8441)
+- Updated minimum version of `sentry-sdk` to 2.0.0 to address deprecation warnings. (@jacobromero in https://github.com/wandb/wandb/compare/WB-20890)
+
 
 ## [0.18.1] - 2024-09-16
 
