@@ -125,11 +125,12 @@ jobs:
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 
           CIBW_BEFORE_ALL_MACOS: >
-            pip install delocate==0.11.0
+            pip install delocate==0.12.0
           # Work around https://github.com/matthew-brett/delocate/issues/204
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
           # repair wheel command.
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-listdeps --all --depending {wheel} &&
             delocate-wheel \
               --require-archs {delocate_archs} \
               --ignore-missing-dependencies \
