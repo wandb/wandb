@@ -12,6 +12,13 @@ const (
 	googleTPUVendorID = "0x1ae0"
 )
 
+// TPUChip represents TPU chip specifications.
+type TPUChip struct {
+	name           string
+	hbmGib         int // High Bandwidth Memory in GiB
+	devicesPerChip int // Number of devices per chip
+}
+
 type TPU struct {
 	name string
 }
@@ -37,8 +44,24 @@ func (t *TPU) IsAvailable() bool {
 // func getLocalTPUChips() ([]string, int) {
 // }
 
-func chipTypeFromPCIDeviceID(deviceId, subsystemId string) string {
-	return ""
+func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
+	switch deviceId {
+	case "0x0027":
+		switch subsystemId {
+		case "0x004e":
+			return &TPUChip{name: "v2", hbmGib: 8, devicesPerChip: 2}, nil
+		case "0x004f":
+			return &TPUChip{name: "v3", hbmGib: 16, devicesPerChip: 2}, nil
+		}
+	case "0x005e":
+		return &TPUChip{name: "v4", hbmGib: 32, devicesPerChip: 1}, nil
+	case "0x0063":
+		return &TPUChip{name: "v5e", hbmGib: 16, devicesPerChip: 1}, nil
+	case "0x0062":
+		return &TPUChip{name: "v5p", hbmGib: 95, devicesPerChip: 1}, nil
+	}
+
+	return nil, fmt.Errorf("unknown TPU chip")
 }
 
 func (t *TPU) Probe() *spb.MetadataRequest {
@@ -48,7 +71,7 @@ func (t *TPU) Probe() *spb.MetadataRequest {
 		return nil
 	}
 
-	counter := make(map[string]int)
+	counter := make(map[*TPUChip]int)
 
 	for _, pciPath := range devices {
 		fmt.Println(pciPath)
@@ -77,8 +100,8 @@ func (t *TPU) Probe() *spb.MetadataRequest {
 		}
 		subsystemId := string(data)
 
-		chipType := chipTypeFromPCIDeviceID(deviceId, subsystemId)
-		if chipType == "" {
+		chipType, err := tpuChipFromPCIDeviceID(deviceId, subsystemId)
+		if err != nil {
 			continue
 		}
 		counter[chipType]++
@@ -87,6 +110,16 @@ func (t *TPU) Probe() *spb.MetadataRequest {
 	if len(counter) == 0 {
 		return nil
 	}
+
+	var mostCommonChip *TPUChip
+	var maxCount int
+	for chip, count := range counter {
+		if count > maxCount {
+			mostCommonChip = chip
+			maxCount = count
+		}
+	}
+	fmt.Println(mostCommonChip)
 
 	return nil
 }
