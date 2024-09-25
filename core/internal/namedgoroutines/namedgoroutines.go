@@ -7,9 +7,18 @@ import "sync"
 // Operation runs a function in a new goroutine for each input
 // except for those that share a key.
 type Operation[T any] struct {
-	buffer       int
-	inputsByKey  map[string]chan T
+	// buffer is the buffer size of each channel in inputsByKey.
+	buffer int
+
+	// processInput is the function to run on each input.
 	processInput func(T)
+
+	// inputsByKey maps keys to the input channel for the goroutine
+	// for that key.
+	//
+	// There is an active goroutine for a key if and only if that key
+	// is in this map.
+	inputsByKey map[string]chan T
 
 	// inputsByKeyCond is locked for modifying inputsByKey or any channels
 	// stored in it, including sending or receiving on a channel.

@@ -25,6 +25,13 @@ import (
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// uploadBufferPerArtifactName is the number of Save operations
+// that can be queued per artifact name before Save begins to block.
+//
+// The value is high enough so that Save almost never blocks,
+// without consuming too much memory just for bookkeeping.
+const uploadBufferPerArtifactName = 32
+
 // ArtifactSaver manages artifact uploads.
 type ArtifactSaver struct {
 	logger              *observability.CoreLogger
@@ -48,7 +55,7 @@ func NewArtifactSaver(
 		fileTransferManager: fileTransferManager,
 		fileCache:           NewFileCache(UserCacheDir()),
 		uploadsByName: namedgoroutines.New(
-			32,
+			uploadBufferPerArtifactName,
 			func(saveCtx *ArtifactSaveContext) {
 				artifactID, err := saveCtx.Save()
 				saveCtx.resultChan <- ArtifactSaveResult{

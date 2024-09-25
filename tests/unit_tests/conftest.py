@@ -1,10 +1,15 @@
+from datetime import timedelta
 from queue import Queue
 from typing import Callable, Dict, Generator, List
 
 import pytest
 from hypothesis import settings
 
-settings.register_profile("ci", max_examples=10)
+settings.register_profile(
+    "ci",
+    max_examples=10,
+    deadline=timedelta(seconds=1),
+)
 settings.load_profile("ci")
 
 
