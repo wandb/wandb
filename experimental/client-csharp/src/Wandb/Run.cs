@@ -93,7 +93,10 @@ namespace Wandb
                 throw new Exception(runResult.Error.Message);
             }
 
-            // Console.WriteLine(runResult);
+            if (runResult.Run.Summary != null)
+            {
+                await _interface.PublishSummary(runResult.Run.Summary).ConfigureAwait(false);
+            }
 
             // save project, entity, display name, and resume status to settings
             Settings.Project = runResult.Run.Project;
@@ -103,17 +106,12 @@ namespace Wandb
 
             StartingStep = (int)runResult.Run.StartingStep;
 
-            // TODO: save config to the run for local access
-            // Console.WriteLine(runResult.Run.Config);
-
-            Result result = await _interface.DeliverRunStart(this, runResult.Run.Summary, 30000).ConfigureAwait(false);
+            Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
 
             if (result.Response == null)
             {
                 throw new Exception("Failed to deliver run start");
             }
-
-            // TODO: update the config
 
             PrintRunURL();
         }
@@ -154,11 +152,17 @@ namespace Wandb
         public async Task<Dictionary<string, object>?> GetSummary()
         {
             var timeoutMs = 10000;  // TODO: make this configurable
-            var summary = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
+            var result = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
 
-            Console.WriteLine(summary);
-
-            return null;
+            var summary = new Dictionary<string, object>();
+            // iterate over the summary and print the key-value pairs
+            foreach (var item in result.Response.GetSummaryResponse.Item)
+            {
+                string key = item.Key;
+                string valueJson = item.ValueJson;
+                summary[key] = valueJson;
+            }
+            return summary;
         }
 
         /// <summary>

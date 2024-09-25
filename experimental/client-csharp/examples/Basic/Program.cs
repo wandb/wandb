@@ -30,9 +30,6 @@ class Program
             // Finish the run:
             await run1.Finish();
 
-            // Get the last dictionary of metrics logged for run1:
-            await session.RunLogTail(run1.Settings.RunId);
-
             // Resume run1:
             var run2 = await session.Init(
                 settings: new Settings(

@@ -65,13 +65,10 @@ namespace Wandb.Internal
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
         public async Task<Result> DeliverRunStart(
             Run run,
-            SummaryRecord summary,
             int timeoutMilliseconds = 0
         )
         {
             ArgumentNullException.ThrowIfNull(run);
-
-            Console.WriteLine(summary);
 
             var record = new Record
             {
@@ -88,7 +85,6 @@ namespace Wandb.Internal
                             Resumed = run.Settings.Resumed,
                             StartTime = Timestamp.FromDateTime(run.Settings.StartDatetime.ToUniversalTime()),
                             StartingStep = run.StartingStep,
-                            Summary = summary
                         }
                     },
                 }
@@ -274,6 +270,24 @@ namespace Wandb.Internal
             };
             await Publish(record).ConfigureAwait(false);
         }
+
+
+        /// <summary>
+        /// Publishes a summary update to wandb-core.
+        /// </summary>
+        /// <param name="summary">The summary to publish.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async Task PublishSummary(SummaryRecord summary)
+        {
+            ArgumentNullException.ThrowIfNull(summary);
+
+            var record = new Record
+            {
+                Summary = summary
+            };
+            await Publish(record).ConfigureAwait(false);
+        }
+
 
         /// <summary>
         /// Publishes a record to the server without waiting for a response.
