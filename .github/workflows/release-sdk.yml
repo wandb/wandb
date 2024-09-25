@@ -134,9 +134,10 @@ jobs:
             delocate-wheel \
               --require-archs {delocate_archs} \
               --ignore-missing-dependencies \
-              --require-target-macos-version 10.14 \
               -w {dest_dir} \
               -v {wheel}
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=10.14
 
           # Linux is special because it's built in a container using qemu,
           # so we must download Go and Rust manually rather than using GH actions
