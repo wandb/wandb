@@ -91,7 +91,7 @@ func TestGPUAMD_SampleStats(t *testing.T) {
 		mockFunc    func() (monitor.InfoDict, error)
 		expectedLen int
 	}{
-		{getROCMSMIStatsROCM5Mock, 10},
+		{getROCMSMIStatsROCM5Mock, 12},
 		{getROCMSMIStatsROCM6Mock, 7},
 	}
 
