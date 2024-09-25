@@ -88,7 +88,8 @@ class Sentry:
             environment=self.environment,
             release=wandb.__version__,
         )
-        self.scope = sentry_sdk.get_current_scope().fork()
+        self.scope = sentry_sdk.get_global_scope().fork()
+        self.scope.clear()
         self.scope.set_client(client)
 
     @_safe_noop
@@ -97,7 +98,7 @@ class Sentry:
         if not repeat and message in self._sent_messages:
             return
         self._sent_messages.add(message)
-        with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
+        with sentry_sdk.scope.use_scope(self.scope):  # type: ignore
             sentry_sdk.capture_message(message)  # type: ignore
 
     @_safe_noop
@@ -130,7 +131,7 @@ class Sentry:
             mechanism={"type": "generic", "handled": handled},
         )
         try:
-            with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
+            with sentry_sdk.scope.use_scope(self.scope):  # type: ignore
                 sentry_sdk.capture_event(event, hint=hint)  # type: ignore
         except Exception:
             pass
