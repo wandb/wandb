@@ -814,51 +814,18 @@ class Artifact:
         return self
 
     def _populate_after_save(self, artifact_id: str) -> None:
-        fields = InternalApi().server_artifact_introspection()
-
-        supports_ttl = "ttlIsInherited" in fields
-        ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
-        ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
-
-        supports_tags = "tags" in fields
-        tags = "tags {name}" if supports_tags else ""
-
         query_template = f"""
             query ArtifactByIDShort($id: ID!) {{
                 artifact(id: $id) {{
-                    artifactSequence {{
-                        project {{
-                            entityName
-                            name
-                        }}
-                        name
-                    }}
-                    versionIndex
-                    {ttl_duration_seconds}
-                    {ttl_is_inherited}
-                    aliases {{
-                        artifactCollection {{
-                            project {{
-                                entityName
-                                name
-                            }}
-                            name
-                        }}
-                        alias
-                    }}
-                    {tags!s}
-                    state
+                    ...ArtifactFragment
                     currentManifest {{
                         file {{
                             directUrl
                         }}
                     }}
-                    commitHash
-                    fileCount
-                    createdAt
-                    updatedAt
                 }}
             }}
+            {self._get_gql_artifact_fragment()}
         """
 
         query = gql(query_template)
