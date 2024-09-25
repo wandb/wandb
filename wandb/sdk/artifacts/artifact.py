@@ -199,19 +199,19 @@ class Artifact:
             return artifact
 
         query = gql(
-            """
-            query ArtifactByID($id: ID!) {
-                artifact(id: $id) {
+            f"""
+            query ArtifactByID($id: ID!) {{
+                artifact(id: $id) {{
                     ...ArtifactFragment
-                    currentManifest {
-                        file {
+                    currentManifest {{
+                        file {{
                             directUrl
-                        }
-                    }
-                }
-            }
+                        }}
+                    }}
+                }}
+            }}
+            {cls._get_gql_artifact_fragment()}
             """
-            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
@@ -234,20 +234,20 @@ class Artifact:
         cls, entity: str, project: str, name: str, client: RetryingClient
     ) -> Artifact:
         query = gql(
-            """
+            f"""
             query ArtifactByName(
                 $entityName: String!,
                 $projectName: String!,
                 $name: String!
-            ) {
-                project(name: $projectName, entityName: $entityName) {
-                    artifact(name: $name) {
+            ) {{
+                project(name: $projectName, entityName: $entityName) {{
+                    artifact(name: $name) {{
                         ...ArtifactFragment
-                    }
-                }
-            }
+                    }}
+                }}
+            }}
+            {cls._get_gql_artifact_fragment()}
             """
-            + cls._get_gql_artifact_fragment()
         )
         response = client.execute(
             query,
