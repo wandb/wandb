@@ -110,7 +110,7 @@ jobs:
            output-dir: dist
         env:
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_BUILD: *-macosx*
+          CIBW_BUILD: cp*-macosx*
           CIBW_SKIP: cp36-* pp*
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 
