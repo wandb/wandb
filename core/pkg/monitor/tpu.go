@@ -38,37 +38,13 @@ func (t *TPU) Sample() (map[string]any, error) {
 }
 
 func (t *TPU) IsAvailable() bool {
-	return false
+	return true
 }
 
-// func getLocalTPUChips() ([]string, int) {
-// }
-
-func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
-	switch deviceId {
-	case "0x0027":
-		switch subsystemId {
-		case "0x004e":
-			return &TPUChip{name: "v2", hbmGib: 8, devicesPerChip: 2}, nil
-		case "0x004f":
-			return &TPUChip{name: "v3", hbmGib: 16, devicesPerChip: 2}, nil
-		}
-	case "0x005e":
-		return &TPUChip{name: "v4", hbmGib: 32, devicesPerChip: 1}, nil
-	case "0x0063":
-		return &TPUChip{name: "v5e", hbmGib: 16, devicesPerChip: 1}, nil
-	case "0x0062":
-		return &TPUChip{name: "v5p", hbmGib: 95, devicesPerChip: 1}, nil
-	}
-
-	return nil, fmt.Errorf("unknown TPU chip")
-}
-
-func (t *TPU) Probe() *spb.MetadataRequest {
-
+func getLocalTPUChips() (*TPUChip, int) {
 	devices, err := filepath.Glob("/sys/bus/pci/devices/*")
 	if err != nil {
-		return nil
+		return nil, 0
 	}
 
 	counter := make(map[*TPUChip]int)
@@ -108,7 +84,7 @@ func (t *TPU) Probe() *spb.MetadataRequest {
 	}
 
 	if len(counter) == 0 {
-		return nil
+		return nil, 0
 	}
 
 	var mostCommonChip *TPUChip
@@ -120,6 +96,32 @@ func (t *TPU) Probe() *spb.MetadataRequest {
 		}
 	}
 	fmt.Println(mostCommonChip)
+	return mostCommonChip, maxCount
+}
+
+func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
+	switch deviceId {
+	case "0x0027":
+		switch subsystemId {
+		case "0x004e":
+			return &TPUChip{name: "v2", hbmGib: 8, devicesPerChip: 2}, nil
+		case "0x004f":
+			return &TPUChip{name: "v3", hbmGib: 16, devicesPerChip: 2}, nil
+		}
+	case "0x005e":
+		return &TPUChip{name: "v4", hbmGib: 32, devicesPerChip: 1}, nil
+	case "0x0063":
+		return &TPUChip{name: "v5e", hbmGib: 16, devicesPerChip: 1}, nil
+	case "0x0062":
+		return &TPUChip{name: "v5p", hbmGib: 95, devicesPerChip: 1}, nil
+	}
+
+	return nil, fmt.Errorf("unknown TPU chip")
+}
+
+func (t *TPU) Probe() *spb.MetadataRequest {
+	chip, count := getLocalTPUChips()
+	fmt.Println(chip, count)
 
 	return nil
 }
