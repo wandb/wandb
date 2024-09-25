@@ -41,6 +41,11 @@ class Program
 
             // Get the run's summary:
             var summary = await run2.GetSummary();
+            // Try and get the last logged epoch:
+            if (summary.TryGetValue("epoch", out var lastEpoch))
+            {
+                Console.WriteLine($"Continuing from epoch {(int)(long)lastEpoch + 1}");
+            }
 
             // Update configuration:
             await run2.UpdateConfig(new Dictionary<string, object> { { "learning_rate", 3e-4 } });

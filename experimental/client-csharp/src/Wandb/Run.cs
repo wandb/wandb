@@ -1,5 +1,7 @@
 using WandbInternal;
 using Wandb.Internal;
+using System.Dynamic;
+using Newtonsoft.Json;
 
 namespace Wandb
 {
@@ -149,9 +151,9 @@ namespace Wandb
         /// Gets the run's summary.
         /// </summary>
         /// <returns></returns>
-        public async Task<Dictionary<string, object>?> GetSummary()
+        public async Task<Dictionary<string, object>> GetSummary()
         {
-            var timeoutMs = 10000;  // TODO: make this configurable
+            var timeoutMs = 20000;  // TODO: make this configurable
             var result = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
 
             var summary = new Dictionary<string, object>();
@@ -159,8 +161,17 @@ namespace Wandb
             foreach (var item in result.Response.GetSummaryResponse.Item)
             {
                 string key = item.Key;
+                // skip internal keys
+                if (key == "_wandb" || key == "_runtime" || key == "_step")
+                {
+                    continue;
+                }
+
                 string valueJson = item.ValueJson;
-                summary[key] = valueJson;
+
+                var deserializedValue = JsonConvert.DeserializeObject<dynamic>(valueJson)!;
+
+                summary[key] = deserializedValue;
             }
             return summary;
         }
