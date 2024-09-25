@@ -121,7 +121,16 @@ func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
 
 func (t *TPU) Probe() *spb.MetadataRequest {
 	chip, count := getLocalTPUChips()
-	fmt.Println(chip, count)
+	if chip == nil {
+		return nil
+	}
 
-	return nil
+	return &spb.MetadataRequest{
+		Tpu: &spb.TPUInfo{
+			Name:           chip.name,
+			Count:          uint32(count),
+			HbmGib:         uint32(chip.hbmGib),
+			DevicesPerChip: uint32(chip.devicesPerChip),
+		},
+	}
 }
