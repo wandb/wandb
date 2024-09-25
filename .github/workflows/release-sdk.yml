@@ -181,8 +181,11 @@ jobs:
           # In cp36-*, the wheel name sometimes includes additional dashes that
           # make it invalid, breaking the job.
           #
+          # Skipping *musllinux_aarch64* as it takes too long to build, and we
+          # don't seem to have users on this platform.
+          #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-*
+          CIBW_SKIP: cp36-* *musllinux_aarch64*
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 
