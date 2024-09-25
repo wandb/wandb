@@ -1,6 +1,5 @@
 using WandbInternal;
 using Wandb.Internal;
-using System.Dynamic;
 using Newtonsoft.Json;
 
 namespace Wandb
