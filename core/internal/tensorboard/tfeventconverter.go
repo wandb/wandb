@@ -4,9 +4,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // TFEventConverter converts TF events into W&B requests.

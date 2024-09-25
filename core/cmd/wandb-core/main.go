@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"os"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/processlib"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/version"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 )
 
@@ -129,12 +129,12 @@ func main() {
 			ParentPid:       *pid,
 			SentryClient:    sentryClient,
 			Commit:          commit,
+			LoggerPath:      loggerPath,
 		},
 	)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
-	srv.SetDefaultLoggerPath(loggerPath)
 	srv.Serve()
 }

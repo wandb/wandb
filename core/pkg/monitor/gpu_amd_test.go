@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func TestNewGPUAMD(t *testing.T) {

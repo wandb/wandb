@@ -14,11 +14,12 @@ import (
 
 	"github.com/wandb/wandb/core/internal/data_types"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/randomid"
 	"github.com/wandb/wandb/core/internal/runconfig"
 	"github.com/wandb/wandb/core/pkg/artifacts"
-	"github.com/wandb/wandb/core/pkg/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type SourceType string
@@ -625,8 +626,8 @@ func (j *JobBuilder) Build(
 		Type:             "job",
 		Aliases:          append(j.aliases, "latest"),
 		Finalize:         true,
-		ClientId:         utils.GenerateAlphanumericSequence(128),
-		SequenceClientId: utils.GenerateAlphanumericSequence(128),
+		ClientId:         randomid.GenerateAlphanumericSequence(128),
+		SequenceClientId: randomid.GenerateAlphanumericSequence(128),
 		UseAfterCommit:   true,
 		UserCreated:      true,
 	}
@@ -791,7 +792,7 @@ func (j *JobBuilder) HandleJobInputRequest(request *spb.JobInputRequest) {
 	source := request.GetInputSource()
 	switch source := source.GetSource().(type) {
 	case *spb.JobInputSource_File:
-		schema := utils.NilIfZero(request.GetInputSchema())
+		schema := nullify.NilIfZero(request.GetInputSchema())
 		newInput, err := newFileInputFromProto(
 			source,
 			request.GetIncludePaths(),
@@ -809,6 +810,6 @@ func (j *JobBuilder) HandleJobInputRequest(request *spb.JobInputRequest) {
 		}
 		j.wandbConfigParameters.appendIncludePaths(request.GetIncludePaths())
 		j.wandbConfigParameters.appendExcludePaths(request.GetExcludePaths())
-		j.wandbConfigParameters.inputSchema = utils.NilIfZero(request.InputSchema)
+		j.wandbConfigParameters.inputSchema = nullify.NilIfZero(request.InputSchema)
 	}
 }

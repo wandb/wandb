@@ -2,7 +2,7 @@ package filetransfer
 
 import (
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type FileTransfer interface {
@@ -28,10 +28,17 @@ func NewFileTransfers(
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) *FileTransfers {
+	filetransfers := &FileTransfers{}
+
 	defaultFileTransfer := NewDefaultFileTransfer(client, logger, fileTransferStats)
-	gcsFileTransfer := NewGCSFileTransfer(nil, logger, fileTransferStats)
-	return &FileTransfers{
-		Default: defaultFileTransfer,
-		GCS:     gcsFileTransfer,
+	filetransfers.Default = defaultFileTransfer
+
+	gcsFileTransfer, err := NewGCSFileTransfer(nil, logger, fileTransferStats)
+	if err == nil {
+		filetransfers.GCS = gcsFileTransfer
+	} else {
+		logger.CaptureError(err)
 	}
+
+	return filetransfers
 }

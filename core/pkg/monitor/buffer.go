@@ -1,6 +1,7 @@
 package monitor
 
 import (
+	"slices"
 	"sync"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -34,9 +35,7 @@ func (m *Measurements) Append(element Measurement) {
 func (m *Measurements) Elements() []Measurement {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	elementsCopy := make([]Measurement, len(m.elements))
-	copy(elementsCopy, m.elements)
-	return elementsCopy
+	return slices.Clone(m.elements)
 }
 
 // Buffer is the in-memory metrics buffer for the system monitor.
