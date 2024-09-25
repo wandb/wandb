@@ -2310,53 +2310,50 @@ class Artifact:
     @staticmethod
     def _get_gql_artifact_fragment() -> str:
         fields = InternalApi().server_artifact_introspection()
-        fragment = """
-            fragment ArtifactFragment on Artifact {
-                id
-                artifactSequence {
-                    project {
-                        entityName
-                        name
-                    }
-                    name
-                }
-                versionIndex
-                artifactType {
-                    name
-                }
-                description
-                metadata
-                ttlDurationSeconds
-                ttlIsInherited
-                aliases {
-                    artifactCollection {
-                        project {
+
+        supports_ttl = "ttlIsInherited" in fields
+        ttl_duration_seconds = "ttlDurationSeconds" if supports_ttl else ""
+        ttl_is_inherited = "ttlIsInherited" if supports_ttl else ""
+
+        supports_tags = "tags" in fields
+        tags = "tags {name}" if supports_tags else ""
+
+        return f"""
+            fragment ArtifactFragment on Artifact {{
+                    id
+                    artifactSequence {{
+                        project {{
                             entityName
                             name
-                        }
+                        }}
                         name
-                    }
-                    alias
-                }
-                _MAYBE_TAGS_
-                state
-                commitHash
-                fileCount
-                createdAt
-                updatedAt
-            }
+                    }}
+                    versionIndex
+                    artifactType {{
+                        name
+                    }}
+                    description
+                    metadata
+                    {ttl_duration_seconds}
+                    {ttl_is_inherited}
+                    aliases {{
+                        artifactCollection {{
+                            project {{
+                                entityName
+                                name
+                            }}
+                            name
+                        }}
+                        alias
+                    }}
+                    {tags!s}
+                    state
+                    commitHash
+                    fileCount
+                    createdAt
+                    updatedAt
+                }}
         """
-        if "ttlIsInherited" not in fields:
-            fragment = fragment.replace("ttlDurationSeconds", "").replace(
-                "ttlIsInherited", ""
-            )
-
-        if "tags" in fields:
-            fragment = fragment.replace("_MAYBE_TAGS_", "tags {name}")
-        else:
-            fragment = fragment.replace("_MAYBE_TAGS_", "")
-
-        return fragment
 
     def _ttl_duration_seconds_to_gql(self) -> int | None:
         # Set artifact ttl value to ttl_duration_seconds if the user set a value
