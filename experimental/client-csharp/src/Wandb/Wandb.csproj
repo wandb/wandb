@@ -1,4 +1,14 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
+<PropertyGroup>
+  <PackageId>WandB</PackageId>
+    <Version>0.18.2</Version>
+    <Authors>Weights and Biases</Authors>
+    <Company>wandb</Company>
+    <Description>A CLI and library for interacting with the Weights and Biases API.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/wandb/wandb</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/wandb/wandb</RepositoryUrl>
+  </PropertyGroup>
   <PropertyGroup>
     <OutputType>Library</OutputType>
     <TargetFramework>net8.0</TargetFramework>
