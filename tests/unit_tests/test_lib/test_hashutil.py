@@ -98,7 +98,7 @@ def test_md5_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
 
 
 @pytest.mark.skipif(
-    sys.platform not in {"darwin", "linux"},
+    not sys.platform.startswith(("darwin", "linux")),
     reason="pyfakefs limitations",
 )
 @pytest.mark.parametrize(
