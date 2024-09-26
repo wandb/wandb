@@ -150,7 +150,7 @@ namespace Wandb
         /// Gets the run's summary.
         /// </summary>
         /// <returns></returns>
-        public async Task<Dictionary<string, object>> GetSummary()
+        public async Task<T> GetSummary<T>() where T : new()
         {
             var timeoutMs = 20000;  // TODO: make this configurable
             var result = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
@@ -168,11 +168,30 @@ namespace Wandb
 
                 string valueJson = item.ValueJson;
 
-                var deserializedValue = JsonConvert.DeserializeObject<dynamic>(valueJson)!;
-
-                summary[key] = deserializedValue;
+                try
+                {
+                    var deserializedValue = JsonConvert.DeserializeObject<T>(valueJson);
+                    if (deserializedValue != null)
+                    {
+                        summary[key] = deserializedValue;
+                    }
+                    else
+                    {
+                        // If the value doesn't match the type, just store the raw JSON
+                        summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                    }
+                }
+                catch (JsonSerializationException)
+                {
+                    // If the deserialization to T fails, just store it as a dynamic object
+                    summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                }
             }
-            return summary;
+
+            // Serialize the summary to JSON and then deserialize it to the specified type
+            var jsonSummary = JsonConvert.SerializeObject(summary);
+            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary);
+            return typedSummary;
         }
 
         /// <summary>
