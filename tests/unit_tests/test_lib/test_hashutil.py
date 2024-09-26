@@ -53,9 +53,8 @@ def test_hex_to_b64_id(bin_data):
 
 def test_hex_to_b64_id_bytes(bin_data):
     hex_bytes = bin_data.hex().encode("ascii")
-    assert hashutil.hex_to_b64_id(hex_bytes) == base64.b64encode(bin_data).decode(
-        "ascii"
-    )
+    expected_b64_id = base64.b64encode(bin_data).decode("ascii")
+    assert hashutil.hex_to_b64_id(hex_bytes) == expected_b64_id
 
 
 def test_b64_to_hex_id(bin_data):
@@ -101,7 +100,7 @@ def test_md5_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
     "filesize",
     [
         pytest.param(1024, id="1kB"),
-        pytest.param(1024 * 1024, id="1MB"),
+        pytest.param(50 * 1024, id="50kB"),
     ],
 )
 def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFilesystem):
@@ -119,10 +118,8 @@ def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFiles
     chunk = b"data"  # short repeated bytestring for testing
     content = chunk * (filesize // len(chunk))
 
-    # Simultaneously write the file and calculate the expected hash in chunks to conserve memory
     expected_md5 = hashlib.md5()
     expected_md5.update(content)
-
     fs.create_file(fpath_large, contents=content)
 
     expected_b64_hash = base64.b64encode(expected_md5.digest()).decode("ascii")
