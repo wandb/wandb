@@ -1893,7 +1893,7 @@ def working_set() -> Iterable[InstalledDistribution]:
             # which can raise a KeyError. To handle this, we catch the exception
             # and skip those distributions.
             # For additional context, see: https://github.com/python/importlib_metadata/issues/371.
-            yield InstalledDistribution(key=d.name, version=d.version)
+            yield InstalledDistribution(key=d.metadata["Name"], version=d.version)
         except KeyError:
             pass
 
