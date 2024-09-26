@@ -844,6 +844,7 @@ class Artifact:
         self._created_at = attrs["createdAt"]
         self._updated_at = attrs["updatedAt"]
         self._final = True
+        self._save_future = None
 
     @normalize_exceptions
     def _update(self) -> None:
