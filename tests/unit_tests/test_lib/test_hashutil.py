@@ -118,10 +118,8 @@ def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFiles
     chunk = b"data"  # short repeated bytestring for testing
     content = chunk * (filesize // len(chunk))
 
-    # Simultaneously write the file and calculate the expected hash in chunks to conserve memory
     expected_md5 = hashlib.md5()
     expected_md5.update(content)
-
     fs.create_file(fpath_large, contents=content)
 
     expected_b64_hash = base64.b64encode(expected_md5.digest()).decode("ascii")
