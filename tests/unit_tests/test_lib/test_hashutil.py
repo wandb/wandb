@@ -116,7 +116,7 @@ def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFiles
 
     fpath_large = mount_dir / "large.bin"
 
-    content_chunk = b"data"  # short repeated bytestring for testing
+    content_chunk = b"data" * 128  # short repeated bytestring for testing
     n_chunks = filesize // len(content_chunk)
 
     # Simultaneously write the file and calculate the expected hash in chunks to conserve memory
