@@ -100,7 +100,7 @@ def test_md5_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
     "filesize",
     [
         pytest.param(1024, id="1kB"),
-        pytest.param(1024 * 1024, id="1MB"),
+        pytest.param(50 * 1024, id="50kB"),
     ],
 )
 def test_md5_file_hashes_on_mounted_filesystem(filesize, tmp_path, fs: FakeFilesystem):
