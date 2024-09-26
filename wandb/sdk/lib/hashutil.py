@@ -65,15 +65,10 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
     nonempty_filepaths = (pth for pth in map(str, paths) if os.stat(pth).st_size)
     for path in sorted(nonempty_filepaths):
         with open(path, "rb") as f:
-            fileno = f.fileno()
-
-            # # Don't bother with empty files, mmap fails on them anyway.
-            # if not os.stat(fileno).st_size:
-            #     continue
-
             try:
-                with mmap.mmap(fileno, length=0, access=mmap.ACCESS_READ) as mview:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
                     md5_hash.update(mview)
+
             except OSError:
                 # This occurs if the mmap-ed file is on a different/mounted filesystem,
                 # so we'll fall back on a less performant implementation.
