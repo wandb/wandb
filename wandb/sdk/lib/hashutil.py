@@ -61,13 +61,15 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
     md5_hash = _md5()
 
     # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
-    for path in sorted(map(str, paths)):
+    # Also, don't bother with empty files, mmap fails on them anyway.
+    nonempty_filepaths = (pth for pth in map(str, paths) if os.stat(pth).st_size)
+    for path in sorted(nonempty_filepaths):
         with open(path, "rb") as f:
             fileno = f.fileno()
 
-            # Don't bother with empty files, mmap fails on them anyway.
-            if not os.stat(fileno).st_size:
-                continue
+            # # Don't bother with empty files, mmap fails on them anyway.
+            # if not os.stat(fileno).st_size:
+            #     continue
 
             try:
                 with mmap.mmap(fileno, length=0, access=mmap.ACCESS_READ) as mview:
