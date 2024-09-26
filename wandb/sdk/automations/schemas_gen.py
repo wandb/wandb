@@ -14,11 +14,11 @@ from typing import Literal, TypeAlias, Union
 from pydantic import ConfigDict, Field, Json, with_config
 from typing_extensions import Annotated
 
-from wandb.sdk.automations._typing import Base64Id
-from wandb.sdk.automations.base import Base as _Base
+from wandb.sdk.automations._typing import Base64Id, Typename
+from wandb.sdk.automations.base import Base
 
 
-class Base(_Base):
+class GQLBase(Base):
     model_config = ConfigDict(extra="ignore")
 
 
@@ -348,7 +348,7 @@ class WorkflowsAdminType(Enum):
     MODEL = "MODEL"
 
 
-class ActivityDuration(Base):
+class ActivityDuration(GQLBase):
     end_at: Annotated[DateTime, Field(alias="endAt")]
     start_at: Annotated[DateTime, Field(alias="startAt")]
     typename__: Annotated[
@@ -356,14 +356,14 @@ class ActivityDuration(Base):
     ] = "ActivityDuration"
 
 
-class AlertSubscription(Base):
+class AlertSubscription(GQLBase):
     id: ID
     typename__: Annotated[
         Literal["AlertSubscription"] | None, Field(alias="__typename")
     ] = "AlertSubscription"
 
 
-class ArtifactAction(Base):
+class ArtifactAction(GQLBase):
     artifact: Artifact
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     id: ID
@@ -373,7 +373,7 @@ class ArtifactAction(Base):
     ] = "ArtifactAction"
 
 
-class ArtifactCollection(Base):
+class ArtifactCollection(GQLBase):
     alias_action_history: Annotated[
         ArtifactAliasActionConnection, Field(alias="aliasActionHistory")
     ]
@@ -409,7 +409,7 @@ class ArtifactCollection(Base):
     ] = "ArtifactCollection"
 
 
-class ArtifactConnectionType(Base):
+class ArtifactConnectionType(GQLBase):
     edges: list[ArtifactEdgeType]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -418,7 +418,7 @@ class ArtifactConnectionType(Base):
     ] = "ArtifactConnectionType"
 
 
-class ArtifactEdgeType(Base):
+class ArtifactEdgeType(GQLBase):
     cursor: String
     node: Artifact | None = None
     typename__: Annotated[
@@ -426,7 +426,7 @@ class ArtifactEdgeType(Base):
     ] = "ArtifactEdgeType"
 
 
-class BucketType(Base):
+class BucketType(GQLBase):
     commit: String | None = None
     config: JSONString | None = None
     created_at: Annotated[DateTime, Field(alias="createdAt")]
@@ -456,24 +456,24 @@ class BucketType(Base):
     )
 
 
-class Error(Base):
+class Error(GQLBase):
     message: String
     typename__: Annotated[Literal["Error"] | None, Field(alias="__typename")] = "Error"
 
 
-class Integration(Base):
+class Integration(GQLBase):
     id: ID
     typename__: Annotated[Literal["Integration"] | None, Field(alias="__typename")] = (
         "Integration"
     )
 
 
-class Node(Base):
+class Node(GQLBase):
     id: ID
     typename__: Annotated[Literal["Node"] | None, Field(alias="__typename")] = "Node"
 
 
-class StorageTreeNode(Base):
+class StorageTreeNode(GQLBase):
     id: ID
     name: String
     size: Int64
@@ -482,7 +482,7 @@ class StorageTreeNode(Base):
     ] = "StorageTreeNode"
 
 
-class AccessToken(Base):
+class AccessToken(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     created_by: Annotated[User, Field(alias="createdBy")]
     emails: list[String]
@@ -498,14 +498,14 @@ class AccessToken(Base):
     )
 
 
-class AckJobSetItemPayload(Base):
+class AckJobSetItemPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["AckJobSetItemPayload"] | None, Field(alias="__typename")
     ] = "AckJobSetItemPayload"
 
 
-class AckRunQueueItemPayload(Base):
+class AckRunQueueItemPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -525,7 +525,7 @@ class ActiveExperiment(Node):
     ] = "ActiveExperiment"
 
 
-class ActiveVariant(Base):
+class ActiveVariant(GQLBase):
     allocation: Int
     bucket: Int
     typename__: Annotated[
@@ -533,7 +533,7 @@ class ActiveVariant(Base):
     ] = "ActiveVariant"
 
 
-class AddAliasesPayload(Base):
+class AddAliasesPayload(GQLBase):
     aliases: list[ArtifactCollectionAlias]
     artifact: Artifact
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -543,7 +543,7 @@ class AddAliasesPayload(Base):
     ] = "AddAliasesPayload"
 
 
-class AddFilesPayload(Base):
+class AddFilesPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     files: FileConnection | None = None
     typename__: Annotated[
@@ -551,7 +551,7 @@ class AddFilesPayload(Base):
     ] = "AddFilesPayload"
 
 
-class AddProtectedAliasesPayload(Base):
+class AddProtectedAliasesPayload(GQLBase):
     aliases: list[String]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     typename__: Annotated[
@@ -559,14 +559,14 @@ class AddProtectedAliasesPayload(Base):
     ] = "AddProtectedAliasesPayload"
 
 
-class AddRolePermissionsPayload(Base):
+class AddRolePermissionsPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["AddRolePermissionsPayload"] | None, Field(alias="__typename")
     ] = "AddRolePermissionsPayload"
 
 
-class AddUserToOrganizationPayload(Base):
+class AddUserToOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email_sent: Annotated[Boolean, Field(alias="emailSent")]
     success: Boolean
@@ -575,7 +575,7 @@ class AddUserToOrganizationPayload(Base):
     ] = "AddUserToOrganizationPayload"
 
 
-class AddWorkflowsAdminPayload(Base):
+class AddWorkflowsAdminPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     success: Boolean
     typename__: Annotated[
@@ -600,7 +600,7 @@ class Agent(Node):
     typename__: Annotated[Literal["Agent"] | None, Field(alias="__typename")] = "Agent"
 
 
-class AgentConnection(Base):
+class AgentConnection(GQLBase):
     edges: list[AgentEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -608,7 +608,7 @@ class AgentConnection(Base):
     ] = "AgentConnection"
 
 
-class AgentEdge(Base):
+class AgentEdge(GQLBase):
     cursor: String
     node: Agent
     typename__: Annotated[Literal["AgentEdge"] | None, Field(alias="__typename")] = (
@@ -616,7 +616,7 @@ class AgentEdge(Base):
     )
 
 
-class AgentHeartbeatPayload(Base):
+class AgentHeartbeatPayload(GQLBase):
     agent: Agent | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     commands: JSONString | None = None
@@ -625,7 +625,7 @@ class AgentHeartbeatPayload(Base):
     ] = "AgentHeartbeatPayload"
 
 
-class Alert(Base):
+class Alert(GQLBase):
     condition: AlertCondition
     events: AlertEventConnection
     id: ID
@@ -633,7 +633,7 @@ class Alert(Base):
     typename__: Annotated[Literal["Alert"] | None, Field(alias="__typename")] = "Alert"
 
 
-class AlertEvent(Base):
+class AlertEvent(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     id: ID
     typename__: Annotated[Literal["AlertEvent"] | None, Field(alias="__typename")] = (
@@ -641,7 +641,7 @@ class AlertEvent(Base):
     )
 
 
-class AlertEventConnection(Base):
+class AlertEventConnection(GQLBase):
     edges: list[AlertEventEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -649,7 +649,7 @@ class AlertEventConnection(Base):
     ] = "AlertEventConnection"
 
 
-class AlertEventEdge(Base):
+class AlertEventEdge(GQLBase):
     cursor: String
     node: AlertEvent | None = None
     typename__: Annotated[
@@ -657,7 +657,7 @@ class AlertEventEdge(Base):
     ] = "AlertEventEdge"
 
 
-class ApiKey(Base):
+class ApiKey(GQLBase):
     description: String | None = None
     id: ID
     ips: list[String]
@@ -669,7 +669,7 @@ class ApiKey(Base):
     )
 
 
-class ApiKeyConnection(Base):
+class ApiKeyConnection(GQLBase):
     edges: list[ApiKeyEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -677,7 +677,7 @@ class ApiKeyConnection(Base):
     ] = "ApiKeyConnection"
 
 
-class ApiKeyEdge(Base):
+class ApiKeyEdge(GQLBase):
     cursor: String
     node: ApiKey | None = None
     typename__: Annotated[Literal["ApiKeyEdge"] | None, Field(alias="__typename")] = (
@@ -685,7 +685,7 @@ class ApiKeyEdge(Base):
     )
 
 
-class Artifact(Base):
+class Artifact(GQLBase):
     aliases: list[ArtifactAlias]
     artifact_actions: Annotated[
         ArtifactActionConnection | None, Field(alias="artifactActions")
@@ -736,7 +736,7 @@ class Artifact(Base):
     )
 
 
-class ArtifactActionConnection(Base):
+class ArtifactActionConnection(GQLBase):
     edges: list[ArtifactActionEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -744,7 +744,7 @@ class ArtifactActionConnection(Base):
     ] = "ArtifactActionConnection"
 
 
-class ArtifactActionEdge(Base):
+class ArtifactActionEdge(GQLBase):
     cursor: String
     node: ArtifactAction
     typename__: Annotated[
@@ -752,7 +752,7 @@ class ArtifactActionEdge(Base):
     ] = "ArtifactActionEdge"
 
 
-class ArtifactAlias(Base):
+class ArtifactAlias(GQLBase):
     alias: String
     artifact: Artifact | None = None
     artifact_collection: Annotated[
@@ -765,7 +765,7 @@ class ArtifactAlias(Base):
     ] = "ArtifactAlias"
 
 
-class ArtifactAliasAction(Base):
+class ArtifactAliasAction(GQLBase):
     action_type: Annotated[String, Field(alias="actionType")]
     alias: String
     artifact_collection: Annotated[
@@ -780,7 +780,7 @@ class ArtifactAliasAction(Base):
     ] = "ArtifactAliasAction"
 
 
-class ArtifactAliasActionConnection(Base):
+class ArtifactAliasActionConnection(GQLBase):
     edges: list[ArtifactAliasActionEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -788,7 +788,7 @@ class ArtifactAliasActionConnection(Base):
     ] = "ArtifactAliasActionConnection"
 
 
-class ArtifactAliasActionEdge(Base):
+class ArtifactAliasActionEdge(GQLBase):
     cursor: String
     node: ArtifactAliasAction
     typename__: Annotated[
@@ -796,7 +796,7 @@ class ArtifactAliasActionEdge(Base):
     ] = "ArtifactAliasActionEdge"
 
 
-class ArtifactAliasConnection(Base):
+class ArtifactAliasConnection(GQLBase):
     edges: list[ArtifactAliasEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -804,7 +804,7 @@ class ArtifactAliasConnection(Base):
     ] = "ArtifactAliasConnection"
 
 
-class ArtifactAliasEdge(Base):
+class ArtifactAliasEdge(GQLBase):
     cursor: String
     node: ArtifactAlias | None = None
     typename__: Annotated[
@@ -812,7 +812,7 @@ class ArtifactAliasEdge(Base):
     ] = "ArtifactAliasEdge"
 
 
-class ArtifactCollectionAction(Base):
+class ArtifactCollectionAction(GQLBase):
     action_type: Annotated[String, Field(alias="actionType")]
     artifact: Artifact | None = None
     artifact_collection: Annotated[
@@ -826,7 +826,7 @@ class ArtifactCollectionAction(Base):
     ] = "ArtifactCollectionAction"
 
 
-class ArtifactCollectionActionConnection(Base):
+class ArtifactCollectionActionConnection(GQLBase):
     edges: list[ArtifactCollectionActionEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -834,7 +834,7 @@ class ArtifactCollectionActionConnection(Base):
     ] = "ArtifactCollectionActionConnection"
 
 
-class ArtifactCollectionActionEdge(Base):
+class ArtifactCollectionActionEdge(GQLBase):
     cursor: String
     node: ArtifactCollectionAction
     typename__: Annotated[
@@ -842,7 +842,7 @@ class ArtifactCollectionActionEdge(Base):
     ] = "ArtifactCollectionActionEdge"
 
 
-class ArtifactCollectionAlias(Base):
+class ArtifactCollectionAlias(GQLBase):
     alias: String
     artifact_collection_name: Annotated[String, Field(alias="artifactCollectionName")]
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -852,7 +852,7 @@ class ArtifactCollectionAlias(Base):
     ] = "ArtifactCollectionAlias"
 
 
-class ArtifactCollectionConnection(Base):
+class ArtifactCollectionConnection(GQLBase):
     edges: list[ArtifactCollectionEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -861,7 +861,7 @@ class ArtifactCollectionConnection(Base):
     ] = "ArtifactCollectionConnection"
 
 
-class ArtifactCollectionEdge(Base):
+class ArtifactCollectionEdge(GQLBase):
     cursor: String
     node: ArtifactCollection | None = None
     typename__: Annotated[
@@ -869,7 +869,7 @@ class ArtifactCollectionEdge(Base):
     ] = "ArtifactCollectionEdge"
 
 
-class ArtifactCollectionMembership(Base):
+class ArtifactCollectionMembership(GQLBase):
     aliases: list[ArtifactAlias]
     artifact: Artifact | None = None
     artifact_collection: Annotated[
@@ -884,7 +884,7 @@ class ArtifactCollectionMembership(Base):
     ] = "ArtifactCollectionMembership"
 
 
-class ArtifactCollectionMembershipConnection(Base):
+class ArtifactCollectionMembershipConnection(GQLBase):
     edges: list[ArtifactCollectionMembershipEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -893,7 +893,7 @@ class ArtifactCollectionMembershipConnection(Base):
     ] = "ArtifactCollectionMembershipConnection"
 
 
-class ArtifactCollectionMembershipEdge(Base):
+class ArtifactCollectionMembershipEdge(GQLBase):
     cursor: String
     node: ArtifactCollectionMembership | None = None
     typename__: Annotated[
@@ -918,7 +918,7 @@ class ArtifactEdge(ArtifactEdgeType):
     )
 
 
-class ArtifactLineageDag(Base):
+class ArtifactLineageDag(GQLBase):
     artifacts: list[ArtifactLineageDagArtifact | None]
     clusters: list[ArtifactLineageDagCluster | None]
     edges: list[ArtifactLineageDagEdge | None]
@@ -929,7 +929,7 @@ class ArtifactLineageDag(Base):
     ] = "ArtifactLineageDag"
 
 
-class ArtifactLineageDagArtifact(Base):
+class ArtifactLineageDagArtifact(GQLBase):
     artifact_commit_hash: Annotated[String, Field(alias="artifactCommitHash")]
     artifact_node_id: Annotated[String, Field(alias="artifactNodeID")]
     artifact_sequence_name: Annotated[String, Field(alias="artifactSequenceName")]
@@ -943,7 +943,7 @@ class ArtifactLineageDagArtifact(Base):
     ] = "ArtifactLineageDagArtifact"
 
 
-class ArtifactLineageDagCluster(Base):
+class ArtifactLineageDagCluster(GQLBase):
     artifact_nodes: Annotated[
         list[ArtifactLineageDagArtifact | None], Field(alias="artifactNodes")
     ]
@@ -958,7 +958,7 @@ class ArtifactLineageDagCluster(Base):
     ] = "ArtifactLineageDagCluster"
 
 
-class ArtifactLineageDagEdge(Base):
+class ArtifactLineageDagEdge(GQLBase):
     artifact_node_id: Annotated[String, Field(alias="artifactNodeID")]
     cluster_node_id: Annotated[String | None, Field(alias="clusterNodeID")] = None
     direction: DagDirection
@@ -969,7 +969,7 @@ class ArtifactLineageDagEdge(Base):
     ] = "ArtifactLineageDagEdge"
 
 
-class ArtifactLineageDagRun(Base):
+class ArtifactLineageDagRun(GQLBase):
     display_name: Annotated[String | None, Field(alias="displayName")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     job_type: Annotated[String | None, Field(alias="jobType")] = None
@@ -981,7 +981,7 @@ class ArtifactLineageDagRun(Base):
     ] = "ArtifactLineageDagRun"
 
 
-class ArtifactManifest(Base):
+class ArtifactManifest(GQLBase):
     artifact: Artifact
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     digest: String
@@ -993,7 +993,7 @@ class ArtifactManifest(Base):
     ] = "ArtifactManifest"
 
 
-class ArtifactManifestConnection(Base):
+class ArtifactManifestConnection(GQLBase):
     edges: list[ArtifactManifestEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -1001,7 +1001,7 @@ class ArtifactManifestConnection(Base):
     ] = "ArtifactManifestConnection"
 
 
-class ArtifactManifestEdge(Base):
+class ArtifactManifestEdge(GQLBase):
     cursor: String
     node: ArtifactManifest | None = None
     typename__: Annotated[
@@ -1082,7 +1082,7 @@ class ArtifactSequence(ArtifactCollection):
     ] = "ArtifactSequence"
 
 
-class ArtifactSequenceConnection(Base):
+class ArtifactSequenceConnection(GQLBase):
     edges: list[ArtifactSequenceEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -1091,7 +1091,7 @@ class ArtifactSequenceConnection(Base):
     ] = "ArtifactSequenceConnection"
 
 
-class ArtifactSequenceEdge(Base):
+class ArtifactSequenceEdge(GQLBase):
     cursor: String
     node: ArtifactSequence | None = None
     typename__: Annotated[
@@ -1112,7 +1112,7 @@ class ArtifactSequenceStorageNode(StorageTreeNode):
     ] = "ArtifactSequenceStorageNode"
 
 
-class ArtifactSequenceStorageNodeConnection(Base):
+class ArtifactSequenceStorageNodeConnection(GQLBase):
     edges: list[ArtifactSequenceStorageNodeEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_size: Annotated[Int64, Field(alias="totalSize")]
@@ -1122,7 +1122,7 @@ class ArtifactSequenceStorageNodeConnection(Base):
     ] = "ArtifactSequenceStorageNodeConnection"
 
 
-class ArtifactSequenceStorageNodeEdge(Base):
+class ArtifactSequenceStorageNodeEdge(GQLBase):
     cursor: String
     node: ArtifactSequenceStorageNode
     typename__: Annotated[
@@ -1141,7 +1141,7 @@ class ArtifactStorageNode(StorageTreeNode):
     ] = "ArtifactStorageNode"
 
 
-class ArtifactStorageNodeConnection(Base):
+class ArtifactStorageNodeConnection(GQLBase):
     edges: list[ArtifactStorageNodeEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_size: Annotated[Int64, Field(alias="totalSize")]
@@ -1150,7 +1150,7 @@ class ArtifactStorageNodeConnection(Base):
     ] = "ArtifactStorageNodeConnection"
 
 
-class ArtifactStorageNodeEdge(Base):
+class ArtifactStorageNodeEdge(GQLBase):
     cursor: String
     node: ArtifactStorageNode
     typename__: Annotated[
@@ -1158,7 +1158,7 @@ class ArtifactStorageNodeEdge(Base):
     ] = "ArtifactStorageNodeEdge"
 
 
-class ArtifactType(Base):
+class ArtifactType(GQLBase):
     artifact: Artifact | None = None
     artifact_actions: Annotated[
         ArtifactActionConnection | None, Field(alias="artifactActions")
@@ -1185,7 +1185,7 @@ class ArtifactType(Base):
     )
 
 
-class ArtifactTypeConnection(Base):
+class ArtifactTypeConnection(GQLBase):
     edges: list[ArtifactTypeEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -1193,7 +1193,7 @@ class ArtifactTypeConnection(Base):
     ] = "ArtifactTypeConnection"
 
 
-class ArtifactTypeEdge(Base):
+class ArtifactTypeEdge(GQLBase):
     cursor: String
     node: ArtifactType | None = None
     typename__: Annotated[
@@ -1211,7 +1211,7 @@ class ArtifactTypeStorageNode(StorageTreeNode):
     ] = "ArtifactTypeStorageNode"
 
 
-class AttachCustomerPaymentMethodPayload(Base):
+class AttachCustomerPaymentMethodPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1219,7 +1219,7 @@ class AttachCustomerPaymentMethodPayload(Base):
     ] = "AttachCustomerPaymentMethodPayload"
 
 
-class BenchmarkRun(Base):
+class BenchmarkRun(GQLBase):
     benchmark: Project
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     details: JSON | None = None
@@ -1240,7 +1240,7 @@ class BenchmarkRun(Base):
     )
 
 
-class BenchmarkRunConnection(Base):
+class BenchmarkRunConnection(GQLBase):
     edges: list[BenchmarkRunEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -1248,7 +1248,7 @@ class BenchmarkRunConnection(Base):
     ] = "BenchmarkRunConnection"
 
 
-class BenchmarkRunEdge(Base):
+class BenchmarkRunEdge(GQLBase):
     cursor: String
     node: BenchmarkRun | None = None
     typename__: Annotated[
@@ -1256,7 +1256,7 @@ class BenchmarkRunEdge(Base):
     ] = "BenchmarkRunEdge"
 
 
-class BucketDiff(Base):
+class BucketDiff(GQLBase):
     op: DiffOperation
     run: Run | None = None
     typename__: Annotated[Literal["BucketDiff"] | None, Field(alias="__typename")] = (
@@ -1264,7 +1264,7 @@ class BucketDiff(Base):
     )
 
 
-class BucketDiffs(Base):
+class BucketDiffs(GQLBase):
     delta: list[BucketDiff]
     order: list[ID]
     typename__: Annotated[Literal["BucketDiffs"] | None, Field(alias="__typename")] = (
@@ -1280,7 +1280,7 @@ class BucketStoreConnectionError(Error):
     ] = "BucketStoreConnectionError"
 
 
-class CancelCustomerSubscriptionPayload(Base):
+class CancelCustomerSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1288,7 +1288,7 @@ class CancelCustomerSubscriptionPayload(Base):
     ] = "CancelCustomerSubscriptionPayload"
 
 
-class ClaimAnonymousEntityPayload(Base):
+class ClaimAnonymousEntityPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     task: Task
     typename__: Annotated[
@@ -1296,7 +1296,7 @@ class ClaimAnonymousEntityPayload(Base):
     ] = "ClaimAnonymousEntityPayload"
 
 
-class ClientIDMapping(Base):
+class ClientIDMapping(GQLBase):
     client_id: Annotated[ID, Field(alias="clientID")]
     entry: ClientIDMappingEntry
     server_id: Annotated[ID, Field(alias="serverID")]
@@ -1305,7 +1305,7 @@ class ClientIDMapping(Base):
     ] = "ClientIDMapping"
 
 
-class CloneProjectsPayload(Base):
+class CloneProjectsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     tasks: list[Task]
     typename__: Annotated[
@@ -1313,7 +1313,7 @@ class CloneProjectsPayload(Base):
     ] = "CloneProjectsPayload"
 
 
-class CloudRegion(Base):
+class CloudRegion(GQLBase):
     id: ID
     provider: CloudProvider
     region: String
@@ -1322,14 +1322,14 @@ class CloudRegion(Base):
     )
 
 
-class Code(Base):
+class Code(GQLBase):
     body: String | None = None
     direct_url: Annotated[String, Field(alias="directUrl")]
     name: String
     typename__: Annotated[Literal["Code"] | None, Field(alias="__typename")] = "Code"
 
 
-class CommitArtifactPayload(Base):
+class CommitArtifactPayload(GQLBase):
     artifact: Artifact
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1337,7 +1337,7 @@ class CommitArtifactPayload(Base):
     ] = "CommitArtifactPayload"
 
 
-class CompleteMultipartUploadArtifactPayload(Base):
+class CompleteMultipartUploadArtifactPayload(GQLBase):
     digest: String | None = None
     typename__: Annotated[
         Literal["CompleteMultipartUploadArtifactPayload"] | None,
@@ -1345,28 +1345,28 @@ class CompleteMultipartUploadArtifactPayload(Base):
     ] = "CompleteMultipartUploadArtifactPayload"
 
 
-class ContactUsForComputeHoursPayload(Base):
+class ContactUsForComputeHoursPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["ContactUsForComputeHoursPayload"] | None, Field(alias="__typename")
     ] = "ContactUsForComputeHoursPayload"
 
 
-class ContactUsForUserLedTrialPayload(Base):
+class ContactUsForUserLedTrialPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["ContactUsForUserLedTrialPayload"] | None, Field(alias="__typename")
     ] = "ContactUsForUserLedTrialPayload"
 
 
-class CopyFilePayload(Base):
+class CopyFilePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["CopyFilePayload"] | None, Field(alias="__typename")
     ] = "CopyFilePayload"
 
 
-class CreateAcademicOrReverseTrialPayload(Base):
+class CreateAcademicOrReverseTrialPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     org_id: Annotated[ID, Field(alias="orgID")]
     subscription: JSON | None = None
@@ -1375,7 +1375,7 @@ class CreateAcademicOrReverseTrialPayload(Base):
     ] = "CreateAcademicOrReverseTrialPayload"
 
 
-class CreateAccessTokenPayload(Base):
+class CreateAccessTokenPayload(GQLBase):
     access_token: Annotated[AccessToken, Field(alias="accessToken")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     recipient_already_on_team: Annotated[
@@ -1387,7 +1387,7 @@ class CreateAccessTokenPayload(Base):
     ] = "CreateAccessTokenPayload"
 
 
-class CreateAgentPayload(Base):
+class CreateAgentPayload(GQLBase):
     agent: Agent | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1395,7 +1395,7 @@ class CreateAgentPayload(Base):
     ] = "CreateAgentPayload"
 
 
-class CreateAlertPayload(Base):
+class CreateAlertPayload(GQLBase):
     alert: Alert
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1403,7 +1403,7 @@ class CreateAlertPayload(Base):
     ] = "CreateAlertPayload"
 
 
-class CreateArtifactCollectionPayload(Base):
+class CreateArtifactCollectionPayload(GQLBase):
     artifact_collection: Annotated[
         ArtifactCollection, Field(alias="artifactCollection")
     ]
@@ -1413,7 +1413,7 @@ class CreateArtifactCollectionPayload(Base):
     ] = "CreateArtifactCollectionPayload"
 
 
-class CreateArtifactFilesPayload(Base):
+class CreateArtifactFilesPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     files: FileConnection
     typename__: Annotated[
@@ -1421,7 +1421,7 @@ class CreateArtifactFilesPayload(Base):
     ] = "CreateArtifactFilesPayload"
 
 
-class CreateArtifactManifestPayload(Base):
+class CreateArtifactManifestPayload(GQLBase):
     artifact_manifest: Annotated[ArtifactManifest, Field(alias="artifactManifest")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1429,7 +1429,7 @@ class CreateArtifactManifestPayload(Base):
     ] = "CreateArtifactManifestPayload"
 
 
-class CreateArtifactPayload(Base):
+class CreateArtifactPayload(GQLBase):
     artifact: Artifact
     artifact_actions: Annotated[list[ArtifactAction], Field(alias="artifactActions")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -1438,7 +1438,7 @@ class CreateArtifactPayload(Base):
     ] = "CreateArtifactPayload"
 
 
-class CreateArtifactTypePayload(Base):
+class CreateArtifactTypePayload(GQLBase):
     artifact_type: Annotated[ArtifactType, Field(alias="artifactType")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1446,7 +1446,7 @@ class CreateArtifactTypePayload(Base):
     ] = "CreateArtifactTypePayload"
 
 
-class CreateArtifactTypesPayload(Base):
+class CreateArtifactTypesPayload(GQLBase):
     artifact_types: Annotated[list[ArtifactType], Field(alias="artifactTypes")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1454,7 +1454,7 @@ class CreateArtifactTypesPayload(Base):
     ] = "CreateArtifactTypesPayload"
 
 
-class CreateClientIDMappingPayload(Base):
+class CreateClientIDMappingPayload(GQLBase):
     client_id_mapping: Annotated[ClientIDMapping, Field(alias="clientIDMapping")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1462,7 +1462,7 @@ class CreateClientIDMappingPayload(Base):
     ] = "CreateClientIDMappingPayload"
 
 
-class CreateClientPayload(Base):
+class CreateClientPayload(GQLBase):
     client_id: Annotated[String | None, Field(alias="clientId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1470,7 +1470,7 @@ class CreateClientPayload(Base):
     ] = "CreateClientPayload"
 
 
-class CreateCustomChartPayload(Base):
+class CreateCustomChartPayload(GQLBase):
     chart: CustomChart
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1478,7 +1478,7 @@ class CreateCustomChartPayload(Base):
     ] = "CreateCustomChartPayload"
 
 
-class CreateCustomerSubscriptionPayload(Base):
+class CreateCustomerSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     subscription: JSON | None = None
@@ -1487,7 +1487,7 @@ class CreateCustomerSubscriptionPayload(Base):
     ] = "CreateCustomerSubscriptionPayload"
 
 
-class CreateCustomerTrialPayload(Base):
+class CreateCustomerTrialPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription: JSON | None = None
     typename__: Annotated[
@@ -1495,7 +1495,7 @@ class CreateCustomerTrialPayload(Base):
     ] = "CreateCustomerTrialPayload"
 
 
-class CreateDefaultResourceConfigPayload(Base):
+class CreateDefaultResourceConfigPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     default_resource_config_id: Annotated[ID, Field(alias="defaultResourceConfigID")]
     schema_validation_errors: Annotated[
@@ -1507,7 +1507,7 @@ class CreateDefaultResourceConfigPayload(Base):
     ] = "CreateDefaultResourceConfigPayload"
 
 
-class CreateDiscussionCommentPayload(Base):
+class CreateDiscussionCommentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_comment: Annotated[DiscussionComment, Field(alias="discussionComment")]
     typename__: Annotated[
@@ -1515,7 +1515,7 @@ class CreateDiscussionCommentPayload(Base):
     ] = "CreateDiscussionCommentPayload"
 
 
-class CreateDiscussionThreadPayload(Base):
+class CreateDiscussionThreadPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_thread: Annotated[DiscussionThread, Field(alias="discussionThread")]
     typename__: Annotated[
@@ -1523,7 +1523,7 @@ class CreateDiscussionThreadPayload(Base):
     ] = "CreateDiscussionThreadPayload"
 
 
-class CreateEmailSubscriptionPayload(Base):
+class CreateEmailSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription: EmailSubscription
     typename__: Annotated[
@@ -1531,7 +1531,7 @@ class CreateEmailSubscriptionPayload(Base):
     ] = "CreateEmailSubscriptionPayload"
 
 
-class CreateEntityPayload(Base):
+class CreateEntityPayload(GQLBase):
     api_key: Annotated[ApiKey | None, Field(alias="apiKey")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity: Entity | None = None
@@ -1540,7 +1540,7 @@ class CreateEntityPayload(Base):
     ] = "CreateEntityPayload"
 
 
-class CreateExperimentPayload(Base):
+class CreateExperimentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     success: Boolean
@@ -1549,7 +1549,7 @@ class CreateExperimentPayload(Base):
     ] = "CreateExperimentPayload"
 
 
-class CreateFilterTriggerPayload(Base):
+class CreateFilterTriggerPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     trigger: Trigger | None = None
     typename__: Annotated[
@@ -1557,7 +1557,7 @@ class CreateFilterTriggerPayload(Base):
     ] = "CreateFilterTriggerPayload"
 
 
-class CreateGlueTaskPayload(Base):
+class CreateGlueTaskPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1565,7 +1565,7 @@ class CreateGlueTaskPayload(Base):
     ] = "CreateGlueTaskPayload"
 
 
-class CreateHourOverageSubscriptionPayload(Base):
+class CreateHourOverageSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription: JSON | None = None
     typename__: Annotated[
@@ -1574,7 +1574,7 @@ class CreateHourOverageSubscriptionPayload(Base):
     ] = "CreateHourOverageSubscriptionPayload"
 
 
-class CreateIntegrationPayload(Base):
+class CreateIntegrationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     integration: Integration
     typename__: Annotated[
@@ -1582,7 +1582,7 @@ class CreateIntegrationPayload(Base):
     ] = "CreateIntegrationPayload"
 
 
-class CreateInvitePayload(Base):
+class CreateInvitePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email_sent: Annotated[Boolean, Field(alias="emailSent")]
     entity: Entity | None = None
@@ -1597,7 +1597,7 @@ class CreateInvitePayload(Base):
     ] = "CreateInvitePayload"
 
 
-class CreateLaunchAgentPayload(Base):
+class CreateLaunchAgentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     launch_agent_id: Annotated[ID, Field(alias="launchAgentId")]
     success: Boolean | None = None
@@ -1606,7 +1606,7 @@ class CreateLaunchAgentPayload(Base):
     ] = "CreateLaunchAgentPayload"
 
 
-class CreateLocalLicenseOrganizationPayload(Base):
+class CreateLocalLicenseOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization: Organization
     typename__: Annotated[
@@ -1615,7 +1615,7 @@ class CreateLocalLicenseOrganizationPayload(Base):
     ] = "CreateLocalLicenseOrganizationPayload"
 
 
-class CreateNewsletterSubscriptionPayload(Base):
+class CreateNewsletterSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     newsletter_subscription: Annotated[
         NewsletterSubscription, Field(alias="newsletterSubscription")
@@ -1625,14 +1625,14 @@ class CreateNewsletterSubscriptionPayload(Base):
     ] = "CreateNewsletterSubscriptionPayload"
 
 
-class CreateOAuthProviderPayload(Base):
+class CreateOAuthProviderPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["CreateOAuthProviderPayload"] | None, Field(alias="__typename")
     ] = "CreateOAuthProviderPayload"
 
 
-class CreatePreviewableLinkPayload(Base):
+class CreatePreviewableLinkPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     link: String
     preview_image_upload_url: Annotated[
@@ -1644,21 +1644,21 @@ class CreatePreviewableLinkPayload(Base):
     ] = "CreatePreviewableLinkPayload"
 
 
-class CreateProjectMembersPayload(Base):
+class CreateProjectMembersPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["CreateProjectMembersPayload"] | None, Field(alias="__typename")
     ] = "CreateProjectMembersPayload"
 
 
-class CreateRolePayload(Base):
+class CreateRolePayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["CreateRolePayload"] | None, Field(alias="__typename")
     ] = "CreateRolePayload"
 
 
-class CreateRunFilesPayload(Base):
+class CreateRunFilesPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     files: list[File]
     run_id: Annotated[ID, Field(alias="runID")]
@@ -1668,7 +1668,7 @@ class CreateRunFilesPayload(Base):
     ] = "CreateRunFilesPayload"
 
 
-class CreateRunQueuePayload(Base):
+class CreateRunQueuePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     queue_id: Annotated[ID | None, Field(alias="queueID")] = None
     success: Boolean | None = None
@@ -1677,7 +1677,7 @@ class CreateRunQueuePayload(Base):
     ] = "CreateRunQueuePayload"
 
 
-class CreateServiceAccountPayload(Base):
+class CreateServiceAccountPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -1685,7 +1685,7 @@ class CreateServiceAccountPayload(Base):
     ] = "CreateServiceAccountPayload"
 
 
-class CreateSlackChannelSubscriptionPayload(Base):
+class CreateSlackChannelSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription: SlackChannelSubscription
     typename__: Annotated[
@@ -1694,7 +1694,7 @@ class CreateSlackChannelSubscriptionPayload(Base):
     ] = "CreateSlackChannelSubscriptionPayload"
 
 
-class CreateStorageSubscriptionPayload(Base):
+class CreateStorageSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription: JSON | None = None
     typename__: Annotated[
@@ -1702,7 +1702,7 @@ class CreateStorageSubscriptionPayload(Base):
     ] = "CreateStorageSubscriptionPayload"
 
 
-class CreateTagsPayload(Base):
+class CreateTagsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     tags: list[Tag]
     typename__: Annotated[
@@ -1710,7 +1710,7 @@ class CreateTagsPayload(Base):
     ] = "CreateTagsPayload"
 
 
-class CreateTeamPayload(Base):
+class CreateTeamPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity: Entity | None = None
     typename__: Annotated[
@@ -1718,7 +1718,7 @@ class CreateTeamPayload(Base):
     ] = "CreateTeamPayload"
 
 
-class CreateUserEmailPayload(Base):
+class CreateUserEmailPayload(GQLBase):
     email: Email | None = None
     success: Boolean
     typename__: Annotated[
@@ -1726,7 +1726,7 @@ class CreateUserEmailPayload(Base):
     ] = "CreateUserEmailPayload"
 
 
-class CreateUserLedTrialPayload(Base):
+class CreateUserLedTrialPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     org_id: Annotated[ID, Field(alias="orgID")]
     subscription: JSON | None = None
@@ -1735,7 +1735,7 @@ class CreateUserLedTrialPayload(Base):
     ] = "CreateUserLedTrialPayload"
 
 
-class CreateUserPayload(Base):
+class CreateUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -1743,7 +1743,7 @@ class CreateUserPayload(Base):
     ] = "CreateUserPayload"
 
 
-class CreateViewDiscussionCommentPayload(Base):
+class CreateViewDiscussionCommentPayload(GQLBase):
     alert_subscription: Annotated[AlertSubscription, Field(alias="alertSubscription")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_comment: Annotated[DiscussionComment, Field(alias="discussionComment")]
@@ -1753,7 +1753,7 @@ class CreateViewDiscussionCommentPayload(Base):
     ] = "CreateViewDiscussionCommentPayload"
 
 
-class CustomChart(Base):
+class CustomChart(GQLBase):
     access: String
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     display_name: Annotated[String, Field(alias="displayName")]
@@ -1769,7 +1769,7 @@ class CustomChart(Base):
     )
 
 
-class CustomChartConnection(Base):
+class CustomChartConnection(GQLBase):
     edges: list[CustomChartEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -1777,7 +1777,7 @@ class CustomChartConnection(Base):
     ] = "CustomChartConnection"
 
 
-class CustomChartEdge(Base):
+class CustomChartEdge(GQLBase):
     cursor: String
     node: CustomChart
     typename__: Annotated[
@@ -1785,7 +1785,7 @@ class CustomChartEdge(Base):
     ] = "CustomChartEdge"
 
 
-class DefaultResourceConfig(Base):
+class DefaultResourceConfig(GQLBase):
     config: JSON | None = None
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     id: ID
@@ -1800,7 +1800,7 @@ class DefaultResourceConfig(Base):
     ] = "DefaultResourceConfig"
 
 
-class DefaultResourceConfigConnection(Base):
+class DefaultResourceConfigConnection(GQLBase):
     edges: list[DefaultResourceConfigEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -1808,7 +1808,7 @@ class DefaultResourceConfigConnection(Base):
     ] = "DefaultResourceConfigConnection"
 
 
-class DefaultResourceConfigEdge(Base):
+class DefaultResourceConfigEdge(GQLBase):
     cursor: String
     node: DefaultResourceConfig
     typename__: Annotated[
@@ -1816,7 +1816,7 @@ class DefaultResourceConfigEdge(Base):
     ] = "DefaultResourceConfigEdge"
 
 
-class DefaultResourceConfigScope(Base):
+class DefaultResourceConfigScope(GQLBase):
     id: Annotated[Int, Field(alias="ID")]
     type: Annotated[DefaultResourceConfigScopeType, Field(alias="Type")]
     typename__: Annotated[
@@ -1824,7 +1824,7 @@ class DefaultResourceConfigScope(Base):
     ] = "DefaultResourceConfigScope"
 
 
-class DeleteAlertPayload(Base):
+class DeleteAlertPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1832,7 +1832,7 @@ class DeleteAlertPayload(Base):
     ] = "DeleteAlertPayload"
 
 
-class DeleteAlertSubscriptionPayload(Base):
+class DeleteAlertSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1840,7 +1840,7 @@ class DeleteAlertSubscriptionPayload(Base):
     ] = "DeleteAlertSubscriptionPayload"
 
 
-class DeleteAliasesPayload(Base):
+class DeleteAliasesPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1848,7 +1848,7 @@ class DeleteAliasesPayload(Base):
     ] = "DeleteAliasesPayload"
 
 
-class DeleteApiKeyPayload(Base):
+class DeleteApiKeyPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1866,7 +1866,7 @@ class DeleteArtifactAction(ArtifactAction):
     ] = "DeleteArtifactAction"
 
 
-class DeleteArtifactCollectionPayload(Base):
+class DeleteArtifactCollectionPayload(GQLBase):
     artifact_collection: Annotated[
         ArtifactCollection, Field(alias="artifactCollection")
     ]
@@ -1876,14 +1876,14 @@ class DeleteArtifactCollectionPayload(Base):
     ] = "DeleteArtifactCollectionPayload"
 
 
-class DeleteArtifactEntityTTLPayload(Base):
+class DeleteArtifactEntityTTLPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["DeleteArtifactEntityTTLPayload"] | None, Field(alias="__typename")
     ] = "DeleteArtifactEntityTTLPayload"
 
 
-class DeleteArtifactPayload(Base):
+class DeleteArtifactPayload(GQLBase):
     artifact: Artifact
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -1891,7 +1891,7 @@ class DeleteArtifactPayload(Base):
     ] = "DeleteArtifactPayload"
 
 
-class DeleteCustomChartPayload(Base):
+class DeleteCustomChartPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1899,7 +1899,7 @@ class DeleteCustomChartPayload(Base):
     ] = "DeleteCustomChartPayload"
 
 
-class DeleteDefaultResourceConfigsPayload(Base):
+class DeleteDefaultResourceConfigsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     num_affected: Annotated[Int64, Field(alias="numAffected")]
     success: Boolean
@@ -1908,7 +1908,7 @@ class DeleteDefaultResourceConfigsPayload(Base):
     ] = "DeleteDefaultResourceConfigsPayload"
 
 
-class DeleteDiscussionCommentPayload(Base):
+class DeleteDiscussionCommentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1916,7 +1916,7 @@ class DeleteDiscussionCommentPayload(Base):
     ] = "DeleteDiscussionCommentPayload"
 
 
-class DeleteExperimentPayload(Base):
+class DeleteExperimentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     success: Boolean
@@ -1925,7 +1925,7 @@ class DeleteExperimentPayload(Base):
     ] = "DeleteExperimentPayload"
 
 
-class DeleteFilesPayload(Base):
+class DeleteFilesPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1933,7 +1933,7 @@ class DeleteFilesPayload(Base):
     ] = "DeleteFilesPayload"
 
 
-class DeleteFromRunQueuePayload(Base):
+class DeleteFromRunQueuePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1941,7 +1941,7 @@ class DeleteFromRunQueuePayload(Base):
     ] = "DeleteFromRunQueuePayload"
 
 
-class DeleteGlueTaskPayload(Base):
+class DeleteGlueTaskPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1949,7 +1949,7 @@ class DeleteGlueTaskPayload(Base):
     ] = "DeleteGlueTaskPayload"
 
 
-class DeleteIntegrationPayload(Base):
+class DeleteIntegrationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1957,7 +1957,7 @@ class DeleteIntegrationPayload(Base):
     ] = "DeleteIntegrationPayload"
 
 
-class DeleteInvitePayload(Base):
+class DeleteInvitePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1965,7 +1965,7 @@ class DeleteInvitePayload(Base):
     ] = "DeleteInvitePayload"
 
 
-class DeleteLaunchAgentsPayload(Base):
+class DeleteLaunchAgentsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1973,7 +1973,7 @@ class DeleteLaunchAgentsPayload(Base):
     ] = "DeleteLaunchAgentsPayload"
 
 
-class DeleteModelPayload(Base):
+class DeleteModelPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -1981,14 +1981,14 @@ class DeleteModelPayload(Base):
     ] = "DeleteModelPayload"
 
 
-class DeleteOAuthProviderPayload(Base):
+class DeleteOAuthProviderPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["DeleteOAuthProviderPayload"] | None, Field(alias="__typename")
     ] = "DeleteOAuthProviderPayload"
 
 
-class DeleteOrganizationPayload(Base):
+class DeleteOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -1996,7 +1996,7 @@ class DeleteOrganizationPayload(Base):
     ] = "DeleteOrganizationPayload"
 
 
-class DeleteOrganizationSubscriptionPayload(Base):
+class DeleteOrganizationSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2005,35 +2005,35 @@ class DeleteOrganizationSubscriptionPayload(Base):
     ] = "DeleteOrganizationSubscriptionPayload"
 
 
-class DeleteProjectMembersPayload(Base):
+class DeleteProjectMembersPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["DeleteProjectMembersPayload"] | None, Field(alias="__typename")
     ] = "DeleteProjectMembersPayload"
 
 
-class DeleteRolePayload(Base):
+class DeleteRolePayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["DeleteRolePayload"] | None, Field(alias="__typename")
     ] = "DeleteRolePayload"
 
 
-class DeleteRolePermissionsPayload(Base):
+class DeleteRolePermissionsPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["DeleteRolePermissionsPayload"] | None, Field(alias="__typename")
     ] = "DeleteRolePermissionsPayload"
 
 
-class DeleteRunPayload(Base):
+class DeleteRunPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["DeleteRunPayload"] | None, Field(alias="__typename")
     ] = "DeleteRunPayload"
 
 
-class DeleteRunQueuesPayload(Base):
+class DeleteRunQueuesPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -2041,7 +2041,7 @@ class DeleteRunQueuesPayload(Base):
     ] = "DeleteRunQueuesPayload"
 
 
-class DeleteRunsPayload(Base):
+class DeleteRunsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     errors: String | None = None
     typename__: Annotated[
@@ -2049,7 +2049,7 @@ class DeleteRunsPayload(Base):
     ] = "DeleteRunsPayload"
 
 
-class DeleteSecretPayload(Base):
+class DeleteSecretPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2057,7 +2057,7 @@ class DeleteSecretPayload(Base):
     ] = "DeleteSecretPayload"
 
 
-class DeleteSweepsPayload(Base):
+class DeleteSweepsPayload(GQLBase):
     affected_agents: Annotated[Int, Field(alias="affectedAgents")]
     affected_runs: Annotated[Int, Field(alias="affectedRuns")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -2066,7 +2066,7 @@ class DeleteSweepsPayload(Base):
     ] = "DeleteSweepsPayload"
 
 
-class DeleteTagAssignmentPayload(Base):
+class DeleteTagAssignmentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     success: Boolean
     typename__: Annotated[
@@ -2074,7 +2074,7 @@ class DeleteTagAssignmentPayload(Base):
     ] = "DeleteTagAssignmentPayload"
 
 
-class DeleteTeamPayload(Base):
+class DeleteTeamPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2082,7 +2082,7 @@ class DeleteTeamPayload(Base):
     ] = "DeleteTeamPayload"
 
 
-class DeleteTriggerPayload(Base):
+class DeleteTriggerPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2090,7 +2090,7 @@ class DeleteTriggerPayload(Base):
     ] = "DeleteTriggerPayload"
 
 
-class DeleteUserEmailPayload(Base):
+class DeleteUserEmailPayload(GQLBase):
     email: Email | None = None
     success: Boolean
     typename__: Annotated[
@@ -2098,7 +2098,7 @@ class DeleteUserEmailPayload(Base):
     ] = "DeleteUserEmailPayload"
 
 
-class DeleteUserPayload(Base):
+class DeleteUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -2106,7 +2106,7 @@ class DeleteUserPayload(Base):
     ] = "DeleteUserPayload"
 
 
-class DeleteViewPayload(Base):
+class DeleteViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     pending_drafts: Annotated[Boolean | None, Field(alias="pendingDrafts")] = None
     success: Boolean | None = None
@@ -2115,7 +2115,7 @@ class DeleteViewPayload(Base):
     ] = "DeleteViewPayload"
 
 
-class DeleteViewsPayload(Base):
+class DeleteViewsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     pending_drafts: Annotated[Boolean | None, Field(alias="pendingDrafts")] = None
     success: Boolean | None = None
@@ -2124,7 +2124,7 @@ class DeleteViewsPayload(Base):
     ] = "DeleteViewsPayload"
 
 
-class DeleteWorkflowsAdminPayload(Base):
+class DeleteWorkflowsAdminPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     success: Boolean
     typename__: Annotated[
@@ -2132,7 +2132,7 @@ class DeleteWorkflowsAdminPayload(Base):
     ] = "DeleteWorkflowsAdminPayload"
 
 
-class DetachCustomerPaymentMethodPayload(Base):
+class DetachCustomerPaymentMethodPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -2140,7 +2140,7 @@ class DetachCustomerPaymentMethodPayload(Base):
     ] = "DetachCustomerPaymentMethodPayload"
 
 
-class DisableGlueTaskPayload(Base):
+class DisableGlueTaskPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2148,7 +2148,7 @@ class DisableGlueTaskPayload(Base):
     ] = "DisableGlueTaskPayload"
 
 
-class DisableOldTrackingSubscriptionPayload(Base):
+class DisableOldTrackingSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription_id: Annotated[String | None, Field(alias="subscriptionID")] = None
     typename__: Annotated[
@@ -2157,7 +2157,7 @@ class DisableOldTrackingSubscriptionPayload(Base):
     ] = "DisableOldTrackingSubscriptionPayload"
 
 
-class DiscussionComment(Base):
+class DiscussionComment(GQLBase):
     body: String
     child_comments: Annotated[DiscussionCommentConnection, Field(alias="childComments")]
     created_at: Annotated[DateTime, Field(alias="createdAt")]
@@ -2175,7 +2175,7 @@ class DiscussionComment(Base):
     ] = "DiscussionComment"
 
 
-class DiscussionCommentConnection(Base):
+class DiscussionCommentConnection(GQLBase):
     edges: list[DiscussionCommentEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -2184,7 +2184,7 @@ class DiscussionCommentConnection(Base):
     ] = "DiscussionCommentConnection"
 
 
-class DiscussionCommentEdge(Base):
+class DiscussionCommentEdge(GQLBase):
     cursor: String
     node: DiscussionComment
     typename__: Annotated[
@@ -2192,7 +2192,7 @@ class DiscussionCommentEdge(Base):
     ] = "DiscussionCommentEdge"
 
 
-class DiscussionThread(Base):
+class DiscussionThread(GQLBase):
     body: String
     comments: DiscussionCommentConnection
     created_at: Annotated[DateTime, Field(alias="createdAt")]
@@ -2207,7 +2207,7 @@ class DiscussionThread(Base):
     ] = "DiscussionThread"
 
 
-class DiscussionThreadConnection(Base):
+class DiscussionThreadConnection(GQLBase):
     edges: list[DiscussionThreadEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -2216,7 +2216,7 @@ class DiscussionThreadConnection(Base):
     ] = "DiscussionThreadConnection"
 
 
-class DiscussionThreadEdge(Base):
+class DiscussionThreadEdge(GQLBase):
     cursor: String
     node: DiscussionThread
     typename__: Annotated[
@@ -2224,7 +2224,7 @@ class DiscussionThreadEdge(Base):
     ] = "DiscussionThreadEdge"
 
 
-class DismissedBanner(Base):
+class DismissedBanner(GQLBase):
     dismissed_at: Annotated[DateTime, Field(alias="dismissedAt")]
     id: ID
     typename__: Annotated[
@@ -2232,7 +2232,7 @@ class DismissedBanner(Base):
     ] = "DismissedBanner"
 
 
-class Email(Base):
+class Email(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     email_address: Annotated[String, Field(alias="emailAddress")]
     id: ID
@@ -2249,7 +2249,7 @@ class EmailSubscription(AlertSubscription):
     ] = "EmailSubscription"
 
 
-class EnableGlueTaskPayload(Base):
+class EnableGlueTaskPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2332,14 +2332,14 @@ class Entity(Node):
     )
 
 
-class EntityConnection(Base):
+class EntityConnection(GQLBase):
     edges: list[EntityEdge]
     typename__: Annotated[
         Literal["EntityConnection"] | None, Field(alias="__typename")
     ] = "EntityConnection"
 
 
-class EntityEdge(Base):
+class EntityEdge(GQLBase):
     cursor: String
     node: Entity | None = None
     typename__: Annotated[Literal["EntityEdge"] | None, Field(alias="__typename")] = (
@@ -2347,7 +2347,7 @@ class EntityEdge(Base):
     )
 
 
-class EntitySettings(Base):
+class EntitySettings(GQLBase):
     default_cloud_region: Annotated[CloudRegion, Field(alias="defaultCloudRegion")]
     disable_magic_link_sharing: Annotated[
         Boolean | None, Field(alias="disableMagicLinkSharing")
@@ -2394,14 +2394,14 @@ class EntityUser(Node):
     )
 
 
-class EntityUserConnection(Base):
+class EntityUserConnection(GQLBase):
     edges: list[EntityUserEdge]
     typename__: Annotated[
         Literal["EntityUserConnection"] | None, Field(alias="__typename")
     ] = "EntityUserConnection"
 
 
-class EntityUserEdge(Base):
+class EntityUserEdge(GQLBase):
     cursor: String
     node: EntityUser | None = None
     typename__: Annotated[
@@ -2409,7 +2409,7 @@ class EntityUserEdge(Base):
     ] = "EntityUserEdge"
 
 
-class Event(Base):
+class Event(GQLBase):
     created_at: Annotated[DateTime | None, Field(alias="createdAt")] = None
     description: String | None = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
@@ -2424,7 +2424,7 @@ class Event(Base):
     typename__: Annotated[Literal["Event"] | None, Field(alias="__typename")] = "Event"
 
 
-class EventEdge(Base):
+class EventEdge(GQLBase):
     cursor: String
     node: Event | None = None
     typename__: Annotated[Literal["EventEdge"] | None, Field(alias="__typename")] = (
@@ -2442,14 +2442,14 @@ class ExpansionPack(Node):
     ] = "ExpansionPack"
 
 
-class ExpansionPackConnection(Base):
+class ExpansionPackConnection(GQLBase):
     edges: list[ExpansionPackEdge]
     typename__: Annotated[
         Literal["ExpansionPackConnection"] | None, Field(alias="__typename")
     ] = "ExpansionPackConnection"
 
 
-class ExpansionPackEdge(Base):
+class ExpansionPackEdge(GQLBase):
     cursor: String
     node: ExpansionPack
     typename__: Annotated[
@@ -2474,7 +2474,7 @@ class Experiment(Node):
     )
 
 
-class FailRunQueueItemPayload(Base):
+class FailRunQueueItemPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -2482,7 +2482,7 @@ class FailRunQueueItemPayload(Base):
     ] = "FailRunQueueItemPayload"
 
 
-class FailedPaymentBanners(Base):
+class FailedPaymentBanners(GQLBase):
     orgs_with_failed_payments: Annotated[
         list[OrganizationDataForFailedPaymentBanner | None],
         Field(alias="orgsWithFailedPayments"),
@@ -2493,7 +2493,7 @@ class FailedPaymentBanners(Base):
     ] = "FailedPaymentBanners"
 
 
-class FeatureFlag(Base):
+class FeatureFlag(GQLBase):
     is_enabled: Annotated[Boolean, Field(alias="isEnabled")]
     ramp_key: Annotated[String, Field(alias="rampKey")]
     typename__: Annotated[Literal["FeatureFlag"] | None, Field(alias="__typename")] = (
@@ -2530,7 +2530,7 @@ class File(Node):
     typename__: Annotated[Literal["File"] | None, Field(alias="__typename")] = "File"
 
 
-class FileConnection(Base):
+class FileConnection(GQLBase):
     edges: list[FileEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     upload_headers: Annotated[list[String], Field(alias="uploadHeaders")]
@@ -2539,7 +2539,7 @@ class FileConnection(Base):
     ] = "FileConnection"
 
 
-class FileEdge(Base):
+class FileEdge(GQLBase):
     cursor: String
     node: File | None = None
     typename__: Annotated[Literal["FileEdge"] | None, Field(alias="__typename")] = (
@@ -2558,7 +2558,7 @@ class FileStorageNode(StorageTreeNode):
     ] = "FileStorageNode"
 
 
-class FileStorageNodeConnection(Base):
+class FileStorageNodeConnection(GQLBase):
     edges: list[FileStorageNodeEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_size: Annotated[Int64, Field(alias="totalSize")]
@@ -2567,7 +2567,7 @@ class FileStorageNodeConnection(Base):
     ] = "FileStorageNodeConnection"
 
 
-class FileStorageNodeEdge(Base):
+class FileStorageNodeEdge(GQLBase):
     cursor: String
     node: FileStorageNode
     typename__: Annotated[
@@ -2575,7 +2575,7 @@ class FileStorageNodeEdge(Base):
     ] = "FileStorageNodeEdge"
 
 
-class FilterEventTriggeringCondition(Base):
+class FilterEventTriggeringCondition(GQLBase):
     event_type: Annotated[EventTriggeringConditionType, Field(alias="eventType")]
     filter: String
     typename__: Annotated[
@@ -2583,14 +2583,14 @@ class FilterEventTriggeringCondition(Base):
     ] = "FilterEventTriggeringCondition"
 
 
-class FinishedRunCondition(Base):
+class FinishedRunCondition(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["FinishedRunCondition"] | None, Field(alias="__typename")
     ] = "FinishedRunCondition"
 
 
-class FolderMetadata(Base):
+class FolderMetadata(GQLBase):
     name: String
     number_of_files: Annotated[Int64, Field(alias="numberOfFiles")]
     size: Int64
@@ -2599,14 +2599,14 @@ class FolderMetadata(Base):
     ] = "FolderMetadata"
 
 
-class Folders(Base):
+class Folders(GQLBase):
     folder_list: Annotated[list[FolderMetadata | None], Field(alias="folderList")]
     typename__: Annotated[Literal["Folders"] | None, Field(alias="__typename")] = (
         "Folders"
     )
 
 
-class ForceCleanArtifactStorageStatsPayload(Base):
+class ForceCleanArtifactStorageStatsPayload(GQLBase):
     cleaned_artifact_collection_i_ds: Annotated[
         list[ID], Field(alias="cleanedArtifactCollectionIDs")
     ]
@@ -2617,7 +2617,7 @@ class ForceCleanArtifactStorageStatsPayload(Base):
     ] = "ForceCleanArtifactStorageStatsPayload"
 
 
-class ForceCleanRunStorageStatsPayload(Base):
+class ForceCleanRunStorageStatsPayload(GQLBase):
     cleaned_project_i_ds: Annotated[list[Int], Field(alias="cleanedProjectIDs")]
     success: Boolean
     typename__: Annotated[
@@ -2625,7 +2625,7 @@ class ForceCleanRunStorageStatsPayload(Base):
     ] = "ForceCleanRunStorageStatsPayload"
 
 
-class GenerateApiKeyPayload(Base):
+class GenerateApiKeyPayload(GQLBase):
     api_key: Annotated[ApiKey | None, Field(alias="apiKey")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -2633,7 +2633,7 @@ class GenerateApiKeyPayload(Base):
     ] = "GenerateApiKeyPayload"
 
 
-class GenerateLocalLicensePayload(Base):
+class GenerateLocalLicensePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     local_license: Annotated[LocalLicense, Field(alias="localLicense")]
     typename__: Annotated[
@@ -2653,7 +2653,7 @@ class GenericWebhookIntegration(Integration):
     ] = "GenericWebhookIntegration"
 
 
-class GenericWebhookTriggeredAction(Base):
+class GenericWebhookTriggeredAction(GQLBase):
     integration: Integration
     request_payload: Annotated[JSONString | None, Field(alias="requestPayload")] = None
     typename__: Annotated[
@@ -2668,7 +2668,7 @@ class GitHubOAuthIntegration(Integration):
     ] = "GitHubOAuthIntegration"
 
 
-class GitInfo(Base):
+class GitInfo(GQLBase):
     commit: String | None = None
     remote: String | None = None
     typename__: Annotated[Literal["GitInfo"] | None, Field(alias="__typename")] = (
@@ -2676,7 +2676,7 @@ class GitInfo(Base):
     )
 
 
-class GlueManager(Base):
+class GlueManager(GQLBase):
     registered_tasks: Annotated[GlueTaskConnection, Field(alias="registeredTasks")]
     task_config: Annotated[GlueTaskConfig | None, Field(alias="taskConfig")] = None
     task_types: Annotated[list[String], Field(alias="taskTypes")]
@@ -2685,7 +2685,7 @@ class GlueManager(Base):
     )
 
 
-class GlueRun(Base):
+class GlueRun(GQLBase):
     arguments: JSONString | None = None
     checkpoint: JSONString | None = None
     errors: JSONString | None = None
@@ -2700,7 +2700,7 @@ class GlueRun(Base):
     )
 
 
-class GlueRunConnection(Base):
+class GlueRunConnection(GQLBase):
     edges: list[GlueRunEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -2708,7 +2708,7 @@ class GlueRunConnection(Base):
     ] = "GlueRunConnection"
 
 
-class GlueRunEdge(Base):
+class GlueRunEdge(GQLBase):
     cursor: String
     node: GlueRun
     typename__: Annotated[Literal["GlueRunEdge"] | None, Field(alias="__typename")] = (
@@ -2716,7 +2716,7 @@ class GlueRunEdge(Base):
     )
 
 
-class GlueTask(Base):
+class GlueTask(GQLBase):
     arguments: JSONString | None = None
     checkpoint: JSONString | None = None
     glue_runs: Annotated[GlueRunConnection, Field(alias="glueRuns")]
@@ -2732,7 +2732,7 @@ class GlueTask(Base):
     )
 
 
-class GlueTaskConfig(Base):
+class GlueTaskConfig(GQLBase):
     arguments_schema: Annotated[JSONString, Field(alias="argumentsSchema")]
     checkpoint_schema: Annotated[JSONString, Field(alias="checkpointSchema")]
     default_arguments: Annotated[JSONString, Field(alias="defaultArguments")]
@@ -2741,7 +2741,7 @@ class GlueTaskConfig(Base):
     ] = "GlueTaskConfig"
 
 
-class GlueTaskConnection(Base):
+class GlueTaskConnection(GQLBase):
     edges: list[GlueTaskEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -2749,7 +2749,7 @@ class GlueTaskConnection(Base):
     ] = "GlueTaskConnection"
 
 
-class GlueTaskEdge(Base):
+class GlueTaskEdge(GQLBase):
     cursor: String
     node: GlueTask
     typename__: Annotated[Literal["GlueTaskEdge"] | None, Field(alias="__typename")] = (
@@ -2757,7 +2757,7 @@ class GlueTaskEdge(Base):
     )
 
 
-class Identity(Base):
+class Identity(GQLBase):
     email_identity_verified: Annotated[Boolean, Field(alias="emailIdentityVerified")]
     id: ID
     provider: String | None = None
@@ -2766,7 +2766,7 @@ class Identity(Base):
     )
 
 
-class ImageUrl(Base):
+class ImageUrl(GQLBase):
     path: String | None = None
     public_url: Annotated[String | None, Field(alias="publicUrl")] = None
     url: String | None = None
@@ -2793,7 +2793,7 @@ class InputArtifactEdge(ArtifactEdgeType):
     ] = "InputArtifactEdge"
 
 
-class InsertGalleryDiscussionPayload(Base):
+class InsertGalleryDiscussionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2801,7 +2801,7 @@ class InsertGalleryDiscussionPayload(Base):
     ] = "InsertGalleryDiscussionPayload"
 
 
-class InsertSecretPayload(Base):
+class InsertSecretPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2809,7 +2809,7 @@ class InsertSecretPayload(Base):
     ] = "InsertSecretPayload"
 
 
-class IntegrationConnection(Base):
+class IntegrationConnection(GQLBase):
     edges: list[IntegrationEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -2817,7 +2817,7 @@ class IntegrationConnection(Base):
     ] = "IntegrationConnection"
 
 
-class IntegrationEdge(Base):
+class IntegrationEdge(GQLBase):
     cursor: String
     node: Integration | None = None
     typename__: Annotated[
@@ -2825,7 +2825,7 @@ class IntegrationEdge(Base):
     ] = "IntegrationEdge"
 
 
-class Invite(Base):
+class Invite(GQLBase):
     accepted: Boolean | None = None
     created_at: Annotated[DateTime | None, Field(alias="createdAt")] = None
     email: String | None = None
@@ -2843,7 +2843,7 @@ class Invite(Base):
     )
 
 
-class InviteConnection(Base):
+class InviteConnection(GQLBase):
     edges: list[InviteEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -2851,7 +2851,7 @@ class InviteConnection(Base):
     ] = "InviteConnection"
 
 
-class InviteEdge(Base):
+class InviteEdge(GQLBase):
     cursor: String
     node: Invite | None = None
     typename__: Annotated[Literal["InviteEdge"] | None, Field(alias="__typename")] = (
@@ -2859,7 +2859,7 @@ class InviteEdge(Base):
     )
 
 
-class JobSetDiff(Base):
+class JobSetDiff(GQLBase):
     complete: Boolean
     metadata: JSON | None = None
     remove_jobs: Annotated[list[ID], Field(alias="removeJobs")]
@@ -2870,7 +2870,7 @@ class JobSetDiff(Base):
     )
 
 
-class LaunchAgent(Base):
+class LaunchAgent(GQLBase):
     agent_config: Annotated[JSONString | None, Field(alias="agentConfig")] = None
     agent_status: Annotated[String, Field(alias="agentStatus")]
     created_at: Annotated[DateTime, Field(alias="createdAt")]
@@ -2887,14 +2887,14 @@ class LaunchAgent(Base):
     )
 
 
-class LeaseJobSetItemPayload(Base):
+class LeaseJobSetItemPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["LeaseJobSetItemPayload"] | None, Field(alias="__typename")
     ] = "LeaseJobSetItemPayload"
 
 
-class LicenseClaims(Base):
+class LicenseClaims(GQLBase):
     expires_at: Annotated[Int64, Field(alias="expiresAt")]
     flags: list[String]
     seats: Int
@@ -2905,7 +2905,7 @@ class LicenseClaims(Base):
     ] = "LicenseClaims"
 
 
-class LicenseExpirationUI(Base):
+class LicenseExpirationUI(GQLBase):
     banner_days_remaining: Annotated[Int, Field(alias="bannerDaysRemaining")]
     banner_total_days: Annotated[Int, Field(alias="bannerTotalDays")]
     renew_url: Annotated[String | None, Field(alias="renewUrl")] = None
@@ -2914,7 +2914,7 @@ class LicenseExpirationUI(Base):
     ] = "LicenseExpirationUI"
 
 
-class LinkArtifactPayload(Base):
+class LinkArtifactPayload(GQLBase):
     aliases: list[ArtifactCollectionAlias]
     artifact_collection_id: Annotated[ID, Field(alias="artifactCollectionID")]
     artifact_id: Annotated[ID, Field(alias="artifactID")]
@@ -2926,7 +2926,7 @@ class LinkArtifactPayload(Base):
     ] = "LinkArtifactPayload"
 
 
-class LinkTeamToOrganizationPayload(Base):
+class LinkTeamToOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -2951,7 +2951,7 @@ class LocalLicense(Node):
     )
 
 
-class LocalVersionInfo(Base):
+class LocalVersionInfo(GQLBase):
     latest_version_string: Annotated[String, Field(alias="latestVersionString")]
     out_of_date: Annotated[Boolean, Field(alias="outOfDate")]
     version_on_this_instance_string: Annotated[
@@ -2962,7 +2962,7 @@ class LocalVersionInfo(Base):
     ] = "LocalVersionInfo"
 
 
-class LogLine(Base):
+class LogLine(GQLBase):
     id: String | None = None
     level: String | None = None
     line: String | None = None
@@ -2973,7 +2973,7 @@ class LogLine(Base):
     )
 
 
-class LogLineConnection(Base):
+class LogLineConnection(GQLBase):
     edges: list[LogLineEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -2981,7 +2981,7 @@ class LogLineConnection(Base):
     ] = "LogLineConnection"
 
 
-class LogLineEdge(Base):
+class LogLineEdge(GQLBase):
     cursor: String
     node: LogLine
     typename__: Annotated[Literal["LogLineEdge"] | None, Field(alias="__typename")] = (
@@ -2989,7 +2989,7 @@ class LogLineEdge(Base):
     )
 
 
-class Member(Base):
+class Member(GQLBase):
     o_auth_clients: Annotated[list[OAuthClient], Field(alias="OAuthClients")]
     account_type: Annotated[String | None, Field(alias="accountType")] = None
     admin: Boolean | None = None
@@ -3007,7 +3007,7 @@ class Member(Base):
     )
 
 
-class MigrateOldHourOverageSubscriptionPayload(Base):
+class MigrateOldHourOverageSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     new_subscription_id: Annotated[String | None, Field(alias="newSubscriptionID")] = (
         None
@@ -3021,7 +3021,7 @@ class MigrateOldHourOverageSubscriptionPayload(Base):
     ] = "MigrateOldHourOverageSubscriptionPayload"
 
 
-class MigrateOldStorageSubscriptionPayload(Base):
+class MigrateOldStorageSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     new_subscription_id: Annotated[String | None, Field(alias="newSubscriptionID")] = (
         None
@@ -3035,7 +3035,7 @@ class MigrateOldStorageSubscriptionPayload(Base):
     ] = "MigrateOldStorageSubscriptionPayload"
 
 
-class ModifyRunsPayload(Base):
+class ModifyRunsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     runs: list[Run | None]
     runs_sql: Annotated[list[Run | None], Field(alias="runsSQL")]
@@ -3057,7 +3057,7 @@ class MoveArtifactAliasAction(ArtifactAction):
     ] = "MoveArtifactAliasAction"
 
 
-class MoveArtifactCollectionPayload(Base):
+class MoveArtifactCollectionPayload(GQLBase):
     artifact_collection: Annotated[
         ArtifactCollection | None, Field(alias="artifactCollection")
     ] = None
@@ -3067,7 +3067,7 @@ class MoveArtifactCollectionPayload(Base):
     ] = "MoveArtifactCollectionPayload"
 
 
-class MoveProjectsPayload(Base):
+class MoveProjectsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     tasks: list[Task]
     typename__: Annotated[
@@ -3075,7 +3075,7 @@ class MoveProjectsPayload(Base):
     ] = "MoveProjectsPayload"
 
 
-class MoveRunsPayload(Base):
+class MoveRunsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     task: Task
     typename__: Annotated[
@@ -3083,7 +3083,7 @@ class MoveRunsPayload(Base):
     ] = "MoveRunsPayload"
 
 
-class MoveViewPayload(Base):
+class MoveViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -3091,7 +3091,7 @@ class MoveViewPayload(Base):
     ] = "MoveViewPayload"
 
 
-class NewsletterSubscription(Base):
+class NewsletterSubscription(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     email: String | None = None
     id: ID
@@ -3101,14 +3101,14 @@ class NewsletterSubscription(Base):
     ] = "NewsletterSubscription"
 
 
-class NewsletterSubscriptionConnection(Base):
+class NewsletterSubscriptionConnection(GQLBase):
     edges: list[NewsletterSubscriptionEdge]
     typename__: Annotated[
         Literal["NewsletterSubscriptionConnection"] | None, Field(alias="__typename")
     ] = "NewsletterSubscriptionConnection"
 
 
-class NewsletterSubscriptionEdge(Base):
+class NewsletterSubscriptionEdge(GQLBase):
     cursor: String
     node: NewsletterSubscription | None = None
     typename__: Annotated[
@@ -3116,7 +3116,7 @@ class NewsletterSubscriptionEdge(Base):
     ] = "NewsletterSubscriptionEdge"
 
 
-class NotificationTriggeredAction(Base):
+class NotificationTriggeredAction(GQLBase):
     integration: Integration
     message: String | None = None
     severity: AlertSeverity | None = None
@@ -3126,7 +3126,7 @@ class NotificationTriggeredAction(Base):
     ] = "NotificationTriggeredAction"
 
 
-class NotifyScriptableRunAlertPayload(Base):
+class NotifyScriptableRunAlertPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -3134,7 +3134,7 @@ class NotifyScriptableRunAlertPayload(Base):
     ] = "NotifyScriptableRunAlertPayload"
 
 
-class OAuthClient(Base):
+class OAuthClient(GQLBase):
     id: String
     subject: String
     typename__: Annotated[Literal["OAuthClient"] | None, Field(alias="__typename")] = (
@@ -3142,7 +3142,7 @@ class OAuthClient(Base):
     )
 
 
-class OAuthProvider(Base):
+class OAuthProvider(GQLBase):
     id: ID
     issuer_url: Annotated[String, Field(alias="issuerUrl")]
     typename__: Annotated[
@@ -3203,7 +3203,7 @@ class Organization(Node):
     )
 
 
-class OrganizationConnection(Base):
+class OrganizationConnection(GQLBase):
     edges: list[OrganizationEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -3211,7 +3211,7 @@ class OrganizationConnection(Base):
     ] = "OrganizationConnection"
 
 
-class OrganizationDataForFailedPaymentBanner(Base):
+class OrganizationDataForFailedPaymentBanner(GQLBase):
     billing_email: Annotated[String, Field(alias="billingEmail")]
     days_until_cancellation: Annotated[Int, Field(alias="daysUntilCancellation")]
     id: ID
@@ -3225,7 +3225,7 @@ class OrganizationDataForFailedPaymentBanner(Base):
     ] = "OrganizationDataForFailedPaymentBanner"
 
 
-class OrganizationEdge(Base):
+class OrganizationEdge(GQLBase):
     cursor: String
     node: Organization
     typename__: Annotated[
@@ -3233,7 +3233,7 @@ class OrganizationEdge(Base):
     ] = "OrganizationEdge"
 
 
-class OrganizationMember(Base):
+class OrganizationMember(GQLBase):
     admin: Boolean
     email: String
     id: String
@@ -3249,7 +3249,7 @@ class OrganizationMember(Base):
     ] = "OrganizationMember"
 
 
-class OrganizationSeatAvailability(Base):
+class OrganizationSeatAvailability(GQLBase):
     expires_at: Annotated[DateTime | None, Field(alias="expiresAt")] = None
     seats: Int
     view_only_seats: Annotated[Int, Field(alias="viewOnlySeats")]
@@ -3258,7 +3258,7 @@ class OrganizationSeatAvailability(Base):
     ] = "OrganizationSeatAvailability"
 
 
-class OrganizationSubscription(Base):
+class OrganizationSubscription(GQLBase):
     available_seats_to_purchase: Annotated[Int, Field(alias="availableSeatsToPurchase")]
     billing_period_end: Annotated[DateTime | None, Field(alias="billingPeriodEnd")] = (
         None
@@ -3291,7 +3291,7 @@ class OrganizationSubscription(Base):
     ] = "OrganizationSubscription"
 
 
-class OrganizationUsage(Base):
+class OrganizationUsage(GQLBase):
     end: DateTime
     entity_name: Annotated[String, Field(alias="entityName")]
     project_name: Annotated[String, Field(alias="projectName")]
@@ -3302,7 +3302,7 @@ class OrganizationUsage(Base):
     ] = "OrganizationUsage"
 
 
-class PageInfo(Base):
+class PageInfo(GQLBase):
     end_cursor: Annotated[String | None, Field(alias="endCursor")] = None
     has_next_page: Annotated[Boolean, Field(alias="hasNextPage")]
     has_previous_page: Annotated[Boolean, Field(alias="hasPreviousPage")]
@@ -3312,7 +3312,7 @@ class PageInfo(Base):
     )
 
 
-class ParquetHistory(Base):
+class ParquetHistory(GQLBase):
     live_data: Annotated[list[JSON], Field(alias="liveData")]
     parquet_urls: Annotated[list[String], Field(alias="parquetUrls")]
     typename__: Annotated[
@@ -3320,7 +3320,7 @@ class ParquetHistory(Base):
     ] = "ParquetHistory"
 
 
-class PaymentMetadata(Base):
+class PaymentMetadata(GQLBase):
     org_name: Annotated[String | None, Field(alias="orgName")] = None
     should_upgrade_to_teams: Annotated[
         Boolean | None, Field(alias="shouldUpgradeToTeams")
@@ -3331,7 +3331,7 @@ class PaymentMetadata(Base):
     ] = "PaymentMetadata"
 
 
-class PaymentMethod(Base):
+class PaymentMethod(GQLBase):
     card_type: Annotated[String | None, Field(alias="cardType")] = None
     ending_in: Annotated[String | None, Field(alias="endingIn")] = None
     id: ID
@@ -3341,7 +3341,7 @@ class PaymentMethod(Base):
     ] = "PaymentMethod"
 
 
-class Plan(Base):
+class Plan(GQLBase):
     billing_interval: Annotated[String | None, Field(alias="billingInterval")] = None
     default_privileges: Annotated[JSON, Field(alias="defaultPrivileges")]
     display_name: Annotated[String, Field(alias="displayName")]
@@ -3356,7 +3356,7 @@ class Plan(Base):
     typename__: Annotated[Literal["Plan"] | None, Field(alias="__typename")] = "Plan"
 
 
-class PopFromRunQueuePayload(Base):
+class PopFromRunQueuePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     run_queue_item_id: Annotated[ID | None, Field(alias="runQueueItemId")] = None
     run_spec: Annotated[JSON | None, Field(alias="runSpec")] = None
@@ -3365,7 +3365,7 @@ class PopFromRunQueuePayload(Base):
     ] = "PopFromRunQueuePayload"
 
 
-class PreviewFriendlyURL(Base):
+class PreviewFriendlyURL(GQLBase):
     url: Annotated[String, Field(alias="URL")]
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     id: ID
@@ -3376,7 +3376,7 @@ class PreviewFriendlyURL(Base):
     ] = "PreviewFriendlyURL"
 
 
-class PreviewableLink(Base):
+class PreviewableLink(GQLBase):
     url: Annotated[String, Field(alias="URL")]
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     id: ID
@@ -3490,7 +3490,7 @@ class Project(Node):
     )
 
 
-class ProjectConnection(Base):
+class ProjectConnection(GQLBase):
     edges: list[ProjectEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -3498,7 +3498,7 @@ class ProjectConnection(Base):
     ] = "ProjectConnection"
 
 
-class ProjectEdge(Base):
+class ProjectEdge(GQLBase):
     cursor: String
     node: Project | None = None
     typename__: Annotated[Literal["ProjectEdge"] | None, Field(alias="__typename")] = (
@@ -3506,7 +3506,7 @@ class ProjectEdge(Base):
     )
 
 
-class ProjectField(Base):
+class ProjectField(GQLBase):
     path: String
     type: String
     typename__: Annotated[Literal["ProjectField"] | None, Field(alias="__typename")] = (
@@ -3514,7 +3514,7 @@ class ProjectField(Base):
     )
 
 
-class ProjectFieldConnection(Base):
+class ProjectFieldConnection(GQLBase):
     edges: list[ProjectFieldEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -3522,7 +3522,7 @@ class ProjectFieldConnection(Base):
     ] = "ProjectFieldConnection"
 
 
-class ProjectFieldEdge(Base):
+class ProjectFieldEdge(GQLBase):
     cursor: String
     node: ProjectField
     typename__: Annotated[
@@ -3530,7 +3530,7 @@ class ProjectFieldEdge(Base):
     ] = "ProjectFieldEdge"
 
 
-class ProjectMember(Base):
+class ProjectMember(GQLBase):
     account_type: Annotated[String, Field(alias="accountType")]
     email: String | None = None
     id: ID
@@ -3562,7 +3562,7 @@ class ProjectStorageNode(StorageTreeNode):
     ] = "ProjectStorageNode"
 
 
-class ProjectStorageNodeConnection(Base):
+class ProjectStorageNodeConnection(GQLBase):
     edges: list[ProjectStorageNodeEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_size: Annotated[Int64, Field(alias="totalSize")]
@@ -3571,7 +3571,7 @@ class ProjectStorageNodeConnection(Base):
     ] = "ProjectStorageNodeConnection"
 
 
-class ProjectStorageNodeEdge(Base):
+class ProjectStorageNodeEdge(GQLBase):
     cursor: String
     node: ProjectStorageNode
     typename__: Annotated[
@@ -3579,7 +3579,7 @@ class ProjectStorageNodeEdge(Base):
     ] = "ProjectStorageNodeEdge"
 
 
-class PublicImageUploadInfo(Base):
+class PublicImageUploadInfo(GQLBase):
     image_url: Annotated[String, Field(alias="imageUrl")]
     upload_headers: Annotated[list[String], Field(alias="uploadHeaders")]
     upload_url: Annotated[String, Field(alias="uploadUrl")]
@@ -3588,7 +3588,7 @@ class PublicImageUploadInfo(Base):
     ] = "PublicImageUploadInfo"
 
 
-class PublishBenchmarkRunPayload(Base):
+class PublishBenchmarkRunPayload(GQLBase):
     benchmark_run: Annotated[BenchmarkRun, Field(alias="benchmarkRun")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -3596,7 +3596,7 @@ class PublishBenchmarkRunPayload(Base):
     ] = "PublishBenchmarkRunPayload"
 
 
-class PurgeUserPayload(Base):
+class PurgeUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -3604,7 +3604,7 @@ class PurgeUserPayload(Base):
     ] = "PurgeUserPayload"
 
 
-class PushToRunQueueByNamePayload(Base):
+class PushToRunQueueByNamePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     run_queue_item_id: Annotated[ID, Field(alias="runQueueItemId")]
     run_spec: Annotated[JSONString, Field(alias="runSpec")]
@@ -3613,7 +3613,7 @@ class PushToRunQueueByNamePayload(Base):
     ] = "PushToRunQueueByNamePayload"
 
 
-class PushToRunQueuePayload(Base):
+class PushToRunQueuePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     run_queue_item_id: Annotated[ID, Field(alias="runQueueItemId")]
     run_spec: Annotated[JSONString, Field(alias="runSpec")]
@@ -3622,7 +3622,7 @@ class PushToRunQueuePayload(Base):
     ] = "PushToRunQueuePayload"
 
 
-class QueueJobTriggeredAction(Base):
+class QueueJobTriggeredAction(GQLBase):
     queue: RunQueue | None = None
     template: JSONString
     typename__: Annotated[
@@ -3630,7 +3630,7 @@ class QueueJobTriggeredAction(Base):
     ] = "QueueJobTriggeredAction"
 
 
-class RampManager(Base):
+class RampManager(GQLBase):
     setting: RampSettingEdge | None = None
     settings: RampSettingConnection
     typename__: Annotated[Literal["RampManager"] | None, Field(alias="__typename")] = (
@@ -3638,14 +3638,14 @@ class RampManager(Base):
     )
 
 
-class RampSettingConnection(Base):
+class RampSettingConnection(GQLBase):
     edges: list[RampSettingEdge]
     typename__: Annotated[
         Literal["RampSettingConnection"] | None, Field(alias="__typename")
     ] = "RampSettingConnection"
 
 
-class RampSettingEdge(Base):
+class RampSettingEdge(GQLBase):
     description: String
     group: String
     id_is_ramped: Annotated[Boolean, Field(alias="idIsRamped")]
@@ -3658,7 +3658,7 @@ class RampSettingEdge(Base):
     ] = "RampSettingEdge"
 
 
-class RampSettingThreshold(Base):
+class RampSettingThreshold(GQLBase):
     check_id: Annotated[String, Field(alias="checkId")]
     display_check_id: Annotated[String, Field(alias="displayCheckID")]
     threshold: Float
@@ -3667,7 +3667,7 @@ class RampSettingThreshold(Base):
     ] = "RampSettingThreshold"
 
 
-class RampThresholdStore(Base):
+class RampThresholdStore(GQLBase):
     name: String
     thresholds: list[RampSettingThreshold]
     typename__: Annotated[
@@ -3675,7 +3675,7 @@ class RampThresholdStore(Base):
     ] = "RampThresholdStore"
 
 
-class RateLimits(Base):
+class RateLimits(GQLBase):
     filestream: Int
     filestream_count: Annotated[Int, Field(alias="filestreamCount")]
     filestream_size: Annotated[Int, Field(alias="filestreamSize")]
@@ -3686,14 +3686,14 @@ class RateLimits(Base):
     )
 
 
-class RemoveProtectedAliasesPayload(Base):
+class RemoveProtectedAliasesPayload(GQLBase):
     aliases: list[String]
     typename__: Annotated[
         Literal["RemoveProtectedAliasesPayload"] | None, Field(alias="__typename")
     ] = "RemoveProtectedAliasesPayload"
 
 
-class RemoveUserFromOrganizationPayload(Base):
+class RemoveUserFromOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -3708,14 +3708,14 @@ class Repo(Node):
     typename__: Annotated[Literal["Repo"] | None, Field(alias="__typename")] = "Repo"
 
 
-class RepoConnection(Base):
+class RepoConnection(GQLBase):
     edges: list[RepoEdge]
     typename__: Annotated[
         Literal["RepoConnection"] | None, Field(alias="__typename")
     ] = "RepoConnection"
 
 
-class RepoEdge(Base):
+class RepoEdge(GQLBase):
     cursor: String
     node: Repo | None = None
     typename__: Annotated[Literal["RepoEdge"] | None, Field(alias="__typename")] = (
@@ -3723,7 +3723,7 @@ class RepoEdge(Base):
     )
 
 
-class RepoInsightsRowConnection(Base):
+class RepoInsightsRowConnection(GQLBase):
     edges: list[RowEdge]
     is_normalized_user_count: Annotated[Boolean, Field(alias="isNormalizedUserCount")]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
@@ -3734,7 +3734,7 @@ class RepoInsightsRowConnection(Base):
     ] = "RepoInsightsRowConnection"
 
 
-class ResendEmailVerificationPayload(Base):
+class ResendEmailVerificationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -3742,14 +3742,14 @@ class ResendEmailVerificationPayload(Base):
     ] = "ResendEmailVerificationPayload"
 
 
-class ResetPasswordPayload(Base):
+class ResetPasswordPayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["ResetPasswordPayload"] | None, Field(alias="__typename")
     ] = "ResetPasswordPayload"
 
 
-class RetryStripeOpenInvoicesByOrganizationPayload(Base):
+class RetryStripeOpenInvoicesByOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -3758,7 +3758,7 @@ class RetryStripeOpenInvoicesByOrganizationPayload(Base):
     ] = "RetryStripeOpenInvoicesByOrganizationPayload"
 
 
-class RevokeAccessTokenEmailPayload(Base):
+class RevokeAccessTokenEmailPayload(GQLBase):
     access_token: Annotated[AccessToken, Field(alias="accessToken")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
@@ -3767,7 +3767,7 @@ class RevokeAccessTokenEmailPayload(Base):
     ] = "RevokeAccessTokenEmailPayload"
 
 
-class RevokeAccessTokenPayload(Base):
+class RevokeAccessTokenPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -3775,7 +3775,7 @@ class RevokeAccessTokenPayload(Base):
     ] = "RevokeAccessTokenPayload"
 
 
-class RevokeClientPayload(Base):
+class RevokeClientPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -3783,7 +3783,7 @@ class RevokeClientPayload(Base):
     ] = "RevokeClientPayload"
 
 
-class RewindRunPayload(Base):
+class RewindRunPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     rewound_run: Annotated[Run | None, Field(alias="rewoundRun")] = None
     typename__: Annotated[
@@ -3791,7 +3791,7 @@ class RewindRunPayload(Base):
     ] = "RewindRunPayload"
 
 
-class Role(Base):
+class Role(GQLBase):
     id: Annotated[ID, Field(alias="ID")]
     description: String | None = None
     inherited_from: Annotated[Role | None, Field(alias="inheritedFrom")] = None
@@ -3800,7 +3800,7 @@ class Role(Base):
     typename__: Annotated[Literal["Role"] | None, Field(alias="__typename")] = "Role"
 
 
-class RolePermission(Base):
+class RolePermission(GQLBase):
     display_name: Annotated[String, Field(alias="displayName")]
     group_name: Annotated[String, Field(alias="groupName")]
     name: String
@@ -3809,7 +3809,7 @@ class RolePermission(Base):
     ] = "RolePermission"
 
 
-class RowConnection(Base):
+class RowConnection(GQLBase):
     edges: list[RowEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     schema_: Annotated[JSON, Field(alias="schema")]
@@ -3819,14 +3819,14 @@ class RowConnection(Base):
     ] = "RowConnection"
 
 
-class RowEdge(Base):
+class RowEdge(GQLBase):
     node: RowType | None = None
     typename__: Annotated[Literal["RowEdge"] | None, Field(alias="__typename")] = (
         "RowEdge"
     )
 
 
-class RowType(Base):
+class RowType(GQLBase):
     row: JSON
     typename__: Annotated[Literal["RowType"] | None, Field(alias="__typename")] = (
         "RowType"
@@ -3926,7 +3926,7 @@ class Run(BucketType, Node):
     typename__: Annotated[Literal["Run"] | None, Field(alias="__typename")] = "Run"
 
 
-class RunBranchPoint(Base):
+class RunBranchPoint(GQLBase):
     run: Run
     step: Int64
     typename__: Annotated[
@@ -3934,7 +3934,7 @@ class RunBranchPoint(Base):
     ] = "RunBranchPoint"
 
 
-class RunConnection(Base):
+class RunConnection(GQLBase):
     delta: list[RunDiff]
     deltas: BucketDiffs | None = None
     edges: list[RunEdge]
@@ -3947,7 +3947,7 @@ class RunConnection(Base):
     ] = "RunConnection"
 
 
-class RunDiff(Base):
+class RunDiff(GQLBase):
     index: Int
     op: DiffOperation
     run: Run | None = None
@@ -3956,7 +3956,7 @@ class RunDiff(Base):
     )
 
 
-class RunEdge(Base):
+class RunEdge(GQLBase):
     cursor: String
     node: Run
     typename__: Annotated[Literal["RunEdge"] | None, Field(alias="__typename")] = (
@@ -3964,14 +3964,14 @@ class RunEdge(Base):
     )
 
 
-class RunFieldValue(Base):
+class RunFieldValue(GQLBase):
     value: JSONString | None = None
     typename__: Annotated[
         Literal["RunFieldValue"] | None, Field(alias="__typename")
     ] = "RunFieldValue"
 
 
-class RunFieldValueConnection(Base):
+class RunFieldValueConnection(GQLBase):
     edges: list[RunFieldValueEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -3979,7 +3979,7 @@ class RunFieldValueConnection(Base):
     ] = "RunFieldValueConnection"
 
 
-class RunFieldValueEdge(Base):
+class RunFieldValueEdge(GQLBase):
     cursor: String
     node: RunFieldValue
     typename__: Annotated[
@@ -3987,7 +3987,7 @@ class RunFieldValueEdge(Base):
     ] = "RunFieldValueEdge"
 
 
-class RunGroup(Base):
+class RunGroup(GQLBase):
     id: ID
     name: String
     notes: String | None = None
@@ -3998,7 +3998,7 @@ class RunGroup(Base):
     )
 
 
-class RunInfo(Base):
+class RunInfo(GQLBase):
     args: list[String]
     code_saved: Annotated[Boolean | None, Field(alias="codeSaved")] = None
     colab: String | None = None
@@ -4016,7 +4016,7 @@ class RunInfo(Base):
     )
 
 
-class RunKeySuggestion(Base):
+class RunKeySuggestion(GQLBase):
     count: Int
     display_value: Annotated[JSONString | None, Field(alias="displayValue")] = None
     value: JSONString | None = None
@@ -4025,7 +4025,7 @@ class RunKeySuggestion(Base):
     ] = "RunKeySuggestion"
 
 
-class RunQueue(Base):
+class RunQueue(GQLBase):
     access: RunQueueAccessType
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     created_by: Annotated[Int | None, Field(alias="createdBy")] = None
@@ -4051,7 +4051,7 @@ class RunQueue(Base):
     )
 
 
-class RunQueueItem(Base):
+class RunQueueItem(GQLBase):
     associated_run_id: Annotated[String | None, Field(alias="associatedRunId")] = None
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     error: RunQueueItemInfoDetails | None = None
@@ -4070,7 +4070,7 @@ class RunQueueItem(Base):
     )
 
 
-class RunQueueItemConnection(Base):
+class RunQueueItemConnection(GQLBase):
     edges: list[RunQueueItemEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -4078,7 +4078,7 @@ class RunQueueItemConnection(Base):
     ] = "RunQueueItemConnection"
 
 
-class RunQueueItemEdge(Base):
+class RunQueueItemEdge(GQLBase):
     cursor: String
     node: RunQueueItem
     typename__: Annotated[
@@ -4095,7 +4095,7 @@ class RunQueueItemInfoDetails(Error):
     ] = "RunQueueItemInfoDetails"
 
 
-class RunServicesAvailable(Base):
+class RunServicesAvailable(GQLBase):
     tensorboard: Boolean | None = None
     typename__: Annotated[
         Literal["RunServicesAvailable"] | None, Field(alias="__typename")
@@ -4114,7 +4114,7 @@ class RunStorageNode(StorageTreeNode):
     ] = "RunStorageNode"
 
 
-class RunStorageNodeConnection(Base):
+class RunStorageNodeConnection(GQLBase):
     edges: list[RunStorageNodeEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_size: Annotated[Int64, Field(alias="totalSize")]
@@ -4123,7 +4123,7 @@ class RunStorageNodeConnection(Base):
     ] = "RunStorageNodeConnection"
 
 
-class RunStorageNodeEdge(Base):
+class RunStorageNodeEdge(GQLBase):
     cursor: String
     node: RunStorageNode
     typename__: Annotated[
@@ -4131,7 +4131,7 @@ class RunStorageNodeEdge(Base):
     ] = "RunStorageNodeEdge"
 
 
-class RunTag(Base):
+class RunTag(GQLBase):
     color_index: Annotated[Int, Field(alias="colorIndex")]
     id: ID
     name: String
@@ -4140,7 +4140,7 @@ class RunTag(Base):
     )
 
 
-class RunTagConnection(Base):
+class RunTagConnection(GQLBase):
     edges: list[RunTagEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -4148,7 +4148,7 @@ class RunTagConnection(Base):
     ] = "RunTagConnection"
 
 
-class RunTagCount(Base):
+class RunTagCount(GQLBase):
     count: Int
     name: String
     typename__: Annotated[Literal["RunTagCount"] | None, Field(alias="__typename")] = (
@@ -4156,7 +4156,7 @@ class RunTagCount(Base):
     )
 
 
-class RunTagEdge(Base):
+class RunTagEdge(GQLBase):
     cursor: String
     node: RunTag
     typename__: Annotated[Literal["RunTagEdge"] | None, Field(alias="__typename")] = (
@@ -4164,14 +4164,14 @@ class RunTagEdge(Base):
     )
 
 
-class ScriptableRunCondition(Base):
+class ScriptableRunCondition(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["ScriptableRunCondition"] | None, Field(alias="__typename")
     ] = "ScriptableRunCondition"
 
 
-class Secret(Base):
+class Secret(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     entity_id: Annotated[Int, Field(alias="entityId")]
     name: String
@@ -4180,7 +4180,7 @@ class Secret(Base):
     )
 
 
-class SendRequestOrgEmailDomainVerificationPayload(Base):
+class SendRequestOrgEmailDomainVerificationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4189,7 +4189,7 @@ class SendRequestOrgEmailDomainVerificationPayload(Base):
     ] = "SendRequestOrgEmailDomainVerificationPayload"
 
 
-class ServerInfo(Base):
+class ServerInfo(GQLBase):
     action_history_limit: Annotated[Int, Field(alias="actionHistoryLimit")]
     available_bucket_providers: Annotated[
         list[CloudProvider], Field(alias="availableBucketProviders")
@@ -4233,7 +4233,7 @@ class ServerInfo(Base):
     )
 
 
-class SetDismissedBannerPayload(Base):
+class SetDismissedBannerPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4241,7 +4241,7 @@ class SetDismissedBannerPayload(Base):
     ] = "SetDismissedBannerPayload"
 
 
-class SetTagColorPayload(Base):
+class SetTagColorPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     tags: list[RunTag]
     typename__: Annotated[
@@ -4266,7 +4266,7 @@ class SlackIntegration(Integration):
     ] = "SlackIntegration"
 
 
-class StarViewPayload(Base):
+class StarViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     view: View | None = None
     typename__: Annotated[
@@ -4274,7 +4274,7 @@ class StarViewPayload(Base):
     ] = "StarViewPayload"
 
 
-class StargazerConnection(Base):
+class StargazerConnection(GQLBase):
     edges: list[StargazerEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -4282,7 +4282,7 @@ class StargazerConnection(Base):
     ] = "StargazerConnection"
 
 
-class StargazerEdge(Base):
+class StargazerEdge(GQLBase):
     cursor: String
     node: User | None = None
     typename__: Annotated[
@@ -4290,7 +4290,7 @@ class StargazerEdge(Base):
     ] = "StargazerEdge"
 
 
-class StopRunPayload(Base):
+class StopRunPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4298,14 +4298,14 @@ class StopRunPayload(Base):
     ] = "StopRunPayload"
 
 
-class StoppedRunCondition(Base):
+class StoppedRunCondition(GQLBase):
     minimum_run_duration: Annotated[Duration, Field(alias="minimumRunDuration")]
     typename__: Annotated[
         Literal["StoppedRunCondition"] | None, Field(alias="__typename")
     ] = "StoppedRunCondition"
 
 
-class StorageBucketInfo(Base):
+class StorageBucketInfo(GQLBase):
     id: Annotated[ID, Field(alias="ID")]
     aws_external_id: Annotated[String | None, Field(alias="awsExternalID")] = None
     azure_client_id: Annotated[String | None, Field(alias="azureClientID")] = None
@@ -4319,7 +4319,7 @@ class StorageBucketInfo(Base):
     ] = "StorageBucketInfo"
 
 
-class StripeBillingInfo(Base):
+class StripeBillingInfo(GQLBase):
     cancel_at_period_end: Annotated[Boolean, Field(alias="cancelAtPeriodEnd")]
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     current_period_end: Annotated[DateTime, Field(alias="currentPeriodEnd")]
@@ -4336,7 +4336,7 @@ class StripeBillingInfo(Base):
     ] = "StripeBillingInfo"
 
 
-class StripeInvoice(Base):
+class StripeInvoice(GQLBase):
     created: DateTime
     currency: String
     hosted_invoice_url: Annotated[String, Field(alias="hostedInvoiceURL")]
@@ -4350,7 +4350,7 @@ class StripeInvoice(Base):
     ] = "StripeInvoice"
 
 
-class StripePaymentMethod(Base):
+class StripePaymentMethod(GQLBase):
     card: StripePaymentMethodCard
     is_default: Annotated[Boolean, Field(alias="isDefault")]
     is_failed: Annotated[Boolean, Field(alias="isFailed")]
@@ -4361,7 +4361,7 @@ class StripePaymentMethod(Base):
     ] = "StripePaymentMethod"
 
 
-class StripePaymentMethodCard(Base):
+class StripePaymentMethodCard(GQLBase):
     brand: CardBrand
     last4: String
     typename__: Annotated[
@@ -4369,7 +4369,7 @@ class StripePaymentMethodCard(Base):
     ] = "StripePaymentMethodCard"
 
 
-class StripePrice(Base):
+class StripePrice(GQLBase):
     amount: Int64
     currency: String
     interval: String | None = None
@@ -4378,7 +4378,7 @@ class StripePrice(Base):
     )
 
 
-class StripeSubscription(Base):
+class StripeSubscription(GQLBase):
     cancel_at_period_end: Annotated[Boolean, Field(alias="cancelAtPeriodEnd")]
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     current_period_end: Annotated[DateTime, Field(alias="currentPeriodEnd")]
@@ -4391,7 +4391,7 @@ class StripeSubscription(Base):
     ] = "StripeSubscription"
 
 
-class SubmitBenchmarkRunPayload(Base):
+class SubmitBenchmarkRunPayload(GQLBase):
     benchmark_run: Annotated[BenchmarkRun, Field(alias="benchmarkRun")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -4399,7 +4399,7 @@ class SubmitBenchmarkRunPayload(Base):
     ] = "SubmitBenchmarkRunPayload"
 
 
-class SubmitFCNewsPayload(Base):
+class SubmitFCNewsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4435,7 +4435,7 @@ class Sweep(Node):
     typename__: Annotated[Literal["Sweep"] | None, Field(alias="__typename")] = "Sweep"
 
 
-class SweepConnection(Base):
+class SweepConnection(GQLBase):
     edges: list[SweepEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -4443,7 +4443,7 @@ class SweepConnection(Base):
     ] = "SweepConnection"
 
 
-class SweepEdge(Base):
+class SweepEdge(GQLBase):
     cursor: String
     node: Sweep
     typename__: Annotated[Literal["SweepEdge"] | None, Field(alias="__typename")] = (
@@ -4451,7 +4451,7 @@ class SweepEdge(Base):
     )
 
 
-class Tag(Base):
+class Tag(GQLBase):
     attributes: JSONString
     id: ID
     name: String
@@ -4461,7 +4461,7 @@ class Tag(Base):
     typename__: Annotated[Literal["Tag"] | None, Field(alias="__typename")] = "Tag"
 
 
-class TagCategory(Base):
+class TagCategory(GQLBase):
     group: TagGroup
     id: ID
     name: String
@@ -4471,7 +4471,7 @@ class TagCategory(Base):
     )
 
 
-class TagConnection(Base):
+class TagConnection(GQLBase):
     edges: list[TagEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -4479,7 +4479,7 @@ class TagConnection(Base):
     ] = "TagConnection"
 
 
-class TagEdge(Base):
+class TagEdge(GQLBase):
     cursor: String
     node: Tag
     typename__: Annotated[Literal["TagEdge"] | None, Field(alias="__typename")] = (
@@ -4487,7 +4487,7 @@ class TagEdge(Base):
     )
 
 
-class TaggedObjectConnection(Base):
+class TaggedObjectConnection(GQLBase):
     edges: list[TaggedObjectEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -4495,7 +4495,7 @@ class TaggedObjectConnection(Base):
     ] = "TaggedObjectConnection"
 
 
-class TaggedObjectEdge(Base):
+class TaggedObjectEdge(GQLBase):
     cursor: String
     node: TaggedObject
     typename__: Annotated[
@@ -4503,7 +4503,7 @@ class TaggedObjectEdge(Base):
     ] = "TaggedObjectEdge"
 
 
-class Task(Base):
+class Task(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     id: ID
     name: String
@@ -4514,7 +4514,7 @@ class Task(Base):
     typename__: Annotated[Literal["Task"] | None, Field(alias="__typename")] = "Task"
 
 
-class TemplateVariable(Base):
+class TemplateVariable(GQLBase):
     description: String | None = None
     name: String
     schema_: Annotated[JSONString, Field(alias="schema")]
@@ -4523,7 +4523,7 @@ class TemplateVariable(Base):
     ] = "TemplateVariable"
 
 
-class TestGenericWebhookIntegrationPayload(Base):
+class TestGenericWebhookIntegrationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     ok: Boolean
     response: JSONString
@@ -4533,7 +4533,7 @@ class TestGenericWebhookIntegrationPayload(Base):
     ] = "TestGenericWebhookIntegrationPayload"
 
 
-class Trigger(Base):
+class Trigger(GQLBase):
     created_at: Annotated[DateTime, Field(alias="createdAt")]
     created_by: Annotated[User, Field(alias="createdBy")]
     description: String | None = None
@@ -4551,7 +4551,7 @@ class Trigger(Base):
     )
 
 
-class TriggerConnection(Base):
+class TriggerConnection(GQLBase):
     edges: list[TriggerEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -4560,7 +4560,7 @@ class TriggerConnection(Base):
     ] = "TriggerConnection"
 
 
-class TriggerEdge(Base):
+class TriggerEdge(GQLBase):
     cursor: String
     node: Trigger
     typename__: Annotated[Literal["TriggerEdge"] | None, Field(alias="__typename")] = (
@@ -4568,7 +4568,7 @@ class TriggerEdge(Base):
     )
 
 
-class TriggerParquetExportPayload(Base):
+class TriggerParquetExportPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     task: Task
     typename__: Annotated[
@@ -4576,14 +4576,14 @@ class TriggerParquetExportPayload(Base):
     ] = "TriggerParquetExportPayload"
 
 
-class UndeleteRunsPayload(Base):
+class UndeleteRunsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["UndeleteRunsPayload"] | None, Field(alias="__typename")
     ] = "UndeleteRunsPayload"
 
 
-class UndeleteUserPayload(Base):
+class UndeleteUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -4591,7 +4591,7 @@ class UndeleteUserPayload(Base):
     ] = "UndeleteUserPayload"
 
 
-class UnlinkArtifactPayload(Base):
+class UnlinkArtifactPayload(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
@@ -4600,7 +4600,7 @@ class UnlinkArtifactPayload(Base):
     ] = "UnlinkArtifactPayload"
 
 
-class UnstarViewPayload(Base):
+class UnstarViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     view: View | None = None
     typename__: Annotated[
@@ -4608,7 +4608,7 @@ class UnstarViewPayload(Base):
     ] = "UnstarViewPayload"
 
 
-class UpdateAccessTokenPayload(Base):
+class UpdateAccessTokenPayload(GQLBase):
     access_token: Annotated[AccessToken, Field(alias="accessToken")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     recipient_already_on_team: Annotated[
@@ -4621,7 +4621,7 @@ class UpdateAccessTokenPayload(Base):
     ] = "UpdateAccessTokenPayload"
 
 
-class UpdateAccessTokenProjectsPayload(Base):
+class UpdateAccessTokenProjectsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4629,7 +4629,7 @@ class UpdateAccessTokenProjectsPayload(Base):
     ] = "UpdateAccessTokenProjectsPayload"
 
 
-class UpdateAlertPayload(Base):
+class UpdateAlertPayload(GQLBase):
     alert: Alert
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -4655,7 +4655,7 @@ class UpdateArtifactAction(ArtifactAction):
     ] = "UpdateArtifactAction"
 
 
-class UpdateArtifactCollectionPayload(Base):
+class UpdateArtifactCollectionPayload(GQLBase):
     artifact_collection: Annotated[
         ArtifactCollection, Field(alias="artifactCollection")
     ]
@@ -4665,14 +4665,14 @@ class UpdateArtifactCollectionPayload(Base):
     ] = "UpdateArtifactCollectionPayload"
 
 
-class UpdateArtifactEntityTTLPayload(Base):
+class UpdateArtifactEntityTTLPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["UpdateArtifactEntityTTLPayload"] | None, Field(alias="__typename")
     ] = "UpdateArtifactEntityTTLPayload"
 
 
-class UpdateArtifactManifestPayload(Base):
+class UpdateArtifactManifestPayload(GQLBase):
     artifact_manifest: Annotated[ArtifactManifest, Field(alias="artifactManifest")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -4680,7 +4680,7 @@ class UpdateArtifactManifestPayload(Base):
     ] = "UpdateArtifactManifestPayload"
 
 
-class UpdateArtifactPayload(Base):
+class UpdateArtifactPayload(GQLBase):
     artifact: Artifact
     artifact_actions: Annotated[list[ArtifactAction], Field(alias="artifactActions")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -4689,7 +4689,7 @@ class UpdateArtifactPayload(Base):
     ] = "UpdateArtifactPayload"
 
 
-class UpdateArtifactTypePayload(Base):
+class UpdateArtifactTypePayload(GQLBase):
     artifact_type: Annotated[ArtifactType, Field(alias="artifactType")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -4697,7 +4697,7 @@ class UpdateArtifactTypePayload(Base):
     ] = "UpdateArtifactTypePayload"
 
 
-class UpdateBenchmarkRunPayload(Base):
+class UpdateBenchmarkRunPayload(GQLBase):
     benchmark_run: Annotated[BenchmarkRun, Field(alias="benchmarkRun")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -4705,7 +4705,7 @@ class UpdateBenchmarkRunPayload(Base):
     ] = "UpdateBenchmarkRunPayload"
 
 
-class UpdateCustomChartPayload(Base):
+class UpdateCustomChartPayload(GQLBase):
     chart: CustomChart
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -4713,7 +4713,7 @@ class UpdateCustomChartPayload(Base):
     ] = "UpdateCustomChartPayload"
 
 
-class UpdateCustomerDefaultPaymentMethodPayload(Base):
+class UpdateCustomerDefaultPaymentMethodPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -4722,7 +4722,7 @@ class UpdateCustomerDefaultPaymentMethodPayload(Base):
     ] = "UpdateCustomerDefaultPaymentMethodPayload"
 
 
-class UpdateCustomerPaymentMethodPayload(Base):
+class UpdateCustomerPaymentMethodPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -4730,7 +4730,7 @@ class UpdateCustomerPaymentMethodPayload(Base):
     ] = "UpdateCustomerPaymentMethodPayload"
 
 
-class UpdateDefaultResourceConfigPayload(Base):
+class UpdateDefaultResourceConfigPayload(GQLBase):
     default_resource_config_id: Annotated[ID, Field(alias="defaultResourceConfigID")]
     schema_validation_errors: Annotated[
         list[String] | None, Field(alias="schemaValidationErrors")
@@ -4741,7 +4741,7 @@ class UpdateDefaultResourceConfigPayload(Base):
     ] = "UpdateDefaultResourceConfigPayload"
 
 
-class UpdateDiscussionCommentPayload(Base):
+class UpdateDiscussionCommentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_comment: Annotated[DiscussionComment, Field(alias="discussionComment")]
     typename__: Annotated[
@@ -4749,7 +4749,7 @@ class UpdateDiscussionCommentPayload(Base):
     ] = "UpdateDiscussionCommentPayload"
 
 
-class UpdateDiscussionThreadPayload(Base):
+class UpdateDiscussionThreadPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_thread: Annotated[DiscussionThread, Field(alias="discussionThread")]
     typename__: Annotated[
@@ -4757,7 +4757,7 @@ class UpdateDiscussionThreadPayload(Base):
     ] = "UpdateDiscussionThreadPayload"
 
 
-class UpdateEntityPayload(Base):
+class UpdateEntityPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity: Entity | None = None
     typename__: Annotated[
@@ -4765,7 +4765,7 @@ class UpdateEntityPayload(Base):
     ] = "UpdateEntityPayload"
 
 
-class UpdateExperimentPayload(Base):
+class UpdateExperimentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     success: Boolean
@@ -4774,7 +4774,7 @@ class UpdateExperimentPayload(Base):
     ] = "UpdateExperimentPayload"
 
 
-class UpdateGlueTaskPayload(Base):
+class UpdateGlueTaskPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4782,7 +4782,7 @@ class UpdateGlueTaskPayload(Base):
     ] = "UpdateGlueTaskPayload"
 
 
-class UpdateLaunchAgentPayload(Base):
+class UpdateLaunchAgentPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -4790,7 +4790,7 @@ class UpdateLaunchAgentPayload(Base):
     ] = "UpdateLaunchAgentPayload"
 
 
-class UpdateLocalLicensePayload(Base):
+class UpdateLocalLicensePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     local_license: Annotated[LocalLicense, Field(alias="localLicense")]
     typename__: Annotated[
@@ -4798,7 +4798,7 @@ class UpdateLocalLicensePayload(Base):
     ] = "UpdateLocalLicensePayload"
 
 
-class UpdateMemberPayload(Base):
+class UpdateMemberPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     member: Member
     typename__: Annotated[
@@ -4806,7 +4806,7 @@ class UpdateMemberPayload(Base):
     ] = "UpdateMemberPayload"
 
 
-class UpdateOrganizationBillingUserPayload(Base):
+class UpdateOrganizationBillingUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4815,7 +4815,7 @@ class UpdateOrganizationBillingUserPayload(Base):
     ] = "UpdateOrganizationBillingUserPayload"
 
 
-class UpdateOrganizationPayload(Base):
+class UpdateOrganizationPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4823,7 +4823,7 @@ class UpdateOrganizationPayload(Base):
     ] = "UpdateOrganizationPayload"
 
 
-class UpdateOrganizationPrivacySettingsPayload(Base):
+class UpdateOrganizationPrivacySettingsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4832,7 +4832,7 @@ class UpdateOrganizationPrivacySettingsPayload(Base):
     ] = "UpdateOrganizationPrivacySettingsPayload"
 
 
-class UpdateOrganizationSubscriptionPayload(Base):
+class UpdateOrganizationSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4841,7 +4841,7 @@ class UpdateOrganizationSubscriptionPayload(Base):
     ] = "UpdateOrganizationSubscriptionPayload"
 
 
-class UpdateOrganizationSubscriptionSeatsPayload(Base):
+class UpdateOrganizationSubscriptionSeatsPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4850,7 +4850,7 @@ class UpdateOrganizationSubscriptionSeatsPayload(Base):
     ] = "UpdateOrganizationSubscriptionSeatsPayload"
 
 
-class UpdateOrganizationUserPayload(Base):
+class UpdateOrganizationUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4858,7 +4858,7 @@ class UpdateOrganizationUserPayload(Base):
     ] = "UpdateOrganizationUserPayload"
 
 
-class UpdateProjectMemberPayload(Base):
+class UpdateProjectMemberPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4866,7 +4866,7 @@ class UpdateProjectMemberPayload(Base):
     ] = "UpdateProjectMemberPayload"
 
 
-class UpdateRampThresholdPayload(Base):
+class UpdateRampThresholdPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4874,14 +4874,14 @@ class UpdateRampThresholdPayload(Base):
     ] = "UpdateRampThresholdPayload"
 
 
-class UpdateRolePayload(Base):
+class UpdateRolePayload(GQLBase):
     success: Boolean
     typename__: Annotated[
         Literal["UpdateRolePayload"] | None, Field(alias="__typename")
     ] = "UpdateRolePayload"
 
 
-class UpdateRunQueueItemWarningPayload(Base):
+class UpdateRunQueueItemWarningPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -4889,7 +4889,7 @@ class UpdateRunQueueItemWarningPayload(Base):
     ] = "UpdateRunQueueItemWarningPayload"
 
 
-class UpdateRunQueuePayload(Base):
+class UpdateRunQueuePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     queue_id: Annotated[ID | None, Field(alias="queueID")] = None
     success: Boolean | None = None
@@ -4898,7 +4898,7 @@ class UpdateRunQueuePayload(Base):
     ] = "UpdateRunQueuePayload"
 
 
-class UpdateSubscriptionPayload(Base):
+class UpdateSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity: Entity | None = None
     typename__: Annotated[
@@ -4906,7 +4906,7 @@ class UpdateSubscriptionPayload(Base):
     ] = "UpdateSubscriptionPayload"
 
 
-class UpdateTagCategoryPayload(Base):
+class UpdateTagCategoryPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     tag_category: Annotated[TagCategory, Field(alias="tagCategory")]
     typename__: Annotated[
@@ -4914,7 +4914,7 @@ class UpdateTagCategoryPayload(Base):
     ] = "UpdateTagCategoryPayload"
 
 
-class UpdateTagPayload(Base):
+class UpdateTagPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     tag: Tag
     typename__: Annotated[
@@ -4922,7 +4922,7 @@ class UpdateTagPayload(Base):
     ] = "UpdateTagPayload"
 
 
-class UpdateUserEmailPayload(Base):
+class UpdateUserEmailPayload(GQLBase):
     email: Email | None = None
     success: Boolean
     typename__: Annotated[
@@ -4930,7 +4930,7 @@ class UpdateUserEmailPayload(Base):
     ] = "UpdateUserEmailPayload"
 
 
-class UpdateUserPayload(Base):
+class UpdateUserPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -4938,7 +4938,7 @@ class UpdateUserPayload(Base):
     ] = "UpdateUserPayload"
 
 
-class UpdateUserRolePayload(Base):
+class UpdateUserRolePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     user: User | None = None
     typename__: Annotated[
@@ -4946,7 +4946,7 @@ class UpdateUserRolePayload(Base):
     ] = "UpdateUserRolePayload"
 
 
-class UpgradeCustomerSubscriptionPayload(Base):
+class UpgradeCustomerSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationID")]
     subscription: JSON | None = None
@@ -4955,7 +4955,7 @@ class UpgradeCustomerSubscriptionPayload(Base):
     ] = "UpgradeCustomerSubscriptionPayload"
 
 
-class UpgradeTrialSubscriptionPayload(Base):
+class UpgradeTrialSubscriptionPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean
     typename__: Annotated[
@@ -4963,7 +4963,7 @@ class UpgradeTrialSubscriptionPayload(Base):
     ] = "UpgradeTrialSubscriptionPayload"
 
 
-class UploadMultipartUrls(Base):
+class UploadMultipartUrls(GQLBase):
     upload_id: Annotated[String, Field(alias="uploadID")]
     upload_url_parts: Annotated[list[UploadUrlPart], Field(alias="uploadUrlParts")]
     typename__: Annotated[
@@ -4971,7 +4971,7 @@ class UploadMultipartUrls(Base):
     ] = "UploadMultipartUrls"
 
 
-class UploadPanelPayload(Base):
+class UploadPanelPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     panel_image_upload_url: Annotated[String, Field(alias="panelImageUploadUrl")]
     panel_link: Annotated[String, Field(alias="panelLink")]
@@ -4981,7 +4981,7 @@ class UploadPanelPayload(Base):
     ] = "UploadPanelPayload"
 
 
-class UploadUrlPart(Base):
+class UploadUrlPart(GQLBase):
     part_number: Annotated[Int64, Field(alias="partNumber")]
     upload_url: Annotated[String, Field(alias="uploadUrl")]
     typename__: Annotated[
@@ -4989,7 +4989,7 @@ class UploadUrlPart(Base):
     ] = "UploadUrlPart"
 
 
-class UpsertBucketPayload(Base):
+class UpsertBucketPayload(GQLBase):
     bucket: Run | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     inserted: Boolean | None = None
@@ -4999,7 +4999,7 @@ class UpsertBucketPayload(Base):
     ] = "UpsertBucketPayload"
 
 
-class UpsertModelPayload(Base):
+class UpsertModelPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
     inserted: Boolean | None = None
@@ -5010,7 +5010,7 @@ class UpsertModelPayload(Base):
     ] = "UpsertModelPayload"
 
 
-class UpsertRunGroupPayload(Base):
+class UpsertRunGroupPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     group: RunGroup | None = None
     inserted: Boolean | None = None
@@ -5019,7 +5019,7 @@ class UpsertRunGroupPayload(Base):
     ] = "UpsertRunGroupPayload"
 
 
-class UpsertRunQueuePayload(Base):
+class UpsertRunQueuePayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     config_schema_validation_errors: Annotated[
         list[String] | None, Field(alias="configSchemaValidationErrors")
@@ -5030,7 +5030,7 @@ class UpsertRunQueuePayload(Base):
     ] = "UpsertRunQueuePayload"
 
 
-class UpsertSharedViewPayload(Base):
+class UpsertSharedViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     view: View | None = None
     typename__: Annotated[
@@ -5038,7 +5038,7 @@ class UpsertSharedViewPayload(Base):
     ] = "UpsertSharedViewPayload"
 
 
-class UpsertSweepPayload(Base):
+class UpsertSweepPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     config_validation_warnings: Annotated[
         list[String], Field(alias="configValidationWarnings")
@@ -5051,7 +5051,7 @@ class UpsertSweepPayload(Base):
     ] = "UpsertSweepPayload"
 
 
-class UpsertViewPayload(Base):
+class UpsertViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     inserted: Boolean | None = None
     view: View | None = None
@@ -5060,7 +5060,7 @@ class UpsertViewPayload(Base):
     ] = "UpsertViewPayload"
 
 
-class UsageStat(Base):
+class UsageStat(GQLBase):
     date: DateTime | None = None
     stat: Float | None = None
     typename__: Annotated[Literal["UsageStat"] | None, Field(alias="__typename")] = (
@@ -5068,7 +5068,7 @@ class UsageStat(Base):
     )
 
 
-class UsageStatConnection(Base):
+class UsageStatConnection(GQLBase):
     edges: list[UsageStatEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -5076,7 +5076,7 @@ class UsageStatConnection(Base):
     ] = "UsageStatConnection"
 
 
-class UsageStatEdge(Base):
+class UsageStatEdge(GQLBase):
     cursor: String
     node: UsageStat
     typename__: Annotated[
@@ -5094,7 +5094,7 @@ class UseArtifactAction(ArtifactAction):
     ] = "UseArtifactAction"
 
 
-class UseArtifactPayload(Base):
+class UseArtifactPayload(GQLBase):
     artifact: Artifact
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     run: Run
@@ -5170,7 +5170,7 @@ class UserActivityDetails(ActivityDuration):
     ] = "UserActivityDetails"
 
 
-class UserConnection(Base):
+class UserConnection(GQLBase):
     edges: list[UserEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     typename__: Annotated[
@@ -5178,7 +5178,7 @@ class UserConnection(Base):
     ] = "UserConnection"
 
 
-class UserEdge(Base):
+class UserEdge(GQLBase):
     cursor: String
     node: User | None = None
     typename__: Annotated[Literal["UserEdge"] | None, Field(alias="__typename")] = (
@@ -5186,7 +5186,7 @@ class UserEdge(Base):
     )
 
 
-class Variant(Base):
+class Variant(GQLBase):
     allocation: Int
     bucket: Int
     description: String
@@ -5253,7 +5253,7 @@ class View(Node):
     typename__: Annotated[Literal["View"] | None, Field(alias="__typename")] = "View"
 
 
-class ViewConnection(Base):
+class ViewConnection(GQLBase):
     edges: list[ViewEdge]
     page_info: Annotated[PageInfo, Field(alias="pageInfo")]
     total_count: Annotated[Int, Field(alias="totalCount")]
@@ -5262,7 +5262,7 @@ class ViewConnection(Base):
     ] = "ViewConnection"
 
 
-class ViewEdge(Base):
+class ViewEdge(GQLBase):
     cursor: String
     node: View | None = None
     typename__: Annotated[Literal["ViewEdge"] | None, Field(alias="__typename")] = (
@@ -5270,7 +5270,7 @@ class ViewEdge(Base):
     )
 
 
-class ViewViewPayload(Base):
+class ViewViewPayload(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     success: Boolean | None = None
     typename__: Annotated[
@@ -5278,7 +5278,7 @@ class ViewViewPayload(Base):
     ] = "ViewViewPayload"
 
 
-class AckJobSetItemInput(Base):
+class AckJobSetItemInput(GQLBase):
     agent_id: Annotated[ID, Field(alias="agentId")]
     job_set_id: Annotated[ID, Field(alias="jobSetId")]
     job_set_item_id: Annotated[ID, Field(alias="jobSetItemId")]
@@ -5288,7 +5288,7 @@ class AckJobSetItemInput(Base):
     ] = "AckJobSetItemInput"
 
 
-class AckRunQueueItemInput(Base):
+class AckRunQueueItemInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     run_name: Annotated[String, Field(alias="runName")]
     run_queue_item_id: Annotated[ID, Field(alias="runQueueItemId")]
@@ -5297,7 +5297,7 @@ class AckRunQueueItemInput(Base):
     ] = "AckRunQueueItemInput"
 
 
-class AddAliasesInput(Base):
+class AddAliasesInput(GQLBase):
     aliases: list[ArtifactCollectionAliasInput]
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -5306,7 +5306,7 @@ class AddAliasesInput(Base):
     ] = "AddAliasesInput"
 
 
-class AddFilesInput(Base):
+class AddFilesInput(GQLBase):
     bucket_name: Annotated[String | None, Field(alias="bucketName")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
@@ -5318,7 +5318,7 @@ class AddFilesInput(Base):
     ] = "AddFilesInput"
 
 
-class AddProtectedAliasesInput(Base):
+class AddProtectedAliasesInput(GQLBase):
     admin_type: Annotated[WorkflowsAdminType, Field(alias="adminType")]
     aliases: list[String]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
@@ -5328,7 +5328,7 @@ class AddProtectedAliasesInput(Base):
     ] = "AddProtectedAliasesInput"
 
 
-class AddRolePermissionsInput(Base):
+class AddRolePermissionsInput(GQLBase):
     permissions: list[String]
     role_id: Annotated[ID, Field(alias="roleID")]
     typename__: Annotated[
@@ -5336,7 +5336,7 @@ class AddRolePermissionsInput(Base):
     ] = "AddRolePermissionsInput"
 
 
-class AddUserToOrganizationInput(Base):
+class AddUserToOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     teams: list[String] | None = None
@@ -5347,7 +5347,7 @@ class AddUserToOrganizationInput(Base):
     ] = "AddUserToOrganizationInput"
 
 
-class AddWorkflowsAdminInput(Base):
+class AddWorkflowsAdminInput(GQLBase):
     admin_type: Annotated[WorkflowsAdminType, Field(alias="adminType")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5358,7 +5358,7 @@ class AddWorkflowsAdminInput(Base):
     ] = "AddWorkflowsAdminInput"
 
 
-class AgentHeartbeatInput(Base):
+class AgentHeartbeatInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     metrics: JSONString | None = None
@@ -5368,7 +5368,7 @@ class AgentHeartbeatInput(Base):
     ] = "AgentHeartbeatInput"
 
 
-class AggregationKey(Base):
+class AggregationKey(GQLBase):
     aggregation: Aggregation
     key: String
     typename__: Annotated[
@@ -5376,7 +5376,7 @@ class AggregationKey(Base):
     ] = "AggregationKey"
 
 
-class ArtifactAliasInput(Base):
+class ArtifactAliasInput(GQLBase):
     alias: String
     artifact_collection_name: Annotated[String, Field(alias="artifactCollectionName")]
     typename__: Annotated[
@@ -5384,7 +5384,7 @@ class ArtifactAliasInput(Base):
     ] = "ArtifactAliasInput"
 
 
-class ArtifactCollectionAliasInput(Base):
+class ArtifactCollectionAliasInput(GQLBase):
     alias: String
     artifact_collection_name: Annotated[String, Field(alias="artifactCollectionName")]
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5394,7 +5394,7 @@ class ArtifactCollectionAliasInput(Base):
     ] = "ArtifactCollectionAliasInput"
 
 
-class ArtifactTypeInput(Base):
+class ArtifactTypeInput(GQLBase):
     description: String | None = None
     name: String
     typename__: Annotated[
@@ -5402,7 +5402,7 @@ class ArtifactTypeInput(Base):
     ] = "ArtifactTypeInput"
 
 
-class AttachCustomerPaymentMethodInput(Base):
+class AttachCustomerPaymentMethodInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     payment_method: Annotated[String, Field(alias="paymentMethod")]
@@ -5411,7 +5411,7 @@ class AttachCustomerPaymentMethodInput(Base):
     ] = "AttachCustomerPaymentMethodInput"
 
 
-class CancelCustomerSubscriptionInput(Base):
+class CancelCustomerSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -5419,7 +5419,7 @@ class CancelCustomerSubscriptionInput(Base):
     ] = "CancelCustomerSubscriptionInput"
 
 
-class ClaimAnonymousEntityInput(Base):
+class ClaimAnonymousEntityInput(GQLBase):
     anonymous_api_key: Annotated[String, Field(alias="anonymousApiKey")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -5427,7 +5427,7 @@ class ClaimAnonymousEntityInput(Base):
     ] = "ClaimAnonymousEntityInput"
 
 
-class CloneProjectsInput(Base):
+class CloneProjectsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     destination_entity_name: Annotated[String, Field(alias="destinationEntityName")]
     notes: String | None = None
@@ -5439,7 +5439,7 @@ class CloneProjectsInput(Base):
     ] = "CloneProjectsInput"
 
 
-class CommitArtifactInput(Base):
+class CommitArtifactInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -5447,7 +5447,7 @@ class CommitArtifactInput(Base):
     ] = "CommitArtifactInput"
 
 
-class CompleteMultipartUploadArtifactInput(Base):
+class CompleteMultipartUploadArtifactInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     complete_multipart_action: Annotated[
         CompleteMultipartAction, Field(alias="completeMultipartAction")
@@ -5461,21 +5461,21 @@ class CompleteMultipartUploadArtifactInput(Base):
     ] = "CompleteMultipartUploadArtifactInput"
 
 
-class ContactUsForComputeHoursInput(Base):
+class ContactUsForComputeHoursInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["ContactUsForComputeHoursInput"] | None, Field(alias="__typename")
     ] = "ContactUsForComputeHoursInput"
 
 
-class ContactUsForUserLedTrialInput(Base):
+class ContactUsForUserLedTrialInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["ContactUsForUserLedTrialInput"] | None, Field(alias="__typename")
     ] = "ContactUsForUserLedTrialInput"
 
 
-class CopyFileInput(Base):
+class CopyFileInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     id: ID
@@ -5486,7 +5486,7 @@ class CopyFileInput(Base):
     ] = "CopyFileInput"
 
 
-class CreateAWSExternalIDInput(Base):
+class CreateAWSExternalIDInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     organization_id: Annotated[ID | None, Field(alias="organizationID")] = None
     typename__: Annotated[
@@ -5494,7 +5494,7 @@ class CreateAWSExternalIDInput(Base):
     ] = "CreateAWSExternalIDInput"
 
 
-class CreateAcademicOrReverseTrialInput(Base):
+class CreateAcademicOrReverseTrialInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     is_academic: Annotated[Boolean, Field(alias="isAcademic")]
     new_organization_name: Annotated[String, Field(alias="newOrganizationName")]
@@ -5504,7 +5504,7 @@ class CreateAcademicOrReverseTrialInput(Base):
     ] = "CreateAcademicOrReverseTrialInput"
 
 
-class CreateAccessTokenInput(Base):
+class CreateAccessTokenInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String | None = None
     preview_url: Annotated[String | None, Field(alias="previewURL")] = None
@@ -5516,7 +5516,7 @@ class CreateAccessTokenInput(Base):
     ] = "CreateAccessTokenInput"
 
 
-class CreateAgentInput(Base):
+class CreateAgentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     display_name: Annotated[String | None, Field(alias="displayName")] = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
@@ -5528,14 +5528,14 @@ class CreateAgentInput(Base):
     ] = "CreateAgentInput"
 
 
-class CreateAnonymousEntityInput(Base):
+class CreateAnonymousEntityInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
         Literal["CreateAnonymousEntityInput"] | None, Field(alias="__typename")
     ] = "CreateAnonymousEntityInput"
 
 
-class CreateArtifactCollectionTagAssignmentsInput(Base):
+class CreateArtifactCollectionTagAssignmentsInput(GQLBase):
     artifact_collection_name: Annotated[String, Field(alias="artifactCollectionName")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5547,7 +5547,7 @@ class CreateArtifactCollectionTagAssignmentsInput(Base):
     ] = "CreateArtifactCollectionTagAssignmentsInput"
 
 
-class CreateArtifactFileSpecInput(Base):
+class CreateArtifactFileSpecInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     artifact_manifest_id: Annotated[ID | None, Field(alias="artifactManifestID")] = None
     md5: String
@@ -5561,7 +5561,7 @@ class CreateArtifactFileSpecInput(Base):
     ] = "CreateArtifactFileSpecInput"
 
 
-class CreateArtifactFilesInput(Base):
+class CreateArtifactFilesInput(GQLBase):
     artifact_files: Annotated[
         list[CreateArtifactFileSpecInput], Field(alias="artifactFiles")
     ]
@@ -5573,7 +5573,7 @@ class CreateArtifactFilesInput(Base):
     ] = "CreateArtifactFilesInput"
 
 
-class CreateArtifactInput(Base):
+class CreateArtifactInput(GQLBase):
     aliases: list[ArtifactAliasInput] | None = None
     artifact_collection_name: Annotated[
         String | None, Field(alias="artifactCollectionName")
@@ -5607,7 +5607,7 @@ class CreateArtifactInput(Base):
     ] = "CreateArtifactInput"
 
 
-class CreateArtifactManifestInput(Base):
+class CreateArtifactManifestInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     base_artifact_id: Annotated[ID | None, Field(alias="baseArtifactID")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -5622,7 +5622,7 @@ class CreateArtifactManifestInput(Base):
     ] = "CreateArtifactManifestInput"
 
 
-class CreateArtifactPortfolioInput(Base):
+class CreateArtifactPortfolioInput(GQLBase):
     artifact_type_id: Annotated[ID, Field(alias="artifactTypeID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
@@ -5634,7 +5634,7 @@ class CreateArtifactPortfolioInput(Base):
     ] = "CreateArtifactPortfolioInput"
 
 
-class CreateArtifactSequenceInput(Base):
+class CreateArtifactSequenceInput(GQLBase):
     artifact_type_id: Annotated[ID, Field(alias="artifactTypeID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
@@ -5646,7 +5646,7 @@ class CreateArtifactSequenceInput(Base):
     ] = "CreateArtifactSequenceInput"
 
 
-class CreateArtifactTagAssignmentsInput(Base):
+class CreateArtifactTagAssignmentsInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     tags: list[TagInput]
@@ -5655,7 +5655,7 @@ class CreateArtifactTagAssignmentsInput(Base):
     ] = "CreateArtifactTagAssignmentsInput"
 
 
-class CreateArtifactTypeInput(Base):
+class CreateArtifactTypeInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5666,7 +5666,7 @@ class CreateArtifactTypeInput(Base):
     ] = "CreateArtifactTypeInput"
 
 
-class CreateArtifactTypesInput(Base):
+class CreateArtifactTypesInput(GQLBase):
     artifact_types: Annotated[list[ArtifactTypeInput], Field(alias="artifactTypes")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5676,7 +5676,7 @@ class CreateArtifactTypesInput(Base):
     ] = "CreateArtifactTypesInput"
 
 
-class CreateBenchmarkDiscussionCommentInput(Base):
+class CreateBenchmarkDiscussionCommentInput(GQLBase):
     body: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_thread_id: Annotated[ID, Field(alias="discussionThreadID")]
@@ -5687,7 +5687,7 @@ class CreateBenchmarkDiscussionCommentInput(Base):
     ] = "CreateBenchmarkDiscussionCommentInput"
 
 
-class CreateBenchmarkDiscussionThreadInput(Base):
+class CreateBenchmarkDiscussionThreadInput(GQLBase):
     benchmark_entity_name: Annotated[String, Field(alias="benchmarkEntityName")]
     benchmark_project_name: Annotated[String, Field(alias="benchmarkProjectName")]
     body: String | None = None
@@ -5699,7 +5699,7 @@ class CreateBenchmarkDiscussionThreadInput(Base):
     ] = "CreateBenchmarkDiscussionThreadInput"
 
 
-class CreateClientIDMappingInput(Base):
+class CreateClientIDMappingInput(GQLBase):
     client_id: Annotated[ID, Field(alias="clientID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     server_id: Annotated[ID, Field(alias="serverID")]
@@ -5708,7 +5708,7 @@ class CreateClientIDMappingInput(Base):
     ] = "CreateClientIDMappingInput"
 
 
-class CreateClientInput(Base):
+class CreateClientInput(GQLBase):
     entity_name: Annotated[String, Field(alias="entityName")]
     name: String | None = None
     provider_id: Annotated[ID, Field(alias="providerId")]
@@ -5718,7 +5718,7 @@ class CreateClientInput(Base):
     ] = "CreateClientInput"
 
 
-class CreateCustomChartInput(Base):
+class CreateCustomChartInput(GQLBase):
     access: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     display_name: Annotated[String, Field(alias="displayName")]
@@ -5731,7 +5731,7 @@ class CreateCustomChartInput(Base):
     ] = "CreateCustomChartInput"
 
 
-class CreateCustomerSubscriptionInput(Base):
+class CreateCustomerSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     new_organization_name: Annotated[String, Field(alias="newOrganizationName")]
     payment_method: Annotated[String, Field(alias="paymentMethod")]
@@ -5743,7 +5743,7 @@ class CreateCustomerSubscriptionInput(Base):
     ] = "CreateCustomerSubscriptionInput"
 
 
-class CreateCustomerTrialInput(Base):
+class CreateCustomerTrialInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     new_organization_name: Annotated[String, Field(alias="newOrganizationName")]
     plan_id: Annotated[ID, Field(alias="planId")]
@@ -5755,7 +5755,7 @@ class CreateCustomerTrialInput(Base):
     ] = "CreateCustomerTrialInput"
 
 
-class CreateDefaultResourceConfigInput(Base):
+class CreateDefaultResourceConfigInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     config: JSONString
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5769,7 +5769,7 @@ class CreateDefaultResourceConfigInput(Base):
     ] = "CreateDefaultResourceConfigInput"
 
 
-class CreateEmailSubscriptionInput(Base):
+class CreateEmailSubscriptionInput(GQLBase):
     alert_id: Annotated[ID, Field(alias="alertID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -5777,7 +5777,7 @@ class CreateEmailSubscriptionInput(Base):
     ] = "CreateEmailSubscriptionInput"
 
 
-class CreateEntityInput(Base):
+class CreateEntityInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     default_access: Annotated[String | None, Field(alias="defaultAccess")] = None
     default_framework: Annotated[String | None, Field(alias="defaultFramework")] = None
@@ -5788,7 +5788,7 @@ class CreateEntityInput(Base):
     ] = "CreateEntityInput"
 
 
-class CreateExperimentInput(Base):
+class CreateExperimentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     enrollment_period: Annotated[Int, Field(alias="enrollmentPeriod")]
     experiment_type: Annotated[ExperimentType, Field(alias="experimentType")]
@@ -5802,7 +5802,7 @@ class CreateExperimentInput(Base):
     ] = "CreateExperimentInput"
 
 
-class CreateFilterTriggerInput(Base):
+class CreateFilterTriggerInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
     enabled: Boolean
@@ -5824,7 +5824,7 @@ class CreateFilterTriggerInput(Base):
     ] = "CreateFilterTriggerInput"
 
 
-class CreateFinishedRunAlertInput(Base):
+class CreateFinishedRunAlertInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     project_name: Annotated[String | None, Field(alias="projectName")] = None
@@ -5833,7 +5833,7 @@ class CreateFinishedRunAlertInput(Base):
     ] = "CreateFinishedRunAlertInput"
 
 
-class CreateGenericWebhookIntegrationInput(Base):
+class CreateGenericWebhookIntegrationInput(GQLBase):
     access_token_ref: Annotated[String | None, Field(alias="accessTokenRef")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5846,7 +5846,7 @@ class CreateGenericWebhookIntegrationInput(Base):
     ] = "CreateGenericWebhookIntegrationInput"
 
 
-class CreateGitHubOAuthIntegrationInput(Base):
+class CreateGitHubOAuthIntegrationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     code: String
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5857,7 +5857,7 @@ class CreateGitHubOAuthIntegrationInput(Base):
     ] = "CreateGitHubOAuthIntegrationInput"
 
 
-class CreateGlueTaskInput(Base):
+class CreateGlueTaskInput(GQLBase):
     arguments: JSONString
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     name: String
@@ -5870,7 +5870,7 @@ class CreateGlueTaskInput(Base):
     ] = "CreateGlueTaskInput"
 
 
-class CreateHourOverageSubscriptionInput(Base):
+class CreateHourOverageSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -5878,7 +5878,7 @@ class CreateHourOverageSubscriptionInput(Base):
     ] = "CreateHourOverageSubscriptionInput"
 
 
-class CreateInviteInput(Base):
+class CreateInviteInput(GQLBase):
     account_type: Annotated[String | None, Field(alias="accountType")] = None
     add_seat: Annotated[Boolean | None, Field(alias="addSeat")] = None
     admin: Boolean | None = None
@@ -5892,7 +5892,7 @@ class CreateInviteInput(Base):
     ] = "CreateInviteInput"
 
 
-class CreateLaunchAgentInput(Base):
+class CreateLaunchAgentInput(GQLBase):
     agent_config: Annotated[JSONString | None, Field(alias="agentConfig")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -5905,7 +5905,7 @@ class CreateLaunchAgentInput(Base):
     ] = "CreateLaunchAgentInput"
 
 
-class CreateLocalLicenseOrganizationInput(Base):
+class CreateLocalLicenseOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     new_organization_name: Annotated[String, Field(alias="newOrganizationName")]
     typename__: Annotated[
@@ -5913,7 +5913,7 @@ class CreateLocalLicenseOrganizationInput(Base):
     ] = "CreateLocalLicenseOrganizationInput"
 
 
-class CreateNewsletterSubscriptionInput(Base):
+class CreateNewsletterSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String | None = None
     typename__: Annotated[
@@ -5921,7 +5921,7 @@ class CreateNewsletterSubscriptionInput(Base):
     ] = "CreateNewsletterSubscriptionInput"
 
 
-class CreateOAuthProviderInput(Base):
+class CreateOAuthProviderInput(GQLBase):
     issuer_url: Annotated[String, Field(alias="issuerUrl")]
     jwk: JSONString | None = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
@@ -5930,7 +5930,7 @@ class CreateOAuthProviderInput(Base):
     ] = "CreateOAuthProviderInput"
 
 
-class CreatePreviewableLinkInput(Base):
+class CreatePreviewableLinkInput(GQLBase):
     author: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String
@@ -5945,7 +5945,7 @@ class CreatePreviewableLinkInput(Base):
     ] = "CreatePreviewableLinkInput"
 
 
-class CreateProjectMembersInput(Base):
+class CreateProjectMembersInput(GQLBase):
     project_id: Annotated[ID, Field(alias="projectId")]
     user_ids: Annotated[list[ID], Field(alias="userIds")]
     typename__: Annotated[
@@ -5953,7 +5953,7 @@ class CreateProjectMembersInput(Base):
     ] = "CreateProjectMembersInput"
 
 
-class CreateRoleInput(Base):
+class CreateRoleInput(GQLBase):
     description: String | None = None
     inherited_from: Annotated[String, Field(alias="inheritedFrom")]
     name: String
@@ -5964,7 +5964,7 @@ class CreateRoleInput(Base):
     ] = "CreateRoleInput"
 
 
-class CreateRunFilesInput(Base):
+class CreateRunFilesInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     files: list[String]
@@ -5975,7 +5975,7 @@ class CreateRunFilesInput(Base):
     ] = "CreateRunFilesInput"
 
 
-class CreateRunQueueInput(Base):
+class CreateRunQueueInput(GQLBase):
     access: RunQueueAccessType
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     default_resource_config_id: Annotated[
@@ -5992,7 +5992,7 @@ class CreateRunQueueInput(Base):
     ] = "CreateRunQueueInput"
 
 
-class CreateScriptableRunAlertInput(Base):
+class CreateScriptableRunAlertInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     project_name: Annotated[String | None, Field(alias="projectName")] = None
@@ -6001,7 +6001,7 @@ class CreateScriptableRunAlertInput(Base):
     ] = "CreateScriptableRunAlertInput"
 
 
-class CreateServiceAccountInput(Base):
+class CreateServiceAccountInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
@@ -6010,7 +6010,7 @@ class CreateServiceAccountInput(Base):
     ] = "CreateServiceAccountInput"
 
 
-class CreateSlackChannelSubscriptionInput(Base):
+class CreateSlackChannelSubscriptionInput(GQLBase):
     alert_id: Annotated[ID, Field(alias="alertID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     integration_id: Annotated[ID, Field(alias="integrationID")]
@@ -6019,7 +6019,7 @@ class CreateSlackChannelSubscriptionInput(Base):
     ] = "CreateSlackChannelSubscriptionInput"
 
 
-class CreateSlackIntegrationInput(Base):
+class CreateSlackIntegrationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     code: String
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -6029,7 +6029,7 @@ class CreateSlackIntegrationInput(Base):
     ] = "CreateSlackIntegrationInput"
 
 
-class CreateStoppedRunAlertInput(Base):
+class CreateStoppedRunAlertInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     minimum_run_duration: Annotated[Duration, Field(alias="minimumRunDuration")]
@@ -6039,7 +6039,7 @@ class CreateStoppedRunAlertInput(Base):
     ] = "CreateStoppedRunAlertInput"
 
 
-class CreateStorageSubscriptionInput(Base):
+class CreateStorageSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID | None, Field(alias="organizationId")] = None
     payment_method: Annotated[String | None, Field(alias="paymentMethod")] = None
@@ -6051,7 +6051,7 @@ class CreateStorageSubscriptionInput(Base):
     ] = "CreateStorageSubscriptionInput"
 
 
-class CreateTeamInput(Base):
+class CreateTeamInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     default_access: Annotated[String | None, Field(alias="defaultAccess")] = None
     organization_id: Annotated[String | None, Field(alias="organizationId")] = None
@@ -6067,7 +6067,7 @@ class CreateTeamInput(Base):
     ] = "CreateTeamInput"
 
 
-class CreateUserEmailInput(Base):
+class CreateUserEmailInput(GQLBase):
     email: String
     type: EmailType
     typename__: Annotated[
@@ -6075,7 +6075,7 @@ class CreateUserEmailInput(Base):
     ] = "CreateUserEmailInput"
 
 
-class CreateUserInput(Base):
+class CreateUserInput(GQLBase):
     account_type: Annotated[String | None, Field(alias="accountType")] = None
     admin: Boolean | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -6086,7 +6086,7 @@ class CreateUserInput(Base):
     ] = "CreateUserInput"
 
 
-class CreateUserLedTrialInput(Base):
+class CreateUserLedTrialInput(GQLBase):
     allow_join_matching_email_domain: Annotated[
         Boolean | None, Field(alias="allowJoinMatchingEmailDomain")
     ] = None
@@ -6104,7 +6104,7 @@ class CreateUserLedTrialInput(Base):
     ] = "CreateUserLedTrialInput"
 
 
-class CreateViewCommentsAlertSubscriptionInput(Base):
+class CreateViewCommentsAlertSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     view_id: Annotated[ID, Field(alias="viewID")]
     typename__: Annotated[
@@ -6113,7 +6113,7 @@ class CreateViewCommentsAlertSubscriptionInput(Base):
     ] = "CreateViewCommentsAlertSubscriptionInput"
 
 
-class CreateViewDiscussionCommentInput(Base):
+class CreateViewDiscussionCommentInput(GQLBase):
     body: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_thread_id: Annotated[ID | None, Field(alias="discussionThreadID")] = None
@@ -6129,7 +6129,7 @@ class CreateViewDiscussionCommentInput(Base):
     ] = "CreateViewDiscussionCommentInput"
 
 
-class DeleteAlertInput(Base):
+class DeleteAlertInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6137,7 +6137,7 @@ class DeleteAlertInput(Base):
     ] = "DeleteAlertInput"
 
 
-class DeleteAlertSubscriptionInput(Base):
+class DeleteAlertSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6145,7 +6145,7 @@ class DeleteAlertSubscriptionInput(Base):
     ] = "DeleteAlertSubscriptionInput"
 
 
-class DeleteAliasesInput(Base):
+class DeleteAliasesInput(GQLBase):
     aliases: list[ArtifactCollectionAliasInput]
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -6154,7 +6154,7 @@ class DeleteAliasesInput(Base):
     ] = "DeleteAliasesInput"
 
 
-class DeleteApiKeyInput(Base):
+class DeleteApiKeyInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: String | None = None
     typename__: Annotated[
@@ -6162,7 +6162,7 @@ class DeleteApiKeyInput(Base):
     ] = "DeleteApiKeyInput"
 
 
-class DeleteArtifactCollectionTagAssignmentsInput(Base):
+class DeleteArtifactCollectionTagAssignmentsInput(GQLBase):
     artifact_collection_name: Annotated[String, Field(alias="artifactCollectionName")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -6174,7 +6174,7 @@ class DeleteArtifactCollectionTagAssignmentsInput(Base):
     ] = "DeleteArtifactCollectionTagAssignmentsInput"
 
 
-class DeleteArtifactEntityTTLInput(Base):
+class DeleteArtifactEntityTTLInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     typename__: Annotated[
@@ -6182,7 +6182,7 @@ class DeleteArtifactEntityTTLInput(Base):
     ] = "DeleteArtifactEntityTTLInput"
 
 
-class DeleteArtifactInput(Base):
+class DeleteArtifactInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_aliases: Annotated[Boolean | None, Field(alias="deleteAliases")] = False
@@ -6191,7 +6191,7 @@ class DeleteArtifactInput(Base):
     ] = "DeleteArtifactInput"
 
 
-class DeleteArtifactPortfolioInput(Base):
+class DeleteArtifactPortfolioInput(GQLBase):
     artifact_portfolio_id: Annotated[ID, Field(alias="artifactPortfolioID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -6199,7 +6199,7 @@ class DeleteArtifactPortfolioInput(Base):
     ] = "DeleteArtifactPortfolioInput"
 
 
-class DeleteArtifactSequenceInput(Base):
+class DeleteArtifactSequenceInput(GQLBase):
     artifact_sequence_id: Annotated[ID, Field(alias="artifactSequenceID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -6207,7 +6207,7 @@ class DeleteArtifactSequenceInput(Base):
     ] = "DeleteArtifactSequenceInput"
 
 
-class DeleteArtifactTagAssignmentsInput(Base):
+class DeleteArtifactTagAssignmentsInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     tags: list[TagInput]
@@ -6216,7 +6216,7 @@ class DeleteArtifactTagAssignmentsInput(Base):
     ] = "DeleteArtifactTagAssignmentsInput"
 
 
-class DeleteCustomChartInput(Base):
+class DeleteCustomChartInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity: String
     name: String
@@ -6225,7 +6225,7 @@ class DeleteCustomChartInput(Base):
     ] = "DeleteCustomChartInput"
 
 
-class DeleteDefaultResourceConfigsInput(Base):
+class DeleteDefaultResourceConfigsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     default_resource_config_i_ds: Annotated[
         list[ID], Field(alias="defaultResourceConfigIDs")
@@ -6235,7 +6235,7 @@ class DeleteDefaultResourceConfigsInput(Base):
     ] = "DeleteDefaultResourceConfigsInput"
 
 
-class DeleteDiscussionCommentInput(Base):
+class DeleteDiscussionCommentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_thread: Annotated[Boolean | None, Field(alias="deleteThread")] = False
     id: ID
@@ -6244,7 +6244,7 @@ class DeleteDiscussionCommentInput(Base):
     ] = "DeleteDiscussionCommentInput"
 
 
-class DeleteExperimentInput(Base):
+class DeleteExperimentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6252,7 +6252,7 @@ class DeleteExperimentInput(Base):
     ] = "DeleteExperimentInput"
 
 
-class DeleteFilesByRunAndFolderInput(Base):
+class DeleteFilesByRunAndFolderInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     folders: list[String]
     project_id: Annotated[Int, Field(alias="projectId")]
@@ -6262,7 +6262,7 @@ class DeleteFilesByRunAndFolderInput(Base):
     ] = "DeleteFilesByRunAndFolderInput"
 
 
-class DeleteFilesInput(Base):
+class DeleteFilesInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     files: list[ID]
     typename__: Annotated[
@@ -6270,7 +6270,7 @@ class DeleteFilesInput(Base):
     ] = "DeleteFilesInput"
 
 
-class DeleteFromRunQueueInput(Base):
+class DeleteFromRunQueueInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     queue_id: Annotated[ID, Field(alias="queueID")]
     run_queue_item_id: Annotated[ID, Field(alias="runQueueItemId")]
@@ -6279,7 +6279,7 @@ class DeleteFromRunQueueInput(Base):
     ] = "DeleteFromRunQueueInput"
 
 
-class DeleteGlueTaskInput(Base):
+class DeleteGlueTaskInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6287,7 +6287,7 @@ class DeleteGlueTaskInput(Base):
     ] = "DeleteGlueTaskInput"
 
 
-class DeleteIntegrationInput(Base):
+class DeleteIntegrationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6295,7 +6295,7 @@ class DeleteIntegrationInput(Base):
     ] = "DeleteIntegrationInput"
 
 
-class DeleteInviteInput(Base):
+class DeleteInviteInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
     id: String | None = None
@@ -6304,7 +6304,7 @@ class DeleteInviteInput(Base):
     ] = "DeleteInviteInput"
 
 
-class DeleteLaunchAgentsInput(Base):
+class DeleteLaunchAgentsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     launch_agent_ids: Annotated[list[ID], Field(alias="launchAgentIds")]
     typename__: Annotated[
@@ -6312,7 +6312,7 @@ class DeleteLaunchAgentsInput(Base):
     ] = "DeleteLaunchAgentsInput"
 
 
-class DeleteModelInput(Base):
+class DeleteModelInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: String
     typename__: Annotated[
@@ -6320,14 +6320,14 @@ class DeleteModelInput(Base):
     ] = "DeleteModelInput"
 
 
-class DeleteOAuthProviderInput(Base):
+class DeleteOAuthProviderInput(GQLBase):
     provider_id: Annotated[ID, Field(alias="providerId")]
     typename__: Annotated[
         Literal["DeleteOAuthProviderInput"] | None, Field(alias="__typename")
     ] = "DeleteOAuthProviderInput"
 
 
-class DeleteOrganizationInput(Base):
+class DeleteOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -6335,7 +6335,7 @@ class DeleteOrganizationInput(Base):
     ] = "DeleteOrganizationInput"
 
 
-class DeleteOrganizationSubscriptionInput(Base):
+class DeleteOrganizationSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     subscription_id: Annotated[ID, Field(alias="subscriptionID")]
     typename__: Annotated[
@@ -6343,7 +6343,7 @@ class DeleteOrganizationSubscriptionInput(Base):
     ] = "DeleteOrganizationSubscriptionInput"
 
 
-class DeleteProjectMembersInput(Base):
+class DeleteProjectMembersInput(GQLBase):
     project_id: Annotated[ID, Field(alias="projectId")]
     user_ids: Annotated[list[ID], Field(alias="userIds")]
     typename__: Annotated[
@@ -6351,14 +6351,14 @@ class DeleteProjectMembersInput(Base):
     ] = "DeleteProjectMembersInput"
 
 
-class DeleteRoleInput(Base):
+class DeleteRoleInput(GQLBase):
     role_id: Annotated[ID, Field(alias="roleID")]
     typename__: Annotated[
         Literal["DeleteRoleInput"] | None, Field(alias="__typename")
     ] = "DeleteRoleInput"
 
 
-class DeleteRolePermissionsInput(Base):
+class DeleteRolePermissionsInput(GQLBase):
     permissions: list[String]
     role_id: Annotated[ID, Field(alias="roleID")]
     typename__: Annotated[
@@ -6366,7 +6366,7 @@ class DeleteRolePermissionsInput(Base):
     ] = "DeleteRolePermissionsInput"
 
 
-class DeleteRunInput(Base):
+class DeleteRunInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_artifacts: Annotated[Boolean | None, Field(alias="deleteArtifacts")] = False
     id: ID
@@ -6375,7 +6375,7 @@ class DeleteRunInput(Base):
     ] = "DeleteRunInput"
 
 
-class DeleteRunQueuesInput(Base):
+class DeleteRunQueuesInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     queue_i_ds: Annotated[list[ID], Field(alias="queueIDs")]
     typename__: Annotated[
@@ -6383,7 +6383,7 @@ class DeleteRunQueuesInput(Base):
     ] = "DeleteRunQueuesInput"
 
 
-class DeleteRunsInput(Base):
+class DeleteRunsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_artifacts: Annotated[Boolean | None, Field(alias="deleteArtifacts")] = False
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -6394,7 +6394,7 @@ class DeleteRunsInput(Base):
     ] = "DeleteRunsInput"
 
 
-class DeleteSecretInput(Base):
+class DeleteSecretInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     secret_name: Annotated[String, Field(alias="secretName")]
@@ -6403,7 +6403,7 @@ class DeleteSecretInput(Base):
     ] = "DeleteSecretInput"
 
 
-class DeleteSweepInput(Base):
+class DeleteSweepInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_runs: Annotated[Boolean, Field(alias="deleteRuns")]
     id: ID
@@ -6412,7 +6412,7 @@ class DeleteSweepInput(Base):
     ] = "DeleteSweepInput"
 
 
-class DeleteSweepsInput(Base):
+class DeleteSweepsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_runs: Annotated[Boolean, Field(alias="deleteRuns")]
     ids: list[ID]
@@ -6421,7 +6421,7 @@ class DeleteSweepsInput(Base):
     ] = "DeleteSweepsInput"
 
 
-class DeleteTeamInput(Base):
+class DeleteTeamInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     team_name: Annotated[String, Field(alias="teamName")]
     typename__: Annotated[
@@ -6429,7 +6429,7 @@ class DeleteTeamInput(Base):
     ] = "DeleteTeamInput"
 
 
-class DeleteTriggerInput(Base):
+class DeleteTriggerInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     trigger_id: Annotated[ID, Field(alias="triggerID")]
     typename__: Annotated[
@@ -6437,14 +6437,14 @@ class DeleteTriggerInput(Base):
     ] = "DeleteTriggerInput"
 
 
-class DeleteUserEmailInput(Base):
+class DeleteUserEmailInput(GQLBase):
     id: ID
     typename__: Annotated[
         Literal["DeleteUserEmailInput"] | None, Field(alias="__typename")
     ] = "DeleteUserEmailInput"
 
 
-class DeleteUserInput(Base):
+class DeleteUserInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6452,7 +6452,7 @@ class DeleteUserInput(Base):
     ] = "DeleteUserInput"
 
 
-class DeleteViewInput(Base):
+class DeleteViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_drafts: Annotated[Boolean | None, Field(alias="deleteDrafts")] = False
     id: ID | None = None
@@ -6461,7 +6461,7 @@ class DeleteViewInput(Base):
     ] = "DeleteViewInput"
 
 
-class DeleteViewsInput(Base):
+class DeleteViewsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     delete_drafts: Annotated[Boolean | None, Field(alias="deleteDrafts")] = False
     ids: list[ID]
@@ -6470,7 +6470,7 @@ class DeleteViewsInput(Base):
     ] = "DeleteViewsInput"
 
 
-class DeleteWorkflowsAdminInput(Base):
+class DeleteWorkflowsAdminInput(GQLBase):
     admin_type: Annotated[WorkflowsAdminType, Field(alias="adminType")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -6481,7 +6481,7 @@ class DeleteWorkflowsAdminInput(Base):
     ] = "DeleteWorkflowsAdminInput"
 
 
-class DetachCustomerPaymentMethodInput(Base):
+class DetachCustomerPaymentMethodInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     payment_method: Annotated[String, Field(alias="paymentMethod")]
@@ -6490,7 +6490,7 @@ class DetachCustomerPaymentMethodInput(Base):
     ] = "DetachCustomerPaymentMethodInput"
 
 
-class DisableGlueTaskInput(Base):
+class DisableGlueTaskInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6498,7 +6498,7 @@ class DisableGlueTaskInput(Base):
     ] = "DisableGlueTaskInput"
 
 
-class DisableOldTrackingSubscriptionInput(Base):
+class DisableOldTrackingSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -6506,7 +6506,7 @@ class DisableOldTrackingSubscriptionInput(Base):
     ] = "DisableOldTrackingSubscriptionInput"
 
 
-class EnableGlueTaskInput(Base):
+class EnableGlueTaskInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -6514,7 +6514,7 @@ class EnableGlueTaskInput(Base):
     ] = "EnableGlueTaskInput"
 
 
-class EntitySettingsInput(Base):
+class EntitySettingsInput(GQLBase):
     default_cloud_region_id: Annotated[
         String | None, Field(alias="defaultCloudRegionID")
     ] = None
@@ -6542,7 +6542,7 @@ class EntitySettingsInput(Base):
     ] = "EntitySettingsInput"
 
 
-class FailRunQueueItemInput(Base):
+class FailRunQueueItemInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     file_paths: Annotated[list[String] | None, Field(alias="filePaths")] = None
     info: JSONString | None = None
@@ -6554,21 +6554,21 @@ class FailRunQueueItemInput(Base):
     ] = "FailRunQueueItemInput"
 
 
-class ForceCleanArtifactStorageStatsInput(Base):
+class ForceCleanArtifactStorageStatsInput(GQLBase):
     artifact_collection_i_ds: Annotated[list[ID], Field(alias="artifactCollectionIDs")]
     typename__: Annotated[
         Literal["ForceCleanArtifactStorageStatsInput"] | None, Field(alias="__typename")
     ] = "ForceCleanArtifactStorageStatsInput"
 
 
-class ForceCleanRunStorageStatsInput(Base):
+class ForceCleanRunStorageStatsInput(GQLBase):
     project_i_ds: Annotated[list[Int], Field(alias="projectIDs")]
     typename__: Annotated[
         Literal["ForceCleanRunStorageStatsInput"] | None, Field(alias="__typename")
     ] = "ForceCleanRunStorageStatsInput"
 
 
-class GenerateApiKeyInput(Base):
+class GenerateApiKeyInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
     typename__: Annotated[
@@ -6576,7 +6576,7 @@ class GenerateApiKeyInput(Base):
     ] = "GenerateApiKeyInput"
 
 
-class GenerateLocalLicenseInput(Base):
+class GenerateLocalLicenseInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     contact_email: Annotated[String, Field(alias="contactEmail")]
     customer_name: Annotated[String, Field(alias="customerName")]
@@ -6591,7 +6591,7 @@ class GenerateLocalLicenseInput(Base):
     ] = "GenerateLocalLicenseInput"
 
 
-class GenericWebhookActionInput(Base):
+class GenericWebhookActionInput(GQLBase):
     integration_id: Annotated[ID, Field(alias="integrationID")]
     request_payload: Annotated[JSONString | None, Field(alias="requestPayload")] = None
     typename__: Annotated[
@@ -6599,7 +6599,7 @@ class GenericWebhookActionInput(Base):
     ] = "GenericWebhookActionInput"
 
 
-class GroupAggregation(Base):
+class GroupAggregation(GQLBase):
     custom: list[AggregationKey]
     default: Aggregation
     typename__: Annotated[
@@ -6607,7 +6607,7 @@ class GroupAggregation(Base):
     ] = "GroupAggregation"
 
 
-class HubSettingsInput(Base):
+class HubSettingsInput(GQLBase):
     disk: String | None = None
     docker_enabled: Annotated[Boolean | None, Field(alias="dockerEnabled")] = None
     image: String | None = None
@@ -6618,7 +6618,7 @@ class HubSettingsInput(Base):
     ] = "HubSettingsInput"
 
 
-class InsertGalleryDiscussionInput(Base):
+class InsertGalleryDiscussionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     report_id: Annotated[ID, Field(alias="reportID")]
     send_email: Annotated[Boolean | None, Field(alias="sendEmail")] = None
@@ -6628,7 +6628,7 @@ class InsertGalleryDiscussionInput(Base):
     ] = "InsertGalleryDiscussionInput"
 
 
-class InsertSecretInput(Base):
+class InsertSecretInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     secret_name: Annotated[String, Field(alias="secretName")]
@@ -6638,7 +6638,7 @@ class InsertSecretInput(Base):
     ] = "InsertSecretInput"
 
 
-class JobSetSelectorInput(Base):
+class JobSetSelectorInput(GQLBase):
     entity_name: Annotated[String, Field(alias="entityName")]
     job_set_name: Annotated[String, Field(alias="jobSetName")]
     project_name: Annotated[String | None, Field(alias="projectName")] = None
@@ -6647,7 +6647,7 @@ class JobSetSelectorInput(Base):
     ] = "JobSetSelectorInput"
 
 
-class LeaseJobSetItemInput(Base):
+class LeaseJobSetItemInput(GQLBase):
     agent_id: Annotated[ID, Field(alias="agentId")]
     job_set_id: Annotated[ID, Field(alias="jobSetId")]
     job_set_item_id: Annotated[ID, Field(alias="jobSetItemId")]
@@ -6656,7 +6656,7 @@ class LeaseJobSetItemInput(Base):
     ] = "LeaseJobSetItemInput"
 
 
-class LinkArtifactInput(Base):
+class LinkArtifactInput(GQLBase):
     aliases: list[ArtifactAliasInput] | None = None
     artifact_id: Annotated[ID | None, Field(alias="artifactID")] = None
     artifact_portfolio_id: Annotated[ID | None, Field(alias="artifactPortfolioID")] = (
@@ -6674,7 +6674,7 @@ class LinkArtifactInput(Base):
     ] = "LinkArtifactInput"
 
 
-class LinkTeamToOrganizationInput(Base):
+class LinkTeamToOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     organization_id: Annotated[ID, Field(alias="organizationID")]
@@ -6683,7 +6683,7 @@ class LinkTeamToOrganizationInput(Base):
     ] = "LinkTeamToOrganizationInput"
 
 
-class MigrateOldHourOverageSubscriptionInput(Base):
+class MigrateOldHourOverageSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -6692,7 +6692,7 @@ class MigrateOldHourOverageSubscriptionInput(Base):
     ] = "MigrateOldHourOverageSubscriptionInput"
 
 
-class MigrateOldStorageSubscriptionInput(Base):
+class MigrateOldStorageSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -6700,7 +6700,7 @@ class MigrateOldStorageSubscriptionInput(Base):
     ] = "MigrateOldStorageSubscriptionInput"
 
 
-class ModifyRunsInput(Base):
+class ModifyRunsInput(GQLBase):
     add_tags: Annotated[list[String | None] | None, Field(alias="addTags")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
@@ -6713,7 +6713,7 @@ class ModifyRunsInput(Base):
     ] = "ModifyRunsInput"
 
 
-class MoveArtifactSequenceInput(Base):
+class MoveArtifactSequenceInput(GQLBase):
     artifact_sequence_id: Annotated[ID, Field(alias="artifactSequenceID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     destination_artifact_type_name: Annotated[
@@ -6724,7 +6724,7 @@ class MoveArtifactSequenceInput(Base):
     ] = "MoveArtifactSequenceInput"
 
 
-class MoveProjectsInput(Base):
+class MoveProjectsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     destination_entity_name: Annotated[String, Field(alias="destinationEntityName")]
     notes: String | None = None
@@ -6736,7 +6736,7 @@ class MoveProjectsInput(Base):
     ] = "MoveProjectsInput"
 
 
-class MoveRunsInput(Base):
+class MoveRunsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     destination_entity_name: Annotated[String, Field(alias="destinationEntityName")]
     destination_project_name: Annotated[String, Field(alias="destinationProjectName")]
@@ -6748,7 +6748,7 @@ class MoveRunsInput(Base):
     ] = "MoveRunsInput"
 
 
-class MoveTagCategoryInput(Base):
+class MoveTagCategoryInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     new_entity_name: Annotated[String, Field(alias="newEntityName")]
     old_entity_name: Annotated[String, Field(alias="oldEntityName")]
@@ -6758,7 +6758,7 @@ class MoveTagCategoryInput(Base):
     ] = "MoveTagCategoryInput"
 
 
-class MoveTagInput(Base):
+class MoveTagInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     new_tag_category_name: Annotated[String, Field(alias="newTagCategoryName")]
@@ -6769,7 +6769,7 @@ class MoveTagInput(Base):
     )
 
 
-class MoveViewInput(Base):
+class MoveViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     id: ID
@@ -6779,7 +6779,7 @@ class MoveViewInput(Base):
     ] = "MoveViewInput"
 
 
-class NotificationActionInput(Base):
+class NotificationActionInput(GQLBase):
     integration_id: Annotated[ID, Field(alias="integrationID")]
     message: String | None = None
     severity: AlertSeverity | None = None
@@ -6789,7 +6789,7 @@ class NotificationActionInput(Base):
     ] = "NotificationActionInput"
 
 
-class NotifyScriptableRunAlertInput(Base):
+class NotifyScriptableRunAlertInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     project_name: Annotated[String, Field(alias="projectName")]
@@ -6803,7 +6803,7 @@ class NotifyScriptableRunAlertInput(Base):
     ] = "NotifyScriptableRunAlertInput"
 
 
-class PopFromRunQueueInput(Base):
+class PopFromRunQueueInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     launch_agent_id: Annotated[ID | None, Field(alias="launchAgentId")] = None
@@ -6814,7 +6814,7 @@ class PopFromRunQueueInput(Base):
     ] = "PopFromRunQueueInput"
 
 
-class ProjectIdentifierInput(Base):
+class ProjectIdentifierInput(GQLBase):
     entity_name: Annotated[String | None, Field(alias="EntityName")] = None
     name: Annotated[String | None, Field(alias="Name")] = None
     typename__: Annotated[
@@ -6822,7 +6822,7 @@ class ProjectIdentifierInput(Base):
     ] = "ProjectIdentifierInput"
 
 
-class ProjectSpecifier(Base):
+class ProjectSpecifier(GQLBase):
     entity_name: Annotated[String, Field(alias="entityName")]
     project_name: Annotated[String, Field(alias="projectName")]
     typename__: Annotated[
@@ -6830,7 +6830,7 @@ class ProjectSpecifier(Base):
     ] = "ProjectSpecifier"
 
 
-class PublishBenchmarkRunInput(Base):
+class PublishBenchmarkRunInput(GQLBase):
     benchmark_entity_name: Annotated[
         String | None, Field(alias="benchmarkEntityName")
     ] = None
@@ -6843,7 +6843,7 @@ class PublishBenchmarkRunInput(Base):
     ] = "PublishBenchmarkRunInput"
 
 
-class PurgeUserInput(Base):
+class PurgeUserInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String
     username: String
@@ -6852,7 +6852,7 @@ class PurgeUserInput(Base):
     ] = "PurgeUserInput"
 
 
-class PushToRunQueueByNameInput(Base):
+class PushToRunQueueByNameInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     priority: Int | None = None
@@ -6867,7 +6867,7 @@ class PushToRunQueueByNameInput(Base):
     ] = "PushToRunQueueByNameInput"
 
 
-class PushToRunQueueInput(Base):
+class PushToRunQueueInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     priority: Int | None = None
     queue_id: Annotated[ID, Field(alias="queueID")]
@@ -6880,7 +6880,7 @@ class PushToRunQueueInput(Base):
     ] = "PushToRunQueueInput"
 
 
-class QueryTagInput(Base):
+class QueryTagInput(GQLBase):
     tag_category_name: Annotated[String | None, Field(alias="tagCategoryName")] = None
     tag_name: Annotated[String, Field(alias="tagName")]
     typename__: Annotated[
@@ -6888,7 +6888,7 @@ class QueryTagInput(Base):
     ] = "QueryTagInput"
 
 
-class QueueJobActionInput(Base):
+class QueueJobActionInput(GQLBase):
     queue_id: Annotated[ID, Field(alias="queueID")]
     template: JSONString
     typename__: Annotated[
@@ -6896,7 +6896,7 @@ class QueueJobActionInput(Base):
     ] = "QueueJobActionInput"
 
 
-class RateLimitsInput(Base):
+class RateLimitsInput(GQLBase):
     filestream: Int | None = None
     filestream_count: Annotated[Int | None, Field(alias="filestreamCount")] = None
     filestream_size: Annotated[Int | None, Field(alias="filestreamSize")] = None
@@ -6907,7 +6907,7 @@ class RateLimitsInput(Base):
     ] = "RateLimitsInput"
 
 
-class RemoveProtectedAliasesInput(Base):
+class RemoveProtectedAliasesInput(GQLBase):
     admin_type: Annotated[WorkflowsAdminType, Field(alias="adminType")]
     aliases: list[String]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
@@ -6917,7 +6917,7 @@ class RemoveProtectedAliasesInput(Base):
     ] = "RemoveProtectedAliasesInput"
 
 
-class RemoveUserFromOrganizationInput(Base):
+class RemoveUserFromOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     user_name: Annotated[String, Field(alias="userName")]
@@ -6926,7 +6926,7 @@ class RemoveUserFromOrganizationInput(Base):
     ] = "RemoveUserFromOrganizationInput"
 
 
-class RenameProjectInput(Base):
+class RenameProjectInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     new_project_name: Annotated[String, Field(alias="newProjectName")]
@@ -6936,7 +6936,7 @@ class RenameProjectInput(Base):
     ] = "RenameProjectInput"
 
 
-class ResendEmailVerificationInput(Base):
+class ResendEmailVerificationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String
     typename__: Annotated[
@@ -6944,7 +6944,7 @@ class ResendEmailVerificationInput(Base):
     ] = "ResendEmailVerificationInput"
 
 
-class ResetPasswordInput(Base):
+class ResetPasswordInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String
     typename__: Annotated[
@@ -6952,7 +6952,7 @@ class ResetPasswordInput(Base):
     ] = "ResetPasswordInput"
 
 
-class RetryStripeOpenInvoicesByOrganizationInput(Base):
+class RetryStripeOpenInvoicesByOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     typename__: Annotated[
@@ -6961,7 +6961,7 @@ class RetryStripeOpenInvoicesByOrganizationInput(Base):
     ] = "RetryStripeOpenInvoicesByOrganizationInput"
 
 
-class RevokeAccessTokenEmailInput(Base):
+class RevokeAccessTokenEmailInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String
     token: String
@@ -6970,7 +6970,7 @@ class RevokeAccessTokenEmailInput(Base):
     ] = "RevokeAccessTokenEmailInput"
 
 
-class RevokeAccessTokenInput(Base):
+class RevokeAccessTokenInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     token: String
     typename__: Annotated[
@@ -6978,7 +6978,7 @@ class RevokeAccessTokenInput(Base):
     ] = "RevokeAccessTokenInput"
 
 
-class RevokeClientInput(Base):
+class RevokeClientInput(GQLBase):
     client_id: Annotated[String, Field(alias="clientId")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -6987,7 +6987,7 @@ class RevokeClientInput(Base):
     ] = "RevokeClientInput"
 
 
-class RewindRunInput(Base):
+class RewindRunInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String | None, Field(alias="entityName")] = None
     metric_name: Annotated[String, Field(alias="metricName")]
@@ -6999,7 +6999,7 @@ class RewindRunInput(Base):
     ] = "RewindRunInput"
 
 
-class SendRequestOrgEmailDomainVerificationInput(Base):
+class SendRequestOrgEmailDomainVerificationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationID")]
     typename__: Annotated[
@@ -7008,7 +7008,7 @@ class SendRequestOrgEmailDomainVerificationInput(Base):
     ] = "SendRequestOrgEmailDomainVerificationInput"
 
 
-class SetDismissedBannerInput(Base):
+class SetDismissedBannerInput(GQLBase):
     banner_id: Annotated[ID, Field(alias="bannerID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     typename__: Annotated[
@@ -7016,7 +7016,7 @@ class SetDismissedBannerInput(Base):
     ] = "SetDismissedBannerInput"
 
 
-class SetTagColorInput(Base):
+class SetTagColorInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     color_index: Annotated[Int | None, Field(alias="colorIndex")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -7027,7 +7027,7 @@ class SetTagColorInput(Base):
     ] = "SetTagColorInput"
 
 
-class StarViewInput(Base):
+class StarViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -7035,7 +7035,7 @@ class StarViewInput(Base):
     ] = "StarViewInput"
 
 
-class StartExperimentInput(Base):
+class StartExperimentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -7043,7 +7043,7 @@ class StartExperimentInput(Base):
     ] = "StartExperimentInput"
 
 
-class StopExperimentInput(Base):
+class StopExperimentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -7051,7 +7051,7 @@ class StopExperimentInput(Base):
     ] = "StopExperimentInput"
 
 
-class StopRunInput(Base):
+class StopRunInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[Literal["StopRunInput"] | None, Field(alias="__typename")] = (
@@ -7059,7 +7059,7 @@ class StopRunInput(Base):
     )
 
 
-class StorageBucketInfoInput(Base):
+class StorageBucketInfoInput(GQLBase):
     aws_external_id: Annotated[String | None, Field(alias="awsExternalID")] = None
     azure_client_id: Annotated[String | None, Field(alias="azureClientID")] = None
     azure_tenant_id: Annotated[String | None, Field(alias="azureTenantID")] = None
@@ -7073,7 +7073,7 @@ class StorageBucketInfoInput(Base):
     ] = "StorageBucketInfoInput"
 
 
-class SubmitBenchmarkRunInput(Base):
+class SubmitBenchmarkRunInput(GQLBase):
     benchmark_entity_name: Annotated[
         String | None, Field(alias="benchmarkEntityName")
     ] = None
@@ -7086,7 +7086,7 @@ class SubmitBenchmarkRunInput(Base):
     ] = "SubmitBenchmarkRunInput"
 
 
-class SubmitFCNewsInput(Base):
+class SubmitFCNewsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     details: String | None = None
     email: String
@@ -7097,7 +7097,7 @@ class SubmitFCNewsInput(Base):
     ] = "SubmitFCNewsInput"
 
 
-class TagInput(Base):
+class TagInput(GQLBase):
     attributes: JSONString | None = None
     tag_category_name: Annotated[String | None, Field(alias="tagCategoryName")] = None
     tag_name: Annotated[String, Field(alias="tagName")]
@@ -7106,7 +7106,7 @@ class TagInput(Base):
     )
 
 
-class TestGenericWebhookIntegrationInput(Base):
+class TestGenericWebhookIntegrationInput(GQLBase):
     access_token_ref: Annotated[String | None, Field(alias="accessTokenRef")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -7118,7 +7118,7 @@ class TestGenericWebhookIntegrationInput(Base):
     ] = "TestGenericWebhookIntegrationInput"
 
 
-class TimeWindow(Base):
+class TimeWindow(GQLBase):
     end: DateTime
     start: DateTime
     typename__: Annotated[Literal["TimeWindow"] | None, Field(alias="__typename")] = (
@@ -7126,7 +7126,7 @@ class TimeWindow(Base):
     )
 
 
-class TriggerParquetExportInput(Base):
+class TriggerParquetExportInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     run_id: Annotated[ID, Field(alias="runId")]
     typename__: Annotated[
@@ -7134,7 +7134,7 @@ class TriggerParquetExportInput(Base):
     ] = "TriggerParquetExportInput"
 
 
-class TriggeredActionConfig(Base):
+class TriggeredActionConfig(GQLBase):
     generic_webhook_action_input: Annotated[
         GenericWebhookActionInput | None, Field(alias="genericWebhookActionInput")
     ] = None
@@ -7149,7 +7149,7 @@ class TriggeredActionConfig(Base):
     ] = "TriggeredActionConfig"
 
 
-class UndeleteRunsInput(Base):
+class UndeleteRunsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     filters: JSONString
@@ -7159,7 +7159,7 @@ class UndeleteRunsInput(Base):
     ] = "UndeleteRunsInput"
 
 
-class UndeleteUserInput(Base):
+class UndeleteUserInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -7167,7 +7167,7 @@ class UndeleteUserInput(Base):
     ] = "UndeleteUserInput"
 
 
-class UnlinkArtifactInput(Base):
+class UnlinkArtifactInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     artifact_portfolio_id: Annotated[ID, Field(alias="artifactPortfolioID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -7176,7 +7176,7 @@ class UnlinkArtifactInput(Base):
     ] = "UnlinkArtifactInput"
 
 
-class UnstarViewInput(Base):
+class UnstarViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -7184,7 +7184,7 @@ class UnstarViewInput(Base):
     ] = "UnstarViewInput"
 
 
-class UpdateAccessTokenInput(Base):
+class UpdateAccessTokenInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     email: String | None = None
     preview_url: Annotated[String | None, Field(alias="previewURL")] = None
@@ -7195,7 +7195,7 @@ class UpdateAccessTokenInput(Base):
     ] = "UpdateAccessTokenInput"
 
 
-class UpdateAccessTokenProjectsInput(Base):
+class UpdateAccessTokenProjectsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     projects: list[ProjectSpecifier]
     token: String
@@ -7204,7 +7204,7 @@ class UpdateAccessTokenProjectsInput(Base):
     ] = "UpdateAccessTokenProjectsInput"
 
 
-class UpdateArtifactEntityTTLInput(Base):
+class UpdateArtifactEntityTTLInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     ttl_duration_seconds: Annotated[Int64, Field(alias="ttlDurationSeconds")]
@@ -7213,7 +7213,7 @@ class UpdateArtifactEntityTTLInput(Base):
     ] = "UpdateArtifactEntityTTLInput"
 
 
-class UpdateArtifactInput(Base):
+class UpdateArtifactInput(GQLBase):
     aliases: list[ArtifactAliasInput] | None = None
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -7230,7 +7230,7 @@ class UpdateArtifactInput(Base):
     ] = "UpdateArtifactInput"
 
 
-class UpdateArtifactManifestInput(Base):
+class UpdateArtifactManifestInput(GQLBase):
     artifact_manifest_id: Annotated[ID, Field(alias="artifactManifestID")]
     base_artifact_id: Annotated[ID | None, Field(alias="baseArtifactID")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -7240,7 +7240,7 @@ class UpdateArtifactManifestInput(Base):
     ] = "UpdateArtifactManifestInput"
 
 
-class UpdateArtifactPortfolioInput(Base):
+class UpdateArtifactPortfolioInput(GQLBase):
     artifact_portfolio_id: Annotated[ID, Field(alias="artifactPortfolioID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
@@ -7250,7 +7250,7 @@ class UpdateArtifactPortfolioInput(Base):
     ] = "UpdateArtifactPortfolioInput"
 
 
-class UpdateArtifactSequenceInput(Base):
+class UpdateArtifactSequenceInput(GQLBase):
     artifact_sequence_id: Annotated[ID, Field(alias="artifactSequenceID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
@@ -7260,7 +7260,7 @@ class UpdateArtifactSequenceInput(Base):
     ] = "UpdateArtifactSequenceInput"
 
 
-class UpdateArtifactTypeInput(Base):
+class UpdateArtifactTypeInput(GQLBase):
     artifact_type_id: Annotated[ID, Field(alias="artifactTypeID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
@@ -7269,7 +7269,7 @@ class UpdateArtifactTypeInput(Base):
     ] = "UpdateArtifactTypeInput"
 
 
-class UpdateBenchmarkRunInput(Base):
+class UpdateBenchmarkRunInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     details: JSONString | None = None
     id: ID
@@ -7279,7 +7279,7 @@ class UpdateBenchmarkRunInput(Base):
     ] = "UpdateBenchmarkRunInput"
 
 
-class UpdateCustomChartInput(Base):
+class UpdateCustomChartInput(GQLBase):
     access: String | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     display_name: Annotated[String | None, Field(alias="displayName")] = None
@@ -7292,7 +7292,7 @@ class UpdateCustomChartInput(Base):
     ] = "UpdateCustomChartInput"
 
 
-class UpdateCustomerDefaultPaymentMethodInput(Base):
+class UpdateCustomerDefaultPaymentMethodInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     payment_method: Annotated[String, Field(alias="paymentMethod")]
@@ -7302,7 +7302,7 @@ class UpdateCustomerDefaultPaymentMethodInput(Base):
     ] = "UpdateCustomerDefaultPaymentMethodInput"
 
 
-class UpdateCustomerPaymentMethodInput(Base):
+class UpdateCustomerPaymentMethodInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     payment_method: Annotated[String, Field(alias="paymentMethod")]
@@ -7311,7 +7311,7 @@ class UpdateCustomerPaymentMethodInput(Base):
     ] = "UpdateCustomerPaymentMethodInput"
 
 
-class UpdateDefaultResourceConfigInput(Base):
+class UpdateDefaultResourceConfigInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     config: JSONString
     default_resource_config_id: Annotated[ID, Field(alias="defaultResourceConfigID")]
@@ -7326,7 +7326,7 @@ class UpdateDefaultResourceConfigInput(Base):
     ] = "UpdateDefaultResourceConfigInput"
 
 
-class UpdateDiscussionCommentInput(Base):
+class UpdateDiscussionCommentInput(GQLBase):
     body: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_comment_id: Annotated[ID, Field(alias="discussionCommentID")]
@@ -7339,7 +7339,7 @@ class UpdateDiscussionCommentInput(Base):
     ] = "UpdateDiscussionCommentInput"
 
 
-class UpdateDiscussionThreadInput(Base):
+class UpdateDiscussionThreadInput(GQLBase):
     body: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     discussion_thread_id: Annotated[ID, Field(alias="discussionThreadID")]
@@ -7348,7 +7348,7 @@ class UpdateDiscussionThreadInput(Base):
     ] = "UpdateDiscussionThreadInput"
 
 
-class UpdateEntityInput(Base):
+class UpdateEntityInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     code_saving_enabled: Annotated[Boolean | None, Field(alias="codeSavingEnabled")] = (
         None
@@ -7365,7 +7365,7 @@ class UpdateEntityInput(Base):
     ] = "UpdateEntityInput"
 
 
-class UpdateExperimentInput(Base):
+class UpdateExperimentInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     enrollment_period: Annotated[Int, Field(alias="enrollmentPeriod")]
     experiment_type: Annotated[ExperimentType, Field(alias="experimentType")]
@@ -7380,7 +7380,7 @@ class UpdateExperimentInput(Base):
     ] = "UpdateExperimentInput"
 
 
-class UpdateGenericWebhookIntegrationInput(Base):
+class UpdateGenericWebhookIntegrationInput(GQLBase):
     access_token_ref: Annotated[String | None, Field(alias="accessTokenRef")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
@@ -7393,7 +7393,7 @@ class UpdateGenericWebhookIntegrationInput(Base):
     ] = "UpdateGenericWebhookIntegrationInput"
 
 
-class UpdateGlueTaskInput(Base):
+class UpdateGlueTaskInput(GQLBase):
     arguments: JSONString | None = None
     checkpoint: JSONString | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
@@ -7407,7 +7407,7 @@ class UpdateGlueTaskInput(Base):
     ] = "UpdateGlueTaskInput"
 
 
-class UpdateLaunchAgentInput(Base):
+class UpdateLaunchAgentInput(GQLBase):
     agent_status: Annotated[String | None, Field(alias="agentStatus")] = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     heartbeat_at: Annotated[DateTime | None, Field(alias="heartbeatAt")] = None
@@ -7420,7 +7420,7 @@ class UpdateLaunchAgentInput(Base):
     ] = "UpdateLaunchAgentInput"
 
 
-class UpdateLocalLicenseInput(Base):
+class UpdateLocalLicenseInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     notes: String | None = None
@@ -7429,7 +7429,7 @@ class UpdateLocalLicenseInput(Base):
     ] = "UpdateLocalLicenseInput"
 
 
-class UpdateMemberInput(Base):
+class UpdateMemberInput(GQLBase):
     admin: Boolean | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -7440,7 +7440,7 @@ class UpdateMemberInput(Base):
     ] = "UpdateMemberInput"
 
 
-class UpdateOrganizationBillingUserInput(Base):
+class UpdateOrganizationBillingUserInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     new_billing_user: Annotated[ID, Field(alias="newBillingUser")]
     organization_id: Annotated[ID, Field(alias="organizationId")]
@@ -7449,7 +7449,7 @@ class UpdateOrganizationBillingUserInput(Base):
     ] = "UpdateOrganizationBillingUserInput"
 
 
-class UpdateOrganizationInput(Base):
+class UpdateOrganizationInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     flags: JSONString | None = None
     name: String | None = None
@@ -7459,7 +7459,7 @@ class UpdateOrganizationInput(Base):
     ] = "UpdateOrganizationInput"
 
 
-class UpdateOrganizationPrivacySettingsInput(Base):
+class UpdateOrganizationPrivacySettingsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     code_saving_disabled: Annotated[
         Boolean | None, Field(alias="codeSavingDisabled")
@@ -7482,7 +7482,7 @@ class UpdateOrganizationPrivacySettingsInput(Base):
     ] = "UpdateOrganizationPrivacySettingsInput"
 
 
-class UpdateOrganizationSubscriptionInput(Base):
+class UpdateOrganizationSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     create_stripe_subscription: Annotated[
         Boolean | None, Field(alias="createStripeSubscription")
@@ -7504,7 +7504,7 @@ class UpdateOrganizationSubscriptionInput(Base):
     ] = "UpdateOrganizationSubscriptionInput"
 
 
-class UpdateOrganizationSubscriptionSeatsInput(Base):
+class UpdateOrganizationSubscriptionSeatsInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationID")]
     seats: Int
@@ -7514,7 +7514,7 @@ class UpdateOrganizationSubscriptionSeatsInput(Base):
     ] = "UpdateOrganizationSubscriptionSeatsInput"
 
 
-class UpdateOrganizationUserInput(Base):
+class UpdateOrganizationUserInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationId")]
     user_name: Annotated[String, Field(alias="userName")]
@@ -7524,7 +7524,7 @@ class UpdateOrganizationUserInput(Base):
     ] = "UpdateOrganizationUserInput"
 
 
-class UpdateProjectMemberInput(Base):
+class UpdateProjectMemberInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     project_id: Annotated[ID, Field(alias="projectId")]
     user_id: Annotated[ID, Field(alias="userId")]
@@ -7534,7 +7534,7 @@ class UpdateProjectMemberInput(Base):
     ] = "UpdateProjectMemberInput"
 
 
-class UpdateRampThresholdInput(Base):
+class UpdateRampThresholdInput(GQLBase):
     check_id: Annotated[String, Field(alias="checkId")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     setting: String
@@ -7545,7 +7545,7 @@ class UpdateRampThresholdInput(Base):
     ] = "UpdateRampThresholdInput"
 
 
-class UpdateRoleInput(Base):
+class UpdateRoleInput(GQLBase):
     description: String | None = None
     inherited_from: Annotated[String | None, Field(alias="inheritedFrom")] = None
     name: String | None = None
@@ -7555,7 +7555,7 @@ class UpdateRoleInput(Base):
     ] = "UpdateRoleInput"
 
 
-class UpdateRunQueueInput(Base):
+class UpdateRunQueueInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     default_resource_config_id: Annotated[
         ID | None, Field(alias="defaultResourceConfigID")
@@ -7570,7 +7570,7 @@ class UpdateRunQueueInput(Base):
     ] = "UpdateRunQueueInput"
 
 
-class UpdateRunQueueItemWarningInput(Base):
+class UpdateRunQueueItemWarningInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     file_paths: Annotated[list[String] | None, Field(alias="filePaths")] = None
     message: String
@@ -7581,7 +7581,7 @@ class UpdateRunQueueItemWarningInput(Base):
     ] = "UpdateRunQueueItemWarningInput"
 
 
-class UpdateStoppedRunAlertInput(Base):
+class UpdateStoppedRunAlertInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     minimum_run_duration: Annotated[
@@ -7592,7 +7592,7 @@ class UpdateStoppedRunAlertInput(Base):
     ] = "UpdateStoppedRunAlertInput"
 
 
-class UpdateSubscriptionInput(Base):
+class UpdateSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     gpu_enabled: Annotated[DateTime | None, Field(alias="gpuEnabled")] = None
@@ -7605,7 +7605,7 @@ class UpdateSubscriptionInput(Base):
     ] = "UpdateSubscriptionInput"
 
 
-class UpdateTagCategoryInput(Base):
+class UpdateTagCategoryInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     new_tag_category_name: Annotated[
@@ -7617,7 +7617,7 @@ class UpdateTagCategoryInput(Base):
     ] = "UpdateTagCategoryInput"
 
 
-class UpdateTagInput(Base):
+class UpdateTagInput(GQLBase):
     attributes: JSONString | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationID")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -7629,7 +7629,7 @@ class UpdateTagInput(Base):
     ] = "UpdateTagInput"
 
 
-class UpdateUserEmailInput(Base):
+class UpdateUserEmailInput(GQLBase):
     id: ID
     type: EmailType | None = None
     typename__: Annotated[
@@ -7637,7 +7637,7 @@ class UpdateUserEmailInput(Base):
     ] = "UpdateUserEmailInput"
 
 
-class UpdateUserInput(Base):
+class UpdateUserInput(GQLBase):
     admin: Boolean | None = None
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     code: String | None = None
@@ -7661,7 +7661,7 @@ class UpdateUserInput(Base):
     ] = "UpdateUserInput"
 
 
-class UpdateUserRoleInput(Base):
+class UpdateUserRoleInput(GQLBase):
     account_type: Annotated[String, Field(alias="accountType")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
@@ -7670,7 +7670,7 @@ class UpdateUserRoleInput(Base):
     ] = "UpdateUserRoleInput"
 
 
-class UpgradeCustomerSubscriptionInput(Base):
+class UpgradeCustomerSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationID")]
     payment_method: Annotated[String, Field(alias="paymentMethod")]
@@ -7681,7 +7681,7 @@ class UpgradeCustomerSubscriptionInput(Base):
     ] = "UpgradeCustomerSubscriptionInput"
 
 
-class UploadPanelInput(Base):
+class UploadPanelInput(GQLBase):
     author: String
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String
@@ -7695,7 +7695,7 @@ class UploadPanelInput(Base):
     ] = "UploadPanelInput"
 
 
-class UploadPartsInput(Base):
+class UploadPartsInput(GQLBase):
     hex_md5: Annotated[String, Field(alias="hexMD5")]
     part_number: Annotated[Int64, Field(alias="partNumber")]
     typename__: Annotated[
@@ -7703,7 +7703,7 @@ class UploadPartsInput(Base):
     ] = "UploadPartsInput"
 
 
-class UpsertBucketInput(Base):
+class UpsertBucketInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     commit: String | None = None
     config: JSONString | None = None
@@ -7731,7 +7731,7 @@ class UpsertBucketInput(Base):
     ] = "UpsertBucketInput"
 
 
-class UpsertModelInput(Base):
+class UpsertModelInput(GQLBase):
     access: String | None = None
     allow_all_artifact_types_in_registry: Annotated[
         Boolean | None, Field(alias="allowAllArtifactTypesInRegistry")
@@ -7755,7 +7755,7 @@ class UpsertModelInput(Base):
     ] = "UpsertModelInput"
 
 
-class UpsertRunGroupInput(Base):
+class UpsertRunGroupInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     name: String
@@ -7768,7 +7768,7 @@ class UpsertRunGroupInput(Base):
     ] = "UpsertRunGroupInput"
 
 
-class UpsertRunQueueInput(Base):
+class UpsertRunQueueInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
     external_links: Annotated[JSONString | None, Field(alias="externalLinks")] = None
@@ -7787,7 +7787,7 @@ class UpsertRunQueueInput(Base):
     ] = "UpsertRunQueueInput"
 
 
-class UpsertSharedViewInput(Base):
+class UpsertSharedViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     description: String | None = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -7799,7 +7799,7 @@ class UpsertSharedViewInput(Base):
     ] = "UpsertSharedViewInput"
 
 
-class UpsertSweepInput(Base):
+class UpsertSweepInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     config: String | None = None
     controller: JSONString | None = None
@@ -7824,7 +7824,7 @@ class UpsertSweepInput(Base):
     ] = "UpsertSweepInput"
 
 
-class UpsertViewInput(Base):
+class UpsertViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     cover_url: Annotated[String | None, Field(alias="coverUrl")] = None
     created_using: Annotated[ViewSource | None, Field(alias="createdUsing")] = None
@@ -7846,7 +7846,7 @@ class UpsertViewInput(Base):
     ] = "UpsertViewInput"
 
 
-class UseArtifactInput(Base):
+class UseArtifactInput(GQLBase):
     artifact_id: Annotated[ID, Field(alias="artifactID")]
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     entity_name: Annotated[String, Field(alias="entityName")]
@@ -7858,7 +7858,7 @@ class UseArtifactInput(Base):
     ] = "UseArtifactInput"
 
 
-class VariantInput(Base):
+class VariantInput(GQLBase):
     allocation: Int
     bucket: Int
     description: String
@@ -7867,7 +7867,7 @@ class VariantInput(Base):
     )
 
 
-class ViewViewInput(Base):
+class ViewViewInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     id: ID
     typename__: Annotated[
@@ -7875,7 +7875,7 @@ class ViewViewInput(Base):
     ] = "ViewViewInput"
 
 
-class UpgradeTrialSubscriptionInput(Base):
+class UpgradeTrialSubscriptionInput(GQLBase):
     client_mutation_id: Annotated[String | None, Field(alias="clientMutationId")] = None
     organization_id: Annotated[ID, Field(alias="organizationID")]
     plan_id: Annotated[ID, Field(alias="planID")]

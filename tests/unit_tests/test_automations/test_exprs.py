@@ -17,6 +17,7 @@ from pytest import mark
 from wandb.sdk.automations.operators.logic import And, Or
 from wandb.sdk.automations.operators.op import FieldFilter
 
+
 # ------------------------------------------------------------------------------
 # Search strategies for hypothesis
 

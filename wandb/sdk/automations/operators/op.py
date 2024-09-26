@@ -14,7 +14,7 @@ from pydantic_core import CoreSchema
 from pydantic_core.core_schema import no_info_after_validator_function, str_schema
 from typing_extensions import Literal
 
-from wandb.sdk.automations.operators.base import Op
+from wandb.sdk.automations.operators.base_op import Op
 from wandb.sdk.automations.operators.comparison import (
     AnyComparisonOp,
     Eq,

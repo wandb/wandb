@@ -43,7 +43,6 @@ def test_define_automation__link_artifact(artifact_collection):
         validated_payload.model_dump()
         == {
             "__typename": "CreateFilterTriggerInput",
-            "clientMutationId": None,
             "description": "longer description here",
             "enabled": True,
             "eventFilter": '{"filter":"{\\"$or\\":[{\\"$and\\":[]}]}"}',
@@ -52,7 +51,6 @@ def test_define_automation__link_artifact(artifact_collection):
             "scopeType": "ARTIFACT_COLLECTION",
             "triggeredActionConfig": {
                 "__typename": "TriggeredActionConfig",
-                "genericWebhookActionInput": None,
                 "notificationActionInput": {
                     "__typename": "NotificationActionInput",
                     "integrationID": "ZmFrZS1pbnRlZ3JhdGlvbi1pZA==\n",
@@ -60,7 +58,6 @@ def test_define_automation__link_artifact(artifact_collection):
                     "severity": "INFO",
                     "title": "It's done!",
                 },
-                "queueJobActionInput": None,
             },
             "triggeredActionType": "NOTIFICATION",
             "triggeringEventType": "LINK_MODEL",
@@ -109,7 +106,6 @@ def test_define_automation__add_artifact_alias(artifact_collection):
 
     assert validated_payload.model_dump() == {
         "__typename": "CreateFilterTriggerInput",
-        "clientMutationId": None,
         "description": "longer description here",
         "enabled": True,
         "eventFilter": '{"filter":"{\\"alias\\":{\\"$regex\\":\\"test-alias\\",\\"$options\\":null}}"}',
@@ -118,15 +114,13 @@ def test_define_automation__add_artifact_alias(artifact_collection):
         "scopeType": "ARTIFACT_COLLECTION",
         "triggeredActionConfig": {
             "__typename": "TriggeredActionConfig",
-            "genericWebhookActionInput": None,
             "notificationActionInput": {
                 "__typename": "NotificationActionInput",
                 "integrationID": "ZmFrZS1pbnRlZ3JhdGlvbi1pZA==\n",
-                "message": "Programmatic " "API test " "successful!",
+                "message": "Programmatic API test successful!",
                 "severity": "INFO",
                 "title": "It's done!",
             },
-            "queueJobActionInput": None,
         },
         "triggeredActionType": "NOTIFICATION",
         "triggeringEventType": "ADD_ARTIFACT_ALIAS",
@@ -161,7 +155,6 @@ def test_define_automation__create_artifact(artifact_collection):
 
     assert validated_payload.model_dump() == {
         "__typename": "CreateFilterTriggerInput",
-        "clientMutationId": None,
         "description": "longer description here",
         "enabled": True,
         "eventFilter": '{"filter":"{\\"$or\\":[{\\"$and\\":[]}]}"}',
@@ -170,7 +163,6 @@ def test_define_automation__create_artifact(artifact_collection):
         "scopeType": "ARTIFACT_COLLECTION",
         "triggeredActionConfig": {
             "__typename": "TriggeredActionConfig",
-            "genericWebhookActionInput": None,
             "notificationActionInput": {
                 "__typename": "NotificationActionInput",
                 "integrationID": "ZmFrZS1pbnRlZ3JhdGlvbi1pZA==\n",
@@ -178,7 +170,6 @@ def test_define_automation__create_artifact(artifact_collection):
                 "severity": "INFO",
                 "title": "It's done!",
             },
-            "queueJobActionInput": None,
         },
         "triggeredActionType": "NOTIFICATION",
         "triggeringEventType": "CREATE_ARTIFACT",

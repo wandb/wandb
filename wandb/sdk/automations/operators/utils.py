@@ -5,11 +5,11 @@ from typing import TYPE_CHECKING
 from more_itertools import first
 
 if TYPE_CHECKING:
-    from wandb.sdk.automations.operators.base import Op
+    from wandb.sdk.automations.operators.base_op import Op
 
 
 def get_op_discriminator_value(obj: dict | Op) -> str:
-    from wandb.sdk.automations.operators.base import Op
+    from wandb.sdk.automations.operators.base_op import Op
 
     match obj:
         case dict() if obj and (key := first(obj.keys())).startswith("$"):

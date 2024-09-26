@@ -34,7 +34,7 @@ class Base(BaseModel, ABC):
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
         exclude_defaults: bool = False,
-        exclude_none: bool = False,
+        exclude_none: bool = True,  # NOTE: changed default
         round_trip: bool = True,  # NOTE: changed default
         warnings: bool | Literal["none", "warn", "error"] = True,
         serialize_as_any: bool = False,
@@ -64,7 +64,7 @@ class Base(BaseModel, ABC):
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
         exclude_defaults: bool = False,
-        exclude_none: bool = False,
+        exclude_none: bool = True,  # NOTE: changed default
         round_trip: bool = True,  # NOTE: changed default
         warnings: bool | Literal["none", "warn", "error"] = True,
         serialize_as_any: bool = False,

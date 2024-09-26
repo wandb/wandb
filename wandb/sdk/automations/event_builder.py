@@ -1,0 +1,2 @@
+class LinkArtifact:
+    aliases: list

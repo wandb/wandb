@@ -6,7 +6,7 @@ from pydantic import Discriminator, Field, Tag, field_validator
 from pydantic._internal import _repr
 from typing_extensions import Annotated
 
-from wandb.sdk.automations.operators.base import Op
+from wandb.sdk.automations.operators.base_op import Op
 from wandb.sdk.automations.operators.utils import get_op_discriminator_value
 
 if TYPE_CHECKING:
@@ -33,16 +33,14 @@ class LogicalVariadicOp(Op):  # TODO: parameterize this generic w/o circular imp
 
 
 def _flatten_nested_ops(cls: type[And | Or], exprs: Iterable[AnyExpr]) -> list[AnyExpr]:
-    def _iter_flattened(
-        cls: type[And | Or], exprs: Iterable[AnyExpr]
-    ) -> Iterator[AnyExpr]:
+    def _iter_flattened() -> Iterator[AnyExpr]:
         for x in exprs:
             if isinstance(x, cls):
                 yield from x.exprs
             else:
                 yield x
 
-    return list(_iter_flattened(cls, exprs))
+    return list(_iter_flattened())
 
 
 class And(LogicalVariadicOp):
@@ -52,12 +50,6 @@ class And(LogicalVariadicOp):
 
     _flatten = field_validator("exprs", mode="after")(_flatten_nested_ops)
 
-    # @field_validator("exprs", mode="after")
-    # @classmethod
-    # def _flatten(cls, exprs: Iterable[AnyExpr]) -> list[AnyExpr]:
-    #     """Flatten nested "$and" expressions, as these are redundant."""
-    #     return list(_iter_flatten(cls, exprs))
-
 
 class Or(LogicalVariadicOp):
     """Parsed `$or` operator, which may also be interpreted as an "any_of" operator."""
@@ -65,12 +57,6 @@ class Or(LogicalVariadicOp):
     exprs: list[AnyExpr] = Field(alias=OR)
 
     _flatten = field_validator("exprs", mode="after")(_flatten_nested_ops)
-
-    # @field_validator("exprs", mode="after")
-    # @classmethod
-    # def _flatten(cls, exprs: Iterable[AnyExpr]) -> list[AnyExpr]:
-    #     """Flatten nested "$or" expressions, as these are redundant."""
-    #     return list(_iter_flatten(cls, exprs))
 
 
 class Nor(LogicalVariadicOp):
