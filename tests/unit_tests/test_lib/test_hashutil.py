@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import sys
 from pathlib import Path
 
 import pytest
@@ -96,6 +97,10 @@ def test_md5_file_hashes_on_three_files(bin_data, txt_data, bin_data2):
     assert expected_hex_hash == hashutil.md5_file_hex(fpath_c, fpath_a, fpath_b)
 
 
+@pytest.mark.skipif(
+    sys.platform not in {"darwin", "linux"},
+    reason="pyfakefs limitations",
+)
 @pytest.mark.parametrize(
     "filesize",
     [
