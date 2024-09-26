@@ -586,6 +586,7 @@ def mypy_report(session: nox.Session) -> None:
         "types-PyYAML",
         "types-Pygments",
         "types-protobuf",
+        "types-python-dateutil",
         "types-pytz",
         "types-requests",
         "types-setuptools",

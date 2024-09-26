@@ -1,111 +1,166 @@
+"""Events that trigger W&B Automations."""
+
 from __future__ import annotations
 
-from enum import StrEnum, global_enum
-from typing import Any, Literal, NoReturn, TypeAlias, Union
+from abc import ABC
+from enum import Enum
+from functools import cache
+from typing import TYPE_CHECKING, Any, Literal, NoReturn, TypeAlias, TypeVar
 
-from pydantic import Field, Json
+from pydantic import ConfigDict, Field, Json, PositiveInt, field_validator
 from pydantic._internal import _repr
-from typing_extensions import Annotated, Final, Self
+from typing_extensions import override
 
+from wandb.sdk.automations._base import Base
+from wandb.sdk.automations._generated.enums import EventTriggeringConditionType
+from wandb.sdk.automations._ops.funcs import and_, on_field
+from wandb.sdk.automations._ops.logic import And
+from wandb.sdk.automations._ops.op import AnyExpr, FieldFilter
 from wandb.sdk.automations._typing import Typename
 from wandb.sdk.automations._utils import jsonify
-from wandb.sdk.automations.actions import NewAction
-from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.operators.logic import And, Or
-from wandb.sdk.automations.operators.op import AnyExpr, FieldFilter, and_, on_field, or_
-from wandb.sdk.automations.scopes import ArtifactCollectionScope, ProjectScope
+from wandb.sdk.automations.actions import NewNotification, NewQueueJob, NewWebhook
+from wandb.sdk.automations.automations import AnyNewAction
+from wandb.sdk.automations.scopes import ArtifactCollection, Project
+
+if TYPE_CHECKING:
+    from typing_extensions import Self
 
 
-# Legacy names
-@global_enum
-class EventType(StrEnum):
-    ADD_ARTIFACT_ALIAS = "ADD_ARTIFACT_ALIAS"
-    CREATE_ARTIFACT = "CREATE_ARTIFACT"
-    LINK_ARTIFACT = "LINK_MODEL"
-    UPDATE_ARTIFACT_ALIAS = "UPDATE_ARTIFACT_ALIAS"
+# FIXME: Find a way to autogenerate this too
+class Aggregation(str, Enum):
+    MAX = "MAX"
+    MIN = "MIN"
+    AVERAGE = "AVERAGE"
 
 
-ADD_ARTIFACT_ALIAS = EventType.ADD_ARTIFACT_ALIAS
-CREATE_ARTIFACT = EventType.CREATE_ARTIFACT
-LINK_ARTIFACT = EventType.LINK_ARTIFACT
-UPDATE_ARTIFACT_ALIAS = EventType.UPDATE_ARTIFACT_ALIAS
+@cache
+def _empty_json_filter() -> Json[And]:
+    return jsonify(and_())
+
+
+@cache
+def _empty_json_event_filter() -> Json[EventFilter]:
+    return jsonify(EventFilter(filter=_empty_json_filter()))
 
 
 class EventFilter(Base):
-    filter: Json[AnyExpr] | Json[dict[str, Any]]
+    filter: Json[AnyExpr] | Json[dict[str, Any]]  # | Literal[""]
+
+
+class RunMetricFilter(Base):
+    model_config = ConfigDict(alias_generator=None)
+
+    run_filter: Json[RunFilter] = _empty_json_filter()
+    metric_filter: Json[MetricThresholdFilter]
+
+    @field_validator("metric_filter", mode="before")
+    @classmethod
+    def _jsonify_metric_filter(
+        cls, v: MetricThresholdFilter | dict[str, Any] | str
+    ) -> str:
+        if isinstance(v, (MetricThresholdFilter, dict)):
+            return jsonify(MetricThresholdFilter.model_validate(v))  # type: ignore[arg-type]  # FIXME
+        return v
+
+    @field_validator("run_filter", mode="before")
+    @classmethod
+    def _jsonify_filter(cls, v: RunFilter | dict[str, Any] | str) -> str:
+        if isinstance(v, (RunFilter, dict)):
+            return jsonify(RunFilter.model_validate(v))  # type: ignore[arg-type]  # FIXME
+        return v
+
+    def __repr_args__(self) -> _repr.ReprArgs:
+        for name, _ in self.model_fields.items():
+            if name in self.model_fields_set:
+                yield name, getattr(self, name)
+
+
+class RunFilter(And):
+    @override
+    def __and__(self, other: MetricThresholdFilter) -> RunMetricFilter:
+        if isinstance(other, MetricThresholdFilter):
+            return RunMetricFilter(
+                run_filter=self,
+                metric_filter=other,
+            )
+        raise NotImplementedError
+
+
+class MetricThresholdFilter(Base):
+    model_config = ConfigDict(alias_generator=None)
+
+    name: str
+    window_size: PositiveInt = 1
+    agg_op: Aggregation | None = None
+    cmp_op: str
+    threshold: int | float
+
+    def __and__(self, other: RunFilter) -> RunMetricFilter:
+        if isinstance(other, RunFilter):
+            return RunMetricFilter(
+                run_filter=other,
+                metric_filter=self,
+            )
+        raise NotImplementedError
 
 
 class Event(Base):
-    typename__: Typename[Literal["FilterEventTriggeringCondition"]]
-    event_type: EventType
-    filter: Json[EventFilter]
+    """A more introspection-friendly representation of a triggering event from a saved automation."""
 
-    def __repr_name__(self) -> str:
+    typename__: Typename[Literal["FilterEventTriggeringCondition"]]
+    event_type: EventTriggeringConditionType
+    filter: Json[EventFilter] | Json[RunMetricFilter]
+
+    def __repr_name__(self) -> str:  # type: ignore[override]
         return str(self.event_type)
 
-    def __repr_args__(self) -> _repr.ReprArgs:
-        inner_expr = self.filter.filter
-        while isinstance(inner_expr, (Or, And)) and len(inner_expr.exprs) <= 1:
-            if not inner_expr.exprs:
-                inner_expr = None
-                break
-            else:
-                inner_expr = inner_expr.exprs[0]
-        yield "filter", inner_expr
 
-
-# TODO: This is a WIP Triggers on run metrics
-class RunMetricEvent(Base):
-    typename__: Typename[Literal["RunMetricTriggeringCondition"]]
-    event_type: str  # TODO: TBD
-
-    run_filter: Json[EventFilter]
-    metric_filter: Json[FieldFilter]
-
-
-class EventTrigger(Base):
-    event_type: EventType
-    # scope: ArtifactCollection | Project
-    scope: ArtifactCollectionScope | ProjectScope
-    filter: Json[EventFilter]
+class NewEvent(Base, ABC):
+    event_type: EventTriggeringConditionType
+    scope: ArtifactCollection | Project
+    filter: Json[EventFilter | RunMetricFilter]
 
     # TODO: Deprecate this
-    def link_action(self, action: NewAction) -> NewEventAndAction:
-        if isinstance(action, NewAction):
+    def triggers_action(self, action: AnyNewAction) -> NewEventAndAction:
+        if isinstance(action, (NewQueueJob, NewNotification, NewWebhook)):
             return self, action
         raise TypeError(
-            f"Expected an instance of {NewAction.__name__!r}, got: {type(action).__qualname__!r}"
+            f"Expected an instance of a new action type, got: {type(action).__qualname__!r}"
         )
 
-    def __rshift__(self, other: NewAction) -> NewEventAndAction:
+    def __rshift__(self, other: AnyNewAction) -> NewEventAndAction:
         """Connect this event to an action using, e.g. `event >> action`."""
-        return self.link_action(other)
+        return self.triggers_action(other)
 
-    def __gt__(self, other: NewAction) -> NoReturn:
-        """Let's not get too ahead of ourselves here, no overloading the comparison operators."""
+    def __gt__(self, other: AnyNewAction) -> NoReturn:
+        """Let's not get ahead of ourselves here -- don't overload the comparison operators as well."""
         raise RuntimeError("Did you mean to use the '>>' operator?")
 
 
-NewEventAndAction: TypeAlias = tuple[EventTrigger, NewAction]
+NewEventT = TypeVar("NewEventT", bound=NewEvent)
+NewActionT = TypeVar("NewActionT", bound=AnyNewAction)
+NewEventAndAction: TypeAlias = tuple[NewEventT, NewActionT]
 
-_DEFAULT_EMPTY_FILTER: Final[str] = jsonify(EventFilter(filter=jsonify(or_(and_()))))
 
-
-class LinkArtifact(EventTrigger):
+class NewLinkArtifact(NewEvent):
     """A new artifact is linked to a collection."""
 
-    event_type: Literal[EventType.LINK_ARTIFACT] = LINK_ARTIFACT
+    event_type: Literal[EventTriggeringConditionType.LINK_MODEL] = Field(
+        EventTriggeringConditionType.LINK_MODEL, init=False
+    )
 
-    scope: ArtifactCollectionScope | ProjectScope
-    filter: Json[EventFilter] = Field(default_factory=lambda: _DEFAULT_EMPTY_FILTER)
+    scope: ArtifactCollection | Project
+    filter: Json[EventFilter] = Field(default_factory=_empty_json_event_filter)
 
 
-class AddArtifactAlias(EventTrigger):
+class NewAddArtifactAlias(NewEvent):
     """A new alias is assigned to an artifact."""
 
-    event_type: Literal[EventType.ADD_ARTIFACT_ALIAS] = ADD_ARTIFACT_ALIAS
+    event_type: Literal[EventTriggeringConditionType.ADD_ARTIFACT_ALIAS] = Field(
+        EventTriggeringConditionType.ADD_ARTIFACT_ALIAS, init=False
+    )
 
-    scope: ArtifactCollectionScope | ProjectScope
+    scope: ArtifactCollection | Project
     filter: Json[EventFilter]
 
     @classmethod
@@ -113,33 +168,128 @@ class AddArtifactAlias(EventTrigger):
         return cls(
             **kwargs,
             filter=jsonify(
-                EventFilter(filter=jsonify(on_field("alias").regex_match(alias))),
+                EventFilter(
+                    filter=jsonify(on_field("alias").regex_match(alias)),
+                ),
             ),
         )
 
 
-class CreateArtifact(EventTrigger):
+class NewCreateArtifact(NewEvent):
     """A new artifact is created."""
 
-    event_type: Literal[EventType.CREATE_ARTIFACT] = CREATE_ARTIFACT
+    event_type: Literal[EventTriggeringConditionType.CREATE_ARTIFACT] = Field(
+        EventTriggeringConditionType.CREATE_ARTIFACT, init=False
+    )
 
-    scope: ArtifactCollectionScope | ProjectScope
-    filter: Json[EventFilter] = _DEFAULT_EMPTY_FILTER
+    scope: ArtifactCollection | Project
+    filter: Json[EventFilter] = Field(default_factory=_empty_json_event_filter)
+
+
+class NewRunMetric(NewEvent):
+    event_type: Literal[EventTriggeringConditionType.RUN_METRIC] = Field(
+        EventTriggeringConditionType.RUN_METRIC, init=False
+    )
+
+    scope: Project
+    filter: Json[RunMetricFilter]
+
+    @field_validator("filter", mode="before")
+    @classmethod
+    def _jsonify_filter(cls, v: Any) -> Any:
+        if isinstance(v, RunMetricFilter):
+            return jsonify(v)
+        if isinstance(v, MetricThresholdFilter):
+            # If we're only given a metric threshold condition, assume we trigger on "all runs" in scope
+            return jsonify(RunMetricFilter(metric_filter=v))
+        return v
 
 
 # ------------------------------------------------------------------------------
+# TODO: Move this, make more generic, and refactor with proper descriptor types
+class _RunNameMatchable:
+    @staticmethod
+    def contains(text: str) -> RunFilter:
+        field_name = "display_name"
+        return RunFilter.model_validate(
+            And(
+                exprs=[
+                    FieldFilter.model_validate({field_name: {"$contains": text}}),
+                ],
+            )
+        )
 
 
-AnyEvent = Annotated[
-    Union[
-        Event,
-        # RunMetricEvent,
-    ],
-    Field(alias="triggeringCondition"),
-]
+class _ListMatchable:
+    def contains(self, text: str) -> Self:
+        raise NotImplementedError
 
 
-AnyNewEvent = Annotated[
-    Union[LinkArtifact | AddArtifactAlias, CreateArtifact],
-    Field(discriminator="event_type"),
-]
+class _MetricMatchable:
+    name: str
+    agg_op: Aggregation | None
+    window_size: int
+
+    def __init__(self, name: str):
+        self.name = name
+        self.agg_op = None
+        self.window_size = 1
+
+    def average(self, window: int) -> Self:
+        self.agg_op = Aggregation.AVERAGE
+        self.window_size = window
+        return self
+
+    def max(self, window: int) -> Self:
+        self.agg_op = Aggregation.MAX
+        self.window_size = window
+        return self
+
+    def min(self, window: int) -> Self:
+        self.agg_op = Aggregation.MIN
+        self.window_size = window
+        return self
+
+    def __gt__(self, other: int | float) -> MetricThresholdFilter:
+        return MetricThresholdFilter(
+            name=self.name,
+            agg_op=self.agg_op,
+            window_size=self.window_size,
+            threshold=other,
+            cmp_op="$gt",
+        )
+
+    def __lt__(self, other: int | float) -> MetricThresholdFilter:
+        return MetricThresholdFilter(
+            name=self.name,
+            agg_op=self.agg_op,
+            window_size=self.window_size,
+            threshold=other,
+            cmp_op="$lt",
+        )
+
+    def __ge__(self, other: int | float) -> MetricThresholdFilter:
+        return MetricThresholdFilter(
+            name=self.name,
+            agg_op=self.agg_op,
+            window_size=self.window_size,
+            threshold=other,
+            cmp_op="$gte",
+        )
+
+    def __le__(self, other: int | float) -> MetricThresholdFilter:
+        return MetricThresholdFilter(
+            name=self.name,
+            agg_op=self.agg_op,
+            window_size=self.window_size,
+            threshold=other,
+            cmp_op="$lte",
+        )
+
+
+class Run:
+    name = _RunNameMatchable()
+
+    @staticmethod
+    def metric(name: str) -> _MetricMatchable:
+        return _MetricMatchable(name=name)

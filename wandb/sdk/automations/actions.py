@@ -1,47 +1,33 @@
+"""Actions that are triggered by W&B Automations."""
+
 from __future__ import annotations
 
-from abc import ABC
 from datetime import datetime
-from enum import StrEnum, global_enum
 from typing import Any, TypeAlias
 
-from pydantic import AnyUrl, Field, Json, SecretStr, field_validator
-from typing_extensions import Annotated, Literal, TypedDict
+from pydantic import AliasChoices, AnyUrl, Field, Json, SecretStr
+from typing_extensions import Annotated, Literal, Self
 
+from wandb.sdk.automations._base import Base
+from wandb.sdk.automations._generated.enums import AlertSeverity, TriggeredActionType
+from wandb.sdk.automations._generated.fragments import RunQueue
 from wandb.sdk.automations._typing import Base64Id, JsonDict, Typename
-from wandb.sdk.automations.base import Base
 
 QueueJobTemplate: TypeAlias = JsonDict  # TODO: parse
 
 
-@global_enum
-class ActionType(StrEnum):
-    GENERIC_WEBHOOK = "GENERIC_WEBHOOK"
-    NOTIFICATION = "NOTIFICATION"
-    QUEUE_JOB = "QUEUE_JOB"
-
-
-GENERIC_WEBHOOK = ActionType.GENERIC_WEBHOOK
-NOTIFICATION = ActionType.NOTIFICATION
-QUEUE_JOB = ActionType.QUEUE_JOB
-
-
-class Severity(StrEnum):
-    ERROR = "ERROR"
-    INFO = "INFO"
-    WARN = "WARN"
-
-
 # ------------------------------------------------------------------------------
-class RunQueue(Base):
-    typename__: Typename[Literal["RunQueue"]]
-
-    id: Base64Id
-    name: str
+# class RunQueue(Base):
+#     typename__: Typename[Literal["RunQueue"]]
+#
+#     id: Base64Id
+#     name: str
 
 
 class QueueJobAction(Base):
     typename__: Typename[Literal["QueueJobTriggeredAction"]]
+
+    action_type: Literal[TriggeredActionType.QUEUE_JOB] = TriggeredActionType.QUEUE_JOB
 
     queue: RunQueue | None
     template: QueueJobTemplate
@@ -59,10 +45,14 @@ class SlackIntegration(Base):
 class NotificationAction(Base):
     typename__: Typename[Literal["NotificationTriggeredAction"]]
 
+    action_type: Literal[TriggeredActionType.NOTIFICATION] = (
+        TriggeredActionType.NOTIFICATION
+    )
+
     integration: SlackIntegration
     title: str
     message: str
-    severity: Severity
+    severity: AlertSeverity
 
 
 # ------------------------------------------------------------------------------
@@ -82,77 +72,66 @@ class WebhookIntegration(Base):
 class WebhookAction(Base):
     typename__: Typename[Literal["GenericWebhookTriggeredAction"]]
 
+    action_type: Literal[TriggeredActionType.GENERIC_WEBHOOK] = (
+        TriggeredActionType.GENERIC_WEBHOOK
+    )
+
     integration: WebhookIntegration
     request_payload: Json
 
 
 AnyAction = Annotated[
     QueueJobAction | NotificationAction | WebhookAction,
-    Field(discriminator="typename__", alias="triggeredAction"),
+    Field(
+        discriminator="typename__",
+        alias="triggeredAction",
+        validation_alias=AliasChoices("triggeredAction", "triggered_action"),
+    ),
 ]
 
 
 # ------------------------------------------------------------------------------
-class NewAction(Base, ABC):
-    """Base type for Input schemas for creating new automation actions."""
-
-    action_type: ActionType
-
-
-class NewQueueJob(NewAction):
+class NewQueueJob(Base):
     """Input schema for creating a QUEUE_JOB action."""
 
-    action_type: Literal[ActionType.QUEUE_JOB] = QUEUE_JOB
+    action_type: Literal[TriggeredActionType.QUEUE_JOB] = TriggeredActionType.QUEUE_JOB
 
     queue_id: Base64Id = Field(alias="queueID")
     template: QueueJobTemplate
 
 
-class NewNotification(NewAction):
+class NewNotification(Base):
     """Input schema for creating a NOTIFICATION action."""
 
-    action_type: Literal[ActionType.NOTIFICATION] = NOTIFICATION
+    action_type: Literal[TriggeredActionType.NOTIFICATION] = (
+        TriggeredActionType.NOTIFICATION
+    )
 
-    integration_id: Base64Id = Field(None, alias="integrationID")
-    title: str
-    message: str
-    severity: Severity
+    integration_id: Base64Id = Field(alias="integrationID")
+    title: str = ""
+    message: str = ""
+    severity: AlertSeverity = AlertSeverity.INFO
 
-    @field_validator("integration_id", mode="before")
     @classmethod
-    def _get_integration_id(cls, v: Any) -> Any:
-        if v is None:
-            from wandb.sdk.automations.api import _slack_integration
+    def from_integration(cls, integration: SlackIntegration, **kwargs: Any) -> Self:
+        """Define a Notification action that sends to the given (Slack) integration."""
+        return cls(integration_id=integration.id, **kwargs)
 
-            current_integration = _slack_integration()
-            return current_integration.id
-        return v
+    @classmethod
+    def for_team(cls, entity: str, **kwargs: Any) -> Self:
+        from wandb.sdk.automations.api import team_slack_integration
+
+        return cls.model_validate(
+            dict(integration_id=team_slack_integration(entity).id, **kwargs)
+        )
 
 
-class NewWebhook(NewAction):
+class NewWebhook(Base):
     """Input schema for creating a GENERIC_WEBHOOK action."""
 
-    action_type: Literal[ActionType.GENERIC_WEBHOOK] = GENERIC_WEBHOOK
+    action_type: Literal[TriggeredActionType.GENERIC_WEBHOOK] = (
+        TriggeredActionType.GENERIC_WEBHOOK
+    )
 
     integration_id: Base64Id = Field(alias="integrationID")
     request_payload: JsonDict
-
-
-class NewQueueJobConfig(TypedDict):
-    queue_job_action_input: NewQueueJob
-
-
-class NewNotificationConfig(TypedDict):
-    notification_action_input: NewNotification
-
-
-class NewWebhookConfig(TypedDict):
-    generic_webhook_action_input: NewWebhook
-
-
-NewActionConfig = NewQueueJobConfig | NewNotificationConfig | NewWebhookConfig
-
-AnyNewAction = Annotated[
-    NewQueueJob | NewNotification | NewWebhook,
-    Field(discriminator="action_type"),
-]

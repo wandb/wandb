@@ -794,7 +794,10 @@ class Api:
             entity = InternalApi()._resolve_org_entity_name(
                 entity=settings_entity, organization=org
             )
-        return public.Project(self.client, entity, name, {})
+
+        # FIXME: Temporary hack to ensure project ID is available from this method
+        return next(proj for proj in self.projects(entity=entity) if proj.name == name)
+        # return public.Project(self.client, entity, name, {})
 
     def reports(
         self, path: str = "", name: Optional[str] = None, per_page: Optional[int] = 50

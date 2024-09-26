@@ -4,6 +4,7 @@ import string
 
 from hypothesis import example, given, note
 from hypothesis.strategies import (
+    SearchStrategy,
     deferred,
     fixed_dictionaries,
     floats,
@@ -12,29 +13,27 @@ from hypothesis.strategies import (
     recursive,
     text,
 )
-from more_itertools import only
 from pytest import mark
-from wandb.sdk.automations.operators.logic import And, Or
-from wandb.sdk.automations.operators.op import FieldFilter
-
+from wandb.sdk.automations._ops.logic import And, Or
+from wandb.sdk.automations._ops.op import FieldFilter
 
 # ------------------------------------------------------------------------------
 # Search strategies for hypothesis
 
-# Field names can contain these characters, but can't start or end with them.
-non_prefix_chars = tuple(string.digits + "." + "_")
-non_suffix_chars = tuple("." + "_")
+# Queried/filtered field names can contain these characters, but can't start or end with them.
+SEP_CHARS = (".", "_")  # Valid "separator" characters in a field name/path
+CANNOT_PREFIX = (*string.digits, *SEP_CHARS)
+CANNOT_SUFFIX = SEP_CHARS
 
-field_names = (
+field_names: SearchStrategy[str] = (
     text(
-        string.ascii_letters + string.digits + "." + "_",
+        (*string.ascii_letters, *string.digits, *SEP_CHARS),
         max_size=20,
     )
-    # Prevent consecutive dots
-    .filter(lambda s: ".." not in s)
+    .filter(lambda s: ".." not in s)  # Exclude consecutive dots
     .map(
-        lambda s: s.lstrip(non_prefix_chars).rstrip(non_suffix_chars),
-    )
+        lambda s: s.lstrip(CANNOT_PREFIX).rstrip(CANNOT_SUFFIX)
+    )  # Remove invalid prefix/suffix chars
 )
 
 comparable_values = (
@@ -46,8 +45,23 @@ comparable_containers = lists(comparable_values)
 
 
 any_expr_dicts = deferred(
-    lambda: (comparison_dicts | and_dicts | or_dicts | nor_dicts | not_dicts)
+    lambda: (any_comparison_dicts | any_logic_dicts | any_eval_dicts)
 )
+any_comparison_dicts = deferred(
+    lambda: (
+        nin_dicts
+        | in_dicts
+        | eq_dicts
+        | ne_dicts
+        | gt_dicts
+        | lt_dicts
+        | gte_dicts
+        | lte_dicts
+    )
+)
+any_eval_dicts = deferred(lambda: regex_dicts)
+any_logic_dicts = deferred(lambda: not_dicts | and_dicts | or_dicts | nor_dicts)
+
 nin_dicts = fixed_dictionaries({"$nin": comparable_containers})
 in_dicts = fixed_dictionaries({"$in": comparable_containers})
 eq_dicts = fixed_dictionaries({"$eq": comparable_values})
@@ -57,23 +71,9 @@ lt_dicts = fixed_dictionaries({"$lt": comparable_values})
 gte_dicts = fixed_dictionaries({"$gte": comparable_values})
 lte_dicts = fixed_dictionaries({"$lte": comparable_values})
 
-comparison_dicts = (
-    nin_dicts
-    | in_dicts
-    | eq_dicts
-    | ne_dicts
-    | gt_dicts
-    | lt_dicts
-    | gte_dicts
-    | lte_dicts
-)
-
 regex_dicts = fixed_dictionaries({"$regex": text()})
 
-eval_dicts = regex_dicts
-
 not_dicts = fixed_dictionaries({"$not": lists(any_expr_dicts)})
-
 and_dicts = fixed_dictionaries({"$and": lists(any_expr_dicts)})
 or_dicts = fixed_dictionaries({"$or": lists(any_expr_dicts)})
 nor_dicts = fixed_dictionaries({"$nor": lists(any_expr_dicts)})
@@ -110,7 +110,7 @@ FLATTENED_AND_OP = {
 @example(orig_filter=NESTED_AND_OP)
 @given(
     orig_filter=recursive(
-        base=lists(comparison_dicts | eval_dicts),
+        base=lists(any_comparison_dicts | any_eval_dicts),
         extend=lambda exprs: lists(fixed_dictionaries({"$and": exprs})),
     ).map(
         # Ensure the top-level operator is "$and"
@@ -129,7 +129,7 @@ def test_flattened_and_ops(orig_filter):
 
     # Check that the top-level operator is "$and",
     # but no immediate inner expressions are "$and".
-    assert only(recovered_filter.keys()) == "$and"
+    assert recovered_filter.keys() == {"$and"}
 
     for inner_op in recovered_filter["$and"]:
         assert "$and" not in inner_op
@@ -137,7 +137,7 @@ def test_flattened_and_ops(orig_filter):
 
 @given(
     orig_filter=recursive(
-        base=lists(comparison_dicts | eval_dicts),
+        base=lists(any_comparison_dicts | any_eval_dicts),
         extend=lambda exprs: lists(fixed_dictionaries({"$or": exprs})),
     ).map(
         # Ensure the top-level operator is "$or"
@@ -152,7 +152,7 @@ def test_flattened_or_ops(orig_filter):
 
     # Check that the top-level operator is "$or",
     # but no immediate inner expressions are "$or".
-    assert only(recovered_filter.keys()) == "$or"
+    assert recovered_filter.keys() == {"$or"}
 
     for inner_expr in recovered_filter["$or"]:
         assert isinstance(inner_expr, dict)

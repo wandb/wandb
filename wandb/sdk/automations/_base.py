@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC
 from typing import Any, Final, Literal
 
@@ -6,30 +8,30 @@ from pydantic.alias_generators import to_camel
 from pydantic.main import IncEx
 from typing_extensions import override
 
-default_model_config: Final[ConfigDict] = ConfigDict(
+BASE_CONFIG: Final[ConfigDict] = ConfigDict(
     validate_assignment=True,
     validate_default=True,
     extra="forbid",
     alias_generator=to_camel,
     populate_by_name=True,
-    use_enum_values=True,
     use_attribute_docstrings=True,
     from_attributes=True,
+    revalidate_instances="subclass-instances",
 )
 
 
 class Base(BaseModel, ABC):
     """Abstract base class for all automation classes/types."""
 
-    model_config = default_model_config
+    model_config = BASE_CONFIG
 
     @override
     def model_dump(
         self,
         *,
         mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
-        include: IncEx = None,
-        exclude: IncEx = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
         context: dict[str, Any] | None = None,
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
@@ -58,8 +60,8 @@ class Base(BaseModel, ABC):
         self,
         *,
         indent: int | None = None,
-        include: IncEx = None,
-        exclude: IncEx = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
         context: dict[str, Any] | None = None,
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
@@ -82,3 +84,10 @@ class Base(BaseModel, ABC):
             warnings=warnings,
             serialize_as_any=serialize_as_any,
         )
+
+
+class GQLBase(Base):
+    model_config = ConfigDict(
+        extra="ignore",
+        protected_namespaces=(),
+    )

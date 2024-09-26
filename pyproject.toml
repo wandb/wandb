@@ -110,13 +110,10 @@ perf = ["orjson"]
 importers = ["polars<=1.2.1", "rich", "filelock", "mlflow", "tenacity"]
 workspaces = ["wandb-workspaces"]
 automations = [
-    "gql[all]>=3.0,<4",
-    "more-itertools",
-    "odmantic>=1.0,<2",
+    "httpx",
     "pydantic>=2.0,<3",
-    "pydantic-settings",
     "typing-extensions>=4.13.0,<5",
-    "rich[jupyter]",
+#    "rich[jupyter]",
 ]
 
 [tool.pytest.ini_options]
@@ -232,6 +229,7 @@ ignore-decorators = [
 "wandb/integration/magic.py" = ["B026", "F401", "F841", "N806", "N818"]
 "wandb/plot/**" = ["D", "B007", "F401", "N812", "F841", "UP031"]
 "wandb/old/**" = ["B006", "B020", "D", "F822"]
+"wandb/sdk/automations/_generated/**" = ["N801", "N818"]
 
 # Don't require docstrings on test functions.
 "tests/**" = ["D"]
@@ -240,7 +238,11 @@ ignore-decorators = [
 
 
 [tool.mypy]
+plugins = [
+    "pydantic.mypy",
+]
 warn_redundant_casts = true
+pretty = true
 exclude = '''
    (?x)(
       wandb/vendor/.
@@ -305,21 +307,23 @@ strict_equality = true
 implicit_reexport = false
 
 # More wandb/ modules can be added in a similar manner as overrides
-#[[tool.mypy.overrides]]
-#module = "wandb.sdk.automations.*"
-#
-#follow_imports = "silent"
+
+# wandb/sdk/automations.*
+[[tool.mypy.overrides]]
+module = "wandb.sdk.automations.*"
+
+follow_imports = "silent"
 #disallow_any_generics = true
-#disallow_subclassing_any = true
-#disallow_untyped_calls = true
-#disallow_untyped_defs = true
-#disallow_incomplete_defs = true
-#check_untyped_defs = true
-#disallow_untyped_decorators = true
-#warn_unused_ignores = true
-#warn_return_any = true
-#no_implicit_reexport = true
-#strict_equality = true
+disallow_subclassing_any = true
+disallow_untyped_calls = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+warn_unused_ignores = true
+warn_return_any = true
+no_implicit_reexport = true
+strict_equality = true
 #extra_checks = true
 
 # External libraries
@@ -330,10 +334,36 @@ module = [
     "grpc.*",
     "setproctitle.*",
     "ultralytics.*",
+    "rich.*",
     "wandb_gql.*",
     "wandb_graphql.*",
     "wandb.vendor.*",
     "wandb.vendor.pynvml.pynvml.*",
-    "wandb.sdk.automations.tests.*",
+    "httpx.*",
 ]
 ignore_missing_imports = true
+
+# Codegen from GraphQL schemas/queries via ariadne-codegen
+[tool.ariadne-codegen]
+schema_path="core/api/graphql/schemas/schema-latest.graphql"
+queries_path="wandb/sdk/automations/queries.graphql"
+#enable_custom_operations=true
+
+target_package_name="_generated"
+target_package_path="wandb/sdk/automations/"
+#target_file_path="wandb/sdk/automations/schemas/gen.py"  # only used for `ariadne-codegen graphqlschema`
+
+input_types_module_name="inputs"
+include_all_inputs=false
+
+enums_module_name="enums"
+#include_all_enums=false
+
+convert_to_snake_case=true
+async_client=false
+plugins = [
+    "ariadne_codegen.contrib.shorter_results.ShorterResultsPlugin",
+    "ariadne_codegen.contrib.extract_operations.ExtractOperationsPlugin",
+    "ariadne_codegen.contrib.client_forward_refs.ClientForwardRefsPlugin",
+    "ariadne_codegen.contrib.no_reimports.NoReimportsPlugin",
+]

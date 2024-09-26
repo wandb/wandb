@@ -1,16 +1,16 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Collection, Iterable, Iterator, Union
+from typing import TYPE_CHECKING, Collection, Iterable, Iterator, Union, cast
 
 from pydantic import Discriminator, Field, Tag, field_validator
 from pydantic._internal import _repr
 from typing_extensions import Annotated
 
-from wandb.sdk.automations.operators.base_op import Op
-from wandb.sdk.automations.operators.utils import get_op_discriminator_value
+from wandb.sdk.automations._ops.base import Op
+from wandb.sdk.automations._ops.utils import get_op_discriminator_value
 
 if TYPE_CHECKING:
-    from wandb.sdk.automations.operators.op import AnyExpr
+    from wandb.sdk.automations._ops.op import AnyExpr
 
 
 NOT = "$not"
@@ -36,7 +36,7 @@ def _flatten_nested_ops(cls: type[And | Or], exprs: Iterable[AnyExpr]) -> list[A
     def _iter_flattened() -> Iterator[AnyExpr]:
         for x in exprs:
             if isinstance(x, cls):
-                yield from x.exprs
+                yield from cast(Union[And, Or], x).exprs
             else:
                 yield x
 

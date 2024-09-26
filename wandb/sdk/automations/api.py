@@ -1,346 +1,101 @@
 from __future__ import annotations
 
-from collections import deque
-from collections.abc import Sequence
 from contextlib import contextmanager
+from functools import singledispatch
 from itertools import chain
-from operator import attrgetter, itemgetter
-from typing import TYPE_CHECKING, Iterator
+from typing import Any, Iterator
 
-from more_itertools import one
-
-# from gql import Client, gql
+import httpx
 from pydantic import TypeAdapter
-from rich.pretty import pretty_repr
-from rich.table import Table
-from wandb_gql import Client, gql
 
+import wandb
 from wandb import Api
-from wandb.sdk.automations import schemas_gen as gen
-from wandb.sdk.automations.automations import (
-    Automation,
-    DeletedAutomation,
-    NewAutomation,
+from wandb.sdk.automations._generated import client as gen_client
+from wandb.sdk.automations._generated.enums import (
+    EventTriggeringConditionType,
+    TriggeredActionType,
+    TriggerScopeType,
 )
+from wandb.sdk.automations._generated.exceptions import GraphQLClientHttpError
+from wandb.sdk.automations._generated.fragments import (
+    DeleteTriggerResult,
+    SlackIntegration,
+)
+from wandb.sdk.automations._generated.inputs import (
+    CreateFilterTriggerInput,
+    TriggeredActionConfig,
+)
+from wandb.sdk.automations._utils import jsonify
+from wandb.sdk.automations.actions import NewNotification, NewQueueJob, NewWebhook
+from wandb.sdk.automations.automations import AnyNewAction, Automation, NewAutomation
 from wandb.sdk.automations.events import NewEventAndAction
-
-if TYPE_CHECKING:
-    from wandb.sdk.automations.actions import ActionType
-    from wandb.sdk.automations.events import EventType
-    from wandb.sdk.automations.scopes import ScopeType
-
-_AUTOMATIONS_QUERY = gql(
-    """
-    fragment IntegrationFields on Integration {
-        __typename
-        ... on GenericWebhookIntegration {
-            id
-            name
-            urlEndpoint
-            secretRef
-            accessTokenRef
-            createdAt
-        }
-        ... on GitHubOAuthIntegration {
-            id
-        }
-        ... on SlackIntegration {
-            id
-            teamName
-            channelName
-        }
-    }
-
-    fragment AutomationFields on Trigger {
-        id
-        createdAt
-        createdBy {id username}
-        updatedAt
-        name
-        description
-        enabled
-        scope {
-            __typename
-            ... on ArtifactPortfolio {id name}
-            ... on ArtifactSequence {id name}
-            ... on Project {id name}
-        }
-        triggeringCondition {
-            __typename
-            ... on FilterEventTriggeringCondition {
-                eventType
-                filter
-            }
-        }
-        triggeredAction {
-            __typename
-            ... on QueueJobTriggeredAction {
-                template
-                queue {
-                    __typename
-                    id
-                    name
-                }
-            }
-            ... on NotificationTriggeredAction {
-                title
-                message
-                severity
-                integration {... IntegrationFields}
-            }
-            ... on GenericWebhookTriggeredAction {
-                requestPayload
-                integration {... IntegrationFields}
-            }
-        }
-    }
-
-    query TriggersInViewerOrgs ($entityName: String) {
-        viewer(entityName: $entityName) {
-            organizations {
-                orgEntity {
-                    projects {
-                        edges {
-                            node {
-                                triggers {... AutomationFields}
-                            }
-                        }
-                    }
-                }
-                teams {
-                    projects {
-                        edges {
-                            node {
-                                triggers {... AutomationFields}
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    """
-)
-
-_DELETE_AUTOMATION = gql(
-    """
-    mutation DeleteAutomation($id: ID!) {
-        deleteTrigger(input: {
-                triggerID: $id,
-        }) {
-            success
-            clientMutationId
-        }
-    }
-    """
-)
-
-_CREATE_AUTOMATION = gql(
-    """
-    fragment IntegrationFields on Integration {
-        __typename
-        ... on GenericWebhookIntegration {
-            id
-            name
-            urlEndpoint
-            secretRef
-            accessTokenRef
-            createdAt
-        }
-        ... on GitHubOAuthIntegration {
-            id
-        }
-        ... on SlackIntegration {
-            id
-            teamName
-            channelName
-        }
-    }
-
-    fragment AutomationFields on Trigger {
-        id
-        createdAt
-        createdBy {id username}
-        updatedAt
-        name
-        description
-        enabled
-        scope {
-            __typename
-            ... on ArtifactPortfolio {id name}
-            ... on ArtifactSequence {id name}
-            ... on Project {id name}
-        }
-        triggeringCondition {
-            __typename
-            ... on FilterEventTriggeringCondition {
-                eventType
-                filter
-            }
-        }
-        triggeredAction {
-            __typename
-            ... on QueueJobTriggeredAction {
-                template
-                queue {
-                    __typename
-                    id
-                    name
-                }
-            }
-            ... on NotificationTriggeredAction {
-                title
-                message
-                severity
-                integration {... IntegrationFields}
-            }
-            ... on GenericWebhookTriggeredAction {
-                requestPayload
-                integration {... IntegrationFields}
-            }
-        }
-    }
-
-    mutation CreateAutomation(
-        $name: String!,
-        $description: String,
-        $triggeringEventType: EventTriggeringConditionType!,
-        $scopeType: TriggerScopeType!
-        $scopeID: ID!
-        $eventFilter: JSONString!
-        $triggeredActionType: TriggeredActionType!
-        $triggeredActionConfig: TriggeredActionConfig!
-        $enabled: Boolean!
-    ) {
-        createFilterTrigger(input: {
-            name: $name,
-            description: $description,
-            triggeringEventType: $triggeringEventType,
-            scopeType: $scopeType,
-            scopeID: $scopeID,
-            eventFilter: $eventFilter,
-            triggeredActionType: $triggeredActionType,
-            triggeredActionConfig: $triggeredActionConfig,
-            enabled: $enabled,
-        }) {
-            trigger {
-                ...AutomationFields
-            }
-            clientMutationId
-        }
-    }
-    """
-)
-
-_PROJECT_ID_BY_NAMES = gql(
-    """
-    query ProjectIDByName($name: String!, $entityName: String!) {
-        project(name: $name, entityName: $entityName) {
-            id
-        }
-    }
-    """
-)
-
-
-_QUERY_SLACK_INTEGRATIONS = gql(
-    """
-    query Viewer {
-        viewer {
-            userEntity {
-                integrations {
-                    edges {
-                        node {
-                            id
-                            ... on SlackIntegration {
-                                id
-                                teamName
-                                channelName
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-    """
-)
 
 
 @contextmanager
-def _gql_client() -> Iterator[Client]:
-    yield Api().client
+# def _gql_client() -> Iterator[Client]:
+def _gql_client() -> Iterator[gen_client.Client]:
+    wandb_client = Api().client._client
+    url = wandb_client.transport.url
+    headers = wandb_client.transport.headers
+    sess = wandb_client.transport.session
 
-
-def make_table(automations: Sequence[Automation]) -> Table:
-    from wandb.sdk.automations import events, scopes
-
-    table = Table(
-        title="Automations",
-        title_justify="left",
-        min_width=200,
-        show_lines=True,
+    http_client = httpx.Client(
+        headers=sess.headers, auth=sess.auth, cookies=sess.cookies
     )
-
-    displayed_names = deque()
-    for name, info in Automation.model_fields.items():
-        if info.repr:
-            displayed_names.append(name)
-            if name.casefold() == "name":
-                table.add_column(name, max_width=15, no_wrap=True)
-            elif name.casefold() == "description":
-                table.add_column(name, max_width=25)
-            elif name.casefold() in {"scope", "event", "action"}:
-                table.add_column(name, max_width=30)
-            # elif name.casefold() == "enabled":
-            #     table.add_column(name, max_width=5)
-            else:
-                table.add_column(name)
-
-    get_fields = attrgetter(*displayed_names)
-    for auto in automations:
-        table.add_row(
-            *(
-                obj
-                if isinstance(obj, str)
-                else repr(obj)
-                if isinstance(
-                    obj,
-                    (
-                        scopes.BaseScope,
-                        events.Event,
-                        # actions.QueueJobAction,
-                        # actions.NotificationAction,
-                        # actions.WebhookAction,
-                    ),
-                )
-                else pretty_repr(obj, max_depth=2, indent_size=1, max_length=2)
-                for obj in get_fields(auto)
-            )
-        )
-
-    return table
+    with gen_client.Client(url=url, headers=headers, http_client=http_client) as client:
+        yield client
 
 
 _AutomationsListAdapter = TypeAdapter(list[Automation])
 
 
+def get_one(
+    *,
+    name: str | None = None,
+    event: str | EventTriggeringConditionType | None = None,
+    action: str | TriggeredActionType | None = None,
+    scope: str | TriggerScopeType | None = None,
+    user: str | None = None,
+) -> Automation:
+    """Return the only Automation matching the given parameters, if possible.
+
+    Raises:
+        ValueError: If 0 or multiple Automations match the search criteria
+    """
+    params = locals()
+    set_params = {k: v for k, v in params.items() if (v is not None)}
+    matches = get_all(name=name, event=event, action=action, scope=scope, user=user)
+
+    try:
+        [only_match] = matches
+    except ValueError:
+        if matches:
+            raise RuntimeError(
+                f"Found multiple ({len(matches)}) automations matching: {set_params!r}"
+            )
+        else:
+            raise RuntimeError(f"No automation found matching: {set_params!r}")
+    else:
+        return only_match
+
+
 def get_all(
     *,
-    event: str | EventType | None = None,
-    action: str | ActionType | None = None,
-    scope: str | ScopeType | None = None,
+    name: str | None = None,
+    event: str | EventTriggeringConditionType | None = None,
+    action: str | TriggeredActionType | None = None,
+    scope: str | TriggerScopeType | None = None,
     user: str | None = None,
-) -> Iterator[Automation]:
-    from wandb.sdk.automations import ActionType, EventType, ScopeType
-
-    scope_type = None if (scope is None) else ScopeType(scope)
-    event_type = None if (event is None) else EventType(event)
-    action_type = None if (action is None) else ActionType(action)
+) -> list[Automation]:
+    """Yield from all Automations matching the givne search criteria."""
+    scope_type = None if (scope is None) else TriggerScopeType(scope)
+    event_type = None if (event is None) else EventTriggeringConditionType(event)
+    action_type = None if (action is None) else TriggeredActionType(action)
 
     def _should_keep(automation: Automation) -> bool:
         return (
-            ((user is None) or (automation.created_by.username == user))
+            ((name is None) or (automation.name == name))
+            and ((user is None) or (automation.created_by.username == user))
             and ((scope_type is None) or (automation.scope.scope_type is scope_type))
             and ((event_type is None) or (automation.event.event_type is event_type))
             and (
@@ -348,101 +103,221 @@ def get_all(
             )
         )
 
-    from wandb.sdk.automations.scopes import ScopeType
-
     with _gql_client() as client:
-        params = {"entityName": None}
-        data = client.execute(_AUTOMATIONS_QUERY, variable_values=params)
-
-        organizations = data["viewer"]["organizations"]
+        result = client.triggers_in_user_orgs(entity_name=None)
         entities = chain.from_iterable(
-            [org_entity, *teams]
-            for org_entity, teams in map(
-                itemgetter("orgEntity", "teams"), organizations
-            )
+            [org.org_entity, *org.teams] for org in result.organizations
         )
-        edges = chain.from_iterable(entity["projects"]["edges"] for entity in entities)
-        projects = (edge["node"] for edge in edges)
-        triggers = chain.from_iterable(proj["triggers"] for proj in projects)
-        return list(
-            filter(_should_keep, _AutomationsListAdapter.validate_python(triggers))
+        edges = chain.from_iterable(ent.projects.edges for ent in entities)
+        projects = (edge.node for edge in edges)
+        triggers = chain.from_iterable(proj.triggers for proj in projects)
+        automations = (
+            Automation.model_validate(obj.model_dump(exclude={"typename__"}))
+            for obj in triggers
         )
+        return list(filter(_should_keep, automations))
 
 
-def create(automation: NewAutomation) -> Automation:
+def create(
+    automation_or_pair: NewAutomation | NewEventAndAction,
+    *,
+    name: str | None = None,
+    description: str | None = None,
+    enabled: bool = True,
+) -> Automation:
+    if isinstance(automation_or_pair, NewAutomation):
+        automation = automation_or_pair
+    elif isinstance(automation_or_pair, tuple):
+        event_and_action = automation_or_pair
+        automation = define(
+            event_and_action,
+            name=name or "",
+            description=description,
+            enabled=enabled,
+        )
+    else:
+        raise TypeError(
+            f"Unable to prepare type {type(automation_or_pair).__qualname__!r} into new automation"
+        )
+
     with _gql_client() as client:
-        variable_values = automation.to_create_payload().model_dump()
-        data = client.execute(_CREATE_AUTOMATION, variable_values=variable_values)
-        return Automation.model_validate(data["createFilterTrigger"]["trigger"])
+        params = CreateFilterTriggerInput(
+            name=automation.name,
+            description=automation.description,
+            enabled=automation.enabled,
+            client_mutation_id=automation.client_mutation_id,
+            # ------------------------------------------------------------------------------
+            scope_type=automation.scope.scope_type,
+            scope_id=automation.scope.id,
+            # ------------------------------------------------------------------------------
+            triggering_event_type=automation.event.event_type,
+            event_filter=jsonify(automation.event.filter),
+            # ------------------------------------------------------------------------------
+            triggered_action_type=automation.action.action_type,
+            triggered_action_config=_to_triggered_action_config(automation.action),
+        )
+
+        try:
+            result = client.create_trigger(
+                params=params,
+                # name=args.name,
+                # triggering_event_type=args.triggering_event_type,
+                # scope_type=args.scope_type,
+                # scope_id=args.scope_id,
+                # event_filter=args.event_filter,
+                # triggered_action_type=args.triggered_action_type,
+                # triggered_action_config=args.triggered_action_config,
+                # enabled=args.enabled,
+                # description=args.description,
+            )
+        except GraphQLClientHttpError as e:
+            if e.response.status_code == 409:  # Conflict
+                wandb.termlog(
+                    f"An automation named {automation.name!r} already exists.  Skipping creation..."
+                )
+                return get_one(name=name)
+            else:
+                wandb.termerror(
+                    f"Got response status {e.response.status_code!r}: {e.response.text!r}"
+                )
+                raise e
+        return Automation.model_validate(result.trigger)
+
+
+@singledispatch
+def _to_triggered_action_config(action: AnyNewAction) -> TriggeredActionConfig:
+    """Return a `TriggeredActionConfig` as required in the input schema of CreateFilterTriggerInput."""
+    raise TypeError(
+        f"Unsupported action type {type(action).__qualname__!r}: {action!r}"
+    )
+
+
+@_to_triggered_action_config.register
+def _(action: NewQueueJob) -> TriggeredActionConfig:
+    return TriggeredActionConfig.model_validate(
+        dict(queue_job_action_input=action.model_dump())
+    )
+
+
+@_to_triggered_action_config.register
+def _(action: NewNotification) -> TriggeredActionConfig:
+    return TriggeredActionConfig.model_validate(
+        dict(notification_action_input=action.model_dump())
+    )
+
+
+@_to_triggered_action_config.register
+def _(action: NewWebhook) -> TriggeredActionConfig:
+    return TriggeredActionConfig.model_validate(
+        dict(generic_webhook_action_input=action.model_dump())
+    )
+
+
+def copy(automation: Automation, *, name: str, **updates: Any) -> Automation:
+    raise NotImplementedError
 
 
 def define(
     event_and_action: NewEventAndAction,
     *,
     name: str,
-    description: str | None,
+    description: str | None = None,
     enabled: bool = True,
-):
+) -> NewAutomation:
     event, action = event_and_action
-    return NewAutomation(
-        name=name,
-        description=description,
-        enabled=enabled,
-        scope=event.scope,
-        event=event,
-        action=action,
+    new_automation = NewAutomation.model_validate(
+        dict(
+            name=name,
+            description=description,
+            enabled=enabled,
+            scope=event.scope,
+            event=event,
+            action=action,
+        )
     )
+    return new_automation
 
 
-def _project_id(proj: gen.Project) -> str:
-    """Get the ID of the given project."""
+def user_slack_integration() -> SlackIntegration:
+    """Get the user's own personal W&B Slack integration."""
     with _gql_client() as client:
-        variable_values = {
-            "name": proj.name,
-            "entityName": proj.entity,
-        }
-        data = client.execute(_PROJECT_ID_BY_NAMES, variable_values=variable_values)
-        return data["project"]["id"]
-
-
-class _TooManyError(ValueError):
-    pass
-
-
-class _TooFewError(ValueError):
-    pass
-
-
-def _slack_integration() -> gen.SlackIntegration:
-    with _gql_client() as client:
-        data = client.execute(_QUERY_SLACK_INTEGRATIONS)
-        edges = data["viewer"]["userEntity"]["integrations"]["edges"]
-        slack_integrations = [
-            gen.SlackIntegration.model_validate(edge["node"]) for edge in edges
-        ]
+        result = client.slack_integrations_for_user()
         try:
-            return one(
-                slack_integrations,
-                too_short=_TooFewError,
-                too_long=_TooManyError,
+            edges = result.integrations.edges
+        except AttributeError:
+            raise ValueError(
+                f"Unable to parse Slack integrations for user from response: {result!r}"
             )
-        except _TooFewError:
-            raise RuntimeError(
-                "No slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
-            )
-        except _TooManyError:
-            raise RuntimeError(
-                f"Found multiple ({len(slack_integrations)}) Slack integrations: {slack_integrations!r}"
-            )
+        else:
+            # Dump and revalidate to ensure the correct pydantic type names
+            nodes = (edge.node for edge in edges)
+            integrations = [
+                SlackIntegration.model_validate(node.model_dump()) for node in nodes
+            ]
+
+        try:
+            [only_integration] = integrations
+        except ValueError:
+            if integrations:
+                raise RuntimeError(
+                    f"Found multiple ({len(integrations)}) Slack integrations: {integrations!r}"
+                )
+            else:
+                raise RuntimeError(
+                    "No slack integration found!  You can set one up for your W&B user at: https://wandb.ai/settings"
+                )
+        else:
+            return only_integration
 
 
-def delete(id_or_automation: str | Automation) -> DeletedAutomation:
+def team_slack_integration(entity: str | None = None) -> SlackIntegration:
+    """Get the Slack integration for an entity, if given, or the user's default entity."""
     with _gql_client() as client:
-        match id_or_automation:
-            case Automation() as automation:
-                params = {"id": automation.id}
+        result = client.slack_integrations_for_team(entity_name=entity)
+        try:
+            edges = result.integrations.edges
+        except AttributeError:
+            raise ValueError(
+                f"Unable to parse Slack integrations for entity {entity!r} from response: {result!r}"
+            )
+        else:
+            # Dump and revalidate to ensure the correct pydantic type names
+            nodes = (edge.node for edge in edges)
+            integrations = [
+                SlackIntegration.model_validate(node.model_dump()) for node in nodes
+            ]
+
+        try:
+            [only_integration] = integrations
+        except ValueError:
+            if integrations:
+                raise RuntimeError(
+                    f"Found multiple ({len(integrations)}) Slack integrations for team {entity!r}: {integrations!r}"
+                )
+            else:
+                raise RuntimeError(
+                    f"No slack integration found!  A team admin for {entity!r} can set one up at: https://wandb.ai/{entity}/settings"
+                )
+        else:
+            return only_integration
+
+
+def delete(obj: str | Automation) -> DeleteTriggerResult:
+    with _gql_client() as client:
+        match obj:
+            case Automation(id=id_):
+                params = {"id": id_}
             case str() as id_:
                 params = {"id": id_}
+            case _:
+                raise TypeError(
+                    f"Unable to parse automation ID from type: {type(obj).__qualname__!r}"
+                )
 
-        data = client.execute(_DELETE_AUTOMATION, variable_values=params)
-        return DeletedAutomation.validate(data["deleteTrigger"])
+        result = client.delete_trigger(id=params["id"])
+        try:
+            obj_dict = result.model_dump()
+        except AttributeError:
+            raise ValueError(f"Unable to parse deleted trigger response: {result!r}")
+        else:
+            return DeleteTriggerResult.model_validate(obj_dict)

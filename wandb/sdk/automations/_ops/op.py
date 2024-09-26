@@ -3,10 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from itertools import chain
 from typing import TYPE_CHECKING, Any, Union
 
-from more_itertools import always_iterable
 from pydantic import GetCoreSchemaHandler, RootModel
 from pydantic._internal import _repr
 from pydantic.main import IncEx
@@ -14,8 +12,12 @@ from pydantic_core import CoreSchema
 from pydantic_core.core_schema import no_info_after_validator_function, str_schema
 from typing_extensions import Literal
 
-from wandb.sdk.automations.operators.base_op import Op
-from wandb.sdk.automations.operators.comparison import (
+try:
+    from typing_extensions import override
+except ImportError:
+    from typing import override
+
+from wandb.sdk.automations._ops.comparison import (
     AnyComparisonOp,
     Eq,
     Gt,
@@ -26,11 +28,11 @@ from wandb.sdk.automations.operators.comparison import (
     Ne,
     Nin,
 )
-from wandb.sdk.automations.operators.evaluation import AnyEvaluationOp, Regex
-from wandb.sdk.automations.operators.logic import And, AnyLogicalOp, Nor, Not, Or
+from wandb.sdk.automations._ops.evaluation import AnyEvaluationOp, Regex
+from wandb.sdk.automations._ops.logic import AnyLogicalOp
 
 if TYPE_CHECKING:
-    from wandb.sdk.automations.operators.comparison import ValueT
+    from wandb.sdk.automations._ops.comparison import ValueT
 
 
 # ------------------------------------------------------------------------------
@@ -87,22 +89,22 @@ class ExpressionField(str):
         return FieldFilter.model_validate({self: Regex(regex=pattern)})
 
     # ------------------------------------------------------------------------------
-    def __lt__(self, value: ValueT) -> FieldFilter:
+    def __lt__(self, value: ValueT) -> FieldFilter:  # type: ignore[override,misc]
         return FieldFilter.model_validate({self: Lt(val=value)})
 
-    def __gt__(self, value: ValueT) -> FieldFilter:
+    def __gt__(self, value: ValueT) -> FieldFilter:  # type: ignore[override,misc]
         return FieldFilter.model_validate({self: Gt(val=value)})
 
-    def __le__(self, value: ValueT) -> FieldFilter:
+    def __le__(self, value: ValueT) -> FieldFilter:  # type: ignore[override,misc]
         return FieldFilter.model_validate({self: Lte(val=value)})
 
-    def __ge__(self, value: ValueT) -> FieldFilter:
+    def __ge__(self, value: ValueT) -> FieldFilter:  # type: ignore[override,misc]
         return FieldFilter.model_validate({self: Gte(val=value)})
 
-    def __eq__(self, value: ValueT) -> FieldFilter:
+    def __eq__(self, value: ValueT) -> FieldFilter:  # type: ignore[override]
         return FieldFilter.model_validate({self: Eq(val=value)})
 
-    def __ne__(self, value: ValueT) -> FieldFilter:
+    def __ne__(self, value: ValueT) -> FieldFilter:  # type: ignore[override]
         return FieldFilter.model_validate({self: Ne(val=value)})
 
 
@@ -113,12 +115,13 @@ class FieldFilter(RootModel):
     def __repr_args__(self) -> _repr.ReprArgs:
         yield from self.root.items()
 
-    def model_dump(  # type: ignore
+    @override
+    def model_dump(
         self,
         *,
         mode: Literal["json", "python"] | str = "json",  # NOTE: changed default
-        include: IncEx = None,
-        exclude: IncEx = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
         context: dict[str, Any] | None = None,
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
@@ -128,7 +131,7 @@ class FieldFilter(RootModel):
         warnings: bool | Literal["none", "warn", "error"] = True,
         serialize_as_any: bool = False,
     ) -> dict[str, Any]:
-        return super().model_dump(
+        return super().model_dump(  # type: ignore[no-any-return]
             mode=mode,
             include=include,
             exclude=exclude,
@@ -146,8 +149,8 @@ class FieldFilter(RootModel):
         self,
         *,
         indent: int | None = None,
-        include: IncEx = None,
-        exclude: IncEx = None,
+        include: IncEx | None = None,
+        exclude: IncEx | None = None,
         context: dict[str, Any] | None = None,
         by_alias: bool = True,  # NOTE: changed default
         exclude_unset: bool = False,
@@ -186,67 +189,8 @@ AnyOp = Union[
     AnyComparisonOp,
     AnyEvaluationOp,
 ]
-#     # Discriminator(get_op_discriminator_value),
-# ]
 
 AnyExpr = Union[
     AnyOp,
     FieldFilter,
 ]
-
-
-# ------------------------------------------------------------------------------
-# Convenience functions to make constructing/composing operators less verbose and tedious
-def or_(*exprs: AnyExpr | Iterable[AnyExpr]) -> Or:
-    all_exprs = chain.from_iterable(always_iterable(x, base_type=Op) for x in exprs)
-    return Or(exprs=all_exprs)
-
-
-def and_(*exprs: AnyExpr | Iterable[AnyExpr]) -> And:
-    all_exprs = chain.from_iterable(always_iterable(x, base_type=Op) for x in exprs)
-    return And(exprs=all_exprs)
-
-
-def none_of(*exprs: AnyExpr | Iterable[AnyExpr]) -> Nor:
-    all_exprs = chain.from_iterable(always_iterable(x, base_type=Op) for x in exprs)
-    return Nor(exprs=all_exprs)
-
-
-def not_(expr: AnyExpr) -> Not:
-    return Not(expr=expr)
-
-
-def gt(val: ValueT) -> Gt:
-    return Gt(val=val)
-
-
-def gte(val: ValueT) -> Gte:
-    return Gte(val=val)
-
-
-def lt(val: ValueT) -> Lt:
-    return Lt(val=val)
-
-
-def lte(val: ValueT) -> Lte:
-    return Lte(val=val)
-
-
-def eq(val: ValueT) -> Eq:
-    return Eq(val=val)
-
-
-def ne(val: ValueT) -> Ne:
-    return Ne(val=val)
-
-
-# ------------------------------------------------------------------------------
-def regex(pattern: str) -> Regex:
-    return Regex(regex=pattern)
-
-
-# ------------------------------------------------------------------------------
-def on_field(field: str) -> ExpressionField:
-    # When/if needed for greater flexiblity:
-    # handle when class attributes e.g. `Artifact.tags/aliases` are passed directly as well
-    return ExpressionField(field)

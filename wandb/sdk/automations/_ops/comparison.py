@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from typing import Container, TypeVar, Union
+from typing import Container, Union
 
 from pydantic import Discriminator, Field, Tag
 from pydantic._internal import _repr
 from typing_extensions import Annotated
 
-from wandb.sdk.automations.operators.base_op import Op
-from wandb.sdk.automations.operators.utils import get_op_discriminator_value
+from wandb.sdk.automations._ops.base import Op
+from wandb.sdk.automations._ops.utils import get_op_discriminator_value
 
 #: Placeholder - TODO: make these variadic depending on compared field/expression
-ValueT = TypeVar("ValueT", str, int, float)
+# ValueT = TypeVar("ValueT", str, int, float)
+ValueT = Union[str, int, float]
 
 EQ = "$eq"
 NE = "$ne"
@@ -18,6 +19,7 @@ GTE = "$gte"
 LT = "$lt"
 GT = "$gt"
 LTE = "$lte"
+CONTAINS = "$contains"  # Note: This isn't actually supported by MongoDB but the backend handles it
 
 IN = "$in"
 NIN = "$nin"
@@ -54,6 +56,10 @@ class Ne(CompareToScalarOp):
     val: ValueT = Field(alias=NE)
 
 
+class Contains(CompareToScalarOp):
+    val: ValueT = Field(alias=CONTAINS)
+
+
 class CompareToContainerOp(Op[Container[ValueT]]):
     vals: list[ValueT]
 
@@ -78,6 +84,7 @@ AnyComparisonOp = Annotated[
         Annotated[Gte, Tag(GTE)],
         Annotated[Eq, Tag(EQ)],
         Annotated[Ne, Tag(NE)],
+        Annotated[Contains, Tag(CONTAINS)],
         # ------------------------------------------------------------------------------
         Annotated[In, Tag(IN)],
         Annotated[Nin, Tag(NIN)],

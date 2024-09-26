@@ -5,8 +5,8 @@
 
 from typing import Any
 
-from wandb.sdk.automations.base import Base
-from wandb.sdk.automations.operators.op import AnyExpr, ExpressionField
+from wandb.sdk.automations._base import Base
+from wandb.sdk.automations._ops.op import AnyExpr, ExpressionField
 
 
 class Window(Base):
