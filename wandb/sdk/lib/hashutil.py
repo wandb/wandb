@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import mmap
-import os
 import sys
 from typing import TYPE_CHECKING, NewType
 
