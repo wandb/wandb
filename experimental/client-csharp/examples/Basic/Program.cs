@@ -4,6 +4,11 @@ using Wandb;
 
 class Program
 {
+    public class EpochSummary
+    {
+        public int Epoch { get; set; }
+    }
+
     static async Task Main()
     {
         using (var session = new Session())
@@ -38,6 +43,13 @@ class Program
                     runId: run1.Settings.RunId
                 )
             );
+
+            // Get the run's summary:
+            var epochSummary = await run2.GetSummary<EpochSummary>();
+            // Try and get the last logged epoch:
+            var lastEpoch = epochSummary?.Epoch ?? -1;
+            Console.WriteLine($"Next epoch: {lastEpoch + 1}");
+
             // Update configuration:
             await run2.UpdateConfig(new Dictionary<string, object> { { "learning_rate", 3e-4 } });
             await run2.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
