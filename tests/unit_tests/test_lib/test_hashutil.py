@@ -53,9 +53,8 @@ def test_hex_to_b64_id(bin_data):
 
 def test_hex_to_b64_id_bytes(bin_data):
     hex_bytes = bin_data.hex().encode("ascii")
-    assert hashutil.hex_to_b64_id(hex_bytes) == base64.b64encode(bin_data).decode(
-        "ascii"
-    )
+    expected_b64_id = base64.b64encode(bin_data).decode("ascii")
+    assert hashutil.hex_to_b64_id(hex_bytes) == expected_b64_id
 
 
 def test_b64_to_hex_id(bin_data):
