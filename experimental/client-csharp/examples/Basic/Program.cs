@@ -47,7 +47,7 @@ class Program
             // Get the run's summary:
             var epochSummary = await run2.GetSummary<EpochSummary>();
             // Try and get the last logged epoch:
-            var lastEpoch = epochSummary?.Epoch ?? 0;
+            var lastEpoch = epochSummary?.Epoch ?? -1;
             Console.WriteLine($"Next epoch: {lastEpoch + 1}");
 
             // Update configuration:
