@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -57,8 +58,8 @@ func getLocalTPUChips() (*TPUChip, int) {
 		if err != nil {
 			continue
 		}
-		vendorId := string(data)
-		fmt.Println(vendorId)
+		vendorId := strings.Trim(string(data), "\n")
+		fmt.Println(vendorId, vendorId == googleTPUVendorID)
 		if vendorId != googleTPUVendorID {
 			continue
 		}
