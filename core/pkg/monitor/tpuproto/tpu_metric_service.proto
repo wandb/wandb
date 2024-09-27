@@ -140,9 +140,9 @@ message Quantile {
   double value = 2;
 }
 
-// Summary represents observed sampling for different quantiles including
+// SummaryMetric represents observed sampling for different quantiles including
 // sum of all the observations and total count of observations.
-message Summary {
+message SummaryMetric {
   uint64 sample_count = 1;
   double sample_sum = 2;
   repeated Quantile quantile = 3;
@@ -191,7 +191,7 @@ message Metric {
     Gauge gauge = 3;
     Counter counter = 4;
     Distribution distribution = 5;
-    Summary summary = 6;
+    SummaryMetric summary = 6;
   }
 }
 
