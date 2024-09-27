@@ -280,7 +280,7 @@ outerLoop:
 
 				continue outerLoop
 
-			case <-time.After(30 * time.Minute):
+			case <-time.After(10 * time.Minute):
 				if i < 6 {
 					s.logger.CaptureWarn(
 						"sender: taking a long time",
