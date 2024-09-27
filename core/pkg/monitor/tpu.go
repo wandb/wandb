@@ -87,17 +87,17 @@ func (t *TPU) Sample() (map[string]any, error) {
 	totals, err := t.sortedMetricResponse(TOTAL_MEMORY)
 	if err != nil {
 		fmt.Println("error getting total memory", err)
-		return nil, err
+		// return nil, err
 	}
 	usages, err := t.sortedMetricResponse(MEMORY_USAGE)
 	if err != nil {
 		fmt.Println("error getting memory usage", err)
-		return nil, err
+		// return nil, err
 	}
 	dutyCycles, err := t.sortedMetricResponse(DUTY_CYCLE_PCT)
 	if err != nil {
 		fmt.Println("error getting duty cycle", err)
-		return nil, err
+		// return nil, err
 	}
 
 	fmt.Println(totals, usages, dutyCycles)
@@ -232,6 +232,7 @@ func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
 
 func (t *TPU) sortedMetricResponse(metricName MetricName) ([]*tpuproto.Metric, error) {
 	req := &tpuproto.MetricRequest{MetricName: string(metricName)}
+	fmt.Println(req)
 	resp, err := t.client.GetRuntimeMetric(context.Background(), req)
 	if err != nil {
 		return nil, err
