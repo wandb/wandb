@@ -10,6 +10,7 @@ import (
 	"github.com/wandb/wandb/core/pkg/monitor/tpuproto"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -62,7 +63,7 @@ func NewTPU() *TPU {
 
 	// Initialize gRPC connection and client
 	addr := "localhost:8431"
-	conn, err := grpc.NewClient(addr)
+	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		fmt.Println(err)
 		return nil
