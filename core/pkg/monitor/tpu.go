@@ -65,7 +65,6 @@ func NewTPU() *TPU {
 	addr := "localhost:8431"
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		fmt.Println(err)
 		return nil
 	}
 	client := tpuproto.NewRuntimeMetricServiceClient(conn)
@@ -97,6 +96,8 @@ func (t *TPU) Sample() (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	fmt.Println(totals, usages, dutyCycles)
 
 	// Duty cycle is always measured per-chip, while memory is measured per-core.
 	// Repeat if necessary so these responses are the same length.
