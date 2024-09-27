@@ -2948,14 +2948,14 @@ class Run:
             aliases = []
 
         if not self._backend or not self._backend.interface:
-            # TODO: implement offline mode + sync
-            raise NotImplementedError
+            return
 
         if artifact.is_draft() and not artifact._is_draft_save_started():
             artifact = self._log_artifact(artifact)
 
         if self._settings._offline:
-            return
+            # TODO: implement offline mode + sync
+            raise NotImplementedError
 
         # Wait until the artifact is committed before trying to link it.
         artifact.wait()
