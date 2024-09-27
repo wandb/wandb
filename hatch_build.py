@@ -133,7 +133,7 @@ class CustomBuildHook(BuildHookInterface):
     def _build_nvidia_gpu_stats(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
 
-        self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
+        self.app.display_waiting("Building nvidia_gpu_stats Rust binary...")
         hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,

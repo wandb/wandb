@@ -79,7 +79,7 @@ func TestSaveGraphQLRequest(t *testing.T) {
 	)
 	ftm := filetransfertest.NewFakeFileTransferManager()
 	ftm.ShouldCompleteImmediately = true
-	saver := NewArtifactSaver(
+	saver := NewArtifactSaveManager(
 		observability.NewNoOpLogger(),
 		mockGQL,
 		ftm,

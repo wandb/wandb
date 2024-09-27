@@ -101,7 +101,7 @@ type Sender struct {
 	runfilesUploader runfiles.Uploader
 
 	// artifactsSaver manages artifact uploads
-	artifactsSaver *artifacts.ArtifactSaver
+	artifactsSaver *artifacts.ArtifactSaveManager
 
 	// artifactWG is a wait group for artifact-related goroutines
 	artifactWG sync.WaitGroup
@@ -181,7 +181,7 @@ func NewSender(
 		fileTransferStats:   params.FileTransferStats,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
-		artifactsSaver: artifacts.NewArtifactSaver(
+		artifactsSaver: artifacts.NewArtifactSaveManager(
 			params.Logger,
 			params.GraphqlClient,
 			params.FileTransferManager,
