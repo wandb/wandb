@@ -69,7 +69,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 		if err != nil {
 			continue
 		}
-		deviceId := string(data)
+		deviceId := strings.Trim(string(data), "\n")
 		fmt.Println(deviceId)
 
 		subsystemPath := filepath.Join(pciPath, "subsystem_device")
@@ -77,7 +77,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 		if err != nil {
 			continue
 		}
-		subsystemId := string(data)
+		subsystemId := strings.Trim(string(data), "\n")
 		fmt.Println(subsystemId)
 
 		chipType, err := tpuChipFromPCIDeviceID(deviceId, subsystemId)
