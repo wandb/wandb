@@ -57,18 +57,20 @@ func NewTPU() *TPU {
 		return nil
 	}
 
+	t.chip = chip
+	t.count = count
+
 	// Initialize gRPC connection and client
 	addr := "localhost:8431"
 	conn, err := grpc.NewClient(addr)
 	if err != nil {
+		fmt.Println(err)
 		return nil
 	}
 	client := tpuproto.NewRuntimeMetricServiceClient(conn)
 
 	t.conn = conn
 	t.client = client
-	t.chip = chip
-	t.count = count
 
 	return t
 }
