@@ -44,19 +44,19 @@ func (al *ArtifactLinker) Link() error {
 			if err != nil {
 				return err
 			}
-			if response == nil {
-				return fmt.Errorf("Unable to find organization for artifact entity: %s", portfolioEntity)
+			if response == nil || response.GetEntity() == nil || response.GetEntity().GetOrganization() == nil || response.GetEntity().GetOrganization().GetOrgEntity() == nil {
+				return fmt.Errorf("Unable to find organization for artifact under entity: %s. Please make sure you are using a team entity when linking to the Registry", portfolioEntity)
 			}
 
 			// Validate organization inputted by user
 			if organization != "" && (organization != response.Entity.Organization.Name && organization != response.Entity.Organization.OrgEntity.Name) {
-				return fmt.Errorf("Wrong organization: %s for registry: %s", organization, portfolioProject)
+				return fmt.Errorf("Wrong organization: %s for Registry: %s", organization, portfolioProject)
 			}
 			portfolioEntity = response.Entity.Organization.OrgEntity.Name
 		case organization == "":
 			// User is trying to shorthand path but server isn't upgraded to handle it
 			// TODO: good error message
-			return fmt.Errorf("Upgrade server to about xx to shorthand Registry path")
+			return fmt.Errorf("Upgrade server to above version xx to shorthand Registry path")
 		default:
 			// Use traditional registry path with org entity if server doesn't support it
 			portfolioEntity = organization

@@ -2,8 +2,8 @@ package artifacts
 
 import "strings"
 
-const registryProjectPrefix = "wandb-registry-"
+const RegistryProjectPrefix = "wandb-registry-"
 
 func IsArtifactRegistryProject(project string) bool {
-	return strings.HasPrefix(project, registryProjectPrefix)
+	return strings.HasPrefix(project, RegistryProjectPrefix)
 }

@@ -401,16 +401,7 @@ class InterfaceBase:
         else:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
-
-        if is_artifact_registry_project(project or ""):
-            # in a registry linking, the entity field is only used to help fetch the org entity
-            # if an artifact is logged, fetch the source entity of the artifact to have source of truth for org entity
-            with suppress(ArtifactNotLoggedError):
-                link_artifact.portfolio_entity = artifact.source_entity
-
-        if not link_artifact.portfolio_entity:
-            link_artifact.portfolio_entity = entity or run.entity
-
+        link_artifact.portfolio_entity = entity or run.entity
         link_artifact.portfolio_organization = organization
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)

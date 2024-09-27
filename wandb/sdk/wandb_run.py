@@ -2955,7 +2955,9 @@ class Run:
                 organization = ""
                 if is_artifact_registry_project(project):
                     organization = entity
-                    entity = ""
+                    # In a Registry linking, the entity is used to fetch the organization of the artifact
+                    # therefore the source artifact's entity is passed to the backend
+                    entity = artifact._source_entity
                 handle = self._backend.interface.deliver_link_artifact(
                     self,
                     artifact,
