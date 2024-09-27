@@ -14,6 +14,11 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Fixed
 
 - Fixed a regression introduced in v0.18.2 that affected the capturing of Nvidia GPU names. (@dmitryduev in https://github.com/wandb/wandb/pull/8503)
+- `run.log_artifact()` no longer blocks other data uploads until the artifact upload finishes (@timoffex in https://github.com/wandb/wandb/pull/8466)
+
+### Changed
+
+- After `artifact = run.log_artifact()`, you must use `artifact.wait()` before operations that rely on the artifact having been uploaded. Previously, this wasn't necessary in some cases because `run.log_artifact()` blocked other operations on the run (@timoffex in https://github.com/wandb/wandb/pull/8466)
 
 ## [0.18.2] - 2024-09-27
 
@@ -28,6 +33,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Add docstring for `wandb.watch` to support auto-complete (@kptkin in https://github.com/wandb/wandb/pull/8425)
 - Fix glob matching in define metric to work with logged keys containing `/` (@KyleGoyette in https://github.com/wandb/wandb/pull/8434)
 - Allow `a\.b` syntax in run.define_metric to refer to a dotted metric name (@jacobromero in https://github.com/wandb/wandb/pull/8445)
+  - NOTE: Not fixed if using `wandb.require("legacy-service")`
 - Fix Unknown image format error when uploading a gif through tensorboard. (@jacobromero in https://github.com/wandb/wandb/pull/8476)
 - Fix `OSError` from calling `Artifact.add_file` with file paths on mounted filesystems (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8473)
 - Restored compatibility for macOS versions <= 10.15 for wandb-core. (@dmitryduev in https://github.com/wandb/wandb/pull/8487)
