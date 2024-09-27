@@ -19,6 +19,7 @@ require (
 	golang.org/x/sync v0.8.0
 	golang.org/x/time v0.6.0
 	google.golang.org/api v0.188.0
+	google.golang.org/grpc v1.64.1
 	google.golang.org/protobuf v1.34.2
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -46,7 +47,6 @@ require (
 	google.golang.org/genproto v0.0.0-20240708141625-4ad9e859172b // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240711142825-46eb208f015d // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240711142825-46eb208f015d // indirect
-	google.golang.org/grpc v1.64.1 // indirect
 )
 
 require (
