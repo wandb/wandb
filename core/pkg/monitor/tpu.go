@@ -39,7 +39,8 @@ func (t *TPU) Sample() (map[string]any, error) {
 }
 
 func (t *TPU) IsAvailable() bool {
-	return true
+	chip, _ := getLocalTPUChips()
+	return chip != nil
 }
 
 func getLocalTPUChips() (*TPUChip, int) {
@@ -51,15 +52,12 @@ func getLocalTPUChips() (*TPUChip, int) {
 	counter := make(map[*TPUChip]int)
 
 	for _, pciPath := range devices {
-		fmt.Println(pciPath)
-
 		vendorPath := filepath.Join(pciPath, "vendor")
 		data, err := os.ReadFile(vendorPath)
 		if err != nil {
 			continue
 		}
 		vendorId := strings.Trim(string(data), "\n")
-		fmt.Println(vendorId, vendorId == googleTPUVendorID)
 		if vendorId != googleTPUVendorID {
 			continue
 		}
@@ -70,7 +68,6 @@ func getLocalTPUChips() (*TPUChip, int) {
 			continue
 		}
 		deviceId := strings.Trim(string(data), "\n")
-		fmt.Println(deviceId)
 
 		subsystemPath := filepath.Join(pciPath, "subsystem_device")
 		data, err = os.ReadFile(subsystemPath)
@@ -78,10 +75,8 @@ func getLocalTPUChips() (*TPUChip, int) {
 			continue
 		}
 		subsystemId := strings.Trim(string(data), "\n")
-		fmt.Println(subsystemId)
 
 		chipType, err := tpuChipFromPCIDeviceID(deviceId, subsystemId)
-		fmt.Println(chipType)
 		if err != nil {
 			continue
 		}
@@ -100,7 +95,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 			maxCount = count
 		}
 	}
-	fmt.Println(mostCommonChip)
+
 	return mostCommonChip, maxCount
 }
 
