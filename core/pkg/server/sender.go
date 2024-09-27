@@ -550,21 +550,16 @@ func (s *Sender) sendJobFlush() {
 		return
 	}
 
-	resultChan := s.artifactsSaver.Save(
+	result := <-s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
 		artifact,
 		0,
 		"",
 	)
-	s.artifactWG.Add(1)
-	go func() {
-		defer s.artifactWG.Done()
-		result := <-resultChan
-		if result.Err != nil {
-			s.logger.CaptureError(
-				fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
-		}
-	}()
+	if result.Err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
+	}
 }
 
 func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
