@@ -58,6 +58,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 			continue
 		}
 		vendorId := string(data)
+		fmt.Println(vendorId)
 		if vendorId != googleTPUVendorID {
 			continue
 		}
@@ -68,6 +69,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 			continue
 		}
 		deviceId := string(data)
+		fmt.Println(deviceId)
 
 		subsystemPath := filepath.Join(pciPath, "subsystem_device")
 		data, err = os.ReadFile(subsystemPath)
@@ -75,8 +77,10 @@ func getLocalTPUChips() (*TPUChip, int) {
 			continue
 		}
 		subsystemId := string(data)
+		fmt.Println(subsystemId)
 
 		chipType, err := tpuChipFromPCIDeviceID(deviceId, subsystemId)
+		fmt.Println(chipType)
 		if err != nil {
 			continue
 		}
