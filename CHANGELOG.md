@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.18.2] - 2024-09-27
+
 ### Added
 
 - Add `upsert_run_queue` method to `wandb.Api`. (@bcsherma in https://github.com/wandb/wandb/pull/8348)
