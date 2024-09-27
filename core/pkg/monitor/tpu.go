@@ -160,7 +160,7 @@ func getLocalTPUChips() (*TPUChip, int) {
 		return nil, 0
 	}
 
-	counter := make(map[string]*TPUChip)
+	counter := make(map[*TPUChip]int)
 
 	for _, pciPath := range devices {
 		vendorPath := filepath.Join(pciPath, "vendor")
@@ -192,20 +192,22 @@ func getLocalTPUChips() (*TPUChip, int) {
 			continue
 		}
 
-		key := chipType.name
-		counter[key] = chipType
+		counter[chipType]++
 	}
 
 	if len(counter) == 0 {
 		return nil, 0
 	}
 
-	// Assuming only one type of TPU chip is present
-	for _, chip := range counter {
-		return chip, chip.devicesPerChip
+	var mostCommonChip *TPUChip
+	var maxCount int
+	for chip, count := range counter {
+		if count > maxCount {
+			mostCommonChip = chip
+			maxCount = count
+		}
 	}
-
-	return nil, 0
+	return mostCommonChip, maxCount
 }
 
 func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
