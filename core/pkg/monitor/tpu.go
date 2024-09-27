@@ -86,14 +86,17 @@ func (t *TPU) Sample() (map[string]any, error) {
 
 	totals, err := t.sortedMetricResponse(TOTAL_MEMORY)
 	if err != nil {
+		fmt.Println("error getting total memory", err)
 		return nil, err
 	}
 	usages, err := t.sortedMetricResponse(MEMORY_USAGE)
 	if err != nil {
+		fmt.Println("error getting memory usage", err)
 		return nil, err
 	}
 	dutyCycles, err := t.sortedMetricResponse(DUTY_CYCLE_PCT)
 	if err != nil {
+		fmt.Println("error getting duty cycle", err)
 		return nil, err
 	}
 
