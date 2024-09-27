@@ -14,7 +14,6 @@ import os
 import sys
 import time
 from abc import abstractmethod
-from contextlib import suppress
 from pathlib import Path
 from secrets import token_hex
 from typing import (
@@ -34,9 +33,7 @@ from wandb.proto import wandb_internal_pb2 as pb
 from wandb.proto import wandb_telemetry_pb2 as tpb
 from wandb.sdk.artifacts.artifact import Artifact
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
-from wandb.sdk.artifacts.exceptions import ArtifactNotLoggedError
 from wandb.sdk.artifacts.staging import get_staging_dir
-from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.lib import json_util as json
 from wandb.util import (
     WandBJSONEncoderOld,
