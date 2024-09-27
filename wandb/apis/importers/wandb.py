@@ -417,16 +417,16 @@ class WandbImporter:
             # Send run again with history artifacts in case config history=True, artifacts=False
             # The history artifact must come with the actual history data
 
-            logger.debug(f"Collecting history artifacts, {run=}")
+            logger.info(f"Collecting history artifacts, {run=}")
             history_arts = []
             for art in run.run.logged_artifacts():
                 if art.type != "wandb-history":
                     continue
-                logger.debug(f"Collecting history artifact {art.name=}")
+                logger.info(f"Collecting history artifact {art.name=}")
                 new_art = _clone_art(art)
                 history_arts.append(new_art)
 
-            logger.debug(f"Importing history artifacts, {run=}")
+            logger.info(f"Importing history artifacts, {run=}")
             internal.send_run(
                 run,
                 extra_arts=history_arts,
@@ -662,7 +662,7 @@ class WandbImporter:
 
     def _collect_failed_artifact_sequences(self) -> Iterable[ArtifactSequence]:
         if (df := _read_ndjson(ARTIFACT_ERRORS_FNAME)) is None:
-            logger.debug(f"{ARTIFACT_ERRORS_FNAME=} is empty, returning nothing")
+            logger.info(f"{ARTIFACT_ERRORS_FNAME=} is empty, returning nothing")
             return
 
         unique_failed_sequences = df[
@@ -696,7 +696,7 @@ class WandbImporter:
             if remapping and ns in remapping:
                 ns = remapping[ns]
 
-            logger.debug(f"Cleaning up, {ns=}")
+            logger.info(f"Cleaning up, {ns=}")
             try:
                 runs = list(
                     api.runs(ns.path, filters={"displayName": RUN_DUMMY_PLACEHOLDER})
@@ -707,7 +707,7 @@ class WandbImporter:
                     continue
 
             for run in runs:
-                logger.debug(f"Deleting dummy {run=}")
+                logger.info(f"Deleting dummy {run=}")
                 run.delete(delete_artifacts=False)
 
     def _import_report(
@@ -729,14 +729,14 @@ class WandbImporter:
         api = self.dst_api
 
         # We shouldn't need to upsert the project for every report
-        logger.debug(f"Upserting {entity=}/{project=}")
+        logger.info(f"Upserting {entity=}/{project=}")
         try:
             api.create_project(project, entity)
         except requests.exceptions.HTTPError as e:
             if e.response.status_code != 409:
                 logger.warn(f"Issue upserting {entity=}/{project=}, {e=}")
 
-        logger.debug(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
+        logger.info(f"Upserting report {entity=}, {project=}, {name=}, {title=}")
         api.client.execute(
             wr.Report(),
             variable_values={
@@ -766,7 +766,7 @@ class WandbImporter:
             "resume": "true",
             "resumed": True,
         }
-        logger.debug(f"Using artifact sequence with {settings_override=}, {namespace=}")
+        logger.info(f"Using artifact sequence with {settings_override=}, {namespace=}")
 
         send_manager_config = internal.SendManagerConfig(use_artifacts=True)
 
@@ -836,9 +836,9 @@ class WandbImporter:
                 summary=summary,
                 terminal_output=terminal_output,
             )
-            logger.debug(f"Importing {run=}, {namespace=}, {config=}")
+            logger.info(f"Importing {run=}, {namespace=}, {config=}")
             self._import_run(run, namespace=namespace, config=config)
-            logger.debug(f"Finished importing {run=}, {namespace=}, {config=}")
+            logger.info(f"Finished importing {run=}, {namespace=}, {config=}")
 
         logger.info(f"Threads to execute: , {max_workers=}")
         for_each(_import_run_wrapped, runs, max_workers=max_workers, parallel=parallel)
@@ -863,9 +863,9 @@ class WandbImporter:
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
-            logger.debug(f"Importing {report=}, {namespace=}")
+            logger.info(f"Importing {report=}, {namespace=}")
             self._import_report(report, namespace=namespace)
-            logger.debug(f"Finished importing {report=}, {namespace=}")
+            logger.info(f"Finished importing {report=}, {namespace=}")
 
         for_each(_import_report_wrapped, reports)
 
@@ -906,24 +906,24 @@ class WandbImporter:
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
-            logger.debug(f"Importing artifact sequence {seq=}, {namespace=}")
+            logger.info(f"Importing artifact sequence {seq=}, {namespace=}")
             self._import_artifact_sequence(seq, namespace=namespace)
-            logger.debug(f"Finished importing artifact sequence {seq=}, {namespace=}")
+            logger.info(f"Finished importing artifact sequence {seq=}, {namespace=}")
 
         for_each(_import_artifact_sequence_wrapped, seqs, max_workers=max_workers)
 
         # it's safer to just use artifact on all seqs to make sure we don't miss anything
         # For seqs that have already been used, this is a no-op.
-        logger.debug(f"Using artifact sequences, {len(seqs)=}")
+        logger.info(f"Using artifact sequences, {len(seqs)=}")
 
         def _use_artifact_sequence_wrapped(seq):
             namespace = Namespace(seq.entity, seq.project)
             if remapping is not None and namespace in remapping:
                 namespace = remapping[namespace]
 
-            logger.debug(f"Using artifact sequence {seq=}, {namespace=}")
+            logger.info(f"Using artifact sequence {seq=}, {namespace=}")
             self._use_artifact_sequence(seq, namespace=namespace)
-            logger.debug(f"Finished using artifact sequence {seq=}, {namespace=}")
+            logger.info(f"Finished using artifact sequence {seq=}, {namespace=}")
 
         for_each(_use_artifact_sequence_wrapped, seqs, max_workers=max_workers)
 
@@ -1021,7 +1021,7 @@ class WandbImporter:
         remapping: Optional[Dict[Namespace, Namespace]] = None,
     ) -> Iterable[Run]:
         if (df := _read_ndjson(RUN_SUCCESSES_FNAME)) is None:
-            logger.debug(f"{RUN_SUCCESSES_FNAME=} is empty, yielding all runs")
+            logger.info(f"{RUN_SUCCESSES_FNAME=} is empty, yielding all runs")
             yield from runs
             return
 
@@ -1042,14 +1042,14 @@ class WandbImporter:
                 }
             )
         df2 = pl.DataFrame(data)
-        logger.debug(f"Starting with {len(runs)=} in namespaces")
+        logger.info(f"Starting with {len(runs)=} in namespaces")
 
         results = df2.join(
             df,
             how="anti",
             on=["src_entity", "src_project", "dst_entity", "dst_project", "run_id"],
         )
-        logger.debug(f"After filtering out already successful runs, {len(results)=}")
+        logger.info(f"After filtering out already successful runs, {len(results)=}")
 
         if not results.is_empty():
             results = results.filter(~results["run_id"].is_null())
@@ -1086,7 +1086,7 @@ class WandbImporter:
             return (src_art, dst_entity, dst_project, problems)
 
         try:
-            logger.debug("Comparing artifact manifests")
+            logger.info("Comparing artifact manifests")
         except Exception as e:
             problems.append(
                 f"Problem getting problems! problem with {src_art.entity=}, {src_art.project=}, {src_art.name=} {e=}"
@@ -1099,7 +1099,7 @@ class WandbImporter:
             validation._check_entries_are_downloadable(dst_art)
 
         if download_files_and_compare:
-            logger.debug(f"Downloading {src_art=}")
+            logger.info(f"Downloading {src_art=}")
             try:
                 src_dir = _download_art(src_art, root=f"{SRC_ART_PATH}/{src_art.name}")
             except requests.HTTPError as e:
@@ -1107,7 +1107,7 @@ class WandbImporter:
                     f"Invalid download link for src {src_art.entity=}, {src_art.project=}, {src_art.name=}, {e}"
                 )
 
-            logger.debug(f"Downloading {dst_art=}")
+            logger.info(f"Downloading {dst_art=}")
             try:
                 dst_dir = _download_art(dst_art, root=f"{DST_ART_PATH}/{dst_art.name}")
             except requests.HTTPError as e:
@@ -1115,7 +1115,7 @@ class WandbImporter:
                     f"Invalid download link for dst {dst_art.entity=}, {dst_art.project=}, {dst_art.name=}, {e}"
                 )
             else:
-                logger.debug(f"Comparing artifact dirs {src_dir=}, {dst_dir=}")
+                logger.info(f"Comparing artifact dirs {src_dir=}, {dst_dir=}")
                 if problem := validation._compare_artifact_dirs(src_dir, dst_dir):
                     problems.append(problem)
 
@@ -1138,15 +1138,15 @@ class WandbImporter:
             )
 
         def _validate_run(run):
-            logger.debug(f"Validating {run=}")
+            logger.info(f"Validating {run=}")
             self._validate_run(run, remapping=remapping)
-            logger.debug(f"Finished validating {run=}")
+            logger.info(f"Finished validating {run=}")
 
         for_each(_validate_run, base_runs)
 
     def _collect_failed_runs(self):
         if (df := _read_ndjson(RUN_ERRORS_FNAME)) is None:
-            logger.debug(f"{RUN_ERRORS_FNAME=} is empty, returning nothing")
+            logger.info(f"{RUN_ERRORS_FNAME=} is empty, returning nothing")
             return
 
         unique_failed_runs = df[
@@ -1181,7 +1181,7 @@ class WandbImporter:
                     continue
 
                 if art.type == "wandb-history" and isinstance(logged_by, _DummyRun):
-                    logger.debug(f"Skipping history artifact {art=}")
+                    logger.info(f"Skipping history artifact {art=}")
                     # We can never upload valid history for a deleted run, so skip it
                     continue
 
@@ -1249,7 +1249,7 @@ class WandbImporter:
                 entity = remapped_ns.entity
                 project = remapped_ns.project
 
-            logger.debug(f"Validating {art=}, {entity=}, {project=}")
+            logger.info(f"Validating {art=}, {entity=}, {project=}")
             result = self._validate_artifact(
                 art,
                 entity,
@@ -1257,7 +1257,7 @@ class WandbImporter:
                 download_files_and_compare=download_files_and_compare,
                 check_entries_are_downloadable=check_entries_are_downloadable,
             )
-            logger.debug(f"Finished validating {art=}, {entity=}, {project=}")
+            logger.info(f"Finished validating {art=}, {entity=}, {project=}")
             return result
 
         args = ((art, art.entity, art.project) for art in artifacts)
@@ -1303,7 +1303,7 @@ class WandbImporter:
 
         def _runs():
             for ns in namespaces:
-                logger.debug(f"Collecting runs from {ns=}")
+                logger.info(f"Collecting runs from {ns=}")
                 for run in api.runs(ns.path, filters=filters):
                     yield WandbRun(run, **self.run_api_kwargs)
 
@@ -1350,7 +1350,7 @@ class WandbImporter:
 
         def artifact_sequences():
             for ns in namespaces:
-                logger.debug(f"Collecting artifact sequences from {ns=}")
+                logger.info(f"Collecting artifact sequences from {ns=}")
                 types = []
                 try:
                     types = [t for t in api.artifact_types(ns.path)]
@@ -1530,7 +1530,7 @@ def _clear_fname(fname: str) -> None:
     old_fname = f"{internal.ROOT_DIR}/{fname}"
     new_fname = f"{internal.ROOT_DIR}/prev_{fname}"
 
-    logger.debug(f"Moving {old_fname=} to {new_fname=}")
+    logger.info(f"Moving {old_fname=} to {new_fname=}")
     try:
         shutil.copy2(old_fname, new_fname)
     except FileNotFoundError:
@@ -1582,7 +1582,7 @@ def _create_files_if_not_exists() -> None:
     ]
 
     for fname in fnames:
-        logger.debug(f"Creating {fname=} if not exists")
+        logger.info(f"Creating {fname=} if not exists")
         with open(fname, "a"):
             pass
 
