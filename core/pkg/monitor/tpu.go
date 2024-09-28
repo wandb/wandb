@@ -63,6 +63,9 @@ type TPU struct {
 	conn   *grpc.ClientConn
 	client RuntimeMetricServiceClient
 
+	// List of metrics available via the TPU runtime gRPC service.
+	supportedMetrics []*tpuproto.SupportedMetric
+
 	// TPU chip specifications.
 	chip *TPUChip
 
@@ -88,6 +91,13 @@ func NewTPU() *TPU {
 	client := tpuproto.NewRuntimeMetricServiceClient(conn)
 	t.conn = conn
 	t.client = client
+
+	// Get the list of supported metrics from the TPU runtime gRPC service.
+	supportedMetrics, err := t.getSupportedMetrics()
+	if err != nil {
+		return nil
+	}
+	t.supportedMetrics = supportedMetrics.GetSupportedMetric()
 
 	return t
 }
@@ -321,6 +331,5 @@ func (t *TPU) getSupportedMetrics() (*tpuproto.ListSupportedMetricsResponse, err
 	if err != nil {
 		return nil, err
 	}
-
 	return resp, nil
 }
