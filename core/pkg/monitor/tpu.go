@@ -26,7 +26,7 @@ type TPUMetricName string
 const (
 	// grpcAddr is the gRPC server address for the TPU runtime.
 	//
-	// See https://github.com/dmitryduev/cloud-accelerator-diagnostics/tree/main/tpu_info for more details.
+	// See https://github.com/google/cloud-accelerator-diagnostics/tree/main/tpu_info for more details.
 	grpcAddr = "localhost:8431"
 
 	// TPUTotalMemory is the total High Bandwidth Memory in bytes.
@@ -50,6 +50,9 @@ type RuntimeMetricServiceClient interface {
 }
 
 // TPU represents a TPU asset with gRPC connection and client.
+//
+// This code is based on Google's Cloud Accelerator Diagnostics project:
+// https://github.com/google/cloud-accelerator-diagnostics.
 type TPU struct {
 	// Name of the TPU asset used to identify the asset in the metadata.
 	name string
@@ -275,6 +278,8 @@ func tpuChipFromPCIDeviceID(deviceID, subsystemID string) (*TPUChip, error) {
 		return &TPUChip{Name: "v5e", HbmGiB: 16, DevicesPerChip: 1}, nil
 	case "0x0062":
 		return &TPUChip{Name: "v5p", HbmGiB: 95, DevicesPerChip: 1}, nil
+	case "0x006f":
+		return &TPUChip{Name: "v6e", HbmGiB: 32, DevicesPerChip: 1}, nil
 	}
 
 	return nil, fmt.Errorf("unknown TPU chip")
