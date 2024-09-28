@@ -166,7 +166,7 @@ func (t *TPU) Sample() (map[string]any, error) {
 		// Duty cycle [%]
 		dutyCycleKey := fmt.Sprintf("%s.%d.dutyCycle", t.Name(), deviceID)
 
-		data[memoryUsageKey] = memoryUsage / totalMemory * 100
+		data[memoryUsageKey] = float64(memoryUsage) / float64(totalMemory) * 100
 		data[memoryUsageBytesKey] = memoryUsage
 		data[dutyCycleKey] = dutyCycle
 	}
