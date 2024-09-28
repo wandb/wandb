@@ -4,11 +4,13 @@ package launch
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	"github.com/Khan/genqlient/graphql"
 
@@ -158,8 +160,9 @@ type JobSourceMetadata struct {
 }
 
 type ArtifactInfoForJob struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
+	IsSet bool
+	ID    string
+	Name  string
 }
 
 type JobBuilder struct {
@@ -169,9 +172,12 @@ type JobBuilder struct {
 
 	verbose bool
 
-	Disable               bool
-	settings              *spb.Settings
-	RunCodeArtifact       *ArtifactInfoForJob
+	Disable  bool
+	settings *spb.Settings
+
+	runCodeArtifact   ArtifactInfoForJob
+	runCodeArtifactMu sync.Mutex
+
 	aliases               []string
 	isNotebookRun         bool
 	runConfig             *runconfig.RunConfig
@@ -356,7 +362,9 @@ func (j *JobBuilder) hasRepoJobIngredients(metadata RunMetadata) bool {
 }
 
 func (j *JobBuilder) hasArtifactJobIngredients() bool {
-	return j.RunCodeArtifact != nil
+	j.runCodeArtifactMu.Lock()
+	defer j.runCodeArtifactMu.Unlock()
+	return j.runCodeArtifact.IsSet
 }
 
 func (j *JobBuilder) hasImageJobIngredients(metadata RunMetadata) bool {
@@ -470,13 +478,24 @@ func (j *JobBuilder) createArtifactJobSource(programRelPath string, metadata Run
 	if err != nil {
 		return nil, nil, err
 	}
+
+	j.runCodeArtifactMu.Lock()
+	if !j.runCodeArtifact.IsSet {
+		j.runCodeArtifactMu.Unlock()
+		return nil, nil, errors.New("no runCodeArtifact")
+	}
+
+	runCodeArtifactID := j.runCodeArtifact.ID
+	runCodeArtifactName := j.runCodeArtifact.Name
+	j.runCodeArtifactMu.Unlock()
+
 	// TODO: update executable to a method that supports pex
 	source := &ArtifactSource{
-		Artifact:   "wandb-artifact://_id/" + j.RunCodeArtifact.ID,
+		Artifact:   "wandb-artifact://_id/" + runCodeArtifactID,
 		Notebook:   j.isNotebookRun,
 		Entrypoint: entrypoint,
 	}
-	name := j.makeJobName(j.RunCodeArtifact.Name)
+	name := j.makeJobName(runCodeArtifactName)
 
 	return source, &name, nil
 }
@@ -756,19 +775,19 @@ func (j *JobBuilder) MakeJobMetadata(output *data_types.TypeRepresentation) (str
 	return string(metadataBytes), nil
 }
 
-func (j *JobBuilder) HandleLogArtifactResult(response *spb.LogArtifactResponse, record *spb.ArtifactRecord) {
+// SetRunCodeArtifact atomically records the ID and name of the artifact
+// containing the code for the run.
+func (j *JobBuilder) SetRunCodeArtifact(id, name string) {
 	if j == nil {
 		return
 	}
-	j.logger.Debug("jobBuilder: handling log artifact result")
-	if response == nil || response.ErrorMessage != "" {
-		return
-	}
-	if record.GetType() == "code" {
-		j.RunCodeArtifact = &ArtifactInfoForJob{
-			ID:   response.ArtifactId,
-			Name: record.Name,
-		}
+
+	j.runCodeArtifactMu.Lock()
+	defer j.runCodeArtifactMu.Unlock()
+	j.runCodeArtifact = ArtifactInfoForJob{
+		IsSet: true,
+		ID:    id,
+		Name:  name,
 	}
 }
 

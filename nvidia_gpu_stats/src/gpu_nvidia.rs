@@ -252,7 +252,7 @@ impl NvidiaGpu {
 
             // Populate static information about the GPU
             metrics.add_metric(
-                &format!("gpu.{}.name", di),
+                &format!("_gpu.{}.name", di),
                 self.gpu_static_info[di as usize].name.as_str(),
             );
             metrics.add_metric(
