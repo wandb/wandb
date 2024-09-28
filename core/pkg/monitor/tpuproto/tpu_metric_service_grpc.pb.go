@@ -39,7 +39,7 @@ func NewRuntimeMetricServiceClient(cc grpc.ClientConnInterface) RuntimeMetricSer
 
 func (c *runtimeMetricServiceClient) GetRuntimeMetric(ctx context.Context, in *MetricRequest, opts ...grpc.CallOption) (*MetricResponse, error) {
 	out := new(MetricResponse)
-	err := c.cc.Invoke(ctx, "/RuntimeMetricService/GetRuntimeMetric", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/tpu.monitoring.runtime.RuntimeMetricService/GetRuntimeMetric", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +48,7 @@ func (c *runtimeMetricServiceClient) GetRuntimeMetric(ctx context.Context, in *M
 
 func (c *runtimeMetricServiceClient) ListSupportedMetrics(ctx context.Context, in *ListSupportedMetricsRequest, opts ...grpc.CallOption) (*ListSupportedMetricsResponse, error) {
 	out := new(ListSupportedMetricsResponse)
-	err := c.cc.Invoke(ctx, "/RuntimeMetricService/ListSupportedMetrics", in, out, opts...)
+	err := c.cc.Invoke(ctx, "/tpu.monitoring.runtime.RuntimeMetricService/ListSupportedMetrics", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +100,7 @@ func _RuntimeMetricService_GetRuntimeMetric_Handler(srv interface{}, ctx context
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/RuntimeMetricService/GetRuntimeMetric",
+		FullMethod: "/tpu.monitoring.runtime.RuntimeMetricService/GetRuntimeMetric",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RuntimeMetricServiceServer).GetRuntimeMetric(ctx, req.(*MetricRequest))
@@ -118,7 +118,7 @@ func _RuntimeMetricService_ListSupportedMetrics_Handler(srv interface{}, ctx con
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/RuntimeMetricService/ListSupportedMetrics",
+		FullMethod: "/tpu.monitoring.runtime.RuntimeMetricService/ListSupportedMetrics",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(RuntimeMetricServiceServer).ListSupportedMetrics(ctx, req.(*ListSupportedMetricsRequest))
@@ -130,7 +130,7 @@ func _RuntimeMetricService_ListSupportedMetrics_Handler(srv interface{}, ctx con
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var RuntimeMetricService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "RuntimeMetricService",
+	ServiceName: "tpu.monitoring.runtime.RuntimeMetricService",
 	HandlerType: (*RuntimeMetricServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{

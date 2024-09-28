@@ -16,6 +16,8 @@ syntax = "proto3";
 
 option go_package = "github.com/wandb/wandb/core/pkg/monitor/tpuproto";
 
+package tpu.monitoring.runtime;
+
 import "google/protobuf/timestamp.proto";
 
 option java_multiple_files = true;
