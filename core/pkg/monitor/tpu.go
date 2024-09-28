@@ -61,10 +61,6 @@ func NewTPU() *TPU {
 	t.chip = chip
 	t.count = count
 
-	ListSupportedMetricsRequest := &tpuproto.ListSupportedMetricsRequest{}
-	resp, err := t.client.ListSupportedMetrics(context.Background(), ListSupportedMetricsRequest)
-	fmt.Println(resp, err)
-
 	// Initialize gRPC connection and client
 	addr := "localhost:8431"
 	conn, err := grpc.NewClient(addr, grpc.WithTransportCredentials(local.NewCredentials()))
@@ -75,6 +71,10 @@ func NewTPU() *TPU {
 
 	t.conn = conn
 	t.client = client
+
+	ListSupportedMetricsRequest := &tpuproto.ListSupportedMetricsRequest{}
+	resp, err := t.client.ListSupportedMetrics(context.Background(), ListSupportedMetricsRequest)
+	fmt.Println(resp, err)
 
 	return t
 }
