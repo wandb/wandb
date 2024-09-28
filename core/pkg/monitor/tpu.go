@@ -89,22 +89,25 @@ func (t *TPU) Sample() (map[string]any, error) {
 	}
 
 	totals, err := t.sortedMetricResponse(TOTAL_MEMORY)
+	fmt.Println(totals)
+	fmt.Println()
 	if err != nil {
-		fmt.Println("error getting total memory", err)
-		// return nil, err
+		return nil, err
 	}
 	usages, err := t.sortedMetricResponse(MEMORY_USAGE)
+	fmt.Println(usages)
+	fmt.Println()
 	if err != nil {
-		fmt.Println("error getting memory usage", err)
-		// return nil, err
+		return nil, err
 	}
 	dutyCycles, err := t.sortedMetricResponse(DUTY_CYCLE_PCT)
+	fmt.Println(dutyCycles)
+	fmt.Println()
 	if err != nil {
-		fmt.Println("error getting duty cycle", err)
-		// return nil, err
+		return nil, err
 	}
 
-	fmt.Println(totals, usages, dutyCycles)
+	fmt.Println()
 
 	// Duty cycle is always measured per-chip, while memory is measured per-core.
 	// Repeat if necessary so these responses are the same length.
@@ -116,31 +119,31 @@ func (t *TPU) Sample() (map[string]any, error) {
 	}
 
 	if len(totals) != len(usages) || len(usages) != len(dutyCyclePerCore) {
-		return nil, fmt.Errorf("metrics not found for all chips")
+		return nil, fmt.Errorf("tpu: metrics not found for all chips")
 	}
 
-	var usageList []Usage
-	for i := 0; i < len(usages); i++ {
-		u := usages[i]
-		total := totals[i]
-		duty := dutyCyclePerCore[i]
+	// var usageList []Usage
+	// for i := 0; i < len(usages); i++ {
+	// 	u := usages[i]
+	// 	total := totals[i]
+	// 	duty := dutyCyclePerCore[i]
 
-		fmt.Println(u, total, duty)
+	// 	fmt.Println(u, total, duty)
 
-		// usage := Usage{
-		// 	DeviceID:     int(u.Attribute.Value.Attr),
-		// 	MemoryUsage:  u.Gauge.AsInt,
-		// 	TotalMemory:  total.Gauge.AsInt,
-		// 	DutyCyclePct: duty.Gauge.AsDouble,
-		// }
-		// usageList = append(usageList, usage)
-	}
+	// 	usage := Usage{
+	// 		DeviceID:     int(u.Attribute.Value.Attr),
+	// 		MemoryUsage:  u.Gauge.AsInt,
+	// 		TotalMemory:  total.Gauge.AsInt,
+	// 		DutyCyclePct: duty.Gauge.AsDouble,
+	// 	}
+	// 	usageList = append(usageList, usage)
+	// }
 
-	// Prepare the sample data to return
-	data := make(map[string]any)
-	data["usage"] = usageList
+	// // Prepare the sample data to return
+	// data := make(map[string]any)
+	// data["usage"] = usageList
 
-	fmt.Println(data)
+	// fmt.Println(data)
 
 	// return data, nil
 	return nil, nil
@@ -236,7 +239,7 @@ func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
 
 func (t *TPU) sortedMetricResponse(metricName MetricName) ([]*tpuproto.Metric, error) {
 	req := &tpuproto.MetricRequest{MetricName: string(metricName)}
-	fmt.Println(req)
+
 	resp, err := t.client.GetRuntimeMetric(context.Background(), req)
 	if err != nil {
 		return nil, err
