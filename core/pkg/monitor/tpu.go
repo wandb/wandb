@@ -1,3 +1,5 @@
+//go:build linux
+
 package monitor
 
 import (
@@ -72,11 +74,17 @@ func NewTPU() *TPU {
 	t.conn = conn
 	t.client = client
 
+	return t
+}
+
+func (t *TPU) getSupportedMetrics() (*tpuproto.ListSupportedMetricsResponse, error) {
 	ListSupportedMetricsRequest := &tpuproto.ListSupportedMetricsRequest{}
 	resp, err := t.client.ListSupportedMetrics(context.Background(), ListSupportedMetricsRequest)
-	fmt.Println(resp, err)
+	if err != nil {
+		return nil, err
+	}
 
-	return t
+	return resp, nil
 }
 
 func (t *TPU) Name() string {
@@ -88,65 +96,82 @@ func (t *TPU) Sample() (map[string]any, error) {
 		return nil, nil
 	}
 
-	totals, err := t.sortedMetricResponse(TOTAL_MEMORY)
-	fmt.Println(totals)
-	fmt.Println()
+	// Total memory per TPU core [bytes]
+	totals, err := t.getMetrics(TOTAL_MEMORY)
 	if err != nil {
 		return nil, err
 	}
-	usages, err := t.sortedMetricResponse(MEMORY_USAGE)
-	fmt.Println(usages)
-	fmt.Println()
+	// Memory usage per TPU core [bytes]
+	usages, err := t.getMetrics(MEMORY_USAGE)
 	if err != nil {
 		return nil, err
 	}
-	dutyCycles, err := t.sortedMetricResponse(DUTY_CYCLE_PCT)
-	fmt.Println(dutyCycles)
-	fmt.Println()
+	// Duty cycle per TPU device [%]
+	dutyCycles, err := t.getMetrics(DUTY_CYCLE_PCT)
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println()
-
-	// Duty cycle is always measured per-chip, while memory is measured per-core.
-	// Repeat if necessary so these responses are the same length.
-	var dutyCyclePerCore []*tpuproto.Metric
-	for _, d := range dutyCycles {
-		for i := 0; i < t.chip.devicesPerChip; i++ {
-			dutyCyclePerCore = append(dutyCyclePerCore, d)
-		}
-	}
-
-	if len(totals) != len(usages) || len(usages) != len(dutyCyclePerCore) {
+	// See below for the expected number of metrics per chip
+	if len(totals) != len(usages) || len(usages) != len(dutyCycles)*t.chip.devicesPerChip {
 		return nil, fmt.Errorf("tpu: metrics not found for all chips")
 	}
 
-	// var usageList []Usage
-	// for i := 0; i < len(usages); i++ {
-	// 	u := usages[i]
-	// 	total := totals[i]
-	// 	duty := dutyCyclePerCore[i]
+	memoryUsages := make(map[int64]int64)
+	for _, usage := range usages {
+		deviceID := usage.GetAttribute().GetValue().GetIntAttr()
+		memoryUsage := usage.GetGauge().GetAsInt()
+		memoryUsages[deviceID] = memoryUsage
+	}
 
-	// 	fmt.Println(u, total, duty)
+	totalMemories := make(map[int64]int64)
+	for _, total := range totals {
+		deviceID := total.GetAttribute().GetValue().GetIntAttr()
+		totalMemory := total.GetGauge().GetAsInt()
+		totalMemories[deviceID] = totalMemory
+	}
 
-	// 	usage := Usage{
-	// 		DeviceID:     int(u.Attribute.Value.Attr),
-	// 		MemoryUsage:  u.Gauge.AsInt,
-	// 		TotalMemory:  total.Gauge.AsInt,
-	// 		DutyCyclePct: duty.Gauge.AsDouble,
-	// 	}
-	// 	usageList = append(usageList, usage)
-	// }
+	// Duty cycle is always measured per-chip, while memory is measured per-core.
+	// We need to multiplex the duty cycle value for each core in the chip.
+	dutyCyclesPerCore := make(map[int64]float64)
+	for _, duty := range dutyCycles {
+		chipID := duty.GetAttribute().GetValue().GetIntAttr()
+		dutyCycle := duty.GetGauge().GetAsDouble()
+		dutyCyclesPerCore[chipID*int64(t.chip.devicesPerChip)] = dutyCycle
+		dutyCyclesPerCore[chipID*int64(t.chip.devicesPerChip)+1] = dutyCycle
+	}
 
-	// // Prepare the sample data to return
-	// data := make(map[string]any)
-	// data["usage"] = usageList
+	data := make(map[string]any)
 
-	// fmt.Println(data)
+	for deviceID := int64(0); deviceID < int64(t.count); deviceID++ {
+		memoryUsage, ok := memoryUsages[deviceID]
+		if !ok {
+			continue
+		}
 
-	// return data, nil
-	return nil, nil
+		totalMemory, ok := totalMemories[deviceID]
+		if !ok {
+			continue
+		}
+
+		dutyCycle, ok := dutyCyclesPerCore[deviceID]
+		if !ok {
+			continue
+		}
+
+		// Memory usage [%]
+		memoryUsageKey := fmt.Sprintf("%s.%d.memoryUsage", t.Name(), deviceID)
+		// Memory usage [bytes]
+		memoryUsageBytesKey := fmt.Sprintf("%s.%d.memoryUsageBytes", t.Name(), deviceID)
+		// Duty cycle [%]
+		dutyCycleKey := fmt.Sprintf("%s.%d.dutyCycle", t.Name(), deviceID)
+
+		data[memoryUsageKey] = memoryUsage / totalMemory * 100
+		data[memoryUsageBytesKey] = memoryUsage
+		data[dutyCycleKey] = dutyCycle
+	}
+
+	return data, nil
 }
 
 func (t *TPU) IsAvailable() bool {
@@ -237,7 +262,7 @@ func tpuChipFromPCIDeviceID(deviceId, subsystemId string) (*TPUChip, error) {
 	return nil, fmt.Errorf("unknown TPU chip")
 }
 
-func (t *TPU) sortedMetricResponse(metricName MetricName) ([]*tpuproto.Metric, error) {
+func (t *TPU) getMetrics(metricName MetricName) ([]*tpuproto.Metric, error) {
 	req := &tpuproto.MetricRequest{MetricName: string(metricName)}
 
 	resp, err := t.client.GetRuntimeMetric(context.Background(), req)
@@ -245,11 +270,6 @@ func (t *TPU) sortedMetricResponse(metricName MetricName) ([]*tpuproto.Metric, e
 		return nil, err
 	}
 	metrics := resp.Metric.Metrics
-
-	// Sort metrics by Attribute.Value.IntAttr
-	// sort.Slice(metrics, func(i, j int) bool {
-	// 	return metrics[i].Attribute.Value.IntAttr < metrics[j].Attribute.Value.IntAttr
-	// })
 
 	return metrics, nil
 }

@@ -109,3 +109,22 @@ func (t *Trainium) IsAvailable() bool { return false }
 func (t *Trainium) Probe() *spb.MetadataRequest {
 	return nil
 }
+
+// TPU is a dummy implementation of the Asset interface for TPUs.
+type TPU struct {
+	name string
+}
+
+func NewTPU() *TPU {
+	return &TPU{name: "tpu"}
+}
+
+func (t *TPU) Name() string { return t.name }
+
+func (t *TPU) Sample() (map[string]any, error) { return nil, nil }
+
+func (t *TPU) IsAvailable() bool { return false }
+
+func (t *TPU) Probe() *spb.MetadataRequest {
+	return nil
+}
