@@ -3,7 +3,7 @@
 package monitor
 
 import (
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -15,7 +15,7 @@ type GPUNvidia struct {
 	logger           *observability.CoreLogger
 }
 
-func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
+func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64, cmdPath string) *GPUNvidia {
 	return &GPUNvidia{
 		name:             "gpu",
 		pid:              pid,

@@ -3,7 +3,7 @@ package filetransfer
 import (
 	"sync"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 type Storage int
@@ -22,7 +22,16 @@ type FileTransferManager interface {
 	Close()
 }
 
-// FileTransferManager handles the upload/download of files
+// FileTransferManagerOptions are the parameters for creating a new FileTransferManager
+type FileTransferManagerOptions struct {
+	Logger *observability.CoreLogger
+
+	FileTransfers *FileTransfers
+
+	FileTransferStats FileTransferStats
+}
+
+// fileTransferManager handles the upload/download of files
 type fileTransferManager struct {
 	// fileTransfers is the map of fileTransfer uploader/downloaders
 	fileTransfers *FileTransfers
@@ -40,38 +49,15 @@ type fileTransferManager struct {
 	wg *sync.WaitGroup
 }
 
-type FileTransferManagerOption func(fm *fileTransferManager)
+func NewFileTransferManager(opts FileTransferManagerOptions) FileTransferManager {
 
-func WithLogger(logger *observability.CoreLogger) FileTransferManagerOption {
-	return func(fm *fileTransferManager) {
-		fm.logger = logger
+	return &fileTransferManager{
+		wg:                &sync.WaitGroup{},
+		semaphore:         make(chan struct{}, DefaultConcurrencyLimit),
+		logger:            opts.Logger,
+		fileTransfers:     opts.FileTransfers,
+		fileTransferStats: opts.FileTransferStats,
 	}
-}
-
-func WithFileTransfers(fileTransfers *FileTransfers) FileTransferManagerOption {
-	return func(fm *fileTransferManager) {
-		fm.fileTransfers = fileTransfers
-	}
-}
-
-func WithFileTransferStats(fileTransferStats FileTransferStats) FileTransferManagerOption {
-	return func(fm *fileTransferManager) {
-		fm.fileTransferStats = fileTransferStats
-	}
-}
-
-func NewFileTransferManager(opts ...FileTransferManagerOption) FileTransferManager {
-
-	fm := fileTransferManager{
-		wg:        &sync.WaitGroup{},
-		semaphore: make(chan struct{}, DefaultConcurrencyLimit),
-	}
-
-	for _, opt := range opts {
-		opt(&fm)
-	}
-
-	return &fm
 }
 
 func (fm *fileTransferManager) AddTask(task Task) {
@@ -97,8 +83,8 @@ func (fm *fileTransferManager) AddTask(task Task) {
 }
 
 func (fm *fileTransferManager) Close() {
-	fm.logger.Debug("fileTransfer: Close")
 	fm.wg.Wait()
+	fm.logger.Info("fileTransfer: Close: file transfer manager closed")
 }
 
 // Uploads or downloads a file.

@@ -11,8 +11,8 @@ import (
 
 	"github.com/hashicorp/go-retryablehttp"
 	"github.com/stretchr/testify/assert"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 func randomInRange(vmin, vmax float64) float64 {

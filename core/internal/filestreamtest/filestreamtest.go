@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // A fake implementation of FileStream.

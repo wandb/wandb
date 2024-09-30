@@ -64,11 +64,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     });
 
     // Initialize NVIDIA GPU
-    let nvidia_gpu = NvidiaGpu::new().map_err(|e| {
+    let mut nvidia_gpu = NvidiaGpu::new().map_err(|e| {
         // this typically means that the NVIDIA driver is not installed /
         // libnvidia-ml.so is not found / no NVIDIA GPU is present
         e
     })?;
+
+    // TODO:
+    // Set the parent-death signal to SIGTERM
+    // set_pdeathsig(Signal::SIGTERM)?;
 
     // Set up a flag to control the main sampling loop
     let running = Arc::new(AtomicBool::new(true));

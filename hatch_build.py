@@ -127,13 +127,14 @@ class CustomBuildHook(BuildHookInterface):
                 "Did not find the 'cargo' binary. You need Rust to build wandb"
                 " from source. See https://www.rust-lang.org/tools/install.",
             )
+            raise AssertionError("unreachable")
 
         return pathlib.Path(cargo)
 
     def _build_nvidia_gpu_stats(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
 
-        self.app.display_waiting("Building nvidia_gpu_stats Go binary...")
+        self.app.display_waiting("Building nvidia_gpu_stats Rust binary...")
         hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
@@ -186,6 +187,7 @@ class CustomBuildHook(BuildHookInterface):
                 "Did not find the 'go' binary. You need Go to build wandb"
                 " from source. See https://go.dev/doc/install.",
             )
+            raise AssertionError("unreachable")
 
         return pathlib.Path(go)
 

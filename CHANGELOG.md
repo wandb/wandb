@@ -13,19 +13,44 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ### Fixed
 
-- Update the signature and docstring of `wandb.api.public.runs.Run.log_artifact()` to support artifact tags like `Run` instances returned by `wandb.init()`.
+- Fixed a regression introduced in v0.18.2 that affected the capturing of Nvidia GPU names. (@dmitryduev in https://github.com/wandb/wandb/pull/8503)
+- `run.log_artifact()` no longer blocks other data uploads until the artifact upload finishes (@timoffex in https://github.com/wandb/wandb/pull/8466)
+- Fixed media dependency for rdkit updated from `rdkit-pypi` to `rdkit` (@jacobromero in https://github.com/wandb/wandb/compare/WB-20894)
+
+### Changed
+
+- After `artifact = run.log_artifact()`, you must use `artifact.wait()` before operations that rely on the artifact having been uploaded. Previously, this wasn't necessary in some cases because `run.log_artifact()` blocked other operations on the run (@timoffex in https://github.com/wandb/wandb/pull/8466)
+
+## [0.18.2] - 2024-09-27
+
+### Added
+
+- Add `upsert_run_queue` method to `wandb.Api`. (@bcsherma in https://github.com/wandb/wandb/pull/8348)
+- Add `tags` parameter to `wandb.Api.artifacts()` to filter artifacts by tag. (@moredatarequired in https://github.com/wandb/wandb/pull/8441)
+
+### Fixed
+
+- Update the signature and docstring of `wandb.api.public.runs.Run.log_artifact()` to support artifact tags like `Run` instances returned by `wandb.init()`. (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8414)
+- Add docstring for `wandb.watch` to support auto-complete (@kptkin in https://github.com/wandb/wandb/pull/8425)
+- Fix glob matching in define metric to work with logged keys containing `/` (@KyleGoyette in https://github.com/wandb/wandb/pull/8434)
+- Allow `a\.b` syntax in run.define_metric to refer to a dotted metric name (@jacobromero in https://github.com/wandb/wandb/pull/8445)
+  - NOTE: Not fixed if using `wandb.require("legacy-service")`
+- Fix Unknown image format error when uploading a gif through tensorboard. (@jacobromero in https://github.com/wandb/wandb/pull/8476)
+- Fix `OSError` from calling `Artifact.add_file` with file paths on mounted filesystems (@tonyyli-wandb in https://github.com/wandb/wandb/pull/8473)
+- Restored compatibility for macOS versions <= 10.15 for wandb-core. (@dmitryduev in https://github.com/wandb/wandb/pull/8487)
 
 ## [0.18.1] - 2024-09-16
 
 ### Fixed
 
-- Allow all users to read cache files when core is enabled @moredatarequired in https://github.com/wandb/wandb/pull/8362
+- Allow all users to read cache files when core is enabled (@moredatarequired in https://github.com/wandb/wandb/pull/8362)
 - Infinite scalars logged in TensorBoard are uploaded successfully rather than skipped (@timoffex in https://github.com/wandb/wandb/pull/8380)
 - Properly respect `WANDB_ERROR_REPORTING=false`.  This fixes a regression introduced in 0.18.0 (@kptkin in https://github.com/wandb/wandb/pull/8379)
 
 ### Changed
 
-- Default to capturing requirements.txt in Run.log_code by @KyleGoyette https://github.com/wandb/wandb/pull/7864
+- Remove sentry logging for sendLinkArtifact (@ibindlish in https://github.com/wandb/wandb/pull/8422)
+- Default to capturing requirements.txt in Run.log_code (@KyleGoyette in https://github.com/wandb/wandb/pull/7864)
 
 ## [0.18.0] - 2024-09-11
 
@@ -69,6 +94,7 @@ to disable this new behavior will be removed (@kptkin in https://github.com/wand
 - Skip uploading/downloading GCS reference artifact manifest entries corresponding to folders (@amusipatla-wandb in https://github.com/wandb/wandb/pull/8084)
 
 ### Deprecated
+
 - Ability to disable the service process (`WANDB__DISABLE_SERVICE`) is deprecated and will be removed in the next minor release (@kptkin in https://github.com/wandb/wandb/pull/8193)
 
 ## [0.17.7] - 2024-08-15

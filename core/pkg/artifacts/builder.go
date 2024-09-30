@@ -8,8 +8,8 @@ import (
 	"os"
 	"sort"
 
+	"github.com/wandb/wandb/core/internal/hashencode"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -42,7 +42,7 @@ func (b *ArtifactBuilder) initDefaultManifest() {
 }
 
 func (b *ArtifactBuilder) AddData(name string, data any) error {
-	filename, digest, size, err := utils.WriteJsonToFileWithDigest(data)
+	filename, digest, size, err := WriteJSONToTempFileWithMetadata(data)
 	if err != nil {
 		return err
 	}
@@ -76,7 +76,7 @@ func (b *ArtifactBuilder) AddFile(path string, name string) error {
 	if err != nil {
 		return err
 	}
-	digest := utils.ComputeB64MD5(data)
+	digest := hashencode.ComputeB64MD5(data)
 	b.artifactRecord.Manifest.Contents = append(b.artifactRecord.Manifest.Contents,
 		&spb.ArtifactManifestEntry{
 			Path:      name,

@@ -10,8 +10,9 @@ import (
 	"context"
 	"errors"
 	"sync"
+	"time"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 var errRecordAfterClose = errors.New("runwork: ignoring record after close")
@@ -142,13 +143,40 @@ func (rw *runWork) AddWorkOrCancel(
 	// until we exit and decrement addWorkCount---so internalWork
 	// is guaranteed to not be closed until this method returns.
 
-	select {
-	case <-rw.closed:
-		// Here, Close() must have been called, so we should drop the record.
-		rw.logger.CaptureError(errRecordAfterClose, "work", work)
+	start := time.Now()
+	for i := 0; ; i++ {
+		select {
+		// Detect deadlocks and hangs that prevent internalWork
+		// from flushing.
+		case <-time.After(10 * time.Minute):
+			// Stop warning after the first hour to minimize spam.
+			if i < 6 {
+				rw.logger.CaptureWarn(
+					"runwork: taking a long time",
+					"seconds", time.Since(start).Seconds(),
+					"work", work.DebugInfo(),
+				)
+			}
 
-	case <-cancel:
-	case rw.internalWork <- work:
+		case <-rw.closed:
+			// Here, Close() must have been called, so we should drop the record.
+			rw.logger.CaptureError(errRecordAfterClose, "work", work)
+			return
+
+		case <-cancel:
+			return
+
+		case rw.internalWork <- work:
+			if i > 0 {
+				rw.logger.CaptureInfo(
+					"runwork: succeeded after taking longer than expected",
+					"seconds", time.Since(start).Seconds(),
+					"work", work.DebugInfo(),
+				)
+			}
+
+			return
+		}
 	}
 }
 

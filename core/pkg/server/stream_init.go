@@ -16,12 +16,12 @@ import (
 	"github.com/wandb/wandb/core/internal/clients"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runwork"
 	"github.com/wandb/wandb/core/internal/settings"
 	"github.com/wandb/wandb/core/internal/waiting"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"golang.org/x/time/rate"
 )
 
@@ -37,12 +37,19 @@ func NewBackend(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	if err != nil {
 		logger.CaptureFatalAndPanic(
-			fmt.Errorf("sender: failed to parse base URL: %v", err))
+			fmt.Errorf("stream_init: failed to parse base URL: %v", err))
 	}
+
+	credentialProvider, err := api.NewCredentialProvider(settings)
+	if err != nil {
+		logger.CaptureFatalAndPanic(
+			fmt.Errorf("stream_init: failed to fetch credentials: %v", err))
+	}
+
 	return api.New(api.BackendOptions{
-		BaseURL: baseURL,
-		Logger:  logger.Logger,
-		APIKey:  settings.GetAPIKey(),
+		BaseURL:            baseURL,
+		Logger:             logger.Logger,
+		CredentialProvider: credentialProvider,
 	})
 }
 
@@ -170,11 +177,14 @@ func NewFileStream(
 	fileStreamRetryClient := backend.NewClient(opts)
 
 	params := filestream.FileStreamParams{
-		Settings:          settings,
-		Logger:            logger,
-		Printer:           printer,
-		ApiClient:         fileStreamRetryClient,
-		TransmitRateLimit: rate.NewLimiter(rate.Every(15*time.Second), 1),
+		Settings:  settings,
+		Logger:    logger,
+		Printer:   printer,
+		ApiClient: fileStreamRetryClient,
+	}
+
+	if txInterval := settings.GetFileStreamTransmitInterval(); txInterval > 0 {
+		params.TransmitRateLimit = rate.NewLimiter(rate.Every(txInterval), 1)
 	}
 
 	return filestream.NewFileStream(params)
@@ -226,9 +236,11 @@ func NewFileTransferManager(
 	}
 
 	return filetransfer.NewFileTransferManager(
-		filetransfer.WithLogger(logger),
-		filetransfer.WithFileTransfers(fileTransfers),
-		filetransfer.WithFileTransferStats(fileTransferStats),
+		filetransfer.FileTransferManagerOptions{
+			Logger:            logger,
+			FileTransfers:     fileTransfers,
+			FileTransferStats: fileTransferStats,
+		},
 	)
 }
 

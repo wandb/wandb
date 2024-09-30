@@ -10,7 +10,7 @@ class NvidiaGpuStatsBuildError(Exception):
 
 def build_nvidia_gpu_stats(
     cargo_binary: pathlib.Path,
-    output_path: pathlib.PurePath,
+    output_path: pathlib.Path,
 ) -> None:
     """Builds the `nvidia_gpu_stats` Rust binary for monitoring NVIDIA GPUs.
 
@@ -23,7 +23,8 @@ def build_nvidia_gpu_stats(
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
-    source_path = pathlib.Path("./nvidia_gpu_stats")
+    rust_pkg_root = pathlib.Path("./nvidia_gpu_stats")
+    built_binary_path = rust_pkg_root / "target" / "release" / "nvidia_gpu_stats"
 
     cmd = (
         str(cargo_binary),
@@ -32,7 +33,7 @@ def build_nvidia_gpu_stats(
     )
 
     try:
-        subprocess.check_call(cmd, cwd=source_path)
+        subprocess.check_call(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
         raise NvidiaGpuStatsBuildError(
             "Failed to build the `nvidia_gpu_stats` Rust binary. If you didn't"
@@ -45,6 +46,5 @@ def build_nvidia_gpu_stats(
         ) from e
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    source_path = source_path / "target" / "release" / "nvidia_gpu_stats"
-    source_path.replace(output_path)
+    built_binary_path.replace(output_path)
     output_path.chmod(0o755)

@@ -11,9 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/pkg/observability"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -62,6 +62,9 @@ type Connection struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// loggerPath is the default logger path
+	loggerPath string
 }
 
 // NewConnection creates a new connection
@@ -72,6 +75,7 @@ func NewConnection(
 	conn net.Conn,
 	sentryClient *sentry_ext.Client,
 	commit string,
+	loggerPath string,
 ) *Connection {
 
 	nc := &Connection{
@@ -85,6 +89,7 @@ func NewConnection(
 		outChan:      make(chan *spb.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
 		sentryClient: sentryClient,
+		loggerPath:   loggerPath,
 	}
 	return nc
 }
@@ -268,24 +273,6 @@ func (nc *Connection) handleServerRequest() {
 func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 	settings := settings.From(msg.GetSettings())
 
-	tokenFile := settings.GetIdentityTokenFile()
-	if tokenFile != "" {
-		panic("Identity federation via the wandb sdk is temporarily unavailable in wandb-core, or version 0.18.0 " +
-			"or later. Support for this feature will be reintroduced in an upcoming release. To continue using this " +
-			"feature, please downgrade to version 0.17.9 or lower using the following command: pip install " +
-			"wandb==0.17.9. Thank you for your patience.")
-	}
-
-	err := settings.EnsureAPIKey()
-	if err != nil {
-		slog.Error(
-			"connection: couldn't get API key",
-			"err", err,
-			"id", nc.id,
-		)
-		panic(err)
-	}
-
 	streamId := msg.GetXInfo().GetStreamId()
 	slog.Info("connection init received", "streamId", streamId, "id", nc.id)
 
@@ -297,7 +284,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	nc.stream = NewStream(nc.commit, settings, sentryClient)
+	nc.stream = NewStream(nc.commit, settings, sentryClient, nc.loggerPath)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)

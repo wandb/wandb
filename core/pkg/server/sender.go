@@ -8,6 +8,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"google.golang.org/protobuf/proto"
@@ -20,6 +22,8 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/nullify"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runbranch"
 	"github.com/wandb/wandb/core/internal/runconfig"
@@ -34,8 +38,6 @@ import (
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/artifacts"
 	"github.com/wandb/wandb/core/pkg/launch"
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/utils"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -97,6 +99,12 @@ type Sender struct {
 
 	// runfilesUploader manages uploading a run's files
 	runfilesUploader runfiles.Uploader
+
+	// artifactsSaver manages artifact uploads
+	artifactsSaver *artifacts.ArtifactSaveManager
+
+	// artifactWG is a wait group for artifact-related goroutines
+	artifactWG sync.WaitGroup
 
 	// tbHandler integrates W&B with TensorBoard
 	tbHandler *tensorboard.TBHandler
@@ -173,13 +181,18 @@ func NewSender(
 		fileTransferStats:   params.FileTransferStats,
 		fileWatcher:         params.FileWatcher,
 		runfilesUploader:    params.RunfilesUploader,
-		tbHandler:           params.TBHandler,
-		networkPeeker:       params.Peeker,
-		graphqlClient:       params.GraphqlClient,
-		mailbox:             params.Mailbox,
-		runSummary:          params.RunSummary,
-		outChan:             params.OutChan,
-		startState:          runbranch.NewRunParams(),
+		artifactsSaver: artifacts.NewArtifactSaveManager(
+			params.Logger,
+			params.GraphqlClient,
+			params.FileTransferManager,
+		),
+		tbHandler:     params.TBHandler,
+		networkPeeker: params.Peeker,
+		graphqlClient: params.GraphqlClient,
+		mailbox:       params.Mailbox,
+		runSummary:    params.RunSummary,
+		outChan:       params.OutChan,
+		startState:    runbranch.NewRunParams(),
 		configDebouncer: debounce.NewDebouncer(
 			configDebouncerRateLimit,
 			configDebouncerBurstSize,
@@ -214,7 +227,13 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 	defer s.logger.Reraise()
 	s.logger.Info("sender: started", "stream_id", s.settings.RunId)
 
+	hangDetectionInChan := make(chan runwork.Work, 32)
+	hangDetectionOutChan := make(chan struct{}, 32)
+	go s.warnOnLongOperations(hangDetectionInChan, hangDetectionOutChan)
+
 	for work := range allWork {
+		hangDetectionInChan <- work
+
 		s.logger.Debug(
 			"sender: got work",
 			"work", work,
@@ -226,9 +245,53 @@ func (s *Sender) Do(allWork <-chan runwork.Work) {
 		// TODO: reevaluate the logic here
 		s.configDebouncer.Debounce(s.upsertConfig)
 		s.summaryDebouncer.Debounce(s.streamSummary)
+
+		hangDetectionOutChan <- struct{}{}
 	}
+
+	close(hangDetectionInChan)
+	close(hangDetectionOutChan)
+
 	s.Close()
 	s.logger.Info("sender: closed", "stream_id", s.settings.RunId)
+}
+
+// warnOnLongOperations logs a warning for each message received
+// on the first channel for which no message is received on the second
+// channel within some time.
+func (s *Sender) warnOnLongOperations(
+	hangDetectionInChan <-chan runwork.Work,
+	hangDetectionOutChan <-chan struct{},
+) {
+outerLoop:
+	for work := range hangDetectionInChan {
+		start := time.Now()
+
+		for i := 0; ; i++ {
+			select {
+			case <-hangDetectionOutChan:
+				if i > 0 {
+					s.logger.CaptureInfo(
+						"sender: succeeded after taking longer than expected",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+
+				continue outerLoop
+
+			case <-time.After(10 * time.Minute):
+				if i < 6 {
+					s.logger.CaptureWarn(
+						"sender: taking a long time",
+						"seconds", time.Since(start).Seconds(),
+						"work", work.DebugInfo(),
+					)
+				}
+			}
+		}
+	}
+
 }
 
 func (s *Sender) Close() {
@@ -486,19 +549,16 @@ func (s *Sender) sendJobFlush() {
 		s.logger.Info("sender: sendDefer: no job artifact to save")
 		return
 	}
-	saver := artifacts.NewArtifactSaver(
+
+	result := <-s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
 		artifact,
 		0,
 		"",
 	)
-	if _, err = saver.Save(); err != nil {
-		s.logger.Error(
-			"sender: sendDefer: failed to save job artifact", "error", err,
-		)
+	if result.Err != nil {
+		s.logger.CaptureError(
+			fmt.Errorf("sender: failed to save job artifact: %v", result.Err))
 	}
 }
 
@@ -544,7 +604,11 @@ func (s *Sender) sendRequestDefer(request *spb.DeferRequest) {
 			s.fwdRequestDefer(request)
 		}()
 	case spb.DeferRequest_FLUSH_JOB:
+		// Wait for artifacts operations to complete here to detect
+		// code artifacts.
+		s.artifactWG.Wait()
 		s.sendJobFlush()
+
 		request.State++
 		s.fwdRequestDefer(request)
 	case spb.DeferRequest_FLUSH_DIR:
@@ -642,7 +706,7 @@ func (s *Sender) sendLinkArtifact(record *spb.Record, msg *spb.LinkArtifactReque
 	err := linker.Link()
 	if err != nil {
 		response.ErrorMessage = err.Error()
-		s.logger.CaptureError(err)
+		s.logger.Error("sender: linkArtifact:", "error", err.Error())
 	}
 
 	result := &spb.Result{
@@ -972,27 +1036,27 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 	program := s.settings.GetProgram().GetValue()
 
 	data, err := gql.UpsertBucket(
-		ctx,                              // ctx
-		s.graphqlClient,                  // client
-		nil,                              // id
-		&run.RunId,                       // name
-		utils.NilIfZero(run.Project),     // project
-		utils.NilIfZero(run.Entity),      // entity
-		utils.NilIfZero(run.RunGroup),    // groupName
-		nil,                              // description
-		utils.NilIfZero(run.DisplayName), // displayName
-		utils.NilIfZero(run.Notes),       // notes
-		utils.NilIfZero(commit),          // commit
-		&configStr,                       // config
-		utils.NilIfZero(run.Host),        // host
-		nil,                              // debug
-		utils.NilIfZero(program),         // program
-		utils.NilIfZero(repo),            // repo
-		utils.NilIfZero(run.JobType),     // jobType
-		nil,                              // state
-		utils.NilIfZero(run.SweepId),     // sweep
-		run.Tags,                         // tags []string,
-		nil,                              // summaryMetrics
+		ctx,                                // ctx
+		s.graphqlClient,                    // client
+		nil,                                // id
+		&run.RunId,                         // name
+		nullify.NilIfZero(run.Project),     // project
+		nullify.NilIfZero(run.Entity),      // entity
+		nullify.NilIfZero(run.RunGroup),    // groupName
+		nil,                                // description
+		nullify.NilIfZero(run.DisplayName), // displayName
+		nullify.NilIfZero(run.Notes),       // notes
+		nullify.NilIfZero(commit),          // commit
+		&configStr,                         // config
+		nullify.NilIfZero(run.Host),        // host
+		nil,                                // debug
+		nullify.NilIfZero(program),         // program
+		nullify.NilIfZero(repo),            // repo
+		nullify.NilIfZero(run.JobType),     // jobType
+		nil,                                // state
+		nullify.NilIfZero(run.SweepId),     // sweep
+		run.Tags,                           // tags []string,
+		nil,                                // summaryMetrics
 	)
 
 	if err != nil {
@@ -1033,15 +1097,15 @@ func (s *Sender) upsertRun(record *spb.Record, run *spb.RunRecord) {
 		}
 
 		fileStreamOffset := make(fs.FileStreamOffsetMap)
-		fileStreamOffset[fs.HistoryChunk] = utils.ZeroIfNil(bucket.GetHistoryLineCount())
+		fileStreamOffset[fs.HistoryChunk] = nullify.ZeroIfNil(bucket.GetHistoryLineCount())
 
 		params := &runbranch.RunParams{
 			StorageID:        bucket.GetId(),
-			Entity:           utils.ZeroIfNil(&entityName),
-			Project:          utils.ZeroIfNil(&projectName),
+			Entity:           nullify.ZeroIfNil(&entityName),
+			Project:          nullify.ZeroIfNil(&projectName),
 			RunID:            bucket.GetName(),
-			DisplayName:      utils.ZeroIfNil(bucket.GetDisplayName()),
-			SweepID:          utils.ZeroIfNil(bucket.GetSweepName()),
+			DisplayName:      nullify.ZeroIfNil(bucket.GetDisplayName()),
+			SweepID:          nullify.ZeroIfNil(bucket.GetSweepName()),
 			FileStreamOffset: fileStreamOffset,
 		}
 
@@ -1129,27 +1193,27 @@ func (s *Sender) upsertConfig() {
 		clients.UpsertBucketRetryPolicy,
 	)
 	_, err = gql.UpsertBucket(
-		ctx,                                   // ctx
-		s.graphqlClient,                       // client
-		nil,                                   // id
-		&s.startState.RunID,                   // name
-		utils.NilIfZero(s.startState.Project), // project
-		utils.NilIfZero(s.startState.Entity),  // entity
-		nil,                                   // groupName
-		nil,                                   // description
-		nil,                                   // displayName
-		nil,                                   // notes
-		nil,                                   // commit
-		&configStr,                            // config
-		nil,                                   // host
-		nil,                                   // debug
-		nil,                                   // program
-		nil,                                   // repo
-		nil,                                   // jobType
-		nil,                                   // state
-		nil,                                   // sweep
-		nil,                                   // tags []string,
-		nil,                                   // summaryMetrics
+		ctx,                                     // ctx
+		s.graphqlClient,                         // client
+		nil,                                     // id
+		&s.startState.RunID,                     // name
+		nullify.NilIfZero(s.startState.Project), // project
+		nullify.NilIfZero(s.startState.Entity),  // entity
+		nil,                                     // groupName
+		nil,                                     // description
+		nil,                                     // displayName
+		nil,                                     // notes
+		nil,                                     // commit
+		&configStr,                              // config
+		nil,                                     // host
+		nil,                                     // debug
+		nil,                                     // program
+		nil,                                     // repo
+		nil,                                     // jobType
+		nil,                                     // state
+		nil,                                     // sweep
+		nil,                                     // tags []string,
+		nil,                                     // summaryMetrics
 	)
 	if err != nil {
 		s.logger.Error("sender: sendConfig:", "error", err)
@@ -1370,48 +1434,60 @@ func (s *Sender) sendFiles(_ *spb.Record, filesRecord *spb.FilesRecord) {
 }
 
 func (s *Sender) sendArtifact(_ *spb.Record, msg *spb.ArtifactRecord) {
-	saver := artifacts.NewArtifactSaver(
+	resultChan := s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
 		msg,
 		0,
 		"",
 	)
-	artifactID, err := saver.Save()
-	if err != nil {
-		err = fmt.Errorf("sender: sendArtifact: failed to log artifact ID: %s; error: %s", artifactID, err)
-		s.logger.Error("sender: sendArtifact:", "error", err)
-		return
-	}
+
+	s.artifactWG.Add(1)
+	go func() {
+		defer s.artifactWG.Done()
+		result := <-resultChan
+		if result.Err != nil {
+			s.logger.CaptureError(
+				fmt.Errorf("sender: failed to log artifact: %v", result.Err),
+				"artifactID", result.ArtifactID)
+		}
+	}()
 }
 
 func (s *Sender) sendRequestLogArtifact(record *spb.Record, msg *spb.LogArtifactRequest) {
-	var response spb.LogArtifactResponse
-	saver := artifacts.NewArtifactSaver(
+	resultChan := s.artifactsSaver.Save(
 		s.runWork.BeforeEndCtx(),
-		s.logger,
-		s.graphqlClient,
-		s.fileTransferManager,
 		msg.Artifact,
 		msg.HistoryStep,
 		msg.StagingDir,
 	)
-	artifactID, err := saver.Save()
-	if err != nil {
-		response.ErrorMessage = err.Error()
-	} else {
-		response.ArtifactId = artifactID
-	}
 
-	s.jobBuilder.HandleLogArtifactResult(&response, msg.Artifact)
-	s.respond(record,
-		&spb.Response{
-			ResponseType: &spb.Response_LogArtifactResponse{
-				LogArtifactResponse: &response,
-			},
-		})
+	s.artifactWG.Add(1)
+	go func() {
+		defer s.artifactWG.Done()
+
+		var response spb.LogArtifactResponse
+
+		result := <-resultChan
+		if result.Err != nil {
+			response.ErrorMessage = result.Err.Error()
+		} else {
+			response.ArtifactId = result.ArtifactID
+		}
+
+		if msg.Artifact.GetType() == "code" {
+			s.jobBuilder.SetRunCodeArtifact(
+				response.ArtifactId,
+				msg.Artifact.GetName(),
+			)
+		}
+
+		s.respond(record,
+			&spb.Response{
+				ResponseType: &spb.Response_LogArtifactResponse{
+					LogArtifactResponse: &response,
+				},
+			})
+	}()
 }
 
 func (s *Sender) sendRequestDownloadArtifact(record *spb.Record, msg *spb.DownloadArtifactRequest) {
@@ -1544,7 +1620,7 @@ func (s *Sender) sendRequestStopStatus(record *spb.Record, _ *spb.StopStatusRequ
 				RunShouldStop: false,
 			}
 		default:
-			stopped := utils.ZeroIfNil(response.GetProject().GetRun().GetStopped())
+			stopped := nullify.ZeroIfNil(response.GetProject().GetRun().GetStopped())
 			stopResponse = &spb.StopStatusResponse{
 				RunShouldStop: stopped,
 			}
