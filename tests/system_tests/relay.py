@@ -637,6 +637,12 @@ class RelayServer:
             view_func=self.storage_file,
             methods=["PUT", "GET"],
         )
+        # self.app.add_url_rule(
+        #     rule="/api/<projectId>/envelope/",
+        #     endpoint="api",
+        #     view_func=self.sentry,
+        #     methods=["POST"],
+        # )
         if control:
             self.app.add_url_rule(
                 rule="/_control",
@@ -661,6 +667,8 @@ class RelayServer:
         # useful when debugging:
         # self.after_request_fn = self.app.after_request(self.after_request_fn)
         self.verbose = verbose
+
+        self._sentry_responses = []
 
     @staticmethod
     def handle_http_exception(e):
@@ -873,6 +881,15 @@ class RelayServer:
         self.snoop_context(request, relayed_response, timer.elapsed, path=path)
 
         return relayed_response.json()
+
+    # def sentry(self, projectId: str) -> Mapping[str, str]:
+    #     request = flask.request
+    #     print(f"received request for project id: {projectId}")
+    #     # self._sentry_responses.append(projectId)
+    #     # print(f'reponses {self._sentry_responses}')
+    #     relayed_response = self.relay(request)
+    #
+    #     return relayed_response
 
     def control(self) -> Mapping[str, str]:
         assert self.relay_control

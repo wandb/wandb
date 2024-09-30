@@ -27,7 +27,8 @@ if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
 
 SENTRY_DEFAULT_DSN = (
-    "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
+    # "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
+    "http://wandbkey@127.0.0.1:5000/2"
 )
 
 SessionStatus = Literal["ok", "exited", "crashed", "abnormal"]
