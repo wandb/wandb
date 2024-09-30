@@ -3,9 +3,7 @@ package filetransfer
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -13,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/observability"
 	"golang.org/x/sync/errgroup"
 )
@@ -34,13 +33,13 @@ type S3FileTransfer struct {
 	ctx context.Context
 }
 
-// News3FileTransfer creates a new fileTransfer
+// News3FileTransfer creates a new fileTransfer.
 func NewS3FileTransfer(
 	client *s3.Client,
 	logger *observability.CoreLogger,
 	fileTransferStats FileTransferStats,
 ) (*S3FileTransfer, error) {
-	ctx := context.TODO()
+	ctx := context.Background()
 	if client == nil {
 		var awsConfigOptions [](func(*config.LoadOptions) error)
 		if awsProfile := os.Getenv("AWS_PROFILE"); awsProfile != "" {
@@ -68,16 +67,20 @@ func NewS3FileTransfer(
 	return fileTransfer, nil
 }
 
-// Upload uploads a file to the server
+// Upload uploads a file to the server.
 func (ft *S3FileTransfer) Upload(task *ReferenceArtifactUploadTask) error {
 	ft.logger.Debug("S3 file transfer: uploading file", "path", task.PathOrPrefix)
 
 	return nil
 }
 
-// Download downloads a file from the server
+// Download downloads a file from the server.
 func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
-	ft.logger.Debug("s3 file transfer: downloading file", "path", task.PathOrPrefix, "ref", task.Reference)
+	ft.logger.Debug(
+		"s3 file transfer: downloading file",
+		"path", task.PathOrPrefix,
+		"ref", task.Reference,
+	)
 
 	// Parse the reference path to get the scheme, bucket, and object
 	bucketName, rootObjectName, err := parseCloudReference(task.Reference, s3Scheme)
@@ -87,7 +90,7 @@ func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 
 	var getObjectInputs []*s3.GetObjectInput
 	if task.HasSingleFile() {
-		getObjInput, err := ft.getObjectInputFromTask(bucketName, rootObjectName, task)
+		getObjInput, err := ft.findObjectFromTask(bucketName, rootObjectName, task)
 		if err != nil {
 			return ft.formatDownloadError("error constructing object input", err)
 		}
@@ -104,12 +107,17 @@ func (ft *S3FileTransfer) Download(task *ReferenceArtifactDownloadTask) error {
 			)
 		}
 	}
-	return ft.downloadFiles(bucketName, rootObjectName, getObjectInputs, task.PathOrPrefix)
+	err = ft.downloadFiles(rootObjectName, getObjectInputs, task.PathOrPrefix)
+	if err != nil {
+		return ft.formatDownloadError("error downloading object", err)
+	}
+	return nil
 }
 
-// getObjectFromTask finds the s3 object that matches the versionId and
-// digest/ETag specified by the task
-func (ft *S3FileTransfer) getObjectInputFromTask(
+// findObjectFromTask finds the s3 object that matches the versionId and
+// digest/ETag specified by the task, and returns a struct that we can use
+// to access that s3 object.
+func (ft *S3FileTransfer) findObjectFromTask(
 	bucketName string,
 	objectName string,
 	task *ReferenceArtifactDownloadTask,
@@ -132,29 +140,33 @@ func (ft *S3FileTransfer) getObjectInputFromTask(
 
 	objAttrs, err := ft.client.GetObjectAttributes(ft.ctx, getObjAttrsInput)
 	if err != nil {
-		return nil, ft.formatDownloadError("error getting object attributes", err)
+		return nil, err
 	}
 
 	// If the ETag doesn't match what we have stored, try to find the correct version
-	if trimQuotes(*objAttrs.ETag) != task.Digest {
-		digestMismatchError := fmt.Errorf(
-			"digest/etag mismatch: etag %s does not match expected digest %s",
-			*objAttrs.ETag,
-			task.Digest,
-		)
+	if strings.Trim(*objAttrs.ETag, "\"") != task.Digest {
 		if task.VersionId != nil {
-			return nil, ft.formatDownloadError("", digestMismatchError)
+			return nil, fmt.Errorf(
+				"digest/etag mismatch: etag %s does not match expected digest %s",
+				*objAttrs.ETag,
+				task.Digest,
+			)
 		}
-		getObjInput, ok = ft.getCorrectObjectVersion(bucketName, objectName, task.Digest, getObjInput)
-		if !ok {
-			return nil, ft.formatDownloadError("", digestMismatchError)
+		getObjInput, err = ft.getCorrectObjectVersion(
+			bucketName,
+			objectName,
+			task.Digest,
+			getObjInput,
+		)
+		if err != nil {
+			return nil, err
 		}
 	}
 	return getObjInput, nil
 }
 
 // listObjectsWithPrefix returns a list of all objects in the specified bucket
-// that begin with the given prefix
+// that begin with the given prefix.
 func (ft *S3FileTransfer) listObjectsWithPrefix(
 	bucketName string,
 	prefix string,
@@ -168,7 +180,7 @@ func (ft *S3FileTransfer) listObjectsWithPrefix(
 	for isTruncated {
 		output, err := ft.client.ListObjectsV2(ft.ctx, params)
 		if err != nil {
-			return nil, ft.formatDownloadError("error when retrieving objects", err)
+			return nil, err
 		}
 
 		for _, object := range output.Contents {
@@ -188,13 +200,13 @@ func (ft *S3FileTransfer) listObjectsWithPrefix(
 
 // getCorrectObjectVersion attempts to find the version of an object with
 // an ETag that matches the specified digest, and returns the input to
-// retrieve that object
+// retrieve that object.
 func (ft *S3FileTransfer) getCorrectObjectVersion(
 	bucketName string,
 	objectName string,
 	digest string,
 	getObjInput *s3.GetObjectInput,
-) (*s3.GetObjectInput, bool) {
+) (*s3.GetObjectInput, error) {
 	params := &s3.ListObjectVersionsInput{
 		Bucket: aws.String(bucketName),
 		Prefix: aws.String(objectName),
@@ -203,13 +215,13 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 	for isTruncated {
 		versions, err := ft.client.ListObjectVersions(ft.ctx, params)
 		if err != nil {
-			return nil, false
+			return nil, err
 		}
 		for _, version := range versions.Versions {
-			if trimQuotes(*version.ETag) == digest {
+			if strings.Trim(*version.ETag, "\"") == digest {
 				getObjInput.Key = aws.String(*version.Key)
 				getObjInput.VersionId = version.VersionId
-				return getObjInput, true
+				return getObjInput, nil
 			}
 		}
 		isTruncated = *versions.IsTruncated
@@ -217,12 +229,14 @@ func (ft *S3FileTransfer) getCorrectObjectVersion(
 			params.KeyMarker = versions.NextKeyMarker
 		}
 	}
-	return nil, false
+	return nil, fmt.Errorf(
+		"digest/etag mismatch: unable to find version with expected digest %s",
+		digest,
+	)
 }
 
-// downloadFiles downloads all of the objects in the specified bucket
+// downloadFiles downloads all of the objects in the specified bucket.
 func (ft *S3FileTransfer) downloadFiles(
-	bucketName string,
 	rootObjectName string,
 	getObjectInputs []*s3.GetObjectInput,
 	basePath string,
@@ -230,60 +244,30 @@ func (ft *S3FileTransfer) downloadFiles(
 	g := new(errgroup.Group)
 	g.SetLimit(maxS3Workers)
 	for _, input := range getObjectInputs {
-		getObjectInput := input // for closure in goroutine
 		g.Go(func() error {
-			objectRelativePath, _ := strings.CutPrefix(*getObjectInput.Key, rootObjectName)
+			objectRelativePath, _ := strings.CutPrefix(*input.Key, rootObjectName)
 			localPath := filepath.Join(basePath, filepath.FromSlash(objectRelativePath))
-			err := ft.downloadFile(getObjectInput, localPath)
-			if err != nil {
-				return ft.formatDownloadError("error downloading file", err)
-			}
-			return nil
+			return ft.downloadFile(input, localPath)
 		})
 	}
 
 	return g.Wait()
 }
 
-// downloadFile downloads the content of an object
+// downloadFile downloads the content of an object to the specified path.
 func (ft *S3FileTransfer) downloadFile(
 	getObjInput *s3.GetObjectInput,
 	localPath string,
 ) error {
 	object, err := ft.client.GetObject(ft.ctx, getObjInput)
 	if err != nil {
-		return ft.formatDownloadError("error getting object while downloading", err)
+		return err
 	}
 	defer object.Body.Close()
-	body, err := io.ReadAll(object.Body)
-	if err != nil {
-		return ft.formatDownloadError("error reading object body while downloading", err)
-	}
 
-	return ft.writeToFile(localPath, body)
-}
-
-// writeToFile writes the content of body to a file at localPath
-func (ft *S3FileTransfer) writeToFile(localPath string, body []byte) error {
-	dir := path.Dir(localPath)
-
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return ft.formatDownloadError("error trying to create local file", err)
-	}
-
-	file, err := os.Create(localPath)
-	if err != nil {
-		return ft.formatDownloadError("error creating local file", err)
-	}
-	defer file.Close()
-	_, err = file.Write(body)
-	return err
+	return fileutil.CopyReaderToFile(object.Body, localPath)
 }
 
 func (ft *S3FileTransfer) formatDownloadError(context string, err error) error {
 	return fmt.Errorf("S3FileTransfer: Download: %s: %v", context, err)
-}
-
-func trimQuotes(str string) string {
-	return strings.Trim(str, "\"")
 }
