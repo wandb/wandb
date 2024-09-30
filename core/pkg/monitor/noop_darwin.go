@@ -15,7 +15,12 @@ type GPUNvidia struct {
 	logger           *observability.CoreLogger
 }
 
-func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64, cmdPath string) *GPUNvidia {
+func NewGPUNvidia(
+	logger *observability.CoreLogger,
+	pid int32,
+	samplingInterval float64,
+	cmdPath string,
+) *GPUNvidia {
 	return &GPUNvidia{
 		name:             "gpu",
 		pid:              pid,
