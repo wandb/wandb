@@ -90,9 +90,13 @@ Get started with W&B in four steps:
 1. First, sign up for a [W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
 
 2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
-
 ```bash
 pip install wandb
+```
+* If you plan to log media data (images, audio, video, etc.), install additional dependencies `media` extras:
+
+```bash
+pip install wandb[media]
 ```
 
 3. Third, log into W&B:
