@@ -237,8 +237,6 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 		return nil
 	}
 
-	fmt.Println(g.sample)
-
 	// Wait for the first sample, but no more than 5 seconds.
 	startTime := time.Now()
 	for {
