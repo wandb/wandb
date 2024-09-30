@@ -1,0 +1,258 @@
+// Copyright 2023 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      https://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package tpu.monitoring.runtime;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/wandb/wandb/core/pkg/monitor/tpuproto";
+
+message Exemplar {
+  double value = 1;
+  .google.protobuf.Timestamp timestamp = 2;
+  repeated Attribute attributes = 3;
+}
+
+message Distribution {
+  int64 count = 1;
+  double mean = 2;
+  double min = 3;
+  double max = 4;
+  double sum_of_squared_deviation = 5;
+
+  message BucketOptions {
+    oneof options {
+      Regular regular_buckets = 1 [deprecated = true];
+      Exponential exponential_buckets = 2;
+      Explicit explicit_buckets = 3;
+      Linear linear_buckets = 4;
+    }
+    message Regular {
+      option deprecated = true;
+
+      int32 num_finite_buckets = 1;
+      // A linear distribution has only one bound with overall width and offset
+      // of the lowest bucket.
+      // An explicit distribution will have monotonically increasing buckets
+      // with width and the offset from the previous bucket.
+      repeated Bound bounds = 2;
+    }
+    message Exponential {
+      // Must be greater than 0.
+      int32 num_finite_buckets = 1;
+      // Must be greater than 1.
+      double growth_factor = 2;
+      // Must be greater than 0.
+      double scale = 3;
+    }
+    message Bound {
+      option deprecated = true;
+
+      double width = 1;
+      double offset = 2;
+    }
+
+    // Specifies a linear sequence of buckets that all have the same width
+    // (except overflow and underflow). Each bucket represents a constant
+    // absolute uncertainty on the specific value in the bucket.
+    //
+    // There are `num_finite_buckets + 2` (= N) buckets. Bucket `i` has the
+    // following boundaries:
+    //
+    //    Upper bound (0 <= i < N-1):     offset + (width * i).
+    //
+    //    Lower bound (1 <= i < N):       offset + (width * (i - 1)).
+    message Linear {
+      // Must be greater than 0.
+      int32 num_finite_buckets = 1;
+
+      // Must be greater than 0.
+      double width = 2;
+
+      // Lower bound of the first bucket.
+      double offset = 3;
+    }
+
+    // Specifies a set of buckets with arbitrary widths.
+    //
+    // There are `size(bounds) + 1` (= N) buckets. Bucket `i` has the following
+    // boundaries:
+    //
+    //    Upper bound (0 <= i < N-1):     bounds[i]
+    //    Lower bound (1 <= i < N);       bounds[i - 1]
+    //
+    // The `bounds` field must contain at least one element. If `bounds` has
+    // only one element, then there are no finite buckets, and that single
+    // element is the common boundary of the overflow and underflow buckets.
+    message Explicit {
+      // The values must be monotonically increasing.
+      repeated double bounds = 1;
+    }
+  }
+
+  // Defines the histogram bucket boundaries.
+  BucketOptions bucket_options = 6;
+  repeated int64 bucket_counts = 7;
+  repeated Exemplar exemplars = 8;
+}
+
+// Gauge represents a single-point measure.
+message Gauge {
+  oneof value {
+    double as_double = 1;
+    int64 as_int = 2;
+    string as_string = 3;
+    bool as_bool = 4;
+  }
+}
+
+// Counter is a monotonically increasing measure (until reset to zero).
+message Counter {
+  // The value MUST not be negative.
+  oneof value {
+    double as_double = 1;
+    uint64 as_int = 2;
+  }
+  Exemplar exemplar = 3;
+}
+
+// Quantile represents the value at a given quantile of a distribution.
+message Quantile {
+  // The quantile of a distribution. Must be in the interval [0.0, 1.0].
+  double quantile = 1;
+  // The value at the given quantile of a distribution.
+  // Quantile values must NOT be negative.
+  double value = 2;
+}
+
+// SummaryMetric represents observed sampling for different quantiles including
+// sum of all the observations and total count of observations.
+message SummaryMetric {
+  uint64 sample_count = 1;
+  double sample_sum = 2;
+  repeated Quantile quantile = 3;
+}
+
+// AttrValue represents an attribute value.
+// AttrValue is considered to be "empty" if all values are unspecified.
+message AttrValue {
+  oneof attr {
+    string string_attr = 1;
+    bool bool_attr = 2;
+    int64 int_attr = 3;
+    double double_attr = 4;
+    ArrayAttrValue array_attr = 5;
+    KeyValueList kvlist_attr = 6;
+    bytes bytes_attr = 7;
+  }
+}
+
+// ArrayAttrValue is a list of AttrValue messages.
+message ArrayAttrValue {
+  // Array of attribute. The array may be empty (contain 0 elements).
+  repeated AttrValue attrs = 1;
+}
+
+// KeyValueList is a list of Key-AttrValue messages.
+message KeyValueList {
+  // A collection of key/value attributes. The list may be empty.
+  // The keys in attributes MUST be unique.
+  repeated Attribute attributes = 1;
+}
+
+// Attribute is a key-value pair to store the attributes of a metric.
+// For example, device-id of the metric, host-id of the metric.
+message Attribute {
+  string key = 1;
+  AttrValue value = 2;
+}
+
+// Metric represents a metric datapoint.
+// A metric has a reporting time, attribute and a measure value.
+message Metric {
+  Attribute attribute = 1;
+  .google.protobuf.Timestamp timestamp = 2;
+  oneof measure {
+    Gauge gauge = 3;
+    Counter counter = 4;
+    Distribution distribution = 5;
+    SummaryMetric summary = 6;
+  }
+}
+
+// TPUMetric is a standalone metric object, exposed externally to a consumer.
+message TPUMetric {
+  string name = 1;
+  string description = 2;
+  repeated Metric metrics = 3;
+}
+
+// MetricRequest is the request object to fetch metrics from LibTPU.
+// MetricRequest contains the metric name with which metrics can be fetched
+// from the RuntimeMetricsService.GetRuntimeMetric.
+message MetricRequest {
+  string metric_name = 1;
+  // skip_node_aggregation provides options to the client to skip aggregated
+  // lookup of metrics for a worker node. If the field is unset or set as false,
+  // an aggregated view of metrics for a TPU worker node would be provided.
+  // The aggregation feature is enabled by libTPU during initialization.
+  // By default, the worker node aggregation would be turned on in libTPU if the
+  // metrics server is supported. If the libTPU initialization turns off the
+  // feature explicitly, then the aggregated view would not be provided.
+  bool skip_node_aggregation = 2;
+}
+
+// MetricResponse is the response object for RuntimeService.GetRuntimeMetric.
+// The response contains the TPUMetric as response which holds the metric data
+// for the requested metric.
+message MetricResponse {
+  TPUMetric metric = 1;
+}
+
+// ListSupportedMetricsRequest is the request object for
+// RuntimeService.ListSupportedMetrics.
+// Empty request means no filters. All the metrics supported from the LibTPU
+// would be returned as the response.
+message ListSupportedMetricsRequest {
+  // A regex filter to apply to the supported metrics.
+  // If the field is empty or not set, no filter is applied. All the supported
+  // metrics are returned.
+  //
+  // Example: `.*memory.*`, `.*memory.*|.*duty_cycle.*`
+  string filter = 1;
+}
+
+message SupportedMetric {
+  string metric_name = 1;
+}
+
+// ListSupportedMetricsResponse is the response object for
+// RuntimeService.ListSupportedMetrics.
+// It contains all the metrics supported in the LibTPU for the
+// ListSupportedMetricsRequest.
+message ListSupportedMetricsResponse {
+  // List of supported metric.
+  repeated SupportedMetric supported_metric = 1;
+}
+
+service RuntimeMetricService {
+  // GetRuntimeMetric returns the TPU metrics data for the MetricRequest.
+  rpc GetRuntimeMetric(MetricRequest) returns (MetricResponse);
+
+  // ListSupportedMetrics lists the supported metrics for
+  // ListSupportedMetricsRequest.
+  rpc ListSupportedMetrics(ListSupportedMetricsRequest) returns (ListSupportedMetricsResponse);
+}
