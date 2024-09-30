@@ -15,15 +15,13 @@ import (
 	"google.golang.org/grpc/credentials/local"
 )
 
-const (
-	// googleTPUVendorID is the PCI vendor ID assigned to Google TPUs.
-	googleTPUVendorID = "0x1ae0"
-)
-
 // TPUMetricName represents a TPU metric name for querying on the gRPC server exposed by the TPU runtime.
 type TPUMetricName string
 
 const (
+	// googleTPUVendorID is the PCI vendor ID assigned to Google TPUs.
+	googleTPUVendorID = "0x1ae0"
+
 	// grpcAddr is the gRPC server address for the TPU runtime.
 	//
 	// See https://github.com/google/cloud-accelerator-diagnostics/tree/main/tpu_info for more details.
