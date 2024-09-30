@@ -73,8 +73,8 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		logger:           logger,
 	}
 
-	var err error
 	if cmdPath == "" {
+	    var err error
 		cmdPath, err = getCmdPath()
 		if err != nil {
 			return nil
