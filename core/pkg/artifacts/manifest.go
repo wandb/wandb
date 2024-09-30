@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"compress/gzip"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -40,6 +41,10 @@ type ManifestEntry struct {
 }
 
 func NewManifestFromProto(proto *spb.ArtifactManifest) (Manifest, error) {
+	if proto == nil {
+		return Manifest{}, errors.New("nil ArtifactManifest proto")
+	}
+
 	manifest := Manifest{
 		Version:             proto.Version,
 		StoragePolicy:       proto.StoragePolicy,

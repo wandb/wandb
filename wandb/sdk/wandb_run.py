@@ -2948,39 +2948,44 @@ class Run:
         if aliases is None:
             aliases = []
 
-        if self._backend and self._backend.interface:
-            if artifact.is_draft() and not artifact._is_draft_save_started():
-                artifact = self._log_artifact(artifact)
-            if not self._settings._offline:
-                organization = ""
-                if is_artifact_registry_project(project):
-                    organization = entity
-                    # In a Registry linking, the entity is used to fetch the organization of the artifact
-                    # therefore the source artifact's entity is passed to the backend
-                    entity = artifact._source_entity
-                handle = self._backend.interface.deliver_link_artifact(
-                    self,
-                    artifact,
-                    portfolio,
-                    aliases,
-                    entity,
-                    project,
-                    organization,
-                )
-                if artifact._ttl_duration_seconds is not None:
-                    wandb.termwarn(
-                        "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
-                    )
-                result = handle.wait(timeout=-1)
-                if result is None:
-                    handle.abandon()
-                else:
-                    response = result.response.link_artifact_response
-                    if response.error_message:
-                        wandb.termerror(response.error_message)
-            else:
-                # TODO: implement offline mode + sync
-                raise NotImplementedError
+        if not self._backend or not self._backend.interface:
+            return
+
+        if artifact.is_draft() and not artifact._is_draft_save_started():
+            artifact = self._log_artifact(artifact)
+
+        if self._settings._offline:
+            # TODO: implement offline mode + sync
+            raise NotImplementedError
+
+        # Wait until the artifact is committed before trying to link it.
+        artifact.wait()
+        
+        organization = ""
+        if is_artifact_registry_project(project):
+          organization = entity
+          # In a Registry linking, the entity is used to fetch the organization of the artifact
+          # therefore the source artifact's entity is passed to the backend
+          entity = artifact._source_entity
+        handle = self._backend.interface.deliver_link_artifact(
+            self,
+            artifact,
+            portfolio,
+            aliases,
+            entity,
+            project,
+        )
+        if artifact._ttl_duration_seconds is not None:
+            wandb.termwarn(
+                "Artifact TTL will be disabled for source artifacts that are linked to portfolios."
+            )
+        result = handle.wait(timeout=-1)
+        if result is None:
+            handle.abandon()
+        else:
+            response = result.response.link_artifact_response
+            if response.error_message:
+                wandb.termerror(response.error_message)
 
     @_run_decorator._noop_on_finish()
     @_run_decorator._attach

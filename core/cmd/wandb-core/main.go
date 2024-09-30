@@ -129,12 +129,12 @@ func main() {
 			ParentPid:       *pid,
 			SentryClient:    sentryClient,
 			Commit:          commit,
+			LoggerPath:      loggerPath,
 		},
 	)
 	if err != nil {
 		slog.Error("failed to start server, exiting", "error", err)
 		return
 	}
-	srv.SetDefaultLoggerPath(loggerPath)
 	srv.Serve()
 }
