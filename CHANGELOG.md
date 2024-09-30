@@ -15,6 +15,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 - Fixed a regression introduced in v0.18.2 that affected the capturing of Nvidia GPU names. (@dmitryduev in https://github.com/wandb/wandb/pull/8503)
 - `run.log_artifact()` no longer blocks other data uploads until the artifact upload finishes (@timoffex in https://github.com/wandb/wandb/pull/8466)
+- Fixed media dependency for rdkit updated from `rdkit-pypi` to `rdkit` (@jacobromero in https://github.com/wandb/wandb/compare/WB-20894)
 
 ### Changed
 
