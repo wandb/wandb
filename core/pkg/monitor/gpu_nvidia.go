@@ -33,7 +33,7 @@ func getCmdPath() (string, error) {
 	return exPath, nil
 }
 
-// isRunning checks if the command is running by sending a signal to the process
+// isRunning checks if the command is running by sending a signal to the process.
 func isRunning(cmd *exec.Cmd) bool {
 	if cmd.Process == nil {
 		return false
@@ -48,6 +48,7 @@ func isRunning(cmd *exec.Cmd) bool {
 	return err == nil
 }
 
+// GPUNvidia monitors NVIDIA GPU stats using the nvidia_gpu_stats command.
 type GPUNvidia struct {
 	name             string
 	sample           map[string]any // latest reading from nvidia_gpu_stats command
@@ -55,12 +56,21 @@ type GPUNvidia struct {
 	samplingInterval float64        // sampling interval in seconds
 	lastTimestamp    float64        // last reported timestamp
 	mutex            sync.RWMutex
+	cmdPath          string
 	cmd              *exec.Cmd
 	logger           *observability.CoreLogger
 	waitOnce         sync.Once
 }
 
-func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64) *GPUNvidia {
+// NewGPUNvidia creates a new GPUNvidia instance configured to monitor NVIDIA GPUs.
+//
+// If cmdPath is empty, it will use the default nvidia_gpu_stats path.
+func NewGPUNvidia(
+	logger *observability.CoreLogger,
+	pid int32,
+	samplingInterval float64,
+	cmdPath string,
+) *GPUNvidia {
 	g := &GPUNvidia{
 		name:             "gpu",
 		sample:           map[string]any{},
@@ -69,27 +79,31 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		logger:           logger,
 	}
 
-	exPath, err := getCmdPath()
-	if err != nil {
-		return g
+	if cmdPath == "" {
+		var err error
+		cmdPath, err = getCmdPath()
+		if err != nil {
+			return nil
+		}
 	}
+	g.cmdPath = cmdPath
 
 	if samplingInterval == 0 {
 		samplingInterval = defaultSamplingInterval.Seconds()
 	}
 
-	// we will use nvidia_gpu_stats to get GPU stats
+	// We will use nvidia_gpu_stats to get GPU stats.
 	g.cmd = exec.Command(
-		exPath,
-		// monitor for GPU usage for this pid and its children
+		g.cmdPath,
+		// Monitor for GPU usage for this pid and its children.
 		fmt.Sprintf("--pid=%d", pid),
-		// pid of the current process. nvidia_gpu_stats will exit when this process exits
+		// PID of the current process. nvidia_gpu_stats will exit when this process exits.
 		fmt.Sprintf("--ppid=%d", os.Getpid()),
-		// sampling interval in seconds
+		// Sampling interval in seconds.
 		fmt.Sprintf("--interval=%f", samplingInterval),
 	)
 
-	// get a pipe to read from the command's stdout
+	// Get a pipe to read from the command's stdout.
 	stdout, err := g.cmd.StdoutPipe()
 	if err != nil {
 		g.logger.CaptureError(
@@ -99,21 +113,20 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 	}
 
 	if err := g.cmd.Start(); err != nil {
-		// this is a relevant error, so we will report it to sentry
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
 		)
 		return nil
 	}
 
-	// read and process nvidia_gpu_stats output in a separate goroutine.
+	// Read and process nvidia_gpu_stats output in a separate goroutine.
 	// nvidia_gpu_stats outputs JSON data for each GPU every sampling interval.
 	go func() {
 		scanner := bufio.NewScanner(stdout)
 		for scanner.Scan() {
 			line := scanner.Text()
 
-			// Try to parse the line as JSON
+			// Try to parse the line as JSON.
 			var data map[string]any
 			if err := json.Unmarshal([]byte(line), &data); err != nil {
 				g.logger.CaptureError(
@@ -122,7 +135,7 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 				continue
 			}
 
-			// Process the JSON data
+			// Process the JSON data.
 			g.mutex.Lock()
 			for key, value := range data {
 				g.sample[key] = value
@@ -159,15 +172,20 @@ func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
 	}
 }
 
+// Name returns the name of the asset.
 func (g *GPUNvidia) Name() string { return g.name }
 
+// Sample returns the latest collected GPU metrics.
 func (g *GPUNvidia) Sample() (map[string]any, error) {
 	if !isRunning(g.cmd) {
-		// do not log error if the command is not running
+		// Do not log error if the command is not running.
 		return nil, nil
 	}
 
-	// do not sample if the last timestamp is the same
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+
+	// Do not sample if the last timestamp is the same.
 	currentTimestamp, ok := g.sample["_timestamp"]
 	if !ok {
 		return nil, nil
@@ -177,61 +195,64 @@ func (g *GPUNvidia) Sample() (map[string]any, error) {
 		return nil, nil
 	}
 
-	if _, ok := currentTimestamp.(float64); !ok {
+	ts, ok := currentTimestamp.(float64)
+	if !ok {
 		return nil, fmt.Errorf("invalid timestamp: %v", currentTimestamp)
 	}
-	g.lastTimestamp = currentTimestamp.(float64)
+	g.lastTimestamp = ts
 
 	metrics := make(map[string]any)
 
 	for metric, value := range g.sample {
-		// skip metrics that start with "_", some of which are internal metrics
-		// TODO: other metrics lack aggregation on the frontend; could be added in the future.
+		// Skip metrics that start with "_", some of which are internal metrics.
+		// TODO: Other metrics lack aggregation on the frontend; could be added in the future.
 		if strings.HasPrefix(metric, "_") {
 			continue
 		}
-		if value, ok := value.(float64); ok {
-			metrics[metric] = value
+		if v, ok := value.(float64); ok {
+			metrics[metric] = v
 		}
 	}
 
 	return metrics, nil
 }
 
+// IsAvailable checks if the GPUNvidia monitor is available.
 func (g *GPUNvidia) IsAvailable() bool {
-	exPath, err := getCmdPath()
-	if err != nil || exPath == "" {
+	if g.cmdPath == "" {
 		return false
 	}
 	return isRunning(g.cmd)
 }
 
+// Close terminates the GPUNvidia monitor and cleans up resources.
 func (g *GPUNvidia) Close() {
 	if !g.IsAvailable() {
 		return
 	}
-	// send signal to the process to exit
+	// Send signal to the process to exit.
 	_ = g.cmd.Process.Signal(os.Kill)
 	// We must ensure that the command is waited for to avoid zombie processes.
 	g.waitWithTimeout(5 * time.Second)
 }
 
+// Probe gathers metadata about the GPU hardware.
 func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	if !g.IsAvailable() {
 		return nil
 	}
 
-	// Wait for the first sample, but no more than 5 seconds
+	// Wait for the first sample, but no more than 5 seconds.
 	startTime := time.Now()
 	for {
 		g.mutex.RLock()
 		_, ok := g.sample["_gpu.count"]
 		g.mutex.RUnlock()
 		if ok {
-			break // Successfully got a sample
+			break // Successfully got a sample.
 		}
 		if time.Since(startTime) > 5*time.Second {
-			// just give up if we don't get a sample in 5 seconds
+			// Just give up if we don't get a sample in 5 seconds.
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
@@ -241,20 +262,25 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 		GpuNvidia: []*spb.GpuNvidiaInfo{},
 	}
 
+	g.mutex.RLock()
+	defer g.mutex.RUnlock()
+
 	if count, ok := g.sample["_gpu.count"].(float64); ok {
 		info.GpuCount = uint32(count)
 	} else {
 		return nil
 	}
 
-	// no GPU found, so close the GPU monitor
+	// No GPU found, so close the GPU monitor.
 	if info.GpuCount == 0 {
 		g.Close()
 		return nil
 	}
 
 	if v, ok := g.sample["cuda_version"]; ok {
-		info.CudaVersion = v.(string)
+		if s, ok := v.(string); ok {
+			info.CudaVersion = s
+		}
 	}
 
 	names := make([]string, info.GpuCount)
@@ -262,39 +288,38 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 	for di := 0; di < int(info.GpuCount); di++ {
 
 		gpuInfo := &spb.GpuNvidiaInfo{}
-		name := fmt.Sprintf("_gpu.%d.name", di)
-		if v, ok := g.sample[name]; ok {
-			if v, ok := v.(string); ok {
-				gpuInfo.Name = v
+		nameKey := fmt.Sprintf("_gpu.%d.name", di)
+		if v, ok := g.sample[nameKey]; ok {
+			if s, ok := v.(string); ok {
+				gpuInfo.Name = s
 				names[di] = gpuInfo.Name
 			}
 		}
 
-		memTotal := fmt.Sprintf("_gpu.%d.memoryTotal", di)
-		if v, ok := g.sample[memTotal]; ok {
-			if v, ok := v.(float64); ok {
-				gpuInfo.MemoryTotal = uint64(v)
+		memTotalKey := fmt.Sprintf("_gpu.%d.memoryTotal", di)
+		if v, ok := g.sample[memTotalKey]; ok {
+			if f, ok := v.(float64); ok {
+				gpuInfo.MemoryTotal = uint64(f)
 			}
 		}
 
-		cudaCores := fmt.Sprintf("_gpu.%d.cudaCores", di)
-		if v, ok := g.sample[cudaCores]; ok {
+		cudaCoresKey := fmt.Sprintf("_gpu.%d.cudaCores", di)
+		if v, ok := g.sample[cudaCoresKey]; ok {
 			// cudaCores defaults to 0 if the corresponding NVML query fails
-			// in nvidia_gpu_stats
-			if v, ok := v.(float64); ok && v > 0 {
-				gpuInfo.CudaCores = uint32(v)
+			// in nvidia_gpu_stats.
+			if f, ok := v.(float64); ok && f > 0 {
+				gpuInfo.CudaCores = uint32(f)
 			}
 		}
 
-		architechture := fmt.Sprintf("_gpu.%d.architecture", di)
-		if v, ok := g.sample[architechture]; ok {
-			if v, ok := v.(string); ok {
-				gpuInfo.Architecture = v
+		architectureKey := fmt.Sprintf("_gpu.%d.architecture", di)
+		if v, ok := g.sample[architectureKey]; ok {
+			if s, ok := v.(string); ok {
+				gpuInfo.Architecture = s
 			}
 		}
 
 		info.GpuNvidia = append(info.GpuNvidia, gpuInfo)
-
 	}
 
 	if len(names) > 0 {
