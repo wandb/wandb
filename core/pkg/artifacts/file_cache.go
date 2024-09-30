@@ -10,7 +10,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/wandb/wandb/core/pkg/utils"
+	"github.com/wandb/wandb/core/internal/fileutil"
+	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
 const defaultDirPermissions = 0777  // read/write/execute for all users.
@@ -81,7 +82,7 @@ func (c *FileCache) Link(b64md5, ref, etag string) error {
 	if err != nil {
 		return err
 	}
-	if exists, _ := utils.FileExists(md5Path); !exists {
+	if exists, _ := fileutil.FileExists(md5Path); !exists {
 		return fmt.Errorf("no cache file with digest %s", b64md5)
 	}
 	etagPath := c.etagPath(ref, etag)
@@ -127,7 +128,7 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 		cachePath = c.etagPath(*entry.Ref, entry.Digest)
 	} else {
 		// If the digest is an MD5 hash, check to see if we already have the file.
-		b64md5, err := utils.ComputeFileB64MD5(dst)
+		b64md5, err := hashencode.ComputeFileB64MD5(dst)
 		if err == nil && b64md5 == entry.Digest {
 			return true
 		}
@@ -136,7 +137,7 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 			return false
 		}
 	}
-	return utils.CopyFile(cachePath, dst) == nil
+	return fileutil.CopyFile(cachePath, dst) == nil
 }
 
 // RestoreTo returns true if the file exists at the destination and its hash matches the digest.
@@ -150,12 +151,12 @@ func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	if entry.Ref != nil {
 		return false
 	}
-	b64md5, err := utils.ComputeFileB64MD5(dst)
+	b64md5, err := hashencode.ComputeFileB64MD5(dst)
 	return err == nil && b64md5 == entry.Digest
 }
 
 func (c *FileCache) md5Path(b64md5 string) (string, error) {
-	hexHash, err := utils.B64ToHex(b64md5)
+	hexHash, err := hashencode.B64ToHex(b64md5)
 	if err != nil {
 		return "", err
 	}
@@ -163,10 +164,10 @@ func (c *FileCache) md5Path(b64md5 string) (string, error) {
 }
 
 func (c *FileCache) etagPath(ref, etag string) string {
-	byteHash := utils.ComputeSHA256([]byte(ref))
-	etagHash := utils.ComputeSHA256([]byte(etag))
+	byteHash := hashencode.ComputeSHA256([]byte(ref))
+	etagHash := hashencode.ComputeSHA256([]byte(etag))
 	byteHash = append(byteHash, etagHash...)
-	hexhash := hex.EncodeToString(utils.ComputeSHA256(byteHash))
+	hexhash := hex.EncodeToString(hashencode.ComputeSHA256(byteHash))
 	return filepath.Join(c.root, "obj", "etag", hexhash[:2], hexhash[2:])
 }
 
@@ -193,7 +194,7 @@ func (c *FileCache) Write(src io.Reader) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if exists, _ := utils.FileExists(dstPath); exists {
+	if exists, _ := fileutil.FileExists(dstPath); exists {
 		return b64md5, nil
 	}
 	if err := os.MkdirAll(filepath.Dir(dstPath), defaultDirPermissions); err != nil {

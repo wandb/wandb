@@ -13,6 +13,7 @@ import (
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
 	"github.com/wandb/wandb/core/internal/runsummary"
@@ -23,8 +24,6 @@ import (
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
 	"github.com/wandb/wandb/core/pkg/monitor"
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/utils"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -64,11 +63,14 @@ type Stream struct {
 	sentryClient *sentry_ext.Client
 }
 
-func streamLogger(settings *settings.Settings, sentryClient *sentry_ext.Client) *observability.CoreLogger {
+func streamLogger(
+	settings *settings.Settings,
+	sentryClient *sentry_ext.Client,
+	loggerPath string,
+) *observability.CoreLogger {
 	// TODO: when we add session concept re-do this to use user provided path
 	targetPath := filepath.Join(settings.GetLogDir(), "debug-core.log")
-	if path := defaultLoggerPath.Load(); path != nil {
-		path := path.(string)
+	if path := loggerPath; path != "" {
 		// check path exists
 		if _, err := os.Stat(path); !os.IsNotExist(err) {
 			err := os.Symlink(path, targetPath)
@@ -134,8 +136,9 @@ func NewStream(
 	commit string,
 	settings *settings.Settings,
 	sentryClient *sentry_ext.Client,
+	loggerPath string,
 ) *Stream {
-	logger := streamLogger(settings, sentryClient)
+	logger := streamLogger(settings, sentryClient, loggerPath)
 	runWork := runwork.New(BufferSize, logger)
 
 	s := &Stream{
@@ -206,7 +209,7 @@ func NewStream(
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
-			SystemMonitor:     monitor.New(s.logger, s.settings.Proto, s.runWork),
+			SystemMonitor:     monitor.NewSystemMonitor(s.logger, s.settings.Proto, s.runWork),
 			TBHandler:         tbHandler,
 			FileTransferStats: fileTransferStats,
 			Mailbox:           mailbox,
@@ -337,9 +340,9 @@ func (s *Stream) FinishAndClose(exitCode int32) {
 	s.Close()
 
 	if s.settings.IsOffline() {
-		utils.PrintFooterOffline(s.settings.Proto)
+		PrintFooterOffline(s.settings.Proto)
 	} else {
 		run := s.handler.GetRun()
-		utils.PrintFooterOnline(run, s.settings.Proto)
+		PrintFooterOnline(run, s.settings.Proto)
 	}
 }

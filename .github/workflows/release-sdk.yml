@@ -66,6 +66,70 @@ jobs:
           git commit -am "Bump version and update CHANGELOG for release ${{ github.event.inputs.version }}"
           git push --no-verify -f origin release-${{ github.event.inputs.version }}
 
+  build-macos-10-wheels:
+    name: Build wheels for MacOS 10.x
+    needs: prepare-release
+    runs-on: macos-14
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: release-${{ github.event.inputs.version }}
+
+      ##################################################
+      # Go 1.22 is required for building the wheels on MacOS 10.x.
+      #
+      # See https://github.com/golang/go/issues/64207.
+      ##################################################
+      - name: Downgrade Go version
+        run: |
+          sed -i '' 's/1.23.1/1.22.7/' core/go.mod
+
+      ##################################################
+      # Non-Linux: install Go
+      #
+      # See comment above CIBW_BEFORE_ALL_LINUX.
+      ##################################################
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+
+      ##################################################
+      # All platforms: create wheels
+      ##################################################
+      - name: Build wheels
+        uses: pypa/cibuildwheel@v2.19.2
+        with:
+           package-dir: .
+           output-dir: dist
+        env:
+          # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
+          CIBW_BUILD: cp*-macosx* pp*-macosx*
+          CIBW_SKIP: cp36-*
+          CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
+
+          # Work around https://github.com/matthew-brett/delocate/issues/204
+          # by adding `--ignore-missing-dependencies` to cibuildwheel's default
+          # repair wheel command.
+          CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-listdeps --all --depending {wheel} &&
+            delocate-wheel \
+              --require-archs {delocate_archs} \
+              --ignore-missing-dependencies \
+              -w {dest_dir} \
+              -v {wheel}
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=10.14
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: wandb-sdk-distributions
+          path: ./dist
+
   build-platform-wheels:
     name: Build wheels on ${{ matrix.os }}
     needs: prepare-release
@@ -117,10 +181,11 @@ jobs:
           # In cp36-*, the wheel name sometimes includes additional dashes that
           # make it invalid, breaking the job.
           #
-          # Not sure why we skip PyPy and musllinux builds.
+          # Skipping *musllinux_aarch64* as it takes too long to build, and we
+          # don't seem to have users on this platform.
           #
           # See https://cibuildwheel.readthedocs.io/en/stable/options/#build-skip
-          CIBW_SKIP: cp36-* pp* *musllinux*
+          CIBW_SKIP: cp36-* *musllinux_aarch64*
           CIBW_ARCHS_LINUX: x86_64 aarch64
           CIBW_ARCHS_MACOS: x86_64 arm64  # arm64 == aarch64
 
@@ -128,12 +193,14 @@ jobs:
           # by adding `--ignore-missing-dependencies` to cibuildwheel's default
           # repair wheel command.
           CIBW_REPAIR_WHEEL_COMMAND_MACOS: >
+            delocate-listdeps --all --depending {wheel} &&
             delocate-wheel \
               --require-archs {delocate_archs} \
               --ignore-missing-dependencies \
-              --require-target-macos-version 11 \
               -w {dest_dir} \
               -v {wheel}
+          CIBW_ENVIRONMENT_MACOS: >
+            MACOSX_DEPLOYMENT_TARGET=11
 
           # Linux is special because it's built in a container using qemu,
           # so we must download Go and Rust manually rather than using GH actions

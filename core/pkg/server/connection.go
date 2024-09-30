@@ -11,9 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/sentry_ext"
 	"github.com/wandb/wandb/core/internal/settings"
-	"github.com/wandb/wandb/core/pkg/observability"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
@@ -62,6 +62,9 @@ type Connection struct {
 
 	// sentryClient is the client used to report errors to sentry.io
 	sentryClient *sentry_ext.Client
+
+	// loggerPath is the default logger path
+	loggerPath string
 }
 
 // NewConnection creates a new connection
@@ -72,6 +75,7 @@ func NewConnection(
 	conn net.Conn,
 	sentryClient *sentry_ext.Client,
 	commit string,
+	loggerPath string,
 ) *Connection {
 
 	nc := &Connection{
@@ -85,6 +89,7 @@ func NewConnection(
 		outChan:      make(chan *spb.ServerResponse, BufferSize),
 		closed:       &atomic.Bool{},
 		sentryClient: sentryClient,
+		loggerPath:   loggerPath,
 	}
 	return nc
 }
@@ -279,7 +284,7 @@ func (nc *Connection) handleInformInit(msg *spb.ServerInformInitRequest) {
 		sentryClient = nc.sentryClient
 	}
 
-	nc.stream = NewStream(nc.commit, settings, sentryClient)
+	nc.stream = NewStream(nc.commit, settings, sentryClient, nc.loggerPath)
 	nc.stream.AddResponders(ResponderEntry{nc, nc.id})
 	nc.stream.Start()
 	slog.Info("connection init completed", "streamId", streamId, "id", nc.id)

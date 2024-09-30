@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 )
 
 // DefaultFileTransfer uploads or downloads files to/from the server

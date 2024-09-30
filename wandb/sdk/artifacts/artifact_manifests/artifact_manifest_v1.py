@@ -1,6 +1,8 @@
 """Artifact manifest v1."""
 
-from typing import Any, Dict, Mapping, Optional
+from __future__ import annotations
+
+from typing import Any, Mapping
 
 from wandb.sdk.artifacts.artifact_manifest import ArtifactManifest
 from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
@@ -16,8 +18,8 @@ class ArtifactManifestV1(ArtifactManifest):
 
     @classmethod
     def from_manifest_json(
-        cls, manifest_json: Dict, api: Optional[InternalApi] = None
-    ) -> "ArtifactManifestV1":
+        cls, manifest_json: dict, api: InternalApi | None = None
+    ) -> ArtifactManifestV1:
         if manifest_json["version"] != cls.version():
             raise ValueError(
                 "Expected manifest version 1, got {}".format(manifest_json["version"])
@@ -48,12 +50,12 @@ class ArtifactManifestV1(ArtifactManifest):
 
     def __init__(
         self,
-        storage_policy: "StoragePolicy",
-        entries: Optional[Mapping[str, ArtifactManifestEntry]] = None,
+        storage_policy: StoragePolicy,
+        entries: Mapping[str, ArtifactManifestEntry] | None = None,
     ) -> None:
         super().__init__(storage_policy, entries=entries)
 
-    def to_manifest_json(self) -> Dict:
+    def to_manifest_json(self) -> dict:
         """This is the JSON that's stored in wandb_manifest.json.
 
         If include_local is True we also include the local paths to files. This is
@@ -63,7 +65,7 @@ class ArtifactManifestV1(ArtifactManifest):
         """
         contents = {}
         for entry in sorted(self.entries.values(), key=lambda k: k.path):
-            json_entry: Dict[str, Any] = {
+            json_entry: dict[str, Any] = {
                 "digest": entry.digest,
             }
             if entry.birth_artifact_id:

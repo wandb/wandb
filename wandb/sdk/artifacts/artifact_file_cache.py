@@ -1,5 +1,7 @@
 """Artifact cache."""
 
+from __future__ import annotations
+
 import contextlib
 import errno
 import hashlib
@@ -9,7 +11,7 @@ import subprocess
 import sys
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import IO, TYPE_CHECKING, ContextManager, Iterator, Optional, Tuple
+from typing import IO, TYPE_CHECKING, ContextManager, Iterator
 
 import wandb
 from wandb import env, util
@@ -49,11 +51,11 @@ class ArtifactFileCache:
         # [1] https://stackoverflow.com/questions/10541760/can-i-set-the-umask-for-tempfile-namedtemporaryfile-in-python
         self._sys_umask = _get_sys_umask_threadsafe()
 
-        self._override_cache_path: Optional[StrPath] = None
+        self._override_cache_path: StrPath | None = None
 
     def check_md5_obj_path(
         self, b64_md5: B64MD5, size: int
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
             skip_cache = True
@@ -71,7 +73,7 @@ class ArtifactFileCache:
         url: URIStr,
         etag: ETag,
         size: int,
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> tuple[FilePathStr, bool, Opener]:
         # Check if we're using vs skipping the cache
         if self._override_cache_path is not None:
             skip_cache = True
@@ -87,16 +89,16 @@ class ArtifactFileCache:
 
     def _check_or_create(
         self, path: Path, size: int, skip_cache: bool = False
-    ) -> Tuple[FilePathStr, bool, "Opener"]:
+    ) -> tuple[FilePathStr, bool, Opener]:
         opener = self._opener(path, size, skip_cache=skip_cache)
         hit = path.is_file() and path.stat().st_size == size
         return FilePathStr(str(path)), hit, opener
 
     def cleanup(
         self,
-        target_size: Optional[int] = None,
+        target_size: int | None = None,
         remove_temp: bool = False,
-        target_fraction: Optional[float] = None,
+        target_fraction: float | None = None,
     ) -> int:
         """Clean up the cache, removing the least recently used files first.
 
@@ -121,9 +123,9 @@ class ArtifactFileCache:
             target_size = 0
         if target_size is not None and target_fraction is not None:
             raise ValueError("Cannot specify both target_size and target_fraction")
-        if target_size and target_size < 0:
+        if target_size is not None and target_size < 0:
             raise ValueError("target_size must be non-negative")
-        if target_fraction and (target_fraction < 0 or target_fraction > 1):
+        if target_fraction is not None and (target_fraction < 0 or target_fraction > 1):
             raise ValueError("target_fraction must be between 0 and 1")
 
         bytes_reclaimed = 0
@@ -198,7 +200,7 @@ class ArtifactFileCache:
         if size > self._free_space():
             raise OSError(errno.ENOSPC, f"Insufficient free space in {self._cache_dir}")
 
-    def _opener(self, path: Path, size: int, skip_cache: bool = False) -> "Opener":
+    def _opener(self, path: Path, size: int, skip_cache: bool = False) -> Opener:
         @contextlib.contextmanager
         def atomic_open(mode: str = "w") -> Iterator[IO]:
             if "a" in mode:
@@ -240,7 +242,7 @@ class ArtifactFileCache:
             ) from e
 
 
-_artifact_file_cache: Optional[ArtifactFileCache] = None
+_artifact_file_cache: ArtifactFileCache | None = None
 
 
 def get_artifact_file_cache() -> ArtifactFileCache:

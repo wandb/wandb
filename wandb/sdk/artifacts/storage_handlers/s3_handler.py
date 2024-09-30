@@ -1,9 +1,11 @@
 """S3 storage handler."""
 
+from __future__ import annotations
+
 import os
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Dict, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import parse_qsl, urlparse
 
 from wandb import util
@@ -31,18 +33,18 @@ if TYPE_CHECKING:
 
 
 class S3Handler(StorageHandler):
-    _s3: Optional["boto3.resources.base.ServiceResource"]
+    _s3: boto3.resources.base.ServiceResource | None
     _scheme: str
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self, scheme: str | None = None) -> None:
         self._scheme = scheme or "s3"
         self._s3 = None
         self._cache = get_artifact_file_cache()
 
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
-    def init_boto(self) -> "boto3.resources.base.ServiceResource":
+    def init_boto(self) -> boto3.resources.base.ServiceResource:
         if self._s3 is not None:
             return self._s3
         boto: boto3 = util.get_module(
@@ -58,7 +60,7 @@ class S3Handler(StorageHandler):
         self._botocore = util.get_module("botocore")
         return self._s3
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
+    def _parse_uri(self, uri: str) -> tuple[str, str, str | None]:
         url = urlparse(uri)
         query = dict(parse_qsl(url.query))
 
@@ -72,7 +74,7 @@ class S3Handler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         if not local:
             assert manifest_entry.ref is not None
             return manifest_entry.ref
@@ -141,11 +143,11 @@ class S3Handler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         self.init_boto()
         assert self._s3 is not None  # mypy: unwraps optionality
@@ -222,9 +224,7 @@ class S3Handler(StorageHandler):
             )
         return entries
 
-    def _size_from_obj(
-        self, obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]
-    ) -> int:
+    def _size_from_obj(self, obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> int:
         # ObjectSummary has size, Object has content_length
         size: int
         if hasattr(obj, "size"):
@@ -235,9 +235,9 @@ class S3Handler(StorageHandler):
 
     def _entry_from_obj(
         self,
-        obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"],
+        obj: boto3.s3.Object | boto3.s3.ObjectSummary,
         path: str,
-        name: Optional[StrPath] = None,
+        name: StrPath | None = None,
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:
@@ -281,14 +281,14 @@ class S3Handler(StorageHandler):
         )
 
     @staticmethod
-    def _etag_from_obj(obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]) -> ETag:
+    def _etag_from_obj(obj: boto3.s3.Object | boto3.s3.ObjectSummary) -> ETag:
         etag: ETag
         etag = obj.e_tag[1:-1]  # escape leading and trailing quote
         return etag
 
     def _extra_from_obj(
-        self, obj: Union["boto3.s3.Object", "boto3.s3.ObjectSummary"]
-    ) -> Dict[str, str]:
+        self, obj: boto3.s3.Object | boto3.s3.ObjectSummary
+    ) -> dict[str, str]:
         extra = {
             "etag": obj.e_tag[1:-1],  # escape leading and trailing quote
         }

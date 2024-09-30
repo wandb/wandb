@@ -158,20 +158,22 @@ func (s *Settings) GetFileStreamMaxRetries() int32 {
 
 // Initial wait in-between filestream retries.
 func (s *Settings) GetFileStreamRetryWaitMin() time.Duration {
-	return time.Second * time.Duration(
-		s.Proto.XFileStreamRetryWaitMinSeconds.GetValue())
+	return time.Second * time.Duration(s.Proto.XFileStreamRetryWaitMinSeconds.GetValue())
 }
 
 // Final wait in-between filestream retries.
 func (s *Settings) GetFileStreamRetryWaitMax() time.Duration {
-	return time.Second * time.Duration(
-		s.Proto.XFileStreamRetryWaitMaxSeconds.GetValue())
+	return time.Second * time.Duration(s.Proto.XFileStreamRetryWaitMaxSeconds.GetValue())
 }
 
 // Per-retry timeout for filestream operations.
 func (s *Settings) GetFileStreamTimeout() time.Duration {
-	return time.Second * time.Duration(
-		s.Proto.XFileStreamTimeoutSeconds.GetValue())
+	return time.Second * time.Duration(s.Proto.XFileStreamTimeoutSeconds.GetValue())
+}
+
+// Interval at which to transmit filestream updates.
+func (s *Settings) GetFileStreamTransmitInterval() time.Duration {
+	return time.Second * time.Duration(s.Proto.XFileStreamTransmitInterval.GetValue())
 }
 
 // Maximum number of retries for file upload/download operations.

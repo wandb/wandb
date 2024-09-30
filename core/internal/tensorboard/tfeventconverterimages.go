@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/pathtree"
 	"github.com/wandb/wandb/core/internal/tensorboard/tbproto"
 	"github.com/wandb/wandb/core/internal/wbvalue"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
 // processImages processes data logged with `tf.summary.image()`.

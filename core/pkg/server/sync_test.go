@@ -6,7 +6,7 @@ import (
 	"io"
 	"testing"
 
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/pkg/server"
 
 	"github.com/stretchr/testify/assert"

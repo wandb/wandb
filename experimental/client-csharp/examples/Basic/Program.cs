@@ -4,6 +4,11 @@ using Wandb;
 
 class Program
 {
+    public class EpochSummary
+    {
+        public int Epoch { get; set; }
+    }
+
     static async Task Main()
     {
         using (var session = new Session())
@@ -19,6 +24,8 @@ class Program
             await run1.UpdateConfig(new Dictionary<string, object> { { "batch_size", 64 } });
             await run1.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
             await run1.DefineMetric("loss", "epoch", SummaryType.Min);
+            // hide the epoch metric from the UI:
+            await run1.DefineMetric("epoch", hidden: true);
 
             // Log metrics:
             await run1.Log(new Dictionary<string, object> { { "loss", 0.5 }, { "recall", 0.8 }, { "epoch", 1 } });
@@ -36,10 +43,18 @@ class Program
                     runId: run1.Settings.RunId
                 )
             );
+
+            // Get the run's summary:
+            var epochSummary = await run2.GetSummary<EpochSummary>();
+            // Try and get the last logged epoch:
+            var lastEpoch = epochSummary?.Epoch ?? -1;
+            Console.WriteLine($"Next epoch: {lastEpoch + 1}");
+
             // Update configuration:
             await run2.UpdateConfig(new Dictionary<string, object> { { "learning_rate", 3e-4 } });
             await run2.DefineMetric("recall", "epoch", SummaryType.Max | SummaryType.Mean);
             await run2.DefineMetric("loss", "epoch", SummaryType.Min);
+            await run2.DefineMetric("epoch", hidden: true);
 
             // Log more metrics:
             await run2.Log(new Dictionary<string, object> { { "loss", 0.1 }, { "recall", 0.99 }, { "epoch", 4 } });

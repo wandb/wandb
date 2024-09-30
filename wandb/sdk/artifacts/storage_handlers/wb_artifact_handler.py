@@ -1,7 +1,9 @@
 """WB artifact storage handler."""
 
+from __future__ import annotations
+
 import os
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import urlparse
 
 import wandb
@@ -22,14 +24,14 @@ if TYPE_CHECKING:
 class WBArtifactHandler(StorageHandler):
     """Handles loading and storing Artifact reference-type files."""
 
-    _client: Optional[PublicApi]
+    _client: PublicApi | None
 
     def __init__(self) -> None:
         self._scheme = "wandb-artifact"
         self._cache = get_artifact_file_cache()
         self._client = None
 
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
     @property
@@ -42,7 +44,7 @@ class WBArtifactHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         """Load the file in the specified artifact given its corresponding entry.
 
         Download the referenced artifact; create and return a new symlink to the caller.
@@ -67,7 +69,7 @@ class WBArtifactHandler(StorageHandler):
             hex_to_b64_id(artifact_id), self.client.client
         )
         assert dep_artifact is not None
-        link_target_path: Union[URIStr, FilePathStr]
+        link_target_path: URIStr | FilePathStr
         if local:
             link_target_path = dep_artifact.get_entry(artifact_file_path).download()
         else:
@@ -77,11 +79,11 @@ class WBArtifactHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         """Store the file or directory at the given path into the specified artifact.
 
@@ -97,7 +99,7 @@ class WBArtifactHandler(StorageHandler):
         """
         # Recursively resolve the reference until a concrete asset is found
         # TODO: Consider resolving server-side for performance improvements.
-        iter_path: Union[URIStr, FilePathStr, None] = path
+        iter_path: URIStr | FilePathStr | None = path
         while iter_path is not None and urlparse(iter_path).scheme == self._scheme:
             artifact_id = util.host_from_path(iter_path)
             artifact_file_path = util.uri_from_path(iter_path)

@@ -1,10 +1,12 @@
 """WandB storage policy."""
 
+from __future__ import annotations
+
 import hashlib
 import math
 import os
 import shutil
-from typing import TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Any, Sequence
 from urllib.parse import quote
 
 import requests
@@ -64,15 +66,15 @@ class WandbStoragePolicy(StoragePolicy):
 
     @classmethod
     def from_config(
-        cls, config: Dict, api: Optional[InternalApi] = None
-    ) -> "WandbStoragePolicy":
+        cls, config: dict, api: InternalApi | None = None
+    ) -> WandbStoragePolicy:
         return cls(config=config, api=api)
 
     def __init__(
         self,
-        config: Optional[Dict] = None,
-        cache: Optional[ArtifactFileCache] = None,
-        api: Optional[InternalApi] = None,
+        config: dict | None = None,
+        cache: ArtifactFileCache | None = None,
+        api: InternalApi | None = None,
     ) -> None:
         self._cache = cache or get_artifact_file_cache()
         self._config = config or {}
@@ -109,14 +111,14 @@ class WandbStoragePolicy(StoragePolicy):
             default_handler=TrackingHandler(),
         )
 
-    def config(self) -> Dict:
+    def config(self) -> dict:
         return self._config
 
     def load_file(
         self,
-        artifact: "Artifact",
-        manifest_entry: "ArtifactManifestEntry",
-        dest_path: Optional[str] = None,
+        artifact: Artifact,
+        manifest_entry: ArtifactManifestEntry,
+        dest_path: str | None = None,
     ) -> FilePathStr:
         if dest_path is not None:
             self._cache._override_cache_path = dest_path
@@ -159,22 +161,22 @@ class WandbStoragePolicy(StoragePolicy):
 
     def store_reference(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: str | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence["ArtifactManifestEntry"]:
+        max_objects: int | None = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         return self._handler.store_path(
             artifact, path, name=name, checksum=checksum, max_objects=max_objects
         )
 
     def load_reference(
         self,
-        manifest_entry: "ArtifactManifestEntry",
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-        dest_path: Optional[str] = None,
-    ) -> Union[FilePathStr, URIStr]:
+        dest_path: str | None = None,
+    ) -> FilePathStr | URIStr:
         assert manifest_entry.ref is not None
         used_handler = self._handler._get_handler(manifest_entry.ref)
         if hasattr(used_handler, "_cache") and (dest_path is not None):
@@ -185,7 +187,7 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         api: InternalApi,
         entity_name: str,
-        manifest_entry: "ArtifactManifestEntry",
+        manifest_entry: ArtifactManifestEntry,
     ) -> str:
         storage_layout = self._config.get("storageLayout", StorageLayout.V1)
         storage_region = self._config.get("storageRegion", "default")
@@ -214,10 +216,10 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         file_path: str,
         chunk_size: int,
-        hex_digests: Dict[int, str],
-        multipart_urls: Dict[int, str],
-        extra_headers: Dict[str, str],
-    ) -> List[Dict[str, Any]]:
+        hex_digests: dict[int, str],
+        multipart_urls: dict[int, str],
+        extra_headers: dict[str, str],
+    ) -> list[dict[str, Any]]:
         etags = []
         part_number = 1
 
@@ -247,8 +249,8 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         upload_url: str,
         file_path: str,
-        extra_headers: Dict[str, Any],
-        progress_callback: Optional["progress.ProgressFn"] = None,
+        extra_headers: dict[str, Any],
+        progress_callback: progress.ProgressFn | None = None,
     ) -> None:
         """Upload a file to the artifact store and write to cache."""
         with open(file_path, "rb") as file:
@@ -272,9 +274,9 @@ class WandbStoragePolicy(StoragePolicy):
         self,
         artifact_id: str,
         artifact_manifest_id: str,
-        entry: "ArtifactManifestEntry",
-        preparer: "StepPrepare",
-        progress_callback: Optional["progress.ProgressFn"] = None,
+        entry: ArtifactManifestEntry,
+        preparer: StepPrepare,
+        progress_callback: progress.ProgressFn | None = None,
     ) -> bool:
         """Upload a file to the artifact store.
 
@@ -352,7 +354,7 @@ class WandbStoragePolicy(StoragePolicy):
 
         return False
 
-    def _write_cache(self, entry: "ArtifactManifestEntry") -> None:
+    def _write_cache(self, entry: ArtifactManifestEntry) -> None:
         if entry.local_path is None:
             return
 

@@ -3,7 +3,7 @@
 import json
 import re
 from copy import copy
-from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, List, Mapping, Optional, Sequence, Union
 
 from wandb_gql import Client, gql
 
@@ -757,14 +757,14 @@ class Artifacts(Paginator):
         filters: Optional[Mapping[str, Any]] = None,
         order: Optional[str] = None,
         per_page: int = 50,
-        tags: Optional[List[str]] = None,
+        tags: Optional[Union[str, List[str]]] = None,
     ):
         self.entity = entity
         self.collection_name = collection_name
         self.type = type
         self.project = project
         self.filters = {"state": "COMMITTED"} if filters is None else filters
-        self.tags = tags
+        self.tags = [tags] if isinstance(tags, str) else tags
         self.order = order
         variables = {
             "project": self.project,

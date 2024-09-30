@@ -1,7 +1,9 @@
 """WB local artifact storage handler."""
 
+from __future__ import annotations
+
 import os
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+from typing import TYPE_CHECKING, Sequence
 
 import wandb
 from wandb import util
@@ -22,25 +24,25 @@ class WBLocalArtifactHandler(StorageHandler):
     def __init__(self) -> None:
         self._scheme = "wandb-client-artifact"
 
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         raise NotImplementedError(
             "Should not be loading a path for an artifact entry with unresolved client id."
         )
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         """Store the file or directory at the given path within the specified artifact.
 

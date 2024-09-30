@@ -1,8 +1,10 @@
 """GCS storage handler."""
 
+from __future__ import annotations
+
 import time
 from pathlib import PurePosixPath
-from typing import TYPE_CHECKING, Optional, Sequence, Tuple, Union
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import ParseResult, urlparse
 
 from wandb import util
@@ -26,17 +28,17 @@ class _GCSIsADirectoryError(Exception):
 
 
 class GCSHandler(StorageHandler):
-    _client: Optional["gcs_module.client.Client"]
+    _client: gcs_module.client.Client | None
 
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self, scheme: str | None = None) -> None:
         self._scheme = scheme or "gs"
         self._client = None
         self._cache = get_artifact_file_cache()
 
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
-    def init_gcs(self) -> "gcs_module.client.Client":
+    def init_gcs(self) -> gcs_module.client.Client:
         if self._client is not None:
             return self._client
         storage = util.get_module(
@@ -46,7 +48,7 @@ class GCSHandler(StorageHandler):
         self._client = storage.Client()
         return self._client
 
-    def _parse_uri(self, uri: str) -> Tuple[str, str, Optional[str]]:
+    def _parse_uri(self, uri: str) -> tuple[str, str, str | None]:
         url = urlparse(uri)
         bucket = url.netloc
         key = url.path[1:]
@@ -57,7 +59,7 @@ class GCSHandler(StorageHandler):
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         assert manifest_entry.ref is not None
         if not local:
             return manifest_entry.ref
@@ -106,11 +108,11 @@ class GCSHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         self.init_gcs()
         assert self._client is not None  # mypy: unwraps optionality
@@ -159,9 +161,9 @@ class GCSHandler(StorageHandler):
 
     def _entry_from_obj(
         self,
-        obj: "gcs_module.blob.Blob",
+        obj: gcs_module.blob.Blob,
         path: str,
-        name: Optional[StrPath] = None,
+        name: StrPath | None = None,
         prefix: str = "",
         multi: bool = False,
     ) -> ArtifactManifestEntry:

@@ -11,8 +11,8 @@ import (
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/gql"
+	"github.com/wandb/wandb/core/internal/nullify"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 type ResumeBranch struct {
@@ -37,7 +37,7 @@ func (rb *ResumeBranch) GetUpdates(
 		rb.ctx,
 		rb.client,
 		&runpath.Project,
-		utils.NilIfZero(runpath.Entity),
+		nullify.NilIfZero(runpath.Entity),
 		runpath.RunID,
 	)
 
