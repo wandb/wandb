@@ -1,4 +1,5 @@
-﻿using Wandb.Internal;
+﻿using Serilog;
+using Wandb.Internal;
 
 namespace Wandb
 {

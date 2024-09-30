@@ -76,7 +76,7 @@ namespace Wandb
                 outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Source}: {Message:lj}{NewLine}{Exception}"
             )
             .CreateLogger();
-            _logger.Information("Run created {LogUser}", settings.LogUser);
+            _logger.Information("Run created");
         }
 
         /// <summary>
