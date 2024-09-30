@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"context"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -50,18 +52,50 @@ func withRetryLogging(
 			case err != nil:
 				logger.Info("api: retrying error", "error", err)
 			case resp.StatusCode >= 400:
+				// TODO: Report the attempt number & time to next retry.
+				op := wboperation.Get(ctx)
+				op.MarkRetryingHTTPError(resp.Status)
+
+				var bufferedBody bytes.Buffer
+				bodyTruncated, err := io.ReadAll(
+					io.LimitReader(
+						io.TeeReader(resp.Body, &bufferedBody),
+						1024))
+
+				resp.Body = &closer{
+					io.MultiReader(&bufferedBody, resp.Body),
+					resp.Body,
+				}
+
+				var bodyStr string
+				if err != nil {
+					bodyStr = "error reading body"
+				} else if len(bodyStr) < 1024 {
+					bodyStr = string(bodyTruncated)
+				} else {
+					bodyStr = string(bodyTruncated[:1021]) + "..."
+				}
+
 				// TODO: Log the request body.
 				logger.Info(
 					"api: retrying HTTP error",
 					"status", resp.StatusCode,
 					"url", resp.Request.URL.String(),
+					"response_body", bodyStr,
+					"op", op.ToProto().Desc,
 				)
-
-				// TODO: Report the attempt number & time to next retry.
-				wboperation.Get(ctx).MarkRetryingHTTPError(resp.Status)
 			}
 		}
 
 		return willRetry, err
 	}
+}
+
+type closer struct {
+	io.Reader
+	source io.Closer
+}
+
+func (c *closer) Close() error {
+	return c.source.Close()
 }

@@ -1,6 +1,9 @@
 package api
 
 import (
+	"bufio"
+	"bytes"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -40,7 +43,7 @@ func NewRateLimitedTransport(
 
 func (transport *RateLimitedTransport) RoundTrip(
 	req *http.Request,
-) (*http.Response, error) {
+) (resp *http.Response, err error) {
 	if err := transport.rateLimiter.Wait(req.Context()); err != nil {
 		// Errors happen if:
 		//   - The request is canceled
@@ -49,7 +52,26 @@ func (transport *RateLimitedTransport) RoundTrip(
 	}
 
 	transport.rlTracker.TrackRequest()
-	resp, err := transport.delegate.RoundTrip(req)
+
+	// DO NOT MERGE: Slow down all requests and fail some of them.
+	time.Sleep(time.Second)
+	if rand.Float64() < 0.7 {
+		resp, err = transport.delegate.RoundTrip(req)
+	} else {
+		const response429 = `HTTP/1.1 429 Too Many Requests
+Content-Type: text/html
+Retry-After: 1
+
+<html>
+  <head><title>Too Many Requests</title></head>
+  <body>Slow down!!!</body>
+</html>
+`
+		resp, err = http.ReadResponse(
+			bufio.NewReader(bytes.NewReader([]byte(response429))),
+			req,
+		)
+	}
 
 	if resp != nil {
 		transport.processRateLimitHeaders(resp)
