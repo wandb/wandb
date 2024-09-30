@@ -49,7 +49,7 @@ func TestGPUNvidiaSampleProbe(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Sample returned error: %v", err)
 	}
-	if metrics == nil || len(metrics) == 0 {
+	if len(metrics) == 0 {
 		t.Fatal("Sample returned no metrics")
 	}
 
