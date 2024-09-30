@@ -35,7 +35,7 @@ func getCmdPath() (string, error) {
 
 // isRunning checks if the command is running by sending a signal to the process.
 func isRunning(cmd *exec.Cmd) bool {
-	if cmd == nil || cmd.Process == nil {
+	if cmd.Process == nil {
 		return false
 	}
 
@@ -63,8 +63,14 @@ type GPUNvidia struct {
 }
 
 // NewGPUNvidia creates a new GPUNvidia instance configured to monitor NVIDIA GPUs.
+//
 // If cmdPath is empty, it will use the default nvidia_gpu_stats path.
-func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval float64, cmdPath string) *GPUNvidia {
+func NewGPUNvidia(
+	logger *observability.CoreLogger,
+	pid int32,
+	samplingInterval float64,
+	cmdPath string,
+) *GPUNvidia {
 	g := &GPUNvidia{
 		name:             "gpu",
 		sample:           map[string]any{},
@@ -73,8 +79,8 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 		logger:           logger,
 	}
 
-	var err error
 	if cmdPath == "" {
+		var err error
 		cmdPath, err = getCmdPath()
 		if err != nil {
 			return nil
@@ -107,7 +113,6 @@ func NewGPUNvidia(logger *observability.CoreLogger, pid int32, samplingInterval 
 	}
 
 	if err := g.cmd.Start(); err != nil {
-		// This is a relevant error, so we will report it to sentry.
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
 		)

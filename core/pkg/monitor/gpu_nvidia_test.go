@@ -42,7 +42,7 @@ func TestGPUNvidiaSampleProbe(t *testing.T) {
 	defer gpuMonitor.Close()
 
 	// Wait for the monitor to collect data.
-	time.Sleep(1000 * time.Millisecond)
+	time.Sleep(500 * time.Millisecond)
 
 	// Test the Sample method.
 	metrics, err := gpuMonitor.Sample()
