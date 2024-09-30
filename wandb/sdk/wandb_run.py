@@ -2960,13 +2960,13 @@ class Run:
 
         # Wait until the artifact is committed before trying to link it.
         artifact.wait()
-        
+
         organization = ""
         if is_artifact_registry_project(project):
-          organization = entity
-          # In a Registry linking, the entity is used to fetch the organization of the artifact
-          # therefore the source artifact's entity is passed to the backend
-          entity = artifact._source_entity
+            organization = entity
+            # In a Registry linking, the entity is used to fetch the organization of the artifact
+            # therefore the source artifact's entity is passed to the backend
+            entity = artifact._source_entity
         handle = self._backend.interface.deliver_link_artifact(
             self,
             artifact,
@@ -2974,6 +2974,7 @@ class Run:
             aliases,
             entity,
             project,
+            organization,
         )
         if artifact._ttl_duration_seconds is not None:
             wandb.termwarn(
