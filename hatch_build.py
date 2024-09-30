@@ -127,6 +127,7 @@ class CustomBuildHook(BuildHookInterface):
                 "Did not find the 'cargo' binary. You need Rust to build wandb"
                 " from source. See https://www.rust-lang.org/tools/install.",
             )
+            raise AssertionError("unreachable")
 
         return pathlib.Path(cargo)
 
@@ -186,6 +187,7 @@ class CustomBuildHook(BuildHookInterface):
                 "Did not find the 'go' binary. You need Go to build wandb"
                 " from source. See https://go.dev/doc/install.",
             )
+            raise AssertionError("unreachable")
 
         return pathlib.Path(go)
 
