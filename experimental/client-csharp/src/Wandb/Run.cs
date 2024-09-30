@@ -70,14 +70,13 @@ namespace Wandb
 
             _logger = logger ?? new LoggerConfiguration()
             .MinimumLevel.Debug()
+            .Enrich.WithProperty("Source", "wandb")
             .WriteTo.File(
                 settings.LogUser,
-                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Message:lj}{NewLine}{Exception}"
+                outputTemplate: "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {Source}: {Message:lj}{NewLine}{Exception}"
             )
             .CreateLogger();
-            Console.WriteLine("Run created {0}", settings.LogUser);
-
-            _logger.Information("Run created");
+            _logger.Information("Run created {LogUser}", settings.LogUser);
         }
 
         /// <summary>
@@ -131,7 +130,7 @@ namespace Wandb
                 throw new Exception("Failed to deliver run start");
             }
 
-            PrintRunURL();
+            _logger.Information("View run {DisplayName} at {RunURL}", Settings.DisplayName, Settings.RunURL);
         }
 
         /// <summary>
@@ -226,68 +225,9 @@ namespace Wandb
             }
             // Send finish command
             await _interface.InformFinish().ConfigureAwait(false);
-            PrintRunURL();
-            PrintRunDir();
 
-            _logger.Information("Run finished");
-        }
-
-        /// <summary>
-        /// Prints the URL of the run to the console.
-        /// </summary>
-        private void PrintRunURL()
-        {
-            // Set the color for the prefix to blue
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.Write("wandb");
-
-            // Reset the color and write the remaining text on the same line
-            Console.ResetColor();
-            Console.Write(": View run ");
-
-            // Set the color for the display name to yellow
-            Console.ForegroundColor = ConsoleColor.Yellow;
-            Console.Write(Settings.DisplayName);
-
-            // Reset the color and write " at "
-            Console.ResetColor();
-            Console.Write(" at ");
-
-            // Set the color for the URL to magenta
-            Console.Write("\u001b[4m");  // Enable underline
-            Console.ForegroundColor = ConsoleColor.DarkBlue;
-            Console.Write(Settings.RunURL);
-            Console.Write("\u001b[0m");  // Reset formatting
-
-            // Reset the color back to default
-            Console.ResetColor();
-
-            // End the line
-            Console.WriteLine();
-        }
-
-        /// <summary>
-        /// Prints the directory where run data is saved locally.
-        /// </summary>
-        private void PrintRunDir()
-        {
-            // Set the color for the prefix to blue
-            Console.ForegroundColor = ConsoleColor.Blue;
-            Console.Write("wandb");
-
-            // Reset the color and write the remaining text on the same line
-            Console.ResetColor();
-            Console.Write(": Run data is saved locally in ");
-
-            // Set the color for the URL to magenta
-            Console.ForegroundColor = ConsoleColor.Magenta;
-            Console.Write(Settings.SyncDir);
-
-            // Reset the color back to default
-            Console.ResetColor();
-
-            // End the line
-            Console.WriteLine();
+            _logger.Information("Run {DisplayName} data is saved locally in {SyncDir}", Settings.DisplayName, Settings.SyncDir);
+            _logger.Information("Run {DisplayName} finished", Settings.DisplayName);
         }
 
         /// <summary>
