@@ -207,7 +207,6 @@ func (as *ArtifactSaver) createArtifact() (
 	return response.GetCreateArtifact().GetArtifact(), nil
 }
 
-
 type createArtifactManifest = gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest
 
 func (as *ArtifactSaver) createManifest(

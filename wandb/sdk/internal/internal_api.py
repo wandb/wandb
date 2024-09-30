@@ -3536,7 +3536,7 @@ class Api:
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
-    def fetch_org_entity_from_entity(self, entity: str) -> tuple[str, str]:
+    def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
         query = gql(
             """
             query FetchOrgEntityFromEntity(
