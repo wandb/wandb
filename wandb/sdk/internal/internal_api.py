@@ -307,6 +307,7 @@ class Api:
         self.server_use_artifact_input_info: Optional[List[str]] = None
         self.server_create_artifact_input_info: Optional[List[str]] = None
         self.server_artifact_fields_info: Optional[List[str]] = None
+        self.server_organization_fields_info: Optional[List[str]] = None
         self._max_cli_version: Optional[str] = None
         self._server_settings_type: Optional[List[str]] = None
         self.fail_run_queue_item_input_info: Optional[List[str]] = None
@@ -3648,7 +3649,7 @@ class Api:
             query = gql(query_string)
             res = self.gql(query)
             input_fields = res.get("OrganizationInfoType", {}).get("fields", [{}])
-            self.server_artifact_fields_info = [
+            self.server_organization_fields_info = [
                 field["name"] for field in input_fields if "name" in field
             ]
 
