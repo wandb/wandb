@@ -1,5 +1,6 @@
 using WandbInternal;
 using Wandb.Internal;
+using Newtonsoft.Json;
 
 namespace Wandb
 {
@@ -93,6 +94,11 @@ namespace Wandb
                 throw new Exception(runResult.Error.Message);
             }
 
+            if (runResult.Run.Summary != null)
+            {
+                await _interface.PublishSummary(runResult.Run.Summary).ConfigureAwait(false);
+            }
+
             // save project, entity, display name, and resume status to settings
             Settings.Project = runResult.Run.Project;
             Settings.Entity = runResult.Run.Entity;
@@ -101,17 +107,12 @@ namespace Wandb
 
             StartingStep = (int)runResult.Run.StartingStep;
 
-            // TODO: save config to the run for local access
-            // Console.WriteLine(runResult.Run.Config);
-
             Result result = await _interface.DeliverRunStart(this, 30000).ConfigureAwait(false);
 
             if (result.Response == null)
             {
                 throw new Exception("Failed to deliver run start");
             }
-
-            // TODO: update the config
 
             PrintRunURL();
         }
@@ -143,6 +144,54 @@ namespace Wandb
         )
         {
             await _interface.PublishMetricDefinition(name, stepMetric, summary, hidden).ConfigureAwait(false);
+        }
+
+        /// <summary>
+        /// Gets the run's summary.
+        /// </summary>
+        /// <returns></returns>
+        public async Task<T> GetSummary<T>() where T : new()
+        {
+            var timeoutMs = 20000;  // TODO: make this configurable
+            var result = await _interface.DeliverGetSummary(timeoutMs).ConfigureAwait(false);
+
+            var summary = new Dictionary<string, object>();
+            // iterate over the summary and print the key-value pairs
+            foreach (var item in result.Response.GetSummaryResponse.Item)
+            {
+                string key = item.Key;
+                // skip internal keys
+                if (key == "_wandb" || key == "_runtime" || key == "_step")
+                {
+                    continue;
+                }
+
+                string valueJson = item.ValueJson;
+
+                try
+                {
+                    var deserializedValue = JsonConvert.DeserializeObject<T>(valueJson);
+                    if (deserializedValue != null)
+                    {
+                        summary[key] = deserializedValue;
+                    }
+                    else
+                    {
+                        // If the value doesn't match the type, just store the raw JSON
+                        summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                    }
+                }
+                catch (JsonSerializationException)
+                {
+                    // If the deserialization to T fails, just store it as a dynamic object
+                    summary[key] = JsonConvert.DeserializeObject<object>(valueJson);
+                }
+            }
+
+            // Serialize the summary to JSON and then deserialize it to the specified type
+            var jsonSummary = JsonConvert.SerializeObject(summary);
+            T typedSummary = JsonConvert.DeserializeObject<T>(jsonSummary);
+            return typedSummary;
         }
 
         /// <summary>

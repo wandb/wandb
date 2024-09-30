@@ -2,6 +2,7 @@ package artifacts
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -18,11 +19,93 @@ import (
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
 	"github.com/wandb/wandb/core/internal/hashencode"
+	"github.com/wandb/wandb/core/internal/namedgoroutines"
 	"github.com/wandb/wandb/core/internal/nullify"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
+// uploadBufferPerArtifactName is the number of Save operations
+// that can be queued per artifact name before Save begins to block.
+//
+// The value is high enough so that Save almost never blocks,
+// without consuming too much memory just for bookkeeping.
+const uploadBufferPerArtifactName = 32
+
+// ArtifactSaveManager manages artifact uploads.
+type ArtifactSaveManager struct {
+	logger              *observability.CoreLogger
+	graphqlClient       graphql.Client
+	fileTransferManager filetransfer.FileTransferManager
+	fileCache           Cache
+
+	// uploadsByName ensures that uploads for the same artifact name happen
+	// serially, so that version numbers are assigned deterministically.
+	uploadsByName *namedgoroutines.Operation[*ArtifactSaver]
+}
+
+func NewArtifactSaveManager(
+	logger *observability.CoreLogger,
+	graphqlClient graphql.Client,
+	fileTransferManager filetransfer.FileTransferManager,
+) *ArtifactSaveManager {
+	return &ArtifactSaveManager{
+		logger:              logger,
+		graphqlClient:       graphqlClient,
+		fileTransferManager: fileTransferManager,
+		fileCache:           NewFileCache(UserCacheDir()),
+		uploadsByName: namedgoroutines.New(
+			uploadBufferPerArtifactName,
+			func(saver *ArtifactSaver) {
+				artifactID, err := saver.Save()
+				saver.resultChan <- ArtifactSaveResult{
+					ArtifactID: artifactID,
+					Err:        err,
+				}
+				close(saver.resultChan)
+			},
+		),
+	}
+}
+
+type ArtifactSaveResult struct {
+	ArtifactID string
+	Err        error
+}
+
+// Save asynchronously uploads an artifact.
+//
+// This returns a channel to which the operation result is eventually
+// pushed. The channel is guaranteed to receive exactly one value and
+// then close.
+func (as *ArtifactSaveManager) Save(
+	ctx context.Context,
+	artifact *spb.ArtifactRecord,
+	historyStep int64,
+	stagingDir string,
+) <-chan ArtifactSaveResult {
+	resultChan := make(chan ArtifactSaveResult, 1)
+
+	as.uploadsByName.Go(
+		artifact.Name,
+		&ArtifactSaver{
+			ctx:                 ctx,
+			logger:              as.logger,
+			graphqlClient:       as.graphqlClient,
+			fileTransferManager: as.fileTransferManager,
+			fileCache:           as.fileCache,
+			artifact:            artifact,
+			historyStep:         historyStep,
+			stagingDir:          stagingDir,
+			maxActiveBatches:    5,
+			resultChan:          resultChan,
+		},
+	)
+
+	return resultChan
+}
+
+// ArtifactSaver is a save operation for one artifact.
 type ArtifactSaver struct {
 	// Resources.
 	ctx                 context.Context
@@ -30,6 +113,8 @@ type ArtifactSaver struct {
 	graphqlClient       graphql.Client
 	fileTransferManager filetransfer.FileTransferManager
 	fileCache           Cache
+	resultChan          chan<- ArtifactSaveResult
+
 	// Input.
 	artifact         *spb.ArtifactRecord
 	historyStep      int64
@@ -58,28 +143,6 @@ type serverFileResponse struct {
 type uploadResult struct {
 	name string
 	err  error
-}
-
-func NewArtifactSaver(
-	ctx context.Context,
-	logger *observability.CoreLogger,
-	graphQLClient graphql.Client,
-	uploadManager filetransfer.FileTransferManager,
-	artifact *spb.ArtifactRecord,
-	historyStep int64,
-	stagingDir string,
-) ArtifactSaver {
-	return ArtifactSaver{
-		ctx:                 ctx,
-		logger:              logger,
-		graphqlClient:       graphQLClient,
-		fileTransferManager: uploadManager,
-		fileCache:           NewFileCache(UserCacheDir()),
-		artifact:            artifact,
-		historyStep:         historyStep,
-		stagingDir:          stagingDir,
-		maxActiveBatches:    5,
-	}
 }
 
 func (as *ArtifactSaver) createArtifact() (
@@ -160,9 +223,11 @@ func getInputFields(ctx context.Context, client graphql.Client, typeName string)
 	return fieldNames, nil
 }
 
+type createArtifactManifest = gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest
+
 func (as *ArtifactSaver) createManifest(
 	artifactId string, baseArtifactId *string, manifestDigest string, includeUpload bool,
-) (attrs gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest, rerr error) {
+) (attrs createArtifactManifest, rerr error) {
 	manifestType := gql.ArtifactManifestTypeFull
 	manifestFilename := "wandb_manifest.json"
 	if as.artifact.IncrementalBeta1 {
@@ -187,8 +252,12 @@ func (as *ArtifactSaver) createManifest(
 		includeUpload,
 	)
 	if err != nil {
-		return gql.CreateArtifactManifestCreateArtifactManifestCreateArtifactManifestPayloadArtifactManifest{}, err
+		return createArtifactManifest{}, err
 	}
+	if response.GetCreateArtifactManifest() == nil {
+		return createArtifactManifest{}, errors.New("nil createArtifactManifest")
+	}
+
 	return response.GetCreateArtifactManifest().ArtifactManifest, nil
 }
 
@@ -625,14 +694,18 @@ func (as *ArtifactSaver) resolveClientIDReferences(manifest *Manifest) error {
 
 func (as *ArtifactSaver) uploadManifest(
 	manifestFile string,
-	uploadUrl *string,
+	uploadURL *string,
 	uploadHeaders []string,
 ) error {
-	resultChan := make(chan *filetransfer.DefaultUploadTask)
+	if uploadURL == nil {
+		return errors.New("nil uploadURL")
+	}
+
+	resultChan := make(chan *filetransfer.DefaultUploadTask, 1)
 	task := &filetransfer.DefaultUploadTask{
 		FileKind: filetransfer.RunFileKindArtifact,
 		Path:     manifestFile,
-		Url:      *uploadUrl,
+		Url:      *uploadURL,
 		Headers:  uploadHeaders,
 	}
 	task.OnComplete = func() { resultChan <- task }
@@ -661,6 +734,7 @@ func (as *ArtifactSaver) deleteStagingFiles(manifest *Manifest) {
 	}
 }
 
+// Save performs the upload operation, blocking until it completes.
 func (as *ArtifactSaver) Save() (artifactID string, rerr error) {
 	manifest, err := NewManifestFromProto(as.artifact.Manifest)
 	if err != nil {

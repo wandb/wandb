@@ -297,7 +297,9 @@ func (g *GPUNvidia) Probe() *spb.MetadataRequest {
 
 	}
 
-	info.GpuType = "[" + strings.Join(names, ", ") + "]"
+	if len(names) > 0 {
+		info.GpuType = "[" + strings.Join(names, ", ") + "]"
+	}
 
 	return &info
 }
