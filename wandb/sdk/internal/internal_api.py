@@ -3490,23 +3490,9 @@ class Api:
 
         org_entity = ""
         if is_artifact_registry_project(project):
-            org_fields = self.server_organization_introspection()
-            can_fetch_org_entity = "orgEntity" in org_fields
-            if not organization and not can_fetch_org_entity:
-                raise ValueError(
-                    """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
-                    Please upgrade your server to XX or later."""
-                )
-            elif can_fetch_org_entity:
-                org_entity, org_name = self.fetch_org_entity_from_entity(entity)
-                if organization:
-                    if organization != org_name and organization != org_entity:
-                        raise ValueError(
-                            f"Input wrong organization: {organization} for registry: {project}/{portfolio_name}"
-                        )
-            else:
-                # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
-                org_entity = organization
+            org_entity = self._resolve_org_entity_name(
+                entity, organization, project, portfolio_name
+            )
 
         def replace(a: str, b: str) -> None:
             nonlocal template
@@ -3535,6 +3521,27 @@ class Api:
         response = self.gql(mutation, variable_values=variable_values)
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
+
+    def _resolve_org_entity_name(
+        self, entity: str, organization: str, project: str, portfolio_name: str
+    ) -> str:
+        org_fields = self.server_organization_introspection()
+        can_fetch_org_entity = "orgEntity" in org_fields
+        if not organization and not can_fetch_org_entity:
+            raise ValueError(
+                """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
+                Please upgrade your server to XX or later."""
+            )
+        elif can_fetch_org_entity:
+            org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+            if organization:
+                if organization != org_name and organization != org_entity:
+                    raise ValueError(
+                        f"Input wrong organization: {organization} for registry: {project}/{portfolio_name}"
+                    )
+        else:
+            # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
+            org_entity = organization
 
     def fetch_org_entity_from_entity(self, entity: str) -> Tuple[str, str]:
         query = gql(

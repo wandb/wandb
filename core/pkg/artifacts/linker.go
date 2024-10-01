@@ -29,38 +29,11 @@ func (al *ArtifactLinker) Link() error {
 	organization := al.LinkArtifact.PortfolioOrganization
 	var portfolioAliases []gql.ArtifactAliasInput
 
+	var err error
 	if IsArtifactRegistryProject(portfolioProject) {
-		orgFieldNames, err := gqlprobe.GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
+		portfolioEntity, err = al.resolveOrgEntityName(portfolioEntity, organization)
 		if err != nil {
 			return err
-		}
-		switch {
-		case slices.Contains(orgFieldNames, "orgEntity"):
-			response, err := gql.FetchOrgEntityFromEntity(
-				al.Ctx,
-				al.GraphqlClient,
-				portfolioEntity,
-			)
-			if err != nil {
-				return err
-			}
-			if response == nil || response.GetEntity() == nil || response.GetEntity().GetOrganization() == nil || response.GetEntity().GetOrganization().GetOrgEntity() == nil {
-				return fmt.Errorf("Unable to find organization for artifact under entity: %s. Please make sure you are using a team entity when linking to the Registry", portfolioEntity)
-			}
-
-			inputOrgMatchesOrgNameOrOrgEntityName := (organization == response.Entity.Organization.Name || organization == response.Entity.Organization.OrgEntity.Name)
-			// Validate organization inputted by user
-			if organization != "" && !inputOrgMatchesOrgNameOrOrgEntityName {
-				return fmt.Errorf("Artifact belongs to the organization %s and cannot be linked to %s. Please update the target path with the correct organization name.", response.Entity.Organization.Name, organization)
-			}
-			portfolioEntity = response.Entity.Organization.OrgEntity.Name
-		case organization == "":
-			// User is trying to shorthand path but server isn't upgraded to handle it
-			// TODO: good error message
-			return fmt.Errorf("Upgrade server to above version xx to shorthand Registry path")
-		default:
-			// Use traditional registry path with org entity if server doesn't support it
-			portfolioEntity = organization
 		}
 	}
 
@@ -72,7 +45,6 @@ func (al *ArtifactLinker) Link() error {
 			},
 		)
 	}
-	var err error
 	switch {
 	case serverId != "":
 		_, err = gql.LinkArtifact(
@@ -109,4 +81,39 @@ func (al *ArtifactLinker) Link() error {
 	}
 
 	return err
+}
+
+func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organization string) (string, error) {
+	orgFieldNames, err := gqlprobe.GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
+	if err != nil {
+		return "", err
+	}
+	canFetchOrgEntity := slices.Contains(orgFieldNames, "orgEntity")
+	switch {
+	case organization == "" && !canFetchOrgEntity:
+		return "", fmt.Errorf("Fetching Registry artifacts without inputting an organization is unavailable for your server version. Please upgrade your server to XX or later.")
+	case canFetchOrgEntity:
+		response, err := gql.FetchOrgEntityFromEntity(
+			al.Ctx,
+			al.GraphqlClient,
+			portfolioEntity,
+		)
+		if err != nil {
+			return "", err
+		}
+		if response == nil || response.GetEntity() == nil || response.GetEntity().GetOrganization() == nil || response.GetEntity().GetOrganization().GetOrgEntity() == nil {
+			return "", fmt.Errorf("Unable to find organization for artifact under entity: %s. Please make sure you are using a team entity when linking to the Registry", portfolioEntity)
+		}
+
+		// Validate organization inputted by user
+		orgEntityName := response.Entity.Organization.OrgEntity.Name
+		inputOrgMatchesOrgNameOrOrgEntityName := (organization == orgEntityName || organization == response.Entity.Organization.Name)
+		if organization != "" && !inputOrgMatchesOrgNameOrOrgEntityName {
+			return "", fmt.Errorf("Artifact belongs to the organization %s and cannot be linked to %s. Please update the target path with the correct organization name.", response.Entity.Organization.Name, organization)
+		}
+		return orgEntityName, nil
+	default:
+		// Use traditional registry path with org entity if server doesn't support it
+		return organization, nil
+	}
 }
