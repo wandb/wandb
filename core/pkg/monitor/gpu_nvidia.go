@@ -156,10 +156,7 @@ func (g *GPUNvidia) isRunning() bool {
 
 	g.cmdMutex.Lock()
 	defer g.cmdMutex.Unlock()
-	if g.cmd.Process == nil {
-		return false
-	}
-	return true
+	return g.cmd.Process != nil
 }
 
 // waitWithTimeout waits for the process to exit, but times out after the given duration.
