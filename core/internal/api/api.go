@@ -2,6 +2,7 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -111,6 +112,11 @@ type Request struct {
 	// These are sent in addition to any headers set automatically by the
 	// client, such as for auth. The client headers take precedence.
 	Headers map[string]string
+
+	// Context is the request context.
+	//
+	// If it's nil, a background context is used.
+	Context context.Context
 }
 
 func (req *Request) String() string {
