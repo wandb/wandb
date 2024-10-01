@@ -55,6 +55,12 @@ message ServerInformDetachRequest {
 
 message ServerInformDetachResponse {}
 
+message ServerInformSyncRequest {
+  _RecordInfo _info = 200;
+}
+
+message ServerInformSyncResponse {}
+
 message ServerInformTeardownRequest {
   int32 exit_code = 1;
   _RecordInfo _info = 200;
@@ -76,6 +82,7 @@ message ServerRequest {
     ServerInformDetachRequest inform_detach = 6;
     ServerInformTeardownRequest inform_teardown = 7;
     ServerInformStartRequest inform_start = 8;
+    ServerInformSyncRequest inform_sync = 9;
   }
 }
 
@@ -88,5 +95,6 @@ message ServerResponse {
     ServerInformDetachResponse inform_detach_response = 6;
     ServerInformTeardownResponse inform_teardown_response = 7;
     ServerInformStartResponse inform_start_response = 8;
+    ServerInformSyncResponse inform_sync_response = 9;
   }
 }
