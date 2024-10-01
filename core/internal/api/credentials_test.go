@@ -215,19 +215,22 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 	// issue 2 requests
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	require.NoError(t, err)
+	req2, err := http.NewRequest("GET", "http://example.com", nil)
+	require.NoError(t, err)
 
 	var errGroup errgroup.Group
 	errGroup.Go(func() error {
 		return credentialProvider.Apply(req)
 	})
 	errGroup.Go(func() error {
-		return credentialProvider.Apply(req)
+		return credentialProvider.Apply(req2)
 	})
 
 	err = errGroup.Wait()
 	require.NoError(t, err)
 
 	assert.Equal(t, "Bearer fake-token", req.Header.Get("Authorization"))
+	assert.Equal(t, "Bearer fake-token", req2.Header.Get("Authorization"))
 
 	// auth server should only be called once
 	assert.Equal(t, 1, len(server.Requests()))

@@ -258,8 +258,7 @@ func (backend *Backend) NewClient(opts ClientOptions) Client {
 	// PrepareRetry gets called before the retry attempt
 	retryableHTTP.PrepareRetry = func(req *http.Request) error {
 		if opts.PrepareRetry != nil {
-			err := opts.PrepareRetry(req)
-			if err != nil {
+			if err := opts.PrepareRetry(req); err != nil {
 				return err
 			}
 		}
