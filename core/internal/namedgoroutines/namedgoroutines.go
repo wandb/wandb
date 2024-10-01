@@ -2,13 +2,20 @@
 // operations for the same key happen in series.
 package namedgoroutines
 
-import "sync"
+import (
+	"sync"
+
+	"golang.org/x/sync/errgroup"
+)
 
 // Operation runs a function in a new goroutine for each input
 // except for those that share a key.
 type Operation[T any] struct {
 	// buffer is the buffer size of each channel in inputsByKey.
 	buffer int
+
+	// workerPool is used to limit concurrency.
+	workerPool *errgroup.Group
 
 	// processInput is the function to run on each input.
 	processInput func(T)
@@ -27,9 +34,14 @@ type Operation[T any] struct {
 	inputsByKeyCond *sync.Cond
 }
 
-func New[T any](buffer int, fn func(T)) *Operation[T] {
+func New[T any](
+	buffer int,
+	workerPool *errgroup.Group,
+	fn func(T),
+) *Operation[T] {
 	return &Operation[T]{
 		buffer:          buffer,
+		workerPool:      workerPool,
 		inputsByKey:     make(map[string]chan T),
 		processInput:    fn,
 		inputsByKeyCond: sync.NewCond(&sync.Mutex{}),
@@ -60,7 +72,14 @@ func (o *Operation[T]) Go(key string, input T) {
 			inputs = make(chan T, max(o.buffer, 1))
 			o.inputsByKey[key] = inputs
 
-			go o.processInputsForKey(key, inputs)
+			// Unlock the mutex while waiting to schedule the goroutine,
+			// then lock it again to send on the inputs channel.
+			o.inputsByKeyCond.L.Unlock()
+			o.workerPool.Go(func() error {
+				o.processInputsForKey(key, inputs)
+				return nil
+			})
+			o.inputsByKeyCond.L.Lock()
 		}
 
 		select {

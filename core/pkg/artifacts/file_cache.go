@@ -9,13 +9,18 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/hashencode"
 )
 
-const defaultDirPermissions = 0777  // read/write/execute for all users.
-const defaultFilePermissions = 0666 // read/write for all users.
+const (
+	defaultDirPermissions  = 0777 // read/write/execute for all users.
+	defaultFilePermissions = 0666 // read/write for all users.
+
+	maxFileCacheOperations = 128
+)
 
 type Cache interface {
 	AddFile(path string) (string, error)
@@ -25,18 +30,33 @@ type Cache interface {
 }
 
 type FileCache struct {
-	root string
+	root          string
+	fileSemaphore chan struct{}
 }
 
 // HashOnlyCache never writes data but still computes and compares hashes.
-type HashOnlyCache struct{}
+type HashOnlyCache struct {
+	fileSemaphore chan struct{}
+}
 
 func NewFileCache(cacheDir string) Cache {
-	return &FileCache{root: filepath.Join(cacheDir, "artifacts")}
+	return &FileCache{
+		root: filepath.Join(cacheDir, "artifacts"),
+
+		fileSemaphore: make(
+			chan struct{},
+			max(maxFileCacheOperations, runtime.NumCPU()),
+		),
+	}
 }
 
 func NewHashOnlyCache() Cache {
-	return &HashOnlyCache{}
+	return &HashOnlyCache{
+		fileSemaphore: make(
+			chan struct{},
+			max(maxFileCacheOperations, runtime.NumCPU()),
+		),
+	}
 }
 
 // UserCacheDir returns the cache directory for the current user.
@@ -59,11 +79,17 @@ func UserCacheDir() string {
 
 // AddFile copies a file into the cache and returns the B64MD5 cache key.
 func (c *FileCache) AddFile(path string) (string, error) {
+	c.fileSemaphore <- struct{}{}
+	defer func() { <-c.fileSemaphore }()
+
 	return addFile(c, path)
 }
 
 // AddFile computes the base-64 MD5 hash of the file and returns it. It doesn't write.
 func (c *HashOnlyCache) AddFile(path string) (string, error) {
+	c.fileSemaphore <- struct{}{}
+	defer func() { <-c.fileSemaphore }()
+
 	return addFile(c, path)
 }
 
