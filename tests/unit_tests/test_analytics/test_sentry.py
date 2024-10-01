@@ -1,4 +1,3 @@
-import os
 import socket
 import threading
 import time
@@ -34,18 +33,12 @@ EXTERNAL_DSN_URL_FORMAT = SENTRY_DSN_FORMAT.format(
 )
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module")
 def relay():
     relay_server = MetricRelayServer()
     relay_server.start()
 
     return relay_server
-
-
-@pytest.fixture(scope="module", autouse=True)
-def setup_env(relay):
-    os.environ[wandb.env.ERROR_REPORTING] = "True"
-    os.environ[wandb.env.SENTRY_DSN] = WANDB_DSN_URL_FORMAT.format(port=relay.port)
 
 
 class MetricRelayServer:
@@ -95,7 +88,7 @@ class MetricRelayServer:
     @staticmethod
     def _get_free_port() -> int:
         sock = socket.socket()
-        sock.bind(("", 0))
+        sock.bind(("127.0.0.1", 0))
         _, port = sock.getsockname()
         return port
 
@@ -158,23 +151,23 @@ def assert_messages_not_equal(wandb_message, client_message):
     assert wandb_message != client_message
 
 
-"""
-Tests initializning wandb sentry scope after the client has already initialized sentry.
-- Initialize sentry client as a client calling `sentry_sdk.init()`
-- Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
-- Add sentry session tags for both client and wandb
-- Send sentry event as a client
-- Send sentry event from wandb
-- Assert events arrive to local api server
-- Validate no data is leaked between wandb and client events
-"""
-
-
 def test_wandbsentry_initafterclientinit(relay):
+    """
+    Tests initializning wandb sentry scope after the client has already initialized sentry.
+    - Initialize sentry client as a client calling `sentry_sdk.init()`
+    - Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
+    - Add sentry session tags for both client and wandb
+    - Send sentry event as a client
+    - Send sentry event from wandb
+    - Assert events arrive to local api server
+    - Validate no data is leaked between wandb and client events
+    """
     sentry_sdk.init(
         dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
     )
     wandb_sentry = wandb.analytics.Sentry()
+    wandb_sentry._disabled = False
+    wandb_sentry.dsn = WANDB_DSN_URL_FORMAT.format(port=relay.port)
     wandb_sentry.setup()
 
     # Send sentry events
@@ -199,19 +192,17 @@ def test_wandbsentry_initafterclientinit(relay):
     )
 
 
-"""
-Tests initializning wandb sentry scope after the client has already sent a sentry event.
-- Initialize sentry client as a client calling `sentry_sdk.init()`
-- Add sentry session tags as client
-- Send sentry event as a client
-- Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
-- Send sentry event from wandb
-- Assert events arrive to local api server
-- Validate no data is leaked between wandb and client events
-"""
-
-
 def test_wandbsentry_initafterclientwrite(relay):
+    """
+    Tests initializning wandb sentry scope after the client has already sent a sentry event.
+    - Initialize sentry client as a client calling `sentry_sdk.init()`
+    - Add sentry session tags as client
+    - Send sentry event as a client
+    - Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
+    - Send sentry event from wandb
+    - Assert events arrive to local api server
+    - Validate no data is leaked between wandb and client events
+    """
     # Setup test
     sentry_sdk.init(
         dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
@@ -223,6 +214,8 @@ def test_wandbsentry_initafterclientwrite(relay):
 
     # Init wandb sentry and send events
     wandb_sentry = wandb.analytics.Sentry()
+    wandb_sentry._disabled = False
+    wandb_sentry.dsn = WANDB_DSN_URL_FORMAT.format(port=relay.port)
     wandb_sentry.setup()
     wandb_sentry.configure_scope(tags={"entity": "tag"})
     wandb_event_id = wandb_sentry.message(WANDB_MESSAGE)
@@ -243,21 +236,21 @@ def test_wandbsentry_initafterclientwrite(relay):
     )
 
 
-"""
-Tests initializning wandb sentry scope before client calls `sentry_sdk.init()`.
-- Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
-- Add sentry session tags for wandb client
-- Initialize sentry client as a client calling `sentry_sdk.init()`
-- Add sentry session tags as client
-- Send sentry event as a client
-- Send sentry event from wandb
-- Assert events arrive to local api server
-- Validate no data is leaked between wandb and client events
-"""
-
-
 def test_wandbsentry_initializedfirst(relay):
+    """
+    Tests initializning wandb sentry scope before client calls `sentry_sdk.init()`.
+    - Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
+    - Add sentry session tags for wandb client
+    - Initialize sentry client as a client calling `sentry_sdk.init()`
+    - Add sentry session tags as client
+    - Send sentry event as a client
+    - Send sentry event from wandb
+    - Assert events arrive to local api server
+    - Validate no data is leaked between wandb and client events
+    """
     wandb_sentry = wandb.analytics.Sentry()
+    wandb_sentry._disabled = False
+    wandb_sentry.dsn = WANDB_DSN_URL_FORMAT.format(port=relay.port)
     wandb_sentry.setup()
     wandb_sentry.configure_scope(tags={"entity": "tag"})
 
@@ -286,23 +279,23 @@ def test_wandbsentry_initializedfirst(relay):
     )
 
 
-"""
-Tests initializning wandb sentry scope before client initializes or sends sentry events.
-- Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
-- Add sentry session tags for wandb client
-- Send sentry event from wandb
-- Initialize sentry client as a client calling `sentry_sdk.init()`
-- Add sentry session tags as client
-- Send sentry event as a client
-- Send second sentry event from wandb
-- Assert events arrive to local api server
-- Validate no data is leaked between wandb and client events
-"""
-
-
 def test_wandbsentry_writefirst(relay):
+    """
+    Tests initializning wandb sentry scope before client initializes or sends sentry events.
+    - Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
+    - Add sentry session tags for wandb client
+    - Send sentry event from wandb
+    - Initialize sentry client as a client calling `sentry_sdk.init()`
+    - Add sentry session tags as client
+    - Send sentry event as a client
+    - Send second sentry event from wandb
+    - Assert events arrive to local api server
+    - Validate no data is leaked between wandb and client events
+    """
     # Configure and send wandb sentry event before initializing client sentry
     wandb_sentry = wandb.analytics.Sentry()
+    wandb_sentry._disabled = False
+    wandb_sentry.dsn = WANDB_DSN_URL_FORMAT.format(port=relay.port)
     wandb_sentry.setup()
     wandb_sentry.configure_scope(tags={"entity": "tag"})
     wandb_event_id = wandb_sentry.message(WANDB_MESSAGE)
@@ -339,23 +332,23 @@ def test_wandbsentry_writefirst(relay):
     )
 
 
-"""
-Tests initializning wandb sentry scope after the client has already initialized sentry and sending an exception event.
-- Initialize sentry client as a client calling `sentry_sdk.init()`
-- Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
-- Add sentry session tags for both client and wandb
-- Send sentry exception as a client
-- Send sentry exception from wandb
-- Assert exception events arrive to local api server
-- Validate no data is leaked between wandb and client events
-"""
-
-
 def test_wandbsentry_exception(relay):
+    """
+    Tests initializning wandb sentry scope after the client has already initialized sentry and sending an exception event.
+    - Initialize sentry client as a client calling `sentry_sdk.init()`
+    - Initialize wandb sentry as a client calling `wandb.analytics.Sentry()` and then calling `setup()`
+    - Add sentry session tags for both client and wandb
+    - Send sentry exception as a client
+    - Send sentry exception from wandb
+    - Assert exception events arrive to local api server
+    - Validate no data is leaked between wandb and client events
+    """
     sentry_sdk.init(
         dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
     )
     wandb_sentry = wandb.analytics.Sentry()
+    wandb_sentry._disabled = False
+    wandb_sentry.dsn = WANDB_DSN_URL_FORMAT.format(port=relay.port)
     wandb_sentry.setup()
 
     # Send sentry events
