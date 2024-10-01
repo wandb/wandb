@@ -1,4 +1,4 @@
-package api
+package auth
 
 import (
 	"encoding/base64"
@@ -28,7 +28,11 @@ func NewCredentialProvider(
 	settings *settings.Settings,
 ) (CredentialProvider, error) {
 	if settings.GetIdentityTokenFile() != "" {
-		return NewOAuth2CredentialProvider(settings)
+		return NewOAuth2CredentialProvider(
+			settings.GetBaseURL(),
+			settings.GetIdentityTokenFile(),
+			settings.GetHTTPSProxy(),
+		)
 	}
 	return NewAPIKeyCredentialProvider(settings)
 }
@@ -40,8 +44,8 @@ type apiKeyCredentialProvider struct {
 	apiKey string
 }
 
-// NewAPIKeyCredentialProvider ensures an API key exists and creates a new
-// APIKeyCredentialProvider if so
+// NewAPIKeyCredentialProvider validates the presence of an API key and
+// returns a new APIKeyCredentialProvider. Returns an error if the API key is unavailable.
 func NewAPIKeyCredentialProvider(
 	settings *settings.Settings,
 ) (CredentialProvider, error) {
@@ -54,9 +58,9 @@ func NewAPIKeyCredentialProvider(
 	}, nil
 }
 
-// Apply supplies the API key via the Authorization header to the request using
-// HTTP Basic Authentication. The API key is supplied as the password, while
-// the username field is left empty.
+// Apply sets the API key in the Authorization header of the request using
+// HTTP Basic Authentication. The API key is used as the password,
+// while the username is left empty.
 func (c *apiKeyCredentialProvider) Apply(req *http.Request) error {
 	req.Header.Set(
 		"Authorization",
@@ -78,13 +82,15 @@ var _ CredentialProvider = &oauth2CredentialProvider{}
 // credentials file along with its expiration. The expiration is checked each
 // time the access token is used, and refreshed if it is at or near expiration.
 func NewOAuth2CredentialProvider(
-	settings *settings.Settings,
+	baseURL string,
+	identityTokenFilePath string,
+	credentialsFilePath string,
 ) (CredentialProvider, error) {
 	return &oauth2CredentialProvider{
-		baseURL:               settings.GetBaseURL(),
-		identityTokenFilePath: settings.GetIdentityTokenFile(),
-		credentialsFilePath:   settings.GetCredentialsFile(),
-		mu:                    &sync.Mutex{},
+		baseURL:               baseURL,
+		identityTokenFilePath: identityTokenFilePath,
+		credentialsFilePath:   credentialsFilePath,
+		tokenMu:               &sync.RWMutex{},
 	}, nil
 }
 
@@ -101,7 +107,7 @@ type oauth2CredentialProvider struct {
 	// The access token and its metadata
 	token tokenInfo
 
-	mu *sync.Mutex
+	tokenMu *sync.RWMutex
 }
 
 // ExpiresAt is a custom type representing a time.Time value. It is used to handle
@@ -152,7 +158,7 @@ type CredentialsFile struct {
 // It then supplies the access token to the request via the Authorization header
 // as a Bearer token
 func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
-	if c.token.IsTokenExpiring() {
+	if c.shouldRefreshToken() {
 		if err := c.loadCredentials(); err != nil {
 			return err
 		}
@@ -164,11 +170,18 @@ func (c *oauth2CredentialProvider) Apply(req *http.Request) error {
 	return nil
 }
 
+func (c *oauth2CredentialProvider) shouldRefreshToken() bool {
+	c.tokenMu.RLock()
+	defer c.tokenMu.RUnlock()
+
+	return c.token.IsTokenExpiring()
+}
+
 // loadCredentials attempts to load an access token from the credentials file.
 // If the credentials file does not exist, it creates it.
 func (c *oauth2CredentialProvider) loadCredentials() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.tokenMu.Lock()
+	defer c.tokenMu.Unlock()
 
 	_, err := os.Stat(c.credentialsFilePath)
 	if os.IsNotExist(err) {
@@ -206,7 +219,7 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 		if err != nil {
 			return err
 		}
-		credsFile.Credentials[c.baseURL] = *newCreds
+		credsFile.Credentials[c.baseURL] = newCreds
 		updatedFile, err := json.MarshalIndent(credsFile, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to update credentials file: %v", err)
@@ -215,7 +228,7 @@ func (c *oauth2CredentialProvider) loadCredentialsFromFile() error {
 		if err != nil {
 			return fmt.Errorf("failed to update credentials file: %v", err)
 		}
-		c.token = *newCreds
+		c.token = newCreds
 	} else {
 		c.token = creds
 	}
@@ -233,7 +246,7 @@ func (c *oauth2CredentialProvider) writeCredentialsFile() error {
 
 	data := CredentialsFile{
 		Credentials: map[string]tokenInfo{
-			c.baseURL: *token,
+			c.baseURL: token,
 		},
 	}
 
@@ -253,33 +266,33 @@ func (c *oauth2CredentialProvider) writeCredentialsFile() error {
 // createAccessToken reads the identity token from a file and exchanges it for
 // an access token from the authorization server using the JWT Bearer flow defined
 // in OAuth 2.0. The access token is then returned with its expiration time.
-func (c *oauth2CredentialProvider) createAccessToken() (*tokenInfo, error) {
+func (c *oauth2CredentialProvider) createAccessToken() (tokenInfo, error) {
 	token, err := os.ReadFile(c.identityTokenFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read identity token file: %v", err)
+		return tokenInfo{}, fmt.Errorf("failed to read identity token file: %v", err)
 	}
 
 	url := fmt.Sprintf("%s/oidc/token", c.baseURL)
 	data := fmt.Sprintf("grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=%s", token)
 	req, err := http.NewRequest("POST", url, strings.NewReader(data))
 	if err != nil {
-		return nil, err
+		return tokenInfo{}, err
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, err
+		return tokenInfo{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve access token: %v", err)
+			return tokenInfo{}, fmt.Errorf("failed to retrieve access token: %v", err)
 		}
-		return nil, fmt.Errorf("failed to retrieve access token: %s", string(body))
+		return tokenInfo{}, fmt.Errorf("failed to retrieve access token: %s", string(body))
 	}
 
 	var tokenResponse struct {
@@ -287,14 +300,14 @@ func (c *oauth2CredentialProvider) createAccessToken() (*tokenInfo, error) {
 		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&tokenResponse); err != nil {
-		return nil, fmt.Errorf("invalid response from auth server: %v", err)
+		return tokenInfo{}, fmt.Errorf("invalid response from auth server: %v", err)
 	}
 
 	// calculate the time at which the token will expire from the expires_in seconds
 	// from the response
 	expiresAt := time.Now().UTC().Add(time.Duration(tokenResponse.ExpiresIn) * time.Second)
 
-	return &tokenInfo{
+	return tokenInfo{
 		AccessToken: tokenResponse.AccessToken,
 		ExpiresAt:   ExpiresAt(expiresAt),
 	}, nil

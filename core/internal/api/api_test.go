@@ -3,18 +3,17 @@ package api_test
 import (
 	"bytes"
 	"context"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"slices"
-	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
+	"github.com/wandb/wandb/core/internal/apitest"
+	"github.com/wandb/wandb/core/internal/auth"
 	"github.com/wandb/wandb/core/internal/observability"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -22,7 +21,7 @@ import (
 )
 
 func TestSend(t *testing.T) {
-	server := NewRecordingServer()
+	server := apitest.NewRecordingServer()
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
@@ -63,7 +62,7 @@ func TestSend(t *testing.T) {
 }
 
 func TestDo_ToWandb_SetsAuth(t *testing.T) {
-	server := NewRecordingServer()
+	server := apitest.NewRecordingServer()
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
@@ -88,7 +87,7 @@ func TestDo_ToWandb_SetsAuth(t *testing.T) {
 }
 
 func TestDo_NotToWandb_NoAuth(t *testing.T) {
-	server := NewRecordingServer()
+	server := apitest.NewRecordingServer()
 	settings := wbsettings.From(&spb.Settings{
 		BaseUrl: &wrapperspb.StringValue{Value: server.URL + "/wandb"},
 		ApiKey:  &wrapperspb.StringValue{Value: "test_api_key"},
@@ -120,7 +119,7 @@ func newClient(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := auth.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
@@ -128,76 +127,6 @@ func newClient(
 		CredentialProvider: credentialProvider,
 	})
 	return backend.NewClient(opts)
-}
-
-type RequestCopy struct {
-	Method string
-	URL    *url.URL
-	Body   string
-	Header http.Header
-}
-
-type RecordingServer struct {
-	sync.Mutex
-	*httptest.Server
-
-	requests []RequestCopy
-}
-
-// All requests recorded by the server.
-func (s *RecordingServer) Requests() []RequestCopy {
-	s.Lock()
-	defer s.Unlock()
-	return slices.Clone(s.requests)
-}
-
-type RecordingServerOption func(*RecordingServerConfig)
-
-type RecordingServerConfig struct {
-	handlerFunc http.HandlerFunc
-}
-
-func WithHandlerFunc(handler http.HandlerFunc) RecordingServerOption {
-	return func(rs *RecordingServerConfig) {
-		rs.handlerFunc = handler
-	}
-}
-
-// Returns a server that records all requests made to it.
-func NewRecordingServer(opts ...RecordingServerOption) *RecordingServer {
-	rs := &RecordingServer{
-		requests: make([]RequestCopy, 0),
-	}
-
-	rsConfig := &RecordingServerConfig{}
-	for _, opt := range opts {
-		opt(rsConfig)
-	}
-
-	rs.Server = httptest.NewServer(http.HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			body, _ := io.ReadAll(r.Body)
-
-			rs.Lock()
-			defer rs.Unlock()
-
-			rs.requests = append(rs.requests,
-				RequestCopy{
-					Method: r.Method,
-					URL:    r.URL,
-					Body:   string(body),
-					Header: r.Header,
-				})
-
-			if rsConfig.handlerFunc != nil {
-				rsConfig.handlerFunc(w, r)
-			} else {
-				_, _ = w.Write([]byte("OK"))
-			}
-		}),
-	)
-
-	return rs
 }
 
 func TestNewClientWithProxy(t *testing.T) {
@@ -215,7 +144,7 @@ func TestNewClientWithProxy(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
 	})
-	credentialProvider, err := api.NewCredentialProvider(settings)
+	credentialProvider, err := auth.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
