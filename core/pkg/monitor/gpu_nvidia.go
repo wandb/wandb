@@ -24,7 +24,7 @@ func getCmdPath() (string, error) {
 		return "", err
 	}
 	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "nvidia_gpu_stats")
+	exPath := filepath.Join(exDirPath, "nvidia_gpu_stats.exe")
 
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err
