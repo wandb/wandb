@@ -16,7 +16,10 @@ class Program
             // Initialize a new run:
             var run1 = await session.Init(
                 settings: new Settings(
-                    project: "csharp"
+                    displayName: "smart-capybara-42",
+                    entity: "wandb",
+                    project: "csharp",
+                    runTags: new[] { "c", "sharp" }
                 )
             );
 
@@ -35,9 +38,13 @@ class Program
             // Finish the run:
             await run1.Finish();
 
+            // Simulate waiting for the next batch of data:
+            await Task.Delay(3000);
+
             // Resume run1:
             var run2 = await session.Init(
                 settings: new Settings(
+                    entity: "wandb",
                     project: "csharp",
                     resume: ResumeOption.Allow, // resume if exists, or create a new run
                     runId: run1.Settings.RunId

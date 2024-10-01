@@ -45,6 +45,8 @@ namespace Wandb.Internal
             {
                 Run = new RunRecord
                 {
+                    DisplayName = run.Settings.DisplayName,
+                    Entity = run.Settings.Entity,
                     Project = run.Settings.Project,
                     RunId = run.Settings.RunId,
                 }
