@@ -38,18 +38,6 @@ func getCmdPath() (string, error) {
 	return exPath, nil
 }
 
-// isRunning checks if the command is running.
-func isRunning(cmd *exec.Cmd) bool {
-	if cmd.Process == nil {
-		return false
-	}
-	// Check if the process has exited
-	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
-		return false
-	}
-	return true
-}
-
 // GPUNvidia monitors NVIDIA GPU stats using the nvidia_gpu_stats command.
 type GPUNvidia struct {
 	name             string
@@ -58,6 +46,7 @@ type GPUNvidia struct {
 	samplingInterval float64        // sampling interval in seconds
 	lastTimestamp    float64        // last reported timestamp
 	mutex            sync.RWMutex
+	cmdMutex         sync.Mutex
 	cmdPath          string
 	cmd              *exec.Cmd
 	logger           *observability.CoreLogger
@@ -154,6 +143,20 @@ func NewGPUNvidia(
 	return g
 }
 
+// isRunning checks if the command is running.
+func (g *GPUNvidia) isRunning() bool {
+	g.cmdMutex.Lock()
+	defer g.cmdMutex.Unlock()
+	if g.cmd.Process == nil {
+		return false
+	}
+	// Check if the process has exited
+	if g.cmd.ProcessState != nil && g.cmd.ProcessState.Exited() {
+		return false
+	}
+	return true
+}
+
 // waitWithTimeout waits for the process to exit, but times out after the given duration.
 func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
 	// Channel to receive the result of cmd.Wait()
@@ -179,7 +182,7 @@ func (g *GPUNvidia) Name() string { return g.name }
 
 // Sample returns the latest collected GPU metrics.
 func (g *GPUNvidia) Sample() (map[string]any, error) {
-	if !isRunning(g.cmd) {
+	if !g.isRunning() {
 		// Do not log error if the command is not running.
 		return nil, nil
 	}
@@ -224,7 +227,7 @@ func (g *GPUNvidia) IsAvailable() bool {
 	if g.cmdPath == "" {
 		return false
 	}
-	return isRunning(g.cmd)
+	return g.isRunning()
 }
 
 // Close terminates the GPUNvidia monitor and cleans up resources.
@@ -233,7 +236,9 @@ func (g *GPUNvidia) Close() {
 		return
 	}
 	// Send signal to the process to exit.
+	g.cmdMutex.Lock()
 	_ = g.cmd.Process.Signal(os.Kill)
+	g.cmdMutex.Unlock()
 	// We must ensure that the command is waited for to avoid zombie processes.
 	g.waitWithTimeout(5 * time.Second)
 }
