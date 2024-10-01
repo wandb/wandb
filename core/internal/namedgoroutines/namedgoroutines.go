@@ -67,27 +67,36 @@ func (o *Operation[T]) Go(key string, input T) {
 		inputs := o.inputsByKey[key]
 
 		if inputs == nil {
-			inputs = make(chan T, max(o.buffer, 1))
-			inputs <- input
-			o.inputsByKey[key] = inputs
+			o.scheduleGoroutine(key, input)
+			return
+		}
 
-			// Don't hold the mutex while waiting to schedule the goroutine.
-			o.inputsByKeyCond.L.Unlock()
-			o.workerPool.Go(func() error {
-				o.processInputsForKey(key, inputs)
-				return nil
-			})
-			o.inputsByKeyCond.L.Lock()
-		} else {
-			select {
-			case inputs <- input:
-				return
+		select {
+		case inputs <- input:
+			return
 
-			default:
-				o.inputsByKeyCond.Wait()
-			}
+		default:
+			o.inputsByKeyCond.Wait()
 		}
 	}
+}
+
+// scheduleGoroutine creates a new goroutine for the key and immediately
+// queues the given input.
+//
+// The mutex must be held. This temporarily releases the mutex.
+func (o *Operation[T]) scheduleGoroutine(key string, input T) {
+	inputs := make(chan T, max(o.buffer, 1))
+	inputs <- input
+	o.inputsByKey[key] = inputs
+
+	// Don't hold the mutex while waiting to schedule the goroutine.
+	o.inputsByKeyCond.L.Unlock()
+	o.workerPool.Go(func() error {
+		o.processInputsForKey(key, inputs)
+		return nil
+	})
+	o.inputsByKeyCond.L.Lock()
 }
 
 // nextInputForKey returns a buffered value from the inputs channel,
