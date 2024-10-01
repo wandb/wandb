@@ -2,8 +2,6 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use std::collections::HashSet;
-use std::fs::read_to_string;
 
 #[cfg(target_os = "windows")]
 const LIB_PATH: &str = "nvml.dll";
@@ -130,6 +128,7 @@ impl NvidiaGpu {
     }
 
     /// Check if a GPU is being used by a specific process or its descendants.
+    #[cfg(target_os = "linux")]
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
         let mut our_pids = Vec::new();
         if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
@@ -148,8 +147,11 @@ impl NvidiaGpu {
         our_pids.iter().any(|&p| device_pids.contains(&p))
     }
 
-    /// Get descendant process IDs for a given parent PID.
+    #[cfg(target_os = "linux")]
     fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
+        use std::collections::HashSet;
+        use std::fs::read_to_string;
+
         let mut descendant_pids = Vec::new();
         let mut visited_pids = HashSet::new();
         let mut stack = vec![parent_pid];
@@ -178,6 +180,14 @@ impl NvidiaGpu {
 
         Ok(descendant_pids)
     }
+
+    #[cfg(not(target_os = "linux"))]
+    fn gpu_in_use_by_process(&self, _device: &Device, _pid: i32) -> bool {
+        // TODO: Implement for other platforms
+        false
+    }
+
+    /// Get descendant process IDs for a given parent PID.
 
     /// Samples GPU metrics using NVML.
     ///
