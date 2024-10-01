@@ -49,6 +49,7 @@ namespace Wandb.Internal
                     RunId = run.Settings.RunId,
                 }
             };
+            record.Run.Tags.AddRange(run.Settings.RunTags());
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
