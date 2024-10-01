@@ -31,7 +31,7 @@ func NewCredentialProvider(
 		return NewOAuth2CredentialProvider(
 			settings.GetBaseURL(),
 			settings.GetIdentityTokenFile(),
-			settings.GetHTTPSProxy(),
+			settings.GetCredentialsFile(),
 		)
 	}
 	return NewAPIKeyCredentialProvider(settings)
