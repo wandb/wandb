@@ -67,27 +67,25 @@ func (o *Operation[T]) Go(key string, input T) {
 		inputs := o.inputsByKey[key]
 
 		if inputs == nil {
-			// NOTE: The channel *must* be buffered, or else this is
-			// an infinite loop.
 			inputs = make(chan T, max(o.buffer, 1))
+			inputs <- input
 			o.inputsByKey[key] = inputs
 
-			// Unlock the mutex while waiting to schedule the goroutine,
-			// then lock it again to send on the inputs channel.
+			// Don't hold the mutex while waiting to schedule the goroutine.
 			o.inputsByKeyCond.L.Unlock()
 			o.workerPool.Go(func() error {
 				o.processInputsForKey(key, inputs)
 				return nil
 			})
 			o.inputsByKeyCond.L.Lock()
-		}
+		} else {
+			select {
+			case inputs <- input:
+				return
 
-		select {
-		case inputs <- input:
-			return
-
-		default:
-			o.inputsByKeyCond.Wait()
+			default:
+				o.inputsByKeyCond.Wait()
+			}
 		}
 	}
 }
