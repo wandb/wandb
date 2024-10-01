@@ -10,6 +10,7 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
+
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
@@ -27,8 +28,7 @@ if TYPE_CHECKING:
     import wandb.sdk.internal.settings_static
 
 SENTRY_DEFAULT_DSN = (
-    # "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
-    "http://wandbkey@127.0.0.1:5000/2"
+    "https://2592b1968ea94cca9b5ef5e348e094a7@o151352.ingest.sentry.io/4504800232407040"
 )
 
 SessionStatus = Literal["ok", "exited", "crashed", "abnormal"]
@@ -94,13 +94,13 @@ class Sentry:
         self.scope.set_client(client)
 
     @_safe_noop
-    def message(self, message: str, repeat: bool = True) -> None:
+    def message(self, message: str, repeat: bool = True) -> Optional[str]:
         """Send a message to Sentry."""
         if not repeat and message in self._sent_messages:
             return
         self._sent_messages.add(message)
-        with sentry_sdk.scope.use_scope(self.scope):  # type: ignore
-            sentry_sdk.capture_message(message)  # type: ignore
+        with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
+            return sentry_sdk.capture_message(message)  # type: ignore
 
     @_safe_noop
     def exception(
@@ -117,7 +117,7 @@ class Sentry:
         ],
         handled: bool = False,
         status: Optional["SessionStatus"] = None,
-    ) -> None:
+    ) -> str|None:
         """Log an exception to Sentry."""
         error = Exception(exc) if isinstance(exc, str) else exc
         # based on self.hub.capture_exception(_exc)
@@ -131,9 +131,10 @@ class Sentry:
             client_options=self.scope.get_client().options,  # type: ignore
             mechanism={"type": "generic", "handled": handled},
         )
+        event_id = None
         try:
-            with sentry_sdk.scope.use_scope(self.scope):  # type: ignore
-                sentry_sdk.capture_event(event, hint=hint)  # type: ignore
+            with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
+                event_id = sentry_sdk.capture_event(event)  # type: ignore
         except Exception:
             pass
 
@@ -146,7 +147,7 @@ class Sentry:
         if client is not None:
             client.flush()
 
-        return None
+        return event_id
 
     def reraise(self, exc: Any) -> None:
         """Re-raise an exception after logging it to Sentry.
