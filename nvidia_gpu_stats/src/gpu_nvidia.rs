@@ -187,6 +187,7 @@ impl NvidiaGpu {
         our_pids.iter().any(|&p| device_pids.contains(&p))
     }
 
+    /// Get descendant process IDs for a given parent PID.
     #[cfg(target_os = "linux")]
     fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
         use std::collections::HashSet;
@@ -226,8 +227,6 @@ impl NvidiaGpu {
         // TODO: Implement for other platforms
         false
     }
-
-    /// Get descendant process IDs for a given parent PID.
 
     /// Samples GPU metrics using NVML.
     ///
