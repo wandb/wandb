@@ -1,17 +1,18 @@
-from flask import request
-from sentry_sdk.utils import sentry_sdk
-from sentry_sdk.envelope import Envelope
-import flask
 import os
-import pytest
 import socket
 import threading
-import requests
 import time
+import zlib
+
+import flask
+import pytest
+import requests
 import wandb
 import wandb.analytics
 import wandb.env
-import zlib
+from flask import request
+from sentry_sdk.envelope import Envelope
+from sentry_sdk.utils import sentry_sdk
 
 EXTERNAL_SENTRY_DSN_KEY = "EXTERNALKEY"
 EXTERNAL_SENTRY_PROJECT = "123456"
@@ -37,7 +38,7 @@ EXTERNAL_DSN_URL = (
     f"http://{EXTERNAL_SENTRY_DSN_KEY}@{API_SERVER_ADDRESS}/{EXTERNAL_SENTRY_PROJECT}"
 )
 
-os.environ[wandb.env.ERROR_REPORTING] = f"True"
+os.environ[wandb.env.ERROR_REPORTING] = "True"
 os.environ[wandb.env.SENTRY_DSN] = WANDB_DSN_URL
 
 
@@ -58,7 +59,7 @@ class MetricRelayServer:
         self.is_running = False
         self.app = flask.Flask(__name__)
         self.app.add_url_rule(
-            rule="/api/<projectId>/envelope/",
+            rule="/api/<project_id>/envelope/",
             methods=["POST"],
             view_func=self.sentry,
         )
@@ -86,7 +87,7 @@ class MetricRelayServer:
             try:
                 requests.get(f"{self.relay_url}/ping/")
                 self.is_running = True
-            except:
+            except BaseException:
                 continue
 
         self.is_running = True
@@ -96,12 +97,12 @@ class MetricRelayServer:
         envelope = Envelope.deserialize(decompressed_data)
         return envelope
 
-    def sentry(self, projectId):
+    def sentry(self, project_id):
         decompressed_data = zlib.decompress(request.get_data(), 16 + zlib.MAX_WBITS)
         envelope = Envelope.deserialize(decompressed_data)
         self.events[envelope.headers["event_id"]] = {
             "envelope": envelope,
-            "project_id": projectId,
+            "project_id": project_id,
         }
         return "OK"
 
@@ -162,7 +163,7 @@ Tests initializning wandb sentry scope after the client has already initialized 
 """
 
 
-def test_WandbSentryInitAfterClientInit(relay):
+def test_wandbsentry_initafterclientinit(relay):
     sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
     wandb_sentry = wandb.analytics.Sentry()
     wandb_sentry.setup()
@@ -201,7 +202,7 @@ Tests initializning wandb sentry scope after the client has already sent a sentr
 """
 
 
-def test_WandbSentryInitAfterClientWrite(relay):
+def test_wandbsentry_initafterclientwrite(relay):
     # Setup test
     sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
     sentry_sdk.set_tag("test", "tag")
@@ -244,7 +245,7 @@ Tests initializning wandb sentry scope before client calls `sentry_sdk.init()`.
 """
 
 
-def test_WandbSentryInitializedFirst(relay):
+def test_wandbsentry_initializedfirst(relay):
     wandb_sentry = wandb.analytics.Sentry()
     wandb_sentry.setup()
     wandb_sentry.configure_scope(tags={"entity": "tag"})
@@ -286,7 +287,7 @@ Tests initializning wandb sentry scope before client initializes or sends sentry
 """
 
 
-def test_WandbSentryWriteFirst(relay):
+def test_wandbsentry_writefirst(relay):
     # Configure and send wandb sentry event before initializing client sentry
     wandb_sentry = wandb.analytics.Sentry()
     wandb_sentry.setup()
@@ -335,7 +336,7 @@ Tests initializning wandb sentry scope after the client has already initialized 
 """
 
 
-def test_WandbSentryExceptionClientInitializeFirst(relay):
+def test_wandbsentry_exception(relay):
     sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
     wandb_sentry = wandb.analytics.Sentry()
     wandb_sentry.setup()

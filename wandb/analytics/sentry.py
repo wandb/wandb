@@ -10,7 +10,6 @@ from types import TracebackType
 from typing import TYPE_CHECKING, Any, Callable, Dict, Optional, Tuple, Type, Union
 from urllib.parse import quote
 
-
 if sys.version_info >= (3, 8):
     from typing import Literal
 else:
