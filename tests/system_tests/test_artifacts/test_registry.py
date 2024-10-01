@@ -1,47 +1,64 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import pytest
 import wandb
+from wandb.proto import wandb_internal_pb2 as pb
+
+
+@dataclass
+class LinkArtifactExpectation:
+    entity: str = ""
+    org: str = ""
+    project: str = ""
+    collection: str = ""
 
 
 @pytest.mark.parametrize(
     (
         "link_artifact_path",
-        "expected_entity",
-        "expected_org",
-        "expected_project",
-        "expected_collection",
+        "expected",
     ),
     (
         (
             "org-name/wandb-registry-model/test-collection",
-            "",
-            "org-name",
-            "wandb-registry-model",
-            "test-collection",
+            LinkArtifactExpectation(
+                org="org-name",
+                project="wandb-registry-model",
+                collection="test-collection",
+            ),
         ),
         (
             "org-entity-name/wandb-registry-model/test-collection",
-            "",
-            "org-entity-name",
-            "wandb-registry-model",
-            "test-collection",
+            LinkArtifactExpectation(
+                org="org-entity-name",
+                project="wandb-registry-model",
+                collection="test-collection",
+            ),
         ),
         (
             "wandb-registry-model/test-collection",
-            "",
-            "",
-            "wandb-registry-model",
-            "test-collection",
+            LinkArtifactExpectation(
+                project="wandb-registry-model",
+                collection="test-collection",
+            ),
         ),
         (
             "random-entity/not-registry/test-collection",
-            "random-entity",
-            "",
-            "not-registry",
-            "test-collection",
+            LinkArtifactExpectation(
+                entity="random-entity",
+                project="not-registry",
+                collection="test-collection",
+            ),
         ),
-        ("not-registry/test-collection", "", "", "not-registry", "test-collection"),
+        (
+            "not-registry/test-collection",
+            LinkArtifactExpectation(
+                project="not-registry",
+                collection="test-collection",
+            ),
+        ),
     ),
 )
 def test_link_artifact_client_handles_registry_paths(
@@ -50,12 +67,11 @@ def test_link_artifact_client_handles_registry_paths(
     wandb_init,
     api,
     link_artifact_path,
-    expected_entity,
-    expected_org,
-    expected_collection,
-    expected_project,
+    expected,
     mocker,
 ):
+    # Tests link_artifact for registry paths correctly passes in
+    # the expected variables to the backend.
     project = "test"
     artifact_name = "test-artifact"
     artifact_type = "test-type"
@@ -71,19 +87,20 @@ def test_link_artifact_client_handles_registry_paths(
     run.log_artifact(artifact)
     artifact.wait()
 
-    mock_deliver_link_artifact = mocker.patch(
-        "wandb.sdk.interface.interface.InterfaceBase.deliver_link_artifact"
+    mock__deliver_link_artifact = mocker.patch(
+        "wandb.sdk.interface.interface_shared.InterfaceShared._deliver_link_artifact"
     )
 
     # Link the artifact
     run.link_artifact(artifact, link_artifact_path)
-    mock_deliver_link_artifact.assert_called_once()
-    call_args = mock_deliver_link_artifact.call_args
-    assert call_args[0][0] == run
-    assert call_args[0][1] == artifact
-    assert call_args[0][2] == expected_collection
-    assert call_args[0][4] == expected_entity or user
-    assert call_args[0][5] == expected_project
-    assert call_args[0][6] == expected_org
+    link_artifact_request = pb.LinkArtifactRequest(
+        server_id=artifact.id,
+        portfolio_name=expected.collection,
+        portfolio_aliases=[],
+        portfolio_entity=expected.entity or user,
+        portfolio_project=expected.project,
+        portfolio_organization=expected.org,
+    )
+    mock__deliver_link_artifact.assert_called_once_with(link_artifact_request)
 
     run.finish()

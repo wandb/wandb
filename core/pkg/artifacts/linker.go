@@ -48,9 +48,10 @@ func (al *ArtifactLinker) Link() error {
 				return fmt.Errorf("Unable to find organization for artifact under entity: %s. Please make sure you are using a team entity when linking to the Registry", portfolioEntity)
 			}
 
+			inputOrgMatchesOrgNameOrOrgEntityName := (organization == response.Entity.Organization.Name || organization == response.Entity.Organization.OrgEntity.Name)
 			// Validate organization inputted by user
-			if organization != "" && (organization != response.Entity.Organization.Name && organization != response.Entity.Organization.OrgEntity.Name) {
-				return fmt.Errorf("Wrong organization: %s for Registry: %s", organization, portfolioProject)
+			if organization != "" && !inputOrgMatchesOrgNameOrOrgEntityName {
+				return fmt.Errorf("Artifact belongs to the organization %s and cannot be linked to %s. Please update the target path with the correct organization name.", response.Entity.Organization.Name, organization)
 			}
 			portfolioEntity = response.Entity.Organization.OrgEntity.Name
 		case organization == "":
