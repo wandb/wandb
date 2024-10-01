@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -24,7 +25,12 @@ func getCmdPath() (string, error) {
 		return "", err
 	}
 	exDirPath := filepath.Dir(ex)
-	exPath := filepath.Join(exDirPath, "nvidia_gpu_stats.exe")
+	exPath := filepath.Join(exDirPath, "nvidia_gpu_stats")
+
+	// append .exe if running on Windows
+	if runtime.GOOS == "windows" {
+		exPath += ".exe"
+	}
 
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err

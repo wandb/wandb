@@ -131,6 +131,8 @@ class CustomBuildHook(BuildHookInterface):
 
     def _build_nvidia_gpu_stats(self) -> List[str]:
         output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
+        if self._target_platform().goos == "windows":
+            output = output.with_suffix(".exe")
 
         self.app.display_waiting("Building nvidia_gpu_stats Rust binary...")
         hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
