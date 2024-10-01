@@ -1,4 +1,4 @@
-package auth_test
+package api_test
 
 import (
 	"encoding/json"
@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
-	"github.com/wandb/wandb/core/internal/auth"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/sync/errgroup"
@@ -21,7 +21,7 @@ func TestNewAPIKeyCredentialProvider(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test-api-key"},
 	})
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", "http://example.com", nil)
@@ -34,7 +34,7 @@ func TestNewAPIKeyCredentialProvider(t *testing.T) {
 
 func TestNewAPIKeyCredentialProvider_NoAPIKey(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{})
-	_, err := auth.NewCredentialProvider(settings)
+	_, err := api.NewCredentialProvider(settings)
 	assert.Error(t, err)
 }
 
@@ -82,7 +82,7 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile.Name()},
 		CredentialsFile:   &wrapperspb.StringValue{Value: credentialsFile},
 	})
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", "http://example.com", nil)
@@ -96,7 +96,7 @@ func TestNewOAuth2CredentialProvider(t *testing.T) {
 	file, err := os.ReadFile(credentialsFile)
 	require.NoError(t, err)
 
-	var data auth.CredentialsFile
+	var data api.CredentialsFile
 	err = json.Unmarshal(file, &data)
 	require.NoError(t, err)
 
@@ -146,7 +146,7 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile.Name()},
 		CredentialsFile:   &wrapperspb.StringValue{Value: credsFile.Name()},
 	})
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", "http://example.com", nil)
@@ -160,7 +160,7 @@ func TestNewOAuth2CredentialProvider_RefreshesToken(t *testing.T) {
 	file, err := os.ReadFile(credsFile.Name())
 	require.NoError(t, err)
 
-	var data auth.CredentialsFile
+	var data api.CredentialsFile
 	err = json.Unmarshal(file, &data)
 	require.NoError(t, err)
 
@@ -209,7 +209,7 @@ func TestNewOAuth2CredentialProvider_RefreshesTokenOnce(t *testing.T) {
 		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile.Name()},
 		CredentialsFile:   &wrapperspb.StringValue{Value: credsFile.Name()},
 	})
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	// issue 2 requests
@@ -271,7 +271,7 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 		IdentityTokenFile: &wrapperspb.StringValue{Value: tokenFile.Name()},
 		CredentialsFile:   &wrapperspb.StringValue{Value: credsFile.Name()},
 	})
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	req, err := http.NewRequest("GET", "http://example.com", nil)
@@ -285,7 +285,7 @@ func TestNewOAuth2CredentialProvider_CreatesNewTokenForNewBaseURL(t *testing.T) 
 	file, err := os.ReadFile(credsFile.Name())
 	require.NoError(t, err)
 
-	var data auth.CredentialsFile
+	var data api.CredentialsFile
 	err = json.Unmarshal(file, &data)
 	require.NoError(t, err)
 
