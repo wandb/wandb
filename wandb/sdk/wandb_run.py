@@ -1090,6 +1090,7 @@ class Run:
         return self._step
 
     def project_name(self) -> str:
+        # TODO: deprecate this in favor of project
         return self._run_obj.project if self._run_obj else ""
 
     @property
