@@ -38,7 +38,7 @@ func TestLinkRegistryArtifact(t *testing.T) {
 		{"Link registry artifact with orgEntity name old server", "orgEntityName_123", true, ""},
 		{"Link registry artifact with short hand path updated server", "", false, ""},
 		{"Link registry artifact with short hand path old server", "", true, "Upgrade server"},
-		{"Link with wrong org/orgEntity name with updated server", "potato", false, "Wrong organization"},
+		{"Link with wrong org/orgEntity name with updated server", "potato", false, "Please update the target path with the correct organization name"},
 		{"Link with wrong org/orgEntity name with updated server", "potato", true, expectLinkArtifactFailure},
 	}
 	for _, tc := range testCases {
