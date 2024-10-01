@@ -76,6 +76,7 @@ func NewTPU() *TPU {
 	t := &TPU{name: "tpu"}
 
 	chip, count := getLocalTPUChips()
+	fmt.Println("chip", chip, "count", count)
 	if chip == nil {
 		return nil
 	}
@@ -83,6 +84,7 @@ func NewTPU() *TPU {
 	t.count = count
 
 	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(local.NewCredentials()))
+	fmt.Println("conn", conn, "err", err)
 	if err != nil {
 		return nil
 	}
@@ -92,6 +94,7 @@ func NewTPU() *TPU {
 
 	// Get the list of supported metrics from the TPU runtime gRPC service.
 	supportedMetrics, err := t.getSupportedMetrics()
+	fmt.Println("supportedMetrics", supportedMetrics, "err", err)
 	if err != nil {
 		return nil
 	}

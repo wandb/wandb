@@ -141,7 +141,6 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 		sm.assets = append(sm.assets, gpu)
 	}
 	if tpu := NewTPU(); tpu != nil {
-		fmt.Println("TPU", tpu)
 		sm.assets = append(sm.assets, tpu)
 	}
 	if slurm := NewSLURM(); slurm != nil {
