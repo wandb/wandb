@@ -51,7 +51,7 @@ func TestSend(t *testing.T) {
 	req := allRequests[0]
 	assert.Equal(t, http.MethodGet, req.Method)
 	assert.Equal(t, "/wandb/some/test/path", req.URL.Path)
-	assert.Equal(t, "my test request", req.Body)
+	assert.Equal(t, "my test request", string(req.Body))
 	assert.Equal(t, "one", req.Header.Get("Header1"))
 	assert.Equal(t, "two", req.Header.Get("Header2"))
 	assert.Equal(t, "xyz", req.Header.Get("ClientHeader"))
