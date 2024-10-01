@@ -116,7 +116,7 @@ class Sentry:
         ],
         handled: bool = False,
         status: Optional["SessionStatus"] = None,
-    ) -> str | None:
+    ) -> Optional[str]:
         """Log an exception to Sentry."""
         error = Exception(exc) if isinstance(exc, str) else exc
         # based on self.hub.capture_exception(_exc)
