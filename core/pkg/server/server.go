@@ -153,14 +153,16 @@ func (s *Server) serve() {
 			s.wg.Add(1)
 			go func() {
 				NewConnection(
-					streamMux,
 					s.ctx,
 					s.cancel,
-					conn,
-					s.sentryClient,
-					s.commit,
-					s.loggerPath,
-				).HandleConnection()
+					ConnectionOptions{
+						Conn:         conn,
+						StreamMux:    streamMux,
+						SentryClient: s.sentryClient,
+						Commit:       s.commit,
+						LoggerPath:   s.loggerPath,
+					},
+				).ManageConnectionData()
 
 				s.wg.Done()
 			}()
