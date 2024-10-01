@@ -11,7 +11,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -33,19 +32,16 @@ func getCmdPath() (string, error) {
 	return exPath, nil
 }
 
-// isRunning checks if the command is running by sending a signal to the process.
+// isRunning checks if the command is running.
 func isRunning(cmd *exec.Cmd) bool {
 	if cmd.Process == nil {
 		return false
 	}
-
-	process, err := os.FindProcess(cmd.Process.Pid)
-	if err != nil {
+	// Check if the process has exited
+	if cmd.ProcessState != nil && cmd.ProcessState.Exited() {
 		return false
 	}
-
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
+	return true
 }
 
 // GPUNvidia monitors NVIDIA GPU stats using the nvidia_gpu_stats command.
