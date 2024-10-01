@@ -207,6 +207,14 @@ func (sm *SystemMonitor) GetState() int32 {
 
 // probe gathers system information from all assets and merges their metadata.
 func (sm *SystemMonitor) probe() *spb.MetadataRequest {
+	defer func() {
+		if err := recover(); err != nil {
+			sm.logger.CaptureError(
+				fmt.Errorf("monitor: panic: %v", err),
+			)
+		}
+	}()
+
 	systemInfo := spb.MetadataRequest{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()

@@ -18,7 +18,7 @@ const (
 	defaultDirPermissions  = 0777 // read/write/execute for all users.
 	defaultFilePermissions = 0666 // read/write for all users.
 
-	maxFileCacheIOTasks = 16
+	maxFileCacheIOTasks = 128
 )
 
 type Cache interface {

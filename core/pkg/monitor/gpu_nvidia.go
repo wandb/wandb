@@ -1,4 +1,4 @@
-//go:build linux
+//go:build linux || windows
 
 package monitor
 
@@ -9,9 +9,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/wandb/wandb/core/internal/observability"
@@ -27,25 +27,15 @@ func getCmdPath() (string, error) {
 	exDirPath := filepath.Dir(ex)
 	exPath := filepath.Join(exDirPath, "nvidia_gpu_stats")
 
+	// append .exe if running on Windows
+	if runtime.GOOS == "windows" {
+		exPath += ".exe"
+	}
+
 	if _, err := os.Stat(exPath); os.IsNotExist(err) {
 		return "", err
 	}
 	return exPath, nil
-}
-
-// isRunning checks if the command is running by sending a signal to the process.
-func isRunning(cmd *exec.Cmd) bool {
-	if cmd.Process == nil {
-		return false
-	}
-
-	process, err := os.FindProcess(cmd.Process.Pid)
-	if err != nil {
-		return false
-	}
-
-	err = process.Signal(syscall.Signal(0))
-	return err == nil
 }
 
 // GPUNvidia monitors NVIDIA GPU stats using the nvidia_gpu_stats command.
@@ -56,10 +46,12 @@ type GPUNvidia struct {
 	samplingInterval float64        // sampling interval in seconds
 	lastTimestamp    float64        // last reported timestamp
 	mutex            sync.RWMutex
+	cmdMutex         sync.Mutex
 	cmdPath          string
 	cmd              *exec.Cmd
 	logger           *observability.CoreLogger
 	waitOnce         sync.Once
+	doneCh           chan struct{}
 }
 
 // NewGPUNvidia creates a new GPUNvidia instance configured to monitor NVIDIA GPUs.
@@ -77,6 +69,7 @@ func NewGPUNvidia(
 		pid:              pid,
 		samplingInterval: samplingInterval,
 		logger:           logger,
+		doneCh:           make(chan struct{}),
 	}
 
 	if cmdPath == "" {
@@ -152,6 +145,20 @@ func NewGPUNvidia(
 	return g
 }
 
+// isRunning checks if the command is running.
+func (g *GPUNvidia) isRunning() bool {
+	select {
+	case <-g.doneCh:
+		// Process has exited
+		return false
+	default:
+	}
+
+	g.cmdMutex.Lock()
+	defer g.cmdMutex.Unlock()
+	return g.cmd.Process != nil
+}
+
 // waitWithTimeout waits for the process to exit, but times out after the given duration.
 func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
 	// Channel to receive the result of cmd.Wait()
@@ -160,7 +167,9 @@ func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
 	// Wait for the process to exit
 	go func() {
 		g.waitOnce.Do(func() {
-			done <- g.cmd.Wait()
+			err := g.cmd.Wait()
+			close(g.doneCh) // <-- Signal that the process has exited
+			done <- err
 		})
 	}()
 
@@ -177,7 +186,7 @@ func (g *GPUNvidia) Name() string { return g.name }
 
 // Sample returns the latest collected GPU metrics.
 func (g *GPUNvidia) Sample() (map[string]any, error) {
-	if !isRunning(g.cmd) {
+	if !g.isRunning() {
 		// Do not log error if the command is not running.
 		return nil, nil
 	}
@@ -222,7 +231,7 @@ func (g *GPUNvidia) IsAvailable() bool {
 	if g.cmdPath == "" {
 		return false
 	}
-	return isRunning(g.cmd)
+	return g.isRunning()
 }
 
 // Close terminates the GPUNvidia monitor and cleans up resources.
@@ -231,7 +240,11 @@ func (g *GPUNvidia) Close() {
 		return
 	}
 	// Send signal to the process to exit.
-	_ = g.cmd.Process.Signal(os.Kill)
+	g.cmdMutex.Lock()
+	if g.cmd.Process != nil {
+		_ = g.cmd.Process.Signal(os.Kill)
+	}
+	g.cmdMutex.Unlock()
 	// We must ensure that the command is waited for to avoid zombie processes.
 	g.waitWithTimeout(5 * time.Second)
 }

@@ -2,8 +2,7 @@ use crate::metrics::Metrics;
 use nvml_wrapper::enum_wrappers::device::{Clock, TemperatureSensor};
 use nvml_wrapper::error::NvmlError;
 use nvml_wrapper::{Device, Nvml};
-use std::collections::HashSet;
-use std::fs::read_to_string;
+use std::path::PathBuf;
 
 /// Static information about a GPU.
 #[derive(Default)]
@@ -60,6 +59,50 @@ impl Default for GpuMetricAvailability {
     }
 }
 
+pub fn get_lib_path() -> Result<PathBuf, NvmlError> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::env;
+        use std::path::Path;
+
+        let mut search_paths = Vec::new();
+
+        // First, check for nvml.dll in System32 for DCH drivers
+        let windir = env::var("WINDIR").unwrap_or_else(|_| "C:\\Windows".to_string());
+        let path1 = Path::new(&windir).join("System32").join("nvml.dll");
+        search_paths.push(path1);
+
+        // Then, check in Program Files
+        let program_files =
+            env::var("ProgramFiles").unwrap_or_else(|_| "C:\\Program Files".to_string());
+        let path2 = Path::new(&program_files)
+            .join("NVIDIA Corporation")
+            .join("NVSMI")
+            .join("nvml.dll");
+        search_paths.push(path2);
+
+        // Finally, check for NVML_DLL_PATH environment variable
+        if let Ok(nvml_path) = env::var("NVML_DLL_PATH") {
+            search_paths.push(PathBuf::from(nvml_path));
+        }
+
+        // Check if nvml.dll exists in any of the search paths
+        for path in &search_paths {
+            if path.exists() {
+                return Ok(path.clone());
+            }
+        }
+
+        return Err(NvmlError::NotFound);
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        // On Linux, return the standard library name
+        Ok(PathBuf::from("libnvidia-ml.so.1"))
+    }
+}
+
 pub struct NvidiaGpu {
     nvml: Nvml,
     cuda_version: String,
@@ -70,13 +113,13 @@ pub struct NvidiaGpu {
 
 impl NvidiaGpu {
     pub fn new() -> Result<Self, NvmlError> {
-        // Nvml::init() attempts to load libnvidia-ml.so which is usually a symlink
+        // On Linux, Nvml::init() attempts to load libnvidia-ml.so which is usually a symlink
         // to libnvidia-ml.so.1 and not available in certain environments.
         // We follow go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
         // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
-        let nvml = Nvml::builder()
-            .lib_path("libnvidia-ml.so.1".as_ref())
-            .init()?;
+        let lib_path = get_lib_path()?;
+
+        let nvml = Nvml::builder().lib_path(lib_path.as_os_str()).init()?;
         let cuda_version = nvml.sys_cuda_driver_version()?;
         format!(
             "{}.{}",
@@ -125,6 +168,7 @@ impl NvidiaGpu {
     }
 
     /// Check if a GPU is being used by a specific process or its descendants.
+    #[cfg(target_os = "linux")]
     fn gpu_in_use_by_process(&self, device: &Device, pid: i32) -> bool {
         let mut our_pids = Vec::new();
         if let Ok(descendant_pids) = self.get_descendant_pids(pid) {
@@ -144,7 +188,11 @@ impl NvidiaGpu {
     }
 
     /// Get descendant process IDs for a given parent PID.
+    #[cfg(target_os = "linux")]
     fn get_descendant_pids(&self, parent_pid: i32) -> Result<Vec<i32>, std::io::Error> {
+        use std::collections::HashSet;
+        use std::fs::read_to_string;
+
         let mut descendant_pids = Vec::new();
         let mut visited_pids = HashSet::new();
         let mut stack = vec![parent_pid];
@@ -172,6 +220,12 @@ impl NvidiaGpu {
         }
 
         Ok(descendant_pids)
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    fn gpu_in_use_by_process(&self, _device: &Device, _pid: i32) -> bool {
+        // TODO: Implement for other platforms
+        false
     }
 
     /// Samples GPU metrics using NVML.
