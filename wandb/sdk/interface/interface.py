@@ -399,7 +399,7 @@ class InterfaceBase:
             link_artifact.server_id = artifact.id if artifact.id else ""
         link_artifact.portfolio_name = portfolio_name
         link_artifact.portfolio_entity = entity or run.entity
-        link_artifact.portfolio_organization = organization
+        link_artifact.portfolio_organization = organization or ""
         link_artifact.portfolio_project = project or run.project
         link_artifact.portfolio_aliases.extend(aliases)
 
