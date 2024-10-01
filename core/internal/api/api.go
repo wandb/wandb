@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"github.com/wandb/wandb/core/internal/auth"
 	"github.com/wandb/wandb/core/internal/clients"
 )
 
@@ -48,7 +47,7 @@ type Backend struct {
 	logger *slog.Logger
 
 	// Credentials to apply for backend requests.
-	credentialProvider auth.CredentialProvider
+	credentialProvider CredentialProvider
 }
 
 // An HTTP client for interacting with the W&B backend.
@@ -139,7 +138,7 @@ type BackendOptions struct {
 	Logger *slog.Logger
 
 	// Credentials to apply on every request.
-	CredentialProvider auth.CredentialProvider
+	CredentialProvider CredentialProvider
 }
 
 // Creates a [Backend].
