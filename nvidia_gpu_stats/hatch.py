@@ -1,7 +1,6 @@
 """Builds the nvidia_gpu_stats binary for monitoring NVIDIA GPUs."""
 
 import pathlib
-import platform
 import subprocess
 
 
