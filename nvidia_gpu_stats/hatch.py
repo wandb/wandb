@@ -27,9 +27,6 @@ def build_nvidia_gpu_stats(
     rust_pkg_root = pathlib.Path("./nvidia_gpu_stats")
     built_binary_path = rust_pkg_root / "target" / "release" / "nvidia_gpu_stats"
 
-    if platform.system().lower() == "windows":
-        built_binary_path = built_binary_path.with_suffix(".exe")
-
     cmd = (
         str(cargo_binary),
         "build",

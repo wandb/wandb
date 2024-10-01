@@ -119,7 +119,6 @@ impl NvidiaGpu {
         // We follow go-nvml example and attempt to load libnvidia-ml.so.1 directly, see:
         // https://github.com/NVIDIA/go-nvml/blob/0e815c71ca6e8184387d8b502b2ef2d2722165b9/pkg/nvml/lib.go#L30
         let lib_path = get_lib_path()?;
-        println!("Using NVML library: {:?}", lib_path);
 
         let nvml = Nvml::builder().lib_path(lib_path.as_os_str()).init()?;
         let cuda_version = nvml.sys_cuda_driver_version()?;
