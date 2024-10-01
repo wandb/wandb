@@ -3559,13 +3559,14 @@ class Api:
                 "entityName": entity,
             },
         )
-        print(response)
-        org = response.get("organization")
-        if not org or not org.get("orgEntity"):
-            raise ValueError(
-                f"Registry organization not found for entity '{entity}'"
-            )  # TODO: please use valid path
-        return org["orgEntity"]["name"] or "", org["name"] or ""
+        try:
+            org = response["organization"]
+            org_name = org["name"] or ""
+            org_entity_name = org["orgEntity"]["name"] or ""
+        except (LookupError, TypeError) as e:
+            raise ValueError(f"Organization not found for entity {entity!r}") from e
+        else:
+            return org_entity_name, org_name
 
     def use_artifact(
         self,
@@ -3634,7 +3635,7 @@ class Api:
             return artifact
         return None
 
-    def server_organization_introspection(self) -> List:
+    def server_organization_introspection(self) -> List[str]:
         query_string = """
             query ProbeServerOrganization {
                 OrganizationInfoType: __type(name:"Organization") {
