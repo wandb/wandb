@@ -1,4 +1,5 @@
-﻿using Wandb.Internal;
+﻿using Serilog;
+using Wandb.Internal;
 
 namespace Wandb
 {
@@ -48,7 +49,8 @@ namespace Wandb
         /// </returns>
         /// <exception cref="InvalidOperationException">Thrown if the port is not set.</exception>
         public async Task<Run> Init(
-            Settings? settings = null
+            Settings? settings = null,
+            ILogger? logger = null
         )
         {
             await Setup().ConfigureAwait(false);
@@ -65,7 +67,7 @@ namespace Wandb
             {
                 throw new InvalidOperationException("Port not set");
             }
-            var run = new Run(new SocketInterface((int)_port, _settings.RunId), _settings);
+            var run = new Run(new SocketInterface((int)_port, _settings.RunId), _settings, logger);
             await run.Init().ConfigureAwait(false);
 
             return run;
