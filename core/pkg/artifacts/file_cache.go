@@ -17,6 +17,8 @@ import (
 const (
 	defaultDirPermissions  = 0777 // read/write/execute for all users.
 	defaultFilePermissions = 0666 // read/write for all users.
+
+	maxFileCacheIOTasks = 16
 )
 
 type Cache interface {
@@ -39,13 +41,13 @@ type HashOnlyCache struct {
 func NewFileCache(cacheDir string) Cache {
 	return &FileCache{
 		root:          filepath.Join(cacheDir, "artifacts"),
-		fileSemaphore: make(chan struct{}, 1),
+		fileSemaphore: make(chan struct{}, maxFileCacheIOTasks),
 	}
 }
 
 func NewHashOnlyCache() Cache {
 	return &HashOnlyCache{
-		fileSemaphore: make(chan struct{}, 1),
+		fileSemaphore: make(chan struct{}, maxFileCacheIOTasks),
 	}
 }
 
