@@ -8,6 +8,62 @@ import wandb
 import wandb.errors
 from wandb import wandb_sdk
 
+REFERENCE_ATTRIBUTES = set(
+    [
+        "alert",
+        "config",
+        "config_static",
+        "define_metric",
+        "detach",
+        "dir",
+        "disabled",
+        "display",
+        "entity",
+        "finish",
+        "finish_artifact",
+        "get_project_url",
+        "get_sweep_url",
+        "get_url",
+        "group",
+        "id",
+        "job_type",
+        "join",
+        "link_artifact",
+        "link_model",
+        "log",
+        "log_artifact",
+        "log_code",
+        "log_model",
+        "mark_preempting",
+        "mode",
+        "name",
+        "notes",
+        "offline",
+        "path",
+        "plot_table",
+        "project",
+        "project_name",
+        "restore",
+        "resumed",
+        "save",
+        "settings",
+        "start_time",
+        "starting_step",
+        "status",
+        "step",
+        "summary",
+        "sweep_id",
+        "tags",
+        "to_html",
+        "unwatch",
+        "upsert_artifact",
+        "url",
+        "use_artifact",
+        "use_model",
+        "watch",
+    ]
+)
+
 
 def test_run_step_property(mock_run):
     run = mock_run()
@@ -317,3 +373,12 @@ def test_error_when_using_attributes_of_finished_run(mock_run, attribute, value)
             setattr(getattr(run, attribute), *value)
         else:
             setattr(run, attribute, value)
+
+
+def test_new_attributes(mock_run):
+    run = mock_run()
+    current_attributes = set([attr for attr in dir(run) if not attr.startswith("_")])
+    added_attributes = current_attributes - REFERENCE_ATTRIBUTES
+    removed_attributes = REFERENCE_ATTRIBUTES - current_attributes
+    assert not added_attributes, f"New attributes: {added_attributes}"
+    assert not removed_attributes, f"Removed attributes: {removed_attributes}"
