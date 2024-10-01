@@ -41,7 +41,7 @@ from wandb.apis.normalize import normalize_exceptions, parse_backend_error_messa
 from wandb.errors import AuthenticationError, CommError, UnsupportedError, UsageError
 from wandb.integration.sagemaker import parse_sm_secrets
 from wandb.old.settings import Settings
-from wandb.sdk.artifacts.utils import is_artifact_registry_project
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.lib.gql_request import GraphQLSession
 from wandb.sdk.lib.hashutil import B64MD5, md5_file_b64
@@ -3468,8 +3468,6 @@ class Api:
         aliases: Sequence[str],
         organization: str,
     ) -> Dict[str, Any]:
-        wandb.termwarn("*** INTERNAL WE IN THE LINK ARTIFACT")
-        print("*** INTERNAL WE IN THE LINK ARTIFACT")
         template = """
                 mutation LinkArtifact(
                     $artifactPortfolioName: String!,
@@ -3493,18 +3491,22 @@ class Api:
         org_entity = ""
         if is_artifact_registry_project(project):
             org_fields = self.server_organization_introspection()
-            if "orgEntity" not in org_fields:
+            can_fetch_org_entity = "orgEntity" in org_fields
+            if not organization and not can_fetch_org_entity:
                 raise ValueError(
                     """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
-                    Please upgrade your server"""
+                    Please upgrade your server to XX or later."""
                 )
-            # Fetch the org_entity and org name that we are expecting. Note: this is making assumption that
-            org_entity, org_name = self.fetch_org_entity_from_entity(entity)
-            if organization:
-                if organization != org_name and organization != org_entity:
-                    raise ValueError(
-                        f"Input wrong organization: {organization} for registry: {project}/{portfolio_name}"
-                    )
+            elif can_fetch_org_entity:
+                org_entity, org_name = self.fetch_org_entity_from_entity(entity)
+                if organization:
+                    if organization != org_name and organization != org_entity:
+                        raise ValueError(
+                            f"Input wrong organization: {organization} for registry: {project}/{portfolio_name}"
+                        )
+            else:
+                # Server doesn't support fetching org entity, so we assume the org entity is correctly inputted
+                org_entity = organization
 
         def replace(a: str, b: str) -> None:
             nonlocal template
@@ -3517,8 +3519,6 @@ class Api:
             replace("ID_TYPE", "$clientID: ID")
             replace("ID_VALUE", "clientID: $clientID")
 
-        print("********* ", org_entity)
-        wandb.termwarn("***** org_entity: ", org_entity)
         variable_values = {
             "clientID": client_id,
             "artifactID": server_id,

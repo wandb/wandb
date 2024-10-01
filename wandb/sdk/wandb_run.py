@@ -52,7 +52,6 @@ from wandb.proto.wandb_internal_pb2 import (
     RunRecord,
 )
 from wandb.sdk.artifacts.artifact import Artifact
-from wandb.sdk.artifacts.utils import is_artifact_registry_project
 from wandb.sdk.internal import job_builder
 from wandb.sdk.lib.import_hooks import (
     register_post_import_hook,
@@ -70,7 +69,11 @@ from wandb.util import (
 )
 
 from . import wandb_config, wandb_metric, wandb_summary
-from .artifacts._validators import validate_aliases, validate_tags
+from .artifacts._validators import (
+    is_artifact_registry_project,
+    validate_aliases,
+    validate_tags,
+)
 from .data_types._dtypes import TypeRegistry
 from .interface.interface import FilesDict, GlobStr, InterfaceBase, PolicyName
 from .interface.summary_record import SummaryRecord
