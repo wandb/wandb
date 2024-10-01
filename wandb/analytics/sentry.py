@@ -96,7 +96,7 @@ class Sentry:
     def message(self, message: str, repeat: bool = True) -> Optional[str]:
         """Send a message to Sentry."""
         if not repeat and message in self._sent_messages:
-            return
+            return None
         self._sent_messages.add(message)
         with sentry_sdk.scope.use_isolation_scope(self.scope):  # type: ignore
             return sentry_sdk.capture_message(message)  # type: ignore
