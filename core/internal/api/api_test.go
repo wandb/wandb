@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/api"
 	"github.com/wandb/wandb/core/internal/apitest"
-	"github.com/wandb/wandb/core/internal/auth"
 	"github.com/wandb/wandb/core/internal/observability"
 	wbsettings "github.com/wandb/wandb/core/internal/settings"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -119,7 +118,7 @@ func newClient(
 	baseURL, err := url.Parse(settings.GetBaseURL())
 	require.NoError(t, err)
 
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
@@ -144,7 +143,7 @@ func TestNewClientWithProxy(t *testing.T) {
 	settings := wbsettings.From(&spb.Settings{
 		ApiKey: &wrapperspb.StringValue{Value: "test_api_key"},
 	})
-	credentialProvider, err := auth.NewCredentialProvider(settings)
+	credentialProvider, err := api.NewCredentialProvider(settings)
 	require.NoError(t, err)
 
 	backend := api.New(api.BackendOptions{
