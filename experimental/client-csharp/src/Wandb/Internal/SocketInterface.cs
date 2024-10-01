@@ -45,10 +45,13 @@ namespace Wandb.Internal
             {
                 Run = new RunRecord
                 {
+                    DisplayName = run.Settings.DisplayName,
+                    Entity = run.Settings.Entity,
                     Project = run.Settings.Project,
                     RunId = run.Settings.RunId,
                 }
             };
+            record.Run.Tags.AddRange(run.Settings.RunTags());
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
         }
 
@@ -63,7 +66,10 @@ namespace Wandb.Internal
         /// A task representing the asynchronous operation. The task result contains the <see cref="Result"/>.
         /// </returns>
         /// <exception cref="ArgumentNullException">Thrown if <paramref name="run"/> is <c>null</c>.</exception>
-        public async Task<Result> DeliverRunStart(Run run, int timeoutMilliseconds = 0)
+        public async Task<Result> DeliverRunStart(
+            Run run,
+            int timeoutMilliseconds = 0
+        )
         {
             ArgumentNullException.ThrowIfNull(run);
 
@@ -84,6 +90,18 @@ namespace Wandb.Internal
                             StartingStep = run.StartingStep,
                         }
                     },
+                }
+            };
+            return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
+        }
+
+        public async Task<Result> DeliverGetSummary(int timeoutMilliseconds = 0)
+        {
+            var record = new Record
+            {
+                Request = new Request
+                {
+                    GetSummary = new GetSummaryRequest { }
                 }
             };
             return await Deliver(record, timeoutMilliseconds).ConfigureAwait(false);
@@ -255,6 +273,24 @@ namespace Wandb.Internal
             };
             await Publish(record).ConfigureAwait(false);
         }
+
+
+        /// <summary>
+        /// Publishes a summary update to wandb-core.
+        /// </summary>
+        /// <param name="summary">The summary to publish.</param>
+        /// <returns>A task representing the asynchronous operation.</returns>
+        public async Task PublishSummary(SummaryRecord summary)
+        {
+            ArgumentNullException.ThrowIfNull(summary);
+
+            var record = new Record
+            {
+                Summary = summary
+            };
+            await Publish(record).ConfigureAwait(false);
+        }
+
 
         /// <summary>
         /// Publishes a record to the server without waiting for a response.

@@ -3,7 +3,7 @@
 import os
 from unittest import mock
 
-import pytest  # type: ignore
+import pytest
 import wandb
 
 
@@ -61,3 +61,54 @@ def test_no_dirs(wandb_init):
     run.log({"acc": 0.9})
     run.finish()
     assert not os.path.isdir("wandb")
+
+
+def test_access_properties(wandb_init):
+    run = wandb.init(mode="disabled")
+    assert run.dir
+    assert run.disabled
+    assert run.entity
+    assert run.project == ""
+    assert not run.resumed
+    assert run.start_time
+    assert run.starting_step == 0
+    assert run.step == 0
+    assert run.url is None
+    assert run.sweep_id is None
+    assert run.name
+    run.tags = ["tag"]
+    assert run.tags == ("tag",)
+    assert run.offline is False
+    assert run.path
+    run.notes = "notes"
+    assert run.notes == "notes"
+    run.name = "name"
+    assert run.name == "name"
+    assert run.mode == "run"
+    assert run.group == ""
+    assert run.job_type == ""
+    assert run.config_static
+
+    assert run.get_project_url() is None
+    assert run.get_sweep_url() is None
+    assert run.get_url() is None
+    assert run.project_name() == ""
+
+    assert run.status() is None
+
+    run.finish()
+
+
+def test_disabled_no_activity(wandb_init, relay_server):
+    with relay_server() as relay:
+        with wandb_init(settings={"mode": "disabled"}) as run:
+            run.alert("alert")
+            run.define_metric("metric")
+            run.log_code()
+            run.save()
+            run.restore()
+            run.plot_table("table")
+            run.mark_preempting()
+            run.to_html()
+            run.display()
+    assert relay.context.raw_data == []

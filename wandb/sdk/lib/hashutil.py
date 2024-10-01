@@ -3,7 +3,6 @@ from __future__ import annotations
 import base64
 import hashlib
 import mmap
-import os
 import sys
 from typing import TYPE_CHECKING, NewType
 
@@ -63,14 +62,8 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
     # Note: We use str paths (instead of pathlib.Path objs) for minor perf improvements.
     for path in sorted(map(str, paths)):
         with open(path, "rb") as f:
-            fileno = f.fileno()
-
-            # Don't bother with empty files, mmap fails on them anyway.
-            if not os.stat(fileno).st_size:
-                continue
-
             try:
-                with mmap.mmap(fileno, length=0, access=mmap.ACCESS_READ) as mview:
+                with mmap.mmap(f.fileno(), length=0, access=mmap.ACCESS_READ) as mview:
                     md5_hash.update(mview)
             except OSError:
                 # This occurs if the mmap-ed file is on a different/mounted filesystem,
@@ -83,4 +76,9 @@ def _md5_file_hasher(*paths: StrPath) -> _hashlib.HASH:
                 while chunk:
                     md5_hash.update(chunk)
                     chunk = f.read(_CHUNKSIZE)
+            except ValueError:
+                # This occurs when mmap-ing an empty file, which can be skipped.
+                # See: https://github.com/python/cpython/blob/986a4e1b6fcae7fe7a1d0a26aea446107dd58dd2/Modules/mmapmodule.c#L1589
+                pass
+
     return md5_hash

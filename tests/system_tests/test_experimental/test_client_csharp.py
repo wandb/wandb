@@ -29,3 +29,7 @@ def test_client_sharp(user, relay_server):
 
     history = relay.context.get_run_history(run_id)
     assert len(history) == 4
+
+    tags = set(relay.context.get_run_tags(run_id))
+    assert "c" in tags
+    assert "sharp" in tags
