@@ -84,7 +84,6 @@ func NewGPUNvidia(
 	if cmdPath == "" {
 		var err error
 		cmdPath, err = getCmdPath()
-		fmt.Println("cmdPath", cmdPath)
 		if err != nil {
 			return nil
 		}
@@ -108,7 +107,6 @@ func NewGPUNvidia(
 
 	// Get a pipe to read from the command's stdout.
 	stdout, err := g.cmd.StdoutPipe()
-	fmt.Println(err)
 	if err != nil {
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error getting stdout pipe: %v for command: %v", g.name, err, g.cmd),
@@ -117,7 +115,6 @@ func NewGPUNvidia(
 	}
 
 	if err := g.cmd.Start(); err != nil {
-		fmt.Println(err)
 		g.logger.CaptureError(
 			fmt.Errorf("monitor: %v: error starting command %v: %v", g.name, g.cmd, err),
 		)
@@ -243,7 +240,6 @@ func (g *GPUNvidia) Close() {
 
 // Probe gathers metadata about the GPU hardware.
 func (g *GPUNvidia) Probe() *spb.MetadataRequest {
-	fmt.Println("probe", g.IsAvailable())
 	if !g.IsAvailable() {
 		return nil
 	}
