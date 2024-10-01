@@ -44,7 +44,6 @@ type TPUChip struct {
 
 type RuntimeMetricServiceClient interface {
 	GetRuntimeMetric(ctx context.Context, in *tpuproto.MetricRequest, opts ...grpc.CallOption) (*tpuproto.MetricResponse, error)
-	ListSupportedMetrics(ctx context.Context, in *tpuproto.ListSupportedMetricsRequest, opts ...grpc.CallOption) (*tpuproto.ListSupportedMetricsResponse, error)
 }
 
 // TPU represents a TPU asset with gRPC connection and client.
@@ -60,9 +59,6 @@ type TPU struct {
 	// TPU runtime metrics are exposed via a gRPC server running on a Google Cloud TPU VM.
 	conn   *grpc.ClientConn
 	client RuntimeMetricServiceClient
-
-	// List of metrics available via the TPU runtime gRPC service.
-	supportedMetrics []*tpuproto.SupportedMetric
 
 	// TPU chip specifications.
 	chip *TPUChip
@@ -89,13 +85,6 @@ func NewTPU() *TPU {
 	client := tpuproto.NewRuntimeMetricServiceClient(conn)
 	t.conn = conn
 	t.client = client
-
-	// Get the list of supported metrics from the TPU runtime gRPC service.
-	supportedMetrics, err := t.getSupportedMetrics()
-	if err != nil {
-		return nil
-	}
-	t.supportedMetrics = supportedMetrics.GetSupportedMetric()
 
 	return t
 }
@@ -320,14 +309,4 @@ func (t *TPU) Probe() *spb.MetadataRequest {
 			DevicesPerChip: uint32(t.chip.DevicesPerChip),
 		},
 	}
-}
-
-// getSupportedMetrics retrieves the list of supported metrics from the TPU runtime gRPC service.
-func (t *TPU) getSupportedMetrics() (*tpuproto.ListSupportedMetricsResponse, error) {
-	ListSupportedMetricsRequest := &tpuproto.ListSupportedMetricsRequest{}
-	resp, err := t.client.ListSupportedMetrics(context.Background(), ListSupportedMetricsRequest)
-	if err != nil {
-		return nil, err
-	}
-	return resp, nil
 }

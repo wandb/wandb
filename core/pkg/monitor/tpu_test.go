@@ -28,10 +28,6 @@ func (m *mockRuntimeMetricServiceClient) GetRuntimeMetric(ctx context.Context, i
 	}, nil
 }
 
-func (m *mockRuntimeMetricServiceClient) ListSupportedMetrics(ctx context.Context, in *tpuproto.ListSupportedMetricsRequest, opts ...grpc.CallOption) (*tpuproto.ListSupportedMetricsResponse, error) {
-	return nil, nil
-}
-
 func TestTPUSample(t *testing.T) {
 	mockClient := &mockRuntimeMetricServiceClient{
 		metrics: map[monitor.TPUMetricName][]*tpuproto.Metric{

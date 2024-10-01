@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"runtime"
 
 	"github.com/wandb/wandb/core/internal/fileutil"
 	"github.com/wandb/wandb/core/internal/hashencode"
@@ -18,8 +17,6 @@ import (
 const (
 	defaultDirPermissions  = 0777 // read/write/execute for all users.
 	defaultFilePermissions = 0666 // read/write for all users.
-
-	maxFileCacheOperations = 128
 )
 
 type Cache interface {
@@ -41,21 +38,14 @@ type HashOnlyCache struct {
 
 func NewFileCache(cacheDir string) Cache {
 	return &FileCache{
-		root: filepath.Join(cacheDir, "artifacts"),
-
-		fileSemaphore: make(
-			chan struct{},
-			max(maxFileCacheOperations, runtime.NumCPU()),
-		),
+		root:          filepath.Join(cacheDir, "artifacts"),
+		fileSemaphore: make(chan struct{}, 1),
 	}
 }
 
 func NewHashOnlyCache() Cache {
 	return &HashOnlyCache{
-		fileSemaphore: make(
-			chan struct{},
-			max(maxFileCacheOperations, runtime.NumCPU()),
-		),
+		fileSemaphore: make(chan struct{}, 1),
 	}
 }
 
@@ -149,6 +139,9 @@ func addFileAndCheckDigest(c Cache, path string, digest string) error {
 // the hash is correct, RestoreTo leaves it alone and returns true. For reference
 // entries we don't know the expected hash and will always overwrite the file.
 func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
+	c.fileSemaphore <- struct{}{}
+	defer func() { <-c.fileSemaphore }()
+
 	var cachePath string
 	if entry.Ref != nil {
 		cachePath = c.etagPath(*entry.Ref, entry.Digest)
@@ -163,6 +156,7 @@ func (c *FileCache) RestoreTo(entry ManifestEntry, dst string) bool {
 			return false
 		}
 	}
+
 	return fileutil.CopyFile(cachePath, dst) == nil
 }
 
@@ -177,6 +171,10 @@ func (c *HashOnlyCache) RestoreTo(entry ManifestEntry, dst string) bool {
 	if entry.Ref != nil {
 		return false
 	}
+
+	c.fileSemaphore <- struct{}{}
+	defer func() { <-c.fileSemaphore }()
+
 	b64md5, err := hashencode.ComputeFileB64MD5(dst)
 	return err == nil && b64md5 == entry.Digest
 }
