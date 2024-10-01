@@ -20,34 +20,32 @@ INTERNAL_SENTRY_DSN_KEY = "INTERNALKEY"
 INTERNAL_SENTRY_PROJECT = "654321"
 CLIENT_MESSAGE = "client message"
 WANDB_MESSAGE = "wandb message"
-
-
-def _get_free_port() -> int:
-    sock = socket.socket()
-    sock.bind(("", 0))
-    _, port = sock.getsockname()
-    return port
-
-
-PORT = _get_free_port()
-API_SERVER_ADDRESS = f"127.0.0.1:{PORT}"
-WANDB_DSN_URL = (
-    f"http://{INTERNAL_SENTRY_DSN_KEY}@{API_SERVER_ADDRESS}/{INTERNAL_SENTRY_PROJECT}"
+API_SERVER_ADDRESS = "127.0.0.1:{port}"
+SENTRY_DSN_FORMAT = "http://{key}@{address}/{project}"
+WANDB_DSN_URL_FORMAT = SENTRY_DSN_FORMAT.format(
+    key=INTERNAL_SENTRY_DSN_KEY,
+    address=API_SERVER_ADDRESS,
+    project=INTERNAL_SENTRY_PROJECT,
 )
-EXTERNAL_DSN_URL = (
-    f"http://{EXTERNAL_SENTRY_DSN_KEY}@{API_SERVER_ADDRESS}/{EXTERNAL_SENTRY_PROJECT}"
+EXTERNAL_DSN_URL_FORMAT = SENTRY_DSN_FORMAT.format(
+    key=EXTERNAL_SENTRY_DSN_KEY,
+    address=API_SERVER_ADDRESS,
+    project=EXTERNAL_SENTRY_PROJECT,
 )
 
-os.environ[wandb.env.ERROR_REPORTING] = "True"
-os.environ[wandb.env.SENTRY_DSN] = WANDB_DSN_URL
 
-
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module", autouse=True)
 def relay():
     relay_server = MetricRelayServer()
     relay_server.start()
 
     return relay_server
+
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_env(relay):
+    os.environ[wandb.env.ERROR_REPORTING] = "True"
+    os.environ[wandb.env.SENTRY_DSN] = WANDB_DSN_URL_FORMAT.format(port=relay.port)
 
 
 class MetricRelayServer:
@@ -57,6 +55,7 @@ class MetricRelayServer:
         self,
     ) -> None:
         self.is_running = False
+        self.port = self._get_free_port()
         self.app = flask.Flask(__name__)
         self.app.add_url_rule(
             rule="/api/<project_id>/envelope/",
@@ -68,7 +67,8 @@ class MetricRelayServer:
             methods=["GET"],
             view_func=self.ping,
         )
-        self.relay_url = f"http://127.0.0.1:{PORT}"
+        self.relay_url = f"http://127.0.0.1:{self.port}"
+
         self._sentry_responses = []
 
     def start(self) -> None:
@@ -76,7 +76,7 @@ class MetricRelayServer:
         relay_server_thread = threading.Thread(
             target=self.app.run,
             kwargs={
-                "port": PORT,
+                "port": self.port,
             },
             daemon=True,
         )
@@ -91,6 +91,13 @@ class MetricRelayServer:
                 continue
 
         self.is_running = True
+
+    @staticmethod
+    def _get_free_port() -> int:
+        sock = socket.socket()
+        sock.bind(("", 0))
+        _, port = sock.getsockname()
+        return port
 
     def extract_sentry_message_details(self, event_data):
         decompressed_data = zlib.decompress(event_data, 16 + zlib.MAX_WBITS)
@@ -164,7 +171,9 @@ Tests initializning wandb sentry scope after the client has already initialized 
 
 
 def test_wandbsentry_initafterclientinit(relay):
-    sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
+    sentry_sdk.init(
+        dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
+    )
     wandb_sentry = wandb.analytics.Sentry()
     wandb_sentry.setup()
 
@@ -204,7 +213,9 @@ Tests initializning wandb sentry scope after the client has already sent a sentr
 
 def test_wandbsentry_initafterclientwrite(relay):
     # Setup test
-    sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
+    sentry_sdk.init(
+        dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
+    )
     sentry_sdk.set_tag("test", "tag")
 
     # Send client sentry events
@@ -250,7 +261,9 @@ def test_wandbsentry_initializedfirst(relay):
     wandb_sentry.setup()
     wandb_sentry.configure_scope(tags={"entity": "tag"})
 
-    sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
+    sentry_sdk.init(
+        dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
+    )
     sentry_sdk.set_tag("test", "tag")
 
     # Send sentry events
@@ -294,7 +307,9 @@ def test_wandbsentry_writefirst(relay):
     wandb_sentry.configure_scope(tags={"entity": "tag"})
     wandb_event_id = wandb_sentry.message(WANDB_MESSAGE)
 
-    sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
+    sentry_sdk.init(
+        dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
+    )
     sentry_sdk.set_tag("test", "tag")
 
     # Send sentry events
@@ -337,7 +352,9 @@ Tests initializning wandb sentry scope after the client has already initialized 
 
 
 def test_wandbsentry_exception(relay):
-    sentry_sdk.init(dsn=EXTERNAL_DSN_URL, default_integrations=False)
+    sentry_sdk.init(
+        dsn=EXTERNAL_DSN_URL_FORMAT.format(port=relay.port), default_integrations=False
+    )
     wandb_sentry = wandb.analytics.Sentry()
     wandb_sentry.setup()
 
