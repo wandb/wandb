@@ -118,7 +118,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let sampling_start = Instant::now();
 
         // Check if parent process is still alive and break loop if not
-        if args.ppid > 0 && !is_parent_alive(args.ppid) {
+        if !is_parent_alive(args.ppid) {
             break;
         }
 
