@@ -441,7 +441,7 @@ jobs:
       - name: Create and switch to dev branch
         run: |
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
-          new_version="${major}.${minor}.$((patch + 1)).dev1"
+          new_version="${major}.${minor}.$((patch + 1))-dev1"
           git checkout -b bump-${new_version}
           bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${new_version}
           git commit -am "chore(sdk): bump version to ${new_version}"
@@ -452,7 +452,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           IFS='.' read -r major minor patch <<< "${{ github.event.inputs.version }}"
-          new_version="${major}.${minor}.$((patch + 1)).dev1"
+          new_version="${major}.${minor}.$((patch + 1))-dev1"
           gh pr create --base main --head bump-${new_version} --title "chore(sdk): bump version to ${new_version}" --body "This PR bumps the version to the next dev version after the release of ${{ github.event.inputs.version }}."
 
 
