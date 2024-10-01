@@ -105,6 +105,7 @@ class Context:
         self._summary: Optional[pd.DataFrame] = None
         self._config: Optional[Dict[str, Any]] = None
         self._output: Optional[Any] = None
+        self._tags: Optional[Dict[str, List[str]]] = None
 
     def upsert(self, entry: Dict[str, Any]) -> None:
         try:
@@ -194,6 +195,14 @@ class Context:
         self._config = {k: v["config"] for (k, v) in self._entries.items() if k}
         return deepcopy(self._config)
 
+    @property
+    def tags(self) -> Dict[str, List[str]]:
+        if self._tags is not None:
+            return deepcopy(self._tags)
+
+        self._tags = {k: v["tags"] for (k, v) in self._entries.items() if k}
+        return deepcopy(self._tags)
+
     # @property
     # def telemetry(self) -> pd.DataFrame:
     #     telemetry = pd.DataFrame.from_records(
@@ -231,6 +240,9 @@ class Context:
             else run_summary
         ).to_dict(orient="records")
         return ret[0] if len(ret) > 0 else {}
+
+    def get_run_tags(self, run_id: str) -> List[str]:
+        return self.tags.get(run_id, [])
 
     def get_run_history(
         self, run_id: str, include_private: bool = False

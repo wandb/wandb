@@ -70,6 +70,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         e
     })?;
 
+    // TODO:
+    // Set the parent-death signal to SIGTERM
+    // set_pdeathsig(Signal::SIGTERM)?;
+
     // Set up a flag to control the main sampling loop
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();

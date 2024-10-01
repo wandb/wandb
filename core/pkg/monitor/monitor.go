@@ -130,7 +130,8 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	if network := NewNetwork(); network != nil {
 		sm.assets = append(sm.assets, network)
 	}
-	if gpu := NewGPUNvidia(sm.logger, pid, samplingInterval); gpu != nil {
+	cmdPath := ""
+	if gpu := NewGPUNvidia(sm.logger, pid, samplingInterval, cmdPath); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
 	}
 	if gpu := NewGPUAMD(sm.logger); gpu != nil {
@@ -138,6 +139,9 @@ func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
 	}
 	if gpu := NewGPUApple(); gpu != nil {
 		sm.assets = append(sm.assets, gpu)
+	}
+	if tpu := NewTPU(); tpu != nil {
+		sm.assets = append(sm.assets, tpu)
 	}
 	if slurm := NewSLURM(); slurm != nil {
 		sm.assets = append(sm.assets, slurm)
