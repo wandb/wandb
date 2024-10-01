@@ -51,6 +51,7 @@ type GPUNvidia struct {
 	cmd              *exec.Cmd
 	logger           *observability.CoreLogger
 	waitOnce         sync.Once
+	doneCh           chan struct{}
 }
 
 // NewGPUNvidia creates a new GPUNvidia instance configured to monitor NVIDIA GPUs.
@@ -68,6 +69,7 @@ func NewGPUNvidia(
 		pid:              pid,
 		samplingInterval: samplingInterval,
 		logger:           logger,
+		doneCh:           make(chan struct{}),
 	}
 
 	if cmdPath == "" {
@@ -145,13 +147,16 @@ func NewGPUNvidia(
 
 // isRunning checks if the command is running.
 func (g *GPUNvidia) isRunning() bool {
+	select {
+	case <-g.doneCh:
+		// Process has exited
+		return false
+	default:
+	}
+
 	g.cmdMutex.Lock()
 	defer g.cmdMutex.Unlock()
 	if g.cmd.Process == nil {
-		return false
-	}
-	// Check if the process has exited
-	if g.cmd.ProcessState != nil && g.cmd.ProcessState.Exited() {
 		return false
 	}
 	return true
@@ -165,7 +170,9 @@ func (g *GPUNvidia) waitWithTimeout(timeout time.Duration) {
 	// Wait for the process to exit
 	go func() {
 		g.waitOnce.Do(func() {
-			done <- g.cmd.Wait()
+			err := g.cmd.Wait()
+			close(g.doneCh) // <-- Signal that the process has exited
+			done <- err
 		})
 	}()
 
@@ -237,7 +244,9 @@ func (g *GPUNvidia) Close() {
 	}
 	// Send signal to the process to exit.
 	g.cmdMutex.Lock()
-	_ = g.cmd.Process.Signal(os.Kill)
+	if g.cmd.Process != nil {
+		_ = g.cmd.Process.Signal(os.Kill)
+	}
 	g.cmdMutex.Unlock()
 	// We must ensure that the command is waited for to avoid zombie processes.
 	g.waitWithTimeout(5 * time.Second)
