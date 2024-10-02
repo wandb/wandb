@@ -23,6 +23,7 @@ import (
 	"github.com/wandb/wandb/core/internal/tensorboard"
 	"github.com/wandb/wandb/core/internal/version"
 	"github.com/wandb/wandb/core/internal/watcher"
+	"github.com/wandb/wandb/core/internal/wboperation"
 	"github.com/wandb/wandb/core/pkg/monitor"
 
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
@@ -142,6 +143,7 @@ type StreamOptions struct {
 func NewStream(
 	opts StreamOptions,
 ) *Stream {
+	operations := wboperation.NewOperations()
 
 	logger := streamLogger(opts.Settings, opts.Sentry, opts.LoggerPath)
 	s := &Stream{
@@ -184,6 +186,7 @@ func NewStream(
 		fileStreamOrNil = NewFileStream(
 			backendOrNil,
 			s.logger,
+			operations,
 			terminalPrinter,
 			opts.Settings,
 			peeker,
@@ -196,6 +199,7 @@ func NewStream(
 		runfilesUploaderOrNil = NewRunfilesUploader(
 			s.runWork,
 			s.logger,
+			operations,
 			opts.Settings,
 			fileStreamOrNil,
 			fileTransferManagerOrNil,
@@ -209,6 +213,7 @@ func NewStream(
 	s.handler = NewHandler(opts.Commit,
 		HandlerParams{
 			Logger:            s.logger,
+			Operations:        operations,
 			Settings:          s.settings.Proto,
 			FwdChan:           make(chan runwork.Work, BufferSize),
 			OutChan:           make(chan *spb.Result, BufferSize),
@@ -246,6 +251,7 @@ func NewStream(
 		s.runWork,
 		SenderParams{
 			Logger:              s.logger,
+			Operations:          operations,
 			Settings:            s.settings,
 			Backend:             backendOrNil,
 			FileStream:          fileStreamOrNil,

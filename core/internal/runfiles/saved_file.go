@@ -1,21 +1,25 @@
 package runfiles
 
 import (
+	"context"
+	"fmt"
 	"sync"
 
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
+	"github.com/wandb/wandb/core/internal/wboperation"
 )
 
 // savedFile is a file in the run's files directory.
 type savedFile struct {
 	sync.Mutex
 
-	fs     filestream.FileStream
-	ftm    filetransfer.FileTransferManager
-	logger *observability.CoreLogger
+	fs         filestream.FileStream
+	ftm        filetransfer.FileTransferManager
+	logger     *observability.CoreLogger
+	operations *wboperation.WandbOperations
 
 	// The path to the actual file.
 	realPath string
@@ -50,15 +54,17 @@ func newSavedFile(
 	fs filestream.FileStream,
 	ftm filetransfer.FileTransferManager,
 	logger *observability.CoreLogger,
+	operations *wboperation.WandbOperations,
 	realPath string,
 	runPath paths.RelativePath,
 ) *savedFile {
 	return &savedFile{
-		fs:       fs,
-		ftm:      ftm,
-		logger:   logger,
-		realPath: realPath,
-		runPath:  runPath,
+		fs:         fs,
+		ftm:        ftm,
+		logger:     logger,
+		operations: operations,
+		realPath:   realPath,
+		runPath:    runPath,
 
 		wg: &sync.WaitGroup{},
 	}
@@ -99,7 +105,10 @@ func (f *savedFile) Upload(
 //
 // It must be called while a lock is held. It temporarily releases the lock.
 func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
+	op := f.operations.New(fmt.Sprintf("uploading %s", string(f.runPath)))
+
 	task := &filetransfer.DefaultUploadTask{
+		Context:  op.Context(context.Background()),
 		FileKind: f.category,
 		Path:     f.realPath,
 		Name:     string(f.runPath),
@@ -109,7 +118,10 @@ func (f *savedFile) doUpload(uploadURL string, uploadHeaders []string) {
 
 	f.isUploading = true
 	f.wg.Add(1)
-	task.OnComplete = func() { f.onFinishUpload(task) }
+	task.OnComplete = func() {
+		op.Finish()
+		f.onFinishUpload(task)
+	}
 
 	// Temporarily unlock while we run arbitrary code.
 	f.Unlock()
