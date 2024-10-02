@@ -3490,7 +3490,7 @@ class Api:
 
         org_entity = ""
         if is_artifact_registry_project(project):
-            org_entity = self._resolve_org_entity_name(entity, organization)
+            org_entity = self.resolve_org_entity_name(entity, organization)
 
         def replace(a: str, b: str) -> None:
             nonlocal template
@@ -3520,7 +3520,9 @@ class Api:
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
-    def _resolve_org_entity_name(self, entity: str, organization: str) -> str:
+    def resolve_org_entity_name(
+        self, entity: str, organization: str | None = None
+    ) -> str:
         # Fetches the org entity of the portfolio entity to
         # 1. validate the user inputted the correct display org name or org entity name and
         # 2. return the org entity name so we can use the correct entity name to link the artifact.

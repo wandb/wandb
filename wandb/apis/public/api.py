@@ -27,6 +27,7 @@ from wandb.apis import public
 from wandb.apis.internal import Api as InternalApi
 from wandb.apis.normalize import normalize_exceptions
 from wandb.apis.public.const import RETRY_TIMEDELTA
+from wandb.sdk.artifacts._validators import is_artifact_registry_project
 from wandb.sdk.internal.thread_local_settings import _thread_local_api_settings
 from wandb.sdk.launch.utils import LAUNCH_DEFAULT_PROJECT
 from wandb.sdk.lib import retry, runid
@@ -1157,8 +1158,14 @@ class Api:
         if name is None:
             raise ValueError("You must specify name= to fetch an artifact.")
         entity, project, artifact_name = self._parse_artifact_path(name)
+
+        organization = None
+        # If its an Registry artifact, the entity is an org instead
+        if is_artifact_registry_project(project):
+            parts = name.split("/")
+            organization = parts[0] if len(parts) == 3 else None
         artifact = wandb.Artifact._from_name(
-            entity, project, artifact_name, self.client
+            entity, project, artifact_name, self.client, organization
         )
         if type is not None and artifact.type != type:
             raise ValueError(

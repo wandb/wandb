@@ -41,6 +41,7 @@ from wandb.errors.term import termerror, termlog, termwarn
 from wandb.sdk.artifacts._validators import (
     ensure_logged,
     ensure_not_finalized,
+    is_artifact_registry_project,
     validate_aliases,
     validate_tags,
 )
@@ -231,7 +232,12 @@ class Artifact:
 
     @classmethod
     def _from_name(
-        cls, entity: str, project: str, name: str, client: RetryingClient
+        cls,
+        entity: str,
+        project: str,
+        name: str,
+        client: RetryingClient,
+        organization: str | None = None,
     ) -> Artifact:
         query = gql(
             """
@@ -249,6 +255,11 @@ class Artifact:
             """
             + cls._get_gql_artifact_fragment()
         )
+
+        # Registry artifacts use the org entity name to fetch the artifact and we offer aliases for this path
+        if is_artifact_registry_project(project):
+            entity = InternalApi().resolve_org_entity_name(entity, organization)
+
         response = client.execute(
             query,
             variable_values={
