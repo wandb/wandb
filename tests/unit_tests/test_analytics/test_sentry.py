@@ -1,30 +1,20 @@
 import os
-import time
 from unittest import mock
 
 import pytest
 import wandb
 import wandb.analytics
 import wandb.env
+from constants import (
+    EXTERNAL_DSN_URL_FORMAT,
+    EXTERNAL_SENTRY_DSN_KEY,
+    EXTERNAL_SENTRY_PROJECT,
+    INTERNAL_SENTRY_DSN_KEY,
+    INTERNAL_SENTRY_PROJECT,
+    WANDB_DSN_URL_FORMAT,
+)
 from sentry_relay import MetricRelayServer
 from sentry_sdk.utils import sentry_sdk
-
-EXTERNAL_SENTRY_DSN_KEY = "EXTERNALKEY"
-EXTERNAL_SENTRY_PROJECT = "123456"
-INTERNAL_SENTRY_DSN_KEY = "INTERNALKEY"
-INTERNAL_SENTRY_PROJECT = "654321"
-API_SERVER_ADDRESS = "127.0.0.1:{port}"
-SENTRY_DSN_FORMAT = "http://{key}@{address}/{project}"
-WANDB_DSN_URL_FORMAT = SENTRY_DSN_FORMAT.format(
-    key=INTERNAL_SENTRY_DSN_KEY,
-    address=API_SERVER_ADDRESS,
-    project=INTERNAL_SENTRY_PROJECT,
-)
-EXTERNAL_DSN_URL_FORMAT = SENTRY_DSN_FORMAT.format(
-    key=EXTERNAL_SENTRY_DSN_KEY,
-    address=API_SERVER_ADDRESS,
-    project=EXTERNAL_SENTRY_PROJECT,
-)
 
 
 @pytest.fixture(scope="module")
@@ -35,20 +25,6 @@ def relay():
     yield relay_server
 
     relay_server.stop()
-
-
-def wait_for_events(relay, event_ids, timeout=5):
-    start_time = time.time()
-    end_time = start_time + timeout
-
-    while (
-        not all(event_id in relay.events for event_id in event_ids)
-        and time.time() < end_time
-    ):
-        time.sleep(0.1)
-
-    for event_id in event_ids:
-        assert event_id in relay.events
 
 
 # Helps in checking that no data is leaked between wandb sentry events and client sentry events
@@ -97,7 +73,7 @@ def test_wandb_sentry_init_after_client_init(relay):
         client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
         wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
-        wait_for_events(relay, [client_event_id, wandb_event_id])
+        relay.wait_for_events([client_event_id, wandb_event_id])
 
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]
@@ -144,7 +120,7 @@ def test_wandb_sentry_init_after_client_write(relay):
         wandb_sentry.configure_scope(tags={"entity": "tag"})
         wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
-        wait_for_events(relay, [client_event_id, wandb_event_id])
+        relay.wait_for_events([client_event_id, wandb_event_id])
 
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]
@@ -194,7 +170,7 @@ def test_wandb_sentry_initialized_first(relay):
         client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
         wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
 
-        wait_for_events(relay, [client_event_id, wandb_event_id])
+        relay.wait_for_events([client_event_id, wandb_event_id])
 
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]
@@ -244,7 +220,7 @@ def test_wandb_sentry_write_first(relay):
         client_event_id = sentry_sdk.capture_message(other_sentry_client_message)
         wandb_event_id2 = wandb_sentry.message(wandb_sentry_client_message + "2")
 
-        wait_for_events(relay, [client_event_id, wandb_event_id, wandb_event_id2])
+        relay.wait_for_events([client_event_id, wandb_event_id, wandb_event_id2])
 
         wandb_envelope = relay.events[wandb_event_id]
         wandb_envelope2 = relay.events[wandb_event_id2]
@@ -290,10 +266,12 @@ def test_wandb_sentry_exception(relay):
         # Send sentry events
         sentry_sdk.set_tag("test", "tag")
         wandb_sentry.configure_scope(tags={"entity": "tag"})
-        client_event_id = sentry_sdk.capture_exception(Exception(other_sentry_client_message))
+        client_event_id = sentry_sdk.capture_exception(
+            Exception(other_sentry_client_message)
+        )
         wandb_event_id = wandb_sentry.exception(Exception(wandb_sentry_client_message))
 
-        wait_for_events(relay, [client_event_id, wandb_event_id])
+        relay.wait_for_events([client_event_id, wandb_event_id])
 
         wandb_envelope = relay.events[wandb_event_id]
         client_envelope = relay.events[client_event_id]

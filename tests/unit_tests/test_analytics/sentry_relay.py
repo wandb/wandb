@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 import zlib
 
 import flask
@@ -78,6 +79,18 @@ class MetricRelayServer:
         _, port = sock.getsockname()
         return port
 
+    def wait_for_events(self, event_ids, timeout=5):
+        start_time = time.time()
+        end_time = start_time + timeout
+
+        while (
+            not all(event_id in self.events for event_id in event_ids)
+            and time.time() < end_time
+        ):
+            time.sleep(0.1)
+
+        for event_id in event_ids:
+            assert event_id in self.events
 
     def sentry(self, project_id):
         decompressed_data = zlib.decompress(request.get_data(), 16 + zlib.MAX_WBITS)
