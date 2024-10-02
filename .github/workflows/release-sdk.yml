@@ -69,17 +69,16 @@ jobs:
             exit 1
           fi
 
-          dotnet tool install --tool-path ./.dotnet_tools dotnet-setversion
-          export PATH="$PATH:$(pwd)/.dotnet_tools"
-
-          # Path to the project
-          export PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
-          if [ -z "$VERSION_SUFFIX" ]; then
-            setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
+          # Replace or add the <Version> element in the csproj file
+          if grep -q '<Version>.*</Version>' "$PROJECT_PATH"; then
+            # Replace existing <Version> element
+            sed -i.bak 's|<Version>.*</Version>|<Version>'"$VERSION"'</Version>|' "$PROJECT_PATH"
           else
-            setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
+            # Add <Version> element under the first <PropertyGroup>
+            sed -i.bak '0,/<PropertyGroup>/s|<PropertyGroup>|<PropertyGroup>\n    <Version>'"$VERSION"'</Version>|' "$PROJECT_PATH"
           fi
-          setversion --version "0.19.0" "experimental/client-csharp/src/Wandb/Wandb.csproj"
+
+          # Verify the update
           cat "$PROJECT_PATH"
 
       - name: Update CHANGELOG.md
