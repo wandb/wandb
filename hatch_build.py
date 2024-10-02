@@ -15,7 +15,7 @@ from typing_extensions import override
 sys.path.insert(0, str(pathlib.Path(__file__).parent))
 from apple_stats import hatch as hatch_apple_stats  # noqa: I001 E402
 from core import hatch as hatch_core  # noqa: I001 E402
-from nvidia_gpu_stats import hatch as hatch_nvidia_gpu_stats  # noqa: I001 E402
+from gpu_stats import hatch as hatch_gpu_stats  # noqa: I001 E402
 
 # Necessary inputs for releases.
 _WANDB_RELEASE_COMMIT = "WANDB_RELEASE_COMMIT"
@@ -45,8 +45,8 @@ class CustomBuildHook(BuildHookInterface):
         if self._include_apple_stats():
             artifacts.extend(self._build_apple_stats())
 
-        if self._include_nvidia_gpu_stats():
-            artifacts.extend(self._build_nvidia_gpu_stats())
+        if self._include_gpu_stats():
+            artifacts.extend(self._build_gpu_stats())
 
         if self._is_platform_wheel():
             build_data["tag"] = f"py3-none-{self._get_platform_tag()}"
@@ -99,8 +99,8 @@ class CustomBuildHook(BuildHookInterface):
             and self._target_platform().goarch == "arm64"
         )
 
-    def _include_nvidia_gpu_stats(self) -> bool:
-        """Returns whether we should produce a wheel with nvidia_gpu_stats."""
+    def _include_gpu_stats(self) -> bool:
+        """Returns whether we should produce a wheel with gpu_stats."""
         return not _get_env_bool(
             _WANDB_BUILD_SKIP_NVIDIA, default=False
         ) and self._target_platform().goos in ("linux", "windows")
@@ -129,13 +129,13 @@ class CustomBuildHook(BuildHookInterface):
 
         return pathlib.Path(cargo)
 
-    def _build_nvidia_gpu_stats(self) -> List[str]:
-        output = pathlib.Path("wandb", "bin", "nvidia_gpu_stats")
+    def _build_gpu_stats(self) -> List[str]:
+        output = pathlib.Path("wandb", "bin", "gpu_stats")
         if self._target_platform().goos == "windows":
             output = output.with_suffix(".exe")
 
-        self.app.display_waiting("Building nvidia_gpu_stats Rust binary...")
-        hatch_nvidia_gpu_stats.build_nvidia_gpu_stats(
+        self.app.display_waiting("Building gpu_stats Rust binary...")
+        hatch_gpu_stats.build_gpu_stats(
             cargo_binary=self._get_and_require_cargo_binary(),
             output_path=output,
         )

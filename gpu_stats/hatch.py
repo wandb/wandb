@@ -1,4 +1,4 @@
-"""Builds the nvidia_gpu_stats binary for monitoring NVIDIA GPUs."""
+"""Builds the gpu_stats binary for monitoring NVIDIA and Apple ARM GPUs."""
 
 import pathlib
 import platform
@@ -9,11 +9,11 @@ class NvidiaGpuStatsBuildError(Exception):
     """Raised when building Nvidia GPU stats fails."""
 
 
-def build_nvidia_gpu_stats(
+def build_gpu_stats(
     cargo_binary: pathlib.Path,
     output_path: pathlib.Path,
 ) -> None:
-    """Builds the `nvidia_gpu_stats` Rust binary for monitoring NVIDIA GPUs.
+    """Builds the `gpu_stats` Rust binary for monitoring NVIDIA and Apple ARM GPUs.
 
     NOTE: Cargo creates a cache under `./target/release` which speeds up subsequent builds,
     but may grow large over time and/or cause issues when changing the commands here.
@@ -24,8 +24,8 @@ def build_nvidia_gpu_stats(
         output_path: The path where to output the binary, relative to the
             workspace root.
     """
-    rust_pkg_root = pathlib.Path("./nvidia_gpu_stats")
-    built_binary_path = rust_pkg_root / "target" / "release" / "nvidia_gpu_stats"
+    rust_pkg_root = pathlib.Path("./gpu_stats")
+    built_binary_path = rust_pkg_root / "target" / "release" / "gpu_stats"
 
     if platform.system().lower() == "windows":
         built_binary_path = built_binary_path.with_suffix(".exe")
@@ -40,7 +40,7 @@ def build_nvidia_gpu_stats(
         subprocess.check_call(cmd, cwd=rust_pkg_root)
     except subprocess.CalledProcessError as e:
         raise NvidiaGpuStatsBuildError(
-            "Failed to build the `nvidia_gpu_stats` Rust binary. If you didn't"
+            "Failed to build the `gpu_stats` Rust binary. If you didn't"
             " break the build, you may need to install Rust; see"
             " https://www.rust-lang.org/tools/install."
             "\n\n"
