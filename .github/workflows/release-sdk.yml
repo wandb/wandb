@@ -73,13 +73,13 @@ jobs:
           export PATH="$PATH:$HOME/.dotnet/tools"
 
           # Path to the project
-          PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
+          export PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
           if [ -z "$VERSION_SUFFIX" ]; then
             setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
           else
             setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
           fi
-
+          setversion --version "0.19.0" "experimental/client-csharp/src/Wandb/Wandb.csproj"
           cat "$PROJECT_PATH"
 
       - name: Update CHANGELOG.md
