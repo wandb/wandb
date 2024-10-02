@@ -28,6 +28,73 @@ def assert_wandb_and_client_events(wandb_envelope, client_envelope):
     assert wandb_envelope.tags != client_envelope.tags
 
 
+def test_wandb_sentry_does_not_interfer_with_global_sentry_sdk(relay):
+    """
+    Test that wandb sentry initialization does not interfere with global sentry_sdk.
+    """
+    other_sentry_public_key = "OTHER_SENTRY_PUBLIC_KEY"
+    other_sentry_project_id = "654321"
+    wandb_sentry_public_key = "WANDB_SENTRY_PUBLIC_KEY"
+    wandb_sentry_project_id = "123456"
+    with mock.patch.dict(
+        os.environ,
+        {
+            wandb.env.ERROR_REPORTING: "true",
+            wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
+                key=wandb_sentry_public_key,
+                port=relay.port,
+                project=wandb_sentry_project_id,
+            ),
+        },
+    ):
+        sentry_sdk.init(
+            dsn=SENTRY_DSN_FORMAT.format(
+                key=other_sentry_public_key,
+                port=relay.port,
+                project=other_sentry_project_id,
+            ),
+            default_integrations=False,
+        )
+        wandb_sentry = wandb.analytics.Sentry()
+        wandb_sentry.setup()
+
+        assert sentry_sdk.get_current_scope() != wandb_sentry.scope
+        assert (
+            sentry_sdk.get_current_scope().client.dsn != wandb_sentry.scope.client.dsn
+        )
+
+
+def test_wandb_error_reporting_disabled(relay):
+    """
+    Test that no events are sent when error reporting is disabled.
+    """
+    wandb_sentry_client_message = "wandb message"
+    wandb_sentry_public_key = "WANDB_SENTRY_PUBLIC_KEY"
+    wandb_sentry_project_id = "123456"
+    with mock.patch.dict(
+        os.environ,
+        {
+            wandb.env.ERROR_REPORTING: "false",
+            wandb.env.SENTRY_DSN: SENTRY_DSN_FORMAT.format(
+                key=wandb_sentry_public_key,
+                port=relay.port,
+                project=wandb_sentry_project_id,
+            ),
+        },
+    ):
+        wandb_sentry = wandb.analytics.Sentry()
+        wandb_sentry.setup()
+
+        wandb_sentry.configure_scope(tags={"entity": "tag"})
+        wandb_event_id = wandb_sentry.message(wandb_sentry_client_message)
+
+        try:
+            relay.wait_for_events([wandb_event_id], timeout=1)
+            raise Exception("No events should have been sent")
+        except AssertionError:
+            pass
+
+
 def test_wandb_sentry_init_after_client_init(relay):
     """
     Tests initializning wandb sentry scope after the client has already initialized sentry.
