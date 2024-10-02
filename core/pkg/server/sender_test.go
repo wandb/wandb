@@ -1,198 +1,283 @@
 package server_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/coretest"
-	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/observability"
+	"github.com/wandb/wandb/core/internal/filetransfer"
+	"github.com/wandb/wandb/core/internal/gqlmock"
+	"github.com/wandb/wandb/core/internal/mailbox"
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runworktest"
+	wbsettings "github.com/wandb/wandb/core/internal/settings"
+	"github.com/wandb/wandb/core/internal/watchertest"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 )
 
-func makeSender(client graphql.Client, resultChan chan *service.Result) *server.Sender {
-	ctx, cancel := context.WithCancel(context.Background())
+const validUpsertBucketResponse = `{
+	"upsertBucket": {
+		"bucket": {
+			"displayName": "FakeName",
+			"project": {
+				"name": "FakeProject",
+				"entity": {
+					"name": "FakeEntity"
+				}
+			}
+		}
+	}
+}`
+
+const validLinkArtifactResponse = `{
+	"linkArtifact": { "versionIndex": 0 }
+}`
+
+func makeSender(client graphql.Client, recordChan chan *spb.Record, resultChan chan *spb.Result) *server.Sender {
+	runWork := runworktest.New()
 	logger := observability.NewNoOpLogger()
-	sender := server.NewSender(
-		ctx,
-		cancel,
+	settings := wbsettings.From(&spb.Settings{
+		RunId:   &wrapperspb.StringValue{Value: "run1"},
+		Console: &wrapperspb.StringValue{Value: "off"},
+		ApiKey:  &wrapperspb.StringValue{Value: "test-api-key"},
+	})
+	backend := server.NewBackend(logger, settings)
+	fileStream := server.NewFileStream(
+		backend, logger, observability.NewPrinter(), settings, nil)
+	fileTransferManager := server.NewFileTransferManager(
+		filetransfer.NewFileTransferStats(),
 		logger,
-		&service.Settings{
-			RunId: &wrapperspb.StringValue{Value: "run1"},
-		},
-		server.WithSenderFwdChannel(make(chan *service.Record, 1)),
-		server.WithSenderOutChannel(resultChan),
+		settings,
 	)
-	sender.SetGraphqlClient(client)
+	runfilesUploader := server.NewRunfilesUploader(
+		runWork,
+		logger,
+		settings,
+		fileStream,
+		fileTransferManager,
+		watchertest.NewFakeWatcher(),
+		client,
+	)
+	sender := server.NewSender(
+		runWork,
+		server.SenderParams{
+			Logger:              logger,
+			Settings:            settings,
+			Backend:             backend,
+			FileStream:          fileStream,
+			FileTransferManager: fileTransferManager,
+			RunfilesUploader:    runfilesUploader,
+			OutChan:             resultChan,
+			Mailbox:             mailbox.New(),
+			GraphqlClient:       client,
+		},
+	)
 	return sender
 }
 
+// Verify that project and entity are properly passed through to graphql
 func TestSendRun(t *testing.T) {
-	// Verify that project and entity are properly passed through to graphql
-	to := coretest.MakeTestObject(t)
-	defer to.TeardownTest()
+	mockGQL := gqlmock.NewMockClient()
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("UpsertBucket"),
+		validUpsertBucketResponse,
+	)
+	outChan := make(chan *spb.Result, 1)
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
 
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
-
-	run := &service.Record{
-		RecordType: &service.Record_Run{
-			Run: &service.RunRecord{
-				Config:  to.MakeConfig(),
+	run := &spb.Record{
+		RecordType: &spb.Record_Run{
+			Run: &spb.RunRecord{
+				Config: &spb.ConfigRecord{
+					Update: []*spb.ConfigItem{
+						{
+							Key:       "_wandb",
+							ValueJson: "{}",
+						},
+					},
+				},
 				Project: "testProject",
 				Entity:  "testEntity",
 			}},
-		Control: &service.Control{
+		Control: &spb.Control{
 			MailboxSlot: "junk",
 		},
 	}
 
-	respEncode := &graphql.Response{
-		Data: &gql.UpsertBucketResponse{
-			UpsertBucket: &gql.UpsertBucketUpsertBucketUpsertBucketPayload{
-				Bucket: &gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRun{
-					DisplayName: coretest.StrPtr("FakeName"),
-					Project: &gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProject{
-						Name: "FakeProject",
-						Entity: gql.UpsertBucketUpsertBucketUpsertBucketPayloadBucketRunProjectEntity{
-							Name: "FakeEntity",
-						},
+	sender.SendRecord(run)
+	<-outChan
+
+	requests := mockGQL.AllRequests()
+	assert.Len(t, requests, 1)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("project", gomock.Eq("testProject")),
+			gqlmock.GQLVar("entity", gomock.Eq("testEntity")),
+		),
+		requests[0])
+}
+
+// Verify that arguments are properly passed through to graphql
+func TestSendLinkArtifact(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	outChan := make(chan *spb.Result, 1)
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), outChan)
+
+	// 1. When both clientId and serverId are sent, serverId is used
+	linkArtifact := &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_LinkArtifact{
+					LinkArtifact: &spb.LinkArtifactRequest{
+						ClientId:         "clientId",
+						ServerId:         "serverId",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
+		},
+		Control: &spb.Control{
+			MailboxSlot: "junk",
+		},
+	}
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("LinkArtifact"),
+		validLinkArtifactResponse,
+	)
+	sender.SendRecord(linkArtifact)
+	<-outChan
+
+	requests := mockGQL.AllRequests()
+	assert.Len(t, requests, 1)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
+			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
+		),
+		requests[0])
+
+	// 2. When only clientId is sent, clientId is used
+	linkArtifact = &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_LinkArtifact{
+					LinkArtifact: &spb.LinkArtifactRequest{
+						ClientId:         "clientId",
+						ServerId:         "",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
 					},
 				},
 			},
 		},
 	}
 
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "testEntity", vars["entity"])
-			assert.Equal(t, "testProject", vars["project"])
-		},
-	))
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("LinkArtifact"),
+		validLinkArtifactResponse,
+	)
+	sender.SendRecord(linkArtifact)
+	<-outChan
 
-	sender.SendRecord(run)
-	<-sender.GetOutboundChannel()
+	requests = mockGQL.AllRequests()
+	assert.Len(t, requests, 2)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+			gqlmock.GQLVar("clientId", gomock.Eq("clientId")),
+			gqlmock.GQLVar("artifactId", gomock.Eq(nil)),
+		),
+		requests[1])
+
+	// 3. When only serverId is sent, serverId is used
+	linkArtifact = &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_LinkArtifact{
+					LinkArtifact: &spb.LinkArtifactRequest{
+						ClientId:         "",
+						ServerId:         "serverId",
+						PortfolioName:    "portfolioName",
+						PortfolioEntity:  "portfolioEntity",
+						PortfolioProject: "portfolioProject",
+					},
+				},
+			},
+		},
+	}
+
+	mockGQL.StubMatchOnce(
+		gqlmock.WithOpName("LinkArtifact"),
+		validLinkArtifactResponse,
+	)
+	sender.SendRecord(linkArtifact)
+	<-outChan
+
+	requests = mockGQL.AllRequests()
+	assert.Len(t, requests, 3)
+	gqlmock.AssertRequest(t,
+		gqlmock.WithVariables(
+			gqlmock.GQLVar("projectName", gomock.Eq("portfolioProject")),
+			gqlmock.GQLVar("entityName", gomock.Eq("portfolioEntity")),
+			gqlmock.GQLVar("artifactPortfolioName", gomock.Eq("portfolioName")),
+			gqlmock.GQLVar("clientId", gomock.Eq(nil)),
+			gqlmock.GQLVar("artifactId", gomock.Eq("serverId")),
+		),
+		requests[2])
 }
 
-func TestSendLinkArtifact(t *testing.T) {
-	// Verify that arguments are properly passed through to graphql
-	to := coretest.MakeTestObject(t)
-	defer to.TeardownTest()
+func TestSendUseArtifact(t *testing.T) {
+	mockGQL := gqlmock.NewMockClient()
+	sender := makeSender(mockGQL, make(chan *spb.Record, 1), make(chan *spb.Result, 1))
 
-	sender := makeSender(to.MockClient, make(chan *service.Result, 1))
-
-	respEncode := &graphql.Response{
-		Data: &gql.LinkArtifactResponse{
-			LinkArtifact: &gql.LinkArtifactLinkArtifactLinkArtifactPayload{
-				VersionIndex: coretest.IntPtr(0),
+	useArtifact := &spb.Record{
+		RecordType: &spb.Record_UseArtifact{
+			UseArtifact: &spb.UseArtifactRecord{
+				Id:      "artifactId",
+				Type:    "job",
+				Name:    "artifactName",
+				Partial: nil,
 			},
-		}}
-
-	// 1. When both clientId and serverId are sent, serverId is used
-	linkArtifact := &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "clientId",
-				ServerId:         "serverId",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
 		},
 	}
+	// verify doesn't panic if used job artifact
+	sender.SendRecord(useArtifact)
 
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "portfolioProject", vars["projectName"])
-			assert.Equal(t, "portfolioEntity", vars["entityName"])
-			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
-			assert.Nil(t, vars["clientId"])
-			assert.Equal(t, "serverId", vars["artifactId"])
-		},
-	))
-
-	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
-
-	// 2. When only clientId is sent, clientId is used
-	linkArtifact = &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "clientId",
-				ServerId:         "",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
+	// verify doesn't panic if partial job is broken
+	useArtifact = &spb.Record{
+		RecordType: &spb.Record_UseArtifact{
+			UseArtifact: &spb.UseArtifactRecord{
+				Id:   "artifactId",
+				Type: "job",
+				Name: "artifactName",
+				Partial: &spb.PartialJobArtifact{
+					JobName: "jobName",
+					SourceInfo: &spb.JobSource{
+						SourceType: "repo",
+						Source: &spb.Source{
+							Git: &spb.GitSource{
+								GitInfo: &spb.GitInfo{
+									Commit: "commit",
+									Remote: "remote",
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
-
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "portfolioProject", vars["projectName"])
-			assert.Equal(t, "portfolioEntity", vars["entityName"])
-			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
-			assert.Equal(t, "clientId", vars["clientId"])
-			assert.Nil(t, vars["artifactId"])
-		},
-	))
-
-	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
-
-	// 2. When only serverId is sent, serverId is used
-	linkArtifact = &service.Record{
-		RecordType: &service.Record_LinkArtifact{
-			LinkArtifact: &service.LinkArtifactRecord{
-				ClientId:         "",
-				ServerId:         "serverId",
-				PortfolioName:    "portfolioName",
-				PortfolioEntity:  "portfolioEntity",
-				PortfolioProject: "portfolioProject",
-			}},
-		Control: &service.Control{
-			MailboxSlot: "junk",
-		},
-	}
-
-	to.MockClient.EXPECT().MakeRequest(
-		gomock.Any(), // context.Context
-		gomock.Any(), // *graphql.Request
-		gomock.Any(), // *graphql.Response
-	).Return(nil).Do(coretest.InjectResponse(
-		respEncode,
-		func(vars coretest.RequestVars) {
-			assert.Equal(t, "portfolioProject", vars["projectName"])
-			assert.Equal(t, "portfolioEntity", vars["entityName"])
-			assert.Equal(t, "portfolioName", vars["artifactPortfolioName"])
-			assert.Nil(t, vars["clientId"])
-			assert.Equal(t, "serverId", vars["artifactId"])
-		},
-	))
-
-	sender.SendRecord(linkArtifact)
-	<-sender.GetOutboundChannel()
+	sender.SendRecord(useArtifact)
 }

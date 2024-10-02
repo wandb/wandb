@@ -26,7 +26,7 @@ from PIL import Image
 
 import wandb
 from wandb import util
-from wandb.plots.utils import test_missing
+from wandb.plot.utils import test_missing
 from wandb.sdk.lib import telemetry as wb_telemetry
 
 

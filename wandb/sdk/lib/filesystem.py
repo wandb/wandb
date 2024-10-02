@@ -227,7 +227,17 @@ def safe_open(
 
 
 def safe_copy(source_path: StrPath, target_path: StrPath) -> StrPath:
-    """Copy a file, ensuring any changes only apply atomically once finished."""
+    """Copy a file atomically.
+
+    Copying is not usually atomic, and on operating systems that allow multiple
+    writers to the same file, the result can get corrupted. If two writers copy
+    to the same file, the contents can become interleaved.
+
+    We mitigate the issue somewhat by copying to a temporary file first and
+    then renaming. Renaming is atomic: if process 1 renames file A to X and
+    process 2 renames file B to X, then X will either contain the contents
+    of A or the contents of B, not some mixture of both.
+    """
     # TODO (hugh): check that there is enough free space.
     output_path = Path(target_path).resolve()
     output_path.parent.mkdir(parents=True, exist_ok=True)

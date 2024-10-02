@@ -68,8 +68,7 @@ class Asset(Protocol):
     metrics: List[Metric]
     metrics_monitor: "MetricsMonitor"
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        ...  # pragma: no cover
+    def __init__(self, *args: Any, **kwargs: Any) -> None: ...  # pragma: no cover
 
     @classmethod
     def is_available(cls) -> bool:
@@ -90,14 +89,13 @@ class Asset(Protocol):
 
 
 class Interface(Protocol):
-    def publish_stats(self, stats: dict) -> None:
-        ...  # pragma: no cover
+    def publish_stats(self, stats: dict) -> None: ...  # pragma: no cover
 
-    def _publish_telemetry(self, telemetry: "TelemetryRecord") -> None:
-        ...  # pragma: no cover
+    def _publish_telemetry(
+        self, telemetry: "TelemetryRecord"
+    ) -> None: ...  # pragma: no cover
 
-    def publish_files(self, files_dict: "FilesDict") -> None:
-        ...  # pragma: no cover
+    def publish_files(self, files_dict: "FilesDict") -> None: ...  # pragma: no cover
 
 
 class MetricsMonitor:

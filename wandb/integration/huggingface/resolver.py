@@ -91,8 +91,8 @@ class HuggingFacePipelineRequestResponseResolver:
 
     # TODO: This should have a dependency on PreTrainedModel. i.e. isinstance(PreTrainedModel)
     # from transformers.modeling_utils import PreTrainedModel
-    # We do not want this dependency explicity in our codebase so we make a very general assumption about
-    # the structure of the pipeline which may have unintended consequences
+    # We do not want this dependency explicitly in our codebase so we make a very general
+    # assumption about the structure of the pipeline which may have unintended consequences
     def _get_model(self, pipe) -> Optional[Any]:
         """Extracts model from the pipeline.
 

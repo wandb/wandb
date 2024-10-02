@@ -1,0 +1,32 @@
+# Description: Mutation to rewind a run to a previous state, specified by the metric value.
+
+ mutation RewindRun($runName: String!, $entity: String, $project: String, $metricName: String!, $metricValue: Float!) {
+            rewindRun(
+                input: {
+                    runName: $runName,
+                    entityName: $entity,
+                    projectName: $project,
+                    metricName: $metricName,
+                    metricValue: $metricValue
+                }
+            )
+            {
+                rewoundRun {
+                    id
+                    name
+                    displayName
+                    description
+                    config
+                    sweepName
+                    project {
+                        id
+                        name
+                        entity {
+                            id
+                            name
+                        }
+                    }
+                    historyLineCount
+                }
+            }
+        }

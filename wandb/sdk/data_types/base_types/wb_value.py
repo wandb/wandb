@@ -11,7 +11,7 @@ if TYPE_CHECKING:  # pragma: no cover
 
 
 def _server_accepts_client_ids() -> bool:
-    from pkg_resources import parse_version
+    from wandb.util import parse_version
 
     # First, if we are offline, assume the backend server cannot
     # accept client IDs. Unfortunately, this is the best we can do
@@ -88,9 +88,7 @@ class WBValue:
         raise NotImplementedError
 
     @classmethod
-    def from_json(
-        cls: Type["WBValue"], json_obj: dict, source_artifact: "Artifact"
-    ) -> "WBValue":
+    def from_json(cls, json_obj: dict, source_artifact: "Artifact") -> "WBValue":
         """Deserialize a `json_obj` into it's class representation.
 
         If additional resources were stored in the `run_or_artifact` artifact during the

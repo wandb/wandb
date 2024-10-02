@@ -4,6 +4,7 @@
 Semi-stubbed run for internal process use.
 
 """
+
 from wandb._globals import _datatypes_set_callback
 
 from .. import wandb_run

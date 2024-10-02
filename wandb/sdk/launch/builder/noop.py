@@ -1,4 +1,5 @@
 """NoOp builder implementation."""
+
 from typing import Any, Dict, Optional
 
 from wandb.sdk.launch.builder.abstract import AbstractBuilder

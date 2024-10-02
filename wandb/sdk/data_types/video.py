@@ -24,7 +24,7 @@ if TYPE_CHECKING:  # pragma: no cover
 # https://github.com/wandb/wandb/issues/3472
 #
 # Essentially, the issue is that moviepy's write_gif function fails to close
-# the open write / file descripter returned from `imageio.save`. The following
+# the open write / file descriptor returned from `imageio.save`. The following
 # function is a simplified copy of the function in the moviepy source code.
 # See https://github.com/Zulko/moviepy/blob/7e3e8bb1b739eb6d1c0784b0cb2594b587b93b39/moviepy/video/io/gif_writers.py#L428
 #
@@ -34,12 +34,10 @@ def write_gif_with_image_io(
 ) -> None:
     imageio = util.get_module(
         "imageio",
-        required='wandb.Video requires imageio when passing raw data. Install with "pip install imageio"',
+        required='wandb.Video requires imageio when passing raw data. Install with "pip install wandb[media]"',
     )
 
-    writer = imageio.save(
-        filename, duration=1.0 / clip.fps, quantizer=0, palettesize=256, loop=0
-    )
+    writer = imageio.save(filename, fps=clip.fps, quantizer=0, palettesize=256, loop=0)
 
     for frame in clip.iter_frames(fps=fps, dtype="uint8"):
         writer.append_data(frame)
@@ -98,7 +96,9 @@ class Video(BatchableMedia):
         self._channels = None
         self._caption = caption
         if self._format not in Video.EXTS:
-            raise ValueError("wandb.Video accepts %s formats" % ", ".join(Video.EXTS))
+            raise ValueError(
+                "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
+            )
 
         if isinstance(data_or_path, BytesIO):
             filename = os.path.join(
@@ -112,7 +112,7 @@ class Video(BatchableMedia):
             ext = ext[1:].lower()
             if ext not in Video.EXTS:
                 raise ValueError(
-                    "wandb.Video accepts %s formats" % ", ".join(Video.EXTS)
+                    "wandb.Video accepts {} formats".format(", ".join(Video.EXTS))
                 )
             self._set_file(data_or_path, is_tmp=False)
             # ffprobe -v error -select_streams v:0 -show_entries stream=width,height -of csv=p=0 data_or_path
@@ -130,7 +130,7 @@ class Video(BatchableMedia):
     def encode(self) -> None:
         mpy = util.get_module(
             "moviepy.editor",
-            required='wandb.Video requires moviepy and imageio when passing raw data.  Install with "pip install moviepy imageio"',
+            required='wandb.Video requires moviepy when passing raw data.  Install with "pip install wandb[media]"',
         )
         tensor = self._prepare_video(self.data)
         _, self._height, self._width, self._channels = tensor.shape  # type: ignore
@@ -214,9 +214,9 @@ class Video(BatchableMedia):
         n_rows = 2 ** ((b.bit_length() - 1) // 2)
         n_cols = video.shape[0] // n_rows
 
-        video = np.reshape(video, newshape=(n_rows, n_cols, t, c, h, w))
+        video = video.reshape(n_rows, n_cols, t, c, h, w)
         video = np.transpose(video, axes=(2, 0, 4, 1, 5, 3))
-        video = np.reshape(video, newshape=(t, n_rows * h, n_cols * w, c))
+        video = video.reshape(t, n_rows * h, n_cols * w, c)
         return video
 
     @classmethod

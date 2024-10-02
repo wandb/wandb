@@ -1,6 +1,5 @@
 import datetime
 import math
-import sys
 import typing as t
 
 from wandb.util import (
@@ -15,9 +14,7 @@ np = get_module("numpy")  # intentionally not required
 if t.TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
 
-_TYPES_STRIPPED = not (sys.version_info.major == 3 and sys.version_info.minor >= 6)
-if not _TYPES_STRIPPED:
-    ConvertableToType = t.Union["Type", t.Type["Type"], type, t.Any]
+ConvertibleToType = t.Union["Type", t.Type["Type"], type, t.Any]
 
 
 class TypeRegistry:
@@ -59,7 +56,7 @@ class TypeRegistry:
         # but will be ultimately treated as a None. Ignoring type since
         # mypy does not trust that py_obj is a float by the time it is
         # passed to isnan.
-        if py_obj.__class__ == float and math.isnan(py_obj):  # type: ignore
+        if py_obj.__class__ is float and math.isnan(py_obj):  # type: ignore
             return NoneType()
 
         # TODO: generalize this to handle other config input types
@@ -87,7 +84,7 @@ class TypeRegistry:
         return _type.from_json(json_dict, artifact)
 
     @staticmethod
-    def type_from_dtype(dtype: ConvertableToType) -> "Type":
+    def type_from_dtype(dtype: ConvertibleToType) -> "Type":
         # The dtype is already an instance of Type
         if isinstance(dtype, Type):
             wbtype: Type = dtype
@@ -137,7 +134,7 @@ def _params_obj_to_json_obj(
     artifact: t.Optional["Artifact"] = None,
 ) -> t.Any:
     """Helper method."""
-    if params_obj.__class__ == dict:
+    if params_obj.__class__ is dict:
         return {
             key: _params_obj_to_json_obj(params_obj[key], artifact)
             for key in params_obj
@@ -154,7 +151,7 @@ def _json_obj_to_params_obj(
     json_obj: t.Any, artifact: t.Optional["Artifact"] = None
 ) -> t.Any:
     """Helper method."""
-    if json_obj.__class__ == dict:
+    if json_obj.__class__ is dict:
         if "wb_type" in json_obj:
             return TypeRegistry.type_from_dict(json_obj, artifact)
         else:
@@ -162,7 +159,7 @@ def _json_obj_to_params_obj(
                 key: _json_obj_to_params_obj(json_obj[key], artifact)
                 for key in json_obj
             }
-    elif json_obj.__class__ == list:
+    elif json_obj.__class__ is list:
         return [_json_obj_to_params_obj(item, artifact) for item in json_obj]
     else:
         return json_obj
@@ -393,10 +390,13 @@ if np:
     NumberType.types.append(np.uintp)
     NumberType.types.append(np.float32)
     NumberType.types.append(np.float64)
-    NumberType.types.append(np.float_)
     NumberType.types.append(np.complex64)
     NumberType.types.append(np.complex128)
-    NumberType.types.append(np.complex_)
+
+    numpy_major_version = np.__version__.split(".")[0]
+    if int(numpy_major_version) < 2:
+        NumberType.types.append(np.float_)
+        NumberType.types.append(np.complex_)
 
 
 class TimestampType(Type):
@@ -531,9 +531,9 @@ class UnionType(Type):
 
     def __init__(
         self,
-        allowed_types: t.Optional[t.Sequence[ConvertableToType]] = None,
+        allowed_types: t.Optional[t.Sequence[ConvertibleToType]] = None,
     ):
-        assert allowed_types is None or (allowed_types.__class__ == list)
+        assert allowed_types is None or (allowed_types.__class__ is list)
         if allowed_types is None:
             wb_types = []
         else:
@@ -579,7 +579,7 @@ class UnionType(Type):
         return "{}".format(" or ".join([str(t) for t in self.params["allowed_types"]]))
 
 
-def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
+def OptionalType(dtype: ConvertibleToType) -> UnionType:  # noqa: N802
     """Function that mimics the Type class API for constructing an "Optional Type".
 
     This is just a Union[wb_type, NoneType].
@@ -594,14 +594,14 @@ def OptionalType(dtype: ConvertableToType) -> UnionType:  # noqa: N802
 
 
 class ListType(Type):
-    """A list of homogenous types."""
+    """A list of homogeneous types."""
 
     name = "list"
     types: t.ClassVar[t.List[type]] = [list, tuple, set, frozenset]
 
     def __init__(
         self,
-        element_type: t.Optional[ConvertableToType] = None,
+        element_type: t.Optional[ConvertibleToType] = None,
         length: t.Optional[int] = None,
     ):
         if element_type is None:
@@ -694,7 +694,7 @@ class ListType(Type):
 
 
 class NDArrayType(Type):
-    """Represents a list of homogenous types."""
+    """Represents a list of homogeneous types."""
 
     name = "ndarray"
     types: t.ClassVar[t.List[type]] = []  # will manually add type if np is available
@@ -789,7 +789,7 @@ class TypedDictType(Type):
 
     def __init__(
         self,
-        type_map: t.Optional[t.Dict[str, ConvertableToType]] = None,
+        type_map: t.Optional[t.Dict[str, ConvertibleToType]] = None,
     ):
         if type_map is None:
             type_map = {}

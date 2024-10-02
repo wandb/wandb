@@ -1,7 +1,7 @@
 #
 """Setup wandb session.
 
-This module configures a wandb session which can extend to mutiple wandb runs.
+This module configures a wandb session which can extend to multiple wandb runs.
 
 Functions:
     setup(): Configure wandb session.
@@ -18,8 +18,9 @@ import threading
 from typing import TYPE_CHECKING, Any, Dict, List, Optional, Union
 
 import wandb
+from wandb.sdk.lib import import_hooks
 
-from . import wandb_manager, wandb_settings
+from . import wandb_settings
 from .lib import config_util, server, tracelog
 
 Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
@@ -27,6 +28,8 @@ Settings = Union["wandb.sdk.wandb_settings.Settings", Dict[str, Any]]
 Logger = Union[logging.Logger, "_EarlyLogger"]
 
 if TYPE_CHECKING:
+    from wandb.sdk.lib import service_connection
+
     from . import wandb_run
 
 # logger will be configured to be either a standard logger instance or _EarlyLogger
@@ -81,20 +84,18 @@ class _EarlyLogger:
 class _WandbSetup__WandbSetup:  # noqa: N801
     """Inner class of _WandbSetup."""
 
-    _manager: Optional[wandb_manager._Manager]
-    _pid: int
-
     def __init__(
         self,
         pid: int,
         settings: Optional[Settings] = None,
         environ: Optional[Dict[str, Any]] = None,
     ) -> None:
+        self._connection: Optional[service_connection.ServiceConnection] = None
+
         self._environ = environ or dict(os.environ)
         self._sweep_config: Optional[Dict[str, Any]] = None
         self._config: Optional[Dict[str, Any]] = None
         self._server: Optional[server.Server] = None
-        self._manager: Optional[wandb_manager._Manager] = None
         self._pid = pid
 
         # keep track of multiple runs, so we can unwind with join()s
@@ -247,7 +248,10 @@ class _WandbSetup__WandbSetup:  # noqa: N801
             print("frozen, could be trouble")
 
     def _setup(self) -> None:
-        self._setup_manager()
+        if not self._settings._noop and not self._settings._disable_service:
+            from wandb.sdk.lib import service_connection
+
+            self._connection = service_connection.connect_to_service(self._settings)
 
         sweep_path = self._settings.sweep_param_path
         if sweep_path:
@@ -268,22 +272,23 @@ class _WandbSetup__WandbSetup:  # noqa: N801
                     self._config = config_dict
 
     def _teardown(self, exit_code: Optional[int] = None) -> None:
-        exit_code = exit_code or 0
-        self._teardown_manager(exit_code=exit_code)
+        import_hooks.unregister_all_post_import_hooks()
 
-    def _setup_manager(self) -> None:
-        if self._settings._disable_service:
+        if not self._connection:
             return
-        self._manager = wandb_manager._Manager(settings=self._settings)
 
-    def _teardown_manager(self, exit_code: int) -> None:
-        if not self._manager:
-            return
-        self._manager._teardown(exit_code)
-        self._manager = None
+        internal_exit_code = self._connection.teardown(exit_code or 0)
 
-    def _get_manager(self) -> Optional[wandb_manager._Manager]:
-        return self._manager
+        # Reset to None so that setup() creates a new connection.
+        self._connection = None
+
+        if internal_exit_code != 0:
+            sys.exit(internal_exit_code)
+
+    @property
+    def service(self) -> "Optional[service_connection.ServiceConnection]":
+        """Returns a connection to the service process, if it exists."""
+        return self._connection
 
 
 class _WandbSetup:
@@ -302,6 +307,13 @@ class _WandbSetup:
             return
         _WandbSetup._instance = _WandbSetup__WandbSetup(settings=settings, pid=pid)
 
+    @property
+    def service(self) -> "Optional[service_connection.ServiceConnection]":
+        """Returns a connection to the service process, if it exists."""
+        if not self._instance:
+            return None
+        return self._instance.service
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._instance, name)
 
@@ -312,24 +324,86 @@ def _setup(
 ) -> Optional["_WandbSetup"]:
     """Set up library context."""
     if _reset:
-        setup_instance = _WandbSetup._instance
-        if setup_instance:
-            setup_instance._teardown()
-        _WandbSetup._instance = None
+        teardown()
         return None
+
     wl = _WandbSetup(settings=settings)
     return wl
 
 
-def setup(
-    settings: Optional[Settings] = None,
-) -> Optional["_WandbSetup"]:
+def setup(settings: Optional[Settings] = None) -> Optional["_WandbSetup"]:
+    """Prepares W&B for use in the current process and its children.
+
+    You can usually ignore this as it is implicitly called by `wandb.init()`.
+
+    When using wandb in multiple processes, calling `wandb.setup()`
+    in the parent process before starting child processes may improve
+    performance and resource utilization.
+
+    Note that `wandb.setup()` modifies `os.environ`, and it is important
+    that child processes inherit the modified environment variables.
+
+    See also `wandb.teardown()`.
+
+    Args:
+        settings (Optional[Union[Dict[str, Any], wandb.Settings]]): Configuration settings
+            to apply globally. These can be overridden by subsequent `wandb.init()` calls.
+
+    Example:
+        ```python
+        import multiprocessing
+
+        import wandb
+
+
+        def run_experiment(params):
+            with wandb.init(config=params):
+                # Run experiment
+                pass
+
+
+        if __name__ == "__main__":
+            # Start backend and set global config
+            wandb.setup(settings={"project": "my_project"})
+
+            # Define experiment parameters
+            experiment_params = [
+                {"learning_rate": 0.01, "epochs": 10},
+                {"learning_rate": 0.001, "epochs": 20},
+            ]
+
+            # Start multiple processes, each running a separate experiment
+            processes = []
+            for params in experiment_params:
+                p = multiprocessing.Process(target=run_experiment, args=(params,))
+                p.start()
+                processes.append(p)
+
+            # Wait for all processes to complete
+            for p in processes:
+                p.join()
+
+            # Optional: Explicitly shut down the backend
+            wandb.teardown()
+        ```
+    """
     ret = _setup(settings=settings)
     return ret
 
 
 def teardown(exit_code: Optional[int] = None) -> None:
+    """Waits for wandb to finish and frees resources.
+
+    Completes any runs that were not explicitly finished
+    using `run.finish()` and waits for all data to be uploaded.
+
+    It is recommended to call this at the end of a session
+    that used `wandb.setup()`. It is invoked automatically
+    in an `atexit` hook, but this is not reliable in certain setups
+    such as when using Python's `multiprocessing` module.
+    """
     setup_instance = _WandbSetup._instance
+    _WandbSetup._instance = None
+
     if setup_instance:
         setup_instance._teardown(exit_code=exit_code)
-    _WandbSetup._instance = None

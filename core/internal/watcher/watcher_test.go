@@ -3,112 +3,154 @@ package watcher_test
 import (
 	"os"
 	"path/filepath"
-	"sync"
+	"syscall"
 	"testing"
+	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/wandb/wandb/core/internal/watcher"
-	"github.com/wandb/wandb/core/pkg/observability"
 )
 
-func setupTest(t *testing.T) func() {
-	tmpDir, err := os.MkdirTemp("", "watcher_tests")
-	require.NoError(t, err, "cannot create temp directory")
-	cwd, err := os.Getwd()
-	require.NoError(t, err, "cannot get current working directory")
-	require.NoError(t, os.Chdir(tmpDir), "cannot switch to temp directory")
-
-	err = os.Mkdir(filepath.Join(tmpDir, "test"), 0755)
-	require.NoError(t, err, "Creating directory should be successful")
-
-	err = os.WriteFile(filepath.Join(tmpDir, "test.txt"), []byte("testing"), 0644)
-	require.NoError(t, err, "Writing file should be successful")
-
-	cleanup := func() {
-		err := os.Chdir(cwd)
-		require.NoError(t, err, "cannot switch back to original directory")
-		os.RemoveAll(tmpDir)
-	}
-	return cleanup
+func mkdir(t *testing.T, path string) {
+	require.NoError(t,
+		os.MkdirAll(
+			path,
+			syscall.S_IRUSR|syscall.S_IWUSR|syscall.S_IXUSR,
+		))
 }
 
-func TestNew(t *testing.T) {
-	defer setupTest(t)()
+func writeFileAndGetModTime(t *testing.T, path string, content string) time.Time {
+	mkdir(t, filepath.Dir(path))
 
-	logger := observability.NewNoOpLogger()
+	require.NoError(t,
+		os.WriteFile(path, []byte(content), syscall.S_IRUSR|syscall.S_IWUSR))
 
-	options := []watcher.WatcherOption{
-		watcher.WithLogger(logger),
-	}
-	w := watcher.New(options...)
+	info, err := os.Stat(path)
+	require.NoError(t, err)
 
-	require.NotNil(t, w, "Watcher should not be nil")
+	return info.ModTime()
 }
 
-func TestWatchFile(t *testing.T) {
-	defer setupTest(t)()
+func writeFile(t *testing.T, path string, content string) {
+	_ = writeFileAndGetModTime(t, path, content)
+}
 
-	options := []watcher.WatcherOption{
-		watcher.WithLogger(observability.NewNoOpLogger()),
+func waitWithDeadline[S any](t *testing.T, c <-chan S, msg string) S {
+	select {
+	case x := <-c:
+		return x
+	case <-time.After(5 * time.Second):
+		t.Fatal("took too long: " + msg)
+		panic("unreachable")
 	}
-	w := watcher.New(options...)
-	path := "test.txt"
+}
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+func TestWatcher(t *testing.T) {
+	// The watcher implementation we rely on uses `time.Sleep()`, making for
+	// flaky and slow tests. The tests in this function are carefully designed
+	// to be fast and unlikely to flake.
+	//
+	// 1. We use a short polling period
+	// 2. The success path for each test is designed to finish quickly
+	// 3. Tests fail if they exceed a large deadline
+	//
+	// When the code is correct, these tests will complete very quickly,
+	// *especially* if running locally. In CI, `time.Sleep()` could take longer
+	// on a busy processor, but it's unlikely to reach (3) and flake.
+	//
+	// The downside of (3) is that if the code is *not* correct, then the
+	// tests take a long time to fail. This can be an annoying dev
+	// cycle for someone working on this package. So you should try to write
+	// bug-free code :)
 
-	handler := func(event watcher.Event) error {
-		if !event.IsDir() {
-			require.Equal(t, filepath.Join("", path), event.Name())
-			wg.Done()
+	newTestWatcher := func() watcher.Watcher {
+		return watcher.New(watcher.Params{
+			PollingPeriod: 10 * time.Millisecond,
+		})
+	}
+	finishWithDeadline := func(t *testing.T, w watcher.Watcher) {
+		finished := make(chan struct{})
+
+		go func() {
+			w.Finish()
+			finished <- struct{}{}
+		}()
+
+		waitWithDeadline(t, finished, "expected Finish() to complete")
+	}
+
+	t.Run("runs callback on file write", func(t *testing.T) {
+		t.Parallel()
+
+		onChangeChan := make(chan struct{})
+		file := filepath.Join(t.TempDir(), "file.txt")
+		t1 := writeFileAndGetModTime(t, file, "")
+
+		watcher := newTestWatcher()
+		defer finishWithDeadline(t, watcher)
+		require.NoError(t,
+			watcher.Watch(file, func() { onChangeChan <- struct{}{} }))
+		time.Sleep(100 * time.Millisecond) // see below
+		t2 := writeFileAndGetModTime(t, file, "xyz")
+
+		if t1 == t2 {
+			// We sleep before updating the file to try to increase the
+			// likelihood of the second write updating the file's ModTime.
+			//
+			// The ModTime (mtime) is sometimes not very precise, causing
+			// the file to look unchanged to the poll-based watcher that
+			// we use.
+			//
+			// Great blog post about it: https://apenwarr.ca/log/20181113
+			t.Skip("test ran too fast and mtime didn't change")
 		}
 
-		return nil
-	}
+		waitWithDeadline(t, onChangeChan,
+			"expected file callback to be called")
+	})
 
-	w.Start()
+	t.Run("runs callback on new file in directory", func(t *testing.T) {
+		t.Parallel()
 
-	err := w.Add(path, handler)
-	require.NoError(t, err, "Registering path should be successful")
+		onChangeChan := make(chan string)
+		dir := filepath.Join(t.TempDir(), "dir")
+		file := filepath.Join(dir, "file.txt")
+		mkdir(t, dir)
 
-	// write a file in the directory
-	err = os.WriteFile(path, []byte("testing"), 0644)
-	require.NoError(t, err, "Writing file should be successful")
+		watcher := newTestWatcher()
+		defer finishWithDeadline(t, watcher)
+		require.NoError(t,
+			watcher.WatchDir(dir, func(s string) { onChangeChan <- s }))
+		writeFile(t, file, "")
 
-	wg.Wait()
-	w.Close()
-}
+		result := waitWithDeadline(t, onChangeChan,
+			"expected file callback to be called")
+		assert.Equal(t, result, file)
+	})
 
-func TestWatchDir(t *testing.T) {
-	defer setupTest(t)()
+	t.Run("fails if file does not exist", func(t *testing.T) {
+		t.Parallel()
 
-	options := []watcher.WatcherOption{
-		watcher.WithLogger(observability.NewNoOpLogger()),
-	}
-	w := watcher.New(options...)
-	path := "test"
+		file := filepath.Join(t.TempDir(), "file.txt")
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+		watcher := newTestWatcher()
+		defer finishWithDeadline(t, watcher)
+		err := watcher.Watch(file, func() {})
 
-	handler := func(event watcher.Event) error {
-		if !event.IsDir() {
-			require.Equal(t, filepath.Join("", path), filepath.Base(filepath.Dir(event.Path)))
-			wg.Done()
-		}
+		require.Error(t, err)
+	})
 
-		return nil
-	}
+	t.Run("fails if Watch is called after Finish", func(t *testing.T) {
+		t.Parallel()
 
-	w.Start()
+		file := filepath.Join(t.TempDir(), "file.txt")
+		writeFile(t, file, "")
 
-	err := w.Add(path, handler)
-	require.NoError(t, err, "Registering path should be successful")
+		watcher := newTestWatcher()
+		finishWithDeadline(t, watcher)
+		err := watcher.Watch(file, func() {})
 
-	// write a file in the directory
-	err = os.WriteFile(filepath.Join(path, "test.txt"), []byte("testing"), 0644)
-	require.NoError(t, err, "Writing file should be successful")
-
-	wg.Wait()
-	w.Close()
+		require.ErrorContains(t, err, "tried to call Watch() after Finish()")
+	})
 }

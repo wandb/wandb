@@ -69,7 +69,7 @@ def generate_files(paths: List[PurePath]) -> None:
 
 
 def format_file(filename: Path) -> None:
-    status, output = subprocess.getstatusoutput(f"black {filename}")
+    status, output = subprocess.getstatusoutput(f"ruff format {filename}")
     assert status == 0, f"Error: {output}"
 
 

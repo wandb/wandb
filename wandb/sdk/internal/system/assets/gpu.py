@@ -410,5 +410,7 @@ class GPU:
 
         except pynvml.NVMLError:
             pass
+        except Exception as e:
+            logger.error(f"Error Probing GPU: {e}")
 
         return info

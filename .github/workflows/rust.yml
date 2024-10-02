@@ -1,9 +1,7 @@
 name: Rust
 
 on:
-  push:
-    branches: [ "main" ]
-  pull_request:
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,14 +14,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install Protoc
-        uses: arduino/setup-protoc@v2
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+        uses: arduino/setup-protoc@v3
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
       - name: Setup python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
       - name: Install maturin
@@ -33,11 +28,11 @@ jobs:
           python -m venv .venv
           source .venv/bin/activate
       - name: Build python package with maturin
-        working-directory: ./client
+        working-directory: ./experimental/client-rust
         run: maturin develop
       # - name: Build rust binary for testing
-      #   working-directory: ./client
+      #   working-directory: ./experimental/client-rust
       #   run: cargo build --verbose
       # - name: Run tests
-      #   working-directory: ./client
+      #   working-directory: ./experimental/client-rust
       #   run: cargo test --verbose

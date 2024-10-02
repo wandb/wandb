@@ -1,5 +1,8 @@
 """Tracking storage handler."""
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Sequence
 from urllib.parse import urlparse
 
 from wandb.errors.term import termwarn
@@ -14,7 +17,7 @@ if TYPE_CHECKING:
 
 
 class TrackingHandler(StorageHandler):
-    def __init__(self, scheme: Optional[str] = None) -> None:
+    def __init__(self, scheme: str | None = None) -> None:
         """Track paths with no modification or special processing.
 
         Useful when paths being tracked are on file systems mounted at a standardized
@@ -25,14 +28,14 @@ class TrackingHandler(StorageHandler):
         """
         self._scheme = scheme or ""
 
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         return parsed_url.scheme == self._scheme
 
     def load_path(
         self,
         manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         if local:
             # Likely a user error. The tracking handler is
             # oblivious to the underlying paths, so it has
@@ -47,21 +50,23 @@ class TrackingHandler(StorageHandler):
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[StrPath] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: StrPath | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
+        max_objects: int | None = None,
     ) -> Sequence[ArtifactManifestEntry]:
         url = urlparse(path)
         if name is None:
             raise ValueError(
-                'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: %s'
-                % path
+                'You must pass name="<entry_name>" when tracking references with unknown schemes. ref: {}'.format(
+                    path
+                )
             )
         termwarn(
-            "Artifact references with unsupported schemes cannot be checksummed: %s"
-            % path
+            "Artifact references with unsupported schemes cannot be checksummed: {}".format(
+                path
+            )
         )
         name = name or url.path[1:]  # strip leading slash
         return [ArtifactManifestEntry(path=name, ref=path, digest=path)]

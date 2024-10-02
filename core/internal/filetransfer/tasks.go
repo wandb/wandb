@@ -8,39 +8,27 @@ const (
 )
 
 // Task is a task to upload/download a file
-type Task struct {
-	// Type is the type of task (upload or download)
-	Type TaskType
+type Task interface {
+	// Execute does the action (upload/download) described by the task
+	Execute(*FileTransfers) error
 
-	// Path is the local path to the file
-	Path string
+	// Complete executes any callbacks necessary to complete the task
+	Complete(FileTransferStats)
 
-	// Name is the name of the file
-	Name string
+	// String describes the task
+	String() string
 
-	// Url is the endpoint to upload to/download from
-	Url string
-
-	// Headers to send on the upload
-	Headers []string
-
-	// Size is the size of the file
-	Size int64
-
-	// Error, if any.
-	Err error
-
-	// Callback to execute after completion (success or failure).
-	CompletionCallback []func(*Task)
-
-	// ProgressCallback is a callback to execute on progress updates
-	ProgressCallback func(int, int)
+	// SetError sets the error on the task
+	SetError(error)
 }
 
-func (ut *Task) SetProgressCallback(callback func(int, int)) {
-	ut.ProgressCallback = callback
-}
+// TaskCompletionCallback handles the completion callback for a task
+type TaskCompletionCallback func()
 
-func (ut *Task) AddCompletionCallback(callback func(*Task)) {
-	ut.CompletionCallback = append(ut.CompletionCallback, callback)
+func (t TaskCompletionCallback) Complete() {
+	if t == nil {
+		return
+	}
+
+	t()
 }

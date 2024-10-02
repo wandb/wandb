@@ -4,92 +4,86 @@
 
 # Weights and Biases [![PyPI](https://img.shields.io/pypi/v/wandb)](https://pypi.python.org/pypi/wandb) [![Conda (channel only)](https://img.shields.io/conda/vn/conda-forge/wandb)](https://anaconda.org/conda-forge/wandb) [![CircleCI](https://img.shields.io/circleci/build/github/wandb/wandb/main)](https://circleci.com/gh/wandb/wandb) [![Codecov](https://img.shields.io/codecov/c/gh/wandb/wandb)](https://codecov.io/gh/wandb/wandb)
 
-Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production models.
+Use W&B to build better models faster. Track and visualize all the pieces of your machine learning pipeline, from datasets to production machine learning models. Get started with W&B today, [sign up for an account!](https://wandb.com?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=readme)
 
-- Quickly identify model regressions. Use W&B to visualize results in real time, all in a central dashboard.
-- Focus on the interesting ML. Spend less time manually tracking results in spreadsheets and text files.
-- Capture dataset versions with W&B Artifacts to identify how changing data affects your resulting models.
-- Reproduce any model, with saved code, hyperparameters, launch commands, input data, and resulting model weights.
 
-[Sign up for a free account →](https://wandb.ai/login?signup=true)
 
-## Features
+See the [W&B Developer Guide](https://docs.wandb.ai/?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) and [API Reference Guide](https://docs.wandb.ai/ref?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=documentation) for a full technical description of the W&B platform.
 
--   Store hyper-parameters used in a training run
--   Search, compare, and visualize training runs
--   Analyze system usage metrics alongside runs
--   Collaborate with team members
--   Replicate historic results
--   Run parameter sweeps
--   Keep records of experiments available forever
+&nbsp;
 
-[Documentation →](https://docs.wandb.com)
+# Quickstart
 
-## Quickstart
+Get started with W&B in four steps:
+
+1. First, sign up for a [W&B account](https://wandb.ai/login?utm_source=github&utm_medium=code&utm_campaign=wandb&utm_content=quickstart).
+
+2. Second, install the W&B SDK with [pip](https://pip.pypa.io/en/stable/). Navigate to your terminal and type the following command:
 
 ```shell
 pip install wandb
 ```
 
-In your training script:
+3. Third, log into W&B:
+
+```python
+wandb.login()
+```
+
+4. Use the example code snippet below as a template to integrate W&B to your Python script:
 
 ```python
 import wandb
 
-# Your custom arguments defined here
-args = ...
+# Start a W&B Run with wandb.init
+run = wandb.init(project="my_first_project")
 
-wandb.init(config=args, project="my-project")
-wandb.config["more"] = "custom"
+# Save model inputs and hyperparameters in a wandb.config object
+config = run.config
+config.learning_rate = 0.01
 
+# Model training code here ...
 
-def training_loop():
-    while True:
-        # Do some machine learning
-        epoch, loss, val_loss = ...
-        # Framework agnostic / custom metrics
-        wandb.log({"epoch": epoch, "loss": loss, "val_loss": val_loss})
+# Log metrics over time to visualize performance with wandb.log
+for i in range(10):
+    run.log({"loss": ...})
+
+# Mark the run as finished, and finish uploading all data
+run.finish()
 ```
 
-If you're already using Tensorboard or [TensorboardX](https://github.com/lanpa/tensorboardX), you can integrate with one line:
+For example, if the preceding code was stored in a script called train.py:
 
-```python
-wandb.init(sync_tensorboard=True)
+```shell
+python train.py
 ```
 
-## Running your script
+You will see a URL in your terminal logs when your script starts and finishes. Data is staged locally in a directory named _wandb_ relative to your script. Navigate to the W&B App to view a dashboard of your first W&B Experiment. Use the W&B App to compare multiple experiments in a unified place, dive into the results of a single run, and much more!
 
-Run `wandb login` from your terminal to signup or authenticate your machine (we store your api key in ~/.netrc). You can also set the `WANDB_API_KEY` environment variable with a key from your [settings](https://app.wandb.ai/settings).
+&nbsp;
 
-Run your script with `python my_script.py` and all metadata will be synced to the cloud. You will see a url in your terminal logs when your script starts and finishes. Data is staged locally in a directory named _wandb_ relative to your script. If you want to test your script without syncing to the cloud you can set the environment variable `WANDB_MODE=dryrun`.
+# Integrations
 
-If you are using [docker](https://docker.com) to run your code, we provide a wrapper command `wandb docker` that mounts your current directory, sets environment variables, and ensures the wandb library is installed. Training your models in docker gives you the ability to restore the exact code and environment with the `wandb restore` command.
+Use your favorite framework with W&B. W&B integrations make it fast and easy to set up experiment tracking and data versioning inside existing projects. For more information on how to integrate W&B with the framework of your choice, see [W&B Integrations](https://docs.wandb.ai/guides/integrations) in the W&B Developer Guide.
 
-## Web Interface
+&nbsp;
 
-[Sign up for a free account →](https://wandb.com)
-[![Watch the video](https://i.imgur.com/PW0Ejlc.png)](https://youtu.be/EeqhOSvNX-A)
-[Introduction video →](https://youtu.be/EeqhOSvNX-A)
+# Contribution guidelines
+Weights & Biases ❤️ open source, and we welcome contributions from the community! See the [Contribution guide](https://github.com/wandb/wandb/blob/main/CONTRIBUTING.md) for more information on the development workflow and the internals of the wandb library. For wandb bugs and feature requests, visit [GitHub Issues](https://github.com/wandb/wandb/issues) or contact support@wandb.com.
 
-## Detailed Usage
-
-Framework specific and detailed usage can be found in our [documentation](http://docs.wandb.com/).
-
-## Testing
-
-To run basic test use `make test`.  More detailed information can be found at CONTRIBUTING.md.
-
-We use [circleci](https://circleci.com) for CI.
+&nbsp;
 
 # Academic Researchers
-If you'd like a free academic account for your research group, [reach out to us →](https://www.wandb.com/academic)
+Reach out to W&B Support at support@wandb.com to get a [free academic license](https://www.wandb.com/academic) for you and your research group.
 
-We make it easy to cite W&B in your published paper. [Learn more →](https://www.wandb.com/academic)
-[![](https://i.imgur.com/loKLiez.png)](https://www.wandb.com/academic)
+&nbsp;
 
-## Community
-Got questions, feedback or want to join a community of ML engineers working on exciting projects?
+# W&B Community
 
-<a href="https://bit.ly/wb-slack"><img src="https://svgshare.com/i/M93.svg" alt="slack" width="55"/></a> Join our [slack](https://bit.ly/wb-slack) community.
+Be a part of the growing W&B Community and interact with the W&B team in our [Discord](https://wandb.me/discord). Stay connected with the latest ML updates and tutorials with [W&B Fully Connected](https://wandb.ai/fully-connected).
 
-[![Twitter](https://img.shields.io/twitter/follow/weights_biases?style=social)](https://twitter.com/weights_biases) Follow us on [Twitter](https://twitter.com/weights_biases).
+&nbsp;
+
+# License
+
+[MIT License](https://github.com/wandb/wandb/blob/main/LICENSE)

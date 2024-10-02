@@ -55,6 +55,7 @@ mutation UpsertBucket(
                             name
                         }
                     }
+                    historyLineCount
                 }
                 inserted
             }

@@ -231,8 +231,10 @@ class BoundingBoxes2D(JSONMetadata):
 
         for box in boxes:
             # Required arguments
-            error_str = "Each box must contain a position with: middle, width, and height or \
+            error_str = (
+                "Each box must contain a position with: middle, width, and height or \
                     \nminX, maxX, minY, maxY."
+            )
             if "position" not in box:
                 raise TypeError(error_str)
             else:
@@ -274,7 +276,9 @@ class BoundingBoxes2D(JSONMetadata):
         return True
 
     def to_json(self, run_or_artifact: Union["LocalRun", "Artifact"]) -> dict:
-        if isinstance(run_or_artifact, wandb.wandb_sdk.wandb_run.Run):
+        from wandb.sdk.wandb_run import Run
+
+        if isinstance(run_or_artifact, Run):
             return super().to_json(run_or_artifact)
         elif isinstance(run_or_artifact, wandb.Artifact):
             # TODO (tim): I would like to log out a proper dictionary representing this object, but don't

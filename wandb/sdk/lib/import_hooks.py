@@ -143,7 +143,7 @@ class _ImportHookChainedLoader:
         # None, so handle None as well. The module may not support attribute
         # assignment, in which case we simply skip it. Note that we also deal
         # with __loader__ not existing at all. This is to future proof things
-        # due to proposal to remove the attribue as described in the GitHub
+        # due to proposal to remove the attribute as described in the GitHub
         # issue at https://github.com/python/cpython/issues/77458. Also prior
         # to Python 3.3, the __loader__ attribute was only set if a custom
         # module loader was used. It isn't clear whether the attribute still

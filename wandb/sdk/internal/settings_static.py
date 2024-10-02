@@ -2,6 +2,7 @@ from dataclasses import fields
 from typing import Any, Iterable, Sequence, Tuple
 
 from wandb.proto import wandb_settings_pb2
+from wandb.sdk.lib import RunMoment
 from wandb.sdk.wandb_settings import SettingsData
 
 
@@ -17,6 +18,7 @@ class SettingsStatic(SettingsData):
         object.__setattr__(self, "_proto", proto)
 
     def _from_proto(self, proto: wandb_settings_pb2.Settings) -> None:
+        forks_specified: list[str] = []
         for field in fields(SettingsData):
             key = field.name
             value: Any = None
@@ -38,6 +40,15 @@ class SettingsStatic(SettingsData):
                             unpacked_inner[inner_key] = inner_value
                         unpacked_mapping[outer_key] = unpacked_inner
                     value = unpacked_mapping
+            elif key == "fork_from" or key == "resume_from":
+                value = getattr(proto, key)
+                if value.run:
+                    value = RunMoment(
+                        run=value.run, value=value.value, metric=value.metric
+                    )
+                    forks_specified.append(key)
+                else:
+                    value = None
             else:
                 if proto.HasField(key):  # type: ignore [arg-type]
                     value = getattr(proto, key).value
@@ -48,6 +59,11 @@ class SettingsStatic(SettingsData):
                 else:
                     value = None
             object.__setattr__(self, key, value)
+
+        if len(forks_specified) > 1:
+            raise ValueError(
+                "Only one of fork_from or resume_from can be specified, not both"
+            )
 
     def __setattr__(self, name: str, value: object) -> None:
         raise AttributeError("Error: SettingsStatic is a readonly object")

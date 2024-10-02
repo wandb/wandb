@@ -71,9 +71,6 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             Note that when monitoring validation metrics such as `val_acc` or `val_loss`,
             save_freq must be set to "epoch" as those metrics are only available at the
             end of an epoch.
-        options: (Optional[str]) Optional `tf.train.CheckpointOptions` object if
-            `save_weights_only` is true or optional `tf.saved_model.SaveOptions`
-            object if `save_weights_only` is false.
         initial_value_threshold: (Optional[float]) Floating point initial "best" value of the metric
             to be monitored.
     """
@@ -87,7 +84,6 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
         save_weights_only: bool = False,
         mode: Mode = "auto",
         save_freq: Union[SaveStrategy, int] = "epoch",
-        options: Optional[str] = None,
         initial_value_threshold: Optional[float] = None,
         **kwargs: Any,
     ) -> None:
@@ -99,7 +95,6 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
             save_weights_only=save_weights_only,
             mode=mode,
             save_freq=save_freq,
-            options=options,
             initial_value_threshold=initial_value_threshold,
             **kwargs,
         )
@@ -187,7 +182,7 @@ class WandbModelCheckpoint(callbacks.ModelCheckpoint):
     @property
     def is_old_tf_keras_version(self) -> Optional[bool]:
         if self._is_old_tf_keras_version is None:
-            from pkg_resources import parse_version
+            from wandb.util import parse_version
 
             try:
                 if parse_version(tf.keras.__version__) < parse_version("2.6.0"):

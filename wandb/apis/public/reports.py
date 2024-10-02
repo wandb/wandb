@@ -1,4 +1,5 @@
 """Public API: reports."""
+
 import ast
 import json
 import sys

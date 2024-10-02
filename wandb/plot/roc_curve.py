@@ -2,7 +2,8 @@ from typing import Optional
 
 import wandb
 from wandb import util
-from wandb.plots.utils import test_missing, test_types
+
+from .utils import test_missing, test_types
 
 
 def roc_curve(

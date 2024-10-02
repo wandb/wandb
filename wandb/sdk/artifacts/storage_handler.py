@@ -1,5 +1,8 @@
 """Storage handler."""
-from typing import TYPE_CHECKING, Optional, Sequence, Union
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Sequence
 
 from wandb.sdk.lib.paths import FilePathStr, URIStr
 
@@ -9,11 +12,11 @@ if TYPE_CHECKING:
     from wandb.sdk.artifacts.artifact import Artifact
     from wandb.sdk.artifacts.artifact_manifest_entry import ArtifactManifestEntry
 
-DEFAULT_MAX_OBJECTS = 10000
+DEFAULT_MAX_OBJECTS = 10**7
 
 
 class StorageHandler:
-    def can_handle(self, parsed_url: "ParseResult") -> bool:
+    def can_handle(self, parsed_url: ParseResult) -> bool:
         """Checks whether this handler can handle the given url.
 
         Returns:
@@ -23,9 +26,9 @@ class StorageHandler:
 
     def load_path(
         self,
-        manifest_entry: "ArtifactManifestEntry",
+        manifest_entry: ArtifactManifestEntry,
         local: bool = False,
-    ) -> Union[URIStr, FilePathStr]:
+    ) -> URIStr | FilePathStr:
         """Load a file or directory given the corresponding index entry.
 
         Args:
@@ -39,12 +42,12 @@ class StorageHandler:
 
     def store_path(
         self,
-        artifact: "Artifact",
-        path: Union[URIStr, FilePathStr],
-        name: Optional[str] = None,
+        artifact: Artifact,
+        path: URIStr | FilePathStr,
+        name: str | None = None,
         checksum: bool = True,
-        max_objects: Optional[int] = None,
-    ) -> Sequence["ArtifactManifestEntry"]:
+        max_objects: int | None = None,
+    ) -> Sequence[ArtifactManifestEntry]:
         """Store the file or directory at the given path to the specified artifact.
 
         Args:

@@ -1,9 +1,6 @@
 """Use wandb to track machine learning work.
 
-The most commonly used functions/objects are:
-  - wandb.init — initialize a new run at the top of your training script
-  - wandb.config — track hyperparameters and metadata
-  - wandb.log — log metrics and media over time within your training loop
+Train and fine-tune models, manage models from experimentation to production.
 
 For guides and examples, see https://docs.wandb.ai.
 
@@ -11,11 +8,7 @@ For scripts and interactive notebooks, see https://github.com/wandb/examples.
 
 For reference documentation, see https://docs.wandb.com/ref/python.
 """
-__version__ = "0.16.2.dev1"
-_minimum_core_version = "0.17.0b6"
-
-# Used with pypi checks and other messages related to pip
-_wandb_module = "wandb"
+__version__ = "0.18.4.dev1"
 
 from typing import Optional
 
@@ -58,9 +51,13 @@ _lazyloader = wandb.wandb_lib.lazyloader  # type: ignore
 # Call import module hook to set up any needed require hooks
 wandb.sdk.wandb_require._import_module_hook()
 
-from wandb import wandb_torch
+from wandb.integration.torch import wandb_torch
 
 # Move this (keras.__init__ expects it at top level)
+from wandb.sdk.data_types._private import _cleanup_media_tmp_dir
+
+_cleanup_media_tmp_dir()
+
 from wandb.data_types import Graph
 from wandb.data_types import Image
 from wandb.data_types import Plotly
@@ -70,6 +67,7 @@ from wandb.data_types import Video
 from wandb.data_types import Audio
 from wandb.data_types import Table
 from wandb.data_types import Html
+from wandb.data_types import box3d
 from wandb.data_types import Object3D
 from wandb.data_types import Molecule
 from wandb.data_types import Histogram
@@ -78,10 +76,7 @@ from wandb.data_types import JoinedTable
 
 from wandb.wandb_agent import agent
 
-# from wandb.core import *
-from wandb.viz import visualize
-from wandb import plot
-from wandb import plots  # deprecating this
+from wandb.plot.viz import visualize
 from wandb.integration.sagemaker import sagemaker_auth
 from wandb.sdk.internal import profiler
 
@@ -113,13 +108,6 @@ def _assert_is_user_process():
         return
     assert not _IS_INTERNAL_PROCESS
 
-
-# toplevel:
-# save()
-# restore()
-# login()
-# sweep()
-# agent()
 
 # globals
 Api = PublicApi
@@ -209,10 +197,12 @@ if wandb_sdk.lib.ipython.in_notebook():
 from .analytics import Sentry as _Sentry
 
 if "dev" in __version__:
+    import wandb.env
     import os
 
-    os.environ["WANDB_ERROR_REPORTING"] = os.environ.get(
-        "WANDB_ERROR_REPORTING", "false"
+    # disable error reporting in dev versions for the python client
+    os.environ[wandb.env.ERROR_REPORTING] = os.environ.get(
+        wandb.env.ERROR_REPORTING, "false"
     )
 
 _sentry = _Sentry()
@@ -222,6 +212,7 @@ _sentry.setup()
 __all__ = (
     "__version__",
     "init",
+    "finish",
     "setup",
     "save",
     "sweep",
@@ -239,11 +230,16 @@ __all__ = (
     "Audio",
     "Table",
     "Html",
+    "box3d",
     "Object3D",
     "Molecule",
     "Histogram",
     "ArtifactTTL",
+    "log_artifact",
+    "use_artifact",
     "log_model",
     "use_model",
     "link_model",
+    "define_metric",
+    "watch",
 )

@@ -1,0 +1,36 @@
+{{/* This template generates a helper for each interface type genqlient must
+     unmarshal.  This helper is called by the UnmarshalJSON of each (struct)
+     type with a field of the interface type, similar to how it calls custom
+     unmarshalers.  The helper itself is fairly simple: it just parses out and
+     switches on __typename, then unmarshals into the relevant struct. */}}
+
+func __unmarshal{{.GoName}}(b []byte, v *{{.GoName}}) error {
+    if string(b) == "null" {
+        return nil
+    }
+
+    var tn struct {
+        TypeName string `json:"__typename"`
+    }
+    err := {{ref "encoding/json.Unmarshal"}}(b, &tn)
+    if err != nil {
+        return err
+    }
+
+    switch tn.TypeName {
+    {{range .Implementations -}}
+    case "{{.GraphQLName}}":
+        *v = new({{.GoName}})
+        return {{ref "encoding/json.Unmarshal"}}(b, *v)
+    {{end -}}
+    case "":
+        {{/* Likely if we're making a request to a mock server and the author
+             of the mock didn't know to add __typename, so give a special
+             error. */ -}}
+        return {{ref "fmt.Errorf"}}(
+            "response was missing {{.GraphQLName}}.__typename")
+    default:
+        return {{ref "fmt.Errorf"}}(
+            `unexpected concrete type for {{.GoName}}: "%v"`, tn.TypeName)
+    }
+}

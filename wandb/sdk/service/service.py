@@ -2,6 +2,7 @@
 
 Backend server process can be connected to using tcp sockets transport.
 """
+
 import datetime
 import os
 import pathlib
@@ -14,13 +15,12 @@ import time
 from typing import TYPE_CHECKING, Any, Dict, Optional
 
 from wandb import _sentry, termlog
-from wandb.env import error_reporting_enabled
-from wandb.errors import Error
+from wandb.env import core_debug, error_reporting_enabled, is_require_legacy_service
+from wandb.errors import Error, WandbCoreNotAvailableError
+from wandb.sdk.lib.wburls import wburls
 from wandb.util import get_core_path, get_module
 
 from . import _startup_debug, port_file
-from .service_base import ServiceInterface
-from .service_sock import ServiceSockInterface
 
 if TYPE_CHECKING:
     from wandb.sdk.wandb_settings import Settings
@@ -29,25 +29,18 @@ if TYPE_CHECKING:
 class ServiceStartProcessError(Error):
     """Raised when a known error occurs when launching wandb service."""
 
-    pass
-
 
 class ServiceStartTimeoutError(Error):
     """Raised when service start times out."""
-
-    pass
 
 
 class ServiceStartPortError(Error):
     """Raised when service start fails to find a port."""
 
-    pass
-
 
 class _Service:
     _settings: "Settings"
     _sock_port: Optional[int]
-    _service_interface: ServiceInterface
     _internal_proc: Optional[subprocess.Popen]
     _startup_debug_enabled: bool
 
@@ -62,10 +55,6 @@ class _Service:
         self._startup_debug_enabled = _startup_debug.is_enabled()
 
         _sentry.configure_scope(tags=dict(settings), process_context="service")
-
-        # current code only supports socket server implementation, in the
-        # future we might be able to support both
-        self._service_interface = ServiceSockInterface()
 
     def _startup_debug_print(self, message: str) -> None:
         if not self._startup_debug_enabled:
@@ -108,7 +97,8 @@ class _Service:
                     f"The wandb service process exited with {proc.returncode}. "
                     "Ensure that `sys.executable` is a valid python interpreter. "
                     "You can override it with the `_executable` setting "
-                    "or with the `WANDB__EXECUTABLE` environment variable.",
+                    "or with the `WANDB__EXECUTABLE` environment variable."
+                    f"\n{context}",
                     context=context,
                 )
             if not os.path.isfile(fname):
@@ -155,33 +145,38 @@ class _Service:
 
             executable = self._settings._executable
             exec_cmd_list = [executable, "-m"]
-            # Add coverage collection if needed
-            if os.environ.get("YEA_RUN_COVERAGE") and os.environ.get("COVERAGE_RCFILE"):
-                exec_cmd_list += ["coverage", "run", "-m"]
 
             service_args = []
-            # NOTE: "wandb-core" is the name of the package that will be distributed
-            #       as the stable version of the wandb core library.
-            #
-            #       Environment variable _WANDB_CORE_PATH is a temporary development feature
-            #       to assist in running the core service from a live development directory.
-            core_path = get_core_path()
-            if core_path:
+
+            if not is_require_legacy_service():
+                try:
+                    core_path = get_core_path()
+                except WandbCoreNotAvailableError as e:
+                    _sentry.reraise(e)
+
                 service_args.extend([core_path])
+
                 if not error_reporting_enabled():
                     service_args.append("--no-observability")
+
+                if core_debug(default="False"):
+                    service_args.append("--debug")
+
                 exec_cmd_list = []
+                termlog(
+                    "Using wandb-core as the SDK backend."
+                    f" Please refer to {wburls.get('wandb_core')} for more information.",
+                    repeat=False,
+                )
             else:
-                service_args.extend(["wandb", "service"])
+                service_args.extend(["wandb", "service", "--debug"])
 
             service_args += [
                 "--port-filename",
                 fname,
                 "--pid",
                 pid,
-                "--debug",
             ]
-            service_args.append("--serve-sock")
 
             if os.environ.get("WANDB_SERVICE_PROFILE") == "memray":
                 _ = get_module(
@@ -239,10 +234,6 @@ class _Service:
     @property
     def sock_port(self) -> Optional[int]:
         return self._sock_port
-
-    @property
-    def service_interface(self) -> ServiceInterface:
-        return self._service_interface
 
     def join(self) -> int:
         ret = 0

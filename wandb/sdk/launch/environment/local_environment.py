@@ -1,4 +1,5 @@
 """Dummy local environment implementation. This is the default environment."""
+
 from typing import Any, Dict, Union
 
 from wandb.sdk.launch.errors import LaunchError

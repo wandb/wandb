@@ -2,337 +2,376 @@ package monitor
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"os"
-	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
-
-	"github.com/segmentio/encoding/json"
 
 	"google.golang.org/protobuf/proto"
 
-	"github.com/wandb/wandb/core/pkg/observability"
-	"github.com/wandb/wandb/core/pkg/service"
+	"github.com/wandb/wandb/core/internal/observability"
+	"github.com/wandb/wandb/core/internal/runwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-const BufferSize = 32
+const (
+	defaultSamplingInterval = 10.0 * time.Second
+)
 
-func Average(nums []float64) float64 {
-	if len(nums) == 0 {
-		return 0.0
+// State definitions for the SystemMonitor.
+const (
+	StateStopped int32 = iota
+	StateRunning
+	StatePaused
+)
+
+// Asset defines the interface for system assets to be monitored.
+type Asset interface {
+	Name() string
+	Sample() (map[string]any, error)
+	IsAvailable() bool
+	Probe() *spb.MetadataRequest
+}
+
+// SystemMonitor is responsible for monitoring system metrics across various assets.
+type SystemMonitor struct {
+	// The context for the system monitor
+	ctx    context.Context
+	cancel context.CancelFunc
+
+	// The wait group for the system monitor
+	wg sync.WaitGroup
+
+	// The state of the system monitor: stopped, running, or paused
+	state atomic.Int32
+
+	// The list of assets to monitor
+	assets []Asset
+
+	// extraWork accepts outgoing messages for the run
+	extraWork runwork.ExtraWork
+
+	// The metrics buffer for the system monitor
+	buffer *Buffer
+
+	// settings is the settings for the system monitor
+	settings *spb.Settings
+
+	// The interval at which metrics are sampled
+	samplingInterval time.Duration
+
+	// A logger for internal debug logging.
+	logger *observability.CoreLogger
+}
+
+// NewSystemMonitor initializes and returns a new SystemMonitor instance.
+//
+// It sets up assets based on provided settings and configures the metrics buffer.
+func NewSystemMonitor(
+	logger *observability.CoreLogger,
+	settings *spb.Settings,
+	extraWork runwork.ExtraWork,
+) *SystemMonitor {
+	ctx, cancel := context.WithCancel(context.Background())
+	sm := &SystemMonitor{
+		ctx:              ctx,
+		cancel:           cancel,
+		wg:               sync.WaitGroup{},
+		settings:         settings,
+		logger:           logger,
+		extraWork:        extraWork,
+		samplingInterval: defaultSamplingInterval,
 	}
-	total := 0.0
-	for _, num := range nums {
-		total += num
+
+	bufferSize := settings.XStatsBufferSize.GetValue()
+	// Initialize the buffer if a buffer size is provided.
+	// A positive buffer size N indicates that only the last N samples will be kept in memory.
+	// A value of -1 indicates that all sampled metrics will be kept in memory.
+	if bufferSize != 0 {
+		sm.buffer = NewBuffer(bufferSize)
 	}
-	return total / float64(len(nums))
-}
 
-type Measurement struct {
-	// timestamp of the measurement
-	Timestamp *timestamppb.Timestamp
-	// value of the measurement
-	Value float64
-}
-
-type List struct {
-	// slice of tuples of (timestamp, value)
-	elements []Measurement
-	maxSize  int32
-}
-
-func (l *List) Append(element Measurement) {
-	if (l.maxSize > 0) && (len(l.elements) >= int(l.maxSize)) {
-		l.elements = l.elements[1:] // Drop the oldest element
+	if si := settings.XStatsSamplingInterval; si != nil {
+		sm.samplingInterval = time.Duration(si.GetValue() * float64(time.Second))
 	}
-	l.elements = append(l.elements, element) // Add the new element
-}
+	sm.logger.Debug(fmt.Sprintf("monitor: sampling interval: %v", sm.samplingInterval))
 
-func (l *List) GetElements() []Measurement {
-	return l.elements
-}
-
-// Buffer is the in-memory metrics buffer for the system monitor
-type Buffer struct {
-	elements map[string]List
-	mutex    sync.RWMutex
-	maxSize  int32
-}
-
-func NewBuffer(maxSize int32) *Buffer {
-	return &Buffer{
-		elements: make(map[string]List),
-		maxSize:  maxSize,
+	// Early return if stats collection is disabled
+	if settings.XDisableStats.GetValue() {
+		return sm
 	}
+
+	// Initialize the assets to monitor
+	sm.InitializeAssets(settings)
+
+	return sm
 }
 
-func (mb *Buffer) push(metricName string, timeStamp *timestamppb.Timestamp, metricValue float64) {
-	mb.mutex.Lock()
-	defer mb.mutex.Unlock()
-	buf, ok := mb.elements[metricName]
-	if !ok {
-		mb.elements[metricName] = List{
-			maxSize: mb.maxSize,
+// initializeAssets sets up the assets to be monitored based on the provided settings.
+func (sm *SystemMonitor) InitializeAssets(settings *spb.Settings) {
+	pid := settings.XStatsPid.GetValue()
+	diskPaths := settings.XStatsDiskPaths.GetValue()
+	samplingInterval := settings.XStatsSamplingInterval.GetValue()
+	neuronMonitorConfigPath := settings.XStatsNeuronMonitorConfigPath.GetValue()
+
+	// assets to be monitored.
+	if cpu := NewCPU(pid); cpu != nil {
+		sm.assets = append(sm.assets, cpu)
+	}
+	if disk := NewDisk(diskPaths); disk != nil {
+		sm.assets = append(sm.assets, disk)
+	}
+	if memory := NewMemory(pid); memory != nil {
+		sm.assets = append(sm.assets, memory)
+	}
+	if network := NewNetwork(); network != nil {
+		sm.assets = append(sm.assets, network)
+	}
+	cmdPath := ""
+	if gpu := NewGPUNvidia(sm.logger, pid, samplingInterval, cmdPath); gpu != nil {
+		sm.assets = append(sm.assets, gpu)
+	}
+	if gpu := NewGPUAMD(sm.logger); gpu != nil {
+		sm.assets = append(sm.assets, gpu)
+	}
+	if gpu := NewGPUApple(); gpu != nil {
+		sm.assets = append(sm.assets, gpu)
+	}
+	if tpu := NewTPU(); tpu != nil {
+		sm.assets = append(sm.assets, tpu)
+	}
+	if slurm := NewSLURM(); slurm != nil {
+		sm.assets = append(sm.assets, slurm)
+	}
+	if trainium := NewTrainium(sm.logger, pid, samplingInterval, neuronMonitorConfigPath); trainium != nil {
+		sm.assets = append(sm.assets, trainium)
+	}
+
+	// OpenMetrics endpoints to monitor.
+	if endpoints := settings.XStatsOpenMetricsEndpoints.GetValue(); endpoints != nil {
+		for name, url := range endpoints {
+			filters := settings.XStatsOpenMetricsFilters
+			if om := NewOpenMetrics(sm.logger, name, url, filters, nil); om != nil {
+				sm.assets = append(sm.assets, om)
+			}
 		}
 	}
-	buf.Append(Measurement{
-		Timestamp: timeStamp,
-		Value:     metricValue,
-	})
-	mb.elements[metricName] = buf
 }
 
-func makeStatsRecord(stats map[string]float64, timeStamp *timestamppb.Timestamp) *service.Record {
-	record := &service.Record{
-		RecordType: &service.Record_Stats{
-			Stats: &service.StatsRecord{
-				StatsType: service.StatsRecord_SYSTEM,
-				Timestamp: timeStamp,
-			},
-		},
-		Control: &service.Control{AlwaysSend: true},
-	}
-
+// makeStatsRecord constructs a StatsRecord protobuf message from the provided stats map and timestamp.
+func makeStatsRecord(stats map[string]any, timeStamp *timestamppb.Timestamp) *spb.Record {
+	statsItems := make([]*spb.StatsItem, 0, len(stats))
 	for k, v := range stats {
 		jsonData, err := json.Marshal(v)
 		if err != nil {
 			continue
 		}
-		record.GetStats().Item = append(record.GetStats().Item, &service.StatsItem{
+		statsItems = append(statsItems, &spb.StatsItem{
 			Key:       k,
 			ValueJson: string(jsonData),
 		})
 	}
 
-	return record
+	return &spb.Record{
+		RecordType: &spb.Record_Stats{
+			Stats: &spb.StatsRecord{
+				StatsType: spb.StatsRecord_SYSTEM,
+				Timestamp: timeStamp,
+				Item:      statsItems,
+			},
+		},
+		Control: &spb.Control{AlwaysSend: true},
+	}
 }
 
-type Asset interface {
-	Name() string
-	SampleMetrics()
-	AggregateMetrics() map[string]float64
-	ClearMetrics()
-	IsAvailable() bool
-	Probe() *service.MetadataRequest
+// makeMetadataRecord constructs a MetadataRecord protobuf message from the provided MetadataRequest.
+func makeMetadataRecord(metadata *spb.MetadataRequest) *spb.Record {
+	return &spb.Record{
+		RecordType: &spb.Record_Request{
+			Request: &spb.Request{
+				RequestType: &spb.Request_Metadata{
+					Metadata: metadata,
+				},
+			},
+		},
+	}
 }
 
-type SystemMonitor struct {
-	// ctx is the context for the system monitor
-	ctx    context.Context
-	cancel context.CancelFunc
-
-	// wg is the wait group for the system monitor
-	wg sync.WaitGroup
-
-	// assets is the list of assets to monitor
-	assets []Asset
-
-	//	outChan is the channel for outgoing messages
-	outChan chan *service.Record
-
-	// Buffer is the metrics buffer for the system monitor
-	buffer *Buffer
-
-	// settings is the settings for the system monitor
-	settings *service.Settings
-
-	// logger is the logger for the system monitor
-	logger *observability.CoreLogger
+// GetState returns the current state of the SystemMonitor.
+func (sm *SystemMonitor) GetState() int32 {
+	return sm.state.Load()
 }
 
-// NewSystemMonitor creates a new SystemMonitor with the given settings
-func NewSystemMonitor(
-	logger *observability.CoreLogger,
-	settings *service.Settings,
-	outChan chan *service.Record,
-) *SystemMonitor {
-	sbs := settings.XStatsBufferSize.GetValue()
-	var buffer *Buffer
-	// if buffer size is 0, don't create a buffer
-	// a positive buffer size restricts the number of metrics that are kept in memory
-	// value of -1 indicates that all sampled metrics will be kept in memory
-	if sbs != 0 {
-		buffer = NewBuffer(sbs)
-	}
-
-	systemMonitor := &SystemMonitor{
-		wg:       sync.WaitGroup{},
-		settings: settings,
-		logger:   logger,
-		outChan:  outChan,
-		buffer:   buffer,
-	}
-
-	// if stats are disabled, return early
-	if settings.XDisableStats.GetValue() {
-		return systemMonitor
-	}
-
-	assets := []Asset{
-		NewMemory(settings),
-		NewCPU(settings),
-		NewDisk(settings),
-		NewNetwork(settings),
-		NewGPUNvidia(settings),
-		NewGPUAMD(settings),
-		NewGPUApple(settings),
-	}
-
-	// if asset is available, add it to the list of assets to monitor
-	for _, asset := range assets {
-		if asset.IsAvailable() {
-			systemMonitor.assets = append(systemMonitor.assets, asset)
+// probe gathers system information from all assets and merges their metadata.
+func (sm *SystemMonitor) probe() *spb.MetadataRequest {
+	defer func() {
+		if err := recover(); err != nil {
+			sm.logger.CaptureError(
+				fmt.Errorf("monitor: panic: %v", err),
+			)
 		}
-	}
+	}()
 
-	return systemMonitor
-}
-
-func (sm *SystemMonitor) Do() {
-	if sm == nil {
-		return
-	}
-	// reset context:
-	sm.ctx, sm.cancel = context.WithCancel(context.Background())
-
-	sm.logger.Info("Starting system monitor")
-	// start monitoring the assets
-	for _, asset := range sm.assets {
-		sm.wg.Add(1)
-		go sm.Monitor(asset)
-	}
-}
-
-func getSlurmEnvVars() map[string]string {
-	slurmVars := make(map[string]string)
-	for _, envVar := range os.Environ() {
-		keyValPair := strings.SplitN(envVar, "=", 2)
-		key := keyValPair[0]
-		value := keyValPair[1]
-
-		if strings.HasPrefix(key, "SLURM_") {
-			suffix := strings.ToLower(strings.TrimPrefix(key, "SLURM_"))
-			slurmVars[suffix] = value
-		}
-	}
-	return slurmVars
-}
-
-func (sm *SystemMonitor) Probe() *service.MetadataRequest {
-	if sm == nil {
-		return nil
-	}
-	systemInfo := service.MetadataRequest{}
+	systemInfo := spb.MetadataRequest{}
 	for _, asset := range sm.assets {
 		probeResponse := asset.Probe()
 		if probeResponse != nil {
 			proto.Merge(&systemInfo, probeResponse)
 		}
 	}
-	// capture SLURM-related environment variables
-	for k, v := range getSlurmEnvVars() {
-		if systemInfo.Slurm == nil {
-			systemInfo.Slurm = make(map[string]string)
-		}
-		systemInfo.Slurm[k] = v
-	}
-
 	return &systemInfo
 }
 
-func (sm *SystemMonitor) Monitor(asset Asset) {
+// Start begins the monitoring process for all assets and probes system information.
+//
+// It is safe to call Start multiple times; only a stopped monitor will initiate.
+func (sm *SystemMonitor) Start() {
+	if sm == nil {
+		return
+	}
+
+	if !sm.state.CompareAndSwap(StateStopped, StateRunning) {
+		return // Already started or paused
+	}
+
+	sm.logger.Info("Starting system monitor")
+	// start monitoring the assets
+	for _, asset := range sm.assets {
+		sm.wg.Add(1)
+		go sm.monitorAsset(asset)
+	}
+
+	// probe the asset information
+	go func() {
+		systemInfo := sm.probe()
+		if systemInfo != nil {
+			sm.extraWork.AddWorkOrCancel(
+				sm.ctx.Done(),
+				runwork.WorkFromRecord(
+					makeMetadataRecord(systemInfo),
+				),
+			)
+		}
+	}()
+}
+
+// Pause temporarily stops the monitoring process.
+//
+// Monitoring can be resumed later with the Resume method.
+//
+// Pause and Resume are used in notebook environments to ensure that
+// metrics are only collected when a cell is running. We do it this way
+// to prevent the overhead of starting and stopping the monitor for each cell.
+func (sm *SystemMonitor) Pause() {
+	if sm.state.CompareAndSwap(StateRunning, StatePaused) {
+		sm.logger.Info("Pausing system monitor")
+	}
+}
+
+// Resume restarts the monitoring process after it has been paused.
+func (sm *SystemMonitor) Resume() {
+	if sm.state.CompareAndSwap(StatePaused, StateRunning) {
+		sm.logger.Info("Resuming system monitor")
+	}
+}
+
+// monitorAsset handles the monitoring loop for a single asset.
+//
+// It handles sampling, aggregation, and reporting of metrics
+// and is meant to run in its own goroutine.
+func (sm *SystemMonitor) monitorAsset(asset Asset) {
+	if asset == nil || !asset.IsAvailable() {
+		sm.wg.Done()
+		return
+	}
+
 	// recover from panic and log the error
 	defer func() {
 		sm.wg.Done()
 		if err := recover(); err != nil {
-			e := fmt.Errorf("%v", err)
-			sm.logger.CaptureError("monitor: panic", e)
+			if asset != nil {
+				sm.logger.CaptureError(
+					fmt.Errorf("monitor: panic: %v", err),
+					"asset_name", asset.Name())
+			}
 		}
 	}()
-
-	// todo: rename the setting...should be SamplingIntervalSeconds
-	samplingInterval := time.Duration(sm.settings.XStatsSampleRateSeconds.GetValue() * float64(time.Second))
-	samplesToAverage := sm.settings.XStatsSamplesToAverage.GetValue()
-	sm.logger.Debug(
-		fmt.Sprintf(
-			"samplingInterval: %v, samplesToAverage: %v",
-			samplingInterval,
-			samplesToAverage,
-		),
-	)
 
 	// Create a ticker that fires every `samplingInterval` seconds
-	ticker := time.NewTicker(samplingInterval)
+	ticker := time.NewTicker(sm.samplingInterval)
 	defer ticker.Stop()
 
-	// Create a new channel and immediately send a signal to it.
-	// This is to ensure that the first sample is taken immediately.
-	tickChan := make(chan time.Time, 1)
-	tickChan <- time.Now()
-
-	// Forward signals from the ticker to tickChan
-	go func() {
-		for t := range ticker.C {
-			tickChan <- t
-		}
-	}()
-
-	samplesCollected := int32(0)
 	for {
 		select {
 		case <-sm.ctx.Done():
 			return
-		case <-tickChan:
-			asset.SampleMetrics()
-			samplesCollected++
-
-			if samplesCollected == samplesToAverage {
-				aggregatedMetrics := asset.AggregateMetrics()
-				if len(aggregatedMetrics) > 0 {
-					ts := timestamppb.Now()
-					// store in buffer
-					for k, v := range aggregatedMetrics {
-						if sm.buffer != nil {
-							sm.buffer.push(k, ts, v)
-						}
-					}
-
-					// publish metrics
-					record := makeStatsRecord(aggregatedMetrics, ts)
-					// ensure that the context is not done before sending the record
-					select {
-					case <-sm.ctx.Done():
-						return
-					default:
-						sm.outChan <- record
-					}
-					asset.ClearMetrics()
-				}
-
-				// reset samplesCollected
-				samplesCollected = int32(0)
+		case <-ticker.C:
+			if sm.state.Load() != StateRunning {
+				continue // Skip work when not running
 			}
+
+			// NOTE: the pattern in Sample is to capture whatever metrics are available,
+			// accumulate errors along the way, and log them here.
+			metrics, err := asset.Sample()
+			if err != nil {
+				sm.logger.CaptureError(
+					fmt.Errorf("monitor: %v: error sampling metrics: %v", asset.Name(), err),
+				)
+			}
+
+			if len(metrics) == 0 {
+				continue // nothing to do
+			}
+			ts := timestamppb.Now()
+
+			// Push metrics to the buffer
+			if sm.buffer != nil {
+				for k, v := range metrics {
+					if v, ok := v.(float64); ok {
+						sm.buffer.Push(k, ts, v)
+					}
+				}
+			}
+
+			// publish metrics
+			sm.extraWork.AddWorkOrCancel(
+				sm.ctx.Done(),
+				runwork.WorkFromRecord(
+					makeStatsRecord(metrics, ts),
+				),
+			)
 		}
 	}
 
 }
 
-func (sm *SystemMonitor) GetBuffer() map[string]List {
+// GetBuffer returns the current buffer of collected metrics.
+//
+// The buffer is a map of metric names to a slice of measurements - a list of
+// (timestamp, value) pairs.
+func (sm *SystemMonitor) GetBuffer() map[string][]Measurement {
 	if sm == nil || sm.buffer == nil {
 		return nil
 	}
-	sm.buffer.mutex.RLock()
-	defer sm.buffer.mutex.RUnlock()
-	return sm.buffer.elements
+	return sm.buffer.GetMeasurements()
 }
 
-func (sm *SystemMonitor) Stop() {
+// Finish stops the monitoring process and performs necessary cleanup.
+//
+// NOTE: asset.Close is a potentially expensive operation.
+func (sm *SystemMonitor) Finish() {
 	if sm == nil || sm.cancel == nil {
 		return
 	}
+	if sm.state.Swap(StateStopped) == StateStopped {
+		return // Already stopped
+	}
+
 	sm.logger.Info("Stopping system monitor")
+
 	// signal to stop monitoring the assets
 	sm.cancel()
 	// wait for all assets to stop monitoring

@@ -1,6 +1,5 @@
 """Batching file prepare requests to our API."""
 
-import asyncio
 import concurrent.futures
 import logging
 import queue
@@ -8,7 +7,6 @@ import sys
 import threading
 from typing import (
     TYPE_CHECKING,
-    Awaitable,
     Callable,
     MutableMapping,
     MutableSequence,
@@ -43,7 +41,6 @@ if TYPE_CHECKING:
 PreCommitFn = Callable[[], None]
 OnRequestFinishFn = Callable[[], None]
 SaveFn = Callable[["progress.ProgressFn"], bool]
-SaveFnAsync = Callable[["progress.ProgressFn"], Awaitable[bool]]
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +52,6 @@ class RequestUpload(NamedTuple):
     md5: Optional[str]
     copied: bool
     save_fn: Optional[SaveFn]
-    save_fn_async: Optional[SaveFnAsync]
     digest: Optional[str]
 
 
@@ -76,47 +72,6 @@ class EventJobDone(NamedTuple):
 
 
 Event = Union[RequestUpload, RequestCommitArtifact, RequestFinish, EventJobDone]
-
-
-class AsyncExecutor:
-    """Runs async file uploads in a background thread."""
-
-    def __init__(
-        self,
-        pool: concurrent.futures.ThreadPoolExecutor,
-        concurrency_limit: Optional[int],
-    ) -> None:
-        self.loop = asyncio.new_event_loop()
-        self.loop.set_default_executor(pool)
-        self.loop_thread = threading.Thread(
-            target=self.loop.run_forever,
-            daemon=True,
-            name="wandb-upload-async",
-        )
-
-        self.concurrency_limiter = asyncio.Semaphore(
-            value=concurrency_limit or 128,
-            # Before Python 3.10: if we don't set `loop=loop`,
-            #   then the Semaphore will bind to the wrong event loop,
-            #   causing errors when a coroutine tries to wait for it;
-            #   see https://pastebin.com/XcrS9suX .
-            # After 3.10: the `loop` argument doesn't exist.
-            # So we need to only conditionally pass in `loop`.
-            **({} if sys.version_info >= (3, 10) else {"loop": self.loop}),
-        )
-
-    def start(self) -> None:
-        self.loop_thread.start()
-
-    def stop(self) -> None:
-        self.loop.call_soon_threadsafe(self.loop.stop)
-
-    def submit(self, coro: Awaitable[None]) -> None:
-        async def run_with_limiter() -> None:
-            async with self.concurrency_limiter:
-                await coro
-
-        asyncio.run_coroutine_threadsafe(run_with_limiter(), self.loop)
 
 
 class StepUpload:
@@ -140,15 +95,6 @@ class StepUpload:
         self._pool = concurrent.futures.ThreadPoolExecutor(
             thread_name_prefix="wandb-upload",
             max_workers=max_threads,
-        )
-
-        self._async_executor = (
-            AsyncExecutor(
-                pool=self._pool,
-                concurrency_limit=settings._async_upload_concurrency_limit,
-            )
-            if settings is not None and settings._async_upload_concurrency_limit
-            else None
         )
 
         # Indexed by files' `save_name`'s, which are their ID's in the Run.
@@ -186,8 +132,6 @@ class StepUpload:
             elif not self._running_jobs:
                 # Queue was empty and no jobs left.
                 self._pool.shutdown(wait=False)
-                if self._async_executor:
-                    self._async_executor.stop()
                 if finish_callback:
                     finish_callback()
                 break
@@ -235,7 +179,7 @@ class StepUpload:
                 self._artifacts[event.artifact_id]["pending_count"] += 1
             self._start_upload_job(event)
         else:
-            raise Exception("Programming error: unhandled event: %s" % str(event))
+            raise Exception("Programming error: unhandled event: {}".format(str(event)))
 
     def _start_upload_job(self, event: RequestUpload) -> None:
         # Operations on a single backend file must be serialized. if
@@ -245,18 +189,9 @@ class StepUpload:
             self._pending_jobs.append(event)
             return
 
-        if self._async_executor and event.save_fn_async is not None:
-            # (The `and save_fn_async is not None` is because the async code path
-            # doesn't support all uploads yet: even if the user has requested async,
-            # we sometimes need to use the sync method instead.)
-            self._spawn_upload_async(
-                event,
-                async_executor=self._async_executor,
-            )
-        else:
-            self._spawn_upload_sync(event)
+        self._spawn_upload(event)
 
-    def _spawn_upload_sync(self, event: RequestUpload) -> None:
+    def _spawn_upload(self, event: RequestUpload) -> None:
         """Spawn an upload job, and handles the bookkeeping of `self._running_jobs`.
 
         Context: it's important that, whenever we add an entry to `self._running_jobs`,
@@ -285,35 +220,13 @@ class StepUpload:
 
         def run_and_notify() -> None:
             try:
-                self._do_upload_sync(event)
+                self._do_upload(event)
             finally:
                 self._event_queue.put(EventJobDone(event, exc=sys.exc_info()[1]))
 
         self._pool.submit(run_and_notify)
 
-    def _spawn_upload_async(
-        self,
-        event: RequestUpload,
-        async_executor: AsyncExecutor,
-    ) -> None:
-        """Equivalent to _spawn_upload_sync, but uses the async event loop instead of a thread, and requires `event.save_fn_async`.
-
-        Raises:
-            AssertionError: if `event.save_fn_async` is None.
-        """
-        assert event.save_fn_async is not None
-
-        self._running_jobs[event.save_name] = event
-
-        async def run_and_notify() -> None:
-            try:
-                await self._do_upload_async(event)
-            finally:
-                self._event_queue.put(EventJobDone(event, exc=sys.exc_info()[1]))
-
-        async_executor.submit(run_and_notify())
-
-    def _do_upload_sync(self, event: RequestUpload) -> None:
+    def _do_upload(self, event: RequestUpload) -> None:
         job = upload_job.UploadJob(
             self._stats,
             self._api,
@@ -328,19 +241,6 @@ class StepUpload:
             event.digest,
         )
         job.run()
-
-    async def _do_upload_async(self, event: RequestUpload) -> None:
-        """Upload a file and returns when it's done. Requires `event.save_fn_async`."""
-        assert event.save_fn_async is not None
-        job = upload_job.UploadJobAsync(
-            stats=self._stats,
-            api=self._api,
-            file_stream=self._file_stream,
-            silent=self.silent,
-            request=event,
-            save_fn_async=event.save_fn_async,
-        )
-        await job.run()
 
     def _init_artifact(self, artifact_id: str) -> None:
         self._artifacts[artifact_id] = {
@@ -385,8 +285,6 @@ class StepUpload:
 
     def start(self) -> None:
         self._thread.start()
-        if self._async_executor:
-            self._async_executor.start()
 
     def is_alive(self) -> bool:
         return self._thread.is_alive()

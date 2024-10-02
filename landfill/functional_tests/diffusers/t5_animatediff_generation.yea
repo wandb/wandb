@@ -1,0 +1,47 @@
+id: 0.diffusers.animatediff
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: t5_animatediff_generation.py
+depend:
+    requirements:
+        - "diffusers>=0.23.1"
+        - "imageio>=2.33.1"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][workflow][0][params][callback_steps]: 1
+    - :wandb:runs[0][config][workflow][0][params][eta]: 0
+    - :wandb:runs[0][config][workflow][0][params][guidance_scale]: 7.5
+    - :wandb:runs[0][config][workflow][0][params][num_frames]: 16
+    - :wandb:runs[0][config][workflow][0][params][num_inference_steps]: 25
+    - :wandb:runs[0][config][workflow][0][params][num_videos_per_prompt]: 1
+    - :wandb:runs[0][config][workflow][0][params][output_type]: "pil"
+    - :wandb:runs[0][config][workflow][0][params][prompt]: "masterpiece, bestquality, highlydetailed, ultradetailed, sunset, orange sky, warm lighting, fishing boats, ocean waves seagulls, rippling water, wharf, silhouette, serene atmosphere, dusk, evening glow, golden hour, coastal landscape, seaside scenery"
+    - :wandb:runs[0][config][workflow][0][params][negative_prompt]: "bad quality, worse quality"
+    - :wandb:runs[0][config][workflow][0][params][return_dict]: true
+    - :wandb:runs[0][config][workflow][0][params][generator][seed]: 42
+    - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "SG161222/Realistic_Vision_V5.1_noVAE"
+    - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "AnimateDiffPipeline"
+    - :wandb:runs[0][config][workflow][0][pipeline][motion_adapter][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][motion_adapter][1]: "MotionAdapter"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][1]: "DDIMScheduler"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][1]: "CLIPTextModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][1]: "CLIPTokenizer"
+    - :wandb:runs[0][config][workflow][0][pipeline][unet][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][unet][1]: "UNetMotionModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][1]: "AutoencoderKL"
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][_type]: table-file
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][nrows]: 1
+    - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][_type]: video-file
+    - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][caption]: "masterpiece, bestquality, highlydetailed, ultradetailed, sunset, orange sky, warm lighting, fishing boats, ocean waves seagulls, rippling water, wharf, silhouette, serene atmosphere, dusk, evening glow, golden hour, coastal landscape, seaside scenery"
+    - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][height]: 512
+    - :wandb:runs[0][summary][Generated-Video][Pipeline-Call-1][width]: 512
+    - :wandb:runs[0][exitcode]: 0

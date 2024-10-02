@@ -1,0 +1,12 @@
+[build-system]
+requires = ["maturin>=1.0,<2.0"]
+build-backend = "maturin"
+
+[tool.maturin]
+# Build artifacts with the specified Cargo profile
+profile = "release"
+features = ["pyo3/extension-module"]
+include = [
+    { path = "wandb_core/wandb-core", format = "wheel" },
+    { path = "wandb_core/AppleStats", format = "wheel" },
+]

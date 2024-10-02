@@ -1,0 +1,27 @@
+[version]
+path = "wandb/__init__.py"
+
+[build.hooks.custom]
+path = "hatch_build.py"
+
+[build]
+include = [
+    "wandb/__init__.pyi",
+    "wandb/py.typed",
+    "package_readme.md",
+    "wandb/**/*.py",
+    "wandb/**/*.sh",
+]
+
+[build.targets.sdist]
+include = [
+    "apple_stats",
+    "core",
+    "nvidia_gpu_stats",
+    "wandb/py.typed",
+    "package_readme.md",
+    "wandb/__init__.pyi",
+    "wandb/**/*.py",
+    "wandb/**/*.sh",
+]
+exclude = ["tests/"]

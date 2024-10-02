@@ -2,12 +2,11 @@ package artifacts
 
 import (
 	"encoding/json"
-	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
 const (
@@ -41,7 +40,7 @@ func TestArtifactBuilder(t *testing.T) {
 	}
 	metadataJson, err := json.Marshal(metadata)
 	assert.Nil(t, err)
-	baseArtifact := &service.ArtifactRecord{
+	baseArtifact := &spb.ArtifactRecord{
 		Entity:           "entity",
 		Project:          "project",
 		RunId:            "runid",
@@ -53,12 +52,23 @@ func TestArtifactBuilder(t *testing.T) {
 		ClientId:         clientId,
 		SequenceClientId: sequenceClientId,
 	}
+
 	builder := NewArtifactBuilder(baseArtifact)
 	err = builder.AddData("obj.object.json", weaveObjectData)
 	assert.Nil(t, err)
 	err = builder.AddData("obj.type.json", weaveTypeData)
 	assert.Nil(t, err)
+
+	file, err := os.CreateTemp("", "test-name.txt")
+	assert.Nil(t, err)
+	_, err = file.WriteString("wandb")
+	assert.Nil(t, err)
+	err = file.Sync()
+	assert.Nil(t, err)
+	file.Close()
+	err = builder.AddFile(file.Name(), "test-name.txt")
+	assert.Nil(t, err)
+
 	art := builder.GetArtifact()
-	assert.Equal(t, art.Digest, "62103abbae3f3d159ba71d1ffe37f2b1")
-	fmt.Printf("ART %+v\n", art)
+	assert.Equal(t, art.Digest, "2f122f2bff8133c0d5806d9bac1b958c")
 }

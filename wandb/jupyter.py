@@ -167,8 +167,6 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
             urljoin(s["url"], "api/sessions"), params={"token": s.get("token", "")}
         ).json()
         for nn in res:
-            # TODO: wandb/client#400 found a case where res returned an array of
-            # strings...
             if isinstance(nn, dict) and nn.get("kernel") and "notebook" in nn:
                 if nn["kernel"]["id"] == kernel_id:
                     return {
@@ -176,7 +174,24 @@ def notebook_metadata_from_jupyter_servers_and_kernel_id():
                         "path": nn["notebook"]["path"],
                         "name": nn["notebook"]["name"],
                     }
-    return None
+
+    if not kernel_id:
+        return None
+
+    # Built-in notebook server in VS Code
+    try:
+        from IPython import get_ipython
+
+        ipython = get_ipython()
+        notebook_path = ipython.kernel.shell.user_ns.get("__vsc_ipynb_file__")
+        if notebook_path:
+            return {
+                "root": os.path.dirname(notebook_path),
+                "path": notebook_path,
+                "name": os.path.basename(notebook_path),
+            }
+    except Exception:
+        return None
 
 
 def notebook_metadata(silent: bool) -> Dict[str, str]:
@@ -288,35 +303,34 @@ def attempt_colab_login(app_url):
     display.display(
         display.Javascript(
             """
-        window._wandbApiKey = new Promise((resolve, reject) => {
-            function loadScript(url) {
-            return new Promise(function(resolve, reject) {
+        window._wandbApiKey = new Promise((resolve, reject) => {{
+            function loadScript(url) {{
+            return new Promise(function(resolve, reject) {{
                 let newScript = document.createElement("script");
                 newScript.onerror = reject;
                 newScript.onload = resolve;
                 document.body.appendChild(newScript);
                 newScript.src = url;
-            });
-            }
-            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {
+            }});
+            }}
+            loadScript("https://cdn.jsdelivr.net/npm/postmate/build/postmate.min.js").then(() => {{
             const iframe = document.createElement('iframe')
             iframe.style.cssText = "width:0;height:0;border:none"
             document.body.appendChild(iframe)
-            const handshake = new Postmate({
+            const handshake = new Postmate({{
                 container: iframe,
-                url: '%s/authorize'
-            });
+                url: '{}/authorize'
+            }});
             const timeout = setTimeout(() => reject("Couldn't auto authenticate"), 5000)
-            handshake.then(function(child) {
-                child.on('authorize', data => {
+            handshake.then(function(child) {{
+                child.on('authorize', data => {{
                     clearTimeout(timeout)
                     resolve(data)
-                });
-            });
-            })
-        });
-    """
-            % app_url.replace("http:", "https:")
+                }});
+            }});
+            }})
+        }});
+    """.format(app_url.replace("http:", "https:"))
         )
     )
     try:

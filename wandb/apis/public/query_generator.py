@@ -60,7 +60,7 @@ class QueryGenerator:
             return key["name"]
         elif key["section"] == "tags":
             return "tags." + key["name"]
-        raise ValueError("Invalid key: %s" % key)
+        raise ValueError("Invalid key: {}".format(key))
 
     def server_path_to_key(self, path):
         if path.startswith("config."):

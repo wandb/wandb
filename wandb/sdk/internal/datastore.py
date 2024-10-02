@@ -52,7 +52,7 @@ try:
     bytes("", "ascii")
 
     def strtobytes(x):
-        """strtobytes."""
+        """Strtobytes."""
         return bytes(x, "iso8859-1")
 
     # def bytestostr(x):
@@ -69,7 +69,7 @@ class DataStore:
 
     def __init__(self) -> None:
         self._opened_for_scan = False
-        self._fp: Optional["IO[Any]"] = None
+        self._fp: Optional[IO[Any]] = None
         self._index = 0
         self._flush_offset = 0
         self._size_bytes = 0

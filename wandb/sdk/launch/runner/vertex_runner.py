@@ -8,8 +8,7 @@ if False:
 from wandb.apis.internal import Api
 from wandb.util import get_module
 
-from .._project_spec import LaunchProject, get_entry_point_command
-from ..builder.build import get_env_vars_dict
+from .._project_spec import LaunchProject
 from ..environment.gcp_environment import GcpEnvironment
 from ..errors import LaunchError
 from ..registry.abstract import AbstractRegistry
@@ -113,14 +112,16 @@ class VertexRunner(AbstractRunner):
         synchronous: bool = self.backend_config[PROJECT_SYNCHRONOUS]
 
         entry_point = (
-            launch_project.override_entrypoint
-            or launch_project.get_single_entry_point()
+            launch_project.override_entrypoint or launch_project.get_job_entry_point()
         )
 
         # TODO: Set entrypoint in each container
-        entry_cmd = get_entry_point_command(entry_point, launch_project.override_args)
-        env_vars = get_env_vars_dict(
-            launch_project=launch_project,
+        entry_cmd = []
+        if entry_point is not None:
+            entry_cmd += entry_point.command
+        entry_cmd += launch_project.override_args
+
+        env_vars = launch_project.get_env_vars_dict(
             api=self._api,
             max_env_length=MAX_ENV_LENGTHS[self.__class__.__name__],
         )

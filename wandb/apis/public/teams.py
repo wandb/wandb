@@ -1,4 +1,5 @@
 """Public API: teams."""
+
 import requests
 from wandb_gql import gql
 

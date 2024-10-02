@@ -1,6 +1,8 @@
 """Utilities for the agent."""
+
 from typing import Any, Dict, Optional
 
+import wandb
 from wandb.apis.internal import Api
 from wandb.docker import is_docker_installed
 from wandb.sdk.launch.errors import LaunchError
@@ -87,6 +89,15 @@ def registry_from_config(
         from .registry.local_registry import LocalRegistry
 
         return LocalRegistry()  # This is the default, dummy registry.
+
+    wandb.termwarn(
+        "The `registry` block of the launch agent config is being deprecated. "
+        "Please specify an image repository URI under the `builder.destination` "
+        "key of your launch agent config. See "
+        "https://docs.wandb.ai/guides/launch/setup-agent-advanced#agent-configuration "
+        "for more information."
+    )
+
     registry_type = config.get("type")
     if registry_type is None or registry_type == "local":
         from .registry.local_registry import LocalRegistry

@@ -1,88 +1,71 @@
 package server
 
 import (
-	"context"
+	"bytes"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 
-	"github.com/wandb/wandb/core/pkg/observability"
-
 	"github.com/wandb/wandb/core/pkg/leveldb"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"google.golang.org/protobuf/proto"
 )
 
+type HeaderOptions struct {
+	IDENT   [4]byte
+	Magic   uint16
+	Version byte
+}
+
 const (
-	HeaderIdent   = ":W&B"
-	HeaderMagic   = 0xBEE1
-	HeaderVersion = 0
+	// headerMagic is the magic number for the header.
+	headerMagic = 0xBEE1
+	// headerVersion is the version of the header.
+	headerVersion = 0
+	// headerLength is fixed to IDENT(4) + Magic(2) + Version(1) = 7
+	headerLength = 7
 )
 
-type StoreHeader struct {
-	ident   [4]byte
-	magic   uint16
-	version byte
+// headerIdent returns the header identifier.
+func headerIdent() [4]byte {
+	return [4]byte{':', 'W', '&', 'B'}
 }
 
-func IdentToByteSlice() [4]byte {
-	byteSlice := []byte(HeaderIdent)
-	var ident [4]byte
-	copy(ident[:], byteSlice)
-	return ident
+// NewHeader returns a new header with default values.
+func NewHeader() *HeaderOptions {
+	return &HeaderOptions{
+		IDENT:   headerIdent(),
+		Magic:   headerMagic,
+		Version: headerVersion,
+	}
 }
 
-func (sh *StoreHeader) Write(w io.Writer) error {
+// MarshalBinary encodes the header to binary format.
+func (o *HeaderOptions) MarshalBinary(w io.Writer) error {
 
-	head := StoreHeader{ident: IdentToByteSlice(), magic: HeaderMagic, version: HeaderVersion}
-	if err := binary.Write(w, binary.LittleEndian, &head); err != nil {
-		return err
+	if err := binary.Write(w, binary.LittleEndian, o); err != nil {
+		return fmt.Errorf("error writing binary data: %w", err)
 	}
 	return nil
 }
 
-func (sh *StoreHeader) Read(r io.Reader) error {
-	buf := [7]byte{}
-	if err := binary.Read(r, binary.LittleEndian, &buf); err != nil {
-		return err
-	}
-	sh.ident = [4]byte{buf[0], buf[1], buf[2], buf[3]}
-	sh.magic = binary.LittleEndian.Uint16(buf[4:6])
-	sh.version = buf[6]
-
-	if sh.ident != IdentToByteSlice() {
-		err := fmt.Errorf("invalid header")
-		return err
-	}
-	if sh.magic != HeaderMagic {
-		err := fmt.Errorf("invalid header")
-		return err
-	}
-	if sh.version != HeaderVersion {
-		err := fmt.Errorf("invalid header")
-		return err
+// UnmarshalBinary decodes binary data into the header.
+func (o *HeaderOptions) UnmarshalBinary(r io.Reader) error {
+	if err := binary.Read(r, binary.LittleEndian, o); err != nil {
+		return fmt.Errorf("error reading binary data: %w", err)
 	}
 	return nil
 }
 
-func (sh *StoreHeader) GetIdent() [4]byte {
-	return sh.ident
-}
-
-func (sh *StoreHeader) GetMagic() uint16 {
-	return sh.magic
-}
-
-func (sh *StoreHeader) GetVersion() byte {
-	return sh.version
+// Valid checks if the header is valid based on a reference header.
+func (o *HeaderOptions) Valid() bool {
+	return o.IDENT == headerIdent() && o.Magic == headerMagic && o.Version == headerVersion
 }
 
 // Store is the persistent store for a stream
 type Store struct {
-	// ctx is the context for the store
-	ctx context.Context
-
 	// name is the name of the underlying file
 	name string
 
@@ -94,18 +77,11 @@ type Store struct {
 
 	// db is the underlying database
 	db *os.File
-
-	// logger is the logger for the store
-	logger *observability.CoreLogger
 }
 
 // NewStore creates a new store
-func NewStore(ctx context.Context, fileName string, logger *observability.CoreLogger) *Store {
-	sr := &Store{ctx: ctx,
-		name:   fileName,
-		logger: logger,
-	}
-	return sr
+func NewStore(fileName string) *Store {
+	return &Store{name: fileName}
 }
 
 // Open opens the store
@@ -114,108 +90,107 @@ func (sr *Store) Open(flag int) error {
 	case os.O_RDONLY:
 		f, err := os.Open(sr.name)
 		if err != nil {
-			sr.logger.CaptureError("can't open file", err)
-			return err
+			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
+		headerBuffer := make([]byte, headerLength)
 		sr.reader = leveldb.NewReaderExt(f, leveldb.CRCAlgoIEEE)
-		header := StoreHeader{}
-		if err := header.Read(sr.db); err != nil {
-			sr.logger.CaptureError("can't read header", err)
-			return err
+		err = sr.reader.ReadHeader(headerBuffer)
+		if err != nil {
+			return fmt.Errorf("store: failed to read header: %v", err)
+		}
+		headerReader := bytes.NewReader(headerBuffer)
+		header := NewHeader()
+		if err = header.UnmarshalBinary(headerReader); err != nil {
+			return fmt.Errorf("store: failed to unmarshal header: %v", err)
+		}
+		if !header.Valid() {
+			return errors.New("store: invalid header")
 		}
 		return nil
 	case os.O_WRONLY:
 		f, err := os.Create(sr.name)
 		if err != nil {
-			sr.logger.CaptureError("can't open file", err)
-			return err
+			return fmt.Errorf("store: failed to open file: %v", err)
 		}
 		sr.db = f
-		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE)
-		header := StoreHeader{}
-		if err := header.Write(sr.db); err != nil {
-			sr.logger.CaptureError("can't write header", err)
-			return err
+		var headerBuffer bytes.Buffer
+		header := NewHeader()
+		if err := header.MarshalBinary(&headerBuffer); err != nil {
+			return fmt.Errorf("store: failed to write header: %v", err)
 		}
+		sr.writer = leveldb.NewWriterExt(f, leveldb.CRCAlgoIEEE, headerBuffer.Bytes())
 		return nil
 	default:
 		// TODO: generalize this?
-		err := fmt.Errorf("invalid flag %d", flag)
-		sr.logger.CaptureError("can't open file", err)
-		return err
+		return fmt.Errorf("store: invalid flag %d", flag)
 	}
 }
 
 // Close closes the store
 func (sr *Store) Close() error {
+	errs := []error{}
+
 	if sr.writer != nil {
 		err := sr.writer.Close()
 		if err != nil {
-			sr.logger.CaptureError("can't close file", err)
+			errs = append(errs, fmt.Errorf("store: failed closing writer: %v", err))
 		}
 	}
 
-	err := sr.db.Close()
-	if err != nil {
-		sr.logger.CaptureError("can't close file", err)
-	}
+	db := sr.db
 	sr.db = nil
-	return err
+
+	err := db.Close()
+	if err != nil {
+		errs = append(errs, fmt.Errorf("store: failed closing file: %v", err))
+	}
+
+	return errors.Join(errs...)
 }
 
-func (sr *Store) Write(msg *service.Record) error {
+func (sr *Store) Write(msg *spb.Record) error {
 	writer, err := sr.writer.Next()
 	if err != nil {
-		sr.logger.CaptureError("can't write header", err)
-		return err
+		return fmt.Errorf("store: can't get next record: %v", err)
 	}
 	out, err := proto.Marshal(msg)
 	if err != nil {
-		sr.logger.CaptureError("can't write header", err)
-		return err
+		return fmt.Errorf("store: can't marshal proto: %v", err)
 	}
 
 	if _, err = writer.Write(out); err != nil {
-		sr.logger.CaptureError("can't write header", err)
-		return err
+		return fmt.Errorf("store: can't write proto: %v", err)
 	}
 	return nil
 }
 
-func (sr *Store) WriteDirectlyToDB(data []byte) (int, error) {
-	// this is for testing purposes only
-	return sr.db.Write(data)
-}
-
-func (sr *Store) Read() (*service.Record, error) {
+// Reads the next record from the database.
+//
+// Returns nil and an error on failure. On EOF, error is [io.EOF].
+func (sr *Store) Read() (*spb.Record, error) {
 	// check if db is closed
 	if sr.db == nil {
-		err := fmt.Errorf("db is closed")
-		sr.logger.CaptureError("can't read record", err)
-		return nil, err
+		return nil, fmt.Errorf("store: db is closed")
 	}
 
 	reader, err := sr.reader.Next()
 	if err == io.EOF {
-		return nil, err
+		return nil, io.EOF
 	}
 
 	if err != nil {
-		sr.logger.CaptureError("can't read record", err)
 		sr.reader.Recover()
-		return nil, err
+		return nil, fmt.Errorf("store: failed to get next record: %v", err)
 	}
 	buf, err := io.ReadAll(reader)
 	if err != nil {
-		sr.logger.CaptureError("can't read record", err)
 		sr.reader.Recover()
-		return nil, err
+		return nil, fmt.Errorf("store: error reading: %v", err)
 	}
-	msg := &service.Record{}
+	msg := &spb.Record{}
 	if err = proto.Unmarshal(buf, msg); err != nil {
-		sr.logger.CaptureError("can't read record", err)
-		return nil, err
+		return nil, fmt.Errorf("store: failed to unmarshal: %v", err)
 	}
 	return msg, nil
 }

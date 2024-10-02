@@ -3,13 +3,13 @@ package artifacts
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"path/filepath"
 	"time"
 
 	"github.com/Khan/genqlient/graphql"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/pkg/utils"
 )
 
 const BATCH_SIZE int = 10000
@@ -19,21 +19,33 @@ type ArtifactDownloader struct {
 	// Resources
 	Ctx             context.Context
 	GraphqlClient   graphql.Client
-	DownloadManager *filetransfer.FileTransferManager
+	DownloadManager filetransfer.FileTransferManager
+	FileCache       Cache
 	// Input
 	ArtifactID             string
 	DownloadRoot           string
-	AllowMissingReferences *bool
+	AllowMissingReferences bool   // Currently unused
+	SkipCache              bool   // Currently unused
+	PathPrefix             string // Currently unused
 }
 
 func NewArtifactDownloader(
 	ctx context.Context,
 	graphQLClient graphql.Client,
-	downloadManager *filetransfer.FileTransferManager,
+	downloadManager filetransfer.FileTransferManager,
 	artifactID string,
 	downloadRoot string,
-	allowMissingReferences *bool,
+	allowMissingReferences bool,
+	skipCache bool,
+	pathPrefix string,
 ) *ArtifactDownloader {
+	var fileCache Cache
+	if !skipCache {
+		fileCache = NewFileCache(UserCacheDir())
+	} else {
+		fileCache = NewHashOnlyCache()
+
+	}
 	return &ArtifactDownloader{
 		Ctx:                    ctx,
 		GraphqlClient:          graphQLClient,
@@ -41,6 +53,9 @@ func NewArtifactDownloader(
 		ArtifactID:             artifactID,
 		DownloadRoot:           downloadRoot,
 		AllowMissingReferences: allowMissingReferences,
+		SkipCache:              skipCache,
+		PathPrefix:             pathPrefix,
+		FileCache:              fileCache,
 	}
 }
 
@@ -76,7 +91,8 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 	batchSize := BATCH_SIZE
 
 	type TaskResult struct {
-		Task *filetransfer.Task
+		Path string
+		Err  error
 		Name string
 	}
 
@@ -135,49 +151,69 @@ func (ad *ArtifactDownloader) downloadFiles(artifactID string, manifest Manifest
 				for _, entry := range manifestEntriesBatch {
 					// Add function that returns download path?
 					downloadLocalPath := filepath.Join(ad.DownloadRoot, *entry.LocalPath)
-					// Skip downloading the file if it already exists and has the same digest.
-					exists, err := utils.FileExists(downloadLocalPath)
-					if err != nil {
-						return err
+					// If we're skipping the cache, the HashOnlyCache still checks the destination
+					// and returns true if the file is there and has the correct hash.
+					if success := ad.FileCache.RestoreTo(entry, downloadLocalPath); success {
+						numDone++
+						continue
 					}
-					if exists {
-						existingDigest, err := utils.ComputeFileB64MD5(downloadLocalPath)
-						if err != nil {
-							return err
+					if entry.Ref != nil {
+						task := &filetransfer.ReferenceArtifactDownloadTask{
+							FileKind:     filetransfer.RunFileKindArtifact,
+							PathOrPrefix: downloadLocalPath,
+							Reference:    *entry.Ref,
+							Digest:       entry.Digest,
+							Size:         entry.Size,
 						}
-						if existingDigest == entry.Digest {
-							numDone++
-							continue
+						versionId, ok := entry.Extra["versionID"]
+						if ok {
+							err := task.SetVersionID(versionId)
+							if err != nil {
+								return fmt.Errorf("error setting version id: %v", err)
+							}
 						}
+
+						task.OnComplete = func() {
+							taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}
+						}
+						ad.DownloadManager.AddTask(task)
+					} else {
+						task := &filetransfer.DefaultDownloadTask{
+							FileKind: filetransfer.RunFileKindArtifact,
+							Path:     downloadLocalPath,
+							Url:      *entry.DownloadURL,
+							Size:     entry.Size,
+						}
+
+						task.OnComplete = func() {
+							taskResultsChan <- TaskResult{downloadLocalPath, task.Err, *entry.LocalPath}
+						}
+						ad.DownloadManager.AddTask(task)
 					}
-					task := &filetransfer.Task{
-						Type: filetransfer.DownloadTask,
-						Path: downloadLocalPath,
-						Url:  *entry.DownloadURL,
-					}
-					task.AddCompletionCallback(
-						func(task *filetransfer.Task) {
-							taskResultsChan <- TaskResult{task, *entry.LocalPath}
-						},
-					)
 					numInProgress++
-					ad.DownloadManager.AddTask(task)
 				}
 			}
 			// Wait for downloader to catch up. If there's nothing more to schedule, wait for all in progress tasks.
 			for numInProgress > MAX_BACKLOG || (len(manifestEntriesBatch) == 0 && numInProgress > 0) {
 				numInProgress--
 				result := <-taskResultsChan
-				if result.Task.Err != nil {
+				if result.Err != nil {
 					// We want to retry when the signed URL expires. However, distinguishing that error from others is not
 					// trivial. As a heuristic, we retry if the request failed more than an hour after we fetched the URL.
 					if time.Since(nameToScheduledTime[result.Name]) < 1*time.Hour {
-						return result.Task.Err
+						return result.Err
 					}
 					delete(nameToScheduledTime, result.Name) // retry
 					continue
 				}
 				numDone++
+				digest := manifest.Contents[result.Name].Digest
+				go func() {
+					err := ad.FileCache.AddFileAndCheckDigest(result.Path, digest)
+					if err != nil {
+						slog.Error("Error adding file to cache", "err", err)
+					}
+				}()
 			}
 		}
 	}

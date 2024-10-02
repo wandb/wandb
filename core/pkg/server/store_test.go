@@ -1,34 +1,52 @@
 package server_test
 
 import (
-	"context"
+	"fmt"
 	"io"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/pkg/observability"
 	"github.com/wandb/wandb/core/pkg/server"
-	"github.com/wandb/wandb/core/pkg/service"
+	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
-func TestStoreHeaderReadWrite(t *testing.T) {
-	header := server.StoreHeader{}
+func TestValidHeader(t *testing.T) {
+	header := server.NewHeader()
 
 	r, w := io.Pipe()
 
 	go func() {
 		defer w.Close()
-		err := header.Write(w)
+		err := header.MarshalBinary(w)
 		assert.NoError(t, err)
 	}()
 
-	err := header.Read(r)
+	err := header.UnmarshalBinary(r)
 	assert.NoError(t, err)
-	headerString := header.GetIdent()
-	assert.Equal(t, server.HeaderIdent, string(headerString[:]))
-	assert.Equal(t, uint16(server.HeaderMagic), header.GetMagic())
-	assert.Equal(t, byte(server.HeaderVersion), header.GetVersion())
+	assert.True(t, header.Valid())
+	_ = r.Close()
+}
+
+// Test to check the Invalid scenario
+func TestInvalidHeader(t *testing.T) {
+	header := server.HeaderOptions{
+		IDENT:   [4]byte{'a', 'b', 'c', 'd'},
+		Magic:   0xABCD,
+		Version: 1,
+	}
+
+	r, w := io.Pipe()
+
+	go func() {
+		defer w.Close()
+		err := header.MarshalBinary(w)
+		assert.NoError(t, err)
+	}()
+
+	err := header.UnmarshalBinary(r)
+	assert.NoError(t, err)
+	assert.False(t, header.Valid())
 	_ = r.Close()
 }
 
@@ -38,8 +56,7 @@ func TestOpenCreateStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
@@ -53,15 +70,14 @@ func TestOpenReadStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 
@@ -75,14 +91,13 @@ func TestReadWriteRecord(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 
 	err = store.Write(record)
 	assert.NoError(t, err)
@@ -90,7 +105,7 @@ func TestReadWriteRecord(t *testing.T) {
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
@@ -105,34 +120,55 @@ func TestReadWriteRecord(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+// AppendToFile appends the given data to the file specified by filename.
+func AppendToFile(filename string, data []byte) error {
+	// Open the file in append mode, create it if it doesn't exist
+	file, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file: %w", err)
+	}
+	defer file.Close()
+
+	// Write the data to the file
+	_, err = file.Write(data)
+	if err != nil {
+		return fmt.Errorf("failed to write data to file: %w", err)
+	}
+
+	return nil
+}
+
 func TestCorruptFile(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-db")
 	assert.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	defer store.Close()
 
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
-
-	_, err = store.WriteDirectlyToDB([]byte("bad record"))
-	assert.NoError(t, err)
-
 	err = store.Close()
 	assert.NoError(t, err)
 
-	store2 := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	err = AppendToFile(tmpFile.Name(), []byte("bad record"))
+	assert.NoError(t, err)
+
+	store2 := server.NewStore(tmpFile.Name())
 	err = store2.Open(os.O_RDONLY)
 	assert.NoError(t, err)
 	defer store2.Close()
 
+	// this record was fine (record num:1)
+	_, err = store2.Read()
+	assert.NoError(t, err)
+
+	// this record is bad.. we appended a string to the file "bad record"
 	_, err = store2.Read()
 	assert.Error(t, err)
 
@@ -141,14 +177,13 @@ func TestCorruptFile(t *testing.T) {
 }
 
 // Test to check the InvalidHeader scenario
-func TestInvalidHeader(t *testing.T) {
+func TestStoreInvalidHeader(t *testing.T) {
 	tmpFile, err := os.CreateTemp("", "temp-invalid-header")
 	assert.NoError(t, err)
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 
 	// Intentionally writing bad header data
 	err = os.WriteFile(tmpFile.Name(), []byte("Invalid"), 0644)
@@ -160,8 +195,7 @@ func TestInvalidHeader(t *testing.T) {
 
 // TestStoreHeader_Write_Error is intended to test the error scenario when writing the header
 func TestStoreHeader_Write_Error(t *testing.T) {
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), "non_existent_dir/file", logger)
+	store := server.NewStore("non_existent_dir/file")
 	err := store.Open(os.O_WRONLY)
 	assert.Error(t, err)
 }
@@ -173,8 +207,7 @@ func TestInvalidFlag(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(9999) // 9999 is an invalid flag
 	assert.Errorf(t, err, "invalid flag %d", 9999)
 }
@@ -186,15 +219,14 @@ func TestWriteToClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
 	err = store.Close()
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.Error(t, err, "can't write header")
 }
@@ -206,12 +238,11 @@ func TestReadFromClosedStore(t *testing.T) {
 	defer os.Remove(tmpFile.Name())
 	tmpFile.Close()
 
-	logger := observability.NewNoOpLogger()
-	store := server.NewStore(context.Background(), tmpFile.Name(), logger)
+	store := server.NewStore(tmpFile.Name())
 	err = store.Open(os.O_WRONLY)
 	assert.NoError(t, err)
 
-	record := &service.Record{Num: 1, Uuid: "test-uuid"}
+	record := &spb.Record{Num: 1, Uuid: "test-uuid"}
 	err = store.Write(record)
 	assert.NoError(t, err)
 

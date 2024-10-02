@@ -1,0 +1,95 @@
+{{/* We generate MarshalJSON for much the same reasons as UnmarshalJSON -- see
+     unmarshal.go.tmpl for details.  (Note we generate both even if genqlient
+     itself needs only UnmarshalJSON, for the benefit of callers who want to,
+     for example, put genqlient responses in a cache.)  But our implementation
+     for marshaling is quite different.
+
+     Specifically, the treatment of field-visibility with embedded fields must
+     differ from both ordinary encoding/json and unmarshaling: we need to
+     choose exactly one conflicting field in all cases (whereas Go chooses at
+     most one and when unmarshaling we choose them all).  See
+     goStructType.FlattenedFields in types.go for more discussion of embedding
+     and visibility.
+
+     To accomplish that, we essentially flatten out all the embedded fields
+     when marshaling, following those precedence rules.  Then we basically
+     follow what we do in unmarshaling, but in reverse order: first we marshal
+     the special fields, then we glue everything together with the ordinary
+     fields.
+
+     We do one other thing differently, for the benefit of the marshal-helper
+     in marshal_helper.go.tmpl.  While when unmarshaling it's easy to unmarshal
+     out the __typename field, then unmarshal out everything else, with
+     marshaling we can't do the same (at least not without some careful
+     JSON-stitching; the considerations are basically the same as those
+     discussed in FlattenedFields).  So we write out a helper method
+     __premarshalJSON() which basically does all but the final JSON-marshal.
+     (Then the real MarshalJSON() just calls that, and then marshals.)
+     Thus a marshal-helper for this type, if any, can call __premarshalJSON()
+     directly, and embed its result. */}}
+
+type __premarshal{{.GoName}} struct{
+    {{range .FlattenedFields -}}
+    {{if .NeedsMarshaling -}}
+    {{.GoName}} {{repeat .GoType.SliceDepth "[]"}}{{ref "encoding/json.RawMessage"}} `json:"{{.JSONName}}{{if .Omitempty -}},omitempty{{end}}"`
+    {{else}}
+    {{.GoName}} {{.GoType.Reference}} `json:"{{.JSONName}}{{if .Omitempty -}},omitempty{{end}}"`
+    {{end}}
+    {{end}}
+}
+
+func (v *{{.GoName}}) MarshalJSON() ([]byte, error) {
+    premarshaled, err := v.__premarshalJSON()
+    if err != nil {
+        return nil, err
+    }
+    return json.Marshal(premarshaled)
+}
+
+func (v *{{.GoName}}) __premarshalJSON() (*__premarshal{{.GoName}}, error) {
+    var retval __premarshal{{.GoName}}
+
+    {{range $field := .FlattenedFields -}}
+    {{if $field.NeedsMarshaling -}}
+    {
+        {{/* Here dst is the json.RawMessage, and src is the Go type. */}}
+        dst := &retval.{{$field.GoName}}
+        src := v.{{$field.Selector}}
+        {{range $i := intRange $field.GoType.SliceDepth -}}
+        *dst = make(
+            {{repeat (sub $field.GoType.SliceDepth $i) "[]"}}{{ref "encoding/json.RawMessage"}},
+            len(src))
+        for i, src := range src {
+            dst := &(*dst)[i]
+        {{end -}}
+        {{/* src now has type <GoType>; dst is json.RawMessage */ -}}
+        {{if $field.GoType.IsPointer -}}
+        {{/* If you passed a pointer, and it's nil, don't call the
+             marshaler.  This matches json.Marshal's behavior. */ -}}
+        if src != nil {
+        {{end -}}
+        var err error
+        *dst, err = {{$field.Marshaler $.Generator}}(
+            {{/* src is the struct-field (or field-element, etc.).
+                 We want to pass a pointer to the type you specified, so if
+                 there's a pointer on the field that's exactly what we want,
+                 and if not we need to take the address. */ -}}
+            {{if not $field.GoType.IsPointer}}&{{end}}src)
+        if err != nil {
+            return nil, fmt.Errorf(
+                "unable to marshal {{$.GoName}}.{{$field.Selector}}: %w", err)
+        }
+        {{if $field.GoType.IsPointer -}}
+        }{{/* end if src != nil */}}
+        {{end -}}
+        {{range $i := intRange $field.GoType.SliceDepth -}}
+        }
+        {{end -}}
+    }
+    {{else -}}
+    retval.{{$field.GoName}} = v.{{$field.Selector}}
+    {{end -}}
+    {{end -}}
+
+    return &retval, nil
+}

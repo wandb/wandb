@@ -39,12 +39,13 @@ def install_deps(
         deps (str[], None): The dependencies that failed to install
     """
     try:
+        subprocess.check_output(["pip", "install", "uv"], stderr=subprocess.STDOUT)
         # Include only uri if @ is present
         clean_deps = [d.split("@")[-1].strip() if "@" in d else d for d in deps]
         index_args = ["--extra-index-url", extra_index] if extra_index else []
         print("installing {}...".format(", ".join(clean_deps)))
         opts = opts or []
-        args = ["pip", "install"] + opts + clean_deps + index_args
+        args = ["uv", "pip", "install"] + opts + clean_deps + index_args
         sys.stdout.flush()
         subprocess.check_output(args, stderr=subprocess.STDOUT)
         return failed

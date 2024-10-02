@@ -1,4 +1,5 @@
 """Public API: users."""
+
 import requests
 from wandb_gql import gql
 

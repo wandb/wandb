@@ -1,0 +1,81 @@
+id: 0.diffusers.sdxl
+plugin:
+    - wandb
+tag:
+  shard: standalone-gpu
+  platforms:
+    - linux
+command:
+    program: t1_sdxl_generation.py
+depend:
+    requirements:
+        - "diffusers>=0.23.1"
+assert:
+    - :wandb:runs_len: 1
+    - :wandb:runs[0][config][workflow][0][params][eta]: 0
+    - :wandb:runs[0][config][workflow][0][params][guidance_rescale]: 0
+    - :wandb:runs[0][config][workflow][0][params][guidance_scale]: 5
+    - :wandb:runs[0][config][workflow][0][params][negative_crops_coords_top_left][0]: 0
+    - :wandb:runs[0][config][workflow][0][params][negative_crops_coords_top_left][1]: 0
+    - :wandb:runs[0][config][workflow][0][params][num_images_per_prompt]: 1
+    - :wandb:runs[0][config][workflow][0][params][num_inference_steps]: 50
+    - :wandb:runs[0][config][workflow][0][params][output_type]: "latent"
+    - :wandb:runs[0][config][workflow][0][params][prompt]: "A small cactus with a happy face in the Sahara desert."
+    - :wandb:runs[0][config][workflow][0][params][generator][seed]: 10
+    - :wandb:runs[0][config][workflow][0][pipeline][_name_or_path]: "stabilityai/stable-diffusion-xl-Pipeline-Call-1-1.0"
+    - :wandb:runs[0][config][workflow][0][pipeline][force_zeros_for_empty_prompt]: true
+    - :wandb:runs[0][config][workflow][0][pipeline][pipeline-name]: "StableDiffusionXLPipeline"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][scheduler][1]: "EulerDiscreteScheduler"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder][1]: "CLIPTextModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder_2][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][text_encoder_2][1]: "CLIPTextModelWithProjection"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer][1]: "CLIPTokenizer"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer_2][0]: "transformers"
+    - :wandb:runs[0][config][workflow][0][pipeline][tokenizer_2][1]: "CLIPTokenizer"
+    - :wandb:runs[0][config][workflow][0][pipeline][unet][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][unet][1]: "UNet2DConditionModel"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][0][pipeline][vae][1]: "AutoencoderKL"
+    - :wandb:runs[0][config][workflow][0][stage]: "Pipeline-Call-1"
+    - :wandb:runs[0][config][workflow][1][params][aesthetic_score]: 6
+    - :wandb:runs[0][config][workflow][1][params][eta]: 0
+    - :wandb:runs[0][config][workflow][1][params][guidance_rescale]: 0
+    - :wandb:runs[0][config][workflow][1][params][guidance_scale]: 5
+    - :wandb:runs[0][config][workflow][1][params][negative_aesthetic_score]: 2.5
+    - :wandb:runs[0][config][workflow][1][params][negative_crops_coords_top_left][0]: 0
+    - :wandb:runs[0][config][workflow][1][params][negative_crops_coords_top_left][1]: 0
+    - :wandb:runs[0][config][workflow][1][params][num_images_per_prompt]: 1
+    - :wandb:runs[0][config][workflow][1][params][num_inference_steps]: 50
+    - :wandb:runs[0][config][workflow][1][params][output_type]: "pil"
+    - :wandb:runs[0][config][workflow][1][params][prompt]: "A small cactus with a happy face in the Sahara desert."
+    - :wandb:runs[0][config][workflow][1][params][generator][seed]: 10
+    - :wandb:runs[0][config][workflow][1][params][strength]: 0.3
+    - :wandb:runs[0][config][workflow][1][pipeline][_name_or_path]: "stabilityai/stable-diffusion-xl-Pipeline-Call-2-1.0"
+    - :wandb:runs[0][config][workflow][1][pipeline][force_zeros_for_empty_prompt]: false
+    - :wandb:runs[0][config][workflow][1][pipeline][pipeline-name][pipeline-name]: "StableDiffusionXLImg2ImgPipeline"
+    - :wandb:runs[0][config][workflow][1][pipeline][pipeline-name][requires_aesthetics_score]: true
+    - :wandb:runs[0][config][workflow][1][pipeline][scheduler][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][1][pipeline][scheduler][1]: "EulerDiscreteScheduler"
+    - :wandb:runs[0][config][workflow][1][pipeline][unet][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][1][pipeline][unet][1]: "UNet2DConditionModel"
+    - :wandb:runs[0][config][workflow][1][pipeline][vae][0]: "diffusers"
+    - :wandb:runs[0][config][workflow][1][pipeline][vae][1]: "AutoencoderKL"
+    - :wandb:runs[0][config][workflow][1][pipeline][stage]: "Pipeline-Call-2"
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][_type]: table-file
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-1][nrows]: 1
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-2][_type]: table-file
+    - :wandb:runs[0][summary][Result-Table][Pipeline-Call-2][nrows]: 1
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][_type]: image-file
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][caption]: "Prompt-1: A small cactus with a happy face in the Sahara desert.\nPrompt-2: None"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][format]: "png"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][height]: 1024
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][width]: 1024
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][_type]: image-file
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][caption]: "Prompt-1: A small cactus with a happy face in the Sahara desert.\nPrompt-2: None"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][format]: "png"
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][height]: 1024
+    - :wandb:runs[0][summary][Generated-Image][Pipeline-Call-1][width]: 1024
+    - :wandb:runs[0][exitcode]: 0

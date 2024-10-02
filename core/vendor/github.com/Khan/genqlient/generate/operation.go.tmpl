@@ -1,0 +1,49 @@
+// The query or mutation executed by {{.Name}}.
+const {{.Name}}_Operation = `{{$.Body}}`
+
+{{.Doc}}
+func {{.Name}}(
+    {{if ne .Config.ContextType "-" -}}
+    ctx_ {{ref .Config.ContextType}},
+    {{end}}
+    {{- if not .Config.ClientGetter -}}
+    client_ {{ref "github.com/Khan/genqlient/graphql.Client"}},
+    {{end}}
+    {{- if .Input -}}
+    {{- range .Input.Fields -}}
+    {{/* the GraphQL name here is the user-specified variable-name */ -}}
+    {{.GraphQLName}} {{.GoType.Reference}},
+    {{end -}}
+    {{end -}}
+) (*{{.ResponseName}}, {{if .Config.Extensions -}}map[string]interface{},{{end}} error) {
+    req_ := &graphql.Request{
+        OpName: "{{.Name}}",
+        Query:  {{.Name}}_Operation,
+    {{if .Input -}}
+        Variables: &{{.Input.GoName}}{
+        {{range .Input.Fields -}}
+        {{.GoName}}: {{.GraphQLName}},
+        {{end -}}
+        },
+    {{end -}}
+    }
+    var err_ error
+    {{if .Config.ClientGetter -}}
+    var client_ graphql.Client
+
+    client_, err_ = {{ref .Config.ClientGetter}}({{if ne .Config.ContextType "-"}}ctx_{{else}}{{end}})
+    if err_ != nil {
+        return nil, {{if .Config.Extensions -}}nil,{{end -}} err_
+    }
+    {{end}}
+    var data_ {{.ResponseName}}
+    resp_ := &graphql.Response{Data: &data_}
+
+    err_ = client_.MakeRequest(
+        {{if ne .Config.ContextType "-"}}ctx_{{else}}nil{{end}},
+        req_,
+        resp_,
+    )
+	
+    return &data_, {{if .Config.Extensions -}}resp_.Extensions,{{end -}} err_
+}

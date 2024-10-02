@@ -12,9 +12,9 @@ from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 import wandb
 from wandb import util
+from wandb.plot.viz import CustomChart
 from wandb.sdk.interface.interface import GlobStr
 from wandb.sdk.lib import filesystem
-from wandb.viz import CustomChart
 
 from . import run as internal_run
 
@@ -123,7 +123,7 @@ class TBWatcher:
         self._force = force
         # TODO(jhr): do we need locking in this queue?
         self._watcher_queue = queue.PriorityQueue()
-        wandb.tensorboard.reset_state()
+        wandb.tensorboard.reset_state()  # type: ignore
 
     def _calculate_namespace(self, logdir: str, rootdir: str) -> Optional[str]:
         namespace: Optional[str]
@@ -430,7 +430,7 @@ class TBEventConsumer:
     def _handle_event(
         self, event: "ProtoEvent", history: Optional["TBHistory"] = None
     ) -> None:
-        wandb.tensorboard._log(
+        wandb.tensorboard._log(  # type: ignore
             event.event,
             step=event.event.step,
             namespace=event.namespace,

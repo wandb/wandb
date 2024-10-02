@@ -7,7 +7,7 @@ from typing import Dict, Optional
 from wandb.sdk.launch.errors import LaunchError
 from wandb.util import get_module
 
-from ..utils import S3_URI_RE, event_loop_thread_exec
+from ..utils import ARN_PARTITION_RE, S3_URI_RE, event_loop_thread_exec
 from .abstract import AbstractEnvironment
 
 boto3 = get_module(
@@ -49,6 +49,7 @@ class AwsEnvironment(AbstractEnvironment):
         self._secret_key = secret_key
         self._session_token = session_token
         self._account = None
+        self._partition = None
 
     @classmethod
     def from_default(cls, region: Optional[str] = None) -> "AwsEnvironment":
@@ -121,6 +122,30 @@ class AwsEnvironment(AbstractEnvironment):
     @region.setter
     def region(self, region: str) -> None:
         self._region = region
+
+    async def get_partition(self) -> str:
+        """Set the partition for the AWS environment."""
+        try:
+            session = await self.get_session()
+            client = await event_loop_thread_exec(session.client)("sts")
+            get_caller_identity = event_loop_thread_exec(client.get_caller_identity)
+            identity = await get_caller_identity()
+            arn = identity.get("Arn")
+            if not arn:
+                raise LaunchError(
+                    "Could not set partition for AWS environment. ARN not found."
+                )
+            matched_partition = ARN_PARTITION_RE.match(arn)
+            if not matched_partition:
+                raise LaunchError(
+                    f"Could not set partition for AWS environment. ARN {arn} is not valid."
+                )
+            partition = matched_partition.group(1)
+            return partition
+        except botocore.exceptions.ClientError as e:
+            raise LaunchError(
+                f"Could not set partition for AWS environment. {e}"
+            ) from e
 
     async def verify(self) -> None:
         """Verify that the AWS environment is configured correctly.

@@ -14,7 +14,7 @@ try:
         Repo,
     )
 except ImportError:
-    Repo = None
+    Repo = None  # type: ignore
 
 if TYPE_CHECKING:
     from git import Repo
@@ -121,7 +121,7 @@ class GitRepo:
         # TODO: Saw a user getting a Unicode decode error when parsing refs,
         # more details on implementing a real fix in [WB-4064]
         try:
-            if len(self.repo.refs) > 0:
+            if len(self.repo.refs) > 0:  # type: ignore[arg-type]
                 return self.repo.head.commit.hexsha
             else:
                 return self.repo.git.show_ref("--head").split(" ")[0]
@@ -140,7 +140,7 @@ class GitRepo:
         if not self.repo:
             return None
         try:
-            return self.repo.remotes[self.remote_name]
+            return self.repo.remotes[self.remote_name]  # type: ignore[index]
         except IndexError:
             return None
 
@@ -200,7 +200,7 @@ class GitRepo:
                     possible_relatives.append(tracking_branch.commit)
 
             if not possible_relatives:
-                for branch in self.repo.branches:
+                for branch in self.repo.branches:  # type: ignore[attr-defined]
                     tracking_branch = branch.tracking_branch()
                     if tracking_branch is not None:
                         possible_relatives.append(tracking_branch.commit)

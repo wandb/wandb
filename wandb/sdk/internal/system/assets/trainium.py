@@ -133,7 +133,7 @@ class NeuronCoreStats:
                 process.kill()
                 process.wait()
         except Exception as e:
-            logger.error("neuron-monitor failed: %s" % e)
+            logger.error("neuron-monitor failed: {}".format(e))
 
     def __init__(
         self,
@@ -175,7 +175,7 @@ class NeuronCoreStats:
             assert self.neuron_monitor_thread is not None
             self.neuron_monitor_thread.join()
         except Exception as e:
-            logger.error("neuron-monitor thread failed to stop: %s" % e)
+            logger.error("neuron-monitor thread failed to stop: {}".format(e))
         finally:
             self.neuron_monitor_thread = None
 
@@ -197,9 +197,7 @@ class NeuronCoreStats:
                 entry["report"]
                 for entry in raw_stats["neuron_runtime_data"]
                 if self._is_matching_entry(entry)
-            ][
-                0
-            ]  # there should be only one entry with the pid
+            ][0]  # there should be only one entry with the pid
 
             neuroncores_in_use = neuron_runtime_data["neuroncore_counters"][
                 "neuroncores_in_use"
@@ -226,7 +224,8 @@ class NeuronCoreStats:
                 for k, v in usage_breakdown["neuroncore_memory_usage"].items()
             }
 
-            # executed with torchrun? only keep the local_rank stats
+            # When the training script is executed with torchrun,
+            # we only want to keep the relevant LOCAL_RANK stats
             local_rank = int(os.environ.get("LOCAL_RANK", -1337))
             if local_rank >= 0:
                 neuroncore_utilization = {
@@ -396,5 +395,5 @@ class Trainium:
 
             return {self.name: neuron_hardware_info}
         except Exception as e:
-            logger.error("neuron-monitor failed: %s" % e)
+            logger.error("neuron-monitor failed: {}".format(e))
             return {}

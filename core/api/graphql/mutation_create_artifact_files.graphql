@@ -9,8 +9,16 @@ mutation CreateArtifactFiles(
         files {
             edges {
                 node {
+                    storagePath
                     uploadUrl
                     uploadHeaders
+                    uploadMultipartUrls {
+                        uploadID
+                        uploadUrlParts {
+                            partNumber
+                            uploadUrl
+                        }
+                    }
                     artifact {
                         id
                     }

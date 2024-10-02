@@ -100,6 +100,10 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(telemetry=telem)
         self._publish(rec)
 
+    def _publish_job_input(self, job_input: pb.JobInputRequest) -> MailboxHandle:
+        record = self._make_request(job_input=job_input)
+        return self._deliver_record(record)
+
     def _make_stats(self, stats_dict: dict) -> pb.StatsRecord:
         stats = pb.StatsRecord()
         stats.stats_type = pb.StatsRecord.StatsType.SYSTEM
@@ -133,6 +137,7 @@ class InterfaceShared(InterfaceBase):
         check_version: Optional[pb.CheckVersionRequest] = None,
         log_artifact: Optional[pb.LogArtifactRequest] = None,
         download_artifact: Optional[pb.DownloadArtifactRequest] = None,
+        link_artifact: Optional[pb.LinkArtifactRequest] = None,
         defer: Optional[pb.DeferRequest] = None,
         attach: Optional[pb.AttachRequest] = None,
         server_info: Optional[pb.ServerInfoRequest] = None,
@@ -145,9 +150,9 @@ class InterfaceShared(InterfaceBase):
         cancel: Optional[pb.CancelRequest] = None,
         summary_record: Optional[pb.SummaryRecordRequest] = None,
         telemetry_record: Optional[pb.TelemetryRecordRequest] = None,
-        job_info: Optional[pb.JobInfoRequest] = None,
         get_system_metrics: Optional[pb.GetSystemMetricsRequest] = None,
         python_packages: Optional[pb.PythonPackagesRequest] = None,
+        job_input: Optional[pb.JobInputRequest] = None,
     ) -> pb.Record:
         request = pb.Request()
         if login:
@@ -180,6 +185,8 @@ class InterfaceShared(InterfaceBase):
             request.log_artifact.CopyFrom(log_artifact)
         elif download_artifact:
             request.download_artifact.CopyFrom(download_artifact)
+        elif link_artifact:
+            request.link_artifact.CopyFrom(link_artifact)
         elif defer:
             request.defer.CopyFrom(defer)
         elif attach:
@@ -202,14 +209,14 @@ class InterfaceShared(InterfaceBase):
             request.summary_record.CopyFrom(summary_record)
         elif telemetry_record:
             request.telemetry_record.CopyFrom(telemetry_record)
-        elif job_info:
-            request.job_info.CopyFrom(job_info)
         elif get_system_metrics:
             request.get_system_metrics.CopyFrom(get_system_metrics)
         elif sync:
             request.sync.CopyFrom(sync)
         elif python_packages:
             request.python_packages.CopyFrom(python_packages)
+        elif job_input:
+            request.job_input.CopyFrom(job_input)
         else:
             raise Exception("Invalid request")
         record = self._make_record(request=request)
@@ -238,7 +245,6 @@ class InterfaceShared(InterfaceBase):
         request: Optional[pb.Request] = None,
         telemetry: Optional[tpb.TelemetryRecord] = None,
         preempting: Optional[pb.RunPreemptingRecord] = None,
-        link_artifact: Optional[pb.LinkArtifactRecord] = None,
         use_artifact: Optional[pb.UseArtifactRecord] = None,
         output: Optional[pb.OutputRecord] = None,
         output_raw: Optional[pb.OutputRawRecord] = None,
@@ -278,8 +284,6 @@ class InterfaceShared(InterfaceBase):
             record.metric.CopyFrom(metric)
         elif preempting:
             record.preempting.CopyFrom(preempting)
-        elif link_artifact:
-            record.link_artifact.CopyFrom(link_artifact)
         elif use_artifact:
             record.use_artifact.CopyFrom(use_artifact)
         elif output:
@@ -295,7 +299,7 @@ class InterfaceShared(InterfaceBase):
         raise NotImplementedError
 
     def _communicate(
-        self, rec: pb.Record, timeout: Optional[int] = 5, local: Optional[bool] = None
+        self, rec: pb.Record, timeout: Optional[int] = 30, local: Optional[bool] = None
     ) -> Optional[pb.Result]:
         return self._communicate_async(rec, local=local).get(timeout=timeout)
 
@@ -317,7 +321,7 @@ class InterfaceShared(InterfaceBase):
         if result is None:
             # TODO: friendlier error message here
             raise wandb.Error(
-                "Couldn't communicate with backend after %s seconds" % timeout
+                "Couldn't communicate with backend after {} seconds".format(timeout)
             )
         login_response = result.response.login_response
         assert login_response
@@ -389,22 +393,24 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(files=files)
         self._publish(rec)
 
-    def _publish_link_artifact(self, link_artifact: pb.LinkArtifactRecord) -> None:
-        rec = self._make_record(link_artifact=link_artifact)
-        self._publish(rec)
-
-    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> None:
+    def _publish_use_artifact(self, use_artifact: pb.UseArtifactRecord) -> Any:
         rec = self._make_record(use_artifact=use_artifact)
         self._publish(rec)
 
-    def _deliver_artifact(self, log_artifact: pb.LogArtifactRequest) -> MailboxHandle:
+    def _communicate_artifact(self, log_artifact: pb.LogArtifactRequest) -> Any:
         rec = self._make_request(log_artifact=log_artifact)
-        return self._deliver_record(rec)
+        return self._communicate_async(rec)
 
     def _deliver_download_artifact(
         self, download_artifact: pb.DownloadArtifactRequest
     ) -> MailboxHandle:
         rec = self._make_request(download_artifact=download_artifact)
+        return self._deliver_record(rec)
+
+    def _deliver_link_artifact(
+        self, link_artifact: pb.LinkArtifactRequest
+    ) -> MailboxHandle:
+        rec = self._make_request(link_artifact=link_artifact)
         return self._deliver_record(rec)
 
     def _publish_artifact(self, proto_artifact: pb.ArtifactRecord) -> None:
@@ -415,15 +421,12 @@ class InterfaceShared(InterfaceBase):
         rec = self._make_record(alert=proto_alert)
         self._publish(rec)
 
-    def _communicate_status(
-        self, status: pb.StatusRequest
-    ) -> Optional[pb.StatusResponse]:
+    def _deliver_status(
+        self,
+        status: pb.StatusRequest,
+    ) -> MailboxHandle:
         req = self._make_request(status=status)
-        resp = self._communicate(req, local=True)
-        if resp is None:
-            return None
-        assert resp.response.status_response
-        return resp.response.status_response
+        return self._deliver_record(req)
 
     def _publish_exit(self, exit_data: pb.RunExitRecord) -> None:
         rec = self._make_record(exit=exit_data)
@@ -487,12 +490,6 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(attach=attach)
         return self._deliver_record(record)
 
-    def _deliver_check_version(
-        self, check_version: pb.CheckVersionRequest
-    ) -> MailboxHandle:
-        record = self._make_request(check_version=check_version)
-        return self._deliver_record(record)
-
     def _deliver_network_status(
         self, network_status: pb.NetworkStatusRequest
     ) -> MailboxHandle:
@@ -505,12 +502,6 @@ class InterfaceShared(InterfaceBase):
         record = self._make_request(internal_messages=internal_message)
         return self._deliver_record(record)
 
-    def _deliver_request_server_info(
-        self, server_info: pb.ServerInfoRequest
-    ) -> MailboxHandle:
-        record = self._make_request(server_info=server_info)
-        return self._deliver_record(record)
-
     def _deliver_request_sampled_history(
         self, sampled_history: pb.SampledHistoryRequest
     ) -> MailboxHandle:
@@ -521,10 +512,6 @@ class InterfaceShared(InterfaceBase):
         self, run_status: pb.RunStatusRequest
     ) -> MailboxHandle:
         record = self._make_request(run_status=run_status)
-        return self._deliver_record(record)
-
-    def _deliver_request_job_info(self, job_info: pb.JobInfoRequest) -> MailboxHandle:
-        record = self._make_request(job_info=job_info)
         return self._deliver_record(record)
 
     def _transport_keepalive_failed(self, keepalive_interval: int = 5) -> bool:

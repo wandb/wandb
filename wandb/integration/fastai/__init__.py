@@ -35,6 +35,7 @@ Examples:
         learn.fit(..., callbacks=WandbCallback(learn, ...))
     ```
 """
+
 import random
 import sys
 from pathlib import Path

@@ -1,4 +1,5 @@
 """Artifact TTL."""
+
 from enum import Enum
 
 
