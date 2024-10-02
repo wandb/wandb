@@ -5,16 +5,16 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/collections"
 	. "github.com/wandb/wandb/core/internal/runconsolelogs"
+	"github.com/wandb/wandb/core/internal/sparselist"
 	"golang.org/x/time/rate"
 )
 
 func TestInvokesCallback(t *testing.T) {
-	flushes := make(chan collections.SparseList[*RunLogsLine], 1)
+	flushes := make(chan sparselist.SparseList[*RunLogsLine], 1)
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Inf, 1),
-		func(lines collections.SparseList[*RunLogsLine]) {
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			flushes <- lines
 		},
 	)

@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/wandb/wandb/core/internal/collections"
+	"github.com/wandb/wandb/core/internal/sparselist"
 	"golang.org/x/time/rate"
 )
 
@@ -14,10 +14,10 @@ type debouncedWriter struct {
 	wg sync.WaitGroup
 
 	isFlushing bool
-	flush      func(collections.SparseList[*RunLogsLine])
+	flush      func(sparselist.SparseList[*RunLogsLine])
 	rateLimit  *rate.Limiter
 
-	buffer collections.SparseList[*RunLogsLine]
+	buffer sparselist.SparseList[*RunLogsLine]
 }
 
 // NewDebouncedWriter creates a writer that buffers changes and invokes flush
@@ -26,7 +26,7 @@ type debouncedWriter struct {
 // Stops invoking `flush` after the context is cancelled.
 func NewDebouncedWriter(
 	rateLimit *rate.Limiter,
-	flush func(collections.SparseList[*RunLogsLine]),
+	flush func(sparselist.SparseList[*RunLogsLine]),
 ) *debouncedWriter {
 	return &debouncedWriter{
 		flush:     flush,
@@ -68,7 +68,7 @@ func (b *debouncedWriter) loopFlushBuffer() {
 		}
 
 		lines := b.buffer
-		b.buffer = collections.SparseList[*RunLogsLine]{}
+		b.buffer = sparselist.SparseList[*RunLogsLine]{}
 		b.mu.Unlock()
 
 		b.flush(lines)

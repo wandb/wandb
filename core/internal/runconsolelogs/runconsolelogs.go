@@ -7,12 +7,12 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/collections"
 	"github.com/wandb/wandb/core/internal/filestream"
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/observability"
 	"github.com/wandb/wandb/core/internal/paths"
 	"github.com/wandb/wandb/core/internal/runfiles"
+	"github.com/wandb/wandb/core/internal/sparselist"
 	"github.com/wandb/wandb/core/internal/terminalemulator"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 	"golang.org/x/time/rate"
@@ -105,7 +105,7 @@ func New(params Params) *Sender {
 
 	writer := NewDebouncedWriter(
 		rate.NewLimiter(rate.Every(10*time.Millisecond), 1),
-		func(lines collections.SparseList[*RunLogsLine]) {
+		func(lines sparselist.SparseList[*RunLogsLine]) {
 			if fileWriter != nil {
 				err := fileWriter.WriteToFile(lines)
 

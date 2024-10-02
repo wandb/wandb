@@ -6,7 +6,7 @@ import (
 	"io/fs"
 	"os"
 
-	"github.com/wandb/wandb/core/internal/collections"
+	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
 // lineFile is a file containing line-oriented text.
@@ -52,7 +52,7 @@ func CreateLineFile(path string, perm fs.FileMode) (*lineFile, error) {
 // UpdateLines replaces lines in the file.
 //
 // This is written for performance when updating lines near the end of the file.
-func (f *lineFile) UpdateLines(lines collections.SparseList[string]) (err error) {
+func (f *lineFile) UpdateLines(lines sparselist.SparseList[string]) (err error) {
 	if lines.Len() == 0 {
 		return nil
 	}

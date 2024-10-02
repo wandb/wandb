@@ -4,8 +4,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/collections"
 	. "github.com/wandb/wandb/core/internal/filestream"
+	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
 func TestSizeLimit_HugeLine_SentAlone(t *testing.T) {
@@ -146,7 +146,7 @@ func TestConsole_MergeUpdatesPreferringLast(t *testing.T) {
 	req1.Merge(req2)
 
 	assert.Equal(t,
-		[]collections.SparseListRun[string]{
+		[]sparselist.Run[string]{
 			{Start: 0, Items: []string{"req2 - 0"}},
 			{Start: 5, Items: []string{"req1 - 5", "req2 - 6"}},
 		},

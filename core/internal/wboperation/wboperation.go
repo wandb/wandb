@@ -19,13 +19,13 @@
 package wboperation
 
 import (
+	"container/list"
 	"context"
 	"errors"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/wandb/wandb/core/internal/collections"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
 
@@ -56,11 +56,16 @@ type WandbOperations struct {
 	mu sync.Mutex
 
 	// operations is all operations sorted in ascending order by startTime.
-	operations collections.DoublyLinkedList[*WandbOperation]
+	//
+	// We use a doubly-linked list because operations are removed frequently
+	// and in random order, and there may be a large number of them.
+	operations list.List
 }
 
 func NewOperations() *WandbOperations {
-	return &WandbOperations{}
+	ops := &WandbOperations{}
+	ops.operations.Init()
+	return ops
 }
 
 // New starts a new operation with the given name.
@@ -84,7 +89,9 @@ func (ops *WandbOperations) New(desc string) *WandbOperation {
 		startTime: time.Now(),
 	}
 
-	op.node = ops.operations.Append(op)
+	op.subtasks.Init()
+	op.sourceList = &ops.operations
+	op.sourceNode = ops.operations.PushBack(op)
 
 	return op
 }
@@ -103,13 +110,13 @@ func (ops *WandbOperations) ToProto() *spb.OperationStats {
 	}
 
 	i := 0
-	for _, op := range ops.operations.Iter() {
+	e := ops.operations.Front()
+	for i < maxOperationsToReturn && e != nil {
+		op := e.Value.(*WandbOperation)
 		stats.Operations = append(stats.Operations, op.ToProto())
 
 		i++
-		if i >= maxOperationsToReturn {
-			break
-		}
+		e = e.Next()
 	}
 
 	return stats
@@ -125,15 +132,20 @@ func (ops *WandbOperations) ToProto() *spb.OperationStats {
 type WandbOperation struct {
 	root *WandbOperations // set of operations this belongs to
 
-	// node is a reference to this operation's position in a list.
+	// sourceList is the list this operation is in.
 	//
-	// It's either a node in the root list, or a node in an operation's subtask list.
-	node *collections.DoublyLinkedListNode[*WandbOperation]
+	// This may be the root list, or another operation's subtask list.
+	sourceList *list.List
+
+	// sourceNode is this operation's position in the sourceList.
+	//
+	// It is used to remove the operation from the list once it is finished.
+	sourceNode *list.Element
 
 	// subtasks is the list of this operation's subtasks sorted by startTime.
 	//
 	// Access is protected by the root mutex.
-	subtasks collections.DoublyLinkedList[*WandbOperation]
+	subtasks list.List
 
 	// mu is locked for modifying this operation's state.
 	//
@@ -166,13 +178,13 @@ func (op *WandbOperation) ToProto() *spb.Operation {
 	}
 
 	i := 0
-	for _, subtask := range op.subtasks.Iter() {
+	e := op.subtasks.Front()
+	for i < maxOperationsToReturn && e != nil {
+		subtask := e.Value.(*WandbOperation)
 		proto.Subtasks = append(proto.Subtasks, subtask.ToProto())
 
 		i++
-		if i >= maxOperationsToReturn {
-			break
-		}
+		e = e.Next()
 	}
 
 	return proto
@@ -258,7 +270,9 @@ func (op *WandbOperation) Subtask(desc string) *WandbOperation {
 		startTime: time.Now(),
 	}
 
-	subtask.node = op.subtasks.Append(subtask)
+	subtask.subtasks.Init()
+	subtask.sourceList = &op.subtasks
+	subtask.sourceNode = op.subtasks.PushBack(subtask)
 
 	return subtask
 }
@@ -286,7 +300,7 @@ func (op *WandbOperation) Finish() {
 	}
 
 	op.isFinished = true
-	op.node.Remove()
+	op.sourceList.Remove(op.sourceNode)
 }
 
 // WandbProgress is a handle for setting the progress on an operation.
