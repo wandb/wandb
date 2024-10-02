@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/wandb/wandb/core/internal/collections"
+	"github.com/wandb/wandb/core/internal/sparselist"
 )
 
 func TestUpdateLines(t *testing.T) {
@@ -16,7 +16,7 @@ func TestUpdateLines(t *testing.T) {
 	require.NoError(t, err)
 
 	// TEST: Append new lines.
-	lines := collections.SparseList[string]{}
+	lines := sparselist.SparseList[string]{}
 	lines.Put(0, "one")
 	lines.Put(1, "two")
 	lines.Put(3, "four")
@@ -29,7 +29,7 @@ func TestUpdateLines(t *testing.T) {
 		string(content))
 
 	// TEST: Modify old lines, use non-ASCII characters.
-	lines = collections.SparseList[string]{}
+	lines = sparselist.SparseList[string]{}
 	lines.Put(1, "two 💥") // 💥 takes 4 UTF-8 codepoints
 	lines.Put(2, "three, added")
 	lines.Put(6, "seven, new")

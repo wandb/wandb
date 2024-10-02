@@ -1,4 +1,4 @@
-package collections
+package sparselist
 
 import (
 	"maps"
@@ -124,8 +124,8 @@ func (l *SparseList[T]) ForEach(fn func(int, T)) {
 	}
 }
 
-// MapSparseList returns a new list by applying a transformation to each element.
-func MapSparseList[T, U any](list SparseList[T], fn func(T) U) SparseList[U] {
+// Map returns a new list by applying a transformation to each element.
+func Map[T, U any](list SparseList[T], fn func(T) U) SparseList[U] {
 	result := SparseList[U]{}
 
 	list.ForEach(func(i int, x T) {
@@ -135,8 +135,8 @@ func MapSparseList[T, U any](list SparseList[T], fn func(T) U) SparseList[U] {
 	return result
 }
 
-// SparseListRun is a sequence of consecutive values in a sparse list.
-type SparseListRun[T any] struct {
+// Run is a sequence of consecutive values in a sparse list.
+type Run[T any] struct {
 	// Start is the index in the list where the run starts.
 	Start int
 
@@ -145,7 +145,7 @@ type SparseListRun[T any] struct {
 }
 
 // ToRuns returns the runs of consecutive values in the list.
-func (l *SparseList[T]) ToRuns() []SparseListRun[T] {
+func (l *SparseList[T]) ToRuns() []Run[T] {
 	indices := make([]int, 0, len(l.items))
 	for listIdx := range l.items {
 		indices = append(indices, listIdx)
@@ -153,10 +153,10 @@ func (l *SparseList[T]) ToRuns() []SparseListRun[T] {
 	slices.Sort(indices)
 
 	if len(indices) == 0 {
-		return make([]SparseListRun[T], 0)
+		return make([]Run[T], 0)
 	}
 
-	runs := []SparseListRun[T]{
+	runs := []Run[T]{
 		{
 			Start: indices[0],
 			Items: []T{l.items[indices[0]]},
@@ -173,7 +173,7 @@ func (l *SparseList[T]) ToRuns() []SparseListRun[T] {
 			prevRun.Items = append(prevRun.Items, item)
 		} else {
 			// We're starting a new run.
-			runs = append(runs, SparseListRun[T]{
+			runs = append(runs, Run[T]{
 				Start: listIdx,
 				Items: []T{item},
 			})

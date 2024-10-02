@@ -1,12 +1,10 @@
 package filestream
 
-import (
-	"github.com/wandb/wandb/core/internal/collections"
-)
+import "github.com/wandb/wandb/core/internal/sparselist"
 
 // LogsUpdate is new lines in a run's console output.
 type LogsUpdate struct {
-	Lines collections.SparseList[string]
+	Lines sparselist.SparseList[string]
 }
 
 func (u *LogsUpdate) Apply(ctx UpdateContext) error {
