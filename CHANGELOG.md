@@ -11,6 +11,8 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+## [0.18.3] - 2024-10-01
+
 ### Added
 
 - Add the ability to monitor the utilization metrics of Google's Cloud TPU devices (@dmitryduev in https://github.com/wandb/wandb/pull/8504)
@@ -21,6 +23,7 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 - Fixed a regression introduced in v0.18.2 that affected capturing the names of Nvidia GPU devices (@dmitryduev in https://github.com/wandb/wandb/pull/8503)
 - `run.log_artifact()` no longer blocks other data uploads until the artifact upload finishes (@timoffex in https://github.com/wandb/wandb/pull/8466)
 - Fixed media dependency for rdkit updated from `rdkit-pypi` to `rdkit` (@jacobromero in https://github.com/wandb/wandb/compare/WB-20894)
+- Saving an artifact with many large files no longer exhausts OS threads (@timoffex in https://github.com/wandb/wandb/pull/8518)
 
 ### Changed
 
