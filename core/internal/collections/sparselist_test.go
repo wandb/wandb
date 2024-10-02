@@ -1,14 +1,14 @@
-package sparselist_test
+package collections_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/wandb/wandb/core/internal/sparselist"
+	"github.com/wandb/wandb/core/internal/collections"
 )
 
 func TestSparseListGet(t *testing.T) {
-	list := sparselist.SparseList[string]{}
+	list := collections.SparseList[string]{}
 
 	_, existed := list.Get(0)
 	assert.False(t, existed)
@@ -20,7 +20,7 @@ func TestSparseListGet(t *testing.T) {
 }
 
 func TestSparseListRuns(t *testing.T) {
-	list := sparselist.SparseList[string]{}
+	list := collections.SparseList[string]{}
 
 	list.Put(0, "zero")
 	list.Put(1, "one")
@@ -30,7 +30,7 @@ func TestSparseListRuns(t *testing.T) {
 	list.Delete(2)
 
 	assert.Equal(t,
-		[]sparselist.Run[string]{
+		[]collections.SparseListRun[string]{
 			{Start: 0, Items: []string{"zero", "one"}},
 			{Start: 3, Items: []string{"three", "four"}},
 		},
@@ -38,33 +38,33 @@ func TestSparseListRuns(t *testing.T) {
 }
 
 func TestSparseListEmpty(t *testing.T) {
-	emptyList := sparselist.SparseList[string]{}
+	emptyList := collections.SparseList[string]{}
 
 	assert.Equal(t,
-		[]sparselist.Run[string]{},
+		[]collections.SparseListRun[string]{},
 		emptyList.ToRuns())
 }
 
 func TestSparseListUpdate(t *testing.T) {
-	list1 := sparselist.SparseList[string]{}
+	list1 := collections.SparseList[string]{}
 	list1.Put(0, "a")
 	list1.Put(1, "b")
 	list1.Put(2, "c")
-	list2 := sparselist.SparseList[string]{}
+	list2 := collections.SparseList[string]{}
 	list2.Put(1, "x")
 	list2.Put(3, "y")
 
 	list1.Update(list2)
 
 	assert.Equal(t,
-		[]sparselist.Run[string]{
+		[]collections.SparseListRun[string]{
 			{Start: 0, Items: []string{"a", "x", "c", "y"}},
 		},
 		list1.ToRuns())
 }
 
 func TestSparseListIndices(t *testing.T) {
-	list := sparselist.SparseList[string]{}
+	list := collections.SparseList[string]{}
 
 	list.Put(-1, "a")
 	list.Put(99, "b")
@@ -84,16 +84,16 @@ func TestSparseListIndices(t *testing.T) {
 }
 
 func TestSparseListMap(t *testing.T) {
-	list := sparselist.SparseList[float64]{}
+	list := collections.SparseList[float64]{}
 	list.Put(0, 1.23)
 	list.Put(1, 4.56)
 	list.Put(2, 7.89)
 
-	result := sparselist.Map(list,
+	result := collections.MapSparseList(list,
 		func(x float64) float64 { return -x })
 
 	assert.Equal(t,
-		[]sparselist.Run[float64]{
+		[]collections.SparseListRun[float64]{
 			{Start: 0, Items: []float64{-1.23, -4.56, -7.89}},
 		},
 		result.ToRuns())
