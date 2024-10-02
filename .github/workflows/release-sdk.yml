@@ -48,6 +48,11 @@ jobs:
         run: |
           bump2version patch --no-tag --no-commit --config-file .bumpversion.wandb.cfg --new-version ${{ github.event.inputs.version }}
 
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
       - name: Bump C# SDK Version
         run: |
           VERSION="${{ github.event.inputs.version }}"
