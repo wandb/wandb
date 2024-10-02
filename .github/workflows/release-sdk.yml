@@ -69,17 +69,17 @@ jobs:
             exit 1
           fi
 
-          dotnet tool install -g dotnet-setversion
-          export PATH="$PATH:$HOME/.dotnet/tools"
+          dotnet tool install --tool-path ./.dotnet_tools dotnet-setversion
+          export PATH="$PATH:$(pwd)/.dotnet_tools"
 
           # Path to the project
           export PROJECT_PATH="experimental/client-csharp/src/Wandb/Wandb.csproj"
           if [ -z "$VERSION_SUFFIX" ]; then
-            dotnet setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
+            setversion --version "$VERSION_PREFIX" "$PROJECT_PATH"
           else
-            dotnet setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
+            setversion --version "$VERSION_PREFIX-$VERSION_SUFFIX" "$PROJECT_PATH"
           fi
-          dotnet setversion --version "0.19.0" "experimental/client-csharp/src/Wandb/Wandb.csproj"
+          setversion --version "0.19.0" "experimental/client-csharp/src/Wandb/Wandb.csproj"
           cat "$PROJECT_PATH"
 
       - name: Update CHANGELOG.md
