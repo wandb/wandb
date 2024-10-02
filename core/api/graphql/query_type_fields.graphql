@@ -1,3 +1,4 @@
+# Query is used to fetch the fields of a given type to check server compatibility
 query TypeFields (
     $typeName: String!
 ) {

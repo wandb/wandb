@@ -3490,9 +3490,7 @@ class Api:
 
         org_entity = ""
         if is_artifact_registry_project(project):
-            org_entity = self._resolve_org_entity_name(
-                entity, organization, project, portfolio_name
-            )
+            org_entity = self._resolve_org_entity_name(entity, organization)
 
         def replace(a: str, b: str) -> None:
             nonlocal template
@@ -3522,15 +3520,16 @@ class Api:
         link_artifact: Dict[str, Any] = response["linkArtifact"]
         return link_artifact
 
-    def _resolve_org_entity_name(
-        self, entity: str, organization: str, project: str, portfolio_name: str
-    ) -> str:
+    def _resolve_org_entity_name(self, entity: str, organization: str) -> str:
+        # Fetches the org entity of the portfolio entity to
+        # 1. validate the user inputted the correct display org name or org entity name and
+        # 2. return the org entity name so we can use the correct entity name to link the artifact.
         org_fields = self.server_organization_introspection()
         can_fetch_org_entity = "orgEntity" in org_fields
         if not organization and not can_fetch_org_entity:
             raise ValueError(
                 """Fetching Registry artifacts without inputting an organization is unavailable for your server version.
-                Please upgrade your server to XX or later."""
+                Please upgrade your server to 0.50.0 or later."""
             )
         elif can_fetch_org_entity:
             org_entity, org_name = self.fetch_org_entity_from_entity(entity)

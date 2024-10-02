@@ -8,7 +8,6 @@ import (
 	"github.com/Khan/genqlient/graphql"
 
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/gqlprobe"
 	"github.com/wandb/wandb/core/internal/observability"
 	spb "github.com/wandb/wandb/core/pkg/service_go_proto"
 )
@@ -84,14 +83,17 @@ func (al *ArtifactLinker) Link() error {
 }
 
 func (al *ArtifactLinker) resolveOrgEntityName(portfolioEntity string, organization string) (string, error) {
-	orgFieldNames, err := gqlprobe.GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
+	// Fetches the org entity of the portfolio entity to
+	// 1. validate the user inputted the correct display org name or org entity name and
+	// 2. return the org entity name so we can use the correct entity name to link the artifact.
+	orgFieldNames, err := GetGraphQLFields(al.Ctx, al.GraphqlClient, "Organization")
 	if err != nil {
 		return "", err
 	}
 	canFetchOrgEntity := slices.Contains(orgFieldNames, "orgEntity")
 	switch {
 	case organization == "" && !canFetchOrgEntity:
-		return "", fmt.Errorf("Fetching Registry artifacts without inputting an organization is unavailable for your server version. Please upgrade your server to XX or later.")
+		return "", fmt.Errorf("Fetching Registry artifacts without inputting an organization is unavailable for your server version. Please upgrade your server to 0.50.0 or later.")
 	case canFetchOrgEntity:
 		response, err := gql.FetchOrgEntityFromEntity(
 			al.Ctx,

@@ -19,7 +19,6 @@ import (
 
 	"github.com/wandb/wandb/core/internal/filetransfer"
 	"github.com/wandb/wandb/core/internal/gql"
-	"github.com/wandb/wandb/core/internal/gqlprobe"
 	"github.com/wandb/wandb/core/internal/hashencode"
 	"github.com/wandb/wandb/core/internal/namedgoroutines"
 	"github.com/wandb/wandb/core/internal/nullify"
@@ -177,7 +176,7 @@ func (as *ArtifactSaver) createArtifact() (
 	}
 
 	// Check which fields are actually supported on the input
-	inputFieldNames, err := gqlprobe.GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
+	inputFieldNames, err := GetGraphQLInputFields(as.ctx, as.graphqlClient, "CreateArtifactInput")
 	if err != nil {
 		return gql.CreatedArtifactArtifact{}, err
 	}
