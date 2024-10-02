@@ -11,6 +11,10 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 
 ## Unreleased
 
+### Changed
+
+- Updated minimum version of `sentry-sdk` to 2.0.0 to address deprecation warnings. (@jacobromero in https://github.com/wandb/wandb/compare/WB-20890)
+
 ## [0.18.3] - 2024-10-01
 
 ### Added
@@ -28,7 +32,6 @@ Please add to the relevant subsections under Unreleased below on every PR where 
 ### Changed
 
 - After `artifact = run.log_artifact()`, you must use `artifact.wait()` before operations that rely on the artifact having been uploaded. Previously, this wasn't necessary in some cases because `run.log_artifact()` blocked other operations on the run (@timoffex in https://github.com/wandb/wandb/pull/8466)
-- Updated minimum version of `sentry-sdk` to 2.0.0 to address deprecation warnings. (@jacobromero in https://github.com/wandb/wandb/compare/WB-20890)
 
 ## [0.18.2] - 2024-09-27
 
